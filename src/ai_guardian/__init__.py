@@ -28,6 +28,14 @@ except ImportError:
     HAS_TOOL_POLICY = False
     logging.warning("tool_policy module not available - MCP/Skill permissions disabled")
 
+# Import pattern server for enhanced secret detection
+try:
+    from ai_guardian.pattern_server import PatternServerClient
+    HAS_PATTERN_SERVER = True
+except ImportError:
+    HAS_PATTERN_SERVER = False
+    logging.debug("pattern_server module not available")
+
 # Configure logging - will be disabled for Cursor hooks
 logging.basicConfig(
     level=logging.INFO,
@@ -329,12 +337,43 @@ def extract_file_content_from_tool(hook_data):
         return None, "unknown_file", None, False, None
 
 
+def _load_pattern_server_config():
+    """
+    Load pattern server configuration from ai-guardian.json.
+
+    Returns:
+        dict: Pattern server configuration or None
+    """
+    try:
+        # Try user global config first
+        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        config_path = Path(config_home) / "ai-guardian" / "ai-guardian.json"
+
+        if not config_path.exists():
+            # Try project local config
+            config_path = Path.cwd() / ".ai-guardian.json"
+
+        if not config_path.exists():
+            return None
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        return config.get("pattern_server")
+
+    except Exception as e:
+        logging.debug(f"Error loading pattern server config: {e}")
+        return None
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file"):
     """
     Check content for secrets using Gitleaks binary.
 
     Scans content for secrets using the open-source Gitleaks tool.
     Uses in-memory temp files on Linux for better performance.
+
+    Supports optional pattern server integration for enhanced detection patterns.
 
     Args:
         content: The text content to scan for secrets
@@ -363,8 +402,28 @@ def check_secrets_with_gitleaks(content, filename="temp_file"):
             tmp_file_path = tmp_file.name
 
         try:
-            # Check for custom Gitleaks configuration
-            gitleaks_config = Path(".gitleaks.toml")
+            # Determine which Gitleaks configuration to use
+            gitleaks_config_path = None
+
+            # Priority 1: Pattern server (if enabled and available)
+            if HAS_PATTERN_SERVER:
+                pattern_config = _load_pattern_server_config()
+                if pattern_config:
+                    try:
+                        pattern_client = PatternServerClient(pattern_config)
+                        server_patterns = pattern_client.get_patterns_path()
+                        if server_patterns:
+                            gitleaks_config_path = server_patterns
+                            logging.debug(f"Using pattern server config: {server_patterns}")
+                    except Exception as e:
+                        logging.debug(f"Pattern server error (using default): {e}")
+
+            # Priority 2: Project-specific .gitleaks.toml
+            if not gitleaks_config_path:
+                project_config = Path(".gitleaks.toml")
+                if project_config.exists():
+                    gitleaks_config_path = project_config
+                    logging.debug(f"Using project config: {project_config}")
 
             # Build gitleaks command
             cmd = [
@@ -377,9 +436,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file"):
                 '--source', tmp_file_path,
             ]
 
-            # Add custom config if present
-            if gitleaks_config.exists():
-                cmd.extend(['--config', str(gitleaks_config.absolute())])
+            # Add custom config if we have one
+            if gitleaks_config_path:
+                cmd.extend(['--config', str(Path(gitleaks_config_path).absolute())])
 
             # Run Gitleaks scanner
             result = subprocess.run(

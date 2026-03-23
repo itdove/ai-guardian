@@ -1,0 +1,180 @@
+{
+  "_comment": "====================================================================",
+  "_comment1": "AI Guardian Configuration - MCP Server and Skill Permissions",
+  "_comment2": "====================================================================",
+  "_comment3": "Place this file at: ~/.config/ai-guardian/ai-guardian.json",
+  "_comment4": "",
+  "_comment5": "Default Security Posture:",
+  "_comment6": "  - Built-in tools (Read, Write, Bash, etc.): ALLOW by default",
+  "_comment7": "  - Skills (Skill): BLOCK by default (must be explicitly allowed)",
+  "_comment8": "  - MCP Servers (mcp__*): BLOCK by default (must be explicitly allowed)",
+  "_comment9": "====================================================================",
+
+  "permissions": [
+    {
+      "_comment": "Skills - must be explicitly allowed",
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": [
+        "daf-*",
+        "gh-cli",
+        "git-cli",
+        "glab-cli",
+        "arc",
+        "claude-api",
+        "update-config"
+      ]
+    },
+    {
+      "_comment": "MCP tools - must be explicitly allowed (optional - can use settings.json)",
+      "matcher": "mcp__*",
+      "mode": "allow",
+      "patterns": [
+        "mcp__notebooklm-mcp__notebook_list",
+        "mcp__notebooklm-mcp__notebook_get",
+        "mcp__notebooklm-mcp__notebook_query",
+        "mcp__notebooklm-mcp__source_add",
+        "mcp__atlassian__getJiraIssue",
+        "mcp__atlassian__searchJiraIssuesUsingJql"
+      ]
+    },
+    {
+      "_comment": "Enterprise restrictions - block dangerous Bash operations",
+      "matcher": "Bash",
+      "mode": "deny",
+      "patterns": [
+        "*rm -rf*",
+        "*mkfs*",
+        "*dd if=*"
+      ]
+    },
+    {
+      "_comment": "Enterprise restrictions - block system directory writes",
+      "matcher": "Write",
+      "mode": "deny",
+      "patterns": [
+        "/etc/*",
+        "/sys/*",
+        "/proc/*"
+      ]
+    }
+  ],
+
+  "permissions_directories": {
+    "_comment": "OPTIONAL/ADVANCED: Auto-discover from directories (most users should use remote_configs instead)",
+    "_comment2": "Use this for local development or when you can't pre-list all items",
+    "_examples": [
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "url": "https://github.com/your-org/skills/tree/main/skills",
+        "token_env": "GITHUB_TOKEN"
+      },
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "url": "/Users/yourname/.claude/skills"
+      }
+    ]
+  },
+
+  "remote_configs": {
+    "_comment": "RECOMMENDED: Load policies from remote URLs (enterprise/team policies)",
+    "_comment2": "This is the preferred way to manage permissions - easier than directory discovery",
+    "_comment3": "Remote policy can include complete permissions, no need for dynamic discovery",
+    "urls": [
+      {
+        "url": "https://example.com/policies/ai-guardian-enterprise.json",
+        "enabled": false,
+        "_comment": "Enterprise-wide policy with complete permissions list"
+      }
+    ],
+    "refresh_interval_hours": 12,
+    "expire_after_hours": 168
+  },
+
+  "pattern_server": {
+    "_comment": "Optional: Enhanced secret detection patterns from a pattern server",
+    "_comment2": "This is an ADVANCED feature - most users should use default Gitleaks patterns",
+    "_comment3": "Configure your organization's pattern server URL and authentication",
+    "enabled": false,
+    "url": null,
+    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+    "auth": {
+      "method": "bearer",
+      "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
+      "token_file": "~/.config/ai-guardian/pattern-token",
+      "_comment": "Token auth: Set env var OR save to token_file (pick one method)",
+      "_comment2": "Get token from your pattern server's web interface"
+    },
+    "cache": {
+      "path": "~/.cache/ai-guardian/patterns.toml",
+      "refresh_interval_hours": 12,
+      "expire_after_hours": 168,
+      "_comment": "Patterns auto-refresh every 12h, expire after 7 days"
+    }
+  },
+
+  "_environment_variables": {
+    "_comment": "Optional environment variables for configuration:",
+    "AI_GUARDIAN_IDE_TYPE": "claude|cursor (override auto-detection)",
+    "AI_GUARDIAN_SKILL_CACHE_TTL_HOURS": "24 (default skill cache TTL)",
+    "AI_GUARDIAN_REFRESH_INTERVAL_HOURS": "12 (remote config refresh)",
+    "AI_GUARDIAN_EXPIRE_AFTER_HOURS": "168 (remote config expiration)",
+    "AI_GUARDIAN_PATTERN_TOKEN": "Bearer token for pattern server authentication"
+  },
+
+  "_permission_format": {
+    "_comment": "Matcher-based permission format with mode:",
+    "_structure": {
+      "matcher": "Tool name pattern (e.g., 'Skill', 'mcp__*', 'Bash', 'Write')",
+      "mode": "allow or deny",
+      "patterns": ["List of patterns to allow/deny"]
+    },
+    "_explanation": "Each rule is either an allow-list (mode: allow) or deny-list (mode: deny)",
+    "_precedence": "All deny rules checked first (from any source), then allow rules",
+    "_examples": [
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "patterns": ["daf-*", "gh-cli"],
+        "_explanation": "Allow skills: daf-* and gh-cli"
+      },
+      {
+        "matcher": "mcp__*",
+        "mode": "allow",
+        "patterns": ["mcp__notebooklm-mcp__*"],
+        "_explanation": "Allow all notebooklm MCP tools"
+      },
+      {
+        "matcher": "Bash",
+        "mode": "deny",
+        "patterns": ["*rm -rf*"],
+        "_explanation": "Block dangerous bash commands"
+      },
+      {
+        "matcher": "Write",
+        "mode": "deny",
+        "patterns": ["/etc/*"],
+        "_explanation": "Block writes to /etc"
+      }
+    ]
+  },
+
+  "_pattern_matching": {
+    "_comment": "How patterns are matched for each matcher type:",
+    "Skill": "Matches against input.skill (e.g., 'daf-jira' matches 'daf-*')",
+    "Bash": "Matches against input.command (e.g., 'rm -rf /' matches '*rm -rf*')",
+    "Write": "Matches against input.file_path (e.g., '/etc/passwd' matches '/etc/*')",
+    "Read": "Matches against input.file_path",
+    "mcp__*": "Matches against full tool name (e.g., 'mcp__notebooklm__notebook_list')"
+  },
+
+  "_config_precedence": {
+    "_comment": "Configuration loading order (later overrides earlier):",
+    "1": "Hardcoded defaults in ai-guardian",
+    "2": "Project local config (./.ai-guardian.json in project root)",
+    "3": "User global config (~/.config/ai-guardian/ai-guardian.json)",
+    "4": "Remote configs (enterprise policy - highest priority)"
+  }
+}

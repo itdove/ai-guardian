@@ -2,10 +2,10 @@
 """
 Tool Allow/Deny List Policy Checker
 
-Permission system using JSON configuration format:
-- permissions.deny / permissions.allow
-- Pattern prefix detection: Skill(...), Bash(...), mcp__*
-- Bash command content inspection
+Permission system using matcher-based rules in JSON configuration:
+- permissions: Array of {matcher, allow, deny} objects
+- Matcher determines which tools the rule applies to
+- Allow/deny patterns check against tool-specific values
 - Auto-discovery via permissions_directories
 
 Configuration file: ~/.config/ai-guardian/ai-guardian.json
@@ -23,13 +23,16 @@ logger = logging.getLogger(__name__)
 
 class ToolPolicyChecker:
     """
-    Check if tool invocations are allowed based on unified permissions.
+    Check if tool invocations are allowed based on matcher-based permissions.
 
-    Pattern format:
-    - Skill(pattern) - Match skill invocations
-    - Bash(pattern) - Inspect bash command content
-    - mcp__* - Match MCP tool names
-    - Read(...), Write(...) - Match built-in tools
+    Permission format (array of rules):
+    [
+      {
+        "matcher": "Skill",      # Tool name pattern to match
+        "allow": ["daf-*"],      # Patterns to allow
+        "deny": []               # Patterns to deny
+      }
+    ]
 
     Default: deny-wins (deny patterns override allow patterns)
     """
@@ -63,36 +66,71 @@ class ToolPolicyChecker:
 
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
 
-            # Check against deny patterns first (deny wins)
-            deny_patterns = self.config.get("permissions", {}).get("deny", [])
-            for pattern in deny_patterns:
-                if self._matches_pattern(tool_name, tool_input, pattern):
-                    logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern}")
-                    error_msg = self._format_deny_message(tool_name, pattern)
+            # Find all matching permission rules
+            permission_rules = self._find_permission_rules(tool_name)
+
+            if not permission_rules:
+                # No rules found - check if this tool type requires explicit allow
+                if self._requires_explicit_allow(tool_name):
+                    logger.warning(f"Tool '{tool_name}' requires explicit permission but no rule found")
+                    error_msg = self._format_deny_message(tool_name, "no permission rule", None)
                     return False, error_msg, tool_name
 
-            # Check allow patterns
-            allow_patterns = self.config.get("permissions", {}).get("allow", [])
-
-            # If no allow patterns specified, allow by default (unless denied)
-            if not allow_patterns:
-                logger.info(f"✓ Tool '{tool_name}' is allowed (no allow patterns configured)")
+                # No rule and doesn't require explicit allow - allow by default
+                logger.info(f"✓ Tool '{tool_name}' is allowed by default (no matching rule)")
                 return True, None, tool_name
 
-            # Check if tool matches any allow pattern
-            for pattern in allow_patterns:
-                if self._matches_pattern(tool_name, tool_input, pattern):
-                    logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern}")
-                    return True, None, tool_name
+            # Extract the value to check against patterns
+            check_value = self._extract_check_value(tool_name, tool_input, permission_rules[0]["matcher"])
+            if check_value is None:
+                logger.warning(f"Could not extract value to check for tool '{tool_name}'")
+                return True, None, tool_name
 
-            # Not in allow list - check if this requires explicit allow
-            if self._requires_explicit_allow(tool_name):
-                logger.warning(f"Tool '{tool_name}' not in allow list (requires explicit approval)")
-                error_msg = self._format_deny_message(tool_name, "not in allow list")
+            logger.debug(f"Checking value '{check_value}' against {len(permission_rules)} rule(s)")
+
+            # First pass: check all deny rules (deny wins)
+            for rule in permission_rules:
+                mode = rule.get("mode")
+                patterns = rule.get("patterns", [])
+
+                # Legacy format support
+                if mode is None:
+                    patterns = rule.get("deny", [])
+                    mode = "deny" if patterns else None
+
+                if mode == "deny":
+                    for pattern in patterns:
+                        if fnmatch.fnmatch(check_value, pattern):
+                            logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern}")
+                            error_msg = self._format_deny_message(tool_name, pattern, rule["matcher"])
+                            return False, error_msg, tool_name
+
+            # Second pass: check allow rules
+            has_allow_rules = False
+            for rule in permission_rules:
+                mode = rule.get("mode")
+                patterns = rule.get("patterns", [])
+
+                # Legacy format support
+                if mode is None:
+                    patterns = rule.get("allow", [])
+                    mode = "allow" if patterns else None
+
+                if mode == "allow":
+                    has_allow_rules = True
+                    for pattern in patterns:
+                        if fnmatch.fnmatch(check_value, pattern):
+                            logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern}")
+                            return True, None, tool_name
+
+            # If we have allow rules but no match, deny
+            if has_allow_rules:
+                logger.warning(f"Tool '{tool_name}' not in allow list")
+                error_msg = self._format_deny_message(tool_name, "not in allow list", permission_rules[0]["matcher"])
                 return False, error_msg, tool_name
 
-            # Default: allow (for built-in tools not requiring explicit approval)
-            logger.info(f"✓ Tool '{tool_name}' is allowed by default")
+            # No allow rules - allow by default (already passed deny check)
+            logger.info(f"✓ Tool '{tool_name}' is allowed (no allow patterns in rules)")
             return True, None, tool_name
 
         except Exception as e:
@@ -126,73 +164,89 @@ class ToolPolicyChecker:
                 tool_name = hook_data["tool_name"]
                 tool_input = hook_data.get("tool_input", {})
 
-            # For Skill tool, construct "Skill(skill-name)" format
-            if tool_name == "Skill" and isinstance(tool_input, dict):
-                skill_name = tool_input.get("skill")
-                if skill_name:
-                    tool_name = f"Skill({skill_name})"
-
             return tool_name, tool_input
 
         except Exception as e:
             logger.error(f"Error extracting tool info: {e}")
             return None, {}
 
-    def _matches_pattern(self, tool_name: str, tool_input: Dict, pattern: str) -> bool:
+    def _find_permission_rules(self, tool_name: str) -> List[Dict]:
         """
-        Check if tool matches a permission pattern.
-
-        IDE-agnostic pattern matching:
-        - Skill(pattern) - Checks if tool has 'skill' parameter matching pattern
-        - Bash(pattern) or Shell(pattern) - Checks if tool has 'command' parameter matching pattern
-        - mcp__* - Direct tool name matching
-        - Other patterns - Direct tool name matching
+        Find all permission rules that match the tool name.
 
         Args:
-            tool_name: Name of the tool (e.g., "Bash", "Shell", "Skill(daf-active)")
-            tool_input: Tool input parameters
-            pattern: Permission pattern
+            tool_name: Name of the tool (e.g., "Skill", "mcp__notebooklm__notebook_list")
 
         Returns:
-            bool: True if matches
+            list: List of matching permission rules (may be empty)
         """
-        # Skill pattern: Skill(pattern)
-        # Checks if tool has a 'skill' parameter that matches
-        if pattern.startswith("Skill(") and pattern.endswith(")"):
-            inner_pattern = pattern[6:-1]  # Extract pattern between Skill( and )
+        permissions = self.config.get("permissions", [])
 
-            # Claude Code format: tool_name = "Skill(skill-name)"
-            if tool_name.startswith("Skill(") and tool_name.endswith(")"):
-                skill_name = tool_name[6:-1]  # Extract skill name
-                return fnmatch.fnmatch(skill_name, inner_pattern)
+        # Handle old format (dict with deny/allow) - convert to new format
+        if isinstance(permissions, dict):
+            logger.debug("Converting old permissions format to new array format")
+            # Create a catch-all rule
+            return [{
+                "matcher": "*",
+                "allow": permissions.get("allow", []),
+                "deny": permissions.get("deny", [])
+            }]
 
-            # Check if tool input has a 'skill' parameter
-            skill_param = tool_input.get("skill")
-            if skill_param:
-                return fnmatch.fnmatch(skill_param, inner_pattern)
+        # New format: array of rules
+        if not isinstance(permissions, list):
+            logger.warning(f"Invalid permissions format: {type(permissions)}")
+            return []
 
-            return False
+        matching_rules = []
+        for rule in permissions:
+            if not isinstance(rule, dict):
+                continue
 
-        # Bash/Shell pattern: Bash(pattern) or Shell(pattern)
-        # Checks if tool has a 'command' parameter that matches
-        # Works with both Claude Code (Bash) and Cursor (Shell)
-        elif (pattern.startswith("Bash(") or pattern.startswith("Shell(")) and pattern.endswith(")"):
-            # Extract pattern (handle both "Bash(" and "Shell(")
-            if pattern.startswith("Bash("):
-                command_pattern = pattern[5:-1]
-            else:  # Shell(
-                command_pattern = pattern[6:-1]
+            matcher = rule.get("matcher")
+            if not matcher:
+                continue
 
-            # Check if tool has a 'command' parameter
-            command = tool_input.get("command", "")
-            if command:
-                return fnmatch.fnmatch(command, command_pattern)
+            # Check if tool_name matches the matcher pattern
+            if fnmatch.fnmatch(tool_name, matcher):
+                logger.debug(f"Found matching rule: {matcher}")
+                matching_rules.append(rule)
 
-            return False
+        return matching_rules
 
-        # Direct tool name matching (mcp__*, Read, Write, etc.)
-        else:
-            return fnmatch.fnmatch(tool_name, pattern)
+    def _extract_check_value(self, tool_name: str, tool_input: Dict, matcher: str) -> Optional[str]:
+        """
+        Extract the value to check against allow/deny patterns.
+
+        Args:
+            tool_name: Name of the tool
+            tool_input: Tool input parameters
+            matcher: The matcher pattern from the permission rule
+
+        Returns:
+            str or None: Value to check
+        """
+        # Skill: extract skill name from input
+        if matcher == "Skill" or tool_name == "Skill":
+            skill = tool_input.get("skill")
+            return skill if skill else None
+
+        # Bash/Shell: extract command from input
+        if matcher == "Bash" or matcher == "Shell":
+            command = tool_input.get("command")
+            return command if command else None
+
+        # Write: extract file_path from input
+        if matcher == "Write":
+            file_path = tool_input.get("file_path")
+            return file_path if file_path else None
+
+        # Read: extract file_path from input
+        if matcher == "Read":
+            file_path = tool_input.get("file_path")
+            return file_path if file_path else None
+
+        # MCP and other tools: use tool_name directly
+        return tool_name
 
     def _requires_explicit_allow(self, tool_name: str) -> bool:
         """
@@ -208,7 +262,7 @@ class ToolPolicyChecker:
             bool: True if requires explicit allow
         """
         # Skills require explicit allow
-        if tool_name.startswith("Skill("):
+        if tool_name == "Skill":
             return True
 
         # MCP tools require explicit allow
@@ -218,32 +272,89 @@ class ToolPolicyChecker:
         # Built-in tools allowed by default
         return False
 
-    def _format_deny_message(self, tool_name: str, pattern: str) -> str:
+    def _format_deny_message(self, tool_name: str, reason: str, matcher: Optional[str]) -> str:
         """
         Format error message for denied tools.
 
         Args:
             tool_name: Name of the denied tool
-            pattern: Pattern that blocked it
+            reason: Reason for denial (pattern that blocked it)
+            matcher: The matcher from the permission rule (if found)
 
         Returns:
             str: Formatted error message
         """
-        return (
+        # Generate suggested configuration
+        suggested_matcher, suggested_patterns = self._suggest_permission_rule(tool_name)
+
+        config_path = "~/.config/ai-guardian/ai-guardian.json"
+
+        msg = (
             f"\n{'='*70}\n"
             f"🚫 TOOL ACCESS DENIED\n"
             f"{'='*70}\n\n"
             f"Tool: {tool_name}\n"
-            f"Blocked by: {pattern}\n\n"
-            f"This tool is not allowed by your security policy.\n\n"
-            f"To allow this tool:\n"
-            f"1. Add it to ai-guardian.json in your project:\n"
-            f'   "permissions": {{\n'
-            f'     "allow": ["{tool_name}"]\n'
-            f'   }}\n\n'
-            f"2. Or ask your administrator to update the enterprise policy\n"
-            f"\n{'='*70}\n"
+            f"Blocked by: {reason}\n\n"
+            f"To allow this tool, add to {config_path}:\n\n"
         )
+
+        # Show suggested configuration
+        msg += '  {\n'
+        msg += '    "permissions": [\n'
+        msg += '      {\n'
+        msg += f'        "matcher": "{suggested_matcher}",\n'
+        msg += '        "mode": "allow",\n'
+        msg += '        "patterns": [\n'
+
+        # Show patterns with comments
+        for i, pattern in enumerate(suggested_patterns):
+            if i == 0:
+                msg += f'          "{pattern["pattern"]}"  # {pattern["comment"]}\n'
+            else:
+                msg += f'          # "{pattern["pattern"]}"  # {pattern["comment"]}\n'
+
+        msg += '        ]\n'
+        msg += '      }\n'
+        msg += '    ]\n'
+        msg += '  }\n\n'
+        msg += "Or ask your administrator to update the enterprise policy.\n"
+        msg += f"{'='*70}\n"
+
+        return msg
+
+    def _suggest_permission_rule(self, tool_name: str) -> Tuple[str, List[Dict]]:
+        """
+        Suggest permission rule for a blocked tool.
+
+        Args:
+            tool_name: The blocked tool name
+
+        Returns:
+            tuple: (matcher, list of {pattern, comment} dicts)
+        """
+        # Skills
+        if tool_name == "Skill":
+            return "Skill", [
+                {"pattern": "*", "comment": "Allow all skills"},
+            ]
+
+        # MCP tools
+        if tool_name.startswith("mcp__"):
+            parts = tool_name.split("__")
+            patterns = [
+                {"pattern": tool_name, "comment": "Allow only this tool"}
+            ]
+            if len(parts) >= 3:
+                patterns.append({
+                    "pattern": f"{parts[0]}__{parts[1]}__*",
+                    "comment": "Or allow all tools from this server"
+                })
+            return "mcp__*", patterns
+
+        # Other tools
+        return tool_name, [
+            {"pattern": "*", "comment": f"Allow all {tool_name} operations"}
+        ]
 
     def _load_config(self) -> Dict:
         """
@@ -284,10 +395,7 @@ class ToolPolicyChecker:
     def _get_defaults(self) -> Dict:
         """Get default empty configuration."""
         return {
-            "permissions": {
-                "deny": [],
-                "allow": []
-            },
+            "permissions": [],
             "permissions_directories": {
                 "deny": [],
                 "allow": []
@@ -335,7 +443,6 @@ class ToolPolicyChecker:
 
             logger.info(f"Loading {source_name} config from {path}")
             with open(path, 'r') as f:
-                # JSON5 would support comments, but for now just parse strict JSON
                 config = json.load(f)
 
             logger.debug(f"Loaded {source_name} config: {config}")
@@ -352,8 +459,9 @@ class ToolPolicyChecker:
         """
         Merge two configuration dictionaries.
 
-        Lists are concatenated (not replaced).
-        Dicts are recursively merged.
+        For permissions array: concatenate
+        For other lists: concatenate
+        For dicts: recursively merge
 
         Args:
             base: Base configuration
@@ -365,7 +473,13 @@ class ToolPolicyChecker:
         result = base.copy()
 
         for key, value in override.items():
-            if key in result:
+            if key == "permissions":
+                # Special handling for permissions array
+                if isinstance(result.get(key), list) and isinstance(value, list):
+                    result[key] = result[key] + value
+                else:
+                    result[key] = value
+            elif key in result:
                 # If both are lists, concatenate
                 if isinstance(result[key], list) and isinstance(value, list):
                     result[key] = result[key] + value
@@ -454,7 +568,7 @@ class ToolPolicyChecker:
                         headers["Authorization"] = f"Bearer {token}"
                         logger.debug(f"Using token from {token_env}")
 
-                # Fetch config (RemoteFetcher needs to be updated to support headers)
+                # Fetch config
                 config = fetcher.fetch_config(url, headers=headers)
                 return config
             else:
@@ -474,7 +588,9 @@ class ToolPolicyChecker:
         """
         Discover patterns from permissions_directories and add to config.
 
-        Modifies config in-place.
+        Supports both old format (allow/deny arrays) and new format (array with matcher/mode).
+
+        Modifies config in-place by adding permission rules.
 
         Args:
             config: Configuration dict
@@ -487,28 +603,42 @@ class ToolPolicyChecker:
 
             permissions_dirs = config.get("permissions_directories", {})
 
-            # Process deny directories
-            deny_dirs = permissions_dirs.get("deny", [])
-            for dir_entry in deny_dirs:
-                patterns = self._discover_directory_patterns(discovery, dir_entry, cache_ttl)
-                if patterns:
-                    config["permissions"]["deny"].extend(patterns)
+            # New format: array with matcher/mode
+            if isinstance(permissions_dirs, list):
+                for dir_entry in permissions_dirs:
+                    matcher = dir_entry.get("matcher", "Skill")
+                    mode = dir_entry.get("mode", "allow")
 
+                    discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
+                    if discovered_items:
+                        self._add_to_permission_rule(config, matcher, mode, discovered_items)
+                return
+
+            # Old format: dict with allow/deny arrays (backward compatibility)
             # Process allow directories
             allow_dirs = permissions_dirs.get("allow", [])
             for dir_entry in allow_dirs:
-                patterns = self._discover_directory_patterns(discovery, dir_entry, cache_ttl)
-                if patterns:
-                    config["permissions"]["allow"].extend(patterns)
+                discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
+                if discovered_items:
+                    matcher = dir_entry.get("category", "Skill")
+                    self._add_to_permission_rule(config, matcher, "allow", discovered_items)
+
+            # Process deny directories
+            deny_dirs = permissions_dirs.get("deny", [])
+            for dir_entry in deny_dirs:
+                discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
+                if discovered_items:
+                    matcher = dir_entry.get("category", "Skill")
+                    self._add_to_permission_rule(config, matcher, "deny", discovered_items)
 
         except ImportError:
             logger.debug("Skill discovery not available")
         except Exception as e:
             logger.error(f"Error discovering from directories: {e}")
 
-    def _discover_directory_patterns(self, discovery, dir_entry: Dict, cache_ttl: int) -> List[str]:
+    def _discover_directory_items(self, discovery, dir_entry: Dict, cache_ttl: int) -> List[str]:
         """
-        Discover patterns from a single directory entry.
+        Discover items from a single directory entry.
 
         Args:
             discovery: SkillDiscovery instance
@@ -516,11 +646,10 @@ class ToolPolicyChecker:
             cache_ttl: Cache TTL in hours
 
         Returns:
-            list: List of patterns (e.g., ["Skill(arc)", "Skill(foo)"])
+            list: List of item names (without category prefix)
         """
         try:
             url = dir_entry.get("url")
-            category = dir_entry.get("category", "Skill")
             token_env = dir_entry.get("token_env")
 
             if not url:
@@ -529,21 +658,49 @@ class ToolPolicyChecker:
             # Discover items from directory
             items = discovery.discover_skills(url, cache_ttl_hours=cache_ttl, token_env=token_env)
 
-            # Convert items to patterns with category prefix
-            patterns = []
+            # Extract just the names (remove category prefix if present)
+            names = []
             for item in items:
-                # Items come back as "Skill:name", extract name
                 if ":" in item:
                     name = item.split(":", 1)[1]
                 else:
                     name = item
+                names.append(name)
 
-                # Format as category(name)
-                pattern = f"{category}({name})"
-                patterns.append(pattern)
-
-            return patterns
+            return names
 
         except Exception as e:
-            logger.error(f"Error discovering patterns from {dir_entry}: {e}")
+            logger.error(f"Error discovering items from {dir_entry}: {e}")
             return []
+
+    def _add_to_permission_rule(self, config: Dict, matcher: str, list_type: str, items: List[str]) -> None:
+        """
+        Add items to a permission rule (or create one if needed).
+
+        Args:
+            config: Configuration dict
+            matcher: Matcher pattern (e.g., "Skill", "mcp__*")
+            list_type: "allow" or "deny"
+            items: List of patterns to add
+        """
+        # Ensure permissions is a list
+        if "permissions" not in config or not isinstance(config["permissions"], list):
+            config["permissions"] = []
+
+        # Find existing rule with this matcher and mode
+        mode = list_type  # "allow" or "deny"
+        for rule in config["permissions"]:
+            if rule.get("matcher") == matcher and rule.get("mode") == mode:
+                # Add to existing rule's patterns
+                if "patterns" not in rule:
+                    rule["patterns"] = []
+                rule["patterns"].extend(items)
+                return
+
+        # No existing rule - create new one
+        new_rule = {
+            "matcher": matcher,
+            "mode": mode,
+            "patterns": items
+        }
+        config["permissions"].append(new_rule)

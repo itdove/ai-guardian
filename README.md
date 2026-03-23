@@ -25,7 +25,7 @@ pip install -e .
 
 # 4. (Optional) Set up MCP/Skill permissions
 mkdir -p ~/.config/ai-guardian
-cp config-example.json ~/.config/ai-guardian/ai-guardian.json
+cp ai-guardian-example.json ~/.config/ai-guardian/ai-guardian.json
 # Edit the file to allow your specific skills and MCP servers
 ```
 
@@ -56,43 +56,54 @@ Multi-layered secret detection before AI interactions:
 ### 🎛️ MCP Server & Skill Permissions
 Control which MCP servers and skills Claude Code can use with fine-grained allow/deny lists:
 
+**Security Model - Defense in Depth:**
+
+ai-guardian provides **enterprise-level enforcement** that works alongside Claude Code's built-in [settings.json permissions](https://code.claude.com/docs/en/permissions):
+
+| Layer | Controls | Can be bypassed? | Use case |
+|-------|----------|------------------|----------|
+| **settings.json** | Built-in tools, MCP, Subagents | Yes (user can edit) | User/project preferences |
+| **ai-guardian** | Skills, MCP, Built-ins | No (remote policies) | Enterprise enforcement |
+
+**Why use both:**
+- ✅ **Remote enforcement** - Centrally managed policies that users can't bypass
+- ✅ **Dynamic updates** - Change enterprise restrictions without touching local configs
+- ✅ **Skills support** - Only place to control Skills (not in settings.json)
+- ✅ **Auto-discovery** - GitHub/GitLab skill directories
+- ✅ **Unified management** - One config for all tool types
+
 **Default Security Posture:**
-- ✅ **Built-in tools** (Read, Write, Bash, etc.): Allowed by default
-- 🚫 **Skills**: Blocked by default (must be explicitly allowed)
-- 🚫 **MCP Servers**: Blocked by default (must be explicitly allowed)
+- ✅ **Built-in tools** (Read, Write, Bash): Managed by settings.json, can be restricted by ai-guardian
+- ✅ **MCP Servers**: Managed by settings.json, can be restricted by ai-guardian
+- 🚫 **Skills**: Blocked by default (must be explicitly allowed via ai-guardian)
 
 **Features:**
-- Pattern-based matching: `Skill(daf-*)`, `mcp__notebooklm-mcp__notebook_*`
-- Block dangerous patterns: `Bash(*rm -rf*)`, `Write(/etc/*)`
+- Matcher-based rules: Each tool type has its own allow/deny lists
+- Pattern-based matching: `daf-*`, `mcp__notebooklm-mcp__notebook_*`
+- Block dangerous patterns: `*rm -rf*`, `/etc/*`
 - Auto-discover skills from GitHub/GitLab directories
 - Local filesystem skill discovery
 - Remote policy configuration (enterprise/team policies)
-- Multi-level config: enterprise → user → project
+- Multi-level config: project → user → remote
 
 **Example Configuration (`~/.config/ai-guardian/ai-guardian.json`):**
 
 ```json
 {
-  "permissions": {
-    "deny": [
-      "Bash(*rm -rf*)",
-      "Write(/etc/*)"
-    ],
-    "allow": [
-      "mcp__notebooklm-mcp__notebook_*",
-      "Skill(daf-*)",
-      "Skill(gh-cli)"
-    ]
-  },
-  "permissions_directories": {
-    "allow": [
-      {
-        "url": "https://github.com/your-org/skills/tree/main/skills",
-        "category": "Skill",
-        "token_env": "GITHUB_TOKEN"
-      }
-    ]
-  },
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli"]
+    },
+    {
+      "matcher": "mcp__*",
+      "mode": "allow",
+      "patterns": ["mcp__notebooklm-mcp__notebook_*"]
+    }
+  ],
+  "_comment": "Optional: Use permissions_directories for dynamic discovery (advanced)",
+  "_comment2": "Recommended: Use remote_configs instead (see below)",
   "remote_configs": {
     "urls": [
       {
@@ -104,9 +115,29 @@ Control which MCP servers and skills Claude Code can use with fine-grained allow
 }
 ```
 
+**Permission Rule Format:**
+- Each rule has a `matcher` (which tools it applies to)
+- A `mode` ("allow" or "deny")
+- A list of `patterns` to match
+- Precedence: All "deny" rules checked first (from any config source), then "allow" rules
+
+**Defense in Depth:**
+
+Claude Code's [settings.json permissions](https://code.claude.com/docs/en/permissions) provide user-level control for built-in tools and MCP servers. ai-guardian adds **enterprise-level enforcement** on top:
+
+- **settings.json**: User/project preferences (can be edited locally)
+- **ai-guardian remote policies**: Enterprise restrictions (cannot be bypassed)
+- **Skills**: Only controlled by ai-guardian (not in settings.json)
+
+Use ai-guardian to add Bash/Write/MCP matchers for centrally managed restrictions that complement settings.json permissions.
+
 **Setup:** See [Configuration → MCP Server & Skill Permissions](#mcp-server--skill-permissions-optional) section below for detailed setup instructions.
 
-See [config-example.json](config-example.json) for full documentation and more examples.
+**Managing Permissions:**
+- ✅ **Recommended**: Use `remote_configs` to fetch complete policy from URL (easier to manage)
+- ⚠️ **Advanced**: Use `permissions_directories` for dynamic discovery from GitHub/GitLab (local dev only)
+
+See [ai-guardian-example.json](ai-guardian-example.json) for full documentation and more examples.
 
 ### 🎯 Multi-IDE Support
 
@@ -168,6 +199,27 @@ pip install -e ".[skill-discovery]"
 
 This installs the optional `requests` library for fetching remote skill directories.
 
+## When to Use ai-guardian vs settings.json
+
+| Scenario | Use settings.json | Use ai-guardian | Why |
+|----------|-------------------|-----------------|-----|
+| **Control Skills** | ❌ Not supported | ✅ Required | Skills not available in settings.json |
+| **User MCP preferences** | ✅ Recommended | ❌ Optional | User can manage locally |
+| **Enterprise MCP restrictions** | ⚠️ User can bypass | ✅ Required | Remote policies cannot be bypassed |
+| **Built-in tool restrictions** | ✅ First choice | ⚠️ For extras | settings.json is the standard way |
+| **Enterprise built-in restrictions** | ⚠️ User can bypass | ✅ Required | Add restrictions beyond settings.json |
+| **Auto-discover skills** | ❌ Not supported | ✅ Use this | GitHub/GitLab directory discovery |
+| **Dynamic enterprise policies** | ❌ Static files | ✅ Use this | Remote configs auto-refresh |
+
+**Recommended Architecture:**
+```
+settings.json: User/project preferences for MCP and built-in tools
+      ↓
+ai-guardian: Skills (required) + enterprise enforcement layer
+      ↓
+Remote policies: Centrally managed, cannot be bypassed
+```
+
 ## Configuration
 
 ### Claude Code
@@ -191,12 +243,12 @@ Add to `~/.claude/settings.json`:
     ],
     "PreToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
             "command": "ai-guardian",
-            "statusMessage": "🛡️ Checking file access..."
+            "statusMessage": "🛡️ Checking tool permissions..."
           }
         ]
       }
@@ -244,7 +296,7 @@ Create `~/.config/ai-guardian/ai-guardian.json`:
 ```bash
 # Copy the example configuration
 curl -o ~/.config/ai-guardian/ai-guardian.json \
-  https://raw.githubusercontent.com/itdove/ai-guardian/main/config-example.json
+  https://raw.githubusercontent.com/itdove/ai-guardian/main/ai-guardian-example.json
 
 # Or create manually with your editor
 vi ~/.config/ai-guardian/ai-guardian.json
@@ -252,39 +304,63 @@ vi ~/.config/ai-guardian/ai-guardian.json
 
 #### Step 3: Configure Permissions
 
-**Minimal Configuration (Allow specific tools):**
+**Basic Configuration (Skills and Optional MCP Restrictions):**
+
+Essential for Skills (required), optional for adding enterprise-level MCP restrictions beyond settings.json:
 
 ```json
 {
-  "permissions": {
-    "allow": [
-      "Skill(daf-*)",
-      "Skill(gh-cli)",
-      "mcp__notebooklm-mcp__notebook_*"
-    ]
-  }
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli"]
+    },
+    {
+      "_comment": "Optional: Enterprise MCP restrictions (complements settings.json)",
+      "matcher": "mcp__*",
+      "mode": "allow",
+      "patterns": ["mcp__notebooklm-mcp__notebook_*"]
+    }
+  ]
 }
 ```
 
-**Advanced Configuration (with blocking and auto-discovery):**
+**Note:** MCP and built-in tools can be controlled via [settings.json permissions](https://code.claude.com/docs/en/permissions). Add them to ai-guardian for enterprise enforcement via remote policies.
+
+**Enterprise Configuration (with additional restrictions and auto-discovery):**
+
+Enterprise policies can add extra restrictions on built-in tools beyond what `settings.json` provides.
 
 ```json
 {
-  "permissions": {
-    "deny": [
-      "Bash(*rm -rf*)",
-      "Bash(*dd *)",
-      "Write(/etc/*)"
-    ],
-    "allow": [
-      "mcp__notebooklm-mcp__notebook_list",
-      "mcp__notebooklm-mcp__notebook_get",
-      "mcp__atlassian__getJiraIssue",
-      "Skill(daf-*)",
-      "Skill(gh-cli)",
-      "Skill(git-cli)"
-    ]
-  },
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli", "git-cli"]
+    },
+    {
+      "matcher": "mcp__*",
+      "mode": "allow",
+      "patterns": [
+        "mcp__notebooklm-mcp__notebook_list",
+        "mcp__notebooklm-mcp__notebook_get",
+        "mcp__atlassian__getJiraIssue"
+      ]
+    },
+    {
+      "_comment": "Enterprise-level restrictions (optional)",
+      "matcher": "Bash",
+      "mode": "deny",
+      "patterns": ["*rm -rf*", "*dd *"]
+    },
+    {
+      "matcher": "Write",
+      "mode": "deny",
+      "patterns": ["/etc/*", "/sys/*"]
+    }
+  ],
   "permissions_directories": {
     "allow": [
       {
@@ -297,6 +373,38 @@ vi ~/.config/ai-guardian/ai-guardian.json
 }
 ```
 
+#### When a Tool is Blocked
+
+When ai-guardian blocks a skill or MCP tool, it shows a helpful error message with the exact configuration to add:
+
+```
+======================================================================
+🚫 TOOL ACCESS DENIED
+======================================================================
+
+Tool: Skill
+Blocked by: not in allow list
+
+To allow this tool, add to ~/.config/ai-guardian/ai-guardian.json:
+
+  {
+    "permissions": [
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "patterns": [
+          "*"  # Allow all skills
+        ]
+      }
+    ]
+  }
+
+Or ask your administrator to update the enterprise policy.
+======================================================================
+```
+
+**Quick fix:** Copy the suggested configuration from the error message and add it to your `ai-guardian.json` file.
+
 #### Configuration Locations (Precedence Order)
 
 1. **Project config** (highest priority): `./.ai-guardian.json` in project root
@@ -304,15 +412,63 @@ vi ~/.config/ai-guardian/ai-guardian.json
 3. **Remote configs**: Fetched from URLs in `remote_configs`
 4. **Defaults**: Built-in defaults (allow all built-ins, block skills/MCP)
 
+#### Remote Configs vs Directory Discovery
+
+**Use `remote_configs` (Recommended):**
+```json
+{
+  "remote_configs": {
+    "urls": [{
+      "url": "https://your-org.com/ai-guardian-policy.json",
+      "enabled": true
+    }]
+  }
+}
+```
+
+**Benefits:**
+- ✅ Complete control - permissions, deny rules, everything in one place
+- ✅ Easier to audit - clear list of what's allowed
+- ✅ Faster - no GitHub API calls or directory scanning
+- ✅ Works for all tool types - not just Skills
+- ✅ Better for production/enterprise
+
+**Use `permissions_directories` (Advanced/Local Dev):**
+```json
+{
+  "permissions_directories": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "url": "https://github.com/your-org/skills/tree/main/skills",
+      "token_env": "GITHUB_TOKEN"
+    }
+  ]
+}
+```
+
+**Use cases:**
+- ⚠️ Local development with file-based skill directories
+- ⚠️ Dynamic environments where you can't pre-list skills
+- ⚠️ Prototyping before creating a formal remote policy
+
+**For most users:** Use `remote_configs` and maintain a complete policy file.
+
 #### Pattern Matching Examples
 
-| Pattern | Matches | Description |
-|---------|---------|-------------|
-| `Skill(gh-cli)` | Exactly `Skill:gh-cli` | Exact skill name |
-| `Skill(daf-*)` | `Skill:daf-active`, `Skill:daf-status`, etc. | All skills starting with `daf-` |
-| `mcp__notebooklm-mcp__notebook_*` | All notebook functions | Wildcard suffix |
-| `Bash(*rm -rf*)` | Any bash command containing `rm -rf` | Dangerous command patterns |
-| `Write(/etc/*)` | Any write to /etc directory | Path-based blocking |
+| Matcher | Pattern | Matches | Description |
+|---------|---------|---------|-------------|
+| `Skill` | `gh-cli` | Exactly `gh-cli` skill | Exact skill name |
+| `Skill` | `daf-*` | `daf-active`, `daf-status`, etc. | All skills starting with `daf-` |
+| `mcp__*` | `mcp__notebooklm-mcp__notebook_*` | All notebook tools | Wildcard MCP tools |
+| `Bash` | `*rm -rf*` | Any bash command containing `rm -rf` | Dangerous command patterns |
+| `Write` | `/etc/*` | Any write to /etc directory | Path-based blocking |
+
+**How matching works:**
+- `Skill` matcher checks patterns against `input.skill` value
+- `Bash` matcher checks patterns against `input.command` value
+- `Write`/`Read` matchers check patterns against `input.file_path` value
+- `mcp__*` matcher checks patterns against full tool name
 
 #### Verify Configuration
 
@@ -377,6 +533,67 @@ regex = '''mycompany_[0-9a-f]{32}'''
 
 See [Gitleaks Configuration](https://github.com/gitleaks/gitleaks#configuration) for more options.
 
+### Pattern Server (Advanced)
+
+**Optional:** Integrate with a custom pattern server for enhanced, auto-updating secret detection rules.
+
+**Note:** This is an advanced enterprise feature. Most users should use the default Gitleaks patterns or project-specific `.gitleaks.toml` files.
+
+**Configuration (`~/.config/ai-guardian/ai-guardian.json`):**
+
+```json
+{
+  "pattern_server": {
+    "enabled": true,
+    "url": "https://your-pattern-server.example.com",
+    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+    "auth": {
+      "method": "bearer",
+      "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
+      "token_file": "~/.config/ai-guardian/pattern-token"
+    },
+    "cache": {
+      "path": "~/.cache/ai-guardian/patterns.toml",
+      "refresh_interval_hours": 12,
+      "expire_after_hours": 168
+    }
+  }
+}
+```
+
+**Setup:**
+
+```bash
+# 1. Get your Bearer token from your pattern server's web interface
+#    Example: Visit https://your-pattern-server.example.com/token
+#    Copy the JWT token provided
+
+# 2. Provide the token (choose ONE method):
+
+# Option A: Environment variable (temporary, session-only)
+export AI_GUARDIAN_PATTERN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Option B: Token file (persistent, recommended)
+echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." > ~/.config/ai-guardian/pattern-token
+chmod 600 ~/.config/ai-guardian/pattern-token
+
+# 3. Enable pattern server in config (see above)
+
+# 4. Patterns will auto-download on first scan
+```
+
+**How it works:**
+1. AI Guardian checks if patterns need refresh (every 12 hours)
+2. Looks up Bearer token (tries `token_env` first, then `token_file`)
+3. Downloads latest patterns from your pattern server using Bearer auth
+4. Caches patterns locally for 7 days
+5. Uses cached patterns if pattern server is unavailable (fail-safe)
+
+**Configuration Priority:**
+1. **Pattern Server** (if enabled and available) - highest priority
+2. **Project `.gitleaks.toml`** - overrides for specific projects
+3. **Default Gitleaks patterns** - built-in fallback
+
 ### Environment Variables
 
 Configure ai-guardian behavior with environment variables:
@@ -387,6 +604,7 @@ Configure ai-guardian behavior with environment variables:
 | `AI_GUARDIAN_SKILL_CACHE_TTL_HOURS` | Skill directory cache TTL in hours | `24` |
 | `AI_GUARDIAN_REFRESH_INTERVAL_HOURS` | Remote config refresh interval | `12` |
 | `AI_GUARDIAN_EXPIRE_AFTER_HOURS` | Remote config expiration time | `168` (7 days) |
+| `AI_GUARDIAN_PATTERN_TOKEN` | Bearer token for pattern server authentication | None |
 
 **Example:**
 ```bash
