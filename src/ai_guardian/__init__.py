@@ -20,6 +20,14 @@ import tempfile
 from enum import Enum
 from pathlib import Path
 
+# Import tool policy checker for MCP/Skill permissions
+try:
+    from ai_guardian.tool_policy import ToolPolicyChecker
+    HAS_TOOL_POLICY = True
+except ImportError:
+    HAS_TOOL_POLICY = False
+    logging.warning("tool_policy module not available - MCP/Skill permissions disabled")
+
 # Configure logging - will be disabled for Cursor hooks
 logging.basicConfig(
     level=logging.INFO,
@@ -486,6 +494,22 @@ def process_hook_input():
         hook_event = detect_hook_event(hook_data)
         if ide_type != IDEType.CURSOR:
             logging.info(f"Detected hook event: {hook_event}")
+
+        # Check tool permissions for PreToolUse events (MCP servers and Skills)
+        if hook_event in ["pretooluse", "beforereadfile"] and HAS_TOOL_POLICY:
+            try:
+                policy_checker = ToolPolicyChecker()
+                is_allowed, error_message, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+                if not is_allowed:
+                    logging.warning(f"Tool '{tool_name}' blocked by policy")
+                    return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+
+                if tool_name and ide_type != IDEType.CURSOR:
+                    logging.info(f"✓ Tool '{tool_name}' allowed by policy")
+            except Exception as e:
+                # Fail-open: if policy check fails, allow the operation
+                logging.warning(f"Tool policy check error (fail-open): {e}")
 
         content_to_scan = None
         filename = "unknown"

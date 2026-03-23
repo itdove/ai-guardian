@@ -2,53 +2,36 @@
 """
 Tool Allow/Deny List Policy Checker
 
-This module implements allow/deny list checking for AI tool invocations,
-supporting:
-- Built-in tools (Read, Write, Bash, etc.)
-- Skills (Skill:*)
-- MCP tools (mcp__*)
+Permission system using JSON configuration format:
+- permissions.deny / permissions.allow
+- Pattern prefix detection: Skill(...), Bash(...), mcp__*
+- Bash command content inspection
+- Auto-discovery via permissions_directories
 
-Configuration sources (merged with priority):
-1. Remote configs (enterprise policy)
-2. User global config
-3. Project local config
-4. Hardcoded defaults
-
-Default behavior:
-- Built-in tools: ALLOW ALL (only deny if in deny list)
-- Skills: BLOCK ALL (must be in allow list)
-- MCP tools: BLOCK ALL (must be in allow list)
+Configuration file: ~/.config/ai-guardian/ai-guardian.json
 """
 
 import fnmatch
 import json
 import logging
 import os
-import time
-from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 
 logger = logging.getLogger(__name__)
 
 
-class ToolCategory(Enum):
-    """Tool categories with different default behaviors."""
-    BUILTIN = "builtin"  # Core Claude tools - allow by default
-    SKILL = "skill"      # User extensions - block by default
-    MCP = "mcp"          # External services - block by default
-    UNKNOWN = "unknown"  # Unknown tools - block by default
-
-
 class ToolPolicyChecker:
     """
-    Check if tool invocations are allowed based on configured policies.
+    Check if tool invocations are allowed based on unified permissions.
 
-    Handles:
-    - Category detection (builtin/skill/mcp)
-    - Pattern matching for allow/deny lists
-    - Configuration loading and merging
-    - Default behavior per category
+    Pattern format:
+    - Skill(pattern) - Match skill invocations
+    - Bash(pattern) - Inspect bash command content
+    - mcp__* - Match MCP tool names
+    - Read(...), Write(...) - Match built-in tools
+
+    Default: deny-wins (deny patterns override allow patterns)
     """
 
     def __init__(self, config: Optional[Dict] = None):
@@ -71,8 +54,8 @@ class ToolPolicyChecker:
             tuple: (is_allowed: bool, error_message: str or None, tool_name: str or None)
         """
         try:
-            # Extract tool name from hook data
-            tool_name = self._extract_tool_name(hook_data)
+            # Extract tool name and parameters
+            tool_name, tool_input = self._extract_tool_info(hook_data)
             if not tool_name:
                 logger.warning("Could not extract tool name from hook data")
                 # Fail-open: allow if we can't determine the tool
@@ -80,19 +63,36 @@ class ToolPolicyChecker:
 
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
 
-            # Determine tool category
-            category = self._categorize_tool(tool_name)
-            logger.debug(f"Tool '{tool_name}' categorized as: {category.value}")
+            # Check against deny patterns first (deny wins)
+            deny_patterns = self.config.get("permissions", {}).get("deny", [])
+            for pattern in deny_patterns:
+                if self._matches_pattern(tool_name, tool_input, pattern):
+                    logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern}")
+                    error_msg = self._format_deny_message(tool_name, pattern)
+                    return False, error_msg, tool_name
 
-            # Check if tool is allowed based on category and patterns
-            is_allowed = self._is_tool_allowed(tool_name, category)
+            # Check allow patterns
+            allow_patterns = self.config.get("permissions", {}).get("allow", [])
 
-            if not is_allowed:
-                error_msg = self._format_deny_message(tool_name, category)
-                logger.warning(f"Tool '{tool_name}' is not allowed")
+            # If no allow patterns specified, allow by default (unless denied)
+            if not allow_patterns:
+                logger.info(f"✓ Tool '{tool_name}' is allowed (no allow patterns configured)")
+                return True, None, tool_name
+
+            # Check if tool matches any allow pattern
+            for pattern in allow_patterns:
+                if self._matches_pattern(tool_name, tool_input, pattern):
+                    logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern}")
+                    return True, None, tool_name
+
+            # Not in allow list - check if this requires explicit allow
+            if self._requires_explicit_allow(tool_name):
+                logger.warning(f"Tool '{tool_name}' not in allow list (requires explicit approval)")
+                error_msg = self._format_deny_message(tool_name, "not in allow list")
                 return False, error_msg, tool_name
 
-            logger.info(f"✓ Tool '{tool_name}' is allowed")
+            # Default: allow (for built-in tools not requiring explicit approval)
+            logger.info(f"✓ Tool '{tool_name}' is allowed by default")
             return True, None, tool_name
 
         except Exception as e:
@@ -102,17 +102,16 @@ class ToolPolicyChecker:
             # Fail-open: allow on errors
             return True, None, None
 
-    def _extract_tool_name(self, hook_data: Dict) -> Optional[str]:
+    def _extract_tool_info(self, hook_data: Dict) -> Tuple[Optional[str], Dict]:
         """
-        Extract tool name from hook data.
+        Extract tool name and input from hook data.
 
-        Supports:
-        - Claude Code: tool_use.name
-        - Cursor: tool.name or tool_name
-        - Skills: Constructs "Skill:skill-name" format
+        Returns:
+            tuple: (tool_name, tool_input)
         """
         try:
             tool_name = None
+            tool_input = {}
 
             # Claude Code format: tool_use.name
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
@@ -126,221 +125,125 @@ class ToolPolicyChecker:
             elif "tool_name" in hook_data:
                 tool_name = hook_data["tool_name"]
                 tool_input = hook_data.get("tool_input", {})
-            else:
-                return None
 
-            # For Skill tool, append the skill name to create "Skill:skill-name"
+            # For Skill tool, construct "Skill(skill-name)" format
             if tool_name == "Skill" and isinstance(tool_input, dict):
                 skill_name = tool_input.get("skill")
                 if skill_name:
-                    tool_name = f"Skill:{skill_name}"
-                    logger.debug(f"Constructed skill tool name: {tool_name}")
+                    tool_name = f"Skill({skill_name})"
 
-            return tool_name
+            return tool_name, tool_input
 
         except Exception as e:
-            logger.error(f"Error extracting tool name: {e}")
-            return None
+            logger.error(f"Error extracting tool info: {e}")
+            return None, {}
 
-    def _categorize_tool(self, tool_name: str) -> ToolCategory:
+    def _matches_pattern(self, tool_name: str, tool_input: Dict, pattern: str) -> bool:
         """
-        Determine which category a tool belongs to.
+        Check if tool matches a permission pattern.
+
+        IDE-agnostic pattern matching:
+        - Skill(pattern) - Checks if tool has 'skill' parameter matching pattern
+        - Bash(pattern) or Shell(pattern) - Checks if tool has 'command' parameter matching pattern
+        - mcp__* - Direct tool name matching
+        - Other patterns - Direct tool name matching
 
         Args:
-            tool_name: Name of the tool
+            tool_name: Name of the tool (e.g., "Bash", "Shell", "Skill(daf-active)")
+            tool_input: Tool input parameters
+            pattern: Permission pattern
 
         Returns:
-            ToolCategory enum value
+            bool: True if matches
         """
-        # Skills start with "Skill:"
-        if tool_name.startswith("Skill:"):
-            return ToolCategory.SKILL
+        # Skill pattern: Skill(pattern)
+        # Checks if tool has a 'skill' parameter that matches
+        if pattern.startswith("Skill(") and pattern.endswith(")"):
+            inner_pattern = pattern[6:-1]  # Extract pattern between Skill( and )
 
-        # MCP tools start with "mcp__"
-        if tool_name.startswith("mcp__"):
-            return ToolCategory.MCP
+            # Claude Code format: tool_name = "Skill(skill-name)"
+            if tool_name.startswith("Skill(") and tool_name.endswith(")"):
+                skill_name = tool_name[6:-1]  # Extract skill name
+                return fnmatch.fnmatch(skill_name, inner_pattern)
 
-        # Known built-in tools (not exhaustive - new tools work by default)
-        builtin_tools = {
-            "Read", "Write", "Edit", "Glob", "Grep", "Bash",
-            "WebFetch", "WebSearch", "Agent", "AskUserQuestion",
-            "TaskCreate", "TaskUpdate", "TaskGet", "TaskList",
-            "NotebookEdit", "LSP", "CronCreate", "CronList", "CronDelete",
-            "EnterWorktree", "ExitWorktree", "EnterPlanMode", "ExitPlanMode"
-        }
+            # Check if tool input has a 'skill' parameter
+            skill_param = tool_input.get("skill")
+            if skill_param:
+                return fnmatch.fnmatch(skill_param, inner_pattern)
 
-        if tool_name in builtin_tools:
-            return ToolCategory.BUILTIN
-
-        # Default to BUILTIN for unknown tools (future-proof)
-        # This means new Claude tools will work without config updates
-        logger.debug(f"Unknown tool '{tool_name}' - treating as BUILTIN (allow by default)")
-        return ToolCategory.BUILTIN
-
-    def _is_tool_allowed(self, tool_name: str, category: ToolCategory) -> bool:
-        """
-        Check if a tool is allowed based on category and patterns.
-
-        Logic:
-        1. Check deny patterns first (deny wins)
-        2. For built-ins: allow by default (only block if in deny list)
-        3. For skills/mcp: block by default (only allow if in allow list)
-
-        Args:
-            tool_name: Name of the tool
-            category: Tool category
-
-        Returns:
-            bool: True if allowed, False if blocked
-        """
-        if category == ToolCategory.BUILTIN:
-            return self._check_builtin_allowed(tool_name)
-        elif category == ToolCategory.SKILL:
-            return self._check_skill_allowed(tool_name)
-        elif category == ToolCategory.MCP:
-            return self._check_mcp_allowed(tool_name)
-        else:
-            # Unknown category - block by default
-            logger.warning(f"Unknown category for tool '{tool_name}' - blocking")
             return False
 
-    def _check_builtin_allowed(self, tool_name: str) -> bool:
-        """
-        Check if a built-in tool is allowed.
+        # Bash/Shell pattern: Bash(pattern) or Shell(pattern)
+        # Checks if tool has a 'command' parameter that matches
+        # Works with both Claude Code (Bash) and Cursor (Shell)
+        elif (pattern.startswith("Bash(") or pattern.startswith("Shell(")) and pattern.endswith(")"):
+            # Extract pattern (handle both "Bash(" and "Shell(")
+            if pattern.startswith("Bash("):
+                command_pattern = pattern[5:-1]
+            else:  # Shell(
+                command_pattern = pattern[6:-1]
 
-        Default: ALLOW ALL (only deny if in deny list)
+            # Check if tool has a 'command' parameter
+            command = tool_input.get("command", "")
+            if command:
+                return fnmatch.fnmatch(command, command_pattern)
+
+            return False
+
+        # Direct tool name matching (mcp__*, Read, Write, etc.)
+        else:
+            return fnmatch.fnmatch(tool_name, pattern)
+
+    def _requires_explicit_allow(self, tool_name: str) -> bool:
+        """
+        Check if a tool requires explicit allow list entry.
+
+        Skills and MCP tools require explicit approval.
+        Built-in tools are allowed by default.
 
         Args:
             tool_name: Name of the tool
 
         Returns:
-            bool: True if allowed, False if blocked
+            bool: True if requires explicit allow
         """
-        deny_patterns = self.config.get("builtin_deny_patterns", [])
+        # Skills require explicit allow
+        if tool_name.startswith("Skill("):
+            return True
 
-        # Check if tool matches any deny pattern
-        for pattern in deny_patterns:
-            if fnmatch.fnmatch(tool_name, pattern):
-                logger.debug(f"Built-in tool '{tool_name}' matched deny pattern: {pattern}")
-                return False
+        # MCP tools require explicit allow
+        if tool_name.startswith("mcp__"):
+            return True
 
-        # Default: allow
-        return True
-
-    def _check_skill_allowed(self, tool_name: str) -> bool:
-        """
-        Check if a skill is allowed.
-
-        Default: BLOCK ALL (must be in allow list)
-
-        Args:
-            tool_name: Name of the skill (includes "Skill:" prefix)
-
-        Returns:
-            bool: True if allowed, False if blocked
-        """
-        allow_patterns = self.config.get("skill_allowed_patterns", [])
-        deny_patterns = self.config.get("skill_deny_patterns", [])
-
-        # Check deny patterns first (deny wins)
-        for pattern in deny_patterns:
-            if fnmatch.fnmatch(tool_name, pattern):
-                logger.debug(f"Skill '{tool_name}' matched deny pattern: {pattern}")
-                return False
-
-        # Check allow patterns
-        for pattern in allow_patterns:
-            if fnmatch.fnmatch(tool_name, pattern):
-                logger.debug(f"Skill '{tool_name}' matched allow pattern: {pattern}")
-                return True
-
-        # Default: block
-        logger.debug(f"Skill '{tool_name}' not in allow list - blocking")
+        # Built-in tools allowed by default
         return False
 
-    def _check_mcp_allowed(self, tool_name: str) -> bool:
-        """
-        Check if an MCP tool is allowed.
-
-        Default: BLOCK ALL (must be in allow list)
-
-        Args:
-            tool_name: Name of the MCP tool (includes "mcp__" prefix)
-
-        Returns:
-            bool: True if allowed, False if blocked
-        """
-        allow_patterns = self.config.get("mcp_allowed_patterns", [])
-        deny_patterns = self.config.get("mcp_deny_patterns", [])
-
-        # Check deny patterns first (deny wins)
-        for pattern in deny_patterns:
-            if fnmatch.fnmatch(tool_name, pattern):
-                logger.debug(f"MCP tool '{tool_name}' matched deny pattern: {pattern}")
-                return False
-
-        # Check allow patterns
-        for pattern in allow_patterns:
-            if fnmatch.fnmatch(tool_name, pattern):
-                logger.debug(f"MCP tool '{tool_name}' matched allow pattern: {pattern}")
-                return True
-
-        # Default: block
-        logger.debug(f"MCP tool '{tool_name}' not in allow list - blocking")
-        return False
-
-    def _format_deny_message(self, tool_name: str, category: ToolCategory) -> str:
+    def _format_deny_message(self, tool_name: str, pattern: str) -> str:
         """
         Format error message for denied tools.
 
         Args:
             tool_name: Name of the denied tool
-            category: Tool category
+            pattern: Pattern that blocked it
 
         Returns:
             str: Formatted error message
         """
-        if category == ToolCategory.SKILL:
-            return (
-                f"\n{'='*70}\n"
-                f"🚫 TOOL ACCESS DENIED - Skill Not Allowed\n"
-                f"{'='*70}\n\n"
-                f"The skill '{tool_name}' is not in the allow list.\n\n"
-                f"Skills must be explicitly approved before use.\n\n"
-                f"To allow this skill:\n"
-                f"1. Add it to .allowed-tools.toml in your project\n"
-                f"2. Or ask your administrator to add it to the enterprise policy\n\n"
-                f"Example configuration:\n"
-                f"  skill_allowed_patterns = [\n"
-                f"      \"{tool_name}\",\n"
-                f"  ]\n"
-                f"\n{'='*70}\n"
-            )
-        elif category == ToolCategory.MCP:
-            return (
-                f"\n{'='*70}\n"
-                f"🚫 TOOL ACCESS DENIED - MCP Tool Not Allowed\n"
-                f"{'='*70}\n\n"
-                f"The MCP tool '{tool_name}' is not in the allow list.\n\n"
-                f"MCP tools access external services and must be explicitly approved.\n\n"
-                f"To allow this tool:\n"
-                f"1. Add it to .allowed-tools.toml in your project\n"
-                f"2. Or ask your administrator to add it to the enterprise policy\n\n"
-                f"Example configuration:\n"
-                f"  mcp_allowed_patterns = [\n"
-                f"      \"{tool_name}\",\n"
-                f"  ]\n"
-                f"\n{'='*70}\n"
-            )
-        else:
-            return (
-                f"\n{'='*70}\n"
-                f"🚫 TOOL ACCESS DENIED - Tool Blocked\n"
-                f"{'='*70}\n\n"
-                f"The tool '{tool_name}' has been blocked by policy.\n\n"
-                f"Contact your administrator if you believe this is an error.\n"
-                f"\n{'='*70}\n"
-            )
+        return (
+            f"\n{'='*70}\n"
+            f"🚫 TOOL ACCESS DENIED\n"
+            f"{'='*70}\n\n"
+            f"Tool: {tool_name}\n"
+            f"Blocked by: {pattern}\n\n"
+            f"This tool is not allowed by your security policy.\n\n"
+            f"To allow this tool:\n"
+            f"1. Add it to ai-guardian.json in your project:\n"
+            f'   "permissions": {{\n'
+            f'     "allow": ["{tool_name}"]\n'
+            f'   }}\n\n'
+            f"2. Or ask your administrator to update the enterprise policy\n"
+            f"\n{'='*70}\n"
+        )
 
     def _load_config(self) -> Dict:
         """
@@ -350,13 +253,13 @@ class ToolPolicyChecker:
         1. Remote configs (from remote_configs URLs)
         2. User global config
         3. Project local config
-        4. Hardcoded defaults
+        4. Defaults
 
         Returns:
             dict: Merged configuration
         """
-        # Start with empty config
-        config = {}
+        # Start with defaults
+        config = self._get_defaults()
 
         # Load project local config
         local_config, local_config_path = self._load_local_config()
@@ -368,74 +271,79 @@ class ToolPolicyChecker:
         if user_config:
             config = self._merge_configs(config, user_config)
 
-        # Load remote configs (if specified in local or user configs)
-        # Remote configs have HIGHEST priority, so load them last
+        # Load remote configs (highest priority)
         remote_configs = self._load_remote_configs(local_config, local_config_path, user_config, user_config_path)
         for remote_config in remote_configs:
             config = self._merge_configs(config, remote_config)
 
-        # Discover skills from directories (if specified)
-        self._discover_skills_from_directories(config)
-
-        # Apply defaults for missing values
-        config = self._apply_defaults(config)
+        # Discover and add patterns from permissions_directories
+        self._discover_from_directories(config)
 
         return config
 
-    def _load_local_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
-        """
-        Load project local configuration from .allowed-tools.toml.
+    def _get_defaults(self) -> Dict:
+        """Get default empty configuration."""
+        return {
+            "permissions": {
+                "deny": [],
+                "allow": []
+            },
+            "permissions_directories": {
+                "deny": [],
+                "allow": []
+            },
+            "remote_configs": []
+        }
 
-        Returns:
-            tuple: (config dict or None, config path or None)
-        """
-        config_path = Path.cwd() / ".allowed-tools.toml"
-        config = self._load_toml_file(config_path, "project local")
+    def _load_local_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
+        """Load project local configuration from ai-guardian.json."""
+        # Try to get project path from environment (Cursor might set this)
+        project_path = os.environ.get("CURSOR_PROJECT_PATH") or os.environ.get("VSCODE_CWD")
+
+        if project_path:
+            logger.debug(f"Using project path from environment: {project_path}")
+            config_path = Path(project_path) / "ai-guardian.json"
+        else:
+            config_path = Path.cwd() / "ai-guardian.json"
+            logger.debug(f"Using current working directory: {Path.cwd()}")
+
+        config = self._load_json_file(config_path, "project local")
         return config, config_path if config else None
 
     def _load_user_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
-        """
-        Load user global configuration from ~/.config/ai-guardian/allowed-tools.toml.
-
-        Returns:
-            tuple: (config dict or None, config path or None)
-        """
-        # Use XDG_CONFIG_HOME if set, otherwise ~/.config
+        """Load user global configuration from ~/.config/ai-guardian/ai-guardian.json."""
         config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        config_path = Path(config_home) / "ai-guardian" / "allowed-tools.toml"
-        config = self._load_toml_file(config_path, "user global")
+        config_path = Path(config_home) / "ai-guardian" / "ai-guardian.json"
+        config = self._load_json_file(config_path, "user global")
         return config, config_path if config else None
 
-    def _load_toml_file(self, path: Path, source_name: str) -> Optional[Dict]:
+    def _load_json_file(self, path: Path, source_name: str) -> Optional[Dict]:
         """
-        Load and parse a TOML configuration file.
+        Load and parse a JSON configuration file.
 
         Args:
-            path: Path to TOML file
+            path: Path to JSON file
             source_name: Human-readable source name for logging
 
         Returns:
-            dict or None: Parsed TOML config or None if error/not found
+            dict or None: Parsed JSON config or None if error/not found
         """
         try:
             if not path.exists():
                 logger.debug(f"No {source_name} config found at {path}")
                 return None
 
-            # Import toml library
-            try:
-                import toml
-            except ImportError:
-                logger.warning("toml library not installed - cannot load TOML configs")
-                return None
-
             logger.info(f"Loading {source_name} config from {path}")
             with open(path, 'r') as f:
-                config = toml.load(f)
+                # JSON5 would support comments, but for now just parse strict JSON
+                config = json.load(f)
 
             logger.debug(f"Loaded {source_name} config: {config}")
             return config
 
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON in {source_name} config at {path}: {e}")
+            return None
         except Exception as e:
             logger.warning(f"Error loading {source_name} config from {path}: {e}")
             return None
@@ -444,8 +352,8 @@ class ToolPolicyChecker:
         """
         Merge two configuration dictionaries.
 
-        Override values take precedence over base values.
         Lists are concatenated (not replaced).
+        Dicts are recursively merged.
 
         Args:
             base: Base configuration
@@ -472,43 +380,101 @@ class ToolPolicyChecker:
 
         return result
 
-    def _apply_defaults(self, config: Dict) -> Dict:
+    def _load_remote_configs(
+        self,
+        local_config: Optional[Dict],
+        local_config_path: Optional[Path],
+        user_config: Optional[Dict],
+        user_config_path: Optional[Path]
+    ) -> List[Dict]:
+        """Load remote configurations from URLs."""
+        remote_configs = []
+
+        # Collect remote URLs from both configs
+        remote_entries = []
+
+        if local_config and "remote_configs" in local_config:
+            for entry in local_config["remote_configs"]:
+                remote_entries.append((entry, local_config_path))
+
+        if user_config and "remote_configs" in user_config:
+            for entry in user_config["remote_configs"]:
+                remote_entries.append((entry, user_config_path))
+
+        # Load each remote config
+        for entry, base_path in remote_entries:
+            try:
+                # Parse entry (string or dict with token_env)
+                if isinstance(entry, str):
+                    url = entry
+                    token_env = None
+                elif isinstance(entry, dict):
+                    url = entry.get("url")
+                    token_env = entry.get("token_env")
+                else:
+                    logger.warning(f"Invalid remote_configs entry: {entry}")
+                    continue
+
+                if not url:
+                    continue
+
+                config = self._load_remote_config(url, base_path, token_env)
+                if config:
+                    remote_configs.append(config)
+            except Exception as e:
+                logger.warning(f"Failed to load remote config: {e}")
+
+        return remote_configs
+
+    def _load_remote_config(self, url: str, base_config_path: Optional[Path], token_env: Optional[str]) -> Optional[Dict]:
         """
-        Apply default values for missing configuration keys.
+        Load a remote configuration from URL.
 
         Args:
-            config: Configuration dict
+            url: URL or file path
+            base_config_path: Base config file path (for relative paths)
+            token_env: Optional environment variable name for auth token
 
         Returns:
-            dict: Configuration with defaults applied
+            dict or None: Parsed config or None if failed
         """
-        defaults = {
-            "builtin_deny_patterns": [],
-            "skill_allowed_patterns": [],
-            "skill_deny_patterns": [],
-            "mcp_allowed_patterns": [],
-            "mcp_deny_patterns": [],
-            "allowed_skill_directories": [],
-            "deny_skill_directories": [],
-        }
+        try:
+            if url.startswith("http://") or url.startswith("https://"):
+                # Remote URL - use RemoteFetcher
+                logger.info(f"Fetching remote config from: {url}")
+                from ai_guardian.remote_fetcher import RemoteFetcher
 
-        for key, value in defaults.items():
-            if key not in config:
-                config[key] = value
+                fetcher = RemoteFetcher()
 
-        return config
+                # Get token if token_env specified
+                headers = {}
+                if token_env:
+                    token = os.environ.get(token_env)
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                        logger.debug(f"Using token from {token_env}")
 
-    def _discover_skills_from_directories(self, config: Dict) -> None:
+                # Fetch config (RemoteFetcher needs to be updated to support headers)
+                config = fetcher.fetch_config(url, headers=headers)
+                return config
+            else:
+                # Local file path
+                file_path = Path(url)
+                if not file_path.is_absolute() and base_config_path:
+                    file_path = base_config_path.parent / url
+
+                logger.info(f"Loading remote config from local file: {file_path}")
+                return self._load_json_file(file_path, f"remote ({url})")
+
+        except Exception as e:
+            logger.warning(f"Error loading remote config from {url}: {e}")
+            return None
+
+    def _discover_from_directories(self, config: Dict) -> None:
         """
-        Discover skills from directory URLs and add to config.
+        Discover patterns from permissions_directories and add to config.
 
-        Modifies config in-place by adding discovered skills to:
-        - skill_allowed_patterns (from allowed_skill_directories)
-        - skill_deny_patterns (from deny_skill_directories)
-
-        Supports both formats:
-        - Simple string: "https://github.com/org/repo/tree/main/skills"
-        - Dict with token: {"url": "...", "token_env": "GITHUB_AI_SKILL_TOKEN"}
+        Modifies config in-place.
 
         Args:
             config: Configuration dict
@@ -517,239 +483,67 @@ class ToolPolicyChecker:
             from ai_guardian.skill_discovery import SkillDiscovery
 
             discovery = SkillDiscovery()
-
-            # Get cache TTL from environment or default
             cache_ttl = int(os.environ.get("AI_GUARDIAN_SKILL_CACHE_TTL_HOURS", "24"))
 
-            # Discover allowed skills
-            allowed_dirs = config.get("allowed_skill_directories", [])
-            if allowed_dirs:
-                logger.info(f"Discovering skills from {len(allowed_dirs)} allowed directories")
-                for dir_entry in allowed_dirs:
-                    # Parse directory entry (string or dict)
-                    dir_url, token_env = self._parse_directory_entry(dir_entry)
-                    if not dir_url:
-                        continue
+            permissions_dirs = config.get("permissions_directories", {})
 
-                    skills = discovery.discover_skills(dir_url, cache_ttl_hours=cache_ttl, token_env=token_env)
-                    if skills:
-                        logger.info(f"Discovered {len(skills)} skills from {dir_url}")
-                        # Add discovered skills to allowed patterns
-                        if "skill_allowed_patterns" not in config:
-                            config["skill_allowed_patterns"] = []
-                        # Convert to list if set, add discovered skills
-                        existing = set(config["skill_allowed_patterns"])
-                        existing.update(skills)
-                        config["skill_allowed_patterns"] = list(existing)
+            # Process deny directories
+            deny_dirs = permissions_dirs.get("deny", [])
+            for dir_entry in deny_dirs:
+                patterns = self._discover_directory_patterns(discovery, dir_entry, cache_ttl)
+                if patterns:
+                    config["permissions"]["deny"].extend(patterns)
 
-            # Discover denied skills
-            deny_dirs = config.get("deny_skill_directories", [])
-            if deny_dirs:
-                logger.info(f"Discovering skills from {len(deny_dirs)} deny directories")
-                for dir_entry in deny_dirs:
-                    # Parse directory entry (string or dict)
-                    dir_url, token_env = self._parse_directory_entry(dir_entry)
-                    if not dir_url:
-                        continue
-
-                    skills = discovery.discover_skills(dir_url, cache_ttl_hours=cache_ttl, token_env=token_env)
-                    if skills:
-                        logger.info(f"Discovered {len(skills)} skills to deny from {dir_url}")
-                        # Add discovered skills to deny patterns
-                        if "skill_deny_patterns" not in config:
-                            config["skill_deny_patterns"] = []
-                        # Convert to list if set, add discovered skills
-                        existing = set(config["skill_deny_patterns"])
-                        existing.update(skills)
-                        config["skill_deny_patterns"] = list(existing)
+            # Process allow directories
+            allow_dirs = permissions_dirs.get("allow", [])
+            for dir_entry in allow_dirs:
+                patterns = self._discover_directory_patterns(discovery, dir_entry, cache_ttl)
+                if patterns:
+                    config["permissions"]["allow"].extend(patterns)
 
         except ImportError:
-            logger.debug("Skill discovery not available (missing dependencies)")
+            logger.debug("Skill discovery not available")
         except Exception as e:
-            logger.error(f"Error discovering skills from directories: {e}")
-            # Fail-open: continue without discovered skills
+            logger.error(f"Error discovering from directories: {e}")
 
-    def _parse_directory_entry(self, entry) -> Tuple[Optional[str], Optional[str]]:
+    def _discover_directory_patterns(self, discovery, dir_entry: Dict, cache_ttl: int) -> List[str]:
         """
-        Parse a directory entry from config.
-
-        Supports:
-        - Simple string: "https://github.com/org/repo/tree/main/skills"
-        - Dict: {"url": "...", "token_env": "GITHUB_AI_SKILL_TOKEN"}
+        Discover patterns from a single directory entry.
 
         Args:
-            entry: Directory entry (string or dict)
+            discovery: SkillDiscovery instance
+            dir_entry: Directory entry dict with url, category, token_env
+            cache_ttl: Cache TTL in hours
 
         Returns:
-            tuple: (url, token_env) or (None, None) if invalid
+            list: List of patterns (e.g., ["Skill(arc)", "Skill(foo)"])
         """
         try:
-            if isinstance(entry, str):
-                # Simple string format
-                return entry, None
-            elif isinstance(entry, dict):
-                # Dict format with optional token_env
-                url = entry.get("url")
-                token_env = entry.get("token_env")
-                if url:
-                    return url, token_env
+            url = dir_entry.get("url")
+            category = dir_entry.get("category", "Skill")
+            token_env = dir_entry.get("token_env")
+
+            if not url:
+                return []
+
+            # Discover items from directory
+            items = discovery.discover_skills(url, cache_ttl_hours=cache_ttl, token_env=token_env)
+
+            # Convert items to patterns with category prefix
+            patterns = []
+            for item in items:
+                # Items come back as "Skill:name", extract name
+                if ":" in item:
+                    name = item.split(":", 1)[1]
                 else:
-                    logger.warning(f"Directory entry missing 'url' field: {entry}")
-                    return None, None
-            else:
-                logger.warning(f"Invalid directory entry format (expected string or dict): {entry}")
-                return None, None
-        except Exception as e:
-            logger.error(f"Error parsing directory entry: {e}")
-            return None, None
+                    name = item
 
-    def _load_remote_configs(
-        self,
-        local_config: Optional[Dict],
-        local_config_path: Optional[Path],
-        user_config: Optional[Dict],
-        user_config_path: Optional[Path]
-    ) -> List[Dict]:
-        """
-        Load remote configurations from URLs specified in local/user configs.
+                # Format as category(name)
+                pattern = f"{category}({name})"
+                patterns.append(pattern)
 
-        Supports:
-        - https:// and http:// URLs (remote)
-        - file:// URLs (local files)
-        - Plain paths (absolute or relative)
-
-        Relative paths are resolved relative to the config file that references them.
-
-        Args:
-            local_config: Project local config dict
-            local_config_path: Path to project local config file
-            user_config: User global config dict
-            user_config_path: Path to user global config file
-
-        Returns:
-            list: List of loaded remote config dicts
-        """
-        remote_configs = []
-
-        # Collect remote URLs from both configs
-        remote_urls = []
-
-        # Get URLs from project local config
-        if local_config and "remote_configs" in local_config:
-            urls = local_config["remote_configs"]
-            if isinstance(urls, list):
-                for url in urls:
-                    remote_urls.append((url, local_config_path))
-
-        # Get URLs from user global config
-        if user_config and "remote_configs" in user_config:
-            urls = user_config["remote_configs"]
-            if isinstance(urls, list):
-                for url in urls:
-                    remote_urls.append((url, user_config_path))
-
-        # Load each remote config
-        for url, base_config_path in remote_urls:
-            try:
-                config = self._load_remote_config(url, base_config_path)
-                if config:
-                    remote_configs.append(config)
-            except Exception as e:
-                logger.warning(f"Failed to load remote config from {url}: {e}")
-                # Continue with other configs (fail-open for individual remote configs)
-
-        return remote_configs
-
-    def _load_remote_config(self, url: str, base_config_path: Optional[Path]) -> Optional[Dict]:
-        """
-        Load a remote configuration from a URL or file path.
-
-        Supports:
-        - https://example.com/config.toml (remote HTTPS)
-        - http://example.com/config.toml (remote HTTP)
-        - file:///path/to/config.toml (local file URL)
-        - /absolute/path/to/config.toml (absolute path)
-        - relative/path/to/config.toml (relative to base_config_path)
-
-        Args:
-            url: URL or file path to load
-            base_config_path: Base config file path (for resolving relative paths)
-
-        Returns:
-            dict or None: Parsed config or None if failed
-        """
-        try:
-            # Resolve the actual file path
-            resolved_path = self._resolve_config_url(url, base_config_path)
-
-            if resolved_path.startswith("http://") or resolved_path.startswith("https://"):
-                # Remote URL - use RemoteFetcher
-                logger.info(f"Fetching remote config from: {resolved_path}")
-                from ai_guardian.remote_fetcher import RemoteFetcher
-
-                # Get cache settings from environment or defaults
-                refresh_interval = int(os.environ.get("AI_GUARDIAN_REFRESH_INTERVAL_HOURS", "12"))
-                expire_after = int(os.environ.get("AI_GUARDIAN_EXPIRE_AFTER_HOURS", "168"))
-
-                fetcher = RemoteFetcher()
-                config = fetcher.fetch_config(
-                    resolved_path,
-                    refresh_interval_hours=refresh_interval,
-                    expire_after_hours=expire_after
-                )
-
-                if config is None:
-                    logger.warning(f"Failed to fetch remote config from {resolved_path} - skipping")
-
-                return config
-            else:
-                # Local file path
-                file_path = Path(resolved_path)
-                logger.info(f"Loading remote config from local file: {file_path}")
-                return self._load_toml_file(file_path, f"remote ({url})")
+            return patterns
 
         except Exception as e:
-            logger.warning(f"Error loading remote config from {url}: {e}")
-            return None
-
-    def _resolve_config_url(self, url: str, base_config_path: Optional[Path]) -> str:
-        """
-        Resolve a config URL to an actual path.
-
-        Handles:
-        - file:// URLs -> convert to local path
-        - Absolute paths -> use as-is
-        - Relative paths -> resolve relative to base_config_path directory
-
-        Args:
-            url: URL or path string
-            base_config_path: Base config file path for relative resolution
-
-        Returns:
-            str: Resolved path or URL
-        """
-        # Handle file:// URLs
-        if url.startswith("file://"):
-            # Remove file:// prefix
-            path_str = url[7:]  # len("file://") == 7
-            return os.path.abspath(os.path.expanduser(path_str))
-
-        # Handle http:// and https:// URLs
-        if url.startswith("http://") or url.startswith("https://"):
-            return url
-
-        # Handle local paths (absolute or relative)
-        path_str = os.path.expanduser(url)  # Expand ~ to home directory
-
-        # Check if absolute path
-        if os.path.isabs(path_str):
-            return path_str
-
-        # Relative path - resolve relative to base_config_path directory
-        if base_config_path:
-            base_dir = base_config_path.parent
-            resolved = base_dir / path_str
-            return str(resolved.absolute())
-
-        # No base path - resolve relative to current directory
-        return str(Path(path_str).absolute())
+            logger.error(f"Error discovering patterns from {dir_entry}: {e}")
+            return []
