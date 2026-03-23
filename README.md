@@ -1,6 +1,6 @@
 # AI Guardian
 
-> AI IDE security hook: blocks directories, scans secrets, protects AI interactions
+> AI IDE security hook: controls MCP/skill permissions, blocks directories, scans secrets
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -32,6 +32,50 @@ Multi-layered secret detection before AI interactions:
 - **File scanning**: Verify files before AI reads them
 - Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) - industry-standard scanner
 - Comprehensive pattern detection (API keys, tokens, private keys, etc.)
+
+### 🎛️ MCP Server & Skill Permissions
+Control which MCP servers and skills Claude Code can use with fine-grained allow/deny lists:
+
+**Default Security Posture:**
+- ✅ **Built-in tools** (Read, Write, Bash, etc.): Allowed by default
+- 🚫 **Skills**: Blocked by default (must be explicitly allowed)
+- 🚫 **MCP Servers**: Blocked by default (must be explicitly allowed)
+
+**Features:**
+- Pattern-based matching: `Skill(daf-*)`, `mcp__notebooklm-mcp__notebook_*`
+- Block dangerous patterns: `Bash(*rm -rf*)`, `Write(/etc/*)`
+- Auto-discover skills from GitHub/GitLab directories
+- Local filesystem skill discovery
+- Remote policy configuration (enterprise/team policies)
+- Multi-level config: enterprise → user → project
+
+**Example Configuration:**
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(*rm -rf*)",
+      "Write(/etc/*)"
+    ],
+    "allow": [
+      "mcp__notebooklm-mcp__notebook_*",
+      "Skill(daf-*)",
+      "Skill(gh-cli)"
+    ]
+  },
+  "permissions_directories": {
+    "allow": [
+      {
+        "url": "https://github.com/your-org/skills/tree/main/skills",
+        "category": "Skill"
+      }
+    ]
+  }
+}
+```
+
+Place configuration at `~/.config/ai-guardian/ai-guardian.json`. See [config-example.json](config-example.json) for full documentation.
 
 ### 🎯 Multi-IDE Support
 
@@ -76,11 +120,22 @@ gitleaks version
 
 ## Installation
 
+**Basic Installation:**
 ```bash
 git clone https://github.com/itdove/ai-guardian.git
 cd ai-guardian
 pip install -e .
 ```
+
+**With Skill Discovery (Optional):**
+
+For auto-discovering skills from GitHub/GitLab directories:
+
+```bash
+pip install -e ".[skill-discovery]"
+```
+
+This installs the optional `requests` library for fetching remote skill directories.
 
 ## Configuration
 
@@ -192,13 +247,32 @@ regex = '''mycompany_[0-9a-f]{32}'''
 
 See [Gitleaks Configuration](https://github.com/gitleaks/gitleaks#configuration) for more options.
 
+### Environment Variables
+
+Configure ai-guardian behavior with environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AI_GUARDIAN_IDE_TYPE` | Override IDE auto-detection (`claude` or `cursor`) | Auto-detect |
+| `AI_GUARDIAN_SKILL_CACHE_TTL_HOURS` | Skill directory cache TTL in hours | `24` |
+| `AI_GUARDIAN_REFRESH_INTERVAL_HOURS` | Remote config refresh interval | `12` |
+| `AI_GUARDIAN_EXPIRE_AFTER_HOURS` | Remote config expiration time | `168` (7 days) |
+
+**Example:**
+```bash
+export AI_GUARDIAN_IDE_TYPE=claude
+export AI_GUARDIAN_SKILL_CACHE_TTL_HOURS=48
+```
+
 ## How It Works
 
 ```
-User types prompt
+User types prompt / Uses tool
        ↓
 [AI Guardian Hook]
        ↓
+   MCP/Skill check ──→ Not allowed? ──→ BLOCK ❌
+       ↓ (allowed)
    Directory check? ──→ .ai-read-deny exists? ──→ BLOCK ❌
        ↓ (no marker)
    Scan with Gitleaks
@@ -218,9 +292,9 @@ User types prompt
 ## Future Plans
 
 - [ ] Integration with [leaktk](https://github.com/leaktk/leaktk) project
-- [ ] Skill/MCP filtering capabilities
-- [ ] Fine-grained permission control
-- [ ] Web UI for managing blocked directories
+- [ ] Web UI for managing policies and blocked directories
+- [ ] Policy audit logging and compliance reporting
+- [ ] Enhanced pattern matching with regex support
 
 ## License
 

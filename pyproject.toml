@@ -11,6 +11,9 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []
 
+[project.optional-dependencies]
+skill-discovery = ["requests>=2.28.0"]
+
 keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
 
 classifiers = [

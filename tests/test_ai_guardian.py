@@ -295,11 +295,11 @@ class AIGuardianTest(TestCase):
         """Test IDE type detection with environment variable override"""
         hook_data = {"prompt": "test"}
 
-        with patch.dict(os.environ, {"AILEAKS_IDE_TYPE": "cursor"}):
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "cursor"}):
             ide_type = ai_guardian.detect_ide_type(hook_data)
             self.assertEqual(ide_type, ai_guardian.IDEType.CURSOR)
 
-        with patch.dict(os.environ, {"AILEAKS_IDE_TYPE": "claude"}):
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "claude"}):
             ide_type = ai_guardian.detect_ide_type(hook_data)
             self.assertEqual(ide_type, ai_guardian.IDEType.CLAUDE_CODE)
 

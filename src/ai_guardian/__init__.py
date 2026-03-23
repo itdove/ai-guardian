@@ -49,7 +49,7 @@ def detect_ide_type(hook_data):
         IDEType: The detected IDE type
     """
     # Check for environment variable override
-    ide_override = os.environ.get("AILEAKS_IDE_TYPE", "").lower()
+    ide_override = os.environ.get("AI_GUARDIAN_IDE_TYPE", "").lower()
     if ide_override == "cursor":
         return IDEType.CURSOR
     elif ide_override == "claude":
