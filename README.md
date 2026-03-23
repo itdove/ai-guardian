@@ -9,6 +9,26 @@
 
 AI Guardian provides comprehensive protection for AI IDE interactions through multiple security layers.
 
+## Quick Start
+
+```bash
+# 1. Install Gitleaks (macOS)
+brew install gitleaks
+
+# 2. Install AI Guardian
+git clone https://github.com/itdove/ai-guardian.git
+cd ai-guardian
+pip install -e .
+
+# 3. Configure Claude Code hooks
+# Add to ~/.claude/settings.json - see Configuration section below
+
+# 4. (Optional) Set up MCP/Skill permissions
+mkdir -p ~/.config/ai-guardian
+cp config-example.json ~/.config/ai-guardian/ai-guardian.json
+# Edit the file to allow your specific skills and MCP servers
+```
+
 ## Features
 
 ### 🛡️ Directory Blocking
@@ -49,7 +69,7 @@ Control which MCP servers and skills Claude Code can use with fine-grained allow
 - Remote policy configuration (enterprise/team policies)
 - Multi-level config: enterprise → user → project
 
-**Example Configuration:**
+**Example Configuration (`~/.config/ai-guardian/ai-guardian.json`):**
 
 ```json
 {
@@ -68,14 +88,25 @@ Control which MCP servers and skills Claude Code can use with fine-grained allow
     "allow": [
       {
         "url": "https://github.com/your-org/skills/tree/main/skills",
-        "category": "Skill"
+        "category": "Skill",
+        "token_env": "GITHUB_TOKEN"
+      }
+    ]
+  },
+  "remote_configs": {
+    "urls": [
+      {
+        "url": "https://example.com/enterprise-policy.json",
+        "enabled": true
       }
     ]
   }
 }
 ```
 
-Place configuration at `~/.config/ai-guardian/ai-guardian.json`. See [config-example.json](config-example.json) for full documentation.
+**Setup:** See [Configuration → MCP Server & Skill Permissions](#mcp-server--skill-permissions-optional) section below for detailed setup instructions.
+
+See [config-example.json](config-example.json) for full documentation and more examples.
 
 ### 🎯 Multi-IDE Support
 
@@ -194,6 +225,105 @@ Create `~/.cursor/hooks.json`:
     ]
   }
 }
+```
+
+### MCP Server & Skill Permissions (Optional)
+
+Control which MCP servers and skills Claude Code can access. **This is optional** - by default, built-in tools are allowed and Skills/MCP are blocked.
+
+#### Step 1: Create Configuration Directory
+
+```bash
+mkdir -p ~/.config/ai-guardian
+```
+
+#### Step 2: Create Configuration File
+
+Create `~/.config/ai-guardian/ai-guardian.json`:
+
+```bash
+# Copy the example configuration
+curl -o ~/.config/ai-guardian/ai-guardian.json \
+  https://raw.githubusercontent.com/itdove/ai-guardian/main/config-example.json
+
+# Or create manually with your editor
+vi ~/.config/ai-guardian/ai-guardian.json
+```
+
+#### Step 3: Configure Permissions
+
+**Minimal Configuration (Allow specific tools):**
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Skill(daf-*)",
+      "Skill(gh-cli)",
+      "mcp__notebooklm-mcp__notebook_*"
+    ]
+  }
+}
+```
+
+**Advanced Configuration (with blocking and auto-discovery):**
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "Bash(*rm -rf*)",
+      "Bash(*dd *)",
+      "Write(/etc/*)"
+    ],
+    "allow": [
+      "mcp__notebooklm-mcp__notebook_list",
+      "mcp__notebooklm-mcp__notebook_get",
+      "mcp__atlassian__getJiraIssue",
+      "Skill(daf-*)",
+      "Skill(gh-cli)",
+      "Skill(git-cli)"
+    ]
+  },
+  "permissions_directories": {
+    "allow": [
+      {
+        "url": "https://github.com/your-org/skills/tree/main/skills",
+        "category": "Skill",
+        "token_env": "GITHUB_TOKEN"
+      }
+    ]
+  }
+}
+```
+
+#### Configuration Locations (Precedence Order)
+
+1. **Project config** (highest priority): `./.ai-guardian.json` in project root
+2. **User config**: `~/.config/ai-guardian/ai-guardian.json`
+3. **Remote configs**: Fetched from URLs in `remote_configs`
+4. **Defaults**: Built-in defaults (allow all built-ins, block skills/MCP)
+
+#### Pattern Matching Examples
+
+| Pattern | Matches | Description |
+|---------|---------|-------------|
+| `Skill(gh-cli)` | Exactly `Skill:gh-cli` | Exact skill name |
+| `Skill(daf-*)` | `Skill:daf-active`, `Skill:daf-status`, etc. | All skills starting with `daf-` |
+| `mcp__notebooklm-mcp__notebook_*` | All notebook functions | Wildcard suffix |
+| `Bash(*rm -rf*)` | Any bash command containing `rm -rf` | Dangerous command patterns |
+| `Write(/etc/*)` | Any write to /etc directory | Path-based blocking |
+
+#### Verify Configuration
+
+Test that your configuration is loaded correctly:
+
+```bash
+# This will be blocked if Skills are not in your allow list
+echo '{"hook_event_name": "PreToolUse", "tool_use": {"name": "Skill:unknown-skill"}}' | ai-guardian
+
+# This should be allowed (built-in tool)
+echo '{"hook_event_name": "PreToolUse", "tool_use": {"name": "Read"}}' | ai-guardian
 ```
 
 ## Usage
