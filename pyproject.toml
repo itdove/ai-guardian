@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-guardian"
+version = "1.0.0"
+description = "AI IDE security hook: blocks directories, scans secrets, and protects AI interactions"
+authors = [{name = "itdove team"}]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/itdove/ai-guardian"
+"Bug Tracker" = "https://github.com/itdove/ai-guardian/issues"
+"Source Code" = "https://github.com/itdove/ai-guardian"
+
+[project.scripts]
+ai-guardian = "ai_guardian.__main__:main"

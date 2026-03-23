@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+echo "Installing ai-guardian..."
+pip install -e .
+
+echo ""
+echo "✅ ai-guardian installed successfully!"
+echo ""
+echo "⚠️  IMPORTANT: You must install Gitleaks binary separately"
+echo ""
+echo "Installation options:"
+echo "  - macOS: brew install gitleaks"
+echo "  - Linux: Download from https://github.com/gitleaks/gitleaks/releases"
+echo ""
+echo "To verify Gitleaks is installed:"
+echo "  gitleaks version"
+echo ""
+
+# Check if Gitleaks is available
+if command -v gitleaks &> /dev/null; then
+    echo "✅ Gitleaks is already installed: $(gitleaks version 2>&1 | head -1)"
+else
+    echo "❌ Gitleaks not found - please install it before using ai-guardian"
+fi
+
+echo ""
+echo "Repository: https://github.com/itdove/ai-guardian"

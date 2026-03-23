@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+# Run unit tests using unittest (built-in, no dependencies)
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+# Alternative: use pytest if available and preferred
+# python3 -m pytest tests/ -v --tb=short
