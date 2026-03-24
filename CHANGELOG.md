@@ -8,9 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- GitHub Actions CI/CD workflows for testing, linting, and PyPI publishing
-- Comprehensive release management documentation (RELEASING.md)
-- CHANGELOG.md for tracking version history
 
 ### Changed
 
@@ -22,7 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-## [1.0.0] - 2024-XX-XX
+## [1.0.1] - 2025-03-23
+
+### Changed
+- Update README to reflect public PyPI availability
+- Change installation instructions to use PyPI instead of git clone
+- Add PyPI version badge
+
+## [1.0.0] - 2025-03-23
 
 ### Added
 - Initial stable release
