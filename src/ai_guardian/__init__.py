@@ -10,6 +10,8 @@ AI Guardian provides multi-layered protection for AI IDE interactions:
 Automatically detects IDE type and uses appropriate response format.
 """
 
+__version__ = "1.0.0"
+
 import argparse
 import json
 import logging
@@ -643,7 +645,7 @@ def main():
             "--version",
             "-v",
             action="version",
-            version="ai-guardian 1.0.0",
+            version=f"ai-guardian {__version__}",
         )
         parser.parse_args()
         return 0

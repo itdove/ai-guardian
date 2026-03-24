@@ -8,6 +8,7 @@ version = "1.0.0"
 description = "AI IDE security hook: blocks directories, scans secrets, and protects AI interactions"
 authors = [{name = "itdove team"}]
 readme = "README.md"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.9"
 dependencies = []
 keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
