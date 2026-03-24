@@ -4,8 +4,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-
-**Status:** 🔒 Private Development
+[![PyPI version](https://badge.fury.io/py/ai-guardian.svg)](https://pypi.org/project/ai-guardian/)
 
 AI Guardian provides comprehensive protection for AI IDE interactions through multiple security layers.
 
@@ -15,10 +14,8 @@ AI Guardian provides comprehensive protection for AI IDE interactions through mu
 # 1. Install Gitleaks (macOS)
 brew install gitleaks
 
-# 2. Install AI Guardian
-git clone https://github.com/itdove/ai-guardian.git
-cd ai-guardian
-pip install -e .
+# 2. Install AI Guardian from PyPI
+pip install ai-guardian
 
 # 3. Configure Claude Code hooks
 # Add to ~/.claude/settings.json - see Configuration section below
