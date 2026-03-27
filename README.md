@@ -21,14 +21,120 @@ brew install gitleaks
 # 2. Install AI Guardian from PyPI
 pip install ai-guardian
 
-# 3. Configure Claude Code hooks
-# Add to ~/.claude/settings.json - see Configuration section below
+# 3. Setup IDE hooks (auto-detects Claude Code or Cursor)
+ai-guardian setup
 
-# 4. (Optional) Set up MCP/Skill permissions
+# 4. (Optional) Setup with remote configuration
+ai-guardian setup --remote-config-url https://example.com/ai-guardian-policy.json
+
+# 5. (Optional) Set up MCP/Skill permissions
 mkdir -p ~/.config/ai-guardian
 cp ai-guardian-example.json ~/.config/ai-guardian/ai-guardian.json
 # Edit the file to allow your specific skills and MCP servers
 ```
+
+## Setup Command
+
+The `ai-guardian setup` command automatically configures IDE hooks for you.
+
+### Basic Usage
+
+```bash
+# Auto-detect IDE and setup hooks
+ai-guardian setup
+
+# Specify IDE explicitly
+ai-guardian setup --ide claude
+ai-guardian setup --ide cursor
+
+# Setup with remote configuration URL
+ai-guardian setup --remote-config-url https://example.com/ai-guardian-policy.json
+
+# Preview changes without applying
+ai-guardian setup --dry-run
+
+# Force overwrite existing hooks
+ai-guardian setup --force
+
+# Non-interactive mode (skip confirmations)
+ai-guardian setup --yes
+```
+
+### What it Does
+
+1. **IDE Detection**: Auto-detects Claude Code or Cursor based on config directories
+2. **Hook Configuration**: Adds ai-guardian hooks to your IDE config
+3. **Backup Creation**: Creates `.backup` file before modifying existing config
+4. **Config Merging**: Preserves your existing IDE configuration
+5. **Remote Config**: Optionally adds remote config URLs for centralized policies
+6. **Environment Variables**: Respects IDE-specific env vars (e.g., `CLAUDE_CONFIG_DIR`)
+
+### Examples
+
+**Setup for Claude Code with confirmation:**
+```bash
+ai-guardian setup --ide claude
+```
+
+**Setup for Cursor without confirmation:**
+```bash
+ai-guardian setup --ide cursor --yes
+```
+
+**Preview what would change:**
+```bash
+ai-guardian setup --dry-run
+```
+
+**Setup with enterprise remote config:**
+```bash
+# Setup IDE hooks and add remote policy URL
+ai-guardian setup --remote-config-url https://company.com/ai-guardian-policy.json
+
+# Just add remote config without IDE setup
+ai-guardian setup --remote-config-url https://company.com/ai-guardian-policy.json --ide claude
+```
+
+### Remote Configuration
+
+The `--remote-config-url` flag adds a remote configuration URL to `~/.config/ai-guardian/ai-guardian.json`:
+
+- **New file**: Creates config with `remote_configs.urls` section
+- **Existing file without remote_configs**: Adds the section
+- **Existing file with remote_configs**: Appends to existing URLs list
+- All existing configuration is preserved
+
+**Example remote config structure:**
+```json
+{
+  "remote_configs": {
+    "urls": [
+      {"url": "https://example.com/policy.json", "enabled": true}
+    ]
+  }
+}
+```
+
+### Environment Variables
+
+The setup command respects IDE-specific environment variables for custom config locations:
+
+**Claude Code:**
+- `CLAUDE_CONFIG_DIR` - Custom directory for Claude Code config files
+- If set, `ai-guardian setup` will use `$CLAUDE_CONFIG_DIR/settings.json`
+- Default: `~/.claude/settings.json`
+
+Example:
+```bash
+# Use custom Claude config directory
+export CLAUDE_CONFIG_DIR=~/my-custom-claude-config
+ai-guardian setup --ide claude
+# Will configure: ~/my-custom-claude-config/settings.json
+```
+
+**Cursor:**
+- Default: `~/.cursor/hooks.json`
+- No environment variable support currently (will add if Cursor implements one)
 
 ## Features
 
@@ -222,6 +328,10 @@ Remote policies: Centrally managed, cannot be bypassed
 ```
 
 ## Configuration
+
+**💡 Recommended**: Use `ai-guardian setup` to automatically configure your IDE (see [Setup Command](#setup-command) above).
+
+The following manual configuration is provided for reference or advanced use cases.
 
 ### Claude Code
 

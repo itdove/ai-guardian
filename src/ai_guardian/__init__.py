@@ -647,7 +647,57 @@ def main():
             action="version",
             version=f"ai-guardian {__version__}",
         )
-        parser.parse_args()
+
+        # Add subcommands
+        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+        # Setup subcommand
+        setup_parser = subparsers.add_parser(
+            "setup",
+            help="Setup IDE hooks with optional remote config"
+        )
+        setup_parser.add_argument(
+            "--ide",
+            choices=["claude", "cursor"],
+            help="Specify IDE type (auto-detected if not provided)"
+        )
+        setup_parser.add_argument(
+            "--remote-config-url",
+            metavar="URL",
+            help="Remote configuration URL to add"
+        )
+        setup_parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would be changed without applying"
+        )
+        setup_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite existing hooks"
+        )
+        setup_parser.add_argument(
+            "--yes",
+            "-y",
+            action="store_true",
+            help="Skip confirmation prompts"
+        )
+
+        args = parser.parse_args()
+
+        # Handle setup command
+        if args.command == "setup":
+            from ai_guardian.setup import setup_hooks
+            success = setup_hooks(
+                ide_type=args.ide,
+                remote_config_url=args.remote_config_url,
+                dry_run=args.dry_run,
+                force=args.force,
+                interactive=not args.yes
+            )
+            return 0 if success else 1
+
+        # If no subcommand, just return (version was handled)
         return 0
 
     # No arguments - run as hook (read from stdin)
