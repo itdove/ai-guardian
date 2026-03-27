@@ -306,6 +306,7 @@ class TestIDESetup:
                 'claude': {
                     'name': 'Claude Code',
                     'config_path': str(config_file),
+                    'config_dir_env_var': None,  # Disable env var for test
                     'hooks': {}
                 }
             }
@@ -339,8 +340,14 @@ class TestIDESetup:
                 'claude': {
                     'name': 'Claude Code',
                     'config_path': str(config_file),
+                    'config_dir_env_var': None,  # Disable env var for test
                     'hooks': {
-                        'UserPromptSubmit': [{'new': 'hook'}]
+                        'UserPromptSubmit': [
+                            {
+                                'matcher': '*',
+                                'hooks': [{'type': 'command', 'command': 'new-hook'}]
+                            }
+                        ]
                     }
                 }
             }
@@ -367,6 +374,7 @@ class TestIDESetup:
                 'claude': {
                     'name': 'Claude Code',
                     'config_path': str(config_file),
+                    'config_dir_env_var': None,  # Disable env var for test
                     'hooks': {}
                 }
             }
