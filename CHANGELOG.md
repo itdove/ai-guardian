@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.1.1] - 2026-03-27
+
+### Fixed
+- Logo display on PyPI package page (use absolute URL instead of relative path)
+
 ## [1.1.0] - 2026-03-27
 
 ### Added
@@ -56,7 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Matcher-based permissions with defense-in-depth model
 - JSON-only configuration (removed TOML support)
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.1
 [1.1.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.0
 [1.0.1]: https://github.com/itdove/ai-guardian/releases/tag/v1.0.1
 [1.0.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.0.0
