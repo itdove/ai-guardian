@@ -711,14 +711,25 @@ Configure ai-guardian behavior with environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `AI_GUARDIAN_CONFIG_DIR` | Custom configuration directory location | `~/.config/ai-guardian` (or `$XDG_CONFIG_HOME/ai-guardian`) |
 | `AI_GUARDIAN_IDE_TYPE` | Override IDE auto-detection (`claude` or `cursor`) | Auto-detect |
 | `AI_GUARDIAN_SKILL_CACHE_TTL_HOURS` | Skill directory cache TTL in hours | `24` |
 | `AI_GUARDIAN_REFRESH_INTERVAL_HOURS` | Remote config refresh interval | `12` |
 | `AI_GUARDIAN_EXPIRE_AFTER_HOURS` | Remote config expiration time | `168` (7 days) |
 | `AI_GUARDIAN_PATTERN_TOKEN` | Bearer token for pattern server authentication | None |
 
+**Configuration Directory Priority:**
+1. `AI_GUARDIAN_CONFIG_DIR` (if set) - direct override
+2. `$XDG_CONFIG_HOME/ai-guardian` (if `XDG_CONFIG_HOME` is set)
+3. `~/.config/ai-guardian` - default fallback
+
 **Example:**
 ```bash
+# Use custom config directory
+export AI_GUARDIAN_CONFIG_DIR=/opt/company/ai-guardian
+ai-guardian setup --ide claude
+
+# Other environment variables
 export AI_GUARDIAN_IDE_TYPE=claude
 export AI_GUARDIAN_SKILL_CACHE_TTL_HOURS=48
 ```

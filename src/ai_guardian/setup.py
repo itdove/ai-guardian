@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from ai_guardian.config_utils import get_config_dir
+
 
 class IDESetup:
     """Handle IDE hook setup and configuration."""
@@ -373,8 +375,8 @@ class IDESetup:
         """
         try:
             # Get config path
-            config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-            config_path = Path(config_home) / "ai-guardian" / "ai-guardian.json"
+            config_dir = get_config_dir()
+            config_path = config_dir / "ai-guardian.json"
 
             # Load existing config or create new
             config = {}

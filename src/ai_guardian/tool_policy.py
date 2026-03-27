@@ -18,6 +18,8 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set
 
+from ai_guardian.config_utils import get_config_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -419,9 +421,9 @@ class ToolPolicyChecker:
         return config, config_path if config else None
 
     def _load_user_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
-        """Load user global configuration from ~/.config/ai-guardian/ai-guardian.json."""
-        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        config_path = Path(config_home) / "ai-guardian" / "ai-guardian.json"
+        """Load user global configuration from ai-guardian config directory."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
         config = self._load_json_file(config_path, "user global")
         return config, config_path if config else None
 

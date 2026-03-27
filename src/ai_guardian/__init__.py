@@ -22,6 +22,8 @@ import tempfile
 from enum import Enum
 from pathlib import Path
 
+from ai_guardian.config_utils import get_config_dir
+
 # Import tool policy checker for MCP/Skill permissions
 try:
     from ai_guardian.tool_policy import ToolPolicyChecker
@@ -348,8 +350,8 @@ def _load_pattern_server_config():
     """
     try:
         # Try user global config first
-        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        config_path = Path(config_home) / "ai-guardian" / "ai-guardian.json"
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
 
         if not config_path.exists():
             # Try project local config
