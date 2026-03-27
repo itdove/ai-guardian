@@ -8,8 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Professional logo images to README and package
-- AI Guardian branding assets in `images/` directory
 
 ### Changed
 
@@ -20,6 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Security
+
+## [1.1.0] - 2026-03-27
+
+### Added
+- Automated IDE hook setup command (`ai-guardian setup`) with interactive configuration
+- Support for `AI_GUARDIAN_CONFIG_DIR` environment variable for custom config directory location
+- Professional logo images to README and package
+- AI Guardian branding assets in `images/` directory
+- Multi-IDE support research documentation (Phase 0)
+- Enhanced test suite with improved secret detection tests
+
+### Changed
+- Improved README with expanded installation and usage instructions
+- Updated CI workflow to install gitleaks for secret detection tests
+- Enhanced IDE config structure in test fixtures
+
+### Fixed
+- Cursor hook exit code handling for correct block/allow behavior
+- Hatchling configuration for proper src-layout packaging
+- Import paths in directory blocking tests
 
 ## [1.0.1] - 2025-03-23
 
@@ -38,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Matcher-based permissions with defense-in-depth model
 - JSON-only configuration (removed TOML support)
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.0
 [1.0.1]: https://github.com/itdove/ai-guardian/releases/tag/v1.0.1
 [1.0.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.0.0
