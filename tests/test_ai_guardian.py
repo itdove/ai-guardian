@@ -26,9 +26,14 @@ class AIGuardianTest(TestCase):
         self.assertFalse(has_secrets, "Clean content should not be flagged as secret")
         self.assertIsNone(error_msg, "No error message should be returned for clean content")
 
-    def test_check_secrets_with_github_token(self):
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_github_token(self, mock_pattern_config):
         """Test that GitHub tokens are detected"""
-        secret_content = "My GitHub token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"  #notsecret
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
+        # Use a token format that gitleaks detects but GitHub ignores (obviously fake)
+        secret_content = "My GitHub token: ghp_16C0123456789abcdefghijklmTEST0000"
         has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
             secret_content, "test.txt"
         )
@@ -58,8 +63,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertTrue(has_secrets, "Private key should be detected as secret")
         self.assertIsNotNone(error_msg, "Error message should be returned for secrets")
 
-    def test_check_secrets_with_gitlab_token(self):
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_gitlab_token(self, mock_pattern_config):
         """Test that GitLab tokens are detected"""
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
         secret_content = "GitLab token: glpat-1234567890abcdefghij"  #notsecret
         has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
             secret_content, "test.txt"
@@ -67,8 +76,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
         self.assertTrue(has_secrets, "GitLab token should be detected as secret")
 
-    def test_check_secrets_with_stripe_key(self):
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_stripe_key(self, mock_pattern_config):
         """Test that Stripe keys are detected"""
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
         secret_content = "Stripe key: sk_live_1234567890abcdefghijklmnopqrstuv"  #notsecret
         has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
             secret_content, "test.txt"
@@ -100,7 +113,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
-            "prompt": "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz",  #notsecret
+            "prompt": "Token: ghp_16C0123456789abcdefghijklmTEST0000",
             "session_id": "test-session"
         })
 
@@ -218,11 +231,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         })
 
         with patch('sys.stdin', StringIO(hook_input)):
-            with patch('ai_guardian.check_secrets_with_gitleaks', return_value=(False, None)):
-                with self.assertRaises(SystemExit) as cm:
-                    ai_guardian.main()
+            with patch('sys.argv', ['ai-guardian']):  # Mock argv to avoid pytest args
+                with patch('ai_guardian.check_secrets_with_gitleaks', return_value=(False, None)):
+                    with self.assertRaises(SystemExit) as cm:
+                        ai_guardian.main()
 
-                self.assertEqual(cm.exception.code, 0)
+                    self.assertEqual(cm.exception.code, 0)
 
     def test_cleanup_temporary_files(self):
         """Test that temporary files are cleaned up after scanning"""
@@ -261,8 +275,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Should fail-open with exit code 0
         self.assertEqual(response["exit_code"], 0, "Errors should fail-open with exit code 0")
 
-    def test_secret_detection_integration(self):
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_secret_detection_integration(self, mock_pattern_config):
         """Integration test: End-to-end secret detection"""
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
         # Test with real Gitleaks binary if available
         try:
             import subprocess
@@ -276,7 +294,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             self.assertEqual(response["exit_code"], 0)
 
             # Test secret content
-            secret_input = json.dumps({"prompt": "ghp_1234567890abcdefghijklmnopqrstuvwxyz"})  #notsecret
+            secret_input = json.dumps({"prompt": "My token: ghp_16C0123456789abcdefghijklmTEST0000"})
             with patch('sys.stdin', StringIO(secret_input)):
                 response = ai_guardian.process_hook_input()
             self.assertEqual(response["exit_code"], 2)
@@ -342,7 +360,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_check_secrets.return_value = (True, error_msg)
 
         hook_input = json.dumps({
-            "message": "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz",  #notsecret
+            "message": "Token: ghp_16C0123456789abcdefghijklmTEST0000",
             "hook_name": "beforeSubmitPrompt"
         })
 
@@ -522,7 +540,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
-            f.write("ghp_secrettoken123")
+            f.write("ghp_16C0123456789abcdefghijklmTEST0000")
             temp_path = f.name
 
         try:
