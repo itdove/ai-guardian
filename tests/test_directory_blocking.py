@@ -8,9 +8,6 @@ import sys
 import tempfile
 import shutil
 
-# Add src to path to import local version
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
 from ai_guardian import check_directory_denied
 
 

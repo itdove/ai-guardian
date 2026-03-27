@@ -1,5 +1,9 @@
 # AI Guardian
 
+<p align="center">
+  <img src="images/ai-guardian-320.png" alt="AI Guardian Logo" width="320">
+</p>
+
 > AI IDE security hook: controls MCP/skill permissions, blocks directories, scans secrets
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
