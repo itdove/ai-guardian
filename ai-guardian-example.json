@@ -117,11 +117,13 @@
 
   "_environment_variables": {
     "_comment": "Optional environment variables for configuration:",
+    "AI_GUARDIAN_CONFIG_DIR": "Custom config directory (default: ~/.config/ai-guardian or $XDG_CONFIG_HOME/ai-guardian)",
     "AI_GUARDIAN_IDE_TYPE": "claude|cursor (override auto-detection)",
     "AI_GUARDIAN_SKILL_CACHE_TTL_HOURS": "24 (default skill cache TTL)",
     "AI_GUARDIAN_REFRESH_INTERVAL_HOURS": "12 (remote config refresh)",
     "AI_GUARDIAN_EXPIRE_AFTER_HOURS": "168 (remote config expiration)",
-    "AI_GUARDIAN_PATTERN_TOKEN": "Bearer token for pattern server authentication"
+    "AI_GUARDIAN_PATTERN_TOKEN": "Bearer token for pattern server authentication",
+    "_priority_note": "Config dir priority: AI_GUARDIAN_CONFIG_DIR > XDG_CONFIG_HOME/ai-guardian > ~/.config/ai-guardian"
   },
 
   "_permission_format": {

@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from ai_guardian.config_utils import get_config_dir
+
 try:
     import toml
 except ImportError:
@@ -28,9 +30,8 @@ class ConfigManager:
 
     def __init__(self):
         """Initialize configuration manager."""
-        # Use XDG_CONFIG_HOME if set
-        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        self.config_dir = Path(config_home) / "ai-guardian"
+        # Get config directory with priority: AI_GUARDIAN_CONFIG_DIR > XDG_CONFIG_HOME > default
+        self.config_dir = get_config_dir()
         self.installation_config_path = self.config_dir / "config.toml"
         self.user_config_path = self.config_dir / "allowed-tools.toml"
         self.project_config_path = Path.cwd() / ".allowed-tools.toml"

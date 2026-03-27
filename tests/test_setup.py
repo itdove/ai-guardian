@@ -11,6 +11,7 @@ from unittest import mock
 
 import pytest
 
+from ai_guardian.config_utils import get_config_dir
 from ai_guardian.setup import IDESetup, setup_hooks
 
 
@@ -495,6 +496,147 @@ class TestIDESetup:
             assert success is True
             assert '[DRY RUN]' in message
             assert not config_file.exists()
+
+
+class TestConfigDirEnvironmentVariable:
+    """Test cases for AI_GUARDIAN_CONFIG_DIR environment variable."""
+
+    def test_ai_guardian_config_dir_env_var(self, tmp_path):
+        """Test that AI_GUARDIAN_CONFIG_DIR environment variable is respected."""
+        from ai_guardian.config_manager import ConfigManager
+
+        custom_dir = tmp_path / "custom-config"
+        custom_dir.mkdir()
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+            config_mgr = ConfigManager()
+            assert config_mgr.config_dir == custom_dir
+
+    def test_ai_guardian_config_dir_takes_priority_over_xdg(self, tmp_path):
+        """Test that AI_GUARDIAN_CONFIG_DIR takes priority over XDG_CONFIG_HOME."""
+        from ai_guardian.config_manager import ConfigManager
+
+        ai_guardian_dir = tmp_path / "ai-guardian-custom"
+        xdg_dir = tmp_path / "xdg-home"
+        ai_guardian_dir.mkdir()
+        xdg_dir.mkdir()
+
+        env = {
+            'AI_GUARDIAN_CONFIG_DIR': str(ai_guardian_dir),
+            'XDG_CONFIG_HOME': str(xdg_dir)
+        }
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            config_mgr = ConfigManager()
+            # Should use AI_GUARDIAN_CONFIG_DIR, not XDG_CONFIG_HOME/ai-guardian
+            assert config_mgr.config_dir == ai_guardian_dir
+            assert config_mgr.config_dir != xdg_dir / "ai-guardian"
+
+    def test_xdg_config_home_fallback(self, tmp_path):
+        """Test XDG_CONFIG_HOME is used when AI_GUARDIAN_CONFIG_DIR is not set."""
+        from ai_guardian.config_manager import ConfigManager
+
+        xdg_dir = tmp_path / "xdg-home"
+        xdg_dir.mkdir()
+
+        # Only set XDG_CONFIG_HOME, not AI_GUARDIAN_CONFIG_DIR
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(xdg_dir)}, clear=True):
+            config_mgr = ConfigManager()
+            assert config_mgr.config_dir == xdg_dir / "ai-guardian"
+
+    def test_default_config_dir_when_no_env_vars(self):
+        """Test default config directory when no environment variables are set."""
+        from ai_guardian.config_manager import ConfigManager
+
+        # Clear both environment variables
+        env_backup = os.environ.copy()
+        try:
+            if 'AI_GUARDIAN_CONFIG_DIR' in os.environ:
+                del os.environ['AI_GUARDIAN_CONFIG_DIR']
+            if 'XDG_CONFIG_HOME' in os.environ:
+                del os.environ['XDG_CONFIG_HOME']
+
+            config_mgr = ConfigManager()
+            expected = Path("~/.config/ai-guardian").expanduser()
+            assert config_mgr.config_dir == expected
+        finally:
+            os.environ.clear()
+            os.environ.update(env_backup)
+
+    def test_config_dir_with_tilde_expansion(self, tmp_path):
+        """Test that tilde in AI_GUARDIAN_CONFIG_DIR is expanded."""
+        from ai_guardian.config_manager import ConfigManager
+
+        # Use a path with tilde (will be expanded)
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': '~/my-ai-guardian'}):
+            config_mgr = ConfigManager()
+            # Should be expanded, not contain literal ~
+            assert '~' not in str(config_mgr.config_dir)
+            assert config_mgr.config_dir == Path('~/my-ai-guardian').expanduser()
+
+    def test_get_config_dir_utility_function(self, tmp_path):
+        """Test the get_config_dir utility function directly."""
+        custom_dir = tmp_path / "test-config"
+        custom_dir.mkdir()
+
+        # Test with AI_GUARDIAN_CONFIG_DIR
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+            result = get_config_dir()
+            assert result == custom_dir
+
+        # Test with XDG_CONFIG_HOME only
+        xdg_dir = tmp_path / "xdg"
+        xdg_dir.mkdir()
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(xdg_dir)}, clear=True):
+            result = get_config_dir()
+            assert result == xdg_dir / "ai-guardian"
+
+        # Test default (no env vars)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            result = get_config_dir()
+            assert result == Path("~/.config/ai-guardian").expanduser()
+
+    def test_setup_remote_config_with_custom_config_dir(self, tmp_path):
+        """Test that setup_remote_config respects AI_GUARDIAN_CONFIG_DIR."""
+        setup = IDESetup()
+
+        custom_dir = tmp_path / "custom-ai-guardian"
+        custom_dir.mkdir()
+        config_file = custom_dir / "ai-guardian.json"
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
+
+            assert success is True
+            assert config_file.exists()
+
+            # Verify the URL was added to config
+            with open(config_file) as f:
+                config = json.load(f)
+            assert 'remote_configs' in config
+            assert any('example.com' in str(entry) for entry in config['remote_configs']['urls'])
+
+    def test_tool_policy_uses_custom_config_dir(self, tmp_path):
+        """Test that ToolPolicyChecker respects AI_GUARDIAN_CONFIG_DIR."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+
+        custom_dir = tmp_path / "custom-config"
+        custom_dir.mkdir()
+
+        # Create a test config file
+        config_file = custom_dir / "ai-guardian.json"
+        test_config = {
+            "builtin_tools": {
+                "deny": ["Bash"],
+                "allow": ["Read"]
+            }
+        }
+        config_file.write_text(json.dumps(test_config))
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+            checker = ToolPolicyChecker()
+            # Verify it loaded from the custom directory
+            assert checker.config is not None
 
 
 class TestSetupHooks:
