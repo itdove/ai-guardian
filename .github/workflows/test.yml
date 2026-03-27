@@ -34,6 +34,13 @@ jobs:
       - name: Display Python version
         run: python --version
 
+      - name: Install gitleaks
+        run: |
+          wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gitleaks_8.18.2_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.2_linux_x64.tar.gz
+          sudo mv gitleaks /usr/local/bin/
+          gitleaks version
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
