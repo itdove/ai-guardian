@@ -37,9 +37,20 @@ class AIGuardianTest(TestCase):
         self.assertIsNotNone(error_msg, "Error message should be returned for secrets")
         self.assertIn("SECRET DETECTED", error_msg, "Error message should mention secret detection")
 
-    def test_check_secrets_with_private_key(self):
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_private_key(self, mock_pattern_config):
         """Test that private keys are detected"""
-        secret_content = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA"  #notsecret
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
+        # Use a more complete (but still fake) RSA private key that Gitleaks can detect
+        secret_content = """-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAwJGPd7LkqVLmTLBBx1qXRiMg8lD7K8l3LQCQHNPFkdZw6Y7e
+MBmZQdS3DQXiLb6hU8wQMg0YzU2pQ6HNkYvP6Qux8DQJx7k8L0Tv9dJ5Y2LtZ7Yy
+v2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Y
+yv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7Yyv2dJ5Y2LtZ7
+Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
+-----END RSA PRIVATE KEY-----"""  #notsecret
         has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
             secret_content, "test.txt"
         )
@@ -430,9 +441,11 @@ class AIGuardianTest(TestCase):
                     "parameters": {"file_path": temp_path}
                 }
             }
-            content, filename = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "test content")
             self.assertTrue(filename.endswith('.txt'))
+            self.assertFalse(is_denied)
+            self.assertIsNone(deny_reason)
         finally:
             os.unlink(temp_path)
 
@@ -447,8 +460,10 @@ class AIGuardianTest(TestCase):
             hook_data = {
                 "parameters": {"file_path": temp_path}
             }
-            content, filename = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "another test")
+            self.assertFalse(is_denied)
+            self.assertIsNone(deny_reason)
         finally:
             os.unlink(temp_path)
 
@@ -459,15 +474,19 @@ class AIGuardianTest(TestCase):
                 "parameters": {"file_path": "/nonexistent/file.txt"}
             }
         }
-        content, filename = ai_guardian.extract_file_content_from_tool(hook_data)
+        content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
         self.assertIsNone(content)
         self.assertEqual(filename, "file.txt")
+        self.assertFalse(is_denied)
+        self.assertIsNone(deny_reason)
 
     def test_extract_file_content_no_file_path(self):
         """Test file extraction with no file path"""
         hook_data = {"tool_use": {"parameters": {}}}
-        content, filename = ai_guardian.extract_file_content_from_tool(hook_data)
+        content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
         self.assertIsNone(content)
+        self.assertFalse(is_denied)
+        self.assertIsNone(deny_reason)
 
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_pretooluse_hook_with_clean_file(self, mock_check_secrets):
@@ -544,7 +563,8 @@ class AIGuardianTest(TestCase):
             self.assertIsNotNone(response["output"])
 
             output_data = json.loads(response["output"])
-            self.assertFalse(output_data["continue"])
+            # For preToolUse, Cursor expects "decision" field, not "continue"
+            self.assertEqual(output_data["decision"], "deny")
         finally:
             os.unlink(temp_path)
 
