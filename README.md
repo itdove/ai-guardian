@@ -1,7 +1,7 @@
 # AI Guardian
 
 <p align="center">
-  <img src="images/ai-guardian-320.png" alt="AI Guardian Logo" width="320">
+  <img src="https://raw.githubusercontent.com/itdove/ai-guardian/main/images/ai-guardian-320.png" alt="AI Guardian Logo" width="320">
 </p>
 
 > AI IDE security hook: controls MCP/skill permissions, blocks directories, scans secrets
