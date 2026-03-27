@@ -107,7 +107,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         dict with 'output' (str to print) and 'exit_code' (int)
     """
     if ide_type == IDEType.CURSOR:
-        # Cursor expects JSON on stdout AND exit code 2 to block
+        # Cursor uses JSON response to determine block/allow, not exit code
         if hook_event == "pretooluse":
             # preToolUse expects {"decision": "allow"|"deny", "reason": "..."}
             response = {
@@ -132,7 +132,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
 
         return {
             "output": json.dumps(response),
-            "exit_code": 2 if has_secrets else 0  # Exit code 2 blocks in Cursor
+            "exit_code": 0  # Cursor uses JSON response, not exit code
         }
     else:
         # Claude Code (and unknown) use exit codes
