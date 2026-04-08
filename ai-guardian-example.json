@@ -115,6 +115,38 @@
     }
   },
 
+  "prompt_injection": {
+    "_comment": "Prompt injection detection (NEW in v1.2.0)",
+    "_comment2": "Protects against prompt injection attacks that try to manipulate AI behavior",
+    "_comment3": "Default: Enabled with heuristic detection (local, fast, privacy-preserving)",
+    "enabled": true,
+    "detector": "heuristic",
+    "_detector_options": ["heuristic", "rebuff", "llm-guard"],
+    "_detector_note": "heuristic = local patterns (default, <1ms), rebuff/llm-guard = ML-based (requires setup)",
+    "sensitivity": "medium",
+    "_sensitivity_options": ["low", "medium", "high"],
+    "_sensitivity_note": "low = very obvious attacks only, medium = balanced, high = more aggressive",
+    "max_score_threshold": 0.75,
+    "_threshold_note": "Confidence threshold (0.0-1.0) for blocking prompts",
+    "allowlist_patterns": [],
+    "_allowlist_note": "Add regex patterns here to ignore false positives, e.g. [\"test:.*\", \"system:test.*\"]",
+    "custom_patterns": [],
+    "_custom_patterns_note": "Add additional detection patterns here, e.g. [\"company_secret_.*\"]",
+    "_detection_patterns": {
+      "_comment": "Built-in patterns detect common attacks:",
+      "_examples": [
+        "ignore previous instructions",
+        "you are now in developer mode",
+        "reveal your system prompt",
+        "bypass safety filters",
+        "act as unfiltered AI",
+        "disregard ethical guidelines",
+        "many-shot Q&A patterns",
+        "delimiter/encoding bypasses"
+      ]
+    }
+  },
+
   "_environment_variables": {
     "_comment": "Optional environment variables for configuration:",
     "AI_GUARDIAN_CONFIG_DIR": "Custom config directory (default: ~/.config/ai-guardian or $XDG_CONFIG_HOME/ai-guardian)",

@@ -40,6 +40,14 @@ except ImportError:
     HAS_PATTERN_SERVER = False
     logging.debug("pattern_server module not available")
 
+# Import prompt injection detector
+try:
+    from ai_guardian.prompt_injection import check_prompt_injection
+    HAS_PROMPT_INJECTION = True
+except ImportError:
+    HAS_PROMPT_INJECTION = False
+    logging.debug("prompt_injection module not available")
+
 # Configure logging - will be disabled for Cursor hooks
 logging.basicConfig(
     level=logging.INFO,
@@ -370,6 +378,35 @@ def _load_pattern_server_config():
         return None
 
 
+def _load_prompt_injection_config():
+    """
+    Load prompt injection configuration from ai-guardian.json.
+
+    Returns:
+        dict: Prompt injection configuration or None
+    """
+    try:
+        # Try user global config first
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        if not config_path.exists():
+            # Try project local config
+            config_path = Path.cwd() / ".ai-guardian.json"
+
+        if not config_path.exists():
+            return None
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        return config.get("prompt_injection")
+
+    except Exception as e:
+        logging.debug(f"Error loading prompt injection config: {e}")
+        return None
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file"):
     """
     Check content for secrets using Gitleaks binary.
@@ -605,6 +642,26 @@ def process_hook_input():
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             logging.info("Scanning user prompt for secrets...")
+
+        # Check for prompt injection BEFORE scanning for secrets
+        if HAS_PROMPT_INJECTION:
+            try:
+                injection_config = _load_prompt_injection_config()
+                is_injection, injection_error = check_prompt_injection(
+                    content_to_scan, injection_config
+                )
+
+                if is_injection:
+                    # Prompt injection detected - block operation
+                    if ide_type != IDEType.CURSOR:
+                        logging.warning("Prompt injection detected, blocking operation")
+                    return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
+
+                if ide_type != IDEType.CURSOR:
+                    logging.info("✓ No prompt injection detected")
+            except Exception as e:
+                # Fail-open: if prompt injection check fails, continue
+                logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for secrets in the content
         has_secrets, error_message = check_secrets_with_gitleaks(

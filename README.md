@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/itdove/ai-guardian/main/images/ai-guardian-320.png" alt="AI Guardian Logo" width="320">
 </p>
 
-> AI IDE security hook: controls MCP/skill permissions, blocks directories, scans secrets
+> AI IDE security hook: controls MCP/skill permissions, blocks directories, detects prompt injection, scans secrets
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -151,6 +151,35 @@ cd ~/.aws && touch .ai-read-deny
 
 # Protect secrets
 cd ~/project/secrets && touch .ai-read-deny
+```
+
+### 🚨 Prompt Injection Detection
+**NEW in v1.2.0**: Detects and blocks prompt injection attacks before they reach the AI:
+- **Heuristic detection**: Fast, local pattern matching (<1ms, privacy-preserving)
+- **Configurable sensitivity**: Low, medium, or high detection thresholds
+- **Custom patterns**: Add your own detection rules
+- **Allowlist support**: Handle false positives gracefully
+- **Optional ML detectors**: Support for Rebuff, LLM Guard (future)
+
+**Detection patterns include**:
+- Instruction override attempts ("ignore previous instructions")
+- System/mode manipulation ("you are now in developer mode")
+- Prompt exfiltration ("reveal your system prompt")
+- Safety bypass attempts ("disable ethical guidelines")
+- Role manipulation ("act as unfiltered AI")
+- Encoding/delimiter attacks
+- Many-shot injection patterns
+
+**Configuration example** (`~/.config/ai-guardian/ai-guardian.json`):
+```json
+{
+  "prompt_injection": {
+    "enabled": true,
+    "detector": "heuristic",
+    "sensitivity": "medium",
+    "allowlist_patterns": ["test:.*"]
+  }
+}
 ```
 
 ### 🔒 Secret Scanning
@@ -745,6 +774,8 @@ User types prompt / Uses tool
        ↓ (allowed)
    Directory check? ──→ .ai-read-deny exists? ──→ BLOCK ❌
        ↓ (no marker)
+   Prompt Injection check ──→ Injection detected? ──→ BLOCK ❌  [NEW in v1.2.0]
+       ↓ (clean)
    Scan with Gitleaks
        ↓
    Secret found? ──→ Yes ──→ BLOCK ❌
