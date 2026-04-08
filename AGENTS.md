@@ -76,8 +76,10 @@ EOF
 
 #### Running Tests
 
+**Note**: Tests are only required when making code changes. Documentation-only changes (markdown files, comments) do not require running tests.
+
 ```bash
-# Run all tests
+# Run all tests (required before committing code changes)
 pytest
 
 # Run with coverage
@@ -212,10 +214,16 @@ ruff check ai_guardian/ tests/
 ### Pre-commit Checks
 
 Before submitting a PR:
+
+**For code changes:**
 1. Run all tests: `pytest`
 2. Check test coverage: `pytest --cov=ai_guardian`
 3. Run linters (optional but recommended)
 4. Update CHANGELOG.md if making notable changes
+
+**For documentation-only changes:**
+1. Update CHANGELOG.md if making notable changes
+2. Tests are not required for markdown/comment-only changes
 
 ---
 
