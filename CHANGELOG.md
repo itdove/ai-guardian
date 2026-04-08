@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- TestPyPI workflow for safe release testing before production
+- GitHub Actions workflow `.github/workflows/publish-test.yml` for TestPyPI publishing
+- Comprehensive TestPyPI testing documentation in RELEASING.md
+- Support for test release tags (v*-test*) to publish to TestPyPI
+- Manual workflow dispatch for testing workflow changes
 - Prompt injection detection as a new security layer in the hook flow
 - Heuristic-based pattern detection for common injection attacks (<1ms, local, privacy-preserving)
 - Configurable sensitivity levels (low, medium, high) for detection thresholds
