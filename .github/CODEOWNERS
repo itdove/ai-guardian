@@ -1,0 +1,23 @@
+# CODEOWNERS - Define code ownership and required reviewers
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+* @itdove
+
+# Critical workflow files - require owner approval for changes
+# These workflows control PyPI publishing and security monitoring
+/.github/workflows/publish.yml @itdove
+/.github/workflows/publish-test.yml @itdove
+/.github/workflows/tag-monitor.yml @itdove
+
+# Release management documentation - require owner approval
+/RELEASING.md @itdove
+
+# Security and configuration files
+/.github/CODEOWNERS @itdove
+/.gitignore @itdove
+/pyproject.toml @itdove
+
+# Security-sensitive code
+/src/ai_guardian/tool_policy.py @itdove
+/src/ai_guardian/prompt_injection.py @itdove

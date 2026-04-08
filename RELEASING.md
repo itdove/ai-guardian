@@ -4,6 +4,7 @@ This document describes the release management process for AI Guardian.
 
 ## Table of Contents
 
+- [Release Authorization Policy](#release-authorization-policy)
 - [Version Numbering](#version-numbering)
 - [Branch Strategy](#branch-strategy)
 - [Release Workflow](#release-workflow)
@@ -11,6 +12,101 @@ This document describes the release management process for AI Guardian.
 - [Release Checklist](#release-checklist)
 - [Version Infrastructure](#version-infrastructure)
 - [Testing Releases with TestPyPI](#testing-releases-with-testpypi)
+
+## Release Authorization Policy
+
+**IMPORTANT:** Only repository maintainers can create release tags that trigger PyPI publication.
+
+### Repository Access Model
+
+This repository uses a **fork-based workflow**:
+
+- **Maintainers** (@itdove): Have Write/Admin access
+  - Can push to branches
+  - Can create and push tags
+  - Can create releases
+  - Handle all PyPI publications
+
+- **Contributors**: Must use forks (no direct access)
+  - Cannot push tags
+  - Cannot push to branches
+  - All contributions via pull requests from forks
+  - See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow details
+
+### Why Fork-Based Workflow?
+
+**Technical Enforcement**: Since GitHub free accounts don't support tag protection rules, the fork-based workflow provides:
+
+1. ✅ **Prevents unauthorized tag creation** - Only maintainers have push access
+2. ✅ **Standard open source practice** - Common workflow for OSS projects
+3. ✅ **Code review required** - All changes go through PRs
+4. ✅ **Release control** - Maintainers control all PyPI publications
+
+### Authorized Release Managers
+
+Currently authorized to create release tags:
+
+- **@itdove** (Repository Owner)
+
+### For Contributors
+
+**You CANNOT create release tags.** Instead:
+
+1. ✅ **Fork the repository** (see [CONTRIBUTING.md](CONTRIBUTING.md))
+2. ✅ **Submit pull requests** with features/fixes
+3. ✅ **Update CHANGELOG.md** in your PR under `[Unreleased]` section
+4. ✅ **Maintainers handle releases** - they will create tags and publish
+
+**DO NOT attempt to:**
+- ❌ Create version tags (v1.2.0, etc.)
+- ❌ Push tags to the main repository
+- ❌ Modify version numbers in pyproject.toml or __init__.py
+
+### Test Releases (TestPyPI)
+
+**Maintainers only** can create test tags for TestPyPI validation:
+
+```bash
+# Use the /release skill
+/release test
+
+# Or manually
+git tag -a v1.2.0-test1 -m "Test release"
+git push origin v1.2.0-test1
+```
+
+Contributors can test locally but cannot push test tags to the repository.
+
+### Automation Tools
+
+The `/release` skill helps maintainers automate releases:
+
+```bash
+/release minor   # Create minor version release
+/release patch   # Create patch version release
+/release major   # Create major version release
+/release hotfix v1.1.0  # Create hotfix from tag
+/release test    # Create TestPyPI test release
+```
+
+**Note**: The skill prepares release branches and provides guidance, but only maintainers should push the resulting tags.
+
+### Tag Monitoring
+
+The `tag-monitor.yml` workflow provides additional security:
+
+- Logs all tag creation events
+- Verifies authorization for production tags
+- Creates security issues for unauthorized attempts
+- Provides audit trail
+
+**Protected via CODEOWNERS**:
+- `.github/workflows/publish.yml` - Production PyPI publishing
+- `.github/workflows/publish-test.yml` - TestPyPI publishing  
+- `.github/workflows/tag-monitor.yml` - Tag creation monitoring
+- `RELEASING.md` - This file
+
+Changes to these files require maintainer approval.
 
 ## Version Numbering
 

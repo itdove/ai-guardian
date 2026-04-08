@@ -807,6 +807,66 @@ Apache 2.0 - see [LICENSE](LICENSE) file for details.
 - [Claude Code](https://claude.ai/code) - AI-powered IDE
 - [Cursor](https://cursor.sh) - AI code editor
 
+## Contributing
+
+We welcome contributions! This project uses a **fork-based workflow**.
+
+### Quick Start
+
+```bash
+# 1. Fork the repository
+gh repo fork itdove/ai-guardian --clone
+
+# 2. Create a feature branch
+cd ai-guardian
+git checkout -b feature-name
+
+# 3. Make changes and commit
+git add .
+git commit -m "feat: your change description"
+
+# 4. Push to your fork
+git push origin feature-name
+
+# 5. Create pull request
+gh pr create --web
+```
+
+### Important Notes
+
+- ✅ **All contributions** must come from forks
+- ✅ **Update CHANGELOG.md** for notable changes
+- ✅ **Add tests** for new features/fixes
+- ✅ **Follow coding standards** in [AGENTS.md](AGENTS.md)
+- ❌ **Do NOT create release tags** (maintainers only)
+
+### Detailed Guidelines
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for complete contributing guidelines including:
+- Fork setup and configuration
+- Branch naming conventions
+- Commit message format
+- Testing requirements
+- Code review process
+- Release process (maintainers only)
+
+### Reporting Issues
+
+Found a bug or have a feature request?
+
+1. Check [existing issues](https://github.com/itdove/ai-guardian/issues)
+2. Open a new issue with:
+   - Clear description
+   - Steps to reproduce (for bugs)
+   - Expected vs actual behavior
+   - Environment details (OS, Python version)
+
+### Getting Help
+
+- 📖 Read the [documentation](README.md)
+- 🐛 Open an [issue](https://github.com/itdove/ai-guardian/issues)
+- 💬 Ask in your PR
+
 ---
 
 🔒 **Private Repository** - Will be made public after testing
