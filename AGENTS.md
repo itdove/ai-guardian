@@ -76,8 +76,10 @@ EOF
 
 #### Running Tests
 
+**Note**: Tests are only required when making code changes. Documentation-only changes (markdown files, comments) do not require running tests.
+
 ```bash
-# Run all tests
+# Run all tests (required before committing code changes)
 pytest
 
 # Run with coverage
@@ -132,6 +134,26 @@ Examples:
 
 ### Quick Reference
 
+**Automated Release Workflow (Recommended):**
+
+```bash
+# Using the /release skill in Claude Code (automated)
+/release minor              # Create minor version release (1.1.0 -> 1.2.0)
+/release patch              # Create patch version release (1.1.0 -> 1.1.1)
+/release major              # Create major version release (1.0.0 -> 2.0.0)
+/release hotfix v1.1.0      # Create hotfix from v1.1.0 tag
+/release test               # Create TestPyPI test release
+```
+
+The `/release` skill automates:
+- Version updates in both `pyproject.toml` and `src/ai_guardian/__init__.py`
+- CHANGELOG.md updates with proper formatting
+- Git branch creation and commit messages
+- Safety checks and validation
+- Post-release guidance
+
+**Manual Release Workflow (Alternative):**
+
 ```bash
 # Check version
 python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
@@ -165,9 +187,10 @@ AI Guardian uses GitHub Actions for automated publishing:
 
 - **RELEASING.md**: Complete step-by-step release and hotfix procedures
 - **CHANGELOG.md**: All notable changes, following [Keep a Changelog](https://keepachangelog.com/) format
-- Version stored in `pyproject.toml` under `[project]` section
+- **Version storage**: `pyproject.toml` (line 7) and `src/ai_guardian/__init__.py` (line 13)
+- **Release skill**: `/release` command for automated releases (see skill documentation)
 
-See [RELEASING.md](RELEASING.md) for detailed instructions.
+See [RELEASING.md](RELEASING.md) for detailed instructions, or use the `/release` skill for automated workflow.
 
 ---
 
@@ -191,10 +214,16 @@ ruff check ai_guardian/ tests/
 ### Pre-commit Checks
 
 Before submitting a PR:
+
+**For code changes:**
 1. Run all tests: `pytest`
 2. Check test coverage: `pytest --cov=ai_guardian`
 3. Run linters (optional but recommended)
 4. Update CHANGELOG.md if making notable changes
+
+**For documentation-only changes:**
+1. Update CHANGELOG.md if making notable changes
+2. Tests are not required for markdown/comment-only changes
 
 ---
 
@@ -263,9 +292,18 @@ ai-guardian/
 
 ### Preparing a Release
 
+**Recommended: Use the `/release` skill (automated)**
+```bash
+# In Claude Code
+/release minor   # or /release patch, /release major
+```
+
+The skill automates steps 2-6 below and provides guidance for step 7.
+
+**Manual alternative:**
 1. Follow [RELEASING.md](RELEASING.md) step-by-step
 2. Create release branch: `git checkout -b release-X.Y`
-3. Update version in `pyproject.toml`
+3. Update version in `pyproject.toml` and `src/ai_guardian/__init__.py`
 4. Update `CHANGELOG.md` (move Unreleased to version section)
 5. Run full test suite
 6. Commit changes
