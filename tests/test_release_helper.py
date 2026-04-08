@@ -7,6 +7,9 @@ This test suite verifies the release helper functionality for:
 - CHANGELOG.md management
 - Version calculation
 - Prerequisites validation
+
+NOTE: These tests are skipped in CI/CD as the release skill is installed
+locally on developer machines, not in the repository.
 """
 
 import sys
@@ -14,10 +17,22 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 
-# Add the skills directory to the path to import release_helper
-sys.path.insert(0, str(Path.home() / ".claude" / "skills" / "release"))
+import pytest
 
-from release_helper import ReleaseHelper
+# Try to import release_helper from skills directory
+try:
+    sys.path.insert(0, str(Path.home() / ".claude" / "skills" / "release"))
+    from release_helper import ReleaseHelper
+    RELEASE_HELPER_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    RELEASE_HELPER_AVAILABLE = False
+    ReleaseHelper = None
+
+# Skip all tests if release_helper is not available
+pytestmark = pytest.mark.skipif(
+    not RELEASE_HELPER_AVAILABLE,
+    reason="release_helper module not available (skill not installed)"
+)
 
 
 def create_test_repo(tmp_path):
