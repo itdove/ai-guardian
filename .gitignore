@@ -27,3 +27,6 @@ htmlcov/
 # Temporary
 *.tmp
 *.log
+
+# Release
+.release-config.json
