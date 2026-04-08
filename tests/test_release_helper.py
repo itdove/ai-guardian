@@ -19,9 +19,13 @@ from datetime import datetime
 
 import pytest
 
-# Try to import release_helper from skills directory
+# Try to import release_helper from project skills directory
 try:
-    sys.path.insert(0, str(Path.home() / ".claude" / "skills" / "release"))
+    # Get project root (parent of tests directory)
+    project_root = Path(__file__).parent.parent
+    skills_path = project_root / ".claude" / "skills" / "release"
+
+    sys.path.insert(0, str(skills_path))
     from release_helper import ReleaseHelper
     RELEASE_HELPER_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -31,7 +35,7 @@ except (ImportError, ModuleNotFoundError):
 # Skip all tests if release_helper is not available
 pytestmark = pytest.mark.skipif(
     not RELEASE_HELPER_AVAILABLE,
-    reason="release_helper module not available (skill not installed)"
+    reason="release_helper module not available (.claude/skills/release/ not found)"
 )
 
 
@@ -94,11 +98,10 @@ def test_get_current_version():
         create_test_repo(tmp_path)
 
         helper = ReleaseHelper(tmp_path)
-        pyproject_ver, init_ver, match = helper.get_current_version()
+        version, all_match = helper.get_current_version()
 
-        assert pyproject_ver == "1.1.0-dev"
-        assert init_ver == "1.1.0-dev"
-        assert match is True
+        assert version == "1.1.0-dev"
+        assert all_match is True
 
 
 def test_version_mismatch_detection():
@@ -114,11 +117,10 @@ def test_version_mismatch_detection():
         init_path.write_text(content)
 
         helper = ReleaseHelper(tmp_path)
-        pyproject_ver, init_ver, match = helper.get_current_version()
+        version, all_match = helper.get_current_version()
 
-        assert pyproject_ver == "1.1.0-dev"
-        assert init_ver == "1.2.0-dev"
-        assert match is False
+        assert version is None  # No single version when mismatch
+        assert all_match is False
 
 
 def test_update_version():
@@ -133,10 +135,9 @@ def test_update_version():
         assert success is True
 
         # Verify both files updated
-        pyproject_ver, init_ver, match = helper.get_current_version()
-        assert pyproject_ver == "1.2.0"
-        assert init_ver == "1.2.0"
-        assert match is True
+        version, all_match = helper.get_current_version()
+        assert version == "1.2.0"
+        assert all_match is True
 
 
 def test_calculate_next_version_minor():
