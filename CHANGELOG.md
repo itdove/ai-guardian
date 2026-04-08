@@ -8,8 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Prompt injection detection as a new security layer in the hook flow
+- Heuristic-based pattern detection for common injection attacks (<1ms, local, privacy-preserving)
+- Configurable sensitivity levels (low, medium, high) for detection thresholds
+- Custom pattern support for organization-specific injection patterns
+- Allowlist patterns to handle false positives
+- Comprehensive test suite with 23 tests covering various attack patterns
+- Support for future ML-based detectors (Rebuff, LLM Guard)
 
 ### Changed
+- Hook flow now includes prompt injection detection between directory check and secret scanning
+- Updated security architecture diagram in README.md
 
 ### Fixed
 
@@ -18,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Security
+- **CRITICAL**: Added prompt injection detection to protect against manipulation attacks
+- Detects instruction override, system mode changes, prompt exfiltration, safety bypasses
+- Patterns include: "ignore previous instructions", "developer mode", "reveal prompt", etc.
+- Fail-open design maintains availability if detection encounters errors
+- Detection runs before AI receives prompts, providing proactive protection
 
 ## [1.1.1] - 2026-03-27
 
