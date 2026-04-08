@@ -30,3 +30,9 @@ htmlcov/
 
 # Release
 .release-config.json
+
+# Claude Code - only track release skill
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/release/
