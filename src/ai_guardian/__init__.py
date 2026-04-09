@@ -111,7 +111,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         ide_type: IDEType enum value
         has_secrets: bool indicating if secrets were found
         error_message: Optional error message for blocked responses
-        hook_event: "prompt" or "pretooluse" to determine response format
+        hook_event: "prompt", "pretooluse", or "posttooluse" to determine response format
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
@@ -145,15 +145,36 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             "exit_code": 0  # Cursor uses JSON response, not exit code
         }
     else:
-        # Claude Code (and unknown) use exit codes
-        if has_secrets and error_message:
-            # Print error to stderr
-            print(error_message, file=sys.stderr)
+        # Claude Code
+        if hook_event == "posttooluse":
+            # PostToolUse expects JSON response with decision/reason format
+            if has_secrets:
+                response = {
+                    "decision": "block",
+                    "reason": error_message or "Secrets detected in tool output",
+                    "hookSpecificOutput": {
+                        "hookEventName": "PostToolUse",
+                        "additionalContext": "Tool output contained sensitive information and was blocked by ai-guardian"
+                    }
+                }
+            else:
+                # Allow - return empty JSON or omit decision field
+                response = {}
 
-        return {
-            "output": None,
-            "exit_code": 2 if has_secrets else 0
-        }
+            return {
+                "output": json.dumps(response),
+                "exit_code": 0  # PostToolUse uses JSON response, not exit code
+            }
+        else:
+            # UserPromptSubmit and PreToolUse use exit codes
+            if has_secrets and error_message:
+                # Print error to stderr
+                print(error_message, file=sys.stderr)
+
+            return {
+                "output": None,
+                "exit_code": 2 if has_secrets else 0
+            }
 
 
 def detect_hook_event(hook_data):
@@ -164,7 +185,8 @@ def detect_hook_event(hook_data):
         hook_data: Parsed JSON input from the IDE
 
     Returns:
-        str: "prompt" for prompt submission hooks, "pretooluse" for tool use hooks
+        str: "prompt" for prompt submission hooks, "pretooluse" for tool use hooks,
+             "posttooluse" for post-tool-use hooks
     """
     # Check hook_event_name for both Claude Code and Cursor
     event_name = hook_data.get("hook_event_name", "").lower()
@@ -172,6 +194,8 @@ def detect_hook_event(hook_data):
         return "prompt"
     elif event_name in ["pretooluse"]:
         return "pretooluse"
+    elif event_name in ["posttooluse"]:
+        return "posttooluse"
     elif event_name in ["beforereadfile"]:
         return "beforereadfile"
 
@@ -181,6 +205,10 @@ def detect_hook_event(hook_data):
         return "prompt"
     elif hook_name in ["pretooluse"]:
         return "pretooluse"
+
+    # Check for tool_response field (indicates PostToolUse)
+    if "tool_response" in hook_data:
+        return "posttooluse"
 
     # Check for tool_use or tool fields (indicates PreToolUse)
     if "tool_use" in hook_data or "tool" in hook_data or "tool_name" in hook_data:
@@ -240,6 +268,64 @@ def check_directory_denied(file_path):
         logging.error(f"Error checking for .ai-read-deny: {e}")
         # Fail-open: allow access if check fails
         return False, None
+
+
+def extract_tool_result(hook_data):
+    """
+    Extract tool result/output from PostToolUse hook data.
+
+    Only scans tools that produce content the AI reads (Bash, Read, Grep, etc.).
+    Skips state-modifying tools (Write, Edit, etc.) since:
+    - Their content was already scanned in tool_input (PreToolUse)
+    - Their response is just metadata (success, filePath)
+
+    Args:
+        hook_data: Parsed JSON input from PostToolUse hook
+
+    Returns:
+        tuple: (output: str or None, tool_name: str)
+    """
+    try:
+        # Get tool name from top-level field
+        tool_name = hook_data.get("tool_name", "unknown")
+
+        # Tools that modify state - don't scan their responses
+        # These return metadata only, content was already scanned in PreToolUse
+        STATE_MODIFY_TOOLS = {
+            "Write", "Edit", "Delete", "Move", "Rename",
+            "NotebookEdit",  # Notebook editing
+        }
+
+        if tool_name in STATE_MODIFY_TOOLS:
+            logging.debug(f"Skipping PostToolUse scan for state-modifying tool: {tool_name}")
+            return None, tool_name
+
+        output = None
+
+        # Claude Code format: tool_response field
+        if "tool_response" in hook_data:
+            tool_response = hook_data["tool_response"]
+            if isinstance(tool_response, dict):
+                # Try common output field names
+                output = (tool_response.get("output") or
+                         tool_response.get("content") or
+                         tool_response.get("result"))
+
+                # Don't convert dict to JSON if no explicit output field
+                # Metadata dicts aren't meant to be scanned
+            elif isinstance(tool_response, str):
+                # Direct string response
+                output = tool_response
+
+        # Fallback: check for direct output field
+        if not output and "output" in hook_data:
+            output = hook_data["output"]
+
+        return output, tool_name
+
+    except Exception as e:
+        logging.error(f"Error extracting tool result: {e}")
+        return None, "unknown"
 
 
 def extract_file_content_from_tool(hook_data):
@@ -407,6 +493,64 @@ def _load_prompt_injection_config():
         return None
 
 
+def _is_ai_guardian_test_file(file_path):
+    """
+    Check if a file path is an ai-guardian project test file.
+
+    IMPORTANT: Only skips ai-guardian's own test files, NOT user project test files.
+    This prevents attackers from bypassing scanning by putting secrets in test files.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        bool: True if this is an ai-guardian test file
+    """
+    if not file_path:
+        return False
+
+    import os
+
+    # Get the absolute path
+    abs_path = os.path.abspath(file_path)
+
+    # Check if file is in ai-guardian's tests directory
+    # Look for ai-guardian package directory in the path
+    path_parts = abs_path.split(os.sep)
+
+    # Check if path contains "ai-guardian" or "ai_guardian" AND "tests"
+    has_ai_guardian = any('ai-guardian' in part or 'ai_guardian' in part for part in path_parts)
+    has_tests = 'tests' in path_parts
+
+    # Only skip if BOTH conditions are met (ai-guardian project + tests directory)
+    return has_ai_guardian and has_tests
+
+
+def _is_gitleaks_config_content(content):
+    """
+    Detect if content looks like a gitleaks configuration file.
+
+    Args:
+        content: Text content to check
+
+    Returns:
+        bool: True if content appears to be a gitleaks config
+    """
+    # Check for common gitleaks config patterns
+    indicators = [
+        '[[rules]]',
+        '[allowlist]',
+        'title = "Gitleaks',
+        'regex = \'\'\'',
+        'secretGroup =',
+        'entropy =',
+    ]
+
+    # If content has multiple indicators, it's likely a config file
+    matches = sum(1 for indicator in indicators if indicator in content)
+    return matches >= 3
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file"):
     """
     Check content for secrets using Gitleaks binary.
@@ -426,6 +570,11 @@ def check_secrets_with_gitleaks(content, filename="temp_file"):
             - error_message: Detailed error if secrets found, None otherwise
     """
     try:
+        # Skip scanning if content appears to be a gitleaks config file
+        # This prevents false positives when viewing pattern files
+        if _is_gitleaks_config_content(content):
+            logging.debug("Skipping scan - content appears to be a gitleaks config file")
+            return False, None
         # Use in-memory filesystem on Linux for better performance
         tmp_base_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
 
@@ -446,25 +595,19 @@ def check_secrets_with_gitleaks(content, filename="temp_file"):
             # Determine which Gitleaks configuration to use
             gitleaks_config_path = None
 
-            # Priority 1: Pattern server (if enabled and available)
-            if HAS_PATTERN_SERVER:
-                pattern_config = _load_pattern_server_config()
-                if pattern_config:
-                    try:
-                        pattern_client = PatternServerClient(pattern_config)
-                        server_patterns = pattern_client.get_patterns_path()
-                        if server_patterns:
-                            gitleaks_config_path = server_patterns
-                            logging.debug(f"Using pattern server config: {server_patterns}")
-                    except Exception as e:
-                        logging.debug(f"Pattern server error (using default): {e}")
+            # NOTE: Pattern server config is intentionally NOT used here because it contains
+            # only Red Hat-specific patterns and lacks the default gitleaks rules for common
+            # secrets (AWS keys, RSA keys, etc.). Using it would miss standard secret types.
+            # We rely on gitleaks' built-in default config which has comprehensive coverage.
 
-            # Priority 2: Project-specific .gitleaks.toml
-            if not gitleaks_config_path:
-                project_config = Path(".gitleaks.toml")
-                if project_config.exists():
-                    gitleaks_config_path = project_config
-                    logging.debug(f"Using project config: {project_config}")
+            # Check for project-specific .gitleaks.toml
+            project_config = Path(".gitleaks.toml")
+            if project_config.exists():
+                gitleaks_config_path = project_config
+                logging.debug(f"Using project config: {project_config}")
+            else:
+                # Use gitleaks default config (no --config flag)
+                logging.debug("Using gitleaks default config")
 
             # Build gitleaks command
             cmd = [
@@ -595,6 +738,34 @@ def process_hook_input():
         if ide_type != IDEType.CURSOR:
             logging.info(f"Detected hook event: {hook_event}")
 
+        # Handle PostToolUse event - scan tool output before sending to AI
+        if hook_event == "posttooluse":
+            logging.info("Processing PostToolUse hook...")
+
+            # Extract tool output
+            tool_output, tool_name = extract_tool_result(hook_data)
+
+            if tool_output is None:
+                # No output to scan - allow
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
+            logging.info(f"Scanning {tool_name} output for secrets...")
+
+            # Check for secrets in the output
+            has_secrets, error_message = check_secrets_with_gitleaks(
+                tool_output, f"{tool_name}_output"
+            )
+
+            if has_secrets:
+                # Block output from reaching AI
+                logging.warning(f"Secrets detected in {tool_name} output")
+                return format_response(ide_type, has_secrets=True,
+                                     error_message=error_message,
+                                     hook_event=hook_event)
+
+            logging.info(f"✓ No secrets detected in {tool_name} output")
+            return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
         # Check tool permissions for PreToolUse events (MCP servers and Skills)
         if hook_event in ["pretooluse", "beforereadfile"] and HAS_TOOL_POLICY:
             try:
@@ -623,6 +794,12 @@ def process_hook_input():
             if is_denied:
                 logging.warning(f"Directory access denied for file '{file_path}'")
                 return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event)
+
+            # Skip scanning ai-guardian's own test files (contain example secrets)
+            # IMPORTANT: Only skips ai-guardian tests, not user project tests
+            if file_path and _is_ai_guardian_test_file(file_path):
+                logging.debug(f"Skipping scan for ai-guardian test file: {file_path}")
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             if content_to_scan is None:
                 # Could not extract file content - allow operation (fail-open)

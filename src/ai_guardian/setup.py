@@ -53,6 +53,18 @@ class IDESetup:
                             }
                         ]
                     }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": "*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian",
+                                "statusMessage": "🛡️ Scanning tool output..."
+                            }
+                        ]
+                    }
                 ]
             }
         },
@@ -69,6 +81,21 @@ class IDESetup:
                     }
                 ],
                 "beforeReadFile": [
+                    {
+                        "command": "ai-guardian"
+                    }
+                ],
+                "beforeShellExecution": [
+                    {
+                        "command": "ai-guardian"
+                    }
+                ],
+                "afterShellExecution": [
+                    {
+                        "command": "ai-guardian"
+                    }
+                ],
+                "postToolUse": [
                     {
                         "command": "ai-guardian"
                     }
@@ -209,8 +236,8 @@ class IDESetup:
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
 
-            # Merge UserPromptSubmit and PreToolUse hooks
-            for hook_name in ["UserPromptSubmit", "PreToolUse"]:
+            # Merge UserPromptSubmit, PreToolUse, and PostToolUse hooks
+            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
 
@@ -225,8 +252,9 @@ class IDESetup:
             if "version" not in existing_config:
                 existing_config["version"] = 1
 
-            # Merge beforeSubmitPrompt and beforeReadFile hooks
-            for hook_name in ["beforeSubmitPrompt", "beforeReadFile"]:
+            # Merge all Cursor hooks
+            for hook_name in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
+                             "afterShellExecution", "postToolUse"]:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
 
@@ -254,8 +282,8 @@ class IDESetup:
 
             if ide_type == "claude":
                 hooks = config.get("hooks", {})
-                # Check if UserPromptSubmit or PreToolUse hooks contain ai-guardian
-                for hook_name in ["UserPromptSubmit", "PreToolUse"]:
+                # Check if UserPromptSubmit, PreToolUse, or PostToolUse hooks contain ai-guardian
+                for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
@@ -267,8 +295,9 @@ class IDESetup:
 
             elif ide_type == "cursor":
                 hooks = config.get("hooks", {})
-                # Check if beforeSubmitPrompt or beforeReadFile hooks contain ai-guardian
-                for hook_name in ["beforeSubmitPrompt", "beforeReadFile"]:
+                # Check if any Cursor hooks contain ai-guardian
+                for hook_name in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
+                                 "afterShellExecution", "postToolUse"]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
