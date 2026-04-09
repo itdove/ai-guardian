@@ -593,6 +593,121 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Should fail-open (allow) when file cannot be read
         self.assertEqual(response["exit_code"], 0)
 
+    # ========== PostToolUse Tests ==========
+
+    def test_detect_hook_event_posttooluse(self):
+        """Test PostToolUse event detection"""
+        hook_data = {"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_response": {"output": "test"}}
+        self.assertEqual(ai_guardian.detect_hook_event(hook_data), "posttooluse")
+
+    def test_detect_hook_event_posttooluse_from_tool_response(self):
+        """Test PostToolUse detection from tool_response field"""
+        hook_data = {"tool_name": "Bash", "tool_response": {"output": "test output"}}
+        self.assertEqual(ai_guardian.detect_hook_event(hook_data), "posttooluse")
+
+    def test_extract_tool_result_bash_output(self):
+        """Test extracting Bash output from PostToolUse"""
+        hook_data = {
+            "tool_name": "Bash",
+            "tool_response": {"output": "Hello from bash"}
+        }
+        output, tool_name = ai_guardian.extract_tool_result(hook_data)
+        self.assertEqual(output, "Hello from bash")
+        self.assertEqual(tool_name, "Bash")
+
+    def test_extract_tool_result_read_content(self):
+        """Test extracting Read content from PostToolUse"""
+        hook_data = {
+            "tool_name": "Read",
+            "tool_response": {"content": "File content here"}
+        }
+        output, tool_name = ai_guardian.extract_tool_result(hook_data)
+        self.assertEqual(output, "File content here")
+        self.assertEqual(tool_name, "Read")
+
+    def test_extract_tool_result_write_skipped(self):
+        """Test Write tool response is skipped (no scanning needed)"""
+        hook_data = {
+            "tool_name": "Write",
+            "tool_response": {"filePath": "/tmp/test.py", "success": True}
+        }
+        output, tool_name = ai_guardian.extract_tool_result(hook_data)
+        self.assertIsNone(output)  # Should skip state-modifying tools
+        self.assertEqual(tool_name, "Write")
+
+    def test_extract_tool_result_edit_skipped(self):
+        """Test Edit tool response is skipped"""
+        hook_data = {
+            "tool_name": "Edit",
+            "tool_response": {"success": True}
+        }
+        output, tool_name = ai_guardian.extract_tool_result(hook_data)
+        self.assertIsNone(output)
+        self.assertEqual(tool_name, "Edit")
+
+    def test_posttooluse_write_tool_allowed(self):
+        """Test PostToolUse allows Write tool (already scanned in PreToolUse)"""
+        hook_json = json.dumps({
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Write",
+            "tool_response": {"filePath": "/tmp/test.py", "success": True}
+        })
+
+        with patch('sys.stdin', StringIO(hook_json)):
+            result = ai_guardian.process_hook_input()
+
+        self.assertEqual(result['exit_code'], 0)
+        response = json.loads(result['output'])
+        self.assertNotIn('decision', response)  # No decision = allow
+
+    def test_posttooluse_bash_clean_output(self):
+        """Test PostToolUse allows Bash with clean output"""
+        hook_json = json.dumps({
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_response": {"output": "Hello, World!"}
+        })
+
+        with patch('sys.stdin', StringIO(hook_json)):
+            result = ai_guardian.process_hook_input()
+
+        self.assertEqual(result['exit_code'], 0)
+        response = json.loads(result['output'])
+        self.assertNotIn('decision', response)
+
+    def test_posttooluse_bash_with_secret(self):
+        """Test PostToolUse blocks Bash output containing secrets"""
+        hook_json = json.dumps({
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_response": {
+                "output": "Private key: -----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAwJGPd7LkqVLmTLBBx1qXRiMg8lD7K8l3LQCQHNPFkdZw6Y7e\n-----END RSA PRIVATE KEY-----"
+            }
+        })
+
+        with patch('sys.stdin', StringIO(hook_json)):
+            result = ai_guardian.process_hook_input()
+
+        self.assertEqual(result['exit_code'], 0)
+        response = json.loads(result['output'])
+        self.assertEqual(response.get('decision'), 'block')
+        self.assertIn('SECRET DETECTED', response.get('reason', ''))
+
+    def test_posttooluse_no_output_field(self):
+        """Test PostToolUse handles missing output gracefully"""
+        hook_json = json.dumps({
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_response": {}
+        })
+
+        with patch('sys.stdin', StringIO(hook_json)):
+            result = ai_guardian.process_hook_input()
+
+        self.assertEqual(result['exit_code'], 0)
+        response = json.loads(result['output'])
+        self.assertNotIn('decision', response)  # No output = allow
+
 
 if __name__ == "__main__":
     import unittest

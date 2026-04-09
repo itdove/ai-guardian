@@ -37,6 +37,8 @@ cp ai-guardian-example.json ~/.config/ai-guardian/ai-guardian.json
 
 The `ai-guardian setup` command automatically configures IDE hooks for you.
 
+**⚠️ IMPORTANT:** Run `ai-guardian setup` after upgrading to get the latest security hooks. New versions may add additional hooks (e.g., PostToolUse for output scanning).
+
 ### Basic Usage
 
 ```bash
@@ -277,13 +279,15 @@ See [ai-guardian-example.json](ai-guardian-example.json) for full documentation 
 
 ### 🎯 Multi-IDE Support
 
-| IDE | Prompt Scanning | File Scanning | Status |
-|-----|----------------|---------------|--------|
-| Claude Code CLI | ✅ | ✅ | Full support |
-| VS Code Claude | ✅ | ✅ | Full support |
-| Cursor IDE | ✅ | ✅ | Full support |
+| IDE | Prompt Scanning | File Scanning | Tool Output Scanning | Status |
+|-----|----------------|---------------|---------------------|--------|
+| Claude Code CLI | ✅ | ✅ | ⚠️ PostToolUse (ready, not firing yet) | Full support |
+| VS Code Claude | ✅ | ✅ | ⚠️ PostToolUse (ready, not firing yet) | Full support |
+| Cursor IDE | ✅ | ✅ | ✅ postToolUse, afterShellExecution | Full support |
 
 Auto-detects IDE type and uses the appropriate response format.
+
+**Note on PostToolUse (Claude Code):** ai-guardian includes PostToolUse hook support to scan tool outputs (e.g., Bash command results) before they reach the AI. However, as of v1.3.0, Claude Code does not consistently fire this hook. The implementation is ready and will automatically activate when Claude Code enables it. Cursor IDE's equivalent hooks (postToolUse, afterShellExecution) work as expected.
 
 ## Requirements
 
@@ -392,10 +396,28 @@ Add to `~/.claude/settings.json`:
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-guardian",
+            "statusMessage": "🛡️ Scanning tool output..."
+          }
+        ]
+      }
     ]
   }
 }
 ```
+
+**Matcher Configuration:**
+- `"matcher": "*"` scans all tool outputs (**recommended** for full coverage)
+- Specific matchers like `"Bash|Read|Grep"` can be used for optimization, but may miss new tools
+
+**Note:** PostToolUse hook is configured but may not fire consistently in current Claude Code versions. The hook is ready and will activate automatically when Claude Code enables it.
 
 ### Cursor IDE
 
@@ -414,10 +436,32 @@ Create `~/.cursor/hooks.json`:
       {
         "command": "ai-guardian"
       }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "ai-guardian"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "ai-guardian"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "ai-guardian"
+      }
     ]
   }
 }
 ```
+
+**Hook Coverage:**
+- `beforeSubmitPrompt`: Scans prompts before sending to AI
+- `beforeReadFile`: Scans files before AI reads them
+- `beforeShellExecution`: Scans shell commands before execution
+- `afterShellExecution`: Scans shell command output after execution
+- `postToolUse`: Scans all tool outputs (Read, Grep, WebFetch, etc.)
 
 ### MCP Server & Skill Permissions (Optional)
 
@@ -765,6 +809,7 @@ export AI_GUARDIAN_SKILL_CACHE_TTL_HOURS=48
 
 ## How It Works
 
+### Before Tool Execution (UserPromptSubmit, PreToolUse)
 ```
 User types prompt / Uses tool
        ↓
@@ -774,14 +819,31 @@ User types prompt / Uses tool
        ↓ (allowed)
    Directory check? ──→ .ai-read-deny exists? ──→ BLOCK ❌
        ↓ (no marker)
-   Prompt Injection check ──→ Injection detected? ──→ BLOCK ❌  [NEW in v1.2.0]
+   Prompt Injection check ──→ Injection detected? ──→ BLOCK ❌  [v1.2.0]
        ↓ (clean)
    Scan with Gitleaks
        ↓
    Secret found? ──→ Yes ──→ BLOCK ❌
        ↓ (no)
-   ALLOW ✅ ──→ Send to AI
+   ALLOW ✅ ──→ Send to AI / Execute tool
 ```
+
+### After Tool Execution (PostToolUse, afterShellExecution)
+```
+Tool completes (Bash, Read, Grep, etc.)
+       ↓
+[AI Guardian PostToolUse Hook]  [NEW in v1.3.0]
+       ↓
+   Extract tool output
+       ↓
+   Scan output with Gitleaks
+       ↓
+   Secret found? ──→ Yes ──→ BLOCK ❌ (output hidden from AI)
+       ↓ (no)
+   ALLOW ✅ ──→ Send output to AI
+```
+
+**Note:** PostToolUse works in Cursor IDE. Claude Code support is implemented but awaiting IDE activation.
 
 ## Security Design
 
