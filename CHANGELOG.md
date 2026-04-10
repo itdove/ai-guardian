@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+### Deprecated
+
+### Removed
+
+### Security
+
+## [1.2.0] - 2026-04-10
+
+### Added
 - TestPyPI workflow for safe release testing before production
 - GitHub Actions workflow `.github/workflows/publish-test.yml` for TestPyPI publishing
 - Comprehensive TestPyPI testing documentation in RELEASING.md
@@ -24,12 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Hook flow now includes prompt injection detection between directory check and secret scanning
 - Updated security architecture diagram in README.md
-
-### Fixed
-
-### Deprecated
-
-### Removed
 
 ### Security
 - **CRITICAL**: Added prompt injection detection to protect against manipulation attacks
@@ -80,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Matcher-based permissions with defense-in-depth model
 - JSON-only configuration (removed TOML support)
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.2.0
 [1.1.1]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.1
 [1.1.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.0
 [1.0.1]: https://github.com/itdove/ai-guardian/releases/tag/v1.0.1
