@@ -693,9 +693,26 @@ cd ~/my-project/secrets && touch .ai-read-deny
 cd ~/my-project/node_modules && touch .ai-read-deny
 ```
 
-### Custom Secret Patterns
+### Handling False Positives
 
-Create `.gitleaks.toml` in your project:
+#### Secret Scanning False Positives
+
+**Method 1: Inline Comments (Quick Fix)**
+
+Add `gitleaks:allow` anywhere on the line to mark it as a false positive:
+
+```python
+# Example API key for testing
+api_key = "ghp_exampleTokenForDocs12345678901234567890"  # gitleaks:allow
+
+# Works in any language
+const token = "sk_test_fake_token_123";  // gitleaks:allow
+password = "example_password"  # gitleaks:allow
+```
+
+**Method 2: Project Configuration File**
+
+Create `.gitleaks.toml` in your project root for project-wide allowlists:
 
 ```toml
 # Allow specific patterns
@@ -703,9 +720,11 @@ Create `.gitleaks.toml` in your project:
 description = "Allowed patterns"
 regexes = [
     '''example-api-key-12345''',
+    '''test_.*_token''',  # Allow all test tokens
 ]
 paths = [
-    '''tests/fixtures/.*''',
+    '''tests/fixtures/.*''',     # All files in test fixtures
+    '''docs/examples/.*''',      # Documentation examples
 ]
 
 # Add custom patterns
@@ -716,6 +735,65 @@ regex = '''mycompany_[0-9a-f]{32}'''
 ```
 
 See [Gitleaks Configuration](https://github.com/gitleaks/gitleaks#configuration) for more options.
+
+#### Prompt Injection False Positives
+
+If legitimate prompts are being blocked, add allowlist patterns to your configuration:
+
+**Configuration** (`~/.config/ai-guardian/ai-guardian.json`):
+
+```json
+{
+  "prompt_injection": {
+    "enabled": true,
+    "detector": "heuristic",
+    "sensitivity": "medium",
+    "allowlist_patterns": [
+      "test:.*",                    
+      ".*example.*ignore.*previous.*",  
+      "documentation.*system.*prompt"   
+    ]
+  }
+}
+```
+
+**How allowlist patterns work:**
+- Patterns are regex (case-insensitive)
+- If ANY pattern matches, detection is skipped for that prompt
+- Use `.*` for wildcards: `test:.*` matches "test: ignore previous instructions"
+- Escape special regex characters: `\.` for literal dots
+
+**Common use cases:**
+
+```json
+{
+  "prompt_injection": {
+    "allowlist_patterns": [
+      "^test:",                         
+      "example.*",                      
+      "tutorial about.*prompt.*",       
+      "documentation:.*",               
+      "learning.*about.*injection"      
+    ]
+  }
+}
+```
+
+**Adjusting sensitivity:**
+
+If you get too many false positives, lower the sensitivity:
+
+```json
+{
+  "prompt_injection": {
+    "sensitivity": "low"    
+  }
+}
+```
+
+- `"high"`: Strictest, detects more potential attacks (more false positives)
+- `"medium"`: Balanced (default, recommended)
+- `"low"`: Permissive, only catches obvious attacks (fewer false positives)
 
 ### Pattern Server (Advanced)
 
