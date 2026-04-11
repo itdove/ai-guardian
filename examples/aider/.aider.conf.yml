@@ -1,0 +1,13 @@
+# Aider configuration for AI Guardian integration
+#
+# This configuration enables pre-commit hook verification,
+# allowing ai-guardian to scan staged files before commits.
+#
+# Installation:
+#   1. Copy this file to your project root: .aider.conf.yml
+#   2. Set up the pre-commit hook (see pre-commit-hook.sh)
+#   3. Run aider normally - it will automatically verify commits
+
+# Enable pre-commit hook verification
+# When true, Aider will run .git/hooks/pre-commit before committing
+git-commit-verify: true

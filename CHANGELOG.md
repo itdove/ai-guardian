@@ -8,16 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- GitHub Copilot support: Full integration with GitHub Copilot hooks
+  - userPromptSubmitted hook for prompt scanning
+  - preToolUse hook for tool permission checking
+  - Automatic IDE detection for GitHub Copilot format
+  - JSON response format for permission decisions
+- Aider integration via git pre-commit hooks
+  - Example pre-commit hook script for secret scanning
+  - Example .aider.conf.yml configuration
+  - Support for pre-commit framework integration
+  - Documentation in docs/AIDER.md
+- Enhanced setup command:
+  - Added `--ide copilot` option for GitHub Copilot setup
+  - Auto-detection now includes GitHub Copilot
+- Documentation:
+  - docs/GITHUB_COPILOT.md: Complete GitHub Copilot integration guide
+  - docs/AIDER.md: Complete Aider git hook integration guide
+  - Updated README.md with GitHub Copilot and Aider in Multi-IDE Support table
+  - Added setup examples for Copilot and Aider
 
 ### Changed
+- Updated Multi-IDE Support table in README.md
+- Enhanced detect_ide_type() to recognize GitHub Copilot JSON format
+- Enhanced detect_hook_event() to detect GitHub Copilot's toolName field
+- Enhanced format_response() to output GitHub Copilot JSON format
+- Enhanced extract_file_content_from_tool() to parse GitHub Copilot toolArgs JSON string
 
-### Fixed
-
-### Deprecated
-
-### Removed
-
-### Security
 
 ## [1.2.0] - 2026-04-10
 

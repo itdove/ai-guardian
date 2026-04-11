@@ -708,6 +708,209 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         response = json.loads(result['output'])
         self.assertNotIn('decision', response)  # No output = allow
 
+    # ========== GitHub Copilot Tests ==========
+
+    def test_ide_detection_github_copilot_toolname(self):
+        """Test IDE type detection for GitHub Copilot with toolName field"""
+        hook_data = {
+            "timestamp": 1704614400000,
+            "cwd": "/path/to/project",
+            "toolName": "bash",
+            "toolArgs": "{\"command\":\"npm test\"}"
+        }
+        ide_type = ai_guardian.detect_ide_type(hook_data)
+        self.assertEqual(ide_type, ai_guardian.IDEType.GITHUB_COPILOT)
+
+    def test_ide_detection_github_copilot_prompt(self):
+        """Test IDE type detection for GitHub Copilot userPromptSubmitted"""
+        hook_data = {
+            "timestamp": 1704614400000,
+            "cwd": "/path/to/project",
+            "prompt": "Create a new feature",
+            "source": "user"
+        }
+        ide_type = ai_guardian.detect_ide_type(hook_data)
+        self.assertEqual(ide_type, ai_guardian.IDEType.GITHUB_COPILOT)
+
+    def test_ide_detection_github_copilot_env_override(self):
+        """Test GitHub Copilot detection with environment variable"""
+        hook_data = {"prompt": "test"}
+
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "copilot"}):
+            ide_type = ai_guardian.detect_ide_type(hook_data)
+            self.assertEqual(ide_type, ai_guardian.IDEType.GITHUB_COPILOT)
+
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "github_copilot"}):
+            ide_type = ai_guardian.detect_ide_type(hook_data)
+            self.assertEqual(ide_type, ai_guardian.IDEType.GITHUB_COPILOT)
+
+    def test_format_response_copilot_pretooluse_allow(self):
+        """Test GitHub Copilot preToolUse response format (allow)"""
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.GITHUB_COPILOT,
+            has_secrets=False,
+            hook_event="pretooluse"
+        )
+        self.assertIsNotNone(response["output"])
+        self.assertEqual(response["exit_code"], 0)
+
+        output_data = json.loads(response["output"])
+        self.assertEqual(output_data["permissionDecision"], "allow")
+        self.assertNotIn("permissionDecisionReason", output_data)
+
+    def test_format_response_copilot_pretooluse_deny(self):
+        """Test GitHub Copilot preToolUse response format (deny)"""
+        error_msg = "Secrets detected"
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.GITHUB_COPILOT,
+            has_secrets=True,
+            error_message=error_msg,
+            hook_event="pretooluse"
+        )
+        self.assertIsNotNone(response["output"])
+        self.assertEqual(response["exit_code"], 0)
+
+        output_data = json.loads(response["output"])
+        self.assertEqual(output_data["permissionDecision"], "deny")
+        self.assertEqual(output_data["permissionDecisionReason"], error_msg)
+
+    def test_format_response_copilot_prompt_allow(self):
+        """Test GitHub Copilot userPromptSubmitted response format (allow)"""
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.GITHUB_COPILOT,
+            has_secrets=False,
+            hook_event="prompt"
+        )
+        self.assertIsNone(response["output"])
+        self.assertEqual(response["exit_code"], 0)
+
+    def test_format_response_copilot_prompt_deny(self):
+        """Test GitHub Copilot userPromptSubmitted response format (deny)"""
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.GITHUB_COPILOT,
+            has_secrets=True,
+            error_message="Test error",
+            hook_event="prompt"
+        )
+        self.assertIsNone(response["output"])
+        self.assertEqual(response["exit_code"], 2)
+
+    def test_extract_file_content_copilot_toolargs(self):
+        """Test file extraction from GitHub Copilot toolArgs format"""
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+            f.write("copilot test content")
+            temp_path = f.name
+
+        try:
+            # GitHub Copilot sends toolArgs as JSON string
+            hook_data = {
+                "toolName": "read_file",
+                "toolArgs": json.dumps({"file_path": temp_path})
+            }
+            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            self.assertEqual(content, "copilot test content")
+            self.assertTrue(filename.endswith('.txt'))
+            self.assertFalse(is_denied)
+            self.assertIsNone(deny_reason)
+        finally:
+            os.unlink(temp_path)
+
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_copilot_pretooluse_hook_clean(self, mock_check_secrets):
+        """Test GitHub Copilot preToolUse hook with clean file"""
+        mock_check_secrets.return_value = (False, None)
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+            f.write("clean content")
+            temp_path = f.name
+
+        try:
+            hook_input = json.dumps({
+                "timestamp": 1704614600000,
+                "cwd": "/path/to/project",
+                "toolName": "read_file",
+                "toolArgs": json.dumps({"file_path": temp_path})
+            })
+
+            with patch('sys.stdin', StringIO(hook_input)):
+                response = ai_guardian.process_hook_input()
+
+            self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output_data = json.loads(response["output"])
+            self.assertEqual(output_data["permissionDecision"], "allow")
+        finally:
+            os.unlink(temp_path)
+
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_copilot_pretooluse_hook_with_secret(self, mock_check_secrets):
+        """Test GitHub Copilot preToolUse hook blocks file with secret"""
+        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+            f.write("secret content")
+            temp_path = f.name
+
+        try:
+            hook_input = json.dumps({
+                "timestamp": 1704614600000,
+                "cwd": "/path/to/project",
+                "toolName": "read_file",
+                "toolArgs": json.dumps({"file_path": temp_path})
+            })
+
+            with patch('sys.stdin', StringIO(hook_input)):
+                response = ai_guardian.process_hook_input()
+
+            self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output_data = json.loads(response["output"])
+            self.assertEqual(output_data["permissionDecision"], "deny")
+            self.assertIn("permissionDecisionReason", output_data)
+        finally:
+            os.unlink(temp_path)
+
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_copilot_prompt_hook_clean(self, mock_check_secrets):
+        """Test GitHub Copilot userPromptSubmitted with clean prompt"""
+        mock_check_secrets.return_value = (False, None)
+
+        hook_input = json.dumps({
+            "timestamp": 1704614400000,
+            "cwd": "/path/to/project",
+            "prompt": "Create a new feature",
+            "source": "user"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        self.assertEqual(response["exit_code"], 0)
+        self.assertIsNone(response["output"])
+
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_copilot_prompt_hook_with_secret(self, mock_check_secrets):
+        """Test GitHub Copilot userPromptSubmitted blocks prompt with secret"""
+        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+
+        hook_input = json.dumps({
+            "timestamp": 1704614400000,
+            "cwd": "/path/to/project",
+            "prompt": "My token: ghp_16C0123456789abcdefghijklmTEST0000",
+            "source": "user"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        self.assertEqual(response["exit_code"], 2)
+        self.assertIsNone(response["output"])
+
 
 if __name__ == "__main__":
     import unittest

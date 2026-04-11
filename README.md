@@ -21,7 +21,7 @@ brew install gitleaks
 # 2. Install AI Guardian from PyPI
 pip install ai-guardian
 
-# 3. Setup IDE hooks (auto-detects Claude Code or Cursor)
+# 3. Setup IDE hooks (auto-detects Claude Code, Cursor, or GitHub Copilot)
 ai-guardian setup
 
 # 4. (Optional) Setup with remote configuration
@@ -64,7 +64,7 @@ ai-guardian setup --yes
 
 ### What it Does
 
-1. **IDE Detection**: Auto-detects Claude Code or Cursor based on config directories
+1. **IDE Detection**: Auto-detects Claude Code, Cursor, or GitHub Copilot based on config directories
 2. **Hook Configuration**: Adds ai-guardian hooks to your IDE config
 3. **Backup Creation**: Creates `.backup` file before modifying existing config
 4. **Config Merging**: Preserves your existing IDE configuration
@@ -81,6 +81,20 @@ ai-guardian setup --ide claude
 **Setup for Cursor without confirmation:**
 ```bash
 ai-guardian setup --ide cursor --yes
+
+**Setup for GitHub Copilot:**
+```bash
+ai-guardian setup --ide copilot
+```
+
+**Setup for Aider (git hooks):**
+```bash
+# Aider uses git pre-commit hooks instead of IDE hooks
+# See docs/AIDER.md for setup instructions
+cp examples/aider/pre-commit-hook.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+cp examples/aider/.aider.conf.yml .aider.conf.yml
+```
 ```
 
 **Preview what would change:**
@@ -284,8 +298,13 @@ See [ai-guardian-example.json](ai-guardian-example.json) for full documentation 
 | Claude Code CLI | ✅ | ✅ | ⚠️ PostToolUse (ready, not firing yet) | Full support |
 | VS Code Claude | ✅ | ✅ | ⚠️ PostToolUse (ready, not firing yet) | Full support |
 | Cursor IDE | ✅ | ✅ | ✅ postToolUse, afterShellExecution | Full support |
+| GitHub Copilot | ✅ | ✅ | ⏭️ Planned | Full support |
+| Aider | ❌ | ✅ (commit-time) | ❌ | Git hook integration |
 
 Auto-detects IDE type and uses the appropriate response format.
+
+**See documentation**: [GitHub Copilot Setup](docs/GITHUB_COPILOT.md) | [Aider Setup](docs/AIDER.md)
+
 
 **Note on PostToolUse (Claude Code):** ai-guardian includes PostToolUse hook support to scan tool outputs (e.g., Bash command results) before they reach the AI. However, as of v1.3.0, Claude Code does not consistently fire this hook. The implementation is ready and will automatically activate when Claude Code enables it. Cursor IDE's equivalent hooks (postToolUse, afterShellExecution) work as expected.
 

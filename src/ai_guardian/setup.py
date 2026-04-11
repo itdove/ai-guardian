@@ -101,6 +101,24 @@ class IDESetup:
                     }
                 ]
             }
+        },
+        "copilot": {
+            "name": "GitHub Copilot",
+            "config_path": "~/.github/hooks/hooks.json",
+            "config_dir_env_var": None,
+            "config_filename": "hooks.json",
+            "hooks": {
+                "userPromptSubmitted": [
+                    {
+                        "command": "ai-guardian"
+                    }
+                ],
+                "preToolUse": [
+                    {
+                        "command": "ai-guardian"
+                    }
+                ]
+            }
         }
     }
 
@@ -360,6 +378,12 @@ class IDESetup:
                     merged_config["hooks"] = {}
                 merged_config["hooks"]["beforeSubmitPrompt"] = ide_config["hooks"]["beforeSubmitPrompt"]
                 merged_config["hooks"]["beforeReadFile"] = ide_config["hooks"]["beforeReadFile"]
+            elif ide_type == "copilot":
+                # GitHub Copilot: merge hooks at top level
+                merged_config = existing_config.copy()
+                merged_config["userPromptSubmitted"] = ide_config["hooks"]["userPromptSubmitted"]
+                merged_config["preToolUse"] = ide_config["hooks"]["preToolUse"]
+                return merged_config
 
             if dry_run:
                 # Show what would be changed
