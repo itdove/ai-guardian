@@ -173,6 +173,76 @@ ai-guardian setup --ide claude
 - Default: `~/.cursor/hooks.json`
 - No environment variable support currently (will add if Cursor implements one)
 
+## Interactive TUI
+
+Launch the interactive Text User Interface to manage AI Guardian configuration visually:
+
+```bash
+ai-guardian tui
+```
+
+### Tab-Based Interface
+
+The TUI uses a modern tab-based interface with separate tabs for each concern:
+
+1. **📋 Violations** - View all recent violations
+   - See blocked operations from the violation log (all types)
+   - One-click approval to automatically add permission rules
+   - Smart rule merging (combines patterns with existing rules)
+   - Filter by violation type (tool permissions, secrets, directories, prompt injection)
+   - Mark violations as resolved
+
+2. **🎯 Skills** - Manage Skill permissions
+   - Add, edit, and delete Skill permission rules
+   - Configure allow/deny patterns (e.g., daf-*, release, gh-cli)
+   - Visual display of all Skill permissions
+
+3. **🔌 MCP Servers** - Manage MCP server permissions
+   - Add, edit, and delete MCP server permission rules
+   - Configure allow/deny patterns for specific MCP servers
+   - Supports wildcards (e.g., mcp__notebooklm-mcp__*, mcp__*)
+
+4. **🔒 Secrets** - Secret detection settings
+   - View secret detection configuration
+   - See Gitleaks integration status
+   - Pattern server configuration (coming soon)
+
+5. **🛡️ Prompt Injection** - Prompt injection detection
+   - View prompt injection detection settings
+   - Configure sensitivity levels (coming soon)
+   - Manage allowlist patterns (coming soon)
+
+6. **📄 Config** - View and export configuration
+   - Display merged configuration from all sources
+   - See which config files are loaded (user global, project local)
+   - Export configuration
+
+### Why Use the TUI?
+
+- ✅ **User-friendly**: No need to remember JSON schema syntax
+- ✅ **Validation**: Real-time validation prevents syntax errors
+- ✅ **Discovery**: See all available configuration options
+- ✅ **Safety**: Requires manual clicks - AI agents cannot modify config
+- ✅ **One-click approval**: Quickly allow blocked operations from violation log
+
+### Security Note
+
+**The TUI is designed for manual, deliberate config changes only.**
+
+Unlike command-line flags, the TUI requires you to physically see and click buttons to approve changes. This prevents an AI agent from sneakily modifying your configuration behind the scenes.
+
+- ✅ **Manual approval required**: You must click "Approve & Add Rule" for each change
+- ✅ **Human-in-the-loop**: Every config modification is visible in the UI
+- ❌ **No automated changes**: No way for an agent to bypass the interactive interface
+
+### Navigation
+
+- `q` - Quit the TUI
+- `Escape` - Go back to previous screen
+- `r` - Refresh current screen
+- `Arrow keys` / `Tab` - Navigate between buttons
+- `Enter` - Select button/option
+
 ## Features
 
 ### 🛡️ Directory Blocking

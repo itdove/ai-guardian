@@ -1242,6 +1242,12 @@ def main():
             help="Export violations to JSON file"
         )
 
+        # TUI subcommand
+        tui_parser = subparsers.add_parser(
+            "tui",
+            help="Launch interactive TUI for configuration management"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -1262,6 +1268,21 @@ def main():
                 return _handle_violations_command(args)
             else:
                 print("Error: violation_logger module not available", file=sys.stderr)
+                return 1
+
+        # Handle tui command
+        if args.command == "tui":
+            try:
+                from ai_guardian.tui import AIGuardianTUI
+                app = AIGuardianTUI()
+                app.run()
+                return 0
+            except ImportError as e:
+                print(f"Error: TUI dependencies not available. Install with: pip install ai-guardian", file=sys.stderr)
+                print(f"Details: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running TUI: {e}", file=sys.stderr)
                 return 1
 
         # If no subcommand, just return (version was handled)
