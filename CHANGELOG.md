@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Violation/audit logging for blocked operations
+  - Tracks all blocked operations to `~/.config/ai-guardian/violations.jsonl`
+  - Logs tool permission blocks, directory access denials, secret detections, and prompt injections
+  - JSONL format for easy parsing and analysis
+  - Includes violation type, severity, blocked details, context, and suggestions
+  - Configurable log rotation (max_entries, retention_days)
+  - CLI command `ai-guardian violations` to view recent violations
+  - Filter violations by type with `--type` flag
+  - Export violations with `--export` flag
+  - Clear violation log with `--clear` flag
+  - Privacy-safe: no full secrets or prompts logged
+  - Foundation for future TUI integration (issue #22)
 - Security disclaimer and expanded documentation
   - Prominent security disclaimer banner in README.md after badges section
   - Clear statement that "AI Guardian is not a silver bullet"

@@ -20,6 +20,14 @@ from typing import Dict, List, Optional, Tuple, Set
 
 from ai_guardian.config_utils import get_config_dir
 
+# Import violation logger
+try:
+    from ai_guardian.violation_logger import ViolationLogger
+    HAS_VIOLATION_LOGGER = True
+except ImportError:
+    HAS_VIOLATION_LOGGER = False
+    logging.debug("violation_logger module not available")
+
 logger = logging.getLogger(__name__)
 
 
@@ -76,6 +84,16 @@ class ToolPolicyChecker:
                 if self._requires_explicit_allow(tool_name):
                     logger.warning(f"Tool '{tool_name}' requires explicit permission but no rule found")
                     error_msg = self._format_deny_message(tool_name, "no permission rule", None)
+
+                    # Log violation
+                    self._log_violation(
+                        tool_name=tool_name,
+                        check_value=check_value if check_value else tool_name,
+                        reason="no permission rule",
+                        matcher=tool_name,
+                        hook_data=hook_data
+                    )
+
                     return False, error_msg, tool_name
 
                 # No rule and doesn't require explicit allow - allow by default
@@ -105,6 +123,16 @@ class ToolPolicyChecker:
                         if fnmatch.fnmatch(check_value, pattern):
                             logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern}")
                             error_msg = self._format_deny_message(tool_name, pattern, rule["matcher"])
+
+                            # Log violation
+                            self._log_violation(
+                                tool_name=tool_name,
+                                check_value=check_value,
+                                reason=f"matched deny pattern: {pattern}",
+                                matcher=rule["matcher"],
+                                hook_data=hook_data
+                            )
+
                             return False, error_msg, tool_name
 
             # Second pass: check allow rules
@@ -129,6 +157,16 @@ class ToolPolicyChecker:
             if has_allow_rules:
                 logger.warning(f"Tool '{tool_name}' not in allow list")
                 error_msg = self._format_deny_message(tool_name, "not in allow list", permission_rules[0]["matcher"])
+
+                # Log violation
+                self._log_violation(
+                    tool_name=tool_name,
+                    check_value=check_value,
+                    reason="not in allow list",
+                    matcher=permission_rules[0]["matcher"],
+                    hook_data=hook_data
+                )
+
                 return False, error_msg, tool_name
 
             # No allow rules - allow by default (already passed deny check)
@@ -357,6 +395,95 @@ class ToolPolicyChecker:
         return tool_name, [
             {"pattern": "*", "comment": f"Allow all {tool_name} operations"}
         ]
+
+    def _log_violation(
+        self,
+        tool_name: str,
+        check_value: str,
+        reason: str,
+        matcher: str,
+        hook_data: Dict
+    ):
+        """
+        Log a tool permission violation.
+
+        Args:
+            tool_name: Name of the blocked tool
+            check_value: Value that was checked against patterns
+            reason: Reason for blocking
+            matcher: Matcher pattern from the permission rule
+            hook_data: Original hook data for context
+        """
+        if not HAS_VIOLATION_LOGGER:
+            return
+
+        try:
+            # Detect IDE type from hook data
+            ide_type = self._detect_ide_type(hook_data)
+
+            # Generate suggested rule
+            suggested_matcher, suggested_patterns = self._suggest_permission_rule(tool_name)
+
+            # Create violation logger
+            violation_logger = ViolationLogger()
+
+            # Log the violation
+            violation_logger.log_violation(
+                violation_type="tool_permission",
+                blocked={
+                    "tool_name": tool_name,
+                    "tool_value": check_value,
+                    "matcher": matcher,
+                    "reason": reason
+                },
+                context={
+                    "ide_type": ide_type,
+                    "hook_event": hook_data.get("hook_event_name"),
+                    "project_path": os.getcwd()
+                },
+                suggestion={
+                    "action": "add_allow_pattern",
+                    "config_path": str(get_config_dir() / "ai-guardian.json"),
+                    "rule": {
+                        "matcher": suggested_matcher,
+                        "mode": "allow",
+                        "patterns": [p["pattern"] for p in suggested_patterns]
+                    }
+                },
+                severity="warning"
+            )
+
+        except Exception as e:
+            logger.debug(f"Failed to log violation: {e}")
+
+    def _detect_ide_type(self, hook_data: Dict) -> str:
+        """
+        Detect IDE type from hook data.
+
+        Args:
+            hook_data: Hook data from PreToolUse event
+
+        Returns:
+            str: IDE type (claude_code, cursor, github_copilot, unknown)
+        """
+        # Check for environment variable override
+        ide_override = os.environ.get("AI_GUARDIAN_IDE_TYPE", "").lower()
+        if ide_override:
+            return ide_override
+
+        # GitHub Copilot detection
+        if "toolName" in hook_data or ("timestamp" in hook_data and "cwd" in hook_data):
+            return "github_copilot"
+
+        # Cursor detection
+        if "cursor_version" in hook_data or "hook_name" in hook_data:
+            return "cursor"
+
+        # Claude Code detection
+        if "hook_event_name" in hook_data and hook_data.get("hook_event_name") in ["UserPromptSubmit", "PreToolUse"]:
+            return "claude_code"
+
+        return "unknown"
 
     def _load_config(self) -> Dict:
         """

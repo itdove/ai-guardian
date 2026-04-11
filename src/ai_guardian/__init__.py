@@ -21,6 +21,7 @@ import sys
 import tempfile
 from enum import Enum
 from pathlib import Path
+from typing import Dict, Optional
 
 from ai_guardian.config_utils import get_config_dir
 
@@ -47,6 +48,14 @@ try:
 except ImportError:
     HAS_PROMPT_INJECTION = False
     logging.debug("prompt_injection module not available")
+
+# Import violation logger
+try:
+    from ai_guardian.violation_logger import ViolationLogger
+    HAS_VIOLATION_LOGGER = True
+except ImportError:
+    HAS_VIOLATION_LOGGER = False
+    logging.debug("violation_logger module not available")
 
 # Configure logging - will be disabled for Cursor hooks
 logging.basicConfig(
@@ -290,6 +299,10 @@ def check_directory_denied(file_path):
 
             if os.path.exists(deny_marker):
                 logging.info(f"Found .ai-read-deny marker in {current_dir}")
+
+                # Log directory blocking violation
+                _log_directory_blocking_violation(file_path, current_dir)
+
                 return True, current_dir
 
             # Move to parent directory
@@ -574,6 +587,227 @@ def _is_ai_guardian_test_file(file_path):
     return has_ai_guardian and has_tests
 
 
+def _log_directory_blocking_violation(file_path: str, denied_directory: str):
+    """
+    Log a directory blocking violation.
+
+    Args:
+        file_path: Path to the file that was blocked
+        denied_directory: Directory containing .ai-read-deny marker
+    """
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        violation_logger = ViolationLogger()
+        violation_logger.log_violation(
+            violation_type="directory_blocking",
+            blocked={
+                "file_path": file_path,
+                "denied_directory": denied_directory,
+                "reason": ".ai-read-deny marker found"
+            },
+            context={
+                "project_path": os.getcwd()
+            },
+            suggestion={
+                "action": "remove_deny_marker",
+                "file_path": os.path.join(denied_directory, ".ai-read-deny"),
+                "warning": "This directory contains sensitive files"
+            },
+            severity="warning"
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log directory blocking violation: {e}")
+
+
+def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None):
+    """
+    Log a secret detection violation.
+
+    Args:
+        filename: Name of the file/prompt where secret was detected
+        context: Optional context dict with ide_type, hook_event, etc.
+    """
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        ctx = context or {}
+        violation_logger = ViolationLogger()
+        violation_logger.log_violation(
+            violation_type="secret_detected",
+            blocked={
+                "file_path": filename if filename != "user_prompt" else None,
+                "source": "prompt" if filename == "user_prompt" else "file",
+                "secret_type": "Unknown",  # Gitleaks doesn't expose this easily
+                "reason": "Gitleaks detected sensitive information"
+            },
+            context={
+                "ide_type": ctx.get("ide_type", "unknown"),
+                "hook_event": ctx.get("hook_event", "unknown"),
+                "project_path": os.getcwd()
+            },
+            suggestion={
+                "action": "review_and_remove_secret",
+                "warning": "Secrets should never be committed to code or shared with AI"
+            },
+            severity="critical"
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log secret detection violation: {e}")
+
+
+def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None):
+    """
+    Log a prompt injection violation.
+
+    Args:
+        filename: Name of the file/prompt where injection was detected
+        context: Optional context dict with ide_type, hook_event, etc.
+    """
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        ctx = context or {}
+        violation_logger = ViolationLogger()
+        violation_logger.log_violation(
+            violation_type="prompt_injection",
+            blocked={
+                "file_path": filename if filename != "user_prompt" else None,
+                "source": "prompt" if filename == "user_prompt" else "file",
+                "pattern": "Heuristic pattern detected",
+                "confidence": 0.95,
+                "method": "heuristic",
+                "reason": "Prompt injection pattern detected"
+            },
+            context={
+                "ide_type": ctx.get("ide_type", "unknown"),
+                "hook_event": ctx.get("hook_event", "unknown"),
+                "project_path": os.getcwd()
+            },
+            suggestion={
+                "action": "add_allowlist_pattern",
+                "note": "If this is legitimate (e.g., documentation), add to allowlist in ai-guardian.json"
+            },
+            severity="high"
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log prompt injection violation: {e}")
+
+
+def _handle_violations_command(args):
+    """
+    Handle the violations subcommand.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        int: Exit code (0 for success, 1 for error)
+    """
+    from ai_guardian.violation_logger import ViolationLogger
+
+    violation_logger = ViolationLogger()
+
+    # Handle --clear
+    if args.clear:
+        confirm = input("Are you sure you want to clear all violations? [y/N] ")
+        if confirm.lower() == 'y':
+            if violation_logger.clear_log():
+                print("Violations log cleared successfully")
+                return 0
+            else:
+                print("Error: Failed to clear violations log", file=sys.stderr)
+                return 1
+        else:
+            print("Cancelled")
+            return 0
+
+    # Handle --export
+    if args.export:
+        export_path = Path(args.export)
+        if violation_logger.export_violations(export_path, violation_type=args.type):
+            print(f"Violations exported to {export_path}")
+            return 0
+        else:
+            print(f"Error: Failed to export violations to {export_path}", file=sys.stderr)
+            return 1
+
+    # Display violations
+    violations = violation_logger.get_recent_violations(
+        limit=args.limit,
+        violation_type=args.type,
+        resolved=False  # Only show unresolved violations by default
+    )
+
+    if not violations:
+        print("No recent violations found")
+        return 0
+
+    # Format and display violations
+    print(f"\nRecent Violations (last {len(violations)}):\n")
+
+    for v in violations:
+        timestamp = v.get("timestamp", "Unknown")
+        vtype = v.get("violation_type", "unknown").upper().replace("_", " ")
+        severity = v.get("severity", "warning").upper()
+        blocked = v.get("blocked", {})
+        suggestion = v.get("suggestion", {})
+
+        # Format severity with color indicators
+        severity_indicator = {
+            "WARNING": "⚠",
+            "HIGH": "🔴",
+            "CRITICAL": "🔒"
+        }.get(severity, "•")
+
+        print(f"[{timestamp}] {severity_indicator} {vtype} ({severity.lower()})")
+
+        # Display blocked details based on violation type
+        if v.get("violation_type") == "tool_permission":
+            tool_name = blocked.get("tool_name", "Unknown")
+            tool_value = blocked.get("tool_value", "")
+            reason = blocked.get("reason", "")
+            print(f"  Tool: {tool_name}/{tool_value}")
+            print(f"  Reason: {reason}")
+
+        elif v.get("violation_type") == "directory_blocking":
+            file_path = blocked.get("file_path", "Unknown")
+            denied_dir = blocked.get("denied_directory", "")
+            print(f"  File: {file_path}")
+            print(f"  Denied by: {denied_dir}/.ai-read-deny")
+
+        elif v.get("violation_type") == "secret_detected":
+            source = blocked.get("source", "unknown")
+            file_path = blocked.get("file_path")
+            if file_path:
+                print(f"  File: {file_path}")
+            else:
+                print(f"  Source: {source}")
+            secret_type = blocked.get("secret_type", "Unknown")
+            print(f"  Secret type: {secret_type}")
+
+        elif v.get("violation_type") == "prompt_injection":
+            source = blocked.get("source", "unknown")
+            pattern = blocked.get("pattern", "Unknown")
+            print(f"  Source: {source}")
+            print(f"  Pattern: {pattern}")
+
+        # Display suggestion
+        action = suggestion.get("action", "")
+        if action:
+            print(f"  → Suggestion: {action}")
+
+        print()
+
+    print(f"To allow blocked operations, run: ai-guardian tui (when available)")
+    print(f"Or manually edit: ~/.config/ai-guardian/ai-guardian.json\n")
+
+    return 0
+
+
 def _is_gitleaks_config_content(content):
     """
     Detect if content looks like a gitleaks configuration file.
@@ -599,7 +833,7 @@ def _is_gitleaks_config_content(content):
     return matches >= 3
 
 
-def check_secrets_with_gitleaks(content, filename="temp_file"):
+def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -611,6 +845,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file"):
     Args:
         content: The text content to scan for secrets
         filename: Optional filename for context in error messages
+        context: Optional context dict for violation logging (ide_type, hook_event, etc.)
 
     Returns:
         tuple: (has_secrets: bool, error_message: str or None)
@@ -698,6 +933,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file"):
                     "https://github.com/gitleaks/gitleaks#configuration\n"
                     f"\n{'='*70}\n"
                 )
+
+                # Log secret detection violation
+                _log_secret_detection_violation(filename, context)
+
                 return True, error_msg
 
             elif result.returncode in [0, 1]:
@@ -801,7 +1040,8 @@ def process_hook_input():
 
             # Check for secrets in the output
             has_secrets, error_message = check_secrets_with_gitleaks(
-                tool_output, f"{tool_name}_output"
+                tool_output, f"{tool_name}_output",
+                context={"ide_type": ide_type.value, "hook_event": "posttooluse"}
             )
 
             if has_secrets:
@@ -880,6 +1120,13 @@ def process_hook_input():
                     # Prompt injection detected - block operation
                     if ide_type != IDEType.CURSOR:
                         logging.warning("Prompt injection detected, blocking operation")
+
+                    # Log prompt injection violation
+                    _log_prompt_injection_violation(
+                        filename,
+                        context={"ide_type": ide_type.value, "hook_event": hook_event}
+                    )
+
                     return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
 
                 if ide_type != IDEType.CURSOR:
@@ -890,7 +1137,8 @@ def process_hook_input():
 
         # Check for secrets in the content
         has_secrets, error_message = check_secrets_with_gitleaks(
-            content_to_scan, filename
+            content_to_scan, filename,
+            context={"ide_type": ide_type.value, "hook_event": hook_event}
         )
 
         if has_secrets:
@@ -967,6 +1215,33 @@ def main():
             help="Skip confirmation prompts"
         )
 
+        # Violations subcommand
+        violations_parser = subparsers.add_parser(
+            "violations",
+            help="View and manage violation log"
+        )
+        violations_parser.add_argument(
+            "--type",
+            choices=["tool_permission", "directory_blocking", "secret_detected", "prompt_injection"],
+            help="Filter by violation type"
+        )
+        violations_parser.add_argument(
+            "--limit",
+            type=int,
+            default=10,
+            help="Number of violations to show (default: 10)"
+        )
+        violations_parser.add_argument(
+            "--clear",
+            action="store_true",
+            help="Clear all violations from log"
+        )
+        violations_parser.add_argument(
+            "--export",
+            metavar="FILE",
+            help="Export violations to JSON file"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -980,6 +1255,14 @@ def main():
                 interactive=not args.yes
             )
             return 0 if success else 1
+
+        # Handle violations command
+        if args.command == "violations":
+            if HAS_VIOLATION_LOGGER:
+                return _handle_violations_command(args)
+            else:
+                print("Error: violation_logger module not available", file=sys.stderr)
+                return 1
 
         # If no subcommand, just return (version was handled)
         return 0
