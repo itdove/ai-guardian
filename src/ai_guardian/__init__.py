@@ -63,6 +63,7 @@ class IDEType(Enum):
     """Supported IDE types with different output formats."""
     CLAUDE_CODE = "claude_code"  # Exit codes: 0=allow, 2=block
     CURSOR = "cursor"  # JSON: {"continue": bool, "user_message": str}
+    GITHUB_COPILOT = "github_copilot"  # JSON: {"permissionDecision": "allow"|"deny"}
     UNKNOWN = "unknown"  # Default to Claude Code format
 
 
@@ -82,8 +83,18 @@ def detect_ide_type(hook_data):
         return IDEType.CURSOR
     elif ide_override == "claude":
         return IDEType.CLAUDE_CODE
+    elif ide_override == "github_copilot" or ide_override == "copilot":
+        return IDEType.GITHUB_COPILOT
 
     # Auto-detect based on input structure
+    # GitHub Copilot detection - check for toolName field (most specific)
+    if "toolName" in hook_data:
+        return IDEType.GITHUB_COPILOT
+
+    # GitHub Copilot detection - timestamp + cwd + prompt pattern
+    if "timestamp" in hook_data and "cwd" in hook_data:
+        return IDEType.GITHUB_COPILOT
+
     # Cursor sends cursor_version field
     if "cursor_version" in hook_data:
         return IDEType.CURSOR
@@ -116,7 +127,31 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
     """
-    if ide_type == IDEType.CURSOR:
+    if ide_type == IDEType.GITHUB_COPILOT:
+        # GitHub Copilot uses JSON response format
+        if hook_event == "pretooluse":
+            # preToolUse expects {"permissionDecision": "allow"|"deny", "permissionDecisionReason": "..."}
+            response = {
+                "permissionDecision": "deny" if has_secrets else "allow"
+            }
+            if has_secrets and error_message:
+                response["permissionDecisionReason"] = error_message
+
+            return {
+                "output": json.dumps(response),
+                "exit_code": 0  # GitHub Copilot uses JSON response, not exit code
+            }
+        else:
+            # userPromptSubmitted uses exit codes like Claude Code
+            if has_secrets and error_message:
+                # Print error to stderr
+                print(error_message, file=sys.stderr)
+
+            return {
+                "output": None,
+                "exit_code": 2 if has_secrets else 0
+            }
+    elif ide_type == IDEType.CURSOR:
         # Cursor uses JSON response to determine block/allow, not exit code
         if hook_event == "pretooluse":
             # preToolUse expects {"decision": "allow"|"deny", "reason": "..."}
@@ -204,6 +239,10 @@ def detect_hook_event(hook_data):
     if hook_name in ["beforesubmitprompt"]:
         return "prompt"
     elif hook_name in ["pretooluse"]:
+        return "pretooluse"
+
+    # GitHub Copilot: detect by presence of toolName field
+    if "toolName" in hook_data:
         return "pretooluse"
 
     # Check for tool_response field (indicates PostToolUse)
@@ -390,6 +429,15 @@ def extract_file_content_from_tool(hook_data):
             tool = hook_data["tool"]
             if isinstance(tool, dict):
                 file_path = tool.get("file_path") or tool.get("path")
+
+        # GitHub Copilot format: toolName + toolArgs (JSON string)
+        if not file_path and "toolName" in hook_data and "toolArgs" in hook_data:
+            try:
+                # Parse toolArgs from JSON string
+                tool_args = json.loads(hook_data["toolArgs"])
+                file_path = tool_args.get("file_path") or tool_args.get("path")
+            except json.JSONDecodeError:
+                logging.warning("Could not parse GitHub Copilot toolArgs JSON")
 
         if not file_path:
             logging.warning("Could not extract file path from hook data")
@@ -894,7 +942,7 @@ def main():
         )
         setup_parser.add_argument(
             "--ide",
-            choices=["claude", "cursor"],
+            choices=["claude", "cursor", "copilot"],
             help="Specify IDE type (auto-detected if not provided)"
         )
         setup_parser.add_argument(

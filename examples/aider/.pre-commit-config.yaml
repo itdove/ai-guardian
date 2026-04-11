@@ -1,0 +1,22 @@
+# pre-commit framework configuration for AI Guardian with Aider
+#
+# This is an alternative to the manual git hook setup.
+# Uses the pre-commit framework for hook management.
+#
+# Installation:
+#   1. Install pre-commit: pip install pre-commit
+#   2. Copy this file to your project root: .pre-commit-config.yaml
+#   3. Install hooks: pre-commit install
+#   4. Copy .aider.conf.yml to enable Aider integration
+
+repos:
+  # Use official gitleaks hook for secret scanning
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.1
+    hooks:
+      - id: gitleaks
+        name: Detect secrets with gitleaks
+        entry: gitleaks detect --no-git --redact --verbose --exit-code 42
+        language: golang
+        stages: [commit]
+        pass_filenames: false
