@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Documentation disclaimers for self-blocking behavior
+  - Prominent warning banner in README.md explaining why AI Guardian blocks its own documentation
+  - FAQ section addressing "is this a bug?" question about blocked README
+  - Developer warning in CONTRIBUTING.md with solutions for contributors
+  - Warning comments in ai-guardian-example.json about prompt injection examples
+  - Clear explanation that blocking documentation files is correct and expected behavior
 - GitHub Copilot support: Full integration with GitHub Copilot hooks
   - userPromptSubmitted hook for prompt scanning
   - preToolUse hook for tool permission checking
