@@ -38,12 +38,12 @@ gh pr create --web
 
 **IMPORTANT for Contributors:** If you have AI Guardian installed and active, you may experience blocked file reads when working on this repository.
 
-**Why?** This project's documentation contains examples of prompt injection patterns that AI Guardian is designed to detect. When AI Guardian blocks these files, **it's working correctly!**
+**Why?** This project's test files and source code contain actual prompt injection patterns for detection testing. When AI Guardian blocks these files, **it's working correctly!**
 
 **Files that may be blocked:**
-- `README.md` - Contains prompt injection pattern examples
-- `ai-guardian-example.json` - Contains pattern examples in comments
-- Test files with injection test cases
+- `tests/test_prompt_injection.py` - Contains test cases with actual attack patterns
+- `src/ai_guardian/prompt_injection.py` - Contains the detection patterns in source code
+- Other test files with injection test cases
 
 **Solutions:**
 

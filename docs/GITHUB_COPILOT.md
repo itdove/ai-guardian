@@ -414,15 +414,16 @@ Configure MCP/Skill permissions in `~/.config/ai-guardian/ai-guardian.json`:
 
 Enable advanced prompt injection detection:
 
+> **Note**: Specific attack pattern examples are not included for security reasons. See the main README FAQ for guidance on researching prompt injection safely.
+
 ```json
 {
   "prompt_injection": {
     "enabled": true,
     "confidence_threshold": 0.8,
     "methods": ["heuristic", "vector"],
-    "blocklist": [
-      "ignore previous instructions",
-      "you are now in DAN mode"
+    "custom_patterns": [
+      "company_specific_pattern_.*"
     ]
   }
 }
