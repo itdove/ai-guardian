@@ -12,6 +12,27 @@
 
 AI Guardian provides comprehensive protection for AI IDE interactions through multiple security layers.
 
+## ⚠️ Security Disclaimer
+
+**AI Guardian is not a silver bullet** and cannot guarantee detection of all security threats.
+
+- **Prompt injection detection** may miss novel or obfuscated attacks
+- **Secret scanning** depends on Gitleaks patterns and may miss custom secret formats
+- **Attackers evolve continuously** - new bypass techniques emerge constantly
+- **Fail-open by design** - prioritizes availability over security (errors allow operations)
+
+**Use AI Guardian as ONE layer in a defense-in-depth security strategy, not as your only protection.**
+
+Combine with:
+- ✅ Code review processes
+- ✅ Security testing and auditing
+- ✅ Runtime monitoring
+- ✅ Other security tools and best practices
+
+**No warranty:** This software is provided "AS IS" under the Apache 2.0 License. See [LICENSE](LICENSE) for details.
+
+---
+
 > ⚠️ **IMPORTANT: Reading This Documentation with AI Guardian Active**
 > 
 > This README contains **examples of prompt injection patterns** that AI Guardian is designed to detect.
@@ -959,10 +980,50 @@ Tool completes (Bash, Read, Grep, etc.)
 
 ## Security Design
 
+### Architecture Principles
+
+- ✅ **Defense in Depth**: One layer in a multi-layered security strategy
 - ✅ **Fail-open**: If scanning errors occur, allows operation (availability over security)
 - ✅ **In-memory scanning**: Uses `/dev/shm` on Linux for performance
 - ✅ **Secure cleanup**: Overwrites temp files before deletion
 - ✅ **No logging**: Secrets are never logged or stored
+- ✅ **Privacy-first**: Heuristic detection runs locally, no external calls
+
+### Known Limitations
+
+**⚠️ AI Guardian is not perfect and has known limitations:**
+
+**Prompt Injection Detection:**
+- Heuristic pattern matching can be bypassed with novel techniques
+- New attack vectors emerge faster than detection patterns update
+- Trade-off between false positives (blocking legitimate text) and false negatives (missing attacks)
+
+**Secret Scanning:**
+- Depends on Gitleaks community-maintained patterns
+- May miss organization-specific or custom secret formats
+- Requires regular updates to detect new secret types
+
+**Fail-Open Design:**
+- Prioritizes availability over absolute security
+- Detection errors allow operations to proceed (won't block legitimate work)
+- Not suitable for zero-trust environments requiring fail-closed behavior
+
+### What AI Guardian Protects Against
+
+✅ **Common threats it catches:**
+- Known prompt injection patterns ("ignore previous instructions", etc.)
+- Standard secret formats (GitHub tokens, AWS keys, API keys, etc.)
+- Accidental exposure of sensitive directories
+- Unauthorized MCP server and skill access
+
+❌ **Threats it may miss:**
+- Novel or zero-day prompt injection techniques
+- Custom/proprietary secret formats
+- Obfuscated or encoded attacks
+- Social engineering attacks
+- Compromised AI models
+
+**Bottom line: Use AI Guardian as part of a comprehensive security strategy, not as sole protection.**
 
 ## Future Plans
 

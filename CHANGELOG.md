@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Security disclaimer and expanded documentation
+  - Prominent security disclaimer banner in README.md after badges section
+  - Clear statement that "AI Guardian is not a silver bullet"
+  - Explicit list of known limitations (prompt injection, secret scanning, fail-open design)
+  - Guidance to use AI Guardian as part of defense-in-depth strategy
+  - Expanded Security Design section with Architecture Principles, Known Limitations, and threat coverage
+  - Lists of what AI Guardian protects against vs. threats it may miss
+  - Defense-in-depth recommendations (code review, security testing, runtime monitoring)
+  - Prominent "No warranty" statement referencing Apache 2.0 License
 - Documentation disclaimers for self-blocking behavior
   - Prominent warning banner in README.md explaining why AI Guardian blocks its own documentation
   - FAQ section addressing "is this a bug?" question about blocked README
