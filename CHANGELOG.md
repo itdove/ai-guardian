@@ -17,12 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Lists of what AI Guardian protects against vs. threats it may miss
   - Defense-in-depth recommendations (code review, security testing, runtime monitoring)
   - Prominent "No warranty" statement referencing Apache 2.0 License
-- Documentation disclaimers for self-blocking behavior
-  - Prominent warning banner in README.md explaining why AI Guardian blocks its own documentation
-  - FAQ section addressing "is this a bug?" question about blocked README
-  - Developer warning in CONTRIBUTING.md with solutions for contributors
-  - Warning comments in ai-guardian-example.json about prompt injection examples
-  - Clear explanation that blocking documentation files is correct and expected behavior
+- Removed dangerous prompt injection examples from documentation for security
+  - Removed specific attack pattern examples from README.md (instruction override, mode manipulation, etc.)
+  - Removed attack examples from ai-guardian-example.json configuration file
+  - Removed attack examples from docs/GITHUB_COPILOT.md
+  - Replaced examples with general attack categories and security guidance
+  - Added FAQ explaining why we don't publish specific attack patterns
+  - Added guidance to research prompt injection via academic papers and OWASP (not AI agents)
+  - Maintains security by not training AI agents on attack techniques
+  - Developer warning in CONTRIBUTING.md for contributors working with test files
 - GitHub Copilot support: Full integration with GitHub Copilot hooks
   - userPromptSubmitted hook for prompt scanning
   - preToolUse hook for tool permission checking

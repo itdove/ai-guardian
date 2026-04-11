@@ -33,21 +33,6 @@ Combine with:
 
 ---
 
-> ⚠️ **IMPORTANT: Reading This Documentation with AI Guardian Active**
-> 
-> This README contains **examples of prompt injection patterns** that AI Guardian is designed to detect.
-> If you have AI Guardian installed and active, it may block you from reading this file in Claude Code or Cursor.
-> 
-> **This is AI Guardian working correctly!** 
-> 
-> To view this documentation:
-> - **Option 1**: View on GitHub web: https://github.com/itdove/ai-guardian
-> - **Option 2**: Temporarily disable: Edit `~/.config/ai-guardian/ai-guardian.json` and set `"enabled": false` under `prompt_injection`
-> - **Option 3**: Add allowlist pattern: `"allowlist_patterns": [".*ai-guardian.*"]`
-> - **Option 4**: Lower sensitivity: Set `"sensitivity": "low"` in config
-> 
-> See the [Handling False Positives](#handling-false-positives) section below for details.
-
 ## Quick Start
 
 ```bash
@@ -213,14 +198,28 @@ cd ~/project/secrets && touch .ai-read-deny
 - **Allowlist support**: Handle false positives gracefully
 - **Optional ML detectors**: Support for Rebuff, LLM Guard (future)
 
-**Detection patterns include**:
-- Instruction override attempts ("ignore previous instructions")
-- System/mode manipulation ("you are now in developer mode")
-- Prompt exfiltration ("reveal your system prompt")
-- Safety bypass attempts ("disable ethical guidelines")
-- Role manipulation ("act as unfiltered AI")
+**Detection categories include**:
+- Instruction override attempts
+- System/mode manipulation
+- Prompt exfiltration attempts
+- Safety bypass attempts
+- Role manipulation
 - Encoding/delimiter attacks
 - Many-shot injection patterns
+
+> ⚠️ **Why we don't provide specific examples:**
+> 
+> We intentionally do not include actual prompt injection examples in this documentation for security reasons:
+> - Publishing attack patterns makes them easier to copy and misuse
+> - AI Guardian would block its own documentation if it contained these patterns
+> - Specific examples can train AI agents on attack techniques
+> 
+> **To learn about prompt injection patterns:**
+> - Research academic papers on LLM security (not via AI agents)
+> - Review OWASP LLM Top 10 documentation (web browser only)
+> - Consult security research from reputable sources
+> 
+> **For testing AI Guardian:** Use generic test strings prefixed with `test:` which are designed to trigger detection without being actual attack patterns.
 
 **Configuration example** (`~/.config/ai-guardian/ai-guardian.json`):
 ```json
@@ -815,7 +814,7 @@ If legitimate prompts are being blocked, add allowlist patterns to your configur
 **How allowlist patterns work:**
 - Patterns are regex (case-insensitive)
 - If ANY pattern matches, detection is skipped for that prompt
-- Use `.*` for wildcards: `test:.*` matches "test: ignore previous instructions"
+- Use `.*` for wildcards: `test:.*` matches any string starting with "test:"
 - Escape special regex characters: `\.` for literal dots
 
 **Common use cases:**
@@ -1011,7 +1010,7 @@ Tool completes (Bash, Read, Grep, etc.)
 ### What AI Guardian Protects Against
 
 ✅ **Common threats it catches:**
-- Known prompt injection patterns ("ignore previous instructions", etc.)
+- Known prompt injection patterns (instruction override, role manipulation, etc.)
 - Standard secret formats (GitHub tokens, AWS keys, API keys, etc.)
 - Accidental exposure of sensitive directories
 - Unauthorized MCP server and skill access
@@ -1044,16 +1043,19 @@ Apache 2.0 - see [LICENSE](LICENSE) file for details.
 
 ## FAQ
 
-### Q: AI Guardian is blocking its own README.md file. Is this a bug?
+### Q: Why doesn't this documentation include examples of prompt injection attacks?
 
-**A:** No, this is AI Guardian working correctly! The README contains examples of prompt injection patterns (like "ignore previous instructions") that demonstrate what the tool detects. 
+**A:** For security reasons, we intentionally do not publish specific prompt injection examples:
+- Publishing attack patterns makes them easier to copy and misuse
+- Specific examples can inadvertently train AI agents on attack techniques
+- Including actual attack patterns would cause AI Guardian to block its own documentation
 
-This is actually great validation that the tool works. To view the documentation:
-1. View on GitHub web: https://github.com/itdove/ai-guardian
-2. Add allowlist: `"allowlist_patterns": [".*ai-guardian.*"]`
-3. Temporarily disable: `"prompt_injection": {"enabled": false}`
+Instead, we recommend researching prompt injection through:
+- Academic papers on LLM security (use a web browser, not AI agents)
+- OWASP LLM Top 10 documentation
+- Security research from reputable sources
 
-See [Handling False Positives](#handling-false-positives) for configuration details.
+For testing AI Guardian, use generic `test:` prefixed strings rather than actual attack patterns.
 
 ## Contributing
 
