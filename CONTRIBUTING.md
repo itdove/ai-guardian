@@ -34,6 +34,52 @@ git push origin feature-name
 gh pr create --web
 ```
 
+## Working with AI Guardian Source Code
+
+**IMPORTANT for Contributors:** If you have AI Guardian installed and active, you may experience blocked file reads when working on this repository.
+
+**Why?** This project's documentation contains examples of prompt injection patterns that AI Guardian is designed to detect. When AI Guardian blocks these files, **it's working correctly!**
+
+**Files that may be blocked:**
+- `README.md` - Contains prompt injection pattern examples
+- `ai-guardian-example.json` - Contains pattern examples in comments
+- Test files with injection test cases
+
+**Solutions:**
+
+1. **View documentation on GitHub web** (recommended for reading docs):
+   - https://github.com/itdove/ai-guardian
+
+2. **Temporarily disable prompt injection detection** (for local development):
+   ```bash
+   # Edit ~/.config/ai-guardian/ai-guardian.json
+   # Set: "prompt_injection": {"enabled": false}
+   ```
+
+3. **Add personal allowlist pattern** (use with caution):
+   ```json
+   {
+     "prompt_injection": {
+       "enabled": true,
+       "allowlist_patterns": [
+         ".*/ai-guardian/.*"
+       ]
+     }
+   }
+   ```
+   ⚠️ **Warning**: This allows ALL files in ai-guardian repos to bypass detection. Only use if you understand the security implications.
+
+4. **Lower sensitivity** (alternative):
+   ```json
+   {
+     "prompt_injection": {
+       "sensitivity": "low"
+     }
+   }
+   ```
+
+See [Handling False Positives](README.md#handling-false-positives) in the README for more configuration options.
+
 ## Detailed Setup
 
 ### 1. Fork the Repository

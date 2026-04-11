@@ -1,4 +1,9 @@
 {
+  "_IMPORTANT_WARNING": "====================================================================",
+  "_WARNING1": "This file contains examples of prompt injection patterns in comments.",
+  "_WARNING2": "AI Guardian may block reading this file if active. This is EXPECTED!",
+  "_WARNING3": "To view this file: see README.md disclaimer for viewing options.",
+  "_WARNING4": "====================================================================",
   "_comment": "====================================================================",
   "_comment1": "AI Guardian Configuration - MCP Server and Skill Permissions",
   "_comment2": "====================================================================",

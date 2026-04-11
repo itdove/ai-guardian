@@ -12,6 +12,21 @@
 
 AI Guardian provides comprehensive protection for AI IDE interactions through multiple security layers.
 
+> ⚠️ **IMPORTANT: Reading This Documentation with AI Guardian Active**
+> 
+> This README contains **examples of prompt injection patterns** that AI Guardian is designed to detect.
+> If you have AI Guardian installed and active, it may block you from reading this file in Claude Code or Cursor.
+> 
+> **This is AI Guardian working correctly!** 
+> 
+> To view this documentation:
+> - **Option 1**: View on GitHub web: https://github.com/itdove/ai-guardian
+> - **Option 2**: Temporarily disable: Edit `~/.config/ai-guardian/ai-guardian.json` and set `"enabled": false` under `prompt_injection`
+> - **Option 3**: Add allowlist pattern: `"allowlist_patterns": [".*ai-guardian.*"]`
+> - **Option 4**: Lower sensitivity: Set `"sensitivity": "low"` in config
+> 
+> See the [Handling False Positives](#handling-false-positives) section below for details.
+
 ## Quick Start
 
 ```bash
@@ -965,6 +980,19 @@ Apache 2.0 - see [LICENSE](LICENSE) file for details.
 - [Gitleaks](https://github.com/gitleaks/gitleaks) - Secret detection engine
 - [Claude Code](https://claude.ai/code) - AI-powered IDE
 - [Cursor](https://cursor.sh) - AI code editor
+
+## FAQ
+
+### Q: AI Guardian is blocking its own README.md file. Is this a bug?
+
+**A:** No, this is AI Guardian working correctly! The README contains examples of prompt injection patterns (like "ignore previous instructions") that demonstrate what the tool detects. 
+
+This is actually great validation that the tool works. To view the documentation:
+1. View on GitHub web: https://github.com/itdove/ai-guardian
+2. Add allowlist: `"allowlist_patterns": [".*ai-guardian.*"]`
+3. Temporarily disable: `"prompt_injection": {"enabled": false}`
+
+See [Handling False Positives](#handling-false-positives) for configuration details.
 
 ## Contributing
 
