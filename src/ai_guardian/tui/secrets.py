@@ -89,16 +89,12 @@ class SecretsContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Server URL:")
                     yield Input(placeholder="http://localhost:8080", id="pattern-server-url")
-                    yield Button("Test Connection", id="test-pattern-server")
+                    yield Static("[dim](Press [t] to test)[/dim]")
 
             # Violation logging section
             with Container(classes="section"):
                 yield Static("[bold]Secret Violation Logging[/bold]", classes="section-title")
                 yield Static("", id="violation-logging-status")
-
-            with Horizontal(id="actions"):
-                yield Button("Refresh", id="refresh-secrets", variant="primary")
-                yield Button("View Secret Violations", id="view-secret-violations")
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -140,20 +136,14 @@ class SecretsContent(Container):
         log_status = f"Status: {'✓ Enabled' if log_enabled and logs_secrets else '✗ Disabled'}"
         self.query_one("#violation-logging-status", Static).update(log_status)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        button_id = event.button.id
+    def action_test_server(self) -> None:
+        """Test pattern server connection (triggered by 't' key)."""
+        self.test_pattern_server()
 
-        if button_id == "refresh-secrets":
-            self.load_config()
-            self.app.notify("Secrets configuration refreshed", severity="information")
-
-        elif button_id == "test-pattern-server":
-            self.test_pattern_server()
-
-        elif button_id == "view-secret-violations":
-            # Switch to Violations tab and filter by secrets
-            self.app.notify("Switching to Violations tab - use 'Secrets' filter", severity="information")
+    def action_refresh(self) -> None:
+        """Refresh configuration (triggered by 'r' key)."""
+        self.load_config()
+        self.app.notify("Secrets configuration refreshed", severity="information")
 
     def test_pattern_server(self) -> None:
         """Test connection to pattern server."""

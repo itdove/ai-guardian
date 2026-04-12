@@ -99,7 +99,7 @@ class PromptInjectionContent(Container):
                         value="0.7",
                         id="sensitivity-select"
                     )
-                    yield Button("Update", id="update-sensitivity")
+                    yield Static("[dim](Press [s] to save)[/dim]")
 
             # Allowlist patterns section
             with Container(classes="section"):
@@ -107,18 +107,12 @@ class PromptInjectionContent(Container):
                 yield Static("Patterns that should be ignored (e.g., for documentation):", classes="setting-row")
                 yield Static("", id="allowlist-patterns")
 
-                with Horizontal(classes="setting-row"):
-                    yield Input(placeholder="Enter pattern to allowlist", id="new-pattern-input")
-                    yield Button("Add Pattern", id="add-pattern")
+                yield Input(placeholder="Enter pattern to allowlist (press [a] to add)", id="new-pattern-input")
 
             # Statistics section
             with Container(classes="section"):
                 yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
                 yield Static("", id="detection-stats")
-
-            with Horizontal(id="actions"):
-                yield Button("Refresh", id="refresh-prompt-injection", variant="primary")
-                yield Button("View Prompt Injection Violations", id="view-pi-violations")
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -182,22 +176,18 @@ class PromptInjectionContent(Container):
         stats_text = f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
         self.query_one("#detection-stats", Static).update(stats_text)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        button_id = event.button.id
+    def action_update_sensitivity(self) -> None:
+        """Update sensitivity setting (triggered by 's' key)."""
+        self.update_sensitivity()
 
-        if button_id == "refresh-prompt-injection":
-            self.load_config()
-            self.app.notify("Prompt injection configuration refreshed", severity="information")
+    def action_add_pattern(self) -> None:
+        """Add allowlist pattern (triggered by 'a' key)."""
+        self.add_allowlist_pattern()
 
-        elif button_id == "update-sensitivity":
-            self.update_sensitivity()
-
-        elif button_id == "add-pattern":
-            self.add_allowlist_pattern()
-
-        elif button_id == "view-pi-violations":
-            self.app.notify("Switching to Violations tab - use 'Prompt Injection' filter", severity="information")
+    def action_refresh(self) -> None:
+        """Refresh configuration (triggered by 'r' key)."""
+        self.load_config()
+        self.app.notify("Prompt injection configuration refreshed", severity="information")
 
     def update_sensitivity(self) -> None:
         """Update prompt injection detection sensitivity."""

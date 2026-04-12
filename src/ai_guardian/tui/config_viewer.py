@@ -62,8 +62,6 @@ class ConfigContent(Container):
         with VerticalScroll():
             yield Static("", id="config-sources")
             yield Static("", id="config-content")
-            with Container(id="config-actions"):
-                yield Button("Refresh", id="refresh-config", variant="primary")
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -119,8 +117,7 @@ class ConfigContent(Container):
 
         self.query_one("#config-content", Static).update(config_text)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        if event.button.id == "refresh-config":
-            self.load_config()
-            self.app.notify("Configuration refreshed", severity="information")
+    def action_refresh(self) -> None:
+        """Refresh configuration (triggered by 'r' key)."""
+        self.load_config()
+        self.app.notify("Configuration refreshed", severity="information")

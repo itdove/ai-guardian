@@ -222,10 +222,12 @@ class MCPServersContent(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the MCP servers tab content."""
-        yield Static("[bold]MCP Server Permissions[/bold] (mcp__notebooklm-mcp__*, etc.)", id="mcp-header")
-
-        with Horizontal(id="mcp-actions"):
-            yield Button("Add Permission", id="add-permission", variant="primary")
+        yield Static("[bold]MCP Server Permissions[/bold]", id="mcp-header")
+        yield Static(
+            "[dim]Manage MCP server tool permissions (e.g., mcp__notebooklm-mcp__*). "
+            "Press [a] to add new permission.[/dim]",
+            classes="permission-detail"
+        )
 
         yield VerticalScroll(id="mcp-list")
 
@@ -268,17 +270,19 @@ class MCPServersContent(Container):
             permissions_list.mount(MCPPermissionCard(rule, idx))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
+        """Handle button presses (only edit/delete on permission cards)."""
         button_id = event.button.id
 
-        if button_id == "add-permission":
-            self.add_permission()
-        elif button_id and button_id.startswith("edit-"):
+        if button_id and button_id.startswith("edit-"):
             idx = int(button_id.replace("edit-", ""))
             self.edit_permission(idx)
         elif button_id and button_id.startswith("delete-"):
             idx = int(button_id.replace("delete-", ""))
             self.delete_permission(idx)
+
+    def action_add_permission(self) -> None:
+        """Add new MCP permission (triggered by 'a' key)."""
+        self.add_permission()
 
     def add_permission(self) -> None:
         """Show modal to add a new MCP server permission rule."""
@@ -368,7 +372,7 @@ class MCPServersContent(Container):
             self.app.notify(f"Error deleting permission: {e}", severity="error")
 
     def save_permission(self, rule: Dict) -> None:
-        """Save a new MCP server permission rule to config."""
+        """Save a new MCP server permission rule to config (merges with existing if matcher+mode match)."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -382,13 +386,30 @@ class MCPServersContent(Container):
             if "permissions" not in config:
                 config["permissions"] = []
 
-            config["permissions"].append(rule)
+            # Check if a rule with same matcher+mode already exists
+            existing_rule = None
+            for perm in config["permissions"]:
+                if perm.get("matcher") == rule.get("matcher") and perm.get("mode") == rule.get("mode"):
+                    existing_rule = perm
+                    break
+
+            if existing_rule:
+                # Merge patterns (no duplicates)
+                new_patterns = rule.get("patterns", [])
+                existing_patterns = existing_rule.get("patterns", [])
+                merged_patterns = list(set(existing_patterns + new_patterns))
+                existing_rule["patterns"] = merged_patterns
+                message = "MCP server permission updated (patterns merged)"
+            else:
+                # Add new rule
+                config["permissions"].append(rule)
+                message = "MCP server permission added"
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
             self.load_permissions()
-            self.app.notify("MCP server permission added", severity="success")
+            self.app.notify(message, severity="success")
 
         except Exception as e:
             self.app.notify(f"Error saving permission: {e}", severity="error")

@@ -11,7 +11,7 @@ from typing import Dict, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Button, Static
+from textual.widgets import Button, Static, TabbedContent, TabPane
 
 from ai_guardian.violation_logger import ViolationLogger
 from ai_guardian.config_utils import get_config_dir
@@ -73,14 +73,27 @@ class ViolationCard(Container):
             yield Static(f"Denied by: {denied_dir}/.ai-read-deny", classes="violation-detail")
 
         elif vtype == "secret_detected":
-            source = blocked.get("source", "unknown")
+            # Show source/location
             file_path = blocked.get("file_path")
+            source = blocked.get("source", "unknown")
+
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                yield Static(f"Location: {file_path}", classes="violation-detail")
+            elif source == "prompt":
+                yield Static("Location: User prompt", classes="violation-detail")
             else:
-                yield Static(f"Source: {source}", classes="violation-detail")
-            secret_type = blocked.get("secret_type", "Unknown")
-            yield Static(f"Secret type: {secret_type}", classes="violation-detail")
+                yield Static(f"Location: {source}", classes="violation-detail")
+
+            # Show reason
+            reason = blocked.get("reason", "Gitleaks detected sensitive information")
+            yield Static(f"Detected by: Gitleaks scanner", classes="violation-detail")
+
+            # Note about limited detail
+            yield Static(
+                "[dim]Note: Secret details not logged for security. "
+                "This violation occurred when Gitleaks detected a potential secret pattern.[/dim]",
+                classes="violation-detail"
+            )
 
         elif vtype == "prompt_injection":
             source = blocked.get("source", "unknown")
@@ -148,13 +161,8 @@ class ViolationsContent(Container):
         margin: 0 1 0 0;
     }
 
-    #filter-container {
-        margin: 1 0;
-        height: auto;
-    }
-
-    #filter-container Button {
-        margin: 0 1 0 0;
+    #filter-tabs {
+        height: 100%;
     }
 
     #no-violations {
@@ -168,76 +176,90 @@ class ViolationsContent(Container):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.violation_logger = ViolationLogger()
-        self.current_filter = None
 
     def compose(self) -> ComposeResult:
         """Compose the violations tab content."""
-        yield Static("[bold]Recent Violations[/bold] (all types)", id="violations-header")
+        yield Static("[bold]Recent Violations[/bold]", id="violations-header")
+        yield Static(
+            "[dim]Historical log of blocked operations. "
+            "Use sub-tabs or number keys [1-5] to filter by type. "
+            "Tool permission violations can be approved with button on card.[/dim]",
+            classes="violation-detail"
+        )
 
-        # Filter buttons
-        with Horizontal(id="filter-container"):
-            yield Button("All", id="filter-all", variant="primary")
-            yield Button("Tool Permission", id="filter-tool-permission")
-            yield Button("Secrets", id="filter-secret")
-            yield Button("Directories", id="filter-directory")
-            yield Button("Prompt Injection", id="filter-prompt-injection")
-
-        # Violations list
-        yield VerticalScroll(id="violations-list")
+        # Sub-tabs for filtering
+        with TabbedContent(id="filter-tabs"):
+            with TabPane("All", id="filter-all"):
+                yield VerticalScroll(id="violations-list-all")
+            with TabPane("Tool Permission", id="filter-tool-permission"):
+                yield VerticalScroll(id="violations-list-tool")
+            with TabPane("Secrets", id="filter-secret"):
+                yield VerticalScroll(id="violations-list-secret")
+            with TabPane("Directories", id="filter-directory"):
+                yield VerticalScroll(id="violations-list-directory")
+            with TabPane("Prompt Injection", id="filter-injection"):
+                yield VerticalScroll(id="violations-list-injection")
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
-        self.load_violations()
+        self.load_all_filters()
 
     def refresh_content(self) -> None:
         """Refresh violations (called by parent app)."""
-        self.load_violations(self.current_filter)
+        self.load_all_filters()
 
-    def load_violations(self, violation_type: Optional[str] = None) -> None:
-        """Load and display violations."""
-        violations = self.violation_logger.get_recent_violations(
-            limit=50,
-            violation_type=violation_type,
-            resolved=None  # Show both resolved and unresolved
+    def load_all_filters(self) -> None:
+        """Load violations into all filter tabs."""
+        # Load all violations
+        all_violations = self.violation_logger.get_recent_violations(limit=50, resolved=None)
+        self._populate_list("#violations-list-all", all_violations)
+
+        # Load tool permission violations
+        tool_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="tool_permission", resolved=None
         )
+        self._populate_list("#violations-list-tool", tool_violations)
 
-        # Get the violations list container
-        violations_list = self.query_one("#violations-list", VerticalScroll)
-        violations_list.remove_children()
+        # Load secret violations
+        secret_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="secret_detected", resolved=None
+        )
+        self._populate_list("#violations-list-secret", secret_violations)
 
-        if not violations:
-            violations_list.mount(
-                Static("No violations found.", id="no-violations")
-            )
-            return
+        # Load directory violations
+        directory_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="directory_blocking", resolved=None
+        )
+        self._populate_list("#violations-list-directory", directory_violations)
 
-        # Add violation cards
-        for violation in violations:
-            violations_list.mount(ViolationCard(violation))
+        # Load prompt injection violations
+        injection_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="prompt_injection", resolved=None
+        )
+        self._populate_list("#violations-list-injection", injection_violations)
+
+    def _populate_list(self, list_id: str, violations: list) -> None:
+        """Populate a violations list."""
+        try:
+            violations_list = self.query_one(list_id, VerticalScroll)
+            violations_list.remove_children()
+
+            if not violations:
+                violations_list.mount(Static("No violations found."))
+                return
+
+            # Add violation cards
+            for violation in violations:
+                violations_list.mount(ViolationCard(violation))
+        except:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
+        """Handle button presses (only approve/deny/details on violation cards)."""
         button_id = event.button.id
 
-        # Filter buttons
-        if button_id == "filter-all":
-            self.current_filter = None
-            self.load_violations()
-        elif button_id == "filter-tool-permission":
-            self.current_filter = "tool_permission"
-            self.load_violations("tool_permission")
-        elif button_id == "filter-secret":
-            self.current_filter = "secret_detected"
-            self.load_violations("secret_detected")
-        elif button_id == "filter-directory":
-            self.current_filter = "directory_blocking"
-            self.load_violations("directory_blocking")
-        elif button_id == "filter-prompt-injection":
-            self.current_filter = "prompt_injection"
-            self.load_violations("prompt_injection")
-
         # Approve button
-        elif button_id and button_id.startswith("approve-"):
+        if button_id and button_id.startswith("approve-"):
             timestamp = button_id.replace("approve-", "")
             self.approve_violation(timestamp)
 
@@ -250,6 +272,46 @@ class ViolationsContent(Container):
         elif button_id and button_id.startswith("details-"):
             timestamp = button_id.replace("details-", "")
             self.show_violation_details(timestamp)
+
+    def action_filter_all(self) -> None:
+        """Show all violations (triggered by '1' key)."""
+        try:
+            filter_tabs = self.query_one("#filter-tabs", TabbedContent)
+            filter_tabs.active = "filter-all"
+        except:
+            pass
+
+    def action_filter_tool(self) -> None:
+        """Filter tool permission violations (triggered by '2' key)."""
+        try:
+            filter_tabs = self.query_one("#filter-tabs", TabbedContent)
+            filter_tabs.active = "filter-tool-permission"
+        except:
+            pass
+
+    def action_filter_secret(self) -> None:
+        """Filter secret violations (triggered by '3' key)."""
+        try:
+            filter_tabs = self.query_one("#filter-tabs", TabbedContent)
+            filter_tabs.active = "filter-secret"
+        except:
+            pass
+
+    def action_filter_directory(self) -> None:
+        """Filter directory violations (triggered by '4' key)."""
+        try:
+            filter_tabs = self.query_one("#filter-tabs", TabbedContent)
+            filter_tabs.active = "filter-directory"
+        except:
+            pass
+
+    def action_filter_injection(self) -> None:
+        """Filter prompt injection violations (triggered by '5' key)."""
+        try:
+            filter_tabs = self.query_one("#filter-tabs", TabbedContent)
+            filter_tabs.active = "filter-injection"
+        except:
+            pass
 
     def approve_violation(self, timestamp: str) -> None:
         """Approve a violation and add the suggested rule to config."""
