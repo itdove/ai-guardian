@@ -12,6 +12,8 @@ Tab-based interface with separate tabs for:
 - Config: View/export configuration
 """
 
+from typing import Optional
+
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import Footer, Header, TabbedContent, TabPane, Button, Input
@@ -205,7 +207,7 @@ class AIGuardianTUI(App):
 
         yield Footer()
 
-    def check_action(self, action: str, parameters: tuple) -> bool | None:
+    def check_action(self, action: str, parameters: tuple) -> Optional[bool]:
         """Control which actions are available based on current tab."""
         tabs = self.query_one("#main-tabs", TabbedContent)
         current_tab = tabs.active
