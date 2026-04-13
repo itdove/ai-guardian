@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PowerShell tool protection for Windows users (Issue #45)
+  - Added IMMUTABLE_DENY_PATTERNS for PowerShell tool to prevent Windows bypass
+  - Blocks PowerShell cmdlets: Remove-Item, Move-Item, Rename-Item, Set-Content, Clear-Content, Out-File, Copy-Item
+  - Blocks PowerShell aliases: del, erase, rm, mv, move, ren, copy, rmdir
+  - Blocks PowerShell redirections (>, >>)
+  - Protects ai-guardian config files, IDE hook files, package source code, and .ai-read-deny markers
+  - Supports both Unix-style paths (/) and Windows-style paths (\) for cross-platform compatibility
+  - Updated _extract_check_value() to handle PowerShell commands
+  - Comprehensive test coverage (27 test cases in test_powershell_protection.py)
+  - Defense in depth: prevents bypass of self-protection on Windows systems with PowerShell tool enabled
 - Protection for .ai-read-deny marker files (Issue #41)
   - AI agents can no longer remove or modify `.ai-read-deny` marker files
   - Prevents bypass of directory protection by deleting marker files

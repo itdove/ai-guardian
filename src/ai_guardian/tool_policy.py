@@ -112,6 +112,70 @@ IMMUTABLE_DENY_PATTERNS = {
         "*chattr*.ai-read-deny*",      # Block: chattr .ai-read-deny
         "*vim*.ai-read-deny*",         # Block: vim .ai-read-deny
         "*nano*.ai-read-deny*",        # Block: nano .ai-read-deny
+    ],
+
+    "PowerShell": [
+        # Protect ai-guardian config files
+        "*Remove-Item*ai-guardian*", "*Remove-Item*ai_guardian*",
+        "*Move-Item*ai-guardian*", "*Move-Item*ai_guardian*",
+        "*Rename-Item*ai-guardian*", "*Rename-Item*ai_guardian*",
+        "*Set-Content*ai-guardian*", "*Set-Content*ai_guardian*",
+        "*Clear-Content*ai-guardian*", "*Clear-Content*ai_guardian*",
+        "*Out-File*ai-guardian*", "*Out-File*ai_guardian*",
+        "*Copy-Item*ai-guardian*", "*Copy-Item*ai_guardian*",
+
+        # Protect IDE hook files (Unix paths)
+        "*Remove-Item*.claude/settings.json*", "*Remove-Item*.cursor/hooks.json*",
+        "*Remove-Item*Claude/settings.json*", "*Remove-Item*Cursor/hooks.json*",
+        "*Move-Item*.claude/settings.json*", "*Move-Item*.cursor/hooks.json*",
+        "*Move-Item*Claude/settings.json*", "*Move-Item*Cursor/hooks.json*",
+        "*Rename-Item*.claude/settings.json*", "*Rename-Item*.cursor/hooks.json*",
+        "*Rename-Item*Claude/settings.json*", "*Rename-Item*Cursor/hooks.json*",
+        "*Set-Content*.claude/settings.json*", "*Set-Content*.cursor/hooks.json*",
+        "*Set-Content*Claude/settings.json*", "*Set-Content*Cursor/hooks.json*",
+        "*Clear-Content*.claude/settings.json*", "*Clear-Content*.cursor/hooks.json*",
+        "*Clear-Content*Claude/settings.json*", "*Clear-Content*Cursor/hooks.json*",
+        "*Out-File*.claude/settings.json*", "*Out-File*.cursor/hooks.json*",
+        "*Out-File*Claude/settings.json*", "*Out-File*Cursor/hooks.json*",
+
+        # Protect IDE hook files (Windows backslash paths)
+        "*Remove-Item*Claude\\settings.json*", "*Remove-Item*Cursor\\hooks.json*",
+        "*Move-Item*Claude\\settings.json*", "*Move-Item*Cursor\\hooks.json*",
+        "*Rename-Item*Claude\\settings.json*", "*Rename-Item*Cursor\\hooks.json*",
+        "*Set-Content*Claude\\settings.json*", "*Set-Content*Cursor\\settings.json*",
+        "*Clear-Content*Claude\\settings.json*", "*Clear-Content*Cursor\\hooks.json*",
+        "*Out-File*Claude\\settings.json*", "*Out-File*Cursor\\hooks.json*",
+
+        # Protect ai-guardian package source
+        "*Remove-Item*ai_guardian/*", "*Remove-Item*ai_guardian\\*",
+        "*Set-Content*ai_guardian/*", "*Set-Content*ai_guardian\\*",
+        "*Clear-Content*ai_guardian/*", "*Clear-Content*ai_guardian\\*",
+        "*Out-File*ai_guardian/*", "*Out-File*ai_guardian\\*",
+
+        # Protect against PowerShell redirections
+        "*>*ai-guardian*", "*>>*ai-guardian*",
+        "*>*.claude/settings.json*", "*>*.cursor/hooks.json*",
+        "*>*Claude/settings.json*", "*>*Cursor/hooks.json*",
+
+        # Protect .ai-read-deny marker files from PowerShell manipulation
+        "*Remove-Item*.ai-read-deny*",
+        "*Move-Item*.ai-read-deny*",
+        "*Rename-Item*.ai-read-deny*",
+        "*Set-Content*.ai-read-deny*",
+        "*Clear-Content*.ai-read-deny*",
+        "*Out-File*.ai-read-deny*",
+        "*Copy-Item*.ai-read-deny*",
+        "*>*.ai-read-deny*",
+
+        # PowerShell aliases (del, erase, rm, mv, etc.)
+        "*del *ai-guardian*", "*erase *ai-guardian*",
+        "*rm *ai-guardian*", "*rmdir *ai-guardian*",
+        "*mv *ai-guardian*", "*move *ai-guardian*",
+        "*ren *ai-guardian*", "*copy *ai-guardian*",
+        "*rm *.claude/settings.json*", "*del *.claude/settings.json*",
+        "*rm *.cursor/hooks.json*", "*del *.cursor/hooks.json*",
+        "*rm *.ai-read-deny*", "*del *.ai-read-deny*",
+        "*mv *.ai-read-deny*", "*move *.ai-read-deny*",
     ]
 }
 
@@ -498,8 +562,8 @@ class ToolPolicyChecker:
             skill = tool_input.get("skill")
             return skill if skill else None
 
-        # Bash/Shell: extract command from input
-        if matcher == "Bash" or matcher == "Shell":
+        # Bash/Shell/PowerShell: extract command from input
+        if matcher == "Bash" or matcher == "Shell" or matcher == "PowerShell":
             command = tool_input.get("command")
             return command if command else None
 
@@ -624,8 +688,11 @@ class ToolPolicyChecker:
         Returns:
             str: Formatted error message
         """
-        # Check if this is a .ai-read-deny marker file
-        is_marker_file = file_path.endswith('.ai-read-deny') or '/.ai-read-deny' in file_path
+        # Check if this is a .ai-read-deny marker file (check both Unix and Windows paths)
+        is_marker_file = (file_path.endswith('.ai-read-deny') or
+                         '/.ai-read-deny' in file_path or
+                         '\\.ai-read-deny' in file_path or
+                         '.ai-read-deny' in file_path)
 
         base_message = (
             f"\n{'='*70}\n"
