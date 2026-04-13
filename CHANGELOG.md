@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Time-based expiration for permission and prompt injection allow lists (Issue #34)
+  - Support both simple string patterns (permanent) and extended dict format with `valid_until` field
+  - Extended format: `{"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"}`
+  - Expired patterns are automatically filtered during permission checks
+  - ISO 8601 timestamp format with UTC timezone required
+  - Fail-safe: invalid timestamps default to non-expiring (permanent)
+  - Works for both tool permissions and prompt injection allowlist patterns
+  - Backward compatible: existing string patterns work unchanged
+  - Use cases: temporary debug access, time-boxed testing, automatic permission cleanup
+  - Added `parse_iso8601()` and `is_expired()` utilities to config_utils module
+  - Comprehensive test coverage for expiration logic and edge cases
 - Violation/audit logging for blocked operations
   - Tracks all blocked operations to `~/.config/ai-guardian/violations.jsonl`
   - Logs tool permission blocks, directory access denials, secret detections, and prompt injections

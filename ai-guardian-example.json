@@ -23,6 +23,19 @@
         "arc",
         "claude-api",
         "update-config"
+      ],
+      "_time_based_example": [
+        "daf-*",
+        {
+          "pattern": "debug-*",
+          "valid_until": "2026-04-13T12:00:00Z",
+          "_comment": "Temporary debug access until noon UTC"
+        },
+        {
+          "pattern": "experimental-*",
+          "valid_until": "2026-04-20T00:00:00Z",
+          "_comment": "Testing period ends April 20"
+        }
       ]
     },
     {
@@ -130,6 +143,14 @@
     "_threshold_note": "Confidence threshold (0.0-1.0) for blocking prompts",
     "allowlist_patterns": [],
     "_allowlist_note": "Add regex patterns here to ignore false positives, e.g. [\"test:.*\", \"system:test.*\"]",
+    "_allowlist_time_based_example": [
+      "test:.*",
+      {
+        "pattern": "experimental:.*",
+        "valid_until": "2026-04-14T00:00:00Z",
+        "_comment": "Testing new feature until tomorrow"
+      }
+    ],
     "custom_patterns": [],
     "_custom_patterns_note": "Add additional detection patterns here, e.g. [\"company_secret_.*\"]",
     "_detection_patterns": {
@@ -163,16 +184,40 @@
     "_structure": {
       "matcher": "Tool name pattern (e.g., 'Skill', 'mcp__*', 'Bash', 'Write')",
       "mode": "allow or deny",
-      "patterns": ["List of patterns to allow/deny"]
+      "patterns": ["List of patterns to allow/deny (string or object with valid_until)"]
     },
     "_explanation": "Each rule is either an allow-list (mode: allow) or deny-list (mode: deny)",
     "_precedence": "All deny rules checked first (from any source), then allow rules",
+    "_time_based_expiration": {
+      "_comment": "NEW in v1.3.0: Patterns support optional time-based expiration",
+      "_simple_format": "daf-*",
+      "_extended_format": {
+        "pattern": "debug-*",
+        "valid_until": "2026-04-13T12:00:00Z"
+      },
+      "_explanation": "Extended format adds optional valid_until field (ISO 8601 timestamp in UTC)",
+      "_behavior": "Expired patterns are automatically filtered out during permission checks",
+      "_fail_safe": "Invalid timestamps or missing fields default to non-expiring (permanent)"
+    },
     "_examples": [
       {
         "matcher": "Skill",
         "mode": "allow",
         "patterns": ["daf-*", "gh-cli"],
         "_explanation": "Allow skills: daf-* and gh-cli"
+      },
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "patterns": [
+          "daf-*",
+          {
+            "pattern": "debug-*",
+            "valid_until": "2026-04-13T12:00:00Z",
+            "_comment": "Temporary debug access"
+          }
+        ],
+        "_explanation": "Mixed simple and time-limited patterns"
       },
       {
         "matcher": "mcp__*",
@@ -185,6 +230,18 @@
         "mode": "deny",
         "patterns": ["*rm -rf*"],
         "_explanation": "Block dangerous bash commands"
+      },
+      {
+        "matcher": "Bash",
+        "mode": "allow",
+        "patterns": [
+          {
+            "pattern": "*docker rm*",
+            "valid_until": "2026-04-13T15:00:00Z",
+            "_comment": "Container cleanup until 15:00 UTC"
+          }
+        ],
+        "_explanation": "Temporary permission for Docker cleanup"
       },
       {
         "matcher": "Write",
