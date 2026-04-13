@@ -271,7 +271,90 @@ def detect_hook_event(hook_data):
     return "prompt"
 
 
-def check_directory_denied(file_path):
+def _is_path_excluded(file_path, config):
+    """
+    Check if a file path is within a directory exclusion.
+
+    Directory exclusions disable .ai-read-deny blocking for specific paths.
+    Note: .ai-read-deny markers ALWAYS take precedence over exclusions.
+
+    Args:
+        file_path: Absolute path to the file being accessed
+        config: Configuration dict containing directory_exclusions
+
+    Returns:
+        bool: True if path is excluded (skip .ai-read-deny check), False otherwise
+    """
+    try:
+        # Check if directory_exclusions feature is enabled
+        if not config:
+            return False
+
+        dir_exclusions = config.get("directory_exclusions", {})
+
+        # Check enabled flag (supports boolean or object format)
+        if not is_feature_enabled(dir_exclusions.get("enabled", False)):
+            logging.debug("Directory exclusions disabled in config")
+            return False
+
+        exclusion_paths = dir_exclusions.get("paths", [])
+        if not exclusion_paths:
+            logging.debug("No directory exclusion paths configured")
+            return False
+
+        # Convert file path to absolute path
+        abs_file_path = os.path.abspath(os.path.expanduser(file_path))
+
+        # Check each exclusion path
+        for exclusion_path in exclusion_paths:
+            if not isinstance(exclusion_path, str):
+                logging.warning(f"Invalid exclusion path (not a string): {exclusion_path}")
+                continue
+
+            try:
+                # Expand tilde and convert to absolute path
+                expanded_path = os.path.abspath(os.path.expanduser(exclusion_path))
+
+                # Check for wildcards
+                if "**" in expanded_path:
+                    # Recursive wildcard: match directory and all subdirectories
+                    # Remove /** or ** from end for directory comparison
+                    base_path = expanded_path.replace("/**", "").replace("**", "")
+                    if abs_file_path.startswith(base_path):
+                        logging.debug(f"Path {abs_file_path} matches recursive exclusion: {exclusion_path}")
+                        return True
+                elif "*" in expanded_path:
+                    # Single-level wildcard: use fnmatch for pattern matching
+                    import fnmatch
+                    # Get parent directory of file for matching
+                    file_parent = os.path.dirname(abs_file_path)
+                    wildcard_parent = os.path.dirname(expanded_path)
+
+                    # Check if file's parent matches the wildcard pattern
+                    if fnmatch.fnmatch(file_parent, expanded_path) or file_parent.startswith(expanded_path.replace("/*", "")):
+                        logging.debug(f"Path {abs_file_path} matches wildcard exclusion: {exclusion_path}")
+                        return True
+                else:
+                    # Exact path match: check if file is within excluded directory
+                    # Add trailing slash to ensure directory boundary matching
+                    if abs_file_path.startswith(expanded_path + os.sep) or abs_file_path == expanded_path:
+                        logging.debug(f"Path {abs_file_path} matches exact exclusion: {exclusion_path}")
+                        return True
+
+            except Exception as e:
+                logging.warning(f"Error processing exclusion path '{exclusion_path}': {e}")
+                # Fail-safe: skip this exclusion path, continue checking others
+                continue
+
+        return False
+
+    except Exception as e:
+        logging.error(f"Error checking directory exclusions: {e}")
+        # Fail-safe: if exclusion check fails, don't exclude (let normal blocking proceed)
+        return False
+
+
+def check_directory_denied(file_path, config=None):
     """
     Check if a file is in a directory (or subdirectory) that contains a .ai-read-deny marker file.
 
@@ -279,8 +362,14 @@ def check_directory_denied(file_path):
     parent directory contains a .ai-read-deny file, which indicates the directory and all
     its subdirectories should be blocked from AI access.
 
+    PRECEDENCE: .ai-read-deny ALWAYS takes precedence over directory exclusions.
+    1. First checks for .ai-read-deny marker (if found, BLOCKS regardless of exclusions)
+    2. Then checks if path is excluded (if excluded, ALLOWS - skips blocking)
+    3. Otherwise ALLOWS (no .ai-read-deny found, not excluded)
+
     Args:
         file_path: Path to the file being accessed
+        config: Optional configuration dict containing directory_exclusions
 
     Returns:
         tuple: (is_denied: bool, denied_directory: str or None)
@@ -288,21 +377,37 @@ def check_directory_denied(file_path):
                - denied_directory: The directory containing .ai-read-deny, if found
     """
     try:
+        # Load config if not provided
+        if config is None and HAS_TOOL_POLICY:
+            try:
+                policy_checker = ToolPolicyChecker()
+                config = policy_checker.config
+            except Exception as e:
+                logging.debug(f"Could not load config for directory exclusions: {e}")
+                config = {}
+
         # Convert to absolute path
         abs_path = os.path.abspath(file_path)
 
         # Get the directory containing the file
         current_dir = os.path.dirname(abs_path)
 
+        # PRIORITY 1: Check for .ai-read-deny marker (ALWAYS takes precedence)
         # Walk up the directory tree
+        is_path_in_exclusion = _is_path_excluded(abs_path, config) if config else False
+
         while True:
             deny_marker = os.path.join(current_dir, ".ai-read-deny")
 
             if os.path.exists(deny_marker):
-                logging.info(f"Found .ai-read-deny marker in {current_dir}")
+                # CRITICAL: .ai-read-deny ALWAYS blocks (no config option can override this)
+                if is_path_in_exclusion:
+                    logging.info(f"Found .ai-read-deny at {current_dir} (blocks even though path is in excluded directory)")
+                else:
+                    logging.info(f"Found .ai-read-deny marker in {current_dir}")
 
                 # Log directory blocking violation
-                _log_directory_blocking_violation(file_path, current_dir)
+                _log_directory_blocking_violation(file_path, current_dir, is_excluded=is_path_in_exclusion)
 
                 return True, current_dir
 
@@ -315,6 +420,13 @@ def check_directory_denied(file_path):
 
             current_dir = parent_dir
 
+        # PRIORITY 2: No .ai-read-deny found - check if path is excluded
+        # (Exclusions only matter when there's no .ai-read-deny marker)
+        if is_path_in_exclusion:
+            logging.info(f"Directory exclusion active for {abs_path} (no .ai-read-deny found)")
+            return False, None
+
+        # PRIORITY 3: Not excluded, no .ai-read-deny - allow access
         return False, None
 
     except Exception as e:
@@ -646,29 +758,39 @@ def _is_ai_guardian_test_file(file_path):
     return has_ai_guardian and has_tests
 
 
-def _log_directory_blocking_violation(file_path: str, denied_directory: str):
+def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False):
     """
     Log a directory blocking violation.
 
     Args:
         file_path: Path to the file that was blocked
         denied_directory: Directory containing .ai-read-deny marker
+        is_excluded: Whether the path was in an excluded directory (but .ai-read-deny still blocked it)
     """
     if not HAS_VIOLATION_LOGGER:
         return
 
     try:
         violation_logger = ViolationLogger()
+
+        # Prepare context with exclusion status
+        context = {
+            "project_path": os.getcwd(),
+            "path_in_exclusion": is_excluded
+        }
+
+        if is_excluded:
+            context["note"] = ".ai-read-deny ALWAYS takes precedence over directory exclusions"
+
         violation_logger.log_violation(
             violation_type="directory_blocking",
             blocked={
                 "file_path": file_path,
                 "denied_directory": denied_directory,
-                "reason": ".ai-read-deny marker found"
+                "reason": ".ai-read-deny marker found",
+                "exclusion_overridden": is_excluded
             },
-            context={
-                "project_path": os.getcwd()
-            },
+            context=context,
             suggestion={
                 "action": "remove_deny_marker",
                 "file_path": os.path.join(denied_directory, ".ai-read-deny"),

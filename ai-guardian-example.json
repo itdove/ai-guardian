@@ -208,6 +208,62 @@
     }
   },
 
+  "directory_exclusions": {
+    "_comment": "Directory exclusions for .ai-read-deny blocking (NEW in v1.5.0)",
+    "_comment2": "Disable .ai-read-deny blocking for specific directory paths",
+    "_comment3": "CRITICAL: .ai-read-deny markers ALWAYS take precedence over exclusions",
+    "_comment4": "Config-based (safe from AI manipulation, unlike marker files)",
+    "enabled": false,
+    "_simple_format": "false (boolean - permanent enable/disable)",
+    "paths": [],
+    "_paths_examples": [
+      "~/development/workspace",
+      "/Users/username/projects/safe-zone",
+      "~/repos/**",
+      "~/dev/staging/*"
+    ],
+    "_path_notes": [
+      "~ expands to user home directory",
+      "** matches all subdirectories recursively",
+      "* matches single directory level",
+      "Paths are resolved to absolute paths",
+      "Symlinks are NOT followed for security",
+      ".ai-read-deny ALWAYS takes precedence (hardcoded, no config option to override)"
+    ],
+    "_precedence_rules": {
+      "_comment": "Simple precedence rule (hardcoded for security):",
+      "1": ".ai-read-deny marker ALWAYS blocks (highest priority, no exceptions)",
+      "2": "If no .ai-read-deny and path matches exclusion → ALLOW (skip blocking)",
+      "3": "Otherwise → ALLOW (no .ai-read-deny found, not excluded)",
+      "_critical_note": "There is NO configuration option to override .ai-read-deny with exclusions",
+      "_to_remove_protection": "User must manually delete the .ai-read-deny file"
+    },
+    "_use_cases": {
+      "development_workspace": {
+        "paths": ["~/development/workspace"],
+        "_explanation": "Allow AI access to workspace, but .ai-read-deny in subdirs still works"
+      },
+      "public_repos": {
+        "paths": ["~/repos/public/**"],
+        "_explanation": "Allow AI access to all public repos recursively"
+      },
+      "enterprise_policy": {
+        "paths": ["~/company/approved-projects/**"],
+        "_explanation": "Corporate remote config allows approved projects"
+      }
+    },
+    "_security_warning": {
+      "_comment": "⚠️ IMPORTANT: Directory exclusions reduce security protection",
+      "_recommendations": [
+        "Use exclusions sparingly and only for known-safe directories",
+        ".ai-read-deny markers ALWAYS work (cannot be disabled)",
+        "To remove protection, user must manually delete .ai-read-deny file",
+        "Exclusions should be in protected config files (not set by AI)",
+        "Audit exclusion configurations regularly"
+      ]
+    }
+  },
+
   "_environment_variables": {
     "_comment": "Optional environment variables for configuration:",
     "AI_GUARDIAN_CONFIG_DIR": "Custom config directory (default: ~/.config/ai-guardian or $XDG_CONFIG_HOME/ai-guardian)",

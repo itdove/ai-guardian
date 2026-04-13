@@ -260,6 +260,65 @@ cd ~/.aws && touch .ai-read-deny
 cd ~/project/secrets && touch .ai-read-deny
 ```
 
+#### Directory Exclusions (Config-Based)
+
+**NEW in v1.5.0**: Optionally disable `.ai-read-deny` blocking for specific directories via configuration.
+
+**CRITICAL**: `.ai-read-deny` markers **ALWAYS take precedence** over exclusions. This is hardcoded for security - there is NO configuration option to override it.
+
+**Use cases:**
+- Allow AI access to development workspace by default
+- Exclude public repositories from blocking
+- Corporate policies allowing approved project directories
+
+**Configuration** (`~/.config/ai-guardian/ai-guardian.json`):
+
+```json
+{
+  "directory_exclusions": {
+    "enabled": true,
+    "paths": [
+      "~/development/workspace",
+      "~/repos/public/**",
+      "/opt/approved-projects/**"
+    ]
+  }
+}
+```
+
+**Path formats supported:**
+- `~/path` - Tilde expansion (user home directory)
+- `/absolute/path` - Exact absolute path
+- `~/repos/**` - Recursive wildcard (all subdirectories)
+- `~/dev/*` - Single-level wildcard (direct children only)
+
+**Precedence rules (SIMPLIFIED):**
+1. **First**: `.ai-read-deny` marker → **BLOCKS** (always, no exceptions)
+2. **Second**: If no `.ai-read-deny` and path matches exclusion → **ALLOWS**
+3. **Otherwise**: **ALLOWS** (no `.ai-read-deny` found, not excluded)
+
+**Security warning:**
+- ⚠️ Directory exclusions reduce protection - use sparingly
+- ✅ `.ai-read-deny` ALWAYS works (cannot be disabled)
+- ✅ To remove protection, manually delete `.ai-read-deny` file
+- ✅ Set exclusions in protected config files (not by AI)
+
+**Example: Mixed markers and exclusions**
+```
+~/development/               # Excluded in config
+├── public/
+│   └── app.py              # ✓ ALLOWED (in excluded dir, no .ai-read-deny)
+└── secrets/
+    ├── .ai-read-deny       # 🚫 This marker ALWAYS blocks
+    └── keys.txt            # 🚫 BLOCKED (marker takes precedence)
+```
+
+**Why config-based (not marker files):**
+- ❌ `.ai-guardian-allow` marker files could be added by AI to bypass protection
+- ✅ Config files are self-protected (AI cannot modify them)
+- ✅ Centralized management (enterprise policies)
+- ✅ Explicit, auditable configuration
+
 ### 🚨 Prompt Injection Detection
 **NEW in v1.2.0**: Detects and blocks prompt injection attacks before they reach the AI:
 - **Heuristic detection**: Fast, local pattern matching (<1ms, privacy-preserving)
