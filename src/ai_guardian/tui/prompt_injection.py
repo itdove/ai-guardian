@@ -1,0 +1,406 @@
+#!/usr/bin/env python3
+"""
+Prompt Injection Tab Content
+
+View and configure prompt injection detection settings.
+"""
+
+import json
+from pathlib import Path
+
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, VerticalScroll
+from textual.widgets import Static, Button, Input, Label, Select, Checkbox
+
+from ai_guardian.config_utils import get_config_dir
+
+
+class PromptInjectionContent(Container):
+    """Content widget for Prompt Injection tab."""
+
+    CSS = """
+    PromptInjectionContent {
+        height: 100%;
+    }
+
+    #prompt-injection-header {
+        margin: 1 0;
+        padding: 1;
+        background: $primary;
+        color: $text;
+    }
+
+    .section {
+        margin: 1 0;
+        padding: 1;
+        background: $panel;
+        border: solid $primary;
+    }
+
+    .section-title {
+        margin: 0 0 1 0;
+        font-weight: bold;
+    }
+
+    .setting-row {
+        margin: 0.5 0;
+        height: auto;
+    }
+
+    .setting-row Label {
+        margin: 0 1 0 0;
+        width: auto;
+    }
+
+    .setting-row Select {
+        width: 30;
+    }
+
+    .setting-row Input {
+        width: 50;
+    }
+
+    .setting-row Button {
+        margin: 0 0 0 1;
+    }
+
+    #allowlist-patterns {
+        margin: 1 0;
+        padding: 1;
+        background: $surface;
+        border: solid $primary;
+        min-height: 8;
+    }
+
+    #actions {
+        margin: 1 0;
+        height: auto;
+    }
+
+    #actions Button {
+        margin: 0 1 0 0;
+    }
+
+    /* Focus indicators */
+    Input:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Button:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Select:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Checkbox:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        """Compose the prompt injection tab content."""
+        yield Static("[bold]Prompt Injection Detection Settings[/bold]", id="prompt-injection-header")
+
+        with VerticalScroll():
+            # Detection status section
+            with Container(classes="section"):
+                yield Static("[bold]Detection Configuration[/bold]", classes="section-title")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Enabled:")
+                    yield Checkbox("", id="prompt-injection-enabled")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Detector:")
+                    yield Select(
+                        [("Heuristic (fast, local)", "heuristic"), ("Rebuff (ML-based)", "rebuff"), ("LLM Guard", "llm-guard")],
+                        value="heuristic",
+                        id="detector-select"
+                    )
+                    yield Static("[dim](Press 's' to save)[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Sensitivity:")
+                    yield Select(
+                        [("Low", "low"), ("Medium", "medium"), ("High", "high")],
+                        value="medium",
+                        id="sensitivity-select"
+                    )
+                    yield Static("[dim](Press 's' to save)[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Score Threshold:")
+                    yield Input(placeholder="0.75", id="score-threshold-input")
+                    yield Static("[dim]0.0-1.0 (Press Enter to save)[/dim]")
+
+            # Allowlist patterns section
+            with Container(classes="section"):
+                yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
+                yield Static("Regex patterns to ignore (e.g., for documentation):", classes="setting-row")
+                yield Static("", id="allowlist-patterns")
+                yield Input(placeholder="Enter pattern to allowlist (press 'a' to add)", id="new-allowlist-input")
+
+            # Custom patterns section
+            with Container(classes="section"):
+                yield Static("[bold]Custom Detection Patterns[/bold]", classes="section-title")
+                yield Static("Additional regex patterns to detect as injection:", classes="setting-row")
+                yield Static("", id="custom-patterns")
+                yield Input(placeholder="Enter custom pattern to detect (press 'c' to add)", id="new-custom-input")
+
+            # Statistics section
+            with Container(classes="section"):
+                yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
+                yield Static("", id="detection-stats")
+
+    def on_mount(self) -> None:
+        """Load configuration when mounted."""
+        self.load_config()
+
+    def refresh_content(self) -> None:
+        """Refresh configuration (called by parent app)."""
+        self.load_config()
+
+    def load_config(self) -> None:
+        """Load and display prompt injection detection configuration."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        # Load config
+        config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except Exception as e:
+                self.app.notify(f"Error loading config: {e}", severity="error")
+
+        # Prompt injection settings
+        pi_config = config.get("prompt_injection", {})
+        enabled = pi_config.get("enabled", True)
+        detector = pi_config.get("detector", "heuristic")
+        sensitivity = pi_config.get("sensitivity", "medium")
+        score_threshold = pi_config.get("max_score_threshold", 0.75)
+        allowlist = pi_config.get("allowlist_patterns", [])
+        custom = pi_config.get("custom_patterns", [])
+
+        # Update widgets
+        try:
+            self.query_one("#prompt-injection-enabled", Checkbox).value = enabled
+            self.query_one("#detector-select", Select).value = detector
+            self.query_one("#sensitivity-select", Select).value = sensitivity
+            self.query_one("#score-threshold-input", Input).value = str(score_threshold)
+        except Exception:
+            pass  # Widgets may not be fully mounted yet
+
+        # Update allowlist patterns
+        if allowlist:
+            patterns_text = "\n".join(f"  • {pattern}" for pattern in allowlist)
+        else:
+            patterns_text = "[dim]No allowlist patterns configured[/dim]"
+        self.query_one("#allowlist-patterns", Static).update(patterns_text)
+
+        # Update custom patterns
+        if custom:
+            custom_text = "\n".join(f"  • {pattern}" for pattern in custom)
+        else:
+            custom_text = "[dim]No custom patterns configured[/dim]"
+        self.query_one("#custom-patterns", Static).update(custom_text)
+
+        # Get violation stats
+        from ai_guardian.violation_logger import ViolationLogger
+        violation_logger = ViolationLogger()
+        violations = violation_logger.get_recent_violations(
+            limit=1000,
+            violation_type="prompt_injection",
+            resolved=None
+        )
+        total = len(violations)
+        unresolved = len([v for v in violations if not v.get("resolved", False)])
+
+        stats_text = f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
+        self.query_one("#detection-stats", Static).update(stats_text)
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Handle checkbox toggle."""
+        if event.checkbox.id == "prompt-injection-enabled":
+            self.save_field("enabled", event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key in input fields."""
+        if event.input.id == "score-threshold-input":
+            try:
+                threshold = float(event.value)
+                if 0.0 <= threshold <= 1.0:
+                    self.save_field("max_score_threshold", threshold)
+                else:
+                    self.app.notify("Threshold must be between 0.0 and 1.0", severity="error")
+            except ValueError:
+                self.app.notify("Threshold must be a number", severity="error")
+        elif event.input.id == "new-allowlist-input":
+            self.add_allowlist_pattern()
+        elif event.input.id == "new-custom-input":
+            self.add_custom_pattern()
+
+    def action_update_sensitivity(self) -> None:
+        """Update sensitivity and detector settings (triggered by 's' key)."""
+        self.update_settings()
+
+    def action_add_pattern(self) -> None:
+        """Add allowlist pattern (triggered by 'a' key)."""
+        self.add_allowlist_pattern()
+
+    def action_add_custom(self) -> None:
+        """Add custom pattern (triggered by 'c' key)."""
+        self.add_custom_pattern()
+
+    def action_refresh(self) -> None:
+        """Refresh configuration (triggered by 'r' key)."""
+        self.load_config()
+        self.app.notify("Prompt injection configuration refreshed", severity="information")
+
+    def save_field(self, field: str, value) -> None:
+        """Save a prompt injection field to config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "prompt_injection" not in config:
+                config["prompt_injection"] = {}
+
+            config["prompt_injection"][field] = value
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            self.app.notify(f"✓ Saved {field}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error saving {field}: {e}", severity="error")
+
+    def update_settings(self) -> None:
+        """Update detector and sensitivity settings."""
+        detector = self.query_one("#detector-select", Select).value
+        sensitivity = self.query_one("#sensitivity-select", Select).value
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "prompt_injection" not in config:
+                config["prompt_injection"] = {}
+
+            config["prompt_injection"]["detector"] = detector
+            config["prompt_injection"]["sensitivity"] = sensitivity
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            self.load_config()
+            self.app.notify(f"✓ Updated detector: {detector}, sensitivity: {sensitivity}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error updating settings: {e}", severity="error")
+
+    def add_allowlist_pattern(self) -> None:
+        """Add a pattern to the allowlist."""
+        pattern = self.query_one("#new-allowlist-input", Input).value.strip()
+
+        if not pattern:
+            self.app.notify("Please enter a pattern", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "prompt_injection" not in config:
+                config["prompt_injection"] = {}
+
+            if "allowlist_patterns" not in config["prompt_injection"]:
+                config["prompt_injection"]["allowlist_patterns"] = []
+
+            # Check if pattern already exists
+            if pattern in config["prompt_injection"]["allowlist_patterns"]:
+                self.app.notify("Pattern already in allowlist", severity="warning")
+                return
+
+            config["prompt_injection"]["allowlist_patterns"].append(pattern)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Clear input
+            self.query_one("#new-allowlist-input", Input).value = ""
+
+            self.load_config()
+            self.app.notify(f"✓ Added pattern to allowlist: {pattern}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
+
+    def add_custom_pattern(self) -> None:
+        """Add a custom detection pattern."""
+        pattern = self.query_one("#new-custom-input", Input).value.strip()
+
+        if not pattern:
+            self.app.notify("Please enter a pattern", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "prompt_injection" not in config:
+                config["prompt_injection"] = {}
+
+            if "custom_patterns" not in config["prompt_injection"]:
+                config["prompt_injection"]["custom_patterns"] = []
+
+            # Check if pattern already exists
+            if pattern in config["prompt_injection"]["custom_patterns"]:
+                self.app.notify("Pattern already exists", severity="warning")
+                return
+
+            config["prompt_injection"]["custom_patterns"].append(pattern)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Clear input
+            self.query_one("#new-custom-input", Input).value = ""
+
+            self.load_config()
+            self.app.notify(f"✓ Added custom pattern: {pattern}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
