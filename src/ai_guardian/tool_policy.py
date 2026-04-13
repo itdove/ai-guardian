@@ -48,8 +48,9 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/Cursor/hooks.json",        # Windows
 
         # Protect ai-guardian package (self-protection)
-        "*/ai_guardian/*",
-        "*/site-packages/ai_guardian/*",
+        "*/site-packages/ai_guardian/*",           # Installed package
+        "*/ai-guardian/src/ai_guardian/*",         # Source repo (with hyphen)
+        "*/ai-guardian/ai_guardian/*",             # Alternative source layout
 
         # Protect .ai-read-deny marker files (directory protection)
         "*/.ai-read-deny",
@@ -66,8 +67,9 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/.cursor/hooks.json",
         "*/Claude/settings.json",
         "*/Cursor/hooks.json",
-        "*/ai_guardian/*",
-        "*/site-packages/ai_guardian/*",
+        "*/site-packages/ai_guardian/*",           # Installed package
+        "*/ai-guardian/src/ai_guardian/*",         # Source repo (with hyphen)
+        "*/ai-guardian/ai_guardian/*",             # Alternative source layout
 
         # Protect .ai-read-deny marker files (directory protection)
         "*/.ai-read-deny",
@@ -76,8 +78,10 @@ IMMUTABLE_DENY_PATTERNS = {
 
     "Bash": [
         # Block commands that could modify protected files
-        "*sed*ai-guardian*", "*sed*ai_guardian*",
-        "*awk*ai-guardian*", "*awk*ai_guardian*",
+        "*sed*ai-guardian*",
+        "*sed*site-packages/ai_guardian*", "*sed*ai-guardian/src/ai_guardian*", "*sed*ai-guardian/ai_guardian*",
+        "*awk*ai-guardian*",
+        "*awk*site-packages/ai_guardian*", "*awk*ai-guardian/src/ai_guardian*", "*awk*ai-guardian/ai_guardian*",
         "*sed*.claude/settings.json*",
         "*sed*.cursor/hooks.json*",
         "*awk*.claude/settings.json*",
@@ -86,12 +90,14 @@ IMMUTABLE_DENY_PATTERNS = {
         "*nano*.claude/settings.json*",
         "*vim*.cursor/hooks.json*",
         "*nano*.cursor/hooks.json*",
-        "*chmod*ai-guardian*", "*chmod*ai_guardian*",
+        "*chmod*ai-guardian*",
+        "*chmod*site-packages/ai_guardian*", "*chmod*ai-guardian/src/ai_guardian*", "*chmod*ai-guardian/ai_guardian*",
         "*chmod*.claude/settings.json*",
         "*chmod*.cursor/hooks.json*",
         "*chattr*ai-guardian*",
         "*chattr*.claude*", "*chattr*.cursor*",
-        "*>*ai-guardian*", "*>*ai_guardian*",
+        "*>*ai-guardian*",
+        "*>*site-packages/ai_guardian*", "*>*ai-guardian/src/ai_guardian*", "*>*ai-guardian/ai_guardian*",
         "*>*.claude/settings.json*",
         "*>*.cursor/hooks.json*",
         "*rm*ai-guardian.json*",
@@ -116,13 +122,13 @@ IMMUTABLE_DENY_PATTERNS = {
 
     "PowerShell": [
         # Protect ai-guardian config files
-        "*Remove-Item*ai-guardian*", "*Remove-Item*ai_guardian*",
-        "*Move-Item*ai-guardian*", "*Move-Item*ai_guardian*",
-        "*Rename-Item*ai-guardian*", "*Rename-Item*ai_guardian*",
-        "*Set-Content*ai-guardian*", "*Set-Content*ai_guardian*",
-        "*Clear-Content*ai-guardian*", "*Clear-Content*ai_guardian*",
-        "*Out-File*ai-guardian*", "*Out-File*ai_guardian*",
-        "*Copy-Item*ai-guardian*", "*Copy-Item*ai_guardian*",
+        "*Remove-Item*ai-guardian*",
+        "*Move-Item*ai-guardian*",
+        "*Rename-Item*ai-guardian*",
+        "*Set-Content*ai-guardian*",
+        "*Clear-Content*ai-guardian*",
+        "*Out-File*ai-guardian*",
+        "*Copy-Item*ai-guardian*",
 
         # Protect IDE hook files (Unix paths)
         "*Remove-Item*.claude/settings.json*", "*Remove-Item*.cursor/hooks.json*",
@@ -147,10 +153,18 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Out-File*Claude\\settings.json*", "*Out-File*Cursor\\hooks.json*",
 
         # Protect ai-guardian package source
-        "*Remove-Item*ai_guardian/*", "*Remove-Item*ai_guardian\\*",
-        "*Set-Content*ai_guardian/*", "*Set-Content*ai_guardian\\*",
-        "*Clear-Content*ai_guardian/*", "*Clear-Content*ai_guardian\\*",
-        "*Out-File*ai_guardian/*", "*Out-File*ai_guardian\\*",
+        "*Remove-Item*site-packages/ai_guardian/*", "*Remove-Item*site-packages\\ai_guardian\\*",
+        "*Remove-Item*ai-guardian/src/ai_guardian/*", "*Remove-Item*ai-guardian\\src\\ai_guardian\\*",
+        "*Remove-Item*ai-guardian/ai_guardian/*", "*Remove-Item*ai-guardian\\ai_guardian\\*",
+        "*Set-Content*site-packages/ai_guardian/*", "*Set-Content*site-packages\\ai_guardian\\*",
+        "*Set-Content*ai-guardian/src/ai_guardian/*", "*Set-Content*ai-guardian\\src\\ai_guardian\\*",
+        "*Set-Content*ai-guardian/ai_guardian/*", "*Set-Content*ai-guardian\\ai_guardian\\*",
+        "*Clear-Content*site-packages/ai_guardian/*", "*Clear-Content*site-packages\\ai_guardian\\*",
+        "*Clear-Content*ai-guardian/src/ai_guardian/*", "*Clear-Content*ai-guardian\\src\\ai_guardian\\*",
+        "*Clear-Content*ai-guardian/ai_guardian/*", "*Clear-Content*ai-guardian\\ai_guardian\\*",
+        "*Out-File*site-packages/ai_guardian/*", "*Out-File*site-packages\\ai_guardian\\*",
+        "*Out-File*ai-guardian/src/ai_guardian/*", "*Out-File*ai-guardian\\src\\ai_guardian\\*",
+        "*Out-File*ai-guardian/ai_guardian/*", "*Out-File*ai-guardian\\ai_guardian\\*",
 
         # Protect against PowerShell redirections
         "*>*ai-guardian*", "*>>*ai-guardian*",
