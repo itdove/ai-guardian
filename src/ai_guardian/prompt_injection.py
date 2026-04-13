@@ -360,6 +360,11 @@ class PromptInjectionDetector:
                 # Format error message
                 confidence_level = "High" if confidence >= 0.85 else "Medium" if confidence >= 0.65 else "Low"
 
+                # Show more of the matched pattern (up to 150 chars instead of 60)
+                pattern_preview = matched_pattern[:150]
+                if len(matched_pattern) > 150:
+                    pattern_preview += "..."
+
                 error_msg = (
                     f"\n{'='*70}\n"
                     f"🚨 PROMPT INJECTION DETECTED\n"
@@ -369,7 +374,7 @@ class PromptInjectionDetector:
                     f"Detection details:\n"
                     f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
                     f"  • Method: {self.detector_type}\n"
-                    f"  • Pattern detected: {matched_pattern[:60]}...\n\n"
+                    f"  • Pattern detected: {pattern_preview}\n\n"
                     "Common injection patterns:\n"
                     "  • \"Ignore previous instructions\"\n"
                     "  • \"You are now in DAN mode\"\n"

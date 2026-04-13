@@ -1149,21 +1149,44 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 except Exception as e:
                     logging.debug(f"Failed to parse Gitleaks JSON report: {e}")
 
+                # Build error message with details if available
                 error_msg = (
                     f"\n{'='*70}\n"
                     f"🔒 SECRET DETECTED\n"
                     f"{'='*70}\n\n"
                     "Gitleaks has detected sensitive information in your prompt/file.\n"
-                    "This operation has been blocked for security.\n\n"
+                )
+
+                # Include specific details if we have them
+                if secret_details:
+                    error_msg += "\n"
+                    error_msg += f"Secret Type: {secret_details['rule_id']}\n"
+                    if secret_details.get('line_number'):
+                        error_msg += f"Location: {secret_details['file']}, line {secret_details['line_number']}\n"
+                    else:
+                        error_msg += f"File: {secret_details['file']}\n"
+                    if secret_details.get('total_findings'):
+                        error_msg += f"Total findings: {secret_details['total_findings']}\n"
+
+                error_msg += (
+                    "\nThis operation has been blocked for security.\n"
                     "Please remove the sensitive information and try again.\n\n"
-                    "Common secrets detected:\n"
-                    "  • API keys and tokens\n"
-                    "  • Private keys (SSH, RSA, PGP)\n"
-                    "  • Database credentials\n"
-                    "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
-                    "If this is a false positive, see:\n"
-                    "https://github.com/gitleaks/gitleaks#configuration\n"
-                    f"\n{'='*70}\n"
+                )
+
+                # Only show generic list if we don't have specific details
+                if not secret_details:
+                    error_msg += (
+                        "Common secrets detected:\n"
+                        "  • API keys and tokens\n"
+                        "  • Private keys (SSH, RSA, PGP)\n"
+                        "  • Database credentials\n"
+                        "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
+                    )
+
+                error_msg += (
+                    "If this is a false positive, add '# gitleaks:allow' to the line\n"
+                    "or see: https://github.com/gitleaks/gitleaks#configuration\n"
+                    f"{'='*70}\n"
                 )
 
                 # Log secret detection violation with details

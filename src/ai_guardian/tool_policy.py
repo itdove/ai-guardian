@@ -186,7 +186,12 @@ class ToolPolicyChecker:
                 # No rules found - check if this tool type requires explicit allow
                 if self._requires_explicit_allow(tool_name):
                     logger.warning(f"Tool '{tool_name}' requires explicit permission but no rule found")
-                    error_msg = self._format_deny_message(tool_name, "no permission rule", None)
+                    error_msg = self._format_deny_message(
+                        tool_name,
+                        "no permission rule",
+                        None,
+                        tool_value=check_value if check_value else tool_name
+                    )
 
                     # Log violation
                     self._log_violation(
@@ -227,7 +232,12 @@ class ToolPolicyChecker:
                         pattern_str = self._extract_pattern_string(pattern_entry)
                         if fnmatch.fnmatch(check_value, pattern_str):
                             logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
-                            error_msg = self._format_deny_message(tool_name, pattern_str, rule["matcher"])
+                            error_msg = self._format_deny_message(
+                                tool_name,
+                                f"matched deny pattern: {pattern_str}",
+                                rule["matcher"],
+                                tool_value=check_value
+                            )
 
                             # Log violation
                             self._log_violation(
@@ -263,7 +273,12 @@ class ToolPolicyChecker:
             # If we have allow rules but no match, deny
             if has_allow_rules:
                 logger.warning(f"Tool '{tool_name}' not in allow list")
-                error_msg = self._format_deny_message(tool_name, "not in allow list", permission_rules[0]["matcher"])
+                error_msg = self._format_deny_message(
+                    tool_name,
+                    "not in allow list",
+                    permission_rules[0]["matcher"],
+                    tool_value=check_value
+                )
 
                 # Log violation
                 self._log_violation(
@@ -530,7 +545,7 @@ class ToolPolicyChecker:
         # Built-in tools allowed by default
         return False
 
-    def _format_deny_message(self, tool_name: str, reason: str, matcher: Optional[str]) -> str:
+    def _format_deny_message(self, tool_name: str, reason: str, matcher: Optional[str], tool_value: Optional[str] = None) -> str:
         """
         Format error message for denied tools.
 
@@ -538,6 +553,7 @@ class ToolPolicyChecker:
             tool_name: Name of the denied tool
             reason: Reason for denial (pattern that blocked it)
             matcher: The matcher from the permission rule (if found)
+            tool_value: The specific value that was checked (e.g., skill name, file path)
 
         Returns:
             str: Formatted error message
@@ -552,9 +568,26 @@ class ToolPolicyChecker:
             f"🚫 TOOL ACCESS DENIED\n"
             f"{'='*70}\n\n"
             f"Tool: {tool_name}\n"
-            f"Blocked by: {reason}\n\n"
-            f"To allow this tool, add to {config_path}:\n\n"
         )
+
+        # Show the specific value that was blocked (if available)
+        if tool_value:
+            # Determine the label based on tool type
+            if tool_name == "Skill":
+                label = "Skill Name"
+            elif matcher == "Edit" or matcher == "Read" or matcher == "Write":
+                label = "File Path"
+            else:
+                label = "Value"
+            msg += f"{label}: {tool_value}\n"
+
+        msg += f"Blocked by: {reason}\n"
+
+        # Show matcher if available
+        if matcher:
+            msg += f"Matcher: {matcher}\n"
+
+        msg += f"\nTo allow this tool, add to {config_path}:\n\n"
 
         # Show suggested configuration
         msg += '  {\n'
