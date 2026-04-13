@@ -205,6 +205,56 @@ class ViolationLogger:
             logger.error(f"Error marking violation as resolved: {e}")
             return False
 
+    def mark_unresolved(self, timestamp: str) -> bool:
+        """
+        Mark a violation as unresolved (undo resolution).
+
+        Args:
+            timestamp: Timestamp of the violation to unresolve
+
+        Returns:
+            bool: True if violation was found and marked unresolved
+        """
+        if not self.log_path.exists():
+            return False
+
+        try:
+            # Read all violations
+            violations = []
+            with open(self.log_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line)
+                        violations.append(entry)
+                    except json.JSONDecodeError:
+                        continue
+
+            # Find and update the violation
+            found = False
+            for entry in violations:
+                if entry.get("timestamp") == timestamp:
+                    # Remove resolved fields
+                    entry["resolved"] = False
+                    entry.pop("resolved_at", None)
+                    entry.pop("resolved_action", None)
+                    entry.pop("resolved_note", None)
+                    found = True
+                    break
+
+            if not found:
+                return False
+
+            # Write back all violations
+            with open(self.log_path, 'w', encoding='utf-8') as f:
+                for entry in violations:
+                    f.write(json.dumps(entry) + '\n')
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error marking violation as unresolved: {e}")
+            return False
+
     def clear_log(self) -> bool:
         """
         Clear the violations log.

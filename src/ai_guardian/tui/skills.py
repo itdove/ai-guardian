@@ -15,6 +15,44 @@ from textual.widgets import Button, Static, Input, Label
 from ai_guardian.config_utils import get_config_dir
 
 
+class PatternRow(Horizontal):
+    """Display a single pattern with remove button."""
+
+    DEFAULT_CSS = """
+    PatternRow {
+        height: 3;
+        width: 100%;
+        layout: horizontal;
+    }
+
+    PatternRow Static {
+        width: 1fr;
+        height: 3;
+        content-align: left middle;
+    }
+
+    PatternRow Button {
+        width: 12;
+        height: 3;
+        min-width: 12;
+    }
+    """
+
+    def __init__(self, pattern: str, index: int, mode: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pattern = pattern
+        self.index = index
+        self.mode = mode
+
+    def compose(self) -> ComposeResult:
+        """Compose the pattern row."""
+        if self.mode == "allow":
+            yield Static(f"  [status-ok]✓[/status-ok] {self.pattern}")
+        else:
+            yield Static(f"  [status-error]✗[/status-error] {self.pattern}")
+        yield Button("Remove", id=f"remove-{self.mode}-{self.index}", variant="error")
+
+
 class SkillsContent(Container):
     """Content widget for Skills tab."""
 
@@ -78,16 +116,52 @@ class SkillsContent(Container):
     }
 
     .pattern-row {
-        margin: 0.25 0;
-        height: auto;
+        margin: 0.5 0;
+        height: 3;
+        width: 100%;
     }
 
     .pattern-row Static {
-        width: 1fr;
+        width: auto;
+        margin: 0 1 0 0;
+        height: 3;
+        content-align: left middle;
     }
 
     .pattern-row Button {
-        width: auto;
+        width: 12;
+        height: 3;
+        border: solid $error;
+    }
+
+    /* Input and Button defaults */
+    Input {
+        border: none;
+        background: $surface;
+    }
+
+    Button {
+        border: none;
+        background: $panel;
+    }
+
+    /* Focus indicators */
+    Input:focus {
+        border: none;
+        border-left: heavy $accent;
+        text-style: bold;
+        background: $surface;
+    }
+
+    Button:focus {
+        border: none;
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Checkbox:focus {
+        border-left: heavy $accent;
+        text-style: bold;
     }
 
     #actions {
@@ -108,14 +182,16 @@ class SkillsContent(Container):
             # Allow list section
             with Container(classes="section"):
                 yield Static("[bold][green]✓ Allow List[/green][/bold]", classes="section-title")
-                yield Static("Skills matching these patterns will be allowed. Press [a] to add:", classes="section-title")
+                yield Static("Skills matching these patterns will be allowed.", classes="section-title")
+                yield Static("[dim]Add pattern: Press 'a' or Enter • Remove: Focus Remove button and press Enter[/dim]")
                 yield Container(id="patterns-allow-container")
                 yield Input(placeholder="Enter pattern (e.g., daf-*, hello)", id="new-allow-pattern")
 
             # Deny list section
             with Container(classes="section"):
                 yield Static("[bold][red]✗ Deny List[/red][/bold]", classes="section-title")
-                yield Static("Skills matching these patterns will be blocked. Press [d] to add:", classes="section-title")
+                yield Static("Skills matching these patterns will be blocked.", classes="section-title")
+                yield Static("[dim]Add pattern: Press 'd' or Enter • Remove: Focus Remove button and press Enter[/dim]")
                 yield Container(id="patterns-deny-container")
                 yield Input(placeholder="Enter pattern (e.g., dangerous-*)", id="new-deny-pattern")
 
@@ -159,13 +235,13 @@ class SkillsContent(Container):
 
         if allow_patterns:
             for idx, pattern in enumerate(allow_patterns):
-                with allow_container.app.batch_update():
-                    row = Horizontal(classes="pattern-row")
-                    allow_container.mount(row)
-                    row.mount(Static(f"  • {pattern}"))
-                    row.mount(Button("Remove", id=f"remove-allow-{idx}", variant="error"))
+                allow_container.mount(PatternRow(pattern, idx, "allow", classes="pattern-row"))
         else:
-            allow_container.mount(Static("[dim]No allow patterns configured[/dim]"))
+            allow_container.mount(Static(
+                "[muted]No allow patterns configured.\n"
+                "Add patterns to allow specific skills.[/muted]",
+                classes="empty-state"
+            ))
 
         # Display deny patterns
         deny_container = self.query_one("#patterns-deny-container", Container)
@@ -173,13 +249,13 @@ class SkillsContent(Container):
 
         if deny_patterns:
             for idx, pattern in enumerate(deny_patterns):
-                with deny_container.app.batch_update():
-                    row = Horizontal(classes="pattern-row")
-                    deny_container.mount(row)
-                    row.mount(Static(f"  • {pattern}"))
-                    row.mount(Button("Remove", id=f"remove-deny-{idx}", variant="error"))
+                deny_container.mount(PatternRow(pattern, idx, "deny", classes="pattern-row"))
         else:
-            deny_container.mount(Static("[dim]No deny patterns configured[/dim]"))
+            deny_container.mount(Static(
+                "[muted]No deny patterns configured.\n"
+                "Add patterns to block specific skills.[/muted]",
+                classes="empty-state"
+            ))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses (only remove buttons)."""
@@ -192,6 +268,13 @@ class SkillsContent(Container):
         elif button_id and button_id.startswith("remove-deny-"):
             idx = int(button_id.replace("remove-deny-", ""))
             self.remove_pattern_by_index("deny", idx)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key in input fields."""
+        if event.input.id == "new-allow-pattern":
+            self.add_pattern("allow")
+        elif event.input.id == "new-deny-pattern":
+            self.add_pattern("deny")
 
     def action_add_allow(self) -> None:
         """Add pattern to allow list (triggered by 'a' key)."""

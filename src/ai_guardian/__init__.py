@@ -621,28 +621,44 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str):
         logger.debug(f"Failed to log directory blocking violation: {e}")
 
 
-def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None):
+def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None, secret_details: Optional[Dict] = None):
     """
     Log a secret detection violation.
 
     Args:
         filename: Name of the file/prompt where secret was detected
         context: Optional context dict with ide_type, hook_event, etc.
+        secret_details: Optional dict with Gitleaks finding details (rule_id, line_number, etc.)
     """
     if not HAS_VIOLATION_LOGGER:
         return
 
     try:
         ctx = context or {}
+        details = secret_details or {}
+
+        # Build blocked info with detailed location if available
+        blocked_info = {
+            "file_path": filename if filename != "user_prompt" else None,
+            "source": "prompt" if filename == "user_prompt" else "file",
+            "secret_type": details.get("rule_id", "Unknown"),
+            "reason": "Gitleaks detected sensitive information"
+        }
+
+        # Add line number information if available
+        if details.get("line_number"):
+            blocked_info["line_number"] = details["line_number"]
+            if details.get("end_line") and details["end_line"] != details["line_number"]:
+                blocked_info["end_line"] = details["end_line"]
+
+        # Add total findings count if available
+        if details.get("total_findings"):
+            blocked_info["total_findings"] = details["total_findings"]
+
         violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type="secret_detected",
-            blocked={
-                "file_path": filename if filename != "user_prompt" else None,
-                "source": "prompt" if filename == "user_prompt" else "file",
-                "secret_type": "Unknown",  # Gitleaks doesn't expose this easily
-                "reason": "Gitleaks detected sensitive information"
-            },
+            blocked=blocked_info,
             context={
                 "ide_type": ctx.get("ide_type", "unknown"),
                 "hook_event": ctx.get("hook_event", "unknown"),
@@ -874,6 +890,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             tmp_file.flush()
             tmp_file_path = tmp_file.name
 
+        # Create report file for JSON output
+        report_file = None
         try:
             # Determine which Gitleaks configuration to use
             gitleaks_config_path = None
@@ -892,6 +910,16 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 # Use gitleaks default config (no --config flag)
                 logging.debug("Using gitleaks default config")
 
+            # Create temporary report file for JSON output
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                suffix='.json',
+                prefix='gitleaks_report_',
+                dir=tmp_base_dir,
+                delete=False
+            ) as rf:
+                report_file = rf.name
+
             # Build gitleaks command
             cmd = [
                 'gitleaks',
@@ -899,6 +927,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 '--no-git',        # Don't use git history
                 '--verbose',       # Detailed output
                 '--redact',        # Hide secret values in output
+                '--report-format', 'json',  # JSON output for parsing
+                '--report-path', report_file,  # Write JSON to file
                 '--exit-code', '42',  # Custom exit code for found secrets
                 '--source', tmp_file_path,
             ]
@@ -917,6 +947,27 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
             # Check exit code
             if result.returncode == 42:  # Secrets found
+                # Parse JSON report to extract details
+                secret_details = None
+                try:
+                    if os.path.exists(report_file):
+                        with open(report_file, 'r', encoding='utf-8') as f:
+                            findings = json.load(f)
+                        if findings and len(findings) > 0:
+                            # Get first finding for details
+                            first_finding = findings[0]
+                            secret_details = {
+                                "rule_id": first_finding.get("RuleID", "Unknown"),
+                                "file": first_finding.get("File", filename),
+                                "line_number": first_finding.get("StartLine", 0),
+                                "end_line": first_finding.get("EndLine", 0),
+                                "commit": first_finding.get("Commit", "N/A"),
+                                "match": first_finding.get("Match", "REDACTED")[:50] + "..." if first_finding.get("Match") else "REDACTED",
+                                "total_findings": len(findings)
+                            }
+                except Exception as e:
+                    logging.debug(f"Failed to parse Gitleaks JSON report: {e}")
+
                 error_msg = (
                     f"\n{'='*70}\n"
                     f"🔒 SECRET DETECTED\n"
@@ -934,8 +985,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     f"\n{'='*70}\n"
                 )
 
-                # Log secret detection violation
-                _log_secret_detection_violation(filename, context)
+                # Log secret detection violation with details
+                _log_secret_detection_violation(filename, context, secret_details)
 
                 return True, error_msg
 
@@ -975,6 +1026,13 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             os.unlink(tmp_file_path)
                     except Exception:
                         pass  # Silent fail on final cleanup
+
+            # Clean up report file
+            if report_file and os.path.exists(report_file):
+                try:
+                    os.unlink(report_file)
+                except Exception:
+                    pass  # Silent fail on cleanup
 
     except FileNotFoundError:
         # Gitleaks binary not found

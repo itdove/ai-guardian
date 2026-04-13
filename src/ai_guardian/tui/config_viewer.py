@@ -77,14 +77,22 @@ class ConfigContent(Container):
         user_config_path = config_dir / "ai-guardian.json"
         project_config_path = Path.cwd() / ".ai-guardian.json"
 
-        # Build sources list
-        sources = []
-        sources.append(f"1. User global: {user_config_path}")
-        sources.append(f"   {'✓ Found' if user_config_path.exists() else '✗ Not found'}")
-        sources.append(f"2. Project local: {project_config_path}")
-        sources.append(f"   {'✓ Found' if project_config_path.exists() else '✗ Not found'}")
+        # Build sources list with visual indicators
+        sources = ["[bold]Configuration Sources:[/bold]\n"]
 
-        sources_text = "[bold]Configuration Sources:[/bold]\n" + "\n".join(sources)
+        # User global config
+        if user_config_path.exists():
+            sources.append(f"[status-ok]✓[/status-ok] User global: {user_config_path}")
+        else:
+            sources.append(f"[muted]✗ User global: {user_config_path} (not found)[/muted]")
+
+        # Project local config
+        if project_config_path.exists():
+            sources.append(f"[status-ok]✓[/status-ok] Project local: {project_config_path}")
+        else:
+            sources.append(f"[muted]✗ Project local: {project_config_path} (not found)[/muted]")
+
+        sources_text = "\n".join(sources)
         self.query_one("#config-sources", Static).update(sources_text)
 
         # Load merged config
@@ -111,9 +119,11 @@ class ConfigContent(Container):
         # Display merged config
         if merged_config:
             config_text = "[bold]Merged Configuration:[/bold]\n\n"
+            config_text += "[status-ok]"  # Green color for JSON
             config_text += json.dumps(merged_config, indent=2)
+            config_text += "[/status-ok]"
         else:
-            config_text = "[dim]No configuration found. Using defaults.[/dim]"
+            config_text = "[muted]No configuration found.\n\nUsing built-in defaults.[/muted]"
 
         self.query_one("#config-content", Static).update(config_text)
 

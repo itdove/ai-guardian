@@ -13,6 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Static, Input, Select, Label
 from textual.screen import ModalScreen
+from textual.binding import Binding
 
 from ai_guardian.config_utils import get_config_dir
 
@@ -46,6 +47,10 @@ class MCPPermissionCard(Container):
 
 class AddMCPPermissionModal(ModalScreen):
     """Modal for adding/editing MCP server permission rules."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_modal", "Cancel", show=False),
+    ]
 
     CSS = """
     AddMCPPermissionModal {
@@ -86,6 +91,22 @@ class AddMCPPermissionModal(ModalScreen):
 
     #modal-actions Button {
         margin: 0 1 0 0;
+    }
+
+    /* Focus indicators */
+    Input:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Button:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Select:focus {
+        border-left: heavy $accent;
+        text-style: bold;
     }
     """
 
@@ -218,6 +239,17 @@ class MCPServersContent(Container):
         text-align: center;
         color: $text-muted;
     }
+
+    /* Focus indicators */
+    Input:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Button:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -225,7 +257,7 @@ class MCPServersContent(Container):
         yield Static("[bold]MCP Server Permissions[/bold]", id="mcp-header")
         yield Static(
             "[dim]Manage MCP server tool permissions (e.g., mcp__notebooklm-mcp__*). "
-            "Press [a] to add new permission.[/dim]",
+            "Press 'a' to add new permission.[/dim]",
             classes="permission-detail"
         )
 
@@ -261,7 +293,13 @@ class MCPServersContent(Container):
 
         if not permissions:
             permissions_list.mount(
-                Static("No MCP server permissions defined. Click 'Add Permission' to create one.", id="no-permissions")
+                Static(
+                    "No MCP server permissions defined.\n\n"
+                    "[dim]Press 'a' to add permissions for MCP server tools.\n"
+                    "Example: mcp__notebooklm-mcp__*[/dim]",
+                    classes="empty-state",
+                    id="no-permissions"
+                )
             )
             return
 

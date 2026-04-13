@@ -10,15 +10,96 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Button, Static, TabbedContent, TabPane
+from textual.screen import ModalScreen
+from textual import events
 
 from ai_guardian.violation_logger import ViolationLogger
 from ai_guardian.config_utils import get_config_dir
 
 
-class ViolationCard(Container):
+class ViolationDetailsModal(ModalScreen):
+    """Modal for displaying full violation details."""
+
+    CSS = """
+    ViolationDetailsModal {
+        align: center middle;
+    }
+
+    #modal-container {
+        width: 80;
+        height: auto;
+        max-height: 90%;
+        background: $panel;
+        border: thick $primary;
+        padding: 1 2;
+    }
+
+    #modal-header {
+        margin: 0 0 1 0;
+        text-align: center;
+    }
+
+    #modal-content {
+        height: auto;
+        max-height: 70;
+        overflow-y: auto;
+        background: $surface;
+        padding: 1;
+        margin: 1 0;
+        color: $success;
+    }
+
+    #modal-actions {
+        margin: 1 0 0 0;
+        height: auto;
+        align: center middle;
+    }
+
+    #modal-actions Button {
+        margin: 0 1 0 0;
+    }
+    """
+
+    def __init__(self, violation: Dict, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.violation = violation
+
+    def compose(self) -> ComposeResult:
+        """Compose the modal."""
+        with Container(id="modal-container"):
+            yield Static("[bold]Violation Details[/bold]", id="modal-header")
+
+            # Format the violation data as JSON
+            details = json.dumps(self.violation, indent=2)
+            yield Static(details, id="modal-content")
+
+            with Horizontal(id="modal-actions"):
+                yield Button("Close (ESC)", id="close-details", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "close-details":
+            self.dismiss()
+
+
+class ViolationCard(Vertical):
     """Display a single violation with action buttons."""
+
+    DEFAULT_CSS = """
+    ViolationCard {
+        height: auto;
+        margin: 0;
+        padding: 1;
+        border: round $primary;
+        background: $panel;
+    }
+
+    ViolationCard > * {
+        height: auto;
+    }
+    """
 
     def __init__(self, violation: Dict, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -27,27 +108,41 @@ class ViolationCard(Container):
     def compose(self) -> ComposeResult:
         """Compose the violation card."""
         timestamp = self.violation.get("timestamp", "Unknown")
+        # Sanitize timestamp for use in IDs (replace invalid chars)
+        timestamp_id = timestamp.replace(":", "-").replace(".", "-").replace("T", "-")
         vtype = self.violation.get("violation_type", "unknown")
         severity = self.violation.get("severity", "warning")
         blocked = self.violation.get("blocked", {})
         suggestion = self.violation.get("suggestion", {})
         resolved = self.violation.get("resolved", False)
 
-        # Severity indicator
-        severity_icons = {
-            "warning": "⚠️",
-            "high": "🔴",
-            "critical": "🔒"
+        # Severity indicator with color
+        severity_colors = {
+            "warning": "status-warn",
+            "high": "status-error",
+            "critical": "status-error"
         }
-        icon = severity_icons.get(severity, "•")
+        severity_class = severity_colors.get(severity, "")
 
-        # Title
-        title = f"{icon} {vtype.upper().replace('_', ' ')}"
+        severity_symbols = {
+            "warning": "⚠",
+            "high": "●",
+            "critical": "●"
+        }
+        symbol = severity_symbols.get(severity, "•")
+
+        # Title with color-coded severity
+        vtype_display = vtype.upper().replace('_', ' ')
+        title_parts = [f"[{severity_class}]{symbol}[/{severity_class}]" if severity_class else symbol]
+        title_parts.append(vtype_display)
+
         if resolved:
-            title += " [dim](RESOLVED)[/dim]"
+            title_parts.append("[dim](RESOLVED)[/dim]")
+
+        title = " ".join(title_parts)
 
         yield Static(f"[bold]{title}[/bold]", classes="violation-title")
-        yield Static(f"[dim]{timestamp}[/dim]", classes="violation-timestamp")
+        yield Static(f"[muted]{timestamp}[/muted]", classes="violation-timestamp")
 
         # Details based on violation type
         if vtype == "tool_permission":
@@ -76,22 +171,43 @@ class ViolationCard(Container):
             # Show source/location
             file_path = blocked.get("file_path")
             source = blocked.get("source", "unknown")
+            line_number = blocked.get("line_number")
+            end_line = blocked.get("end_line")
+            secret_type = blocked.get("secret_type", "Unknown")
+            total_findings = blocked.get("total_findings")
 
+            # Location with path and line number
             if file_path:
-                yield Static(f"Location: {file_path}", classes="violation-detail")
+                location_text = f"File: {file_path}"
+                if line_number:
+                    if end_line and end_line != line_number:
+                        location_text += f" (lines {line_number}-{end_line})"
+                    else:
+                        location_text += f" (line {line_number})"
+                yield Static(location_text, classes="violation-detail")
             elif source == "prompt":
-                yield Static("Location: User prompt", classes="violation-detail")
+                location_text = "Location: User prompt"
+                if line_number:
+                    location_text += f" (line {line_number})"
+                yield Static(location_text, classes="violation-detail")
             else:
                 yield Static(f"Location: {source}", classes="violation-detail")
 
-            # Show reason
-            reason = blocked.get("reason", "Gitleaks detected sensitive information")
+            # Show secret type (rule ID)
+            if secret_type and secret_type != "Unknown":
+                yield Static(f"Type: {secret_type}", classes="violation-detail")
+
+            # Show detection info
             yield Static(f"Detected by: Gitleaks scanner", classes="violation-detail")
+
+            # Show total findings if multiple secrets detected
+            if total_findings and total_findings > 1:
+                yield Static(f"Total findings: {total_findings}", classes="violation-detail")
 
             # Note about limited detail
             yield Static(
-                "[dim]Note: Secret details not logged for security. "
-                "This violation occurred when Gitleaks detected a potential secret pattern.[/dim]",
+                "[dim]Note: Secret values are redacted for security. "
+                "Review the file at the line number shown above.[/dim]",
                 classes="violation-detail"
             )
 
@@ -101,12 +217,36 @@ class ViolationCard(Container):
             yield Static(f"Source: {source}", classes="violation-detail")
             yield Static(f"Pattern: {pattern}", classes="violation-detail")
 
-        # Action buttons (only for unresolved tool_permission violations with suggestions)
-        if not resolved and vtype == "tool_permission" and suggestion.get("rule"):
+        # Action buttons
+        if not resolved:
+            # Unresolved violations - show approve/deny buttons
+            can_approve = False
+            approve_label = "✓ Approve & Add to Allowlist"
+
+            if vtype == "tool_permission" and suggestion.get("rule"):
+                can_approve = True
+            elif vtype == "prompt_injection":
+                can_approve = True  # Can add to allowlist
+            elif vtype == "secret_detected":
+                can_approve = True  # Can suggest gitleaks:allow comment
+                approve_label = "ℹ Show Allowlist Instruction"
+            elif vtype == "directory_blocking":
+                can_approve = True  # Can remove .ai-read-deny file
+                approve_label = "✓ Remove .ai-read-deny File"
+
+            if can_approve:
+                with Horizontal(classes="violation-actions"):
+                    if vtype == "secret_detected":
+                        yield Button(approve_label, id=f"approve-{timestamp_id}", variant="primary")
+                    else:
+                        yield Button(approve_label, id=f"approve-{timestamp_id}", variant="success")
+                    yield Button("✗ Keep Blocked", id=f"deny-{timestamp_id}", variant="error")
+                    yield Button("Details", id=f"details-{timestamp_id}")
+        else:
+            # Resolved violations - show undo button
             with Horizontal(classes="violation-actions"):
-                yield Button("✓ Approve & Add Rule", id=f"approve-{timestamp}", variant="success")
-                yield Button("✗ Keep Blocked", id=f"deny-{timestamp}", variant="error")
-                yield Button("Details", id=f"details-{timestamp}")
+                yield Button("↺ Undo Resolution", id=f"undo-{timestamp_id}", variant="warning")
+                yield Button("Details", id=f"details-{timestamp_id}")
 
 
 class ViolationsContent(Container):
@@ -125,35 +265,13 @@ class ViolationsContent(Container):
     }
 
     ViolationCard {
-        border: solid $primary;
-        margin: 1 0;
+        border: round $primary;
+        margin: 0 0 1 0;
         padding: 1;
         background: $panel;
     }
 
-    .violation-title {
-        margin: 0 0 1 0;
-    }
-
-    .violation-timestamp {
-        margin: 0 0 1 0;
-        color: $text-muted;
-    }
-
-    .violation-detail {
-        margin: 0 0 0 2;
-        padding: 0;
-    }
-
-    .violation-suggestion {
-        margin: 0 0 0 4;
-        padding: 1;
-        background: $surface;
-        color: $success;
-    }
-
     .violation-actions {
-        margin: 1 0 0 0;
         height: auto;
     }
 
@@ -163,6 +281,14 @@ class ViolationsContent(Container):
 
     #filter-tabs {
         height: 100%;
+    }
+
+    VerticalScroll {
+        height: 100%;
+    }
+
+    VerticalScroll > ViolationCard {
+        height: auto;
     }
 
     #no-violations {
@@ -182,8 +308,8 @@ class ViolationsContent(Container):
         yield Static("[bold]Recent Violations[/bold]", id="violations-header")
         yield Static(
             "[dim]Historical log of blocked operations. "
-            "Use sub-tabs or number keys [1-5] to filter by type. "
-            "Tool permission violations can be approved with button on card.[/dim]",
+            "Use sub-tabs to filter by type. "
+            "Tool permission violations can be approved with action buttons.[/dim]",
             classes="violation-detail"
         )
 
@@ -245,7 +371,12 @@ class ViolationsContent(Container):
             violations_list.remove_children()
 
             if not violations:
-                violations_list.mount(Static("No violations found."))
+                empty_msg = Static(
+                    "No violations found.\n\n"
+                    "[dim]Violations appear here when AI Guardian blocks an operation.[/dim]",
+                    classes="empty-state"
+                )
+                violations_list.mount(empty_msg)
                 return
 
             # Add violation cards
@@ -255,23 +386,133 @@ class ViolationsContent(Container):
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses (only approve/deny/details on violation cards)."""
+        """Handle button presses (only approve/deny/details/undo on violation cards)."""
         button_id = event.button.id
 
         # Approve button
         if button_id and button_id.startswith("approve-"):
-            timestamp = button_id.replace("approve-", "")
+            timestamp_id = button_id.replace("approve-", "")
+            # Convert sanitized ID back to original timestamp format
+            timestamp = self._unsanitize_timestamp(timestamp_id)
             self.approve_violation(timestamp)
 
         # Deny button
         elif button_id and button_id.startswith("deny-"):
-            timestamp = button_id.replace("deny-", "")
+            timestamp_id = button_id.replace("deny-", "")
+            timestamp = self._unsanitize_timestamp(timestamp_id)
             self.deny_violation(timestamp)
+
+        # Undo button
+        elif button_id and button_id.startswith("undo-"):
+            timestamp_id = button_id.replace("undo-", "")
+            timestamp = self._unsanitize_timestamp(timestamp_id)
+            self.undo_violation(timestamp)
 
         # Details button
         elif button_id and button_id.startswith("details-"):
-            timestamp = button_id.replace("details-", "")
+            timestamp_id = button_id.replace("details-", "")
+            timestamp = self._unsanitize_timestamp(timestamp_id)
             self.show_violation_details(timestamp)
+
+    def _unsanitize_timestamp(self, timestamp_id: str) -> str:
+        """Convert sanitized timestamp ID back to original format."""
+        # Find matching violation by checking all recent violations
+        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
+        for v in violations:
+            original = v.get("timestamp", "")
+            sanitized = original.replace(":", "-").replace(".", "-").replace("T", "-")
+            if sanitized == timestamp_id:
+                return original
+        # Fallback: return as-is
+        return timestamp_id
+
+    def on_key(self, event: events.Key) -> None:
+        """Handle arrow key navigation for violation cards."""
+        focused = self.app.focused
+
+        # Only handle if we're focused on a button inside a violation card
+        if not isinstance(focused, Button):
+            return
+
+        # Find the parent ViolationCard
+        parent = focused.parent
+        while parent and not isinstance(parent, ViolationCard):
+            parent = parent.parent
+
+        if not parent:
+            return
+
+        # Get all violation cards in the current list
+        try:
+            active_tab = self.query_one("#filter-tabs", TabbedContent).active
+            list_id_map = {
+                "filter-all": "#violations-list-all",
+                "filter-tool-permission": "#violations-list-tool",
+                "filter-secret": "#violations-list-secret",
+                "filter-directory": "#violations-list-directory",
+                "filter-injection": "#violations-list-injection"
+            }
+            list_id = list_id_map.get(active_tab)
+            if not list_id:
+                return
+
+            violations_list = self.query_one(list_id, VerticalScroll)
+            cards = list(violations_list.query(ViolationCard))
+
+            if not cards:
+                return
+
+            current_index = cards.index(parent)
+
+        except Exception:
+            return
+
+        # Handle arrow keys
+        if event.key == "down":
+            # Move to next violation card
+            if current_index < len(cards) - 1:
+                next_card = cards[current_index + 1]
+                # Focus first button in next card
+                buttons = list(next_card.query(Button))
+                if buttons:
+                    buttons[0].focus()
+                    event.prevent_default()
+                    event.stop()
+
+        elif event.key == "up":
+            # Move to previous violation card
+            if current_index > 0:
+                prev_card = cards[current_index - 1]
+                # Focus first button in previous card
+                buttons = list(prev_card.query(Button))
+                if buttons:
+                    buttons[0].focus()
+                    event.prevent_default()
+                    event.stop()
+
+        elif event.key == "left":
+            # Move to previous button in same card
+            buttons = list(parent.query(Button))
+            try:
+                current_button_index = buttons.index(focused)
+                if current_button_index > 0:
+                    buttons[current_button_index - 1].focus()
+                    event.prevent_default()
+                    event.stop()
+            except ValueError:
+                pass
+
+        elif event.key == "right":
+            # Move to next button in same card
+            buttons = list(parent.query(Button))
+            try:
+                current_button_index = buttons.index(focused)
+                if current_button_index < len(buttons) - 1:
+                    buttons[current_button_index + 1].focus()
+                    event.prevent_default()
+                    event.stop()
+            except ValueError:
+                pass
 
     def action_filter_all(self) -> None:
         """Show all violations (triggered by '1' key)."""
@@ -314,7 +555,7 @@ class ViolationsContent(Container):
             pass
 
     def approve_violation(self, timestamp: str) -> None:
-        """Approve a violation and add the suggested rule to config."""
+        """Approve a violation and add appropriate allowlist rule."""
         # Find the violation
         violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
         violation = next((v for v in violations if v.get("timestamp") == timestamp), None)
@@ -323,13 +564,9 @@ class ViolationsContent(Container):
             self.app.notify("Violation not found", severity="error")
             return
 
-        # Get the suggested rule
+        vtype = violation.get("violation_type")
+        blocked = violation.get("blocked", {})
         suggestion = violation.get("suggestion", {})
-        suggested_rule = suggestion.get("rule")
-
-        if not suggested_rule:
-            self.app.notify("No suggested rule available", severity="error")
-            return
 
         # Load current config
         config_dir = get_config_dir()
@@ -342,33 +579,114 @@ class ViolationsContent(Container):
             else:
                 config = {}
 
-            # Initialize permissions if needed
-            if "permissions" not in config:
-                config["permissions"] = []
+            # Handle different violation types
+            if vtype == "tool_permission":
+                # Original logic - use suggested rule
+                suggested_rule = suggestion.get("rule")
+                if not suggested_rule:
+                    self.app.notify("No suggested rule available", severity="error")
+                    return
 
-            # Check if rule for this matcher already exists
-            matcher = suggested_rule.get("matcher")
-            mode = suggested_rule.get("mode")
+                if "permissions" not in config:
+                    config["permissions"] = []
 
-            existing_rule = next(
-                (r for r in config["permissions"]
-                 if r.get("matcher") == matcher and r.get("mode") == mode),
-                None
-            )
+                matcher = suggested_rule.get("matcher")
+                mode = suggested_rule.get("mode")
 
-            if existing_rule:
-                # Merge patterns
-                new_patterns = suggested_rule.get("patterns", [])
-                existing_patterns = existing_rule.get("patterns", [])
-                merged_patterns = list(set(existing_patterns + new_patterns))
-                existing_rule["patterns"] = merged_patterns
-                action_msg = f"Merged patterns into existing {matcher} rule"
+                existing_rule = next(
+                    (r for r in config["permissions"]
+                     if r.get("matcher") == matcher and r.get("mode") == mode),
+                    None
+                )
+
+                if existing_rule:
+                    new_patterns = suggested_rule.get("patterns", [])
+                    existing_patterns = existing_rule.get("patterns", [])
+                    merged_patterns = list(set(existing_patterns + new_patterns))
+                    existing_rule["patterns"] = merged_patterns
+                    action_msg = f"Merged patterns into existing {matcher} rule"
+                else:
+                    config["permissions"].append(suggested_rule)
+                    action_msg = f"Added new {matcher} rule"
+
+            elif vtype == "prompt_injection":
+                # Add to prompt_injection allowlist_patterns
+                source = blocked.get("source", "unknown")
+                pattern = blocked.get("pattern", "")
+
+                if not pattern:
+                    self.app.notify("No pattern found to allowlist", severity="error")
+                    return
+
+                if "prompt_injection" not in config:
+                    config["prompt_injection"] = {}
+                if "allowlist_patterns" not in config["prompt_injection"]:
+                    config["prompt_injection"]["allowlist_patterns"] = []
+
+                if pattern in config["prompt_injection"]["allowlist_patterns"]:
+                    self.app.notify("Pattern already in allowlist", severity="warning")
+                    return
+
+                config["prompt_injection"]["allowlist_patterns"].append(pattern)
+                action_msg = f"Added '{pattern}' to prompt injection allowlist"
+
+            elif vtype == "secret_detected":
+                # Show instruction to add gitleaks:allow comment
+                file_path = blocked.get("file_path")
+                line_number = blocked.get("line_number")
+
+                if file_path and line_number:
+                    instruction = (
+                        f"To allow this secret, add this comment on the line before it:\n\n"
+                        f"  # gitleaks:allow\n\n"
+                        f"File: {file_path}:{line_number}\n\n"
+                        f"Alternatively, add to .gitleaks.toml allowlist."
+                    )
+                else:
+                    instruction = (
+                        "To allow secrets, add '# gitleaks:allow' comment before the line,\n"
+                        "or configure .gitleaks.toml allowlist."
+                    )
+
+                # Mark as resolved without config change
+                self.violation_logger.mark_resolved(timestamp, action="info_shown")
+                self.load_all_filters()
+                self.app.notify(instruction, severity="information", timeout=15)
+                return
+
+            elif vtype == "directory_blocking":
+                # Remove the .ai-read-deny file
+                denied_dir = blocked.get("denied_directory")
+
+                if not denied_dir:
+                    self.app.notify("Cannot find directory path", severity="error")
+                    return
+
+                from pathlib import Path
+                deny_file = Path(denied_dir) / ".ai-read-deny"
+
+                try:
+                    if deny_file.exists():
+                        deny_file.unlink()
+                        action_msg = f"Removed {deny_file}"
+                    else:
+                        self.app.notify(f"File not found: {deny_file}", severity="warning")
+                        return
+                except Exception as e:
+                    self.app.notify(f"Error removing file: {e}", severity="error")
+                    return
+
+                # Mark as resolved
+                self.violation_logger.mark_resolved(timestamp, action="approved")
+                self.load_all_filters()
+                self.app.notify(f"✓ {action_msg}", severity="success")
+                return
+
             else:
-                # Add new rule
-                config["permissions"].append(suggested_rule)
-                action_msg = f"Added new {matcher} rule"
+                self.app.notify(f"Cannot approve {vtype} violations", severity="error")
+                return
 
-            # Write updated config
+            # Write updated config (except for secret_detected which returned early)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
@@ -376,7 +694,7 @@ class ViolationsContent(Container):
             self.violation_logger.mark_resolved(timestamp, action="approved")
 
             # Refresh the display
-            self.load_violations(self.current_filter)
+            self.load_all_filters()
 
             self.app.notify(f"✓ {action_msg}", severity="success")
 
@@ -386,18 +704,25 @@ class ViolationsContent(Container):
     def deny_violation(self, timestamp: str) -> None:
         """Mark a violation as resolved without adding the rule."""
         if self.violation_logger.mark_resolved(timestamp, action="denied"):
-            self.load_violations(self.current_filter)
+            self.load_all_filters()
             self.app.notify("Violation marked as denied", severity="information")
         else:
             self.app.notify("Failed to mark violation as denied", severity="error")
 
+    def undo_violation(self, timestamp: str) -> None:
+        """Undo resolution - mark violation as unresolved again."""
+        if self.violation_logger.mark_unresolved(timestamp):
+            self.load_all_filters()
+            self.app.notify("✓ Violation resolution undone", severity="success")
+        else:
+            self.app.notify("Failed to undo violation resolution", severity="error")
+
     def show_violation_details(self, timestamp: str) -> None:
-        """Show detailed information about a violation."""
+        """Show detailed information about a violation in a modal."""
         violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
         violation = next((v for v in violations if v.get("timestamp") == timestamp), None)
 
         if violation:
-            details = json.dumps(violation, indent=2)
-            self.app.notify(f"Violation details:\n{details}", severity="information", timeout=10)
+            self.app.push_screen(ViolationDetailsModal(violation))
         else:
             self.app.notify("Violation not found", severity="error")
