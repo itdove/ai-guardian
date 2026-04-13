@@ -336,6 +336,76 @@ class PowerShellProtectionTest(TestCase):
         self.assertFalse(is_allowed, "PowerShell move alias on config should be blocked")
 
     # ========================================================================
+    # Test: Edge cases - User directories with 'ai_guardian' in path (Issue #47)
+    # ========================================================================
+
+    def test_powershell_allows_user_project_with_ai_guardian_in_name(self):
+        """PowerShell can modify user project with 'ai_guardian' in directory name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Set-Content -Path C:\\Users\\user\\my_ai_guardian_project\\config.py -Value 'test'"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "PowerShell on user project with 'ai_guardian' should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_powershell_allows_remove_item_user_project(self):
+        """PowerShell Remove-Item allowed for user project with 'ai_guardian' in name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item /home/user/backup_ai_guardian_configs/old_file.txt"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "PowerShell Remove-Item on user directory with 'ai_guardian' should be allowed")
+
+    def test_powershell_still_blocks_site_packages(self):
+        """PowerShell cannot modify site-packages/ai_guardian/ (verify protection)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Set-Content -Path C:\\Python\\Lib\\site-packages\\ai_guardian\\tool_policy.py -Value ''"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "PowerShell Set-Content on site-packages/ai_guardian should still be blocked")
+        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+
+    def test_powershell_still_blocks_source_repo(self):
+        """PowerShell cannot modify ai-guardian/src/ai_guardian/ (verify protection)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item /home/user/ai-guardian/src/ai_guardian/__init__.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "PowerShell Remove-Item on ai-guardian/src/ai_guardian should still be blocked")
+
+    # ========================================================================
     # Test: PowerShell cannot modify .ai-read-deny marker files
     # ========================================================================
 

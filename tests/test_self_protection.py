@@ -512,6 +512,144 @@ class SelfProtectionTest(TestCase):
         self.assertTrue(is_allowed, "Normal Bash commands should be allowed")
 
     # ========================================================================
+    # Test: Edge cases - User directories with 'ai_guardian' in path (Issue #47)
+    # ========================================================================
+
+    def test_write_allows_user_project_with_ai_guardian_in_name(self):
+        """AI can write to user project that has 'ai_guardian' in directory name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/my_ai_guardian_project/src/main.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Write to user project with 'ai_guardian' in name should be allowed")
+        self.assertIsNone(error_msg, "No error message for allowed operation")
+
+    def test_write_allows_backup_directory_with_ai_guardian(self):
+        """AI can write to backup directory with 'ai_guardian' in name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/backup_ai_guardian_configs/settings.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Write to backup directory with 'ai_guardian' should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_write_allows_tutorial_directory_with_ai_guardian(self):
+        """AI can write to tutorial directory with 'ai_guardian' in name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/projects/ai_guardian_tutorial/example.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Write to tutorial directory with 'ai_guardian' should be allowed")
+
+    def test_write_still_blocks_site_packages(self):
+        """AI cannot write to site-packages/ai_guardian/ (verify protection still works)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Write to site-packages/ai_guardian should still be blocked")
+        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+
+    def test_write_still_blocks_source_repo(self):
+        """AI cannot write to ai-guardian/src/ai_guardian/ (verify protection still works)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__init__.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Write to ai-guardian/src/ai_guardian should still be blocked")
+        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+
+    def test_edit_allows_user_project_with_ai_guardian_in_name(self):
+        """AI can edit files in user project with 'ai_guardian' in directory name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {
+                    "file_path": "/home/user/my_ai_guardian_project/config.py",
+                    "old_string": "DEBUG = False",
+                    "new_string": "DEBUG = True"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Edit of user project with 'ai_guardian' in name should be allowed")
+
+    def test_bash_allows_sed_on_user_project_with_ai_guardian(self):
+        """AI can use sed on user project with 'ai_guardian' in directory name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/old/new/' /home/user/my_ai_guardian_project/config.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Bash sed on user project with 'ai_guardian' should be allowed")
+
+    def test_bash_still_blocks_sed_on_site_packages(self):
+        """AI cannot use sed on site-packages/ai_guardian/"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash sed on site-packages/ai_guardian should still be blocked")
+
+    # ========================================================================
     # Test: AI cannot modify .ai-read-deny marker files (Write tool)
     # ========================================================================
 
