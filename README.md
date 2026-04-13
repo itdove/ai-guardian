@@ -779,6 +779,52 @@ Or ask your administrator to update the enterprise policy.
 3. **Remote configs**: Fetched from URLs in `remote_configs`
 4. **Defaults**: Built-in defaults (allow all built-ins, block skills/MCP)
 
+#### JSON Schema for IDE Support
+
+AI Guardian provides a [JSON Schema](src/ai_guardian/schemas/ai-guardian-config.schema.json) for configuration validation and IDE autocomplete, with **runtime validation** that blocks operations if the config is invalid.
+
+**Benefits:**
+- ✅ **Runtime Validation** - Invalid configs are rejected at load time with clear error messages
+- ✅ **Fail-Fast** - Blocks operations if config is broken (no silent failures)
+- ✅ **IDE Autocomplete** - Get suggestions while editing config files
+- ✅ **Real-time Validation** - Catch errors before running ai-guardian
+- ✅ **Inline Documentation** - See descriptions for all configuration options
+- ✅ **Type Checking** - Validates enums, data types, and required fields
+
+**Usage:**
+
+Add the `$schema` property to your configuration file:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli"]
+    }
+  ]
+}
+```
+
+**IDE Setup:**
+
+Most modern editors (VSCode, JetBrains, etc.) automatically recognize the `$schema` property. For VSCode, you can also add to your `.vscode/settings.json`:
+
+```json
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["*ai-guardian.json", ".ai-guardian.json"],
+      "url": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json"
+    }
+  ]
+}
+```
+
+**See also:** [ai-guardian-example.json](ai-guardian-example.json) for a complete configuration example with detailed comments.
+
 #### Remote Configs vs Directory Discovery
 
 **Use `remote_configs` (Recommended):**

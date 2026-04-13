@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- JSON Schema for configuration file validation with runtime validation (Issue #50)
+  - Created formal JSON Schema at `src/ai_guardian/schemas/ai-guardian-config.schema.json`
+  - **Runtime validation**: Invalid configs are rejected at load time with clear error messages
+  - **Fail-fast**: Blocks operations if configuration is invalid (exit code 2)
+  - **Clear errors**: Shows exact location and nature of validation errors
+  - Added `jsonschema>=4.0.0` as required dependency (~2-3ms startup overhead, imperceptible)
+  - Enables IDE autocomplete and real-time validation for config files
+  - Covers all configuration options with descriptions and type validation
+  - Validates enums (mode, detector, sensitivity), required fields, and data types
+  - Supports time-based patterns and features with ISO 8601 timestamp validation
+    - Time-based permission patterns (patterns with `valid_until` expiration)
+    - Time-based feature toggles (permissions_enabled, secret_scanning, etc.)
+    - Time-based allowlist patterns for prompt injection
+  - Added `$schema` reference to ai-guardian-example.json
+  - Comprehensive test coverage (29 test cases: 23 schema + 6 runtime validation)
+    - Tests time-based permission patterns (Skill, Bash allow/deny)
+    - Tests time-based prompt injection allowlist patterns
+    - Tests permissions_directories structure
+    - Tests mixed simple and time-based patterns
+    - Tests invalid enums, missing fields, and type mismatches
+    - Tests runtime validation with invalid configs (test_config_validation.py)
+  - Clean test fixture at `tests/fixtures/valid-config.json` (without comment fields)
+  - Documentation updated in README.md with IDE setup instructions
+  - Benefits: faster configuration, fewer errors, inline documentation, fail-fast validation
 - PowerShell tool protection for Windows users (Issue #45)
   - Added IMMUTABLE_DENY_PATTERNS for PowerShell tool to prevent Windows bypass
   - Blocks PowerShell cmdlets: Remove-Item, Move-Item, Rename-Item, Set-Content, Clear-Content, Out-File, Copy-Item

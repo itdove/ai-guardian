@@ -1,0 +1,380 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
+  "title": "AI Guardian Configuration",
+  "description": "Configuration file for ai-guardian security tool that protects IDE AI agents from unauthorized tool access and security risks",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "permissions": {
+      "type": "array",
+      "description": "Permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed.",
+      "items": {
+        "$ref": "#/definitions/permission_rule"
+      }
+    },
+    "permissions_directories": {
+      "type": "object",
+      "description": "OPTIONAL/ADVANCED: Auto-discover permissions from directories. Most users should use remote_configs instead.",
+      "properties": {
+        "deny": {
+          "type": "array",
+          "description": "Directories to scan for deny patterns",
+          "items": {
+            "$ref": "#/definitions/directory_entry"
+          }
+        },
+        "allow": {
+          "type": "array",
+          "description": "Directories to scan for allow patterns",
+          "items": {
+            "$ref": "#/definitions/directory_entry"
+          }
+        }
+      }
+    },
+    "remote_configs": {
+      "type": "object",
+      "description": "RECOMMENDED: Load policies from remote URLs (enterprise/team policies). This is the preferred way to manage permissions.",
+      "properties": {
+        "urls": {
+          "type": "array",
+          "description": "List of remote configuration URLs to fetch",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Simple URL format"
+              },
+              {
+                "$ref": "#/definitions/remote_url_entry"
+              }
+            ]
+          }
+        },
+        "refresh_interval_hours": {
+          "type": "number",
+          "description": "Hours between automatic refresh of remote configs",
+          "default": 12,
+          "minimum": 1
+        },
+        "expire_after_hours": {
+          "type": "number",
+          "description": "Hours until cached remote config expires",
+          "default": 168,
+          "minimum": 1
+        }
+      }
+    },
+    "permissions_enabled": {
+      "type": "object",
+      "description": "Global tool permissions enforcement control (NEW in v1.4.0). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats.",
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "secret_scanning": {
+      "type": "object",
+      "description": "Secret scanning with Gitleaks control (NEW in v1.4.0). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats.",
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "pattern_server": {
+      "type": "object",
+      "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server. Most users should use default Gitleaks patterns. Supports time-based disabling (NEW in v1.4.0).",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": false
+        },
+        "url": {
+          "type": ["string", "null"],
+          "description": "Pattern server base URL"
+        },
+        "patterns_endpoint": {
+          "type": "string",
+          "description": "Endpoint path for patterns (appended to url)",
+          "default": "/patterns/gitleaks/8.18.1"
+        },
+        "auth": {
+          "type": "object",
+          "description": "Authentication configuration for pattern server",
+          "additionalProperties": true,
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["bearer", "token"],
+              "description": "Authentication method",
+              "default": "bearer"
+            },
+            "token_env": {
+              "type": "string",
+              "description": "Environment variable name containing auth token"
+            },
+            "token_file": {
+              "type": "string",
+              "description": "Path to file containing auth token (supports ~ expansion)"
+            }
+          }
+        },
+        "cache": {
+          "type": "object",
+          "description": "Pattern cache configuration",
+          "additionalProperties": true,
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Cache file path (supports ~ expansion)",
+              "default": "~/.cache/ai-guardian/patterns.toml"
+            },
+            "refresh_interval_hours": {
+              "type": "number",
+              "description": "Hours between automatic pattern refresh",
+              "default": 12,
+              "minimum": 1
+            },
+            "expire_after_hours": {
+              "type": "number",
+              "description": "Hours until cached patterns expire",
+              "default": 168,
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "prompt_injection": {
+      "type": "object",
+      "description": "Prompt injection detection configuration (NEW in v1.2.0, time-based support in v1.4.0). Protects against prompt injection attacks that try to manipulate AI behavior.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        },
+        "detector": {
+          "type": "string",
+          "enum": ["heuristic", "rebuff", "llm-guard"],
+          "description": "Detection method: heuristic (local patterns, <1ms), rebuff/llm-guard (ML-based, requires setup)",
+          "default": "heuristic"
+        },
+        "sensitivity": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Detection sensitivity: low (obvious attacks only), medium (balanced), high (more aggressive)",
+          "default": "medium"
+        },
+        "max_score_threshold": {
+          "type": "number",
+          "description": "Confidence threshold (0.0-1.0) for blocking prompts",
+          "default": 0.75,
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "allowlist_patterns": {
+          "type": "array",
+          "description": "Regex patterns to ignore (for false positives). Supports time-based patterns.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Simple regex pattern"
+              },
+              {
+                "$ref": "#/definitions/time_based_pattern"
+              }
+            ]
+          },
+          "default": []
+        },
+        "custom_patterns": {
+          "type": "array",
+          "description": "Additional detection patterns to check",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "directory_exclusions": {
+      "type": "object",
+      "description": "Directory exclusions for .ai-read-deny blocking (NEW in v1.5.0). CRITICAL: .ai-read-deny markers ALWAYS take precedence over exclusions.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable directory exclusions feature",
+          "default": false
+        },
+        "paths": {
+          "type": "array",
+          "description": "Directory paths to exclude from .ai-read-deny blocking. Supports ~ expansion, ** for recursive, * for single level. .ai-read-deny markers ALWAYS block (no config can override).",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    }
+  },
+  "definitions": {
+    "permission_rule": {
+      "type": "object",
+      "required": ["matcher", "mode", "patterns"],
+      "description": "Permission rule defining allow/deny patterns for a specific tool matcher",
+      "properties": {
+        "matcher": {
+          "type": "string",
+          "description": "Tool name pattern to match (e.g., 'Skill', 'mcp__*', 'Bash', 'Write', 'Read')"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "description": "Permission mode: 'allow' creates an allow-list, 'deny' creates a deny-list"
+        },
+        "patterns": {
+          "type": "array",
+          "description": "List of patterns to allow/deny. Supports simple strings or time-based objects with valid_until.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Simple string pattern (e.g., 'daf-*', '*rm -rf*')"
+              },
+              {
+                "$ref": "#/definitions/time_based_pattern"
+              }
+            ]
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "time_based_pattern": {
+      "type": "object",
+      "required": ["pattern"],
+      "description": "Pattern with optional time-based expiration (NEW in v1.3.0)",
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "The pattern string"
+        },
+        "valid_until": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp in UTC (e.g., '2026-04-13T12:00:00Z'). Pattern expires after this time."
+        }
+      },
+      "additionalProperties": true
+    },
+    "time_based_feature": {
+      "type": "object",
+      "required": ["value"],
+      "description": "Feature toggle with optional time-based temporary disabling (NEW in v1.4.0)",
+      "properties": {
+        "value": {
+          "type": "boolean",
+          "description": "The feature's enabled/disabled state"
+        },
+        "disabled_until": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp in UTC (e.g., '2026-04-13T18:00:00Z'). Feature override expires after this time."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable reason for the temporary change"
+        }
+      },
+      "additionalProperties": false
+    },
+    "directory_entry": {
+      "type": "object",
+      "required": ["matcher", "mode", "url"],
+      "description": "Directory to scan for auto-discovery of permissions",
+      "properties": {
+        "matcher": {
+          "type": "string",
+          "description": "Tool type to apply discovered patterns to (e.g., 'Skill', 'mcp__*')"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "description": "Permission mode for discovered patterns"
+        },
+        "url": {
+          "type": "string",
+          "description": "Local directory path or GitHub URL to scan"
+        },
+        "token_env": {
+          "type": "string",
+          "description": "Environment variable containing GitHub token (for private repos)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "remote_url_entry": {
+      "type": "object",
+      "required": ["url"],
+      "description": "Remote configuration URL with optional settings",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Remote configuration URL (https://) or local file path"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this remote config is enabled",
+          "default": true
+        },
+        "token_env": {
+          "type": "string",
+          "description": "Environment variable containing auth token for remote URL"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

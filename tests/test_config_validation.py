@@ -1,0 +1,169 @@
+"""
+Tests for runtime configuration validation using JSON Schema.
+
+Tests that invalid configurations are rejected at load time with clear error messages.
+"""
+
+import json
+import tempfile
+from pathlib import Path
+import pytest
+
+from ai_guardian.tool_policy import ToolPolicyChecker
+
+
+def test_valid_config_loads_successfully():
+    """Test that a valid configuration loads without errors."""
+    valid_config = {
+        "permissions": [
+            {
+                "matcher": "Skill",
+                "mode": "allow",
+                "patterns": ["daf-*", "gh-cli"]
+            }
+        ]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(valid_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        assert config is not None
+        assert "permissions" in config
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_invalid_mode_rejected_at_load():
+    """Test that invalid permission mode is rejected at load time."""
+    invalid_config = {
+        "permissions": [
+            {
+                "matcher": "Skill",
+                "mode": "invalid_mode",  # Invalid!
+                "patterns": ["daf-*"]
+            }
+        ]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(invalid_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        # Should return None due to validation failure
+        assert config is None
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_invalid_detector_rejected_at_load():
+    """Test that invalid detector type is rejected at load time."""
+    invalid_config = {
+        "prompt_injection": {
+            "detector": "invalid_detector"  # Invalid!
+        }
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(invalid_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        # Should return None due to validation failure
+        assert config is None
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_missing_required_fields_rejected_at_load():
+    """Test that missing required fields are rejected at load time."""
+    invalid_config = {
+        "permissions": [
+            {
+                "matcher": "Skill",
+                # Missing "mode" and "patterns" (required)
+            }
+        ]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(invalid_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        # Should return None due to validation failure
+        assert config is None
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_empty_config_is_valid():
+    """Test that an empty config (all fields optional) is valid."""
+    empty_config = {}
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(empty_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        assert config is not None
+        assert config == {}
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_complex_valid_config_loads():
+    """Test that a complex valid configuration loads successfully."""
+    complex_config = {
+        "permissions": [
+            {
+                "matcher": "Skill",
+                "mode": "allow",
+                "patterns": [
+                    "daf-*",
+                    {
+                        "pattern": "debug-*",
+                        "valid_until": "2026-04-13T12:00:00Z"
+                    }
+                ]
+            }
+        ],
+        "permissions_enabled": {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2026-04-13T18:00:00Z",
+                "reason": "Emergency debugging"
+            }
+        },
+        "prompt_injection": {
+            "enabled": True,
+            "detector": "heuristic",
+            "sensitivity": "medium"
+        }
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(complex_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        assert config is not None
+        assert "permissions" in config
+        assert "permissions_enabled" in config
+        assert "prompt_injection" in config
+    finally:
+        Path(temp_path).unlink()

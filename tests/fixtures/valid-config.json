@@ -1,0 +1,147 @@
+{
+  "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": [
+        "daf-*",
+        "gh-cli",
+        "git-cli",
+        "glab-cli",
+        "arc",
+        "claude-api",
+        "update-config",
+        {
+          "pattern": "debug-*",
+          "valid_until": "2026-04-13T12:00:00Z"
+        },
+        {
+          "pattern": "experimental-*",
+          "valid_until": "2026-04-20T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "matcher": "mcp__*",
+      "mode": "allow",
+      "patterns": [
+        "mcp__notebooklm-mcp__notebook_list",
+        "mcp__notebooklm-mcp__notebook_get",
+        "mcp__notebooklm-mcp__notebook_query",
+        "mcp__notebooklm-mcp__source_add",
+        "mcp__atlassian__getJiraIssue",
+        "mcp__atlassian__searchJiraIssuesUsingJql"
+      ]
+    },
+    {
+      "matcher": "Bash",
+      "mode": "deny",
+      "patterns": [
+        "*rm -rf*",
+        "*mkfs*",
+        "*dd if=*"
+      ]
+    },
+    {
+      "matcher": "Bash",
+      "mode": "allow",
+      "patterns": [
+        {
+          "pattern": "*docker rm*",
+          "valid_until": "2026-04-13T15:00:00Z"
+        }
+      ]
+    },
+    {
+      "matcher": "Write",
+      "mode": "deny",
+      "patterns": [
+        "/etc/*",
+        "/sys/*",
+        "/proc/*"
+      ]
+    }
+  ],
+  "permissions_directories": {
+    "deny": [],
+    "allow": [
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "url": "https://github.com/your-org/skills/tree/main/skills",
+        "token_env": "GITHUB_TOKEN"
+      },
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "url": "/Users/yourname/.claude/skills"
+      }
+    ]
+  },
+  "remote_configs": {
+    "urls": [
+      {
+        "url": "https://example.com/policies/ai-guardian-enterprise.json",
+        "enabled": false
+      }
+    ],
+    "refresh_interval_hours": 12,
+    "expire_after_hours": 168
+  },
+  "permissions_enabled": {
+    "enabled": {
+      "value": false,
+      "disabled_until": "2026-04-13T18:00:00Z",
+      "reason": "Emergency debugging - production incident"
+    }
+  },
+  "secret_scanning": {
+    "enabled": {
+      "value": false,
+      "disabled_until": "2026-04-13T16:00:00Z",
+      "reason": "Testing with known-safe example secrets"
+    }
+  },
+  "pattern_server": {
+    "enabled": {
+      "value": false,
+      "disabled_until": "2026-04-13T16:30:00Z",
+      "reason": "Maintenance window - pattern server offline"
+    },
+    "url": null,
+    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+    "auth": {
+      "method": "bearer",
+      "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
+      "token_file": "~/.config/ai-guardian/pattern-token"
+    },
+    "cache": {
+      "path": "~/.cache/ai-guardian/patterns.toml",
+      "refresh_interval_hours": 12,
+      "expire_after_hours": 168
+    }
+  },
+  "prompt_injection": {
+    "enabled": {
+      "value": false,
+      "disabled_until": "2026-04-13T18:00:00Z",
+      "reason": "Testing documentation with prompt injection examples"
+    },
+    "detector": "heuristic",
+    "sensitivity": "medium",
+    "max_score_threshold": 0.75,
+    "allowlist_patterns": [
+      "test:.*",
+      {
+        "pattern": "experimental:.*",
+        "valid_until": "2026-04-14T00:00:00Z"
+      }
+    ],
+    "custom_patterns": []
+  },
+  "directory_exclusions": {
+    "enabled": false,
+    "paths": []
+  }
+}

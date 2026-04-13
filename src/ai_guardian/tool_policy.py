@@ -19,6 +19,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
 
+try:
+    from jsonschema import Draft7Validator, ValidationError as JsonSchemaValidationError
+    HAS_JSONSCHEMA = True
+except ImportError:
+    HAS_JSONSCHEMA = False
+    Draft7Validator = None
+    JsonSchemaValidationError = None
+
 from ai_guardian.config_utils import get_config_dir, is_expired
 
 # Import violation logger
@@ -209,6 +217,9 @@ class ToolPolicyChecker:
 
     Default: deny-wins (deny patterns override allow patterns)
     """
+
+    # Class-level schema validator (loaded once and cached)
+    _schema_validator = None
 
     def __init__(self, config: Optional[Dict] = None):
         """
@@ -940,6 +951,73 @@ class ToolPolicyChecker:
         config = self._load_json_file(config_path, "user global")
         return config, config_path if config else None
 
+    @classmethod
+    def _get_schema_validator(cls):
+        """
+        Get or create the JSON Schema validator (cached).
+
+        Returns:
+            Draft7Validator or None: Validator instance or None if jsonschema not available
+        """
+        if not HAS_JSONSCHEMA:
+            return None
+
+        if cls._schema_validator is None:
+            try:
+                # Load schema from package
+                schema_path = Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+                with open(schema_path, 'r') as f:
+                    schema = json.load(f)
+
+                # Create and cache validator
+                cls._schema_validator = Draft7Validator(schema)
+                logger.debug("JSON Schema validator loaded and cached")
+            except Exception as e:
+                logger.warning(f"Failed to load JSON Schema: {e}")
+                return None
+
+        return cls._schema_validator
+
+    def _validate_config(self, config: Dict, source_name: str, path: Path) -> bool:
+        """
+        Validate configuration against JSON Schema.
+
+        Args:
+            config: Configuration dictionary to validate
+            source_name: Human-readable source name for error messages
+            path: Path to config file (for error messages)
+
+        Returns:
+            bool: True if valid (or validation skipped), False if invalid
+        """
+        validator = self._get_schema_validator()
+        if not validator:
+            # jsonschema not available or schema failed to load
+            # Continue without validation (backwards compatible)
+            return True
+
+        try:
+            validator.validate(config)
+            logger.debug(f"{source_name} config passed schema validation")
+            return True
+        except JsonSchemaValidationError as e:
+            # Format user-friendly error message
+            error_path = " -> ".join(str(p) for p in e.absolute_path) if e.absolute_path else "root"
+            error_msg = (
+                f"\n{'='*70}\n"
+                f"❌ CONFIGURATION ERROR: {source_name} config at {path}\n"
+                f"{'='*70}\n"
+                f"Location: {error_path}\n"
+                f"Error: {e.message}\n"
+                f"\n"
+                f"Please fix the configuration file and try again.\n"
+                f"See: https://github.com/itdove/ai-guardian#configuration\n"
+                f"{'='*70}\n"
+            )
+            # Print to stderr so user sees it (logger might not be visible in all IDEs)
+            print(error_msg, flush=True)
+            return False
+
     def _load_json_file(self, path: Path, source_name: str) -> Optional[Dict]:
         """
         Load and parse a JSON configuration file.
@@ -961,6 +1039,13 @@ class ToolPolicyChecker:
                 config = json.load(f)
 
             logger.debug(f"Loaded {source_name} config: {config}")
+
+            # Validate against JSON Schema
+            if not self._validate_config(config, source_name, path):
+                # Validation failed - return None to block operation
+                logger.error(f"Schema validation failed for {source_name} config")
+                return None
+
             return config
 
         except json.JSONDecodeError as e:
