@@ -13,8 +13,11 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
+
+from ai_guardian.config_utils import is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,8 @@ class PatternServerClient:
         Args:
             config: Pattern server configuration from ai-guardian.json
         """
-        self.enabled = config.get("enabled", False)
+        # Store enabled config (supports both boolean and time-based formats)
+        self.enabled_config = config.get("enabled", False)
         self.base_url = config.get("url")
         self.patterns_endpoint = config.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
 
@@ -66,7 +70,9 @@ class PatternServerClient:
         Returns:
             Path to patterns file, or None if unavailable
         """
-        if not self.enabled:
+        # Check if pattern server is enabled (supports time-based disabling)
+        if not is_feature_enabled(self.enabled_config, datetime.now(timezone.utc), default=False):
+            logger.debug("Pattern server is disabled or temporarily disabled")
             return None
 
         if not HAS_REQUESTS:

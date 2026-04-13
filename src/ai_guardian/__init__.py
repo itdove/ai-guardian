@@ -19,11 +19,12 @@ import os
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, is_feature_enabled
 
 # Import tool policy checker for MCP/Skill permissions
 try:
@@ -551,6 +552,64 @@ def _load_prompt_injection_config():
 
     except Exception as e:
         logging.debug(f"Error loading prompt injection config: {e}")
+        return None
+
+
+def _load_permissions_config():
+    """
+    Load permissions configuration from ai-guardian.json.
+
+    Returns:
+        dict: Permissions configuration or None
+    """
+    try:
+        # Try user global config first
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        if not config_path.exists():
+            # Try project local config
+            config_path = Path.cwd() / ".ai-guardian.json"
+
+        if not config_path.exists():
+            return None
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        return config.get("permissions_enabled")
+
+    except Exception as e:
+        logging.debug(f"Error loading permissions config: {e}")
+        return None
+
+
+def _load_secret_scanning_config():
+    """
+    Load secret scanning configuration from ai-guardian.json.
+
+    Returns:
+        dict: Secret scanning configuration or None
+    """
+    try:
+        # Try user global config first
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        if not config_path.exists():
+            # Try project local config
+            config_path = Path.cwd() / ".ai-guardian.json"
+
+        if not config_path.exists():
+            return None
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        return config.get("secret_scanning")
+
+    except Exception as e:
+        logging.debug(f"Error loading secret scanning config: {e}")
         return None
 
 
@@ -1115,15 +1174,26 @@ def process_hook_input():
         # Check tool permissions for PreToolUse events (MCP servers and Skills)
         if hook_event in ["pretooluse", "beforereadfile"] and HAS_TOOL_POLICY:
             try:
-                policy_checker = ToolPolicyChecker()
-                is_allowed, error_message, tool_name = policy_checker.check_tool_allowed(hook_data)
+                permissions_config = _load_permissions_config()
 
-                if not is_allowed:
-                    logging.warning(f"Tool '{tool_name}' blocked by policy")
-                    return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+                # Check if permissions enforcement is enabled (supports time-based disabling)
+                if is_feature_enabled(
+                    permissions_config.get("enabled") if permissions_config else None,
+                    datetime.now(timezone.utc),
+                    default=True
+                ):
+                    policy_checker = ToolPolicyChecker()
+                    is_allowed, error_message, tool_name = policy_checker.check_tool_allowed(hook_data)
 
-                if tool_name and ide_type != IDEType.CURSOR:
-                    logging.info(f"✓ Tool '{tool_name}' allowed by policy")
+                    if not is_allowed:
+                        logging.warning(f"Tool '{tool_name}' blocked by policy")
+                        return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+
+                    if tool_name and ide_type != IDEType.CURSOR:
+                        logging.info(f"✓ Tool '{tool_name}' allowed by policy")
+                elif permissions_config and ide_type != IDEType.CURSOR:
+                    # Permissions enforcement is temporarily disabled
+                    logging.info("⚠️  Tool permissions enforcement temporarily disabled")
             except Exception as e:
                 # Fail-open: if policy check fails, allow the operation
                 logging.warning(f"Tool policy check error (fail-open): {e}")
@@ -1170,44 +1240,66 @@ def process_hook_input():
         if HAS_PROMPT_INJECTION:
             try:
                 injection_config = _load_prompt_injection_config()
-                is_injection, injection_error = check_prompt_injection(
-                    content_to_scan, injection_config
-                )
 
-                if is_injection:
-                    # Prompt injection detected - block operation
-                    if ide_type != IDEType.CURSOR:
-                        logging.warning("Prompt injection detected, blocking operation")
-
-                    # Log prompt injection violation
-                    _log_prompt_injection_violation(
-                        filename,
-                        context={"ide_type": ide_type.value, "hook_event": hook_event}
+                # Check if prompt injection detection is enabled (supports time-based disabling)
+                if injection_config and is_feature_enabled(
+                    injection_config.get("enabled"),
+                    datetime.now(timezone.utc),
+                    default=True
+                ):
+                    is_injection, injection_error = check_prompt_injection(
+                        content_to_scan, injection_config
                     )
 
-                    return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
+                    if is_injection:
+                        # Prompt injection detected - block operation
+                        if ide_type != IDEType.CURSOR:
+                            logging.warning("Prompt injection detected, blocking operation")
 
-                if ide_type != IDEType.CURSOR:
-                    logging.info("✓ No prompt injection detected")
+                        # Log prompt injection violation
+                        _log_prompt_injection_violation(
+                            filename,
+                            context={"ide_type": ide_type.value, "hook_event": hook_event}
+                        )
+
+                        return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
+
+                    if ide_type != IDEType.CURSOR:
+                        logging.info("✓ No prompt injection detected")
+                elif injection_config and ide_type != IDEType.CURSOR:
+                    # Prompt injection detection is temporarily disabled
+                    logging.info("⚠️  Prompt injection detection temporarily disabled")
             except Exception as e:
                 # Fail-open: if prompt injection check fails, continue
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for secrets in the content
-        has_secrets, error_message = check_secrets_with_gitleaks(
-            content_to_scan, filename,
-            context={"ide_type": ide_type.value, "hook_event": hook_event}
-        )
+        secret_config = _load_secret_scanning_config()
 
-        if has_secrets:
-            # Secrets found - block operation
-            return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+        # Check if secret scanning is enabled (supports time-based disabling)
+        if is_feature_enabled(
+            secret_config.get("enabled") if secret_config else None,
+            datetime.now(timezone.utc),
+            default=True
+        ):
+            has_secrets, error_message = check_secrets_with_gitleaks(
+                content_to_scan, filename,
+                context={"ide_type": ide_type.value, "hook_event": hook_event}
+            )
 
-        # No secrets found, allow operation
-        if hook_event == "pretooluse":
-            logging.info(f"✓ No secrets detected in file '{filename}'")
-        else:
-            logging.info("✓ No secrets detected in prompt")
+            if has_secrets:
+                # Secrets found - block operation
+                return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+
+            # No secrets found, allow operation
+            if hook_event == "pretooluse":
+                logging.info(f"✓ No secrets detected in file '{filename}'")
+            else:
+                logging.info("✓ No secrets detected in prompt")
+        elif secret_config and ide_type != IDEType.CURSOR:
+            # Secret scanning is temporarily disabled
+            logging.info("⚠️  Secret scanning temporarily disabled")
+
         return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
     except json.JSONDecodeError as e:

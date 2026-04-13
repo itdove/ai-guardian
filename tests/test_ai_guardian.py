@@ -911,6 +911,216 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(response["exit_code"], 2)
         self.assertIsNone(response["output"])
 
+    @patch('ai_guardian._load_prompt_injection_config')
+    @patch('ai_guardian.check_prompt_injection')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_prompt_injection_time_based_disabled(self, mock_check_secrets, mock_check_injection, mock_load_config):
+        """Test prompt injection detection temporarily disabled via time-based config"""
+        from datetime import datetime, timezone
+
+        # Configure prompt injection as temporarily disabled (future expiration)
+        mock_load_config.return_value = {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2099-12-31T23:59:59Z",
+                "reason": "Testing prompt injection examples"
+            },
+            "detector": "heuristic"
+        }
+
+        mock_check_secrets.return_value = (False, None)
+        # Injection check shouldn't be called since feature is disabled
+        mock_check_injection.return_value = (True, "Injection detected")
+
+        hook_input = json.dumps({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "test prompt"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        # Should allow (not block) since prompt injection is disabled
+        self.assertEqual(response["exit_code"], 0)
+        # Injection check should not be called
+        mock_check_injection.assert_not_called()
+
+    @patch('ai_guardian._load_prompt_injection_config')
+    @patch('ai_guardian.check_prompt_injection')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_prompt_injection_time_based_expired_auto_enabled(self, mock_check_secrets, mock_check_injection, mock_load_config):
+        """Test prompt injection detection auto-enabled after disable period expires"""
+        from datetime import datetime, timezone
+
+        # Configure prompt injection with expired disable period (past date)
+        mock_load_config.return_value = {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2020-01-01T00:00:00Z",  # Past date
+                "reason": "Expired disable"
+            },
+            "detector": "heuristic"
+        }
+
+        mock_check_secrets.return_value = (False, None)
+        mock_check_injection.return_value = (True, "Injection detected")
+
+        hook_input = json.dumps({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "test prompt"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        # Should block since prompt injection is auto-enabled (expired disable)
+        self.assertEqual(response["exit_code"], 2)
+        # Injection check should be called
+        mock_check_injection.assert_called_once()
+
+    @patch('ai_guardian._load_permissions_config')
+    @patch('ai_guardian.ToolPolicyChecker')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_permissions_time_based_disabled(self, mock_check_secrets, mock_policy_checker_class, mock_load_config):
+        """Test tool permissions temporarily disabled via time-based config"""
+        from datetime import datetime, timezone
+
+        # Configure permissions as temporarily disabled
+        mock_load_config.return_value = {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2099-12-31T23:59:59Z",
+                "reason": "Emergency debugging"
+            }
+        }
+
+        mock_check_secrets.return_value = (False, None)
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+            f.write("test content")
+            temp_path = f.name
+
+        try:
+            hook_input = json.dumps({
+                "hook_event_name": "PreToolUse",
+                "input": {
+                    "tool_name": "Read",
+                    "file_path": temp_path
+                }
+            })
+
+            with patch('sys.stdin', StringIO(hook_input)):
+                response = ai_guardian.process_hook_input()
+
+            # Should allow (not check permissions) since enforcement is disabled
+            self.assertEqual(response["exit_code"], 0)
+            # Policy checker should not be instantiated
+            mock_policy_checker_class.assert_not_called()
+        finally:
+            os.unlink(temp_path)
+
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_secret_scanning_time_based_disabled(self, mock_check_secrets, mock_load_config):
+        """Test secret scanning temporarily disabled via time-based config"""
+        from datetime import datetime, timezone
+
+        # Configure secret scanning as temporarily disabled
+        mock_load_config.return_value = {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2099-12-31T23:59:59Z",
+                "reason": "Testing with known-safe example secrets"
+            }
+        }
+
+        # Even if check_secrets would find secrets, it shouldn't be called
+        mock_check_secrets.return_value = (True, "Secret detected")
+
+        hook_input = json.dumps({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "test prompt with ghp_token123"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        # Should allow since secret scanning is disabled
+        self.assertEqual(response["exit_code"], 0)
+        # Secret check should not be called
+        mock_check_secrets.assert_not_called()
+
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_secret_scanning_time_based_expired_auto_enabled(self, mock_check_secrets, mock_load_config):
+        """Test secret scanning auto-enabled after disable period expires"""
+        from datetime import datetime, timezone
+
+        # Configure secret scanning with expired disable period
+        mock_load_config.return_value = {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2020-01-01T00:00:00Z",  # Past date
+                "reason": "Expired disable"
+            }
+        }
+
+        mock_check_secrets.return_value = (True, "Secret detected")
+
+        hook_input = json.dumps({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "test prompt"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        # Should block since secret scanning is auto-enabled
+        self.assertEqual(response["exit_code"], 2)
+        # Secret check should be called
+        mock_check_secrets.assert_called_once()
+
+    @patch('ai_guardian._load_prompt_injection_config')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.check_prompt_injection')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_multiple_features_different_states(self, mock_check_secrets, mock_check_injection, mock_secret_config, mock_injection_config):
+        """Test multiple features with different enable/disable states"""
+        from datetime import datetime, timezone
+
+        # Prompt injection: enabled (boolean)
+        mock_injection_config.return_value = {
+            "enabled": True,
+            "detector": "heuristic"
+        }
+
+        # Secret scanning: temporarily disabled
+        mock_secret_config.return_value = {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2099-12-31T23:59:59Z"
+            }
+        }
+
+        mock_check_injection.return_value = (False, None)
+        mock_check_secrets.return_value = (True, "Secret detected")
+
+        hook_input = json.dumps({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "test prompt"
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        # Should allow (prompt injection check runs and passes, secret scanning disabled)
+        self.assertEqual(response["exit_code"], 0)
+        # Injection check should be called (enabled)
+        mock_check_injection.assert_called_once()
+        # Secret check should NOT be called (disabled)
+        mock_check_secrets.assert_not_called()
+
 
 if __name__ == "__main__":
     import unittest

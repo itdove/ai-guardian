@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Time-based disabling for security features (Issue #35)
+  - Support for temporarily disabling entire security features for time-boxed periods
+  - Works for all four major features: prompt injection, tool permissions, secret scanning, and pattern server
+  - Extended format: `{"enabled": {"value": false, "disabled_until": "2026-04-13T18:00:00Z", "reason": "Debugging session"}}`
+  - Backward compatible: existing boolean `enabled` flags work unchanged
+  - Auto-re-enabling: features automatically re-enable when disable period expires
+  - Fail-safe: invalid timestamps default to permanent disable (security-first)
+  - ISO 8601 timestamp format with UTC timezone required
+  - Use cases: emergency debugging access, testing with false positives, maintenance windows
+  - Configuration fields:
+    - `prompt_injection.enabled`: Supports time-based disabling for prompt injection detection
+    - `permissions_enabled.enabled`: Supports time-based disabling for tool permissions enforcement
+    - `secret_scanning.enabled`: Supports time-based disabling for Gitleaks secret scanning
+    - `pattern_server.enabled`: Supports time-based disabling for pattern server integration
+  - Added `is_feature_enabled()` utility function to config_utils module
+  - Comprehensive test coverage for time-based feature disabling logic
+  - Logging records when features are temporarily disabled and when they auto-re-enable
+  - Security warning: disabling features reduces protection - use sparingly and only for short periods
 - Time-based expiration for permission and prompt injection allow lists (Issue #34)
   - Support both simple string patterns (permanent) and extended dict format with `valid_until` field
   - Extended format: `{"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"}`
