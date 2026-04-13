@@ -140,3 +140,85 @@ def is_expired(valid_until: str, current_time: Optional[datetime] = None) -> boo
 
     # Check if expired: current_time >= valid_until
     return current_time >= valid_until_dt
+
+
+def is_feature_enabled(feature_config, current_time: Optional[datetime] = None, default: bool = True) -> bool:
+    """
+    Check if a feature is enabled (not temporarily disabled).
+
+    Supports both simple boolean format (permanent) and extended object format
+    with time-based disabling.
+
+    Args:
+        feature_config: Feature configuration - can be:
+            - bool: Simple enabled/disabled (permanent)
+            - dict: Extended format with optional time-based disabling
+            - None: Use default value
+        current_time: Optional current time for testing (defaults to now in UTC)
+        default: Default value if config is None or missing (default: True)
+
+    Returns:
+        bool: True if feature should be active, False if disabled
+
+    Examples:
+        Simple boolean format (backward compatible):
+        >>> is_feature_enabled(True)
+        True
+
+        >>> is_feature_enabled(False)
+        False
+
+        Extended format without time-based disabling:
+        >>> is_feature_enabled({"value": True})
+        True
+
+        Extended format with time-based disabling (active):
+        >>> config = {"value": False, "disabled_until": "2099-12-31T23:59:59Z"}
+        >>> is_feature_enabled(config)  # Still disabled (future date)
+        False
+
+        Extended format with expired disable period (auto-enabled):
+        >>> config = {"value": False, "disabled_until": "2020-01-01T00:00:00Z"}
+        >>> is_feature_enabled(config)  # Auto-enabled (past date)
+        True
+
+        Missing config uses default:
+        >>> is_feature_enabled(None)
+        True
+
+        >>> is_feature_enabled(None, default=False)
+        False
+    """
+    # Handle None - use default
+    if feature_config is None:
+        return default
+
+    # Simple boolean format (backward compatible)
+    if isinstance(feature_config, bool):
+        return feature_config
+
+    # Extended format with optional time-based disabling
+    if isinstance(feature_config, dict):
+        # Get the enabled value (default to True if missing)
+        enabled_value = feature_config.get("value", default)
+
+        # If currently disabled, check if it should be auto-re-enabled
+        if not enabled_value:
+            disabled_until = feature_config.get("disabled_until")
+            if disabled_until:
+                # Check if disable period has expired
+                if is_expired(disabled_until, current_time):
+                    # Temporary disable period has expired - re-enable
+                    logger.info("Feature auto-enabled (disable period expired)")
+                    return True
+                else:
+                    # Still within disable period
+                    logger.debug("Feature disabled (within disable period)")
+                    return False
+
+        # Return the enabled value
+        return enabled_value
+
+    # Unknown format - fail-safe to default
+    logger.warning(f"Unknown feature config format: {type(feature_config)}, using default: {default}")
+    return default
