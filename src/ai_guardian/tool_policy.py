@@ -50,6 +50,10 @@ IMMUTABLE_DENY_PATTERNS = {
         # Protect ai-guardian package (self-protection)
         "*/ai_guardian/*",
         "*/site-packages/ai_guardian/*",
+
+        # Protect .ai-read-deny marker files (directory protection)
+        "*/.ai-read-deny",
+        "**/.ai-read-deny",
     ],
 
     "Edit": [
@@ -64,6 +68,10 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/Cursor/hooks.json",
         "*/ai_guardian/*",
         "*/site-packages/ai_guardian/*",
+
+        # Protect .ai-read-deny marker files (directory protection)
+        "*/.ai-read-deny",
+        "**/.ai-read-deny",
     ],
 
     "Bash": [
@@ -92,6 +100,18 @@ IMMUTABLE_DENY_PATTERNS = {
         "*mv*ai-guardian*",
         "*mv*.claude/settings.json*",
         "*mv*.cursor/hooks.json*",
+
+        # Protect .ai-read-deny marker files from bash manipulation
+        "*rm*.ai-read-deny*",          # Block: rm .ai-read-deny
+        "*rm*/.ai-read-deny*",         # Block: rm /path/.ai-read-deny
+        "*mv*.ai-read-deny*",          # Block: mv .ai-read-deny
+        "*sed*.ai-read-deny*",         # Block: sed on .ai-read-deny
+        "*awk*.ai-read-deny*",         # Block: awk on .ai-read-deny
+        "*>*.ai-read-deny*",           # Block: echo > .ai-read-deny
+        "*chmod*.ai-read-deny*",       # Block: chmod .ai-read-deny
+        "*chattr*.ai-read-deny*",      # Block: chattr .ai-read-deny
+        "*vim*.ai-read-deny*",         # Block: vim .ai-read-deny
+        "*nano*.ai-read-deny*",        # Block: nano .ai-read-deny
     ]
 }
 
@@ -571,23 +591,44 @@ class ToolPolicyChecker:
         Returns:
             str: Formatted error message
         """
-        return (
+        # Check if this is a .ai-read-deny marker file
+        is_marker_file = file_path.endswith('.ai-read-deny') or '/.ai-read-deny' in file_path
+
+        base_message = (
             f"\n{'='*70}\n"
             f"🔒 CRITICAL FILE PROTECTED\n"
             f"{'='*70}\n\n"
             f"This file is protected by ai-guardian and cannot be modified.\n\n"
             f"File: {file_path}\n"
             f"Tool: {tool_name}\n"
-            f"Reason: Critical security configuration\n\n"
-            f"Protected files:\n"
-            f"  • ai-guardian configuration files\n"
-            f"  • IDE hook configuration (Claude, Cursor)\n"
-            f"  • ai-guardian package source code\n\n"
-            f"This protection cannot be disabled via configuration.\n"
-            f"It ensures ai-guardian cannot be bypassed by AI agents.\n\n"
-            f"To edit these files, use your text editor manually.\n"
-            f"\n{'='*70}\n"
         )
+
+        if is_marker_file:
+            return base_message + (
+                f"Reason: Directory protection marker\n\n"
+                f"Protected files:\n"
+                f"  • ai-guardian configuration files\n"
+                f"  • IDE hook configuration (Claude, Cursor)\n"
+                f"  • ai-guardian package source code\n"
+                f"  • .ai-read-deny marker files (directory protection)\n\n"
+                f"This protection cannot be disabled via configuration.\n"
+                f"It ensures directory protection cannot be bypassed by AI agents.\n\n"
+                f"To remove directory protection, delete .ai-read-deny manually.\n"
+                f"\n{'='*70}\n"
+            )
+        else:
+            return base_message + (
+                f"Reason: Critical security configuration\n\n"
+                f"Protected files:\n"
+                f"  • ai-guardian configuration files\n"
+                f"  • IDE hook configuration (Claude, Cursor)\n"
+                f"  • ai-guardian package source code\n"
+                f"  • .ai-read-deny marker files (directory protection)\n\n"
+                f"This protection cannot be disabled via configuration.\n"
+                f"It ensures ai-guardian cannot be bypassed by AI agents.\n\n"
+                f"To edit these files, use your text editor manually.\n"
+                f"\n{'='*70}\n"
+            )
 
     def _suggest_permission_rule(self, tool_name: str) -> Tuple[str, List[Dict]]:
         """

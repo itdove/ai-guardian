@@ -8,7 +8,14 @@
   "_comment6": "  - Built-in tools (Read, Write, Bash, etc.): ALLOW by default",
   "_comment7": "  - Skills (Skill): BLOCK by default (must be explicitly allowed)",
   "_comment8": "  - MCP Servers (mcp__*): BLOCK by default (must be explicitly allowed)",
-  "_comment9": "====================================================================",
+  "_comment9": "",
+  "_comment10": "⚠️ CRITICAL: Immutable Protection (Cannot be overridden):",
+  "_comment11": "  - ai-guardian configuration files (ai-guardian.json)",
+  "_comment12": "  - IDE hook configuration (.claude/settings.json, .cursor/hooks.json)",
+  "_comment13": "  - ai-guardian package source code (ai_guardian/*)",
+  "_comment14": "  - .ai-read-deny marker files (directory protection)",
+  "_comment15": "No configuration can disable these protections - they are hardcoded",
+  "_comment16": "====================================================================",
 
   "permissions": [
     {
@@ -236,7 +243,8 @@
       "2": "If no .ai-read-deny and path matches exclusion → ALLOW (skip blocking)",
       "3": "Otherwise → ALLOW (no .ai-read-deny found, not excluded)",
       "_critical_note": "There is NO configuration option to override .ai-read-deny with exclusions",
-      "_to_remove_protection": "User must manually delete the .ai-read-deny file"
+      "_to_remove_protection": "User must manually delete the .ai-read-deny file",
+      "_marker_protection": "AI agents cannot remove/modify .ai-read-deny files (immutable protection)"
     },
     "_use_cases": {
       "development_workspace": {
@@ -257,6 +265,7 @@
       "_recommendations": [
         "Use exclusions sparingly and only for known-safe directories",
         ".ai-read-deny markers ALWAYS work (cannot be disabled)",
+        "AI agents cannot remove/modify .ai-read-deny files (immutable protection)",
         "To remove protection, user must manually delete .ai-read-deny file",
         "Exclusions should be in protected config files (not set by AI)",
         "Audit exclusion configurations regularly"

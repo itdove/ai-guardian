@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Protection for .ai-read-deny marker files (Issue #41)
+  - AI agents can no longer remove or modify `.ai-read-deny` marker files
+  - Prevents bypass of directory protection by deleting marker files
+  - Protected via IMMUTABLE_DENY_PATTERNS (same mechanism as ai-guardian config protection)
+  - Blocks all manipulation attempts: Write, Edit, rm, mv, sed, awk, chmod, vim, nano
+  - Works for absolute, relative, and nested directory paths
+  - Marker file protection is always active and cannot be disabled via configuration
+  - Error messages clearly indicate when marker file protection triggers
+  - Comprehensive test coverage (20+ test cases)
+  - Updated documentation:
+    - README.md self-protection section updated with .ai-read-deny examples
+    - DIRECTORY_BLOCKING.md now includes marker file protection section
+    - ai-guardian-example.json updated with protection documentation
+  - Defense in depth: directory protection cannot be bypassed by AI agents
 - Time-based disabling for security features (Issue #35)
   - Support for temporarily disabling entire security features for time-boxed periods
   - Works for all four major features: prompt injection, tool permissions, secret scanning, and pattern server

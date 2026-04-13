@@ -512,6 +512,319 @@ class SelfProtectionTest(TestCase):
         self.assertTrue(is_allowed, "Normal Bash commands should be allowed")
 
     # ========================================================================
+    # Test: AI cannot modify .ai-read-deny marker files (Write tool)
+    # ========================================================================
+
+    def test_write_blocks_ai_read_deny_marker(self):
+        """AI cannot write to .ai-read-deny marker file"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Write to .ai-read-deny should be blocked")
+        self.assertIsNotNone(error_msg, "Error message should be provided")
+        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn(".ai-read-deny", error_msg)
+        self.assertIn("Directory protection marker", error_msg)
+
+    def test_write_blocks_ai_read_deny_absolute_path(self):
+        """AI cannot write to .ai-read-deny with absolute path"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/var/lib/sensitive/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Write to .ai-read-deny (absolute) should be blocked")
+        self.assertIn("Directory protection marker", error_msg)
+
+    def test_write_blocks_ai_read_deny_nested_path(self):
+        """AI cannot write to .ai-read-deny in nested directories"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/project/a/b/c/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Write to .ai-read-deny (nested) should be blocked")
+
+    # ========================================================================
+    # Test: AI cannot modify .ai-read-deny marker files (Edit tool)
+    # ========================================================================
+
+    def test_edit_blocks_ai_read_deny_marker(self):
+        """AI cannot edit .ai-read-deny marker file"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {
+                    "file_path": "/home/user/secrets/.ai-read-deny",
+                    "old_string": "",
+                    "new_string": "test"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Edit of .ai-read-deny should be blocked")
+        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Directory protection marker", error_msg)
+
+    # ========================================================================
+    # Test: AI cannot bypass via Bash rm
+    # ========================================================================
+
+    def test_bash_blocks_rm_ai_read_deny(self):
+        """AI cannot use rm to delete .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "rm /home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash rm of .ai-read-deny should be blocked")
+
+    def test_bash_blocks_rm_ai_read_deny_relative(self):
+        """AI cannot use rm to delete .ai-read-deny (relative path)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "rm secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash rm of .ai-read-deny (relative) should be blocked")
+
+    def test_bash_blocks_rm_rf_ai_read_deny(self):
+        """AI cannot use rm -rf to delete .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "rm -rf /home/user/project/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash rm -rf of .ai-read-deny should be blocked")
+
+    # ========================================================================
+    # Test: AI cannot bypass via Bash mv
+    # ========================================================================
+
+    def test_bash_blocks_mv_ai_read_deny(self):
+        """AI cannot use mv to move/rename .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "mv /home/user/secrets/.ai-read-deny /tmp/backup"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash mv of .ai-read-deny should be blocked")
+
+    def test_bash_blocks_mv_ai_read_deny_rename(self):
+        """AI cannot use mv to rename .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "mv .ai-read-deny .ai-read-deny.bak"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash mv rename of .ai-read-deny should be blocked")
+
+    # ========================================================================
+    # Test: AI cannot bypass via Bash sed/awk
+    # ========================================================================
+
+    def test_bash_blocks_sed_ai_read_deny(self):
+        """AI cannot use sed on .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/test/new/' /home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash sed on .ai-read-deny should be blocked")
+
+    def test_bash_blocks_awk_ai_read_deny(self):
+        """AI cannot use awk on .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "awk '{print}' .ai-read-deny > /tmp/out"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash awk on .ai-read-deny should be blocked")
+
+    # ========================================================================
+    # Test: AI cannot bypass via Bash echo redirect
+    # ========================================================================
+
+    def test_bash_blocks_echo_redirect_ai_read_deny(self):
+        """AI cannot use echo redirect to overwrite .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "echo '' > /home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash echo redirect to .ai-read-deny should be blocked")
+
+    def test_bash_blocks_cat_redirect_ai_read_deny(self):
+        """AI cannot use cat redirect to overwrite .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "cat /dev/null > .ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash cat redirect to .ai-read-deny should be blocked")
+
+    # ========================================================================
+    # Test: AI cannot bypass via Bash chmod/chattr
+    # ========================================================================
+
+    def test_bash_blocks_chmod_ai_read_deny(self):
+        """AI cannot use chmod on .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "chmod 777 /home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash chmod on .ai-read-deny should be blocked")
+
+    def test_bash_blocks_chattr_ai_read_deny(self):
+        """AI cannot use chattr on .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "chattr +i /home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash chattr on .ai-read-deny should be blocked")
+
+    # ========================================================================
+    # Test: AI cannot bypass via Bash vim/nano
+    # ========================================================================
+
+    def test_bash_blocks_vim_ai_read_deny(self):
+        """AI cannot use vim to edit .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "vim /home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash vim on .ai-read-deny should be blocked")
+
+    def test_bash_blocks_nano_ai_read_deny(self):
+        """AI cannot use nano to edit .ai-read-deny"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "nano .ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash nano on .ai-read-deny should be blocked")
+
+    # ========================================================================
     # Test: Error messages are clear
     # ========================================================================
 
@@ -538,8 +851,32 @@ class SelfProtectionTest(TestCase):
         self.assertIn("ai-guardian configuration", error_msg)
         self.assertIn("IDE hook configuration", error_msg)
         self.assertIn("package source code", error_msg)
+        self.assertIn(".ai-read-deny marker files", error_msg)
         self.assertIn("cannot be disabled via configuration", error_msg)
         self.assertIn("use your text editor manually", error_msg)
+
+    def test_error_message_marker_file_format(self):
+        """Error message for .ai-read-deny should mention directory protection"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/secrets/.ai-read-deny"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        # Check error message contains marker-file-specific elements
+        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("/home/user/secrets/.ai-read-deny", error_msg)
+        self.assertIn("Write", error_msg)
+        self.assertIn("Directory protection marker", error_msg)
+        self.assertIn(".ai-read-deny marker files (directory protection)", error_msg)
+        self.assertIn("directory protection cannot be bypassed", error_msg)
+        self.assertIn("delete .ai-read-deny manually", error_msg)
 
 
 if __name__ == '__main__':
