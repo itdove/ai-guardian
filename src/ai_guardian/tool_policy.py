@@ -756,7 +756,11 @@ class ToolPolicyChecker:
                 "deny": [],
                 "allow": []
             },
-            "remote_configs": []
+            "remote_configs": [],
+            "directory_exclusions": {
+                "enabled": False,
+                "paths": []
+            }
         }
 
     def _load_local_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
