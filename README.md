@@ -1136,6 +1136,10 @@ AI Guardian uses **hardcoded deny patterns** that protect its own critical files
    - `*/ai_guardian/*` (all package files)
    - `*/site-packages/ai_guardian/*`
 
+4. **Directory protection markers** - Prevents AI from removing `.ai-read-deny` files
+   - `*/.ai-read-deny` (all directory markers)
+   - `**/.ai-read-deny` (recursive protection)
+
 **How Self-Protection Works:**
 
 The protection works through an **unbreakable loop**:
@@ -1171,6 +1175,14 @@ Bash(command="echo '{}' > ~/.config/ai-guardian/ai-guardian.json")
 # Try 6: Delete config file
 Bash(command="rm ~/.config/ai-guardian/ai-guardian.json")
 # ❌ BLOCKED by "*rm*ai-guardian.json*" pattern
+
+# Try 7: Bypass directory protection by removing marker
+Bash(command="rm ~/secrets/.ai-read-deny")
+# ❌ BLOCKED by "*rm*.ai-read-deny*" pattern
+
+# Try 8: Rename directory protection marker
+Bash(command="mv .ai-read-deny .ai-read-deny.bak")
+# ❌ BLOCKED by "*mv*.ai-read-deny*" pattern
 ```
 
 All bypass attempts are blocked before execution! 🛡️
@@ -1203,6 +1215,7 @@ Protected files:
   • ai-guardian configuration files
   • IDE hook configuration (Claude, Cursor)
   • ai-guardian package source code
+  • .ai-read-deny marker files (directory protection)
 
 This protection cannot be disabled via configuration.
 It ensures ai-guardian cannot be bypassed by AI agents.

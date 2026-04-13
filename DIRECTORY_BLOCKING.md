@@ -131,6 +131,88 @@ cd /path/to/protected/directory
 rm .ai-read-deny
 ```
 
+**Important:** You must manually delete the `.ai-read-deny` file yourself. The AI cannot remove it due to the self-protection feature described below.
+
+## Marker File Protection (Self-Protection)
+
+**Critical Security Feature:** AI agents cannot remove or modify `.ai-read-deny` marker files.
+
+### Why This Matters
+
+Without marker file protection, an AI agent could bypass directory protection by simply deleting the `.ai-read-deny` file:
+
+```bash
+# AI tries to read protected file → BLOCKED
+Read(file_path="~/secrets/api_keys.txt")
+# Error: Directory protected by .ai-read-deny
+
+# AI removes the marker file → Would bypass protection!
+Bash(command="rm ~/secrets/.ai-read-deny")
+# Without protection, this would succeed ❌
+
+# AI reads file again → Protection bypassed!
+Read(file_path="~/secrets/api_keys.txt")
+# Would succeed without marker file protection ❌
+```
+
+### How Marker File Protection Works
+
+The `.ai-read-deny` marker files are protected by the same **immutable deny patterns** that protect ai-guardian's configuration files:
+
+**All of these operations are BLOCKED:**
+- `Write` tool: AI cannot write to `.ai-read-deny` files
+- `Edit` tool: AI cannot edit `.ai-read-deny` files
+- `Bash` commands:
+  - `rm .ai-read-deny` → BLOCKED
+  - `mv .ai-read-deny` → BLOCKED
+  - `sed -i .ai-read-deny` → BLOCKED
+  - `echo '' > .ai-read-deny` → BLOCKED
+  - `chmod .ai-read-deny` → BLOCKED
+  - `vim .ai-read-deny` → BLOCKED
+  - Any other manipulation → BLOCKED
+
+### Example: AI Cannot Bypass Directory Protection
+
+```bash
+# User protects directory
+cd ~/secrets && touch .ai-read-deny
+
+# AI tries to read file → BLOCKED
+Read(file_path="~/secrets/api_keys.txt")
+# Error: Directory protected by .ai-read-deny ✅
+
+# AI tries to remove marker → BLOCKED
+Bash(command="rm ~/secrets/.ai-read-deny")
+# Error: CRITICAL FILE PROTECTED - .ai-read-deny marker files ✅
+
+# AI tries to rename marker → BLOCKED
+Bash(command="mv .ai-read-deny .ai-read-deny.bak")
+# Error: CRITICAL FILE PROTECTED - .ai-read-deny marker files ✅
+
+# Protection remains intact! ✅
+```
+
+### Security Benefits
+
+1. **Defense in Depth** - Directory protection cannot be bypassed by AI agents
+2. **User Trust** - Users can trust that `.ai-read-deny` markers will work as expected
+3. **Consistency** - Same protection mechanism as ai-guardian's own configuration
+4. **No Configuration** - Protection is always active, no setup required
+
+### User Override
+
+Only you (the user) can remove `.ai-read-deny` markers:
+
+```bash
+# You can manually delete markers anytime
+rm ~/secrets/.ai-read-deny
+
+# Or edit them with your text editor
+vim ~/secrets/.ai-read-deny
+```
+
+The protection only blocks **AI agent** access via tools, not your manual actions.
+
 ## Testing
 
 Run the test suite to verify directory blocking works correctly:
