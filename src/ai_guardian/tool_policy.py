@@ -15,10 +15,11 @@ import fnmatch
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Tuple, Set, Union
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, is_expired
 
 # Import violation logger
 try:
@@ -201,16 +202,18 @@ class ToolPolicyChecker:
                     mode = "deny" if patterns else None
 
                 if mode == "deny":
-                    for pattern in patterns:
-                        if fnmatch.fnmatch(check_value, pattern):
-                            logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern}")
-                            error_msg = self._format_deny_message(tool_name, pattern, rule["matcher"])
+                    for pattern_entry in patterns:
+                        # Extract pattern string from entry (supports both str and dict formats)
+                        pattern_str = self._extract_pattern_string(pattern_entry)
+                        if fnmatch.fnmatch(check_value, pattern_str):
+                            logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
+                            error_msg = self._format_deny_message(tool_name, pattern_str, rule["matcher"])
 
                             # Log violation
                             self._log_violation(
                                 tool_name=tool_name,
                                 check_value=check_value,
-                                reason=f"matched deny pattern: {pattern}",
+                                reason=f"matched deny pattern: {pattern_str}",
                                 matcher=rule["matcher"],
                                 hook_data=hook_data
                             )
@@ -230,9 +233,11 @@ class ToolPolicyChecker:
 
                 if mode == "allow":
                     has_allow_rules = True
-                    for pattern in patterns:
-                        if fnmatch.fnmatch(check_value, pattern):
-                            logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern}")
+                    for pattern_entry in patterns:
+                        # Extract pattern string from entry (supports both str and dict formats)
+                        pattern_str = self._extract_pattern_string(pattern_entry)
+                        if fnmatch.fnmatch(check_value, pattern_str):
+                            logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern_str}")
                             return True, None, tool_name
 
             # If we have allow rules but no match, deny
@@ -292,9 +297,103 @@ class ToolPolicyChecker:
             logger.error(f"Error extracting tool info: {e}")
             return None, {}
 
+    def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
+        """
+        Extract the pattern string from a pattern entry.
+
+        Args:
+            pattern_entry: Either a string pattern or dict with 'pattern' field
+
+        Returns:
+            str: The pattern string
+
+        Examples:
+            >>> self._extract_pattern_string("daf-*")
+            "daf-*"
+
+            >>> self._extract_pattern_string({"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"})
+            "debug-*"
+        """
+        if isinstance(pattern_entry, str):
+            return pattern_entry
+        elif isinstance(pattern_entry, dict) and "pattern" in pattern_entry:
+            return pattern_entry["pattern"]
+        else:
+            # Fallback - return string representation
+            return str(pattern_entry)
+
+    def _is_pattern_valid(self, pattern_entry: Union[str, Dict], current_time: Optional[datetime] = None) -> bool:
+        """
+        Check if a pattern entry is still valid (not expired).
+
+        Supports both simple format (string) and extended format (dict with valid_until).
+
+        Args:
+            pattern_entry: Either a string pattern or dict with 'pattern' and 'valid_until'
+            current_time: Optional current time for testing (defaults to now in UTC)
+
+        Returns:
+            bool: True if pattern is valid, False if expired
+
+        Examples:
+            >>> self._is_pattern_valid("daf-*")
+            True
+
+            >>> self._is_pattern_valid({"pattern": "debug-*", "valid_until": "2099-12-31T23:59:59Z"})
+            True
+
+            >>> self._is_pattern_valid({"pattern": "temp-*", "valid_until": "2020-01-01T00:00:00Z"})
+            False
+        """
+        # Simple format (string) - never expires
+        if isinstance(pattern_entry, str):
+            return True
+
+        # Extended format (dict) - check for valid_until field
+        if isinstance(pattern_entry, dict):
+            # No valid_until field - treat as non-expiring
+            if "valid_until" not in pattern_entry:
+                return True
+
+            valid_until = pattern_entry.get("valid_until")
+            if not valid_until:
+                return True
+
+            # Check if expired
+            return not is_expired(valid_until, current_time)
+
+        # Unknown format - treat as valid (fail-safe)
+        logger.warning(f"Unknown pattern entry format: {type(pattern_entry)}")
+        return True
+
+    def _filter_valid_patterns(self, patterns: List[Union[str, Dict]], current_time: Optional[datetime] = None) -> List[Union[str, Dict]]:
+        """
+        Filter out expired patterns from a list.
+
+        Args:
+            patterns: List of pattern entries (strings or dicts)
+            current_time: Optional current time for testing
+
+        Returns:
+            list: Filtered list with only valid (non-expired) patterns
+        """
+        valid_patterns = []
+        for pattern_entry in patterns:
+            if self._is_pattern_valid(pattern_entry, current_time):
+                valid_patterns.append(pattern_entry)
+            else:
+                # Log when we skip an expired pattern
+                pattern_str = pattern_entry.get("pattern") if isinstance(pattern_entry, dict) else str(pattern_entry)
+                valid_until = pattern_entry.get("valid_until") if isinstance(pattern_entry, dict) else None
+                logger.info(f"Skipping expired pattern '{pattern_str}' (expired: {valid_until})")
+
+        return valid_patterns
+
     def _find_permission_rules(self, tool_name: str) -> List[Dict]:
         """
         Find all permission rules that match the tool name.
+
+        Filters out expired patterns from the rules.
 
         Args:
             tool_name: Name of the tool (e.g., "Skill", "mcp__notebooklm__notebook_list")
@@ -331,7 +430,19 @@ class ToolPolicyChecker:
             # Check if tool_name matches the matcher pattern
             if fnmatch.fnmatch(tool_name, matcher):
                 logger.debug(f"Found matching rule: {matcher}")
-                matching_rules.append(rule)
+
+                # Filter expired patterns from the rule
+                filtered_rule = rule.copy()
+                if "patterns" in filtered_rule:
+                    filtered_rule["patterns"] = self._filter_valid_patterns(filtered_rule["patterns"])
+
+                # Legacy format support - filter allow/deny lists
+                if "allow" in filtered_rule:
+                    filtered_rule["allow"] = self._filter_valid_patterns(filtered_rule["allow"])
+                if "deny" in filtered_rule:
+                    filtered_rule["deny"] = self._filter_valid_patterns(filtered_rule["deny"])
+
+                matching_rules.append(filtered_rule)
 
         return matching_rules
 
