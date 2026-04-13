@@ -30,6 +30,70 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Hardcoded critical protections - cannot be disabled or bypassed
+# These patterns are checked FIRST, before any user-configured permissions
+IMMUTABLE_DENY_PATTERNS = {
+    "Write": [
+        # Protect ai-guardian config files
+        "*ai-guardian.json",
+        "*/.config/ai-guardian/*",
+        "*/.ai-guardian.json",
+
+        # Protect IDE hook files (CRITICAL - prevents disabling ai-guardian)
+        "*/.claude/settings.json",
+        "*/.claude/hooks.json",
+        "*/.cursor/hooks.json",
+        "*/Claude/settings.json",    # Windows
+        "*/Cursor/hooks.json",        # Windows
+
+        # Protect ai-guardian package (self-protection)
+        "*/ai_guardian/*",
+        "*/site-packages/ai_guardian/*",
+    ],
+
+    "Edit": [
+        # Same patterns - protect from Edit tool
+        "*ai-guardian.json",
+        "*/.config/ai-guardian/*",
+        "*/.ai-guardian.json",
+        "*/.claude/settings.json",
+        "*/.claude/hooks.json",
+        "*/.cursor/hooks.json",
+        "*/Claude/settings.json",
+        "*/Cursor/hooks.json",
+        "*/ai_guardian/*",
+        "*/site-packages/ai_guardian/*",
+    ],
+
+    "Bash": [
+        # Block commands that could modify protected files
+        "*sed*ai-guardian*", "*sed*ai_guardian*",
+        "*awk*ai-guardian*", "*awk*ai_guardian*",
+        "*sed*.claude/settings.json*",
+        "*sed*.cursor/hooks.json*",
+        "*awk*.claude/settings.json*",
+        "*awk*.cursor/hooks.json*",
+        "*vim*.claude/settings.json*",
+        "*nano*.claude/settings.json*",
+        "*vim*.cursor/hooks.json*",
+        "*nano*.cursor/hooks.json*",
+        "*chmod*ai-guardian*", "*chmod*ai_guardian*",
+        "*chmod*.claude/settings.json*",
+        "*chmod*.cursor/hooks.json*",
+        "*chattr*ai-guardian*",
+        "*chattr*.claude*", "*chattr*.cursor*",
+        "*>*ai-guardian*", "*>*ai_guardian*",
+        "*>*.claude/settings.json*",
+        "*>*.cursor/hooks.json*",
+        "*rm*ai-guardian.json*",
+        "*rm*.claude/settings.json*",
+        "*rm*.cursor/hooks.json*",
+        "*mv*ai-guardian*",
+        "*mv*.claude/settings.json*",
+        "*mv*.cursor/hooks.json*",
+    ]
+}
+
 
 class ToolPolicyChecker:
     """
@@ -76,6 +140,24 @@ class ToolPolicyChecker:
 
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
 
+            # PRIORITY 1: Check immutable deny patterns (cannot be overridden)
+            # These protect ai-guardian config, IDE hooks, and package source code
+            check_value = self._extract_check_value(tool_name, tool_input, tool_name)
+            if check_value:
+                immutable_denies = IMMUTABLE_DENY_PATTERNS.get(tool_name, [])
+                for pattern in immutable_denies:
+                    if fnmatch.fnmatch(check_value, pattern):
+                        error_msg = self._format_immutable_deny_message(check_value, tool_name)
+                        self._log_violation(
+                            tool_name=tool_name,
+                            check_value=check_value,
+                            reason=f"immutable deny: {pattern}",
+                            matcher=tool_name,
+                            hook_data=hook_data
+                        )
+                        return False, error_msg, tool_name
+
+            # PRIORITY 2: Check user-configured permissions
             # Find all matching permission rules
             permission_rules = self._find_permission_rules(tool_name)
 
@@ -285,6 +367,11 @@ class ToolPolicyChecker:
             file_path = tool_input.get("file_path")
             return file_path if file_path else None
 
+        # Edit: extract file_path from input
+        if matcher == "Edit":
+            file_path = tool_input.get("file_path")
+            return file_path if file_path else None
+
         # MCP and other tools: use tool_name directly
         return tool_name
 
@@ -361,6 +448,35 @@ class ToolPolicyChecker:
         msg += f"{'='*70}\n"
 
         return msg
+
+    def _format_immutable_deny_message(self, file_path: str, tool_name: str) -> str:
+        """
+        Format error message for immutable deny (cannot be overridden).
+
+        Args:
+            file_path: The file path that was blocked
+            tool_name: The tool that was blocked
+
+        Returns:
+            str: Formatted error message
+        """
+        return (
+            f"\n{'='*70}\n"
+            f"🔒 CRITICAL FILE PROTECTED\n"
+            f"{'='*70}\n\n"
+            f"This file is protected by ai-guardian and cannot be modified.\n\n"
+            f"File: {file_path}\n"
+            f"Tool: {tool_name}\n"
+            f"Reason: Critical security configuration\n\n"
+            f"Protected files:\n"
+            f"  • ai-guardian configuration files\n"
+            f"  • IDE hook configuration (Claude, Cursor)\n"
+            f"  • ai-guardian package source code\n\n"
+            f"This protection cannot be disabled via configuration.\n"
+            f"It ensures ai-guardian cannot be bypassed by AI agents.\n\n"
+            f"To edit these files, use your text editor manually.\n"
+            f"\n{'='*70}\n"
+        )
 
     def _suggest_permission_rule(self, tool_name: str) -> Tuple[str, List[Dict]]:
         """

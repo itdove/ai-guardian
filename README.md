@@ -1058,6 +1058,113 @@ Tool completes (Bash, Read, Grep, etc.)
 - ✅ **No logging**: Secrets are never logged or stored
 - ✅ **Privacy-first**: Heuristic detection runs locally, no external calls
 
+### Self-Protecting Security Architecture
+
+AI Guardian uses **hardcoded deny patterns** that protect its own critical files from being modified by AI agents. This prevents AI from disabling security features or bypassing protection.
+
+**Protected Files:**
+
+1. **Configuration files** - Prevents AI from disabling security features
+   - `~/.config/ai-guardian/ai-guardian.json`
+   - `./.ai-guardian.json`
+   - Any file matching `*ai-guardian.json`
+
+2. **IDE hook files** - Prevents AI from removing ai-guardian hooks
+   - `~/.claude/settings.json` (Claude Code)
+   - `~/.cursor/hooks.json` (Cursor IDE)
+
+3. **Package source code** - Prevents AI from editing protection logic
+   - `*/ai_guardian/*` (all package files)
+   - `*/site-packages/ai_guardian/*`
+
+**How Self-Protection Works:**
+
+The protection works through an **unbreakable loop**:
+
+1. Deny patterns are checked in the PreToolUse hook **BEFORE** any tool executes
+2. If a tool tries to modify a protected file, the operation is **BLOCKED**
+3. The tool never executes, so the file is never modified
+4. AI cannot edit the source code to remove the protection because editing is blocked by the same protection
+
+**Example Attack Scenarios (All Blocked):**
+
+```bash
+# Try 1: Edit config file
+Edit(file_path="~/.config/ai-guardian/ai-guardian.json")
+# ❌ BLOCKED by "*ai-guardian.json" pattern
+
+# Try 2: Remove Claude hooks
+Edit(file_path="~/.claude/settings.json")
+# ❌ BLOCKED by "*/.claude/settings.json" pattern
+
+# Try 3: Edit source code to disable protection
+Edit(file_path="~/.local/lib/.../ai_guardian/tool_policy.py")
+# ❌ BLOCKED by "*/ai_guardian/*" pattern
+
+# Try 4: Use sed to bypass
+Bash(command="sed -i 's/IMMUTABLE/DISABLED/' ~/.local/lib/.../ai_guardian/tool_policy.py")
+# ❌ BLOCKED by "*sed*ai_guardian*" pattern
+
+# Try 5: Use echo redirect to overwrite
+Bash(command="echo '{}' > ~/.config/ai-guardian/ai-guardian.json")
+# ❌ BLOCKED by "*>*ai-guardian*" pattern
+
+# Try 6: Delete config file
+Bash(command="rm ~/.config/ai-guardian/ai-guardian.json")
+# ❌ BLOCKED by "*rm*ai-guardian.json*" pattern
+```
+
+All bypass attempts are blocked before execution! 🛡️
+
+**Why Filesystem Permissions Don't Work:**
+
+AI Guardian's config directory is **always in the user's HOME directory**:
+- Default: `~/.config/ai-guardian/`
+- XDG: `$XDG_CONFIG_HOME/ai-guardian/`
+- Custom: `$AI_GUARDIAN_CONFIG_DIR`
+
+All paths resolve to the HOME directory, which is **always writable by the user** (and therefore by AI agents). Filesystem permissions cannot protect these files.
+
+**Solution:** Hardcoded protection at the tool invocation level is the only cross-platform approach that works reliably.
+
+**What Happens When Protection Triggers:**
+
+```
+======================================================================
+🔒 CRITICAL FILE PROTECTED
+======================================================================
+
+This file is protected by ai-guardian and cannot be modified.
+
+File: ~/.claude/settings.json
+Tool: Edit
+Reason: Critical security configuration
+
+Protected files:
+  • ai-guardian configuration files
+  • IDE hook configuration (Claude, Cursor)
+  • ai-guardian package source code
+
+This protection cannot be disabled via configuration.
+It ensures ai-guardian cannot be bypassed by AI agents.
+
+To edit these files, use your text editor manually.
+
+======================================================================
+```
+
+**User Override:**
+
+If you need to edit these files:
+- Use your text editor manually (vim, nano, VS Code, etc.)
+- The protection only blocks **AI agent** access via tools
+- You retain full control over your configuration
+
+If a user manually edits the source code to remove the protection:
+- This is an intentional choice by the user
+- Same as uninstalling ai-guardian entirely
+- Not an AI bypass (requires manual intervention)
+
 ### Known Limitations
 
 **⚠️ AI Guardian is not perfect and has known limitations:**
