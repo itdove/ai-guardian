@@ -15,6 +15,7 @@ __version__ = "1.3.0-dev"
 import argparse
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import subprocess
 import sys
@@ -59,10 +60,29 @@ except ImportError:
     logging.debug("violation_logger module not available")
 
 # Configure logging - will be disabled for Cursor hooks
+# Set up file handler with rotation
+_log_file = get_config_dir() / "ai-guardian.log"
+_log_file.parent.mkdir(parents=True, exist_ok=True)
+
+_file_handler = RotatingFileHandler(
+    _log_file,
+    maxBytes=5*1024*1024,  # 5 MB
+    backupCount=3,
+    encoding='utf-8'
+)
+_file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+))
+
+# Configure root logger with both stderr and file handlers
 logging.basicConfig(
     level=logging.INFO,
-    format="%(message)s",
-    stream=sys.stderr,  # Log to stderr so stdout is clean for JSON responses
+    format="%(message)s",  # Simple format for stderr
+    handlers=[
+        logging.StreamHandler(sys.stderr),  # Keep stderr output for IDE compatibility
+        _file_handler  # Add file output
+    ]
 )
 
 # Global logger instance

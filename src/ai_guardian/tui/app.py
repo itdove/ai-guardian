@@ -205,6 +205,10 @@ class AIGuardianTUI(App):
                 from ai_guardian.tui.config_viewer import ConfigContent
                 yield ConfigContent()
 
+            with TabPane("📝 Logs", id="tab-logs"):
+                from ai_guardian.tui.logs import LogsContent
+                yield LogsContent()
+
         yield Footer()
 
     def check_action(self, action: str, parameters: tuple) -> Optional[bool]:
@@ -394,7 +398,7 @@ class AIGuardianTUI(App):
     def action_tab_left(self) -> None:
         """Switch to previous tab (left arrow)."""
         tabs = self.query_one(TabbedContent)
-        tab_ids = ["tab-violations", "tab-skills", "tab-mcp", "tab-secrets", "tab-prompt-injection", "tab-config"]
+        tab_ids = ["tab-violations", "tab-skills", "tab-mcp", "tab-secrets", "tab-prompt-injection", "tab-config", "tab-logs"]
         try:
             current_index = tab_ids.index(tabs.active)
             previous_index = (current_index - 1) % len(tab_ids)
@@ -405,7 +409,7 @@ class AIGuardianTUI(App):
     def action_tab_right(self) -> None:
         """Switch to next tab (right arrow)."""
         tabs = self.query_one(TabbedContent)
-        tab_ids = ["tab-violations", "tab-skills", "tab-mcp", "tab-secrets", "tab-prompt-injection", "tab-config"]
+        tab_ids = ["tab-violations", "tab-skills", "tab-mcp", "tab-secrets", "tab-prompt-injection", "tab-config", "tab-logs"]
         try:
             current_index = tab_ids.index(tabs.active)
             next_index = (current_index + 1) % len(tab_ids)
