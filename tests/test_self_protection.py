@@ -1023,6 +1023,121 @@ class SelfProtectionTest(TestCase):
         self.assertIn("directory protection cannot be bypassed", error_msg)
         self.assertIn("delete .ai-read-deny manually", error_msg)
 
+    # ========================================================================
+    # Test: Workaround tip for documentation files (Issue #65)
+    # ========================================================================
+
+    def test_error_message_includes_workaround_tip_for_write_protected_md_file(self):
+        """Error message includes tip when writing to protected .md file with ai-guardian in name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/project/.config/ai-guardian/docs/setup.md"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("💡 TIP", error_msg)
+        self.assertIn("ai - guardian", error_msg)
+        self.assertIn("with spaces", error_msg)
+        self.assertIn("trying to write ABOUT the tool", error_msg)
+
+    def test_error_message_includes_workaround_tip_for_edit_protected_readme(self):
+        """Error message includes tip when editing protected README with ai-guardian in name"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {
+                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/README.md",
+                    "old_string": "old",
+                    "new_string": "new"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("💡 TIP", error_msg)
+        self.assertIn("ai - guardian", error_msg)
+
+    def test_error_message_includes_workaround_tip_for_protected_txt_in_docs(self):
+        """Error message includes tip for protected .txt file with ai-guardian in path"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/.config/ai-guardian/README.txt"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("💡 TIP", error_msg)
+
+    def test_error_message_no_tip_for_protected_config_file(self):
+        """Error message should NOT include tip for actual protected config files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertNotIn("💡 TIP", error_msg)
+        self.assertNotIn("ai - guardian", error_msg)
+
+    def test_error_message_no_tip_for_protected_python_source(self):
+        """Error message should NOT include tip for protected Python source files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {
+                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+                    "old_string": "old",
+                    "new_string": "new"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertNotIn("💡 TIP", error_msg)
+
+    def test_error_message_no_tip_for_ide_settings_without_ai_guardian(self):
+        """Error message should NOT include tip for IDE settings (no ai-guardian in path)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/.claude/settings.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertNotIn("💡 TIP", error_msg)
+
 
 if __name__ == '__main__':
     import unittest
