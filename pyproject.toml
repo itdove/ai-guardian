@@ -13,6 +13,8 @@ requires-python = ">=3.9"
 dependencies = [
   "textual>=0.47.0",
   "jsonschema>=4.0.0",
+  "requests>=2.28.0",
+  "tomli>=2.0.0; python_version < '3.11'",
 ]
 keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
 classifiers = [
@@ -30,7 +32,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-skill-discovery = ["requests>=2.28.0"]
+skill-discovery = []
 
 [project.urls]
 "Homepage" = "https://github.com/itdove/ai-guardian"

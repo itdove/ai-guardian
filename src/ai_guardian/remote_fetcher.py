@@ -30,10 +30,16 @@ except ImportError:
     logger.warning("requests library not installed - HTTP/HTTPS remote configs not available")
 
 try:
-    import toml
+    # Python 3.11+ has tomllib built-in
+    import tomllib as toml
     HAS_TOML = True
 except ImportError:
-    HAS_TOML = False
+    try:
+        # Python < 3.11 uses tomli (backport)
+        import tomli as toml
+        HAS_TOML = True
+    except ImportError:
+        HAS_TOML = False
 
 
 class RemoteFetcher:
