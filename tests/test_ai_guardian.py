@@ -83,6 +83,78 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # This is tested via integration test instead
         self.skipTest("Stripe key format too restrictive for GitHub push protection")
 
+    @patch('subprocess.run')
+    @patch('sys.stderr')
+    def test_check_secrets_gitleaks_not_found(self, mock_stderr, mock_run):
+        """Test that missing Gitleaks shows visible warning but doesn't block"""
+        # Mock subprocess.run to raise FileNotFoundError (Gitleaks not installed)
+        mock_run.side_effect = FileNotFoundError("gitleaks command not found")
+
+        content = "This is some content to scan"
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            content, "test.txt"
+        )
+
+        # Should return False (don't block) with no error message (fail-open)
+        self.assertFalse(has_secrets, "Missing Gitleaks should not block operation")
+        self.assertIsNone(error_msg, "Should not return error message (prints to stderr instead)")
+
+        # Verify warning was printed to stderr
+        self.assertTrue(mock_stderr.write.called, "Warning should be printed to stderr")
+        stderr_output = ''.join(str(call[0][0]) for call in mock_stderr.write.call_args_list)
+        self.assertIn("SECRET SCANNING DISABLED", stderr_output, "Warning should mention scanning is disabled")
+        self.assertIn("Gitleaks binary not found", stderr_output, "Warning should mention Gitleaks is missing")
+        self.assertIn("brew install gitleaks", stderr_output, "Warning should include installation instructions")
+
+    @patch('subprocess.run')
+    def test_check_secrets_gitleaks_auth_error_blocks(self, mock_run):
+        """Test that authentication errors block the operation"""
+        # Mock subprocess.run to return auth error
+        mock_result = MagicMock()
+        mock_result.returncode = 2
+        mock_result.stderr = "Error: 401 Unauthorized - authentication failed"
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
+        content = "This is some content to scan"
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            content, "test.txt"
+        )
+
+        # Should block operation (return True) with error message
+        self.assertTrue(has_secrets, "Auth error should block operation")
+        self.assertIsNotNone(error_msg, "Should return error message")
+        self.assertIn("AUTHENTICATION ERROR", error_msg, "Should mention authentication error")
+        self.assertIn("blocked for security", error_msg, "Should indicate operation is blocked")
+        self.assertIn("AI_GUARDIAN_PATTERN_TOKEN", error_msg, "Should mention token env var")
+
+    @patch('subprocess.run')
+    @patch('sys.stderr')
+    def test_check_secrets_gitleaks_network_error_warns(self, mock_stderr, mock_run):
+        """Test that network errors warn but don't block"""
+        # Mock subprocess.run to return network error
+        mock_result = MagicMock()
+        mock_result.returncode = 2
+        mock_result.stderr = "Error: connection timeout - unable to reach pattern server"
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
+        content = "This is some content to scan"
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            content, "test.txt"
+        )
+
+        # Should not block (return False)
+        self.assertFalse(has_secrets, "Network error should not block operation")
+        self.assertIsNone(error_msg, "Should not return error message (fail-open)")
+
+        # Verify warning was printed to stderr
+        self.assertTrue(mock_stderr.write.called, "Warning should be printed to stderr")
+        stderr_output = ''.join(str(call[0][0]) for call in mock_stderr.write.call_args_list)
+        self.assertIn("SECRET SCANNING WARNING", stderr_output, "Should show warning header")
+        self.assertIn("Network or server issue", stderr_output, "Should mention network issue")
+        self.assertIn("continue", stderr_output.lower(), "Should indicate operation continues")
+
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_clean_prompt(self, mock_check_secrets):
         """Test processing clean prompt input"""

@@ -1219,11 +1219,88 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 return False, None
 
             else:
-                # Unexpected error - fail open for availability
+                # Unexpected error - analyze and decide whether to block or warn
                 logging.warning(f"Gitleaks returned unexpected exit code: {result.returncode}")
+
+                # Extract error details
+                stderr_preview = ""
                 if result.stderr:
                     logging.warning(f"Gitleaks stderr: {result.stderr}")
-                return False, None
+                    stderr_lines = [line.strip() for line in result.stderr.split('\n') if line.strip()]
+                    if stderr_lines:
+                        stderr_preview = stderr_lines[0][:200]
+
+                # Check if this is an authentication/authorization error (user can fix)
+                is_auth_error = False
+                if result.stderr:
+                    stderr_lower = result.stderr.lower()
+                    is_auth_error = any(keyword in stderr_lower for keyword in
+                                       ['401', '403', 'unauthorized', 'forbidden', 'authentication failed',
+                                        'bad credentials', 'invalid token', 'access denied'])
+
+                # Check if this is a network error (user cannot fix)
+                is_network_error = False
+                if result.stderr:
+                    stderr_lower = result.stderr.lower()
+                    is_network_error = any(keyword in stderr_lower for keyword in
+                                          ['connection', 'timeout', 'network', 'unreachable',
+                                           'dial tcp', 'no route to host'])
+
+                if is_auth_error:
+                    # Authentication error - BLOCK (user can fix by updating credentials)
+                    error_msg = (
+                        f"\n{'='*70}\n"
+                        f"🔒 AUTHENTICATION ERROR\n"
+                        f"{'='*70}\n\n"
+                        f"Gitleaks authentication failed (exit code {result.returncode}).\n"
+                    )
+                    if stderr_preview:
+                        error_msg += f"\nError: {stderr_preview}\n"
+                    error_msg += (
+                        "\nThis operation has been blocked for security.\n\n"
+                        "If using pattern-servers:\n"
+                        "  1. Check your authentication token is valid\n"
+                        "  2. Update token: export AI_GUARDIAN_PATTERN_TOKEN='your-token'\n"
+                        "  3. Or disable pattern-servers in ~/.config/ai-guardian/ai-guardian.json\n\n"
+                        "If NOT using pattern-servers:\n"
+                        "  1. Check ~/.gitleaks.toml configuration\n"
+                        "  2. Try: gitleaks version (to verify installation)\n"
+                        f"{'='*70}\n"
+                    )
+                    return True, error_msg  # Block operation
+
+                else:
+                    # Network error or other issue - WARN but allow (fail-open)
+                    warning_msg = (
+                        f"\n{'='*70}\n"
+                        f"⚠️  SECRET SCANNING WARNING\n"
+                        f"{'='*70}\n"
+                        f"Gitleaks failed with exit code {result.returncode}.\n"
+                    )
+                    if stderr_preview:
+                        warning_msg += f"Error: {stderr_preview}\n"
+
+                    if is_network_error:
+                        warning_msg += (
+                            "\n💡 Network or server issue detected.\n"
+                            "   If using pattern-servers, the server may be temporarily unavailable.\n"
+                            "   You can disable pattern-servers in ~/.config/ai-guardian/ai-guardian.json\n"
+                        )
+
+                    warning_msg += (
+                        "\nOperation will continue, but secret scanning may not be functioning.\n\n"
+                        "Troubleshooting:\n"
+                        "  • Check Gitleaks: gitleaks version\n"
+                        "  • Review config: ~/.gitleaks.toml (if exists)\n"
+                        "  • Reinstall: brew reinstall gitleaks (macOS)\n"
+                        f"{'='*70}\n"
+                    )
+
+                    # Print to stderr for visibility
+                    print(warning_msg, file=sys.stderr)
+
+                    # Fail open - allow operation to continue
+                    return False, None
 
         finally:
             # Secure cleanup: overwrite file before deletion
@@ -1259,9 +1336,32 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     pass  # Silent fail on cleanup
 
     except FileNotFoundError:
-        # Gitleaks binary not found
+        # Gitleaks binary not found - warn but allow (user may not be able to install immediately)
         logging.warning("Gitleaks binary not found - skipping secret scanning")
         logging.warning("Install Gitleaks: https://github.com/gitleaks/gitleaks#installing")
+
+        # Print visible warning to stderr
+        warning_msg = (
+            f"\n{'='*70}\n"
+            f"⚠️  SECRET SCANNING DISABLED\n"
+            f"{'='*70}\n\n"
+            "Gitleaks binary not found - secret scanning is currently disabled.\n\n"
+            "AI Guardian requires Gitleaks to scan for sensitive information like:\n"
+            "  • API keys and tokens\n"
+            "  • Private keys (SSH, RSA, PGP)\n"
+            "  • Database credentials\n"
+            "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
+            "Install Gitleaks:\n"
+            "  macOS:   brew install gitleaks\n"
+            "  Linux:   See https://github.com/gitleaks/gitleaks#installing\n"
+            "  Windows: See https://github.com/gitleaks/gitleaks#installing\n\n"
+            "Operation will continue, but secrets will NOT be detected.\n"
+            "After installation, restart your IDE.\n"
+            f"{'='*70}\n"
+        )
+        print(warning_msg, file=sys.stderr)
+
+        # Fail open - allow operation to continue
         return False, None
 
     except subprocess.TimeoutExpired:

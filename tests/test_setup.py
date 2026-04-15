@@ -497,6 +497,103 @@ class TestIDESetup:
             assert '[DRY RUN]' in message
             assert not config_file.exists()
 
+    def test_verify_gitleaks_installed_success(self):
+        """Test Gitleaks verification when installed."""
+        setup = IDESetup()
+
+        with mock.patch('subprocess.run') as mock_run:
+            # Mock successful gitleaks version check
+            mock_result = mock.MagicMock()
+            mock_result.returncode = 0
+            mock_result.stdout = "gitleaks version 8.18.0\n"
+            mock_run.return_value = mock_result
+
+            success, message = setup.verify_gitleaks_installed()
+
+            assert success is True
+            assert '✓ Gitleaks is installed' in message
+            assert 'gitleaks version' in message
+            mock_run.assert_called_once_with(
+                ['gitleaks', 'version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+    def test_verify_gitleaks_not_found(self):
+        """Test Gitleaks verification when not installed."""
+        setup = IDESetup()
+
+        with mock.patch('subprocess.run') as mock_run:
+            # Mock FileNotFoundError (gitleaks not installed)
+            mock_run.side_effect = FileNotFoundError("gitleaks command not found")
+
+            success, message = setup.verify_gitleaks_installed()
+
+            assert success is False
+            assert '❌ Gitleaks not found' in message
+            assert 'https://github.com/gitleaks/gitleaks#installing' in message
+            assert 'brew install gitleaks' in message
+
+    def test_verify_gitleaks_timeout(self):
+        """Test Gitleaks verification when command times out."""
+        import subprocess
+        setup = IDESetup()
+
+        with mock.patch('subprocess.run') as mock_run:
+            # Mock timeout
+            mock_run.side_effect = subprocess.TimeoutExpired('gitleaks', 5)
+
+            success, message = setup.verify_gitleaks_installed()
+
+            assert success is False
+            assert '❌ Gitleaks check timed out' in message
+
+    def test_verify_gitleaks_command_failed(self):
+        """Test Gitleaks verification when command returns non-zero."""
+        setup = IDESetup()
+
+        with mock.patch('subprocess.run') as mock_run:
+            # Mock failed command
+            mock_result = mock.MagicMock()
+            mock_result.returncode = 1
+            mock_run.return_value = mock_result
+
+            success, message = setup.verify_gitleaks_installed()
+
+            assert success is False
+            assert '❌ Gitleaks command failed' in message
+
+    def test_setup_ide_hooks_shows_gitleaks_warning(self, tmp_path):
+        """Test that setup shows warning when Gitleaks is not installed."""
+        setup = IDESetup()
+
+        config_file = tmp_path / 'settings.json'
+
+        with mock.patch.object(
+            setup,
+            'IDE_CONFIGS',
+            {
+                'claude': {
+                    'name': 'Claude Code',
+                    'config_path': str(config_file),
+                    'hooks': {
+                        'UserPromptSubmit': [{'test': 'hook'}]
+                    }
+                }
+            }
+        ):
+            # Mock Gitleaks as not installed
+            with mock.patch.object(setup, 'verify_gitleaks_installed') as mock_verify:
+                mock_verify.return_value = (False, "❌ Gitleaks not found")
+
+                success, message = setup.setup_ide_hooks('claude', dry_run=False, force=False)
+
+                assert success is True
+                assert '❌ Gitleaks not found' in message
+                assert 'WARNING: Secret scanning will be disabled' in message
+                assert 'install gitleaks' in message.lower()
+
 
 class TestConfigDirEnvironmentVariable:
     """Test cases for AI_GUARDIAN_CONFIG_DIR environment variable."""
