@@ -1920,7 +1920,7 @@ class ToolPolicyChecker:
             for dir_entry in allow_dirs:
                 discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
                 if discovered_items:
-                    matcher = dir_entry.get("category", "Skill")
+                    matcher = dir_entry.get("matcher", "Skill")
                     self._add_to_permission_rule(config, matcher, "allow", discovered_items)
 
             # Process deny directories
@@ -1928,7 +1928,7 @@ class ToolPolicyChecker:
             for dir_entry in deny_dirs:
                 discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
                 if discovered_items:
-                    matcher = dir_entry.get("category", "Skill")
+                    matcher = dir_entry.get("matcher", "Skill")
                     self._add_to_permission_rule(config, matcher, "deny", discovered_items)
 
         except ImportError:
@@ -1942,11 +1942,11 @@ class ToolPolicyChecker:
 
         Args:
             discovery: SkillDiscovery instance
-            dir_entry: Directory entry dict with url, category, token_env
+            dir_entry: Directory entry dict with url, matcher, token_env
             cache_ttl: Cache TTL in hours
 
         Returns:
-            list: List of item names (without category prefix)
+            list: List of item names (without matcher prefix)
         """
         try:
             url = dir_entry.get("url")
