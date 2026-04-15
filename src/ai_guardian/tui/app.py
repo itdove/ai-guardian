@@ -181,6 +181,10 @@ class AIGuardianTUI(App):
         yield Header()
 
         with TabbedContent(id="main-tabs"):
+            with TabPane("⚙️ Global Settings", id="tab-global-settings"):
+                from ai_guardian.tui.global_settings import GlobalSettingsContent
+                yield GlobalSettingsContent()
+
             with TabPane("📋 Violations", id="tab-violations"):
                 from ai_guardian.tui.violations import ViolationsContent
                 yield ViolationsContent()
@@ -200,6 +204,18 @@ class AIGuardianTUI(App):
             with TabPane("🛡️ Prompt Injection", id="tab-prompt-injection"):
                 from ai_guardian.tui.prompt_injection import PromptInjectionContent
                 yield PromptInjectionContent()
+
+            with TabPane("🌐 Remote Configs", id="tab-remote-configs"):
+                from ai_guardian.tui.remote_configs import RemoteConfigsContent
+                yield RemoteConfigsContent()
+
+            with TabPane("🔍 Permissions Discovery", id="tab-permissions-discovery"):
+                from ai_guardian.tui.permissions_discovery import PermissionsDiscoveryContent
+                yield PermissionsDiscoveryContent()
+
+            with TabPane("🛡️ Directory Protection", id="tab-directory-protection"):
+                from ai_guardian.tui.directory_protection import DirectoryProtectionContent
+                yield DirectoryProtectionContent()
 
             with TabPane("📄 Config", id="tab-config"):
                 from ai_guardian.tui.config_viewer import ConfigContent
@@ -398,7 +414,19 @@ class AIGuardianTUI(App):
     def action_tab_left(self) -> None:
         """Switch to previous tab (left arrow)."""
         tabs = self.query_one(TabbedContent)
-        tab_ids = ["tab-violations", "tab-skills", "tab-mcp", "tab-secrets", "tab-prompt-injection", "tab-config", "tab-logs"]
+        tab_ids = [
+            "tab-global-settings",
+            "tab-violations",
+            "tab-skills",
+            "tab-mcp",
+            "tab-secrets",
+            "tab-prompt-injection",
+            "tab-remote-configs",
+            "tab-permissions-discovery",
+            "tab-directory-protection",
+            "tab-config",
+            "tab-logs"
+        ]
         try:
             current_index = tab_ids.index(tabs.active)
             previous_index = (current_index - 1) % len(tab_ids)
@@ -409,7 +437,19 @@ class AIGuardianTUI(App):
     def action_tab_right(self) -> None:
         """Switch to next tab (right arrow)."""
         tabs = self.query_one(TabbedContent)
-        tab_ids = ["tab-violations", "tab-skills", "tab-mcp", "tab-secrets", "tab-prompt-injection", "tab-config", "tab-logs"]
+        tab_ids = [
+            "tab-global-settings",
+            "tab-violations",
+            "tab-skills",
+            "tab-mcp",
+            "tab-secrets",
+            "tab-prompt-injection",
+            "tab-remote-configs",
+            "tab-permissions-discovery",
+            "tab-directory-protection",
+            "tab-config",
+            "tab-logs"
+        ]
         try:
             current_index = tab_ids.index(tabs.active)
             next_index = (current_index + 1) % len(tab_ids)

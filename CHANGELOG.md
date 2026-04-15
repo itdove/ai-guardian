@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Enhanced TUI with ALL missing JSON schema configuration fields (Issue #53)
+  - **New Global Settings tab**: Manage permissions_enabled and secret_scanning with time-based toggles
+  - **New Remote Configs tab**: Manage remote policy URLs for loading enterprise/team permissions
+  - **New Permissions Discovery tab**: Auto-discover permissions from local directories or GitHub repos
+  - **New Directory Protection tab**: Manage directory_exclusions for .ai-read-deny blocking
+  - **TimeBasedToggle widget**: Reusable component for time-based feature toggles
+    - Supports three modes: Permanently Enabled, Permanently Disabled, Temporarily Disabled
+    - ISO 8601 timestamp validation for disabled_until field
+    - Visual status indicators and auto re-enabling after expiration
+  - **Updated Secrets tab**: Pattern server enabled field now uses TimeBasedToggle
+  - **Updated Prompt Injection tab**: Detection enabled field now uses TimeBasedToggle
+  - **Time-based pattern support**: Skills, MCP, and Prompt Injection tabs show expiration info
+    - Expiration badges with color coding: green (active), yellow (expiring soon <24h), red (expired)
+    - Support for patterns with valid_until timestamp
+    - Visual countdown and status display
+  - All tabs support add/remove/edit operations with live configuration updates
+  - Keyboard navigation and consistent UI patterns across all tabs
+  - Comprehensive test coverage for new widgets and validators (387 tests passing)
 - JSON Schema for configuration file validation with runtime validation (Issue #50)
   - Created formal JSON Schema at `src/ai_guardian/schemas/ai-guardian-config.schema.json`
   - **Runtime validation**: Invalid configs are rejected at load time with clear error messages

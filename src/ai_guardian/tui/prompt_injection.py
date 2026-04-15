@@ -7,12 +7,14 @@ View and configure prompt injection detection settings.
 
 import json
 from pathlib import Path
+from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import TimeBasedToggle
 
 
 class PromptInjectionContent(Container):
@@ -108,13 +110,18 @@ class PromptInjectionContent(Container):
         yield Static("[bold]Prompt Injection Detection Settings[/bold]", id="prompt-injection-header")
 
         with VerticalScroll():
-            # Detection status section
+            # Detection toggle section (standalone)
+            yield TimeBasedToggle(
+                title="Prompt Injection Detection",
+                config_key="prompt_injection_enabled",
+                current_value=True,
+                help_text="Protects against prompt injection attacks that try to manipulate AI behavior",
+                id="prompt_injection_enabled_toggle",
+            )
+
+            # Detection configuration section
             with Container(classes="section"):
                 yield Static("[bold]Detection Configuration[/bold]", classes="section-title")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Enabled:")
-                    yield Checkbox("", id="prompt-injection-enabled")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Detector:")
@@ -182,7 +189,7 @@ class PromptInjectionContent(Container):
 
         # Prompt injection settings
         pi_config = config.get("prompt_injection", {})
-        enabled = pi_config.get("enabled", True)
+        enabled_value = pi_config.get("enabled", True)
         detector = pi_config.get("detector", "heuristic")
         sensitivity = pi_config.get("sensitivity", "medium")
         score_threshold = pi_config.get("max_score_threshold", 0.75)
@@ -191,16 +198,50 @@ class PromptInjectionContent(Container):
 
         # Update widgets
         try:
-            self.query_one("#prompt-injection-enabled", Checkbox).value = enabled
+            toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
+            self.mount_toggle(toggle, "prompt_injection_enabled", enabled_value)
+
             self.query_one("#detector-select", Select).value = detector
             self.query_one("#sensitivity-select", Select).value = sensitivity
             self.query_one("#score-threshold-input", Input).value = str(score_threshold)
         except Exception:
             pass  # Widgets may not be fully mounted yet
 
-        # Update allowlist patterns
+        # Update allowlist patterns (supports time-based patterns)
         if allowlist:
-            patterns_text = "\n".join(f"  • {pattern}" for pattern in allowlist)
+            from datetime import datetime, timezone
+
+            pattern_lines = []
+            for pattern in allowlist:
+                if isinstance(pattern, dict):
+                    # Time-based pattern
+                    pattern_str = pattern.get("pattern", "")
+                    valid_until = pattern.get("valid_until", "")
+
+                    if valid_until:
+                        try:
+                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            now = datetime.now(timezone.utc)
+
+                            if expiry_dt <= now:
+                                # Expired
+                                pattern_lines.append(f"  • {pattern_str} [status-error][EXPIRED][/status-error]")
+                            else:
+                                # Check if expiring soon (within 24 hours)
+                                time_remaining = expiry_dt - now
+                                if time_remaining.total_seconds() < 86400:  # 24 hours
+                                    pattern_lines.append(f"  • {pattern_str} [status-warn][expires {valid_until}][/status-warn]")
+                                else:
+                                    pattern_lines.append(f"  • {pattern_str} [dim][until {valid_until}][/dim]")
+                        except Exception:
+                            pattern_lines.append(f"  • {pattern_str} [dim][until {valid_until}][/dim]")
+                    else:
+                        pattern_lines.append(f"  • {pattern_str}")
+                else:
+                    # Simple string pattern
+                    pattern_lines.append(f"  • {pattern}")
+
+            patterns_text = "\n".join(pattern_lines)
         else:
             patterns_text = "[dim]No allowlist patterns configured[/dim]"
         self.query_one("#allowlist-patterns", Static).update(patterns_text)
@@ -226,14 +267,61 @@ class PromptInjectionContent(Container):
         stats_text = f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
         self.query_one("#detection-stats", Static).update(stats_text)
 
-    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        """Handle checkbox toggle."""
-        if event.checkbox.id == "prompt-injection-enabled":
-            self.save_field("enabled", event.value)
+    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:
+        """Update a toggle widget with new configuration value."""
+        # Parse value
+        if isinstance(value, dict):
+            toggle.is_enabled = value.get("value", True)
+            toggle.disabled_until = value.get("disabled_until", "")
+            toggle.reason = value.get("reason", "")
+        else:
+            toggle.is_enabled = value
+            toggle.disabled_until = ""
+            toggle.reason = ""
+
+        # Determine mode
+        if toggle.is_enabled:
+            toggle.current_mode = "enabled"
+        elif toggle.disabled_until:
+            toggle.current_mode = "temp_disabled"
+        else:
+            toggle.current_mode = "disabled"
+
+        # Update widgets
+        try:
+            mode_select = toggle.query_one(f"#{config_key}_mode_select")
+            mode_select.value = toggle.current_mode
+
+            disabled_until_input = toggle.query_one(f"#{config_key}_disabled_until")
+            disabled_until_input.value = toggle.disabled_until
+
+            reason_input = toggle.query_one(f"#{config_key}_reason")
+            reason_input.value = toggle.reason
+
+            toggle.update_temp_fields_visibility()
+            toggle.update_status_display()
+        except Exception:
+            pass
+
+    def on_select_changed(self, event) -> None:
+        """Handle select change - save immediately."""
+        select_id = event.select.id
+
+        if select_id and "prompt_injection_enabled" in select_id:
+            toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_field("enabled", value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""
-        if event.input.id == "score-threshold-input":
+        input_id = event.input.id
+
+        # Handle TimeBasedToggle inputs
+        if input_id and "prompt_injection_enabled" in input_id:
+            toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_field("enabled", value)
+        elif event.input.id == "score-threshold-input":
             try:
                 threshold = float(event.value)
                 if 0.0 <= threshold <= 1.0:

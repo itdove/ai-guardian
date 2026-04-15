@@ -185,37 +185,66 @@ ai-guardian tui
 
 The TUI uses a modern tab-based interface with separate tabs for each concern:
 
-1. **📋 Violations** - View all recent violations
+1. **⚙️ Global Settings** - Global security feature toggles (NEW)
+   - Manage `permissions_enabled` with time-based toggles
+   - Manage `secret_scanning` with time-based toggles
+   - Support for temporary disabling with expiration timestamps
+   - Visual status indicators and auto re-enabling
+
+2. **📋 Violations** - View all recent violations
    - See blocked operations from the violation log (all types)
    - One-click approval to automatically add permission rules
    - Smart rule merging (combines patterns with existing rules)
    - Filter by violation type (tool permissions, secrets, directories, prompt injection)
    - Mark violations as resolved
 
-2. **🎯 Skills** - Manage Skill permissions
+3. **🎯 Skills** - Manage Skill permissions
    - Add, edit, and delete Skill permission rules
    - Configure allow/deny patterns (e.g., daf-*, release, gh-cli)
    - Visual display of all Skill permissions
 
-3. **🔌 MCP Servers** - Manage MCP server permissions
+4. **🔌 MCP Servers** - Manage MCP server permissions
    - Add, edit, and delete MCP server permission rules
    - Configure allow/deny patterns for specific MCP servers
    - Supports wildcards (e.g., mcp__notebooklm-mcp__*, mcp__*)
 
-4. **🔒 Secrets** - Secret detection settings
+5. **🔒 Secrets** - Secret detection settings
    - View secret detection configuration
    - See Gitleaks integration status
-   - Pattern server configuration (coming soon)
+   - Pattern server configuration
 
-5. **🛡️ Prompt Injection** - Prompt injection detection
+6. **🛡️ Prompt Injection** - Prompt injection detection
    - View prompt injection detection settings
-   - Configure sensitivity levels (coming soon)
-   - Manage allowlist patterns (coming soon)
+   - Configure sensitivity levels
+   - Manage allowlist and custom patterns
 
-6. **📄 Config** - View and export configuration
-   - Display merged configuration from all sources
-   - See which config files are loaded (user global, project local)
-   - Export configuration
+7. **🌐 Remote Configs** - Remote policy management (NEW)
+   - Manage remote config URLs for loading enterprise/team policies
+   - Add/remove URL entries with enable/disable toggles
+   - Configure refresh_interval_hours and expire_after_hours
+   - Test connection to remote URLs
+
+8. **🔍 Permissions Discovery** - Auto-discovery directories (NEW)
+   - Manage permissions_directories.allow[] entries
+   - Manage permissions_directories.deny[] entries
+   - Add/remove directory entries (matcher, mode, url, token_env)
+   - Support for both local paths and GitHub URLs
+
+9. **🛡️ Directory Protection** - Directory exclusions (NEW)
+   - Toggle directory_exclusions.enabled
+   - Manage directory_exclusions.paths[] array
+   - Add/remove exclusion paths
+   - Scan and display active .ai-read-deny markers
+
+10. **📄 Config** - View and export configuration
+    - Display merged configuration from all sources
+    - See which config files are loaded (user global, project local)
+    - Export configuration
+
+11. **📝 Logs** - View rotating file logs
+    - Browse application logs
+    - Filter by log level
+    - Real-time log viewing
 
 ### Why Use the TUI?
 
