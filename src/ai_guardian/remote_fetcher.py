@@ -63,8 +63,8 @@ class RemoteFetcher:
     def fetch_config(
         self,
         url: str,
-        refresh_interval_hours: int = 12,
-        expire_after_hours: int = 168,
+        refresh_interval_hours: Optional[int] = None,
+        expire_after_hours: Optional[int] = None,
         headers: Optional[Dict] = None
     ) -> Optional[Dict]:
         """
@@ -72,8 +72,10 @@ class RemoteFetcher:
 
         Args:
             url: URL to fetch
-            refresh_interval_hours: How often to check for updates (staleness threshold)
-            expire_after_hours: How long to use stale cache if refresh fails (expiration threshold)
+            refresh_interval_hours: How often to check for updates (staleness threshold).
+                                   If None, reads from AI_GUARDIAN_REFRESH_INTERVAL_HOURS env var (default: 12)
+            expire_after_hours: How long to use stale cache if refresh fails (expiration threshold).
+                               If None, reads from AI_GUARDIAN_EXPIRE_AFTER_HOURS env var (default: 168)
             headers: Optional custom headers for authentication
 
         Returns:
@@ -82,6 +84,16 @@ class RemoteFetcher:
         if not HAS_REQUESTS:
             logger.warning(f"Cannot fetch {url}: requests library not installed")
             return None
+
+        # Read from environment variables if not provided
+        if refresh_interval_hours is None:
+            refresh_interval_hours = int(os.environ.get(
+                "AI_GUARDIAN_REFRESH_INTERVAL_HOURS", "12"
+            ))
+        if expire_after_hours is None:
+            expire_after_hours = int(os.environ.get(
+                "AI_GUARDIAN_EXPIRE_AFTER_HOURS", "168"
+            ))
 
         # Check cache first
         cached_config, cache_age_hours = self._get_cached_config(url)
