@@ -167,3 +167,96 @@ def test_complex_valid_config_loads():
         assert "prompt_injection" in config
     finally:
         Path(temp_path).unlink()
+
+
+def test_immutable_field_in_permissions_is_valid():
+    """Test that immutable field in permission rules is valid (Issue #67)."""
+    config_with_immutable = {
+        "permissions": [
+            {
+                "matcher": "Skill",
+                "mode": "allow",
+                "patterns": ["daf-*"],
+                "immutable": True
+            },
+            {
+                "matcher": "Bash",
+                "mode": "deny",
+                "patterns": ["*rm -rf*"],
+                "immutable": False
+            }
+        ]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(config_with_immutable, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        assert config is not None
+        assert config["permissions"][0]["immutable"] is True
+        assert config["permissions"][1]["immutable"] is False
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_immutable_field_in_sections_is_valid():
+    """Test that immutable field in top-level sections is valid (Issue #67)."""
+    config_with_immutable_sections = {
+        "prompt_injection": {
+            "enabled": True,
+            "sensitivity": "high",
+            "immutable": True
+        },
+        "pattern_server": {
+            "enabled": True,
+            "url": "https://company.com/patterns",
+            "immutable": True
+        },
+        "secret_scanning": {
+            "enabled": True,
+            "immutable": False
+        }
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(config_with_immutable_sections, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        assert config is not None
+        assert config["prompt_injection"]["immutable"] is True
+        assert config["pattern_server"]["immutable"] is True
+        assert config["secret_scanning"]["immutable"] is False
+    finally:
+        Path(temp_path).unlink()
+
+
+def test_invalid_immutable_type_rejected():
+    """Test that invalid immutable field type (string) is rejected (Issue #67)."""
+    invalid_config = {
+        "permissions": [
+            {
+                "matcher": "Skill",
+                "mode": "allow",
+                "patterns": ["daf-*"],
+                "immutable": "yes"  # Invalid: should be boolean
+            }
+        ]
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(invalid_config, f)
+        temp_path = f.name
+
+    try:
+        checker = ToolPolicyChecker()
+        config = checker._load_json_file(Path(temp_path), "test")
+        # Should return None due to validation failure
+        assert config is None
+    finally:
+        Path(temp_path).unlink()

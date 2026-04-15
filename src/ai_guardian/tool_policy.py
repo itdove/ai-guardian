@@ -1270,31 +1270,94 @@ class ToolPolicyChecker:
         3. Project local config
         4. Defaults
 
+        Immutability enforcement:
+        - Remote configs can mark sections/matchers as immutable
+        - Local/user configs cannot override immutable sections or add rules for immutable matchers
+
         Returns:
             dict: Merged configuration
         """
         # Start with defaults
         config = self._get_defaults()
 
-        # Load project local config
+        # Load all configs first
         local_config, local_config_path = self._load_local_config()
-        if local_config:
-            config = self._merge_configs(config, local_config)
-
-        # Load user global config
         user_config, user_config_path = self._load_user_config()
-        if user_config:
-            config = self._merge_configs(config, user_config)
-
-        # Load remote configs (highest priority)
         remote_configs = self._load_remote_configs(local_config, local_config_path, user_config, user_config_path)
+
+        # Extract immutability constraints from remote configs
+        immutable_matchers = self._get_immutable_matchers(remote_configs)
+        immutable_sections = self._get_immutable_sections(remote_configs)
+
+        # Merge project local config (with immutability filtering)
+        if local_config:
+            config = self._merge_configs(config, local_config, immutable_matchers, immutable_sections)
+
+        # Merge user global config (with immutability filtering)
+        if user_config:
+            config = self._merge_configs(config, user_config, immutable_matchers, immutable_sections)
+
+        # Merge remote configs (highest priority, no filtering needed)
         for remote_config in remote_configs:
-            config = self._merge_configs(config, remote_config)
+            config = self._merge_configs(config, remote_config, set(), set())
 
         # Discover and add patterns from permissions_directories
         self._discover_from_directories(config)
 
         return config
+
+    def _get_immutable_matchers(self, remote_configs: List[Dict]) -> Set[str]:
+        """
+        Extract set of matchers marked as immutable in remote configs.
+
+        Args:
+            remote_configs: List of remote configuration dictionaries
+
+        Returns:
+            set: Set of matcher names that are immutable (e.g., {"Skill", "Bash"})
+        """
+        immutable_matchers = set()
+
+        for remote_config in remote_configs:
+            permissions = remote_config.get("permissions", [])
+            for rule in permissions:
+                if rule.get("immutable", False):
+                    matcher = rule.get("matcher")
+                    if matcher:
+                        immutable_matchers.add(matcher)
+                        logger.debug(f"Matcher '{matcher}' marked as immutable in remote config")
+
+        return immutable_matchers
+
+    def _get_immutable_sections(self, remote_configs: List[Dict]) -> Set[str]:
+        """
+        Extract set of section names marked as immutable in remote configs.
+
+        Args:
+            remote_configs: List of remote configuration dictionaries
+
+        Returns:
+            set: Set of section names that are immutable (e.g., {"prompt_injection", "pattern_server"})
+        """
+        immutable_sections = set()
+
+        # Sections that can be marked as immutable
+        section_names = [
+            "prompt_injection",
+            "pattern_server",
+            "secret_scanning",
+            "directory_exclusions",
+            "permissions_enabled"
+        ]
+
+        for remote_config in remote_configs:
+            for section_name in section_names:
+                section = remote_config.get(section_name)
+                if isinstance(section, dict) and section.get("immutable", False):
+                    immutable_sections.add(section_name)
+                    logger.debug(f"Section '{section_name}' marked as immutable in remote config")
+
+        return immutable_sections
 
     def _get_defaults(self) -> Dict:
         """Get default empty configuration."""
@@ -1437,37 +1500,69 @@ class ToolPolicyChecker:
             logger.warning(f"Error loading {source_name} config from {path}: {e}")
             return None
 
-    def _merge_configs(self, base: Dict, override: Dict) -> Dict:
+    def _merge_configs(
+        self,
+        base: Dict,
+        override: Dict,
+        immutable_matchers: Optional[Set[str]] = None,
+        immutable_sections: Optional[Set[str]] = None
+    ) -> Dict:
         """
-        Merge two configuration dictionaries.
+        Merge two configuration dictionaries with immutability enforcement.
 
-        For permissions array: concatenate
+        For permissions array: concatenate (filtering immutable matchers)
         For other lists: concatenate
         For dicts: recursively merge
+        For immutable sections: skip override entirely
 
         Args:
             base: Base configuration
             override: Override configuration (higher priority)
+            immutable_matchers: Set of matchers that cannot be overridden (e.g., {"Skill", "Bash"})
+            immutable_sections: Set of sections that cannot be overridden (e.g., {"prompt_injection"})
 
         Returns:
             dict: Merged configuration
         """
+        if immutable_matchers is None:
+            immutable_matchers = set()
+        if immutable_sections is None:
+            immutable_sections = set()
+
         result = base.copy()
 
         for key, value in override.items():
+            # Skip immutable sections entirely
+            if key in immutable_sections:
+                logger.info(f"Skipping override of immutable section: {key}")
+                continue
+
             if key == "permissions":
-                # Special handling for permissions array
-                if isinstance(result.get(key), list) and isinstance(value, list):
-                    result[key] = result[key] + value
+                # Special handling for permissions array with immutability filtering
+                if isinstance(value, list):
+                    # Filter out rules for immutable matchers
+                    filtered_rules = []
+                    for rule in value:
+                        matcher = rule.get("matcher")
+                        if matcher in immutable_matchers:
+                            logger.info(f"Skipping override for immutable matcher: {matcher}")
+                        else:
+                            filtered_rules.append(rule)
+
+                    # Merge filtered rules with existing ones
+                    if isinstance(result.get(key), list):
+                        result[key] = result[key] + filtered_rules
+                    else:
+                        result[key] = filtered_rules
                 else:
                     result[key] = value
             elif key in result:
                 # If both are lists, concatenate
                 if isinstance(result[key], list) and isinstance(value, list):
                     result[key] = result[key] + value
-                # If both are dicts, recursively merge
+                # If both are dicts, recursively merge (pass through immutability for nested merges)
                 elif isinstance(result[key], dict) and isinstance(value, dict):
-                    result[key] = self._merge_configs(result[key], value)
+                    result[key] = self._merge_configs(result[key], value, set(), set())
                 # Otherwise, override replaces base
                 else:
                     result[key] = value
