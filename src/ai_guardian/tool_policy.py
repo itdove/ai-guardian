@@ -16,7 +16,8 @@ import json
 import logging
 import os
 import subprocess
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
 
@@ -311,8 +312,9 @@ class ToolPolicyChecker:
             return False  # Not a source file, keep protected
 
         # PRIORITY 3: Is user a GitHub maintainer?
+        logger.info(f"Checking maintainer status for source file: {file_path}")
         if not self._is_github_maintainer_cached():
-            logger.debug("User is not a maintainer")
+            logger.info("❌ User is not a maintainer - source file remains protected")
             return False  # Not a maintainer, keep protected
 
         # All checks passed: allow bypass
@@ -808,7 +810,34 @@ class ToolPolicyChecker:
         Returns:
             str: Formatted error message
         """
-        # Check if this is a .ai-read-deny marker file (check both Unix and Windows paths)
+        # First, check if this is a config file (these are NEVER source files)
+        config_patterns = [
+            "*ai-guardian.json",
+            "*/.ai-guardian.json",
+            "*/.config/ai-guardian/*",
+            "*/.cache/ai-guardian/*",
+            "*/.claude/settings.json",
+            "*/.claude/hooks.json",
+            "*/.cursor/hooks.json",
+            "*/Claude/settings.json",
+            "*/Cursor/hooks.json",
+        ]
+        is_config_file = any(fnmatch.fnmatch(file_path, p) for p in config_patterns)
+
+        # Check if this is a source file that could potentially use maintainer bypass
+        # ONLY if it's NOT a config file
+        source_patterns = [
+            "*/ai-guardian/src/ai_guardian/*",
+            "*/ai-guardian/tests/*",
+            "*/ai-guardian/*.md",
+            "*/ai-guardian/*.py",
+            "*/ai-guardian/*.toml",
+            "*/ai-guardian/*.txt",
+            "*/ai-guardian/.github/*",
+        ]
+        is_source_file = (not is_config_file) and any(fnmatch.fnmatch(file_path, p) for p in source_patterns)
+
+        # Check if this is a .ai-read-deny marker file
         is_marker_file = (file_path.endswith('.ai-read-deny') or
                          '/.ai-read-deny' in file_path or
                          '\\.ai-read-deny' in file_path or
@@ -831,6 +860,15 @@ class ToolPolicyChecker:
             f"File: {file_path}\n"
             f"Tool: {tool_name}\n"
         )
+
+        # Add diagnostic information for source files
+        if is_source_file:
+            diagnostic = self._diagnose_maintainer_bypass()
+            return base_message + (
+                f"\nReason: Repository source file (maintainer bypass not available)\n\n"
+                f"{diagnostic}\n"
+                f"{'='*70}\n"
+            )
 
         # Add workaround tip if this looks like documentation mentioning the tool
         tip_message = ""
@@ -1023,6 +1061,7 @@ class ToolPolicyChecker:
             # - git@github.com:owner/repo.git
             # - https://github.com/owner/repo
             if "github.com" not in url:
+                logger.info("❌ Maintainer bypass unavailable: Not a GitHub repository")
                 return None
 
             # Extract owner/repo
@@ -1072,10 +1111,17 @@ class ToolPolicyChecker:
                 if username:
                     logger.debug(f"Authenticated GitHub user: {username}")
                     return username
+            else:
+                logger.info("❌ Maintainer bypass unavailable: gh CLI not authenticated")
+                logger.info("   Fix: Run 'gh auth login' to authenticate")
+                return None
         except FileNotFoundError:
-            logger.debug("gh CLI not found")
+            logger.info("❌ Maintainer bypass unavailable: gh CLI not found")
+            logger.info("   Fix: Install gh CLI from https://cli.github.com/")
+            return None
         except Exception as e:
-            logger.debug(f"Failed to get authenticated user: {e}")
+            logger.error(f"❌ Failed to get authenticated user: {e}")
+            return None
 
         return None
 
@@ -1094,18 +1140,42 @@ class ToolPolicyChecker:
         Returns:
             bool: True if user has write access, False otherwise
         """
-        try:
-            result = subprocess.run(
-                ["gh", "api", f"repos/{owner}/{repo}/collaborators/{username}"],
-                capture_output=True,
-                timeout=10
-            )
-            is_collaborator = (result.returncode == 0)
-            logger.info(f"Collaborator check for {username} on {owner}/{repo}: {is_collaborator}")
-            return is_collaborator
-        except Exception as e:
-            logger.debug(f"Collaborator check failed: {e}")
-            return False
+        max_attempts = 2
+        retry_delay = 1  # seconds
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                result = subprocess.run(
+                    ["gh", "api", f"repos/{owner}/{repo}/collaborators/{username}"],
+                    capture_output=True,
+                    timeout=10
+                )
+                is_collaborator = (result.returncode == 0)
+
+                if is_collaborator:
+                    logger.info(f"✅ Collaborator check: {username} on {owner}/{repo} = True")
+                else:
+                    logger.info(f"❌ Collaborator check: {username} on {owner}/{repo} = False")
+
+                return is_collaborator
+
+            except subprocess.TimeoutExpired as e:
+                if attempt < max_attempts:
+                    logger.info(f"GitHub API timeout (attempt {attempt}/{max_attempts}), retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"❌ GitHub API timeout after {max_attempts} attempts: {e}")
+                    return False
+
+            except Exception as e:
+                if attempt < max_attempts:
+                    logger.info(f"GitHub API error (attempt {attempt}/{max_attempts}): {e}, retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"❌ Collaborator check failed after {max_attempts} attempts: {e}")
+                    return False
+
+        return False
 
     def _get_maintainer_cache(self) -> Optional[bool]:
         """
@@ -1121,8 +1191,18 @@ class ToolPolicyChecker:
             if not cache_file.exists():
                 return None
 
-            with open(cache_file, 'r') as f:
-                cache_data = json.load(f)
+            # Read and parse cache file
+            try:
+                with open(cache_file, 'r') as f:
+                    cache_data = json.load(f)
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Corrupt cache file: {cache_file}")
+                logger.error(f"   JSON decode error: {e}")
+                logger.error(f"   Fix: Delete corrupt cache with: rm {cache_file}")
+                return None
+            except OSError as e:
+                logger.error(f"❌ Failed to read cache file: {e}")
+                return None
 
             # Get current repo info
             repo_info = self._get_git_repo_info()
@@ -1134,35 +1214,57 @@ class ToolPolicyChecker:
 
             # Check if we have a cache entry for this repo
             repositories = cache_data.get("repositories", {})
-            repo_cache = repositories.get(repo_key)
+            if not isinstance(repositories, dict):
+                logger.warning(f"Cache 'repositories' field is not a dict: {type(repositories)}")
+                return None
 
+            repo_cache = repositories.get(repo_key)
             if not repo_cache:
                 return None
 
-            # Check if cache is expired
+            if not isinstance(repo_cache, dict):
+                logger.warning(f"Cache entry for {repo_key} is not a dict: {type(repo_cache)}")
+                return None
+
+            # Validate cache structure
             checked_at = repo_cache.get("checked_at")
+            if not checked_at:
+                logger.warning(f"Cache entry missing 'checked_at' field for {repo_key}")
+                return None
+
+            if not isinstance(checked_at, str):
+                logger.error(f"Invalid 'checked_at' type: {type(checked_at)}, expected str")
+                return None
+
             ttl_hours = cache_data.get("ttl_hours", 24)
 
-            if checked_at:
-                try:
-                    # Parse checked_at timestamp
-                    from datetime import timedelta
-                    checked_time = datetime.fromisoformat(checked_at.replace('Z', '+00:00'))
-                    current_time = datetime.now(timezone.utc)
-                    age = current_time - checked_time
+            # Parse timestamp and check expiry
+            try:
+                checked_time = datetime.fromisoformat(checked_at.replace('Z', '+00:00'))
+                current_time = datetime.now(timezone.utc)
+                age = current_time - checked_time
 
-                    # Check if still within TTL
-                    if age < timedelta(hours=ttl_hours):
-                        is_maintainer = repo_cache.get("is_maintainer", False)
-                        logger.debug(f"Using cached maintainer status: {is_maintainer}")
-                        return is_maintainer
-                except Exception as e:
-                    logger.debug(f"Failed to parse cache timestamp: {e}")
+                # Check if still within TTL
+                if age < timedelta(hours=ttl_hours):
+                    is_maintainer = repo_cache.get("is_maintainer", False)
+                    age_str = f"{int(age.total_seconds() // 3600)}h {int((age.total_seconds() % 3600) // 60)}m"
+                    logger.info(f"✅ Using cached maintainer status: {is_maintainer} (age: {age_str})")
+                    return is_maintainer
+                else:
+                    logger.debug(f"Cache expired for {repo_key} (age: {age}, TTL: {ttl_hours}h)")
+                    return None
 
-            return None
+            except ValueError as e:
+                logger.error(f"❌ Invalid timestamp format in cache: '{checked_at}'")
+                logger.error(f"   Parse error: {e}")
+                logger.error(f"   Fix: Delete corrupt cache with: rm {cache_file}")
+                return None
 
         except Exception as e:
-            logger.debug(f"Failed to read maintainer cache: {e}")
+            # Catch-all for unexpected errors - log with full traceback
+            logger.error(f"❌ Unexpected error reading maintainer cache: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
     def _cache_maintainer_status(self, is_maintainer: bool) -> None:
@@ -1237,7 +1339,7 @@ class ToolPolicyChecker:
             # Get repository info
             repo_info = self._get_git_repo_info()
             if not repo_info:
-                logger.debug("Not a git repository")
+                logger.info("❌ Maintainer bypass unavailable: Not a git repository")
                 return False
 
             owner, repo = repo_info
@@ -1245,7 +1347,7 @@ class ToolPolicyChecker:
             # Get authenticated GitHub user
             username = self._get_authenticated_github_user()
             if not username:
-                logger.debug("User not authenticated with gh CLI")
+                # Error already logged in _get_authenticated_github_user
                 return False
 
             # Check collaborator status
@@ -1257,8 +1359,129 @@ class ToolPolicyChecker:
             return is_maintainer
 
         except Exception as e:
-            logger.debug(f"Maintainer check failed: {e}")
+            logger.error(f"❌ Maintainer check failed with unexpected error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
+
+    def _diagnose_maintainer_bypass(self) -> str:
+        """
+        Diagnose why maintainer bypass is not working.
+
+        Returns:
+            str: User-friendly diagnostic message with actionable steps
+        """
+        # Check if it's a GitHub repo
+        repo_info = self._get_git_repo_info()
+        if not repo_info:
+            return (
+                "❌ Not a GitHub repository\n"
+                "   Maintainer bypass only works for GitHub repositories.\n"
+                "   \n"
+                "   Current directory must be a git repository with a GitHub remote.\n"
+            )
+
+        owner, repo = repo_info
+        repo_url = f"github.com/{owner}/{repo}"
+
+        # Check gh CLI authentication
+        try:
+            result = subprocess.run(
+                ["gh", "auth", "status"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode != 0:
+                return (
+                    f"❌ GitHub CLI not authenticated\n"
+                    f"   Repository: {repo_url}\n"
+                    f"   \n"
+                    f"   Fix: Run 'gh auth login' to authenticate with GitHub\n"
+                )
+        except FileNotFoundError:
+            return (
+                f"❌ GitHub CLI not installed\n"
+                f"   Repository: {repo_url}\n"
+                f"   \n"
+                f"   Fix: Install gh CLI from https://cli.github.com/\n"
+            )
+
+        # Get authenticated user
+        username = self._get_authenticated_github_user()
+        if not username:
+            return (
+                f"❌ Could not determine GitHub username\n"
+                f"   Repository: {repo_url}\n"
+                f"   \n"
+                f"   Fix: Run 'gh auth login' and ensure authentication succeeds\n"
+            )
+
+        # Check collaborator status
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{owner}/{repo}/collaborators/{username}"],
+                capture_output=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                return (
+                    f"❌ Not a repository maintainer\n"
+                    f"   Repository: {repo_url}\n"
+                    f"   GitHub User: {username}\n"
+                    f"   \n"
+                    f"   Maintainer bypass requires write access to the repository.\n"
+                    f"   Only repository owners and collaborators can edit source files.\n"
+                    f"   \n"
+                    f"   To check your access: gh api repos/{owner}/{repo}/collaborators/{username}\n"
+                )
+        except subprocess.TimeoutExpired:
+            return (
+                f"❌ GitHub API timeout\n"
+                f"   Repository: {repo_url}\n"
+                f"   \n"
+                f"   Could not verify collaborator status due to timeout.\n"
+                f"   Check your network connection and try again.\n"
+            )
+        except Exception as e:
+            return (
+                f"❌ GitHub API error\n"
+                f"   Repository: {repo_url}\n"
+                f"   Error: {e}\n"
+                f"   \n"
+                f"   Could not verify collaborator status.\n"
+            )
+
+        # Check cache status
+        cache_file = Path.home() / ".cache" / "ai-guardian" / "maintainer-status.json"
+        cache_status = "No cache found"
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    cache_data = json.load(f)
+                    repo_key = f"{owner}/{repo}"
+                    if repo_key in cache_data.get("repositories", {}):
+                        repo_cache = cache_data["repositories"][repo_key]
+                        checked_at = repo_cache.get("checked_at", "unknown")
+                        is_maintainer = repo_cache.get("is_maintainer", False)
+                        cache_status = f"Cached: is_maintainer={is_maintainer}, checked_at={checked_at}"
+            except:
+                cache_status = "Cache file corrupt"
+
+        # All checks passed but still blocked - something went wrong
+        return (
+            f"⚠️  Unexpected: All checks passed but bypass failed\n"
+            f"   Repository: {repo_url}\n"
+            f"   GitHub User: {username}\n"
+            f"   Collaborator Status: ✅ Write access confirmed\n"
+            f"   Cache: {cache_status}\n"
+            f"   \n"
+            f"   This may be a bug in ai-guardian. Try:\n"
+            f"   1. Clear cache: rm {cache_file}\n"
+            f"   2. Try the operation again\n"
+            f"   3. Check logs for more details\n"
+            f"   4. Report issue: https://github.com/itdove/ai-guardian/issues\n"
+        )
 
     def _load_config(self) -> Dict:
         """
