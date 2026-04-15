@@ -7,6 +7,7 @@ while keeping config files always protected.
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from unittest import TestCase
@@ -504,3 +505,116 @@ class MaintainerBypassTest(TestCase):
 
         self.assertFalse(is_allowed, "Bash cache poisoning should be blocked")
         self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+
+    # ========================================================================
+    # Test: Retry logic and improved error handling (Issue #68)
+    # ========================================================================
+
+    @patch('subprocess.run')
+    def test_github_collaborator_check_retries_on_timeout(self, mock_run):
+        """GitHub API check should retry on timeout"""
+        # First attempt times out, second succeeds
+        mock_run.side_effect = [
+            subprocess.TimeoutExpired(cmd=['gh', 'api'], timeout=10),
+            MagicMock(returncode=0)  # Success on retry
+        ]
+
+        with patch('time.sleep'):  # Don't actually sleep in tests
+            result = self.policy_checker._check_github_collaborator("owner", "repo", "user")
+
+        self.assertTrue(result)
+        self.assertEqual(mock_run.call_count, 2, "Should retry once after timeout")
+
+    @patch('subprocess.run')
+    def test_github_collaborator_check_retries_on_error(self, mock_run):
+        """GitHub API check should retry on general errors"""
+        # First attempt fails, second succeeds
+        mock_run.side_effect = [
+            Exception("Network error"),
+            MagicMock(returncode=0)  # Success on retry
+        ]
+
+        with patch('time.sleep'):  # Don't actually sleep in tests
+            result = self.policy_checker._check_github_collaborator("owner", "repo", "user")
+
+        self.assertTrue(result)
+        self.assertEqual(mock_run.call_count, 2, "Should retry once after error")
+
+    @patch('subprocess.run')
+    def test_github_collaborator_check_fails_after_max_retries(self, mock_run):
+        """GitHub API check should fail after max retries"""
+        # Both attempts time out
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=['gh', 'api'], timeout=10)
+
+        with patch('time.sleep'):  # Don't actually sleep in tests
+            result = self.policy_checker._check_github_collaborator("owner", "repo", "user")
+
+        self.assertFalse(result)
+        self.assertEqual(mock_run.call_count, 2, "Should try twice then give up")
+
+    @patch.object(Path, 'exists')
+    @patch('builtins.open')
+    @patch.object(ToolPolicyChecker, '_get_git_repo_info')
+    def test_get_maintainer_cache_handles_corrupt_json(self, mock_repo_info, mock_open, mock_exists):
+        """Cache reading should handle corrupt JSON gracefully"""
+        mock_repo_info.return_value = ("itdove", "ai-guardian")
+        mock_exists.return_value = True
+        mock_open.return_value.__enter__.return_value.read.return_value = "not valid json {"
+
+        result = self.policy_checker._get_maintainer_cache()
+
+        self.assertIsNone(result, "Should return None for corrupt cache")
+
+    @patch.object(Path, 'exists')
+    @patch('builtins.open')
+    @patch.object(ToolPolicyChecker, '_get_git_repo_info')
+    def test_get_maintainer_cache_validates_structure(self, mock_repo_info, mock_open, mock_exists):
+        """Cache reading should validate cache data structure"""
+        mock_repo_info.return_value = ("itdove", "ai-guardian")
+        mock_exists.return_value = True
+
+        # Cache with missing checked_at field
+        cache_data = {
+            "version": 1,
+            "ttl_hours": 24,
+            "repositories": {
+                "itdove/ai-guardian": {
+                    "username": "itdove",
+                    "is_maintainer": True
+                    # missing "checked_at"!
+                }
+            }
+        }
+
+        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(cache_data)
+
+        result = self.policy_checker._get_maintainer_cache()
+
+        self.assertIsNone(result, "Should return None for invalid cache structure")
+
+    @patch.object(Path, 'exists')
+    @patch('builtins.open')
+    @patch.object(ToolPolicyChecker, '_get_git_repo_info')
+    def test_get_maintainer_cache_handles_invalid_timestamp(self, mock_repo_info, mock_open, mock_exists):
+        """Cache reading should handle invalid timestamp formats"""
+        mock_repo_info.return_value = ("itdove", "ai-guardian")
+        mock_exists.return_value = True
+
+        # Cache with invalid timestamp
+        cache_data = {
+            "version": 1,
+            "ttl_hours": 24,
+            "repositories": {
+                "itdove/ai-guardian": {
+                    "username": "itdove",
+                    "is_maintainer": True,
+                    "checked_at": "not a valid timestamp"
+                }
+            }
+        }
+
+        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(cache_data)
+
+        result = self.policy_checker._get_maintainer_cache()
+
+        self.assertIsNone(result, "Should return None for invalid timestamp")
