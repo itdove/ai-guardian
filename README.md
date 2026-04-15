@@ -177,6 +177,8 @@ ai-guardian setup --ide claude
 
 Launch the interactive Text User Interface to manage AI Guardian configuration visually:
 
+> **📖 Comprehensive Documentation**: See [docs/TUI.md](docs/TUI.md) for detailed TUI documentation including all 11 tabs, keyboard shortcuts, workflows, and troubleshooting.
+
 ```bash
 ai-guardian tui
 ```
