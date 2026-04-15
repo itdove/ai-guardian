@@ -1156,9 +1156,11 @@ If you get too many false positives, lower the sensitivity:
 
 ### Pattern Server (Advanced)
 
-**Optional:** Integrate with a custom pattern server for enhanced, auto-updating secret detection rules.
+**⚠️ IMPORTANT:** Pattern Server is currently **NOT used** for Gitleaks secret scanning. This is an optional enterprise feature reserved for future use.
 
-**Note:** This is an advanced enterprise feature. Most users should use the default Gitleaks patterns or project-specific `.gitleaks.toml` files.
+**Current Behavior:** AI Guardian uses Gitleaks' built-in patterns for secret detection. Pattern server integration exists in the codebase but is intentionally disabled to ensure comprehensive coverage of standard secret types (AWS keys, GitHub tokens, RSA keys, etc.).
+
+**Why disabled?** Pattern servers typically contain organization-specific patterns and may lack default Gitleaks rules for common secrets. Using them could result in missed detections.
 
 **Configuration (`~/.config/ai-guardian/ai-guardian.json`):**
 
@@ -1182,38 +1184,120 @@ If you get too many false positives, lower the sensitivity:
 }
 ```
 
-**Setup:**
+**Note:** Even if configured, this section is not currently used by Gitleaks secret scanning. It's reserved for future enhancements.
 
-```bash
-# 1. Get your Bearer token from your pattern server's web interface
-#    Example: Visit https://your-pattern-server.example.com/token
-#    Copy the JWT token provided
+### Gitleaks Secret Scanning Configuration
 
-# 2. Provide the token (choose ONE method):
+**Actual Configuration Priority (Current Implementation):**
+1. **Project `.gitleaks.toml`** (if exists in current directory) - highest priority
+2. **Gitleaks built-in patterns** - comprehensive default coverage
 
-# Option A: Environment variable (temporary, session-only)
-export AI_GUARDIAN_PATTERN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+**Pattern Server is NOT consulted** - See code comment in `src/ai_guardian/__init__.py:1100-1103`
 
-# Option B: Token file (persistent, recommended)
-echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." > ~/.config/ai-guardian/pattern-token
-chmod 600 ~/.config/ai-guardian/pattern-token
+#### Error Handling and Fallback Behavior
 
-# 3. Enable pattern server in config (see above)
+AI Guardian handles Gitleaks errors gracefully with different behaviors based on the error type:
 
-# 4. Patterns will auto-download on first scan
+**Missing Gitleaks Binary:**
+- **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
+- **Rationale:** User may not be able to install immediately
+- **Warning shown:** Clear message with installation instructions for macOS, Linux, Windows
+- **Setup check:** `ai-guardian setup` verifies Gitleaks is installed and warns during IDE hook setup
+
+**Authentication Errors (401/403):**
+- **Behavior:** 🔒 **BLOCKS operation** with visible error message
+- **Rationale:** User can fix by updating credentials/token
+- **Error shown:** Detailed authentication error with troubleshooting steps
+- **Guidance:** Instructions for updating `AI_GUARDIAN_PATTERN_TOKEN` or disabling pattern servers
+
+**Network/Server Errors (timeout, connection):**
+- **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
+- **Rationale:** User cannot control server being down (fail-open for availability)
+- **Warning shown:** Network issue detected with pattern server disable instructions
+- **Fallback:** Continues with default Gitleaks patterns
+
+**Other Errors:**
+- **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
+- **Rationale:** Fail-open for availability
+- **Warning shown:** Generic error with troubleshooting steps
+
+**Example Error Messages:**
+
+```
+======================================================================
+⚠️  SECRET SCANNING DISABLED
+======================================================================
+
+Gitleaks binary not found - secret scanning is currently disabled.
+
+AI Guardian requires Gitleaks to scan for sensitive information like:
+  • API keys and tokens
+  • Private keys (SSH, RSA, PGP)
+  • Database credentials
+  • Cloud provider keys (AWS, GCP, Azure)
+
+Install Gitleaks:
+  macOS:   brew install gitleaks
+  Linux:   See https://github.com/gitleaks/gitleaks#installing
+  Windows: See https://github.com/gitleaks/gitleaks#installing
+
+Operation will continue, but secrets will NOT be detected.
+After installation, restart your IDE.
+======================================================================
 ```
 
-**How it works:**
-1. AI Guardian checks if patterns need refresh (every 12 hours)
-2. Looks up Bearer token (tries `token_env` first, then `token_file`)
-3. Downloads latest patterns from your pattern server using Bearer auth
-4. Caches patterns locally for 7 days
-5. Uses cached patterns if pattern server is unavailable (fail-safe)
+```
+======================================================================
+🔒 AUTHENTICATION ERROR
+======================================================================
 
-**Configuration Priority:**
-1. **Pattern Server** (if enabled and available) - highest priority
-2. **Project `.gitleaks.toml`** - overrides for specific projects
-3. **Default Gitleaks patterns** - built-in fallback
+Gitleaks authentication failed (exit code 2).
+
+Error: 401 Unauthorized - authentication failed
+
+This operation has been blocked for security.
+
+If using pattern-servers:
+  1. Check your authentication token is valid
+  2. Update token: export AI_GUARDIAN_PATTERN_TOKEN='your-token'
+  3. Or disable pattern-servers in ~/.config/ai-guardian/ai-guardian.json
+
+If NOT using pattern-servers:
+  1. Check ~/.gitleaks.toml configuration
+  2. Try: gitleaks version (to verify installation)
+======================================================================
+```
+
+#### Verifying Gitleaks Installation
+
+During setup, AI Guardian automatically checks if Gitleaks is installed:
+
+```bash
+$ ai-guardian setup --ide claude
+✓ Gitleaks is installed: gitleaks version 8.18.0
+✓ Successfully configured Claude Code hooks at ~/.claude/settings.json
+
+Next steps:
+  1. Restart Claude Code for changes to take effect
+  2. Test with: echo '{"prompt": "test"}' | ai-guardian
+```
+
+If Gitleaks is missing, you'll see:
+
+```bash
+$ ai-guardian setup --ide claude
+❌ Gitleaks not found
+   Install from: https://github.com/gitleaks/gitleaks#installing
+   Or use: brew install gitleaks (macOS)
+
+⚠️  WARNING: Secret scanning will be disabled without Gitleaks!
+    AI Guardian requires Gitleaks for secret detection.
+
+Next steps:
+  1. Install Gitleaks (see above)
+  2. Restart Claude Code for changes to take effect
+  3. Test with: echo '{"prompt": "test"}' | ai-guardian
+```
 
 ### Environment Variables
 

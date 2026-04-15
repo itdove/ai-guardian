@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Gitleaks prerequisite verification and improved error handling (Issue #73)
+  - **Setup verification**: `ai-guardian setup` now checks if Gitleaks is installed and displays warning
+  - **Visible warnings**: Missing Gitleaks shows clear warning message (previously silent)
+  - **Smart error handling**: Authentication errors block operation (user can fix), network errors warn but allow (fail-open)
+  - **Installation guidance**: Clear instructions for macOS, Linux, and Windows
+  - **Pattern server support**: Detects and provides specific guidance for pattern server auth/network issues
+  - **Documentation**: Clarified that pattern server is not used for Gitleaks scanning (uses built-in patterns)
+  - Prevents users from unknowingly operating without secret scanning protection
 - Workaround suggestion in error messages for documentation files (Issue #65)
   - **Smart detection**: Identifies when users try to write ABOUT ai - guardian (not modify it)
   - **Helpful tip**: Suggests using "ai - guardian" (with spaces) to avoid triggering protection patterns
