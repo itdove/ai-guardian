@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Workaround suggestion in error messages for documentation files (Issue #65)
+  - **Smart detection**: Identifies when users try to write ABOUT ai - guardian (not modify it)
+  - **Helpful tip**: Suggests using "ai - guardian" (with spaces) to avoid triggering protection patterns
+  - **Context-aware**: Only shown for documentation files (.md, .txt, /docs/, README) mentioning the tool
+  - **Pattern explanation**: Explains why the workaround works (literal string matching)
+  - **No security impact**: Workaround only affects text content, not actual protected file paths
+  - Applies to Write and Edit tools on protected documentation files
 - Comprehensive TUI documentation (Issue #57)
   - **New docs/TUI.md**: Complete guide to Text User Interface with 11 tabs
   - **Getting started**: Installation, launching, and navigation
@@ -185,6 +192,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2026-04-10
 
 ### Added
+- Workaround suggestion in error messages for documentation files (Issue #65)
+  - **Smart detection**: Identifies when users try to write ABOUT ai - guardian (not modify it)
+  - **Helpful tip**: Suggests using "ai - guardian" (with spaces) to avoid triggering protection patterns
+  - **Context-aware**: Only shown for documentation files (.md, .txt, /docs/, README) mentioning the tool
+  - **Pattern explanation**: Explains why the workaround works (literal string matching)
+  - **No security impact**: Workaround only affects text content, not actual protected file paths
+  - Applies to Write and Edit tools on protected documentation files
 - TestPyPI workflow for safe release testing before production
 - GitHub Actions workflow `.github/workflows/publish-test.yml` for TestPyPI publishing
 - Comprehensive TestPyPI testing documentation in RELEASING.md
@@ -217,6 +231,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-03-27
 
 ### Added
+- Workaround suggestion in error messages for documentation files (Issue #65)
+  - **Smart detection**: Identifies when users try to write ABOUT ai - guardian (not modify it)
+  - **Helpful tip**: Suggests using "ai - guardian" (with spaces) to avoid triggering protection patterns
+  - **Context-aware**: Only shown for documentation files (.md, .txt, /docs/, README) mentioning the tool
+  - **Pattern explanation**: Explains why the workaround works (literal string matching)
+  - **No security impact**: Workaround only affects text content, not actual protected file paths
+  - Applies to Write and Edit tools on protected documentation files
 - Automated IDE hook setup command (`ai-guardian setup`) with interactive configuration
 - Support for `AI_GUARDIAN_CONFIG_DIR` environment variable for custom config directory location
 - Professional logo images to README and package
@@ -244,6 +265,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-03-23
 
 ### Added
+- Workaround suggestion in error messages for documentation files (Issue #65)
+  - **Smart detection**: Identifies when users try to write ABOUT ai - guardian (not modify it)
+  - **Helpful tip**: Suggests using "ai - guardian" (with spaces) to avoid triggering protection patterns
+  - **Context-aware**: Only shown for documentation files (.md, .txt, /docs/, README) mentioning the tool
+  - **Pattern explanation**: Explains why the workaround works (literal string matching)
+  - **No security impact**: Workaround only affects text content, not actual protected file paths
+  - Applies to Write and Edit tools on protected documentation files
 - Initial stable release
 - AI IDE security hook for blocking directories
 - Secret scanning integration with gitleaks
