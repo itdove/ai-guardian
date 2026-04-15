@@ -14,24 +14,36 @@
       }
     },
     "permissions_directories": {
-      "type": "object",
-      "description": "OPTIONAL/ADVANCED: Auto-discover permissions from directories. Most users should use remote_configs instead.",
-      "properties": {
-        "deny": {
-          "type": "array",
-          "description": "Directories to scan for deny patterns",
-          "items": {
-            "$ref": "#/definitions/directory_entry"
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Object format with allow/deny arrays (backward compatible)",
+          "properties": {
+            "deny": {
+              "type": "array",
+              "description": "Directories to scan for deny patterns",
+              "items": {
+                "$ref": "#/definitions/directory_entry"
+              }
+            },
+            "allow": {
+              "type": "array",
+              "description": "Directories to scan for allow patterns",
+              "items": {
+                "$ref": "#/definitions/directory_entry"
+              }
+            }
           }
         },
-        "allow": {
+        {
           "type": "array",
-          "description": "Directories to scan for allow patterns",
+          "description": "Array format with mode in each entry (NEW: mode field actually used)",
           "items": {
             "$ref": "#/definitions/directory_entry"
           }
         }
-      }
+      ],
+      "description": "OPTIONAL/ADVANCED: Auto-discover permissions from directories. Most users should use remote_configs instead. Supports both object format (allow/deny arrays) and direct array format."
     },
     "remote_configs": {
       "type": "object",
@@ -362,17 +374,19 @@
     },
     "directory_entry": {
       "type": "object",
-      "required": ["matcher", "mode", "url"],
-      "description": "Directory to scan for auto-discovery of permissions",
+      "required": ["url"],
+      "description": "Directory to scan for auto-discovery of permissions. In object format (allow/deny arrays), mode is determined by which array the entry is in. In array format, mode defaults to 'allow' if not specified.",
       "properties": {
         "matcher": {
           "type": "string",
-          "description": "Tool type to apply discovered patterns to (e.g., 'Skill', 'mcp__*')"
+          "description": "Tool type to apply discovered patterns to (e.g., 'Skill', 'mcp__*'). Defaults to 'Skill' if not specified.",
+          "default": "Skill"
         },
         "mode": {
           "type": "string",
           "enum": ["allow", "deny"],
-          "description": "Permission mode for discovered patterns"
+          "description": "Permission mode for discovered patterns. Only used in array format; ignored in object format (allow/deny arrays). Defaults to 'allow'.",
+          "default": "allow"
         },
         "url": {
           "type": "string",
