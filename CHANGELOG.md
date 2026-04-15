@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Comprehensive TUI documentation (Issue #57)
+  - **New docs/TUI.md**: Complete guide to Text User Interface with 11 tabs
+  - **Getting started**: Installation, launching, and navigation
+  - **Tab reference**: Detailed documentation for all 11 tabs (Global Settings, Violations, Skills, MCP Servers, Secrets, Prompt Injection, Remote Configs, Permissions Discovery, Directory Protection, Config, Logs)
+  - **Keyboard shortcuts**: Complete reference for keyboard navigation
+  - **Common workflows**: 6 detailed workflow examples (allowing blocked tools, temporary disabling, team permissions, directory protection, secret investigation, config debugging)
+  - **Advanced features**: Time-based permissions, smart rule merging, nested tabs, custom themes
+  - **Troubleshooting**: Solutions for common TUI issues
+  - **Technical details**: Architecture, data flow, Textual framework usage, performance considerations
+  - Linked from README.md for easy discovery
 - GitHub maintainer bypass for source code editing (Issue #60)
   - **Scoped bypass**: Maintainers can edit ai-guardian source code with AI assistance
   - **Config protection**: Config files always protected (even for maintainers)
