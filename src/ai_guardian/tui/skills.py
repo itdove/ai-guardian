@@ -7,6 +7,8 @@ Manage Skill permissions (allow/deny lists for Skill tools).
 
 import json
 from pathlib import Path
+from datetime import datetime, timezone
+from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -16,7 +18,7 @@ from ai_guardian.config_utils import get_config_dir
 
 
 class PatternRow(Horizontal):
-    """Display a single pattern with remove button."""
+    """Display a single pattern with remove button (supports time-based patterns)."""
 
     DEFAULT_CSS = """
     PatternRow {
@@ -38,18 +40,51 @@ class PatternRow(Horizontal):
     }
     """
 
-    def __init__(self, pattern: str, index: int, mode: str, *args, **kwargs):
+    def __init__(self, pattern: Union[str, Dict[str, Any]], index: int, mode: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.pattern = pattern
+        self.pattern_data = pattern
         self.index = index
         self.mode = mode
 
-    def compose(self) -> ComposeResult:
-        """Compose the pattern row."""
-        if self.mode == "allow":
-            yield Static(f"  [status-ok]✓[/status-ok] {self.pattern}")
+        # Parse pattern (supports simple string or time-based dict)
+        if isinstance(pattern, dict):
+            self.pattern_str = pattern.get("pattern", "")
+            self.valid_until = pattern.get("valid_until", "")
         else:
-            yield Static(f"  [status-error]✗[/status-error] {self.pattern}")
+            self.pattern_str = pattern
+            self.valid_until = ""
+
+    def compose(self) -> ComposeResult:
+        """Compose the pattern row with optional expiration badge."""
+        # Mode indicator
+        if self.mode == "allow":
+            mode_badge = "[status-ok]✓[/status-ok]"
+        else:
+            mode_badge = "[status-error]✗[/status-error]"
+
+        # Build pattern display with expiration info
+        pattern_display = f"  {mode_badge} {self.pattern_str}"
+
+        if self.valid_until:
+            # Add expiration badge with color coding
+            try:
+                expiry_dt = datetime.fromisoformat(self.valid_until.replace('Z', '+00:00'))
+                now = datetime.now(timezone.utc)
+
+                if expiry_dt <= now:
+                    # Expired
+                    pattern_display += " [status-error][EXPIRED][/status-error]"
+                else:
+                    # Check if expiring soon (within 24 hours)
+                    time_remaining = expiry_dt - now
+                    if time_remaining.total_seconds() < 86400:  # 24 hours
+                        pattern_display += f" [status-warn][expires {self.valid_until}][/status-warn]"
+                    else:
+                        pattern_display += f" [dim][until {self.valid_until}][/dim]"
+            except Exception:
+                pattern_display += f" [dim][until {self.valid_until}][/dim]"
+
+        yield Static(pattern_display)
         yield Button("Remove", id=f"remove-{self.mode}-{self.index}", variant="error")
 
 

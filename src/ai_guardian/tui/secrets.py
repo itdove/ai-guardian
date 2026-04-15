@@ -7,12 +7,14 @@ View secret detection settings and manage configuration.
 
 import json
 from pathlib import Path
+from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Static, Button, Input, Label, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import TimeBasedToggle
 
 
 class SecretsContent(Container):
@@ -114,14 +116,18 @@ class SecretsContent(Container):
                     id="gitleaks-config"
                 )
 
-            # Pattern server section
-            with Container(classes="section"):
-                yield Static("[bold]Pattern Server (Optional - Enhanced Patterns)[/bold]", classes="section-title")
-                yield Static("[dim]Enable to use custom security patterns from a remote server in addition to Gitleaks defaults[/dim]", classes="section-title")
+            # Pattern server toggle section (standalone)
+            yield TimeBasedToggle(
+                title="Pattern Server (Optional - Enhanced Patterns)",
+                config_key="pattern_server_enabled",
+                current_value=False,
+                help_text="Enable to use custom security patterns from a remote server in addition to Gitleaks defaults",
+                id="pattern_server_enabled_toggle",
+            )
 
-                with Horizontal(classes="setting-row"):
-                    yield Label("Enabled:")
-                    yield Checkbox("", id="pattern-server-enabled")
+            # Pattern server settings section
+            with Container(classes="section"):
+                yield Static("[bold]Pattern Server Settings[/bold]", classes="section-title")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Server URL:")
@@ -218,7 +224,7 @@ class SecretsContent(Container):
 
         # Pattern server status
         pattern_server = config.get("pattern_server", {})
-        enabled = pattern_server.get("enabled", False)
+        enabled_value = pattern_server.get("enabled", False)
         server_url = pattern_server.get("url", pattern_server.get("server_url", "https://patterns.security.redhat.com"))
         patterns_endpoint = pattern_server.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
         auth = pattern_server.get("auth", {})
@@ -226,9 +232,11 @@ class SecretsContent(Container):
         token_env = auth.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
         token_file = auth.get("token_file", "~/.config/rh-gitleaks/auth.jwt")
 
-        # Update switch and inputs
+        # Update time-based toggle and inputs
         try:
-            self.query_one("#pattern-server-enabled", Checkbox).value = enabled
+            toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
+            self.mount_toggle(toggle, "pattern_server_enabled", enabled_value)
+
             self.query_one("#pattern-server-url", Input).value = server_url
             self.query_one("#pattern-server-endpoint", Input).value = patterns_endpoint
             self.query_one("#pattern-server-auth-method", Input).value = auth_method
@@ -237,12 +245,19 @@ class SecretsContent(Container):
         except Exception:
             pass  # Widgets may not be mounted yet
 
+        # Determine if pattern server is actually enabled (check time-based expiration)
+        is_enabled = False
+        if isinstance(enabled_value, dict):
+            is_enabled = enabled_value.get("value", False)
+        else:
+            is_enabled = enabled_value
+
         # Gitleaks status - check for project config
         from pathlib import Path
         project_config = Path.cwd() / ".gitleaks.toml"
         if project_config.exists():
             gitleaks_status = f"[status-ok]✓[/status-ok] Using project config: {project_config}"
-        elif enabled:
+        elif is_enabled:
             gitleaks_status = "[status-ok]✓[/status-ok] Using pattern server (enhanced patterns)"
         else:
             gitleaks_status = "[status-ok]✓[/status-ok] Using Gitleaks built-in rules"
@@ -282,18 +297,68 @@ class SecretsContent(Container):
         except Exception:
             pass  # Widgets may not be mounted yet
 
+    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:
+        """Update a toggle widget with new configuration value."""
+        # Parse value
+        if isinstance(value, dict):
+            toggle.is_enabled = value.get("value", False)
+            toggle.disabled_until = value.get("disabled_until", "")
+            toggle.reason = value.get("reason", "")
+        else:
+            toggle.is_enabled = value
+            toggle.disabled_until = ""
+            toggle.reason = ""
+
+        # Determine mode
+        if toggle.is_enabled:
+            toggle.current_mode = "enabled"
+        elif toggle.disabled_until:
+            toggle.current_mode = "temp_disabled"
+        else:
+            toggle.current_mode = "disabled"
+
+        # Update widgets
+        try:
+            mode_select = toggle.query_one(f"#{config_key}_mode_select")
+            mode_select.value = toggle.current_mode
+
+            disabled_until_input = toggle.query_one(f"#{config_key}_disabled_until")
+            disabled_until_input.value = toggle.disabled_until
+
+            reason_input = toggle.query_one(f"#{config_key}_reason")
+            reason_input.value = toggle.reason
+
+            toggle.update_temp_fields_visibility()
+            toggle.update_status_display()
+        except Exception:
+            pass
+
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox toggle."""
-        if event.checkbox.id == "pattern-server-enabled":
-            self.save_pattern_server_enabled(event.value)
-        elif event.checkbox.id == "violation-logging-enabled":
+        if event.checkbox.id == "violation-logging-enabled":
             self.save_violation_logging_enabled(event.value)
         elif event.checkbox.id and event.checkbox.id.startswith("log-type-"):
             self.save_log_types()
 
+    def on_select_changed(self, event) -> None:
+        """Handle mode selector change in TimeBasedToggle - save immediately."""
+        select_id = event.select.id
+
+        if select_id and "pattern_server_enabled" in select_id:
+            toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_pattern_server_enabled_value(value)
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields - save the value."""
-        if event.input.id == "pattern-server-url":
+        input_id = event.input.id
+
+        # Handle TimeBasedToggle inputs
+        if input_id and "pattern_server_enabled" in input_id:
+            toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_pattern_server_enabled_value(value)
+        elif event.input.id == "pattern-server-url":
             self.save_pattern_server_field("url", event.value)
         elif event.input.id == "pattern-server-endpoint":
             self.save_pattern_server_field("patterns_endpoint", event.value)
@@ -339,8 +404,8 @@ class SecretsContent(Container):
         self.load_config()
         self.app.notify("Secrets configuration refreshed", severity="information")
 
-    def save_pattern_server_enabled(self, enabled: bool) -> None:
-        """Save pattern server enabled state to config."""
+    def save_pattern_server_enabled_value(self, value: Union[bool, Dict[str, Any]]) -> None:
+        """Save pattern server enabled state to config (supports time-based format)."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -354,13 +419,26 @@ class SecretsContent(Container):
             if "pattern_server" not in config:
                 config["pattern_server"] = {}
 
-            config["pattern_server"]["enabled"] = enabled
+            config["pattern_server"]["enabled"] = value
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
-            status = "enabled" if enabled else "disabled"
-            self.app.notify(f"✓ Pattern server {status}", severity="success")
+            # Show status message
+            if isinstance(value, bool):
+                status = "enabled" if value else "disabled"
+                self.app.notify(f"✓ Pattern server {status}", severity="success")
+            else:
+                if value.get("disabled_until"):
+                    self.app.notify(
+                        f"✓ Pattern server temporarily disabled until {value['disabled_until']}",
+                        severity="success"
+                    )
+                else:
+                    self.app.notify("✓ Pattern server disabled", severity="success")
+
+            # Reload to update status
+            self.load_config()
 
         except Exception as e:
             self.app.notify(f"Error saving config: {e}", severity="error")
