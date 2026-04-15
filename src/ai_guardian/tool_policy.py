@@ -15,6 +15,7 @@ import fnmatch
 import json
 import logging
 import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
@@ -48,6 +49,9 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
 
+        # Protect ai-guardian cache (prevents cache poisoning)
+        "*/.cache/ai-guardian/*",
+
         # Protect IDE hook files (CRITICAL - prevents disabling ai-guardian)
         "*/.claude/settings.json",
         "*/.claude/hooks.json",
@@ -70,6 +74,10 @@ IMMUTABLE_DENY_PATTERNS = {
         "*ai-guardian.json",
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
+
+        # Protect ai-guardian cache (prevents cache poisoning)
+        "*/.cache/ai-guardian/*",
+
         "*/.claude/settings.json",
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
@@ -115,6 +123,17 @@ IMMUTABLE_DENY_PATTERNS = {
         "*mv*.claude/settings.json*",
         "*mv*.cursor/hooks.json*",
 
+        # Protect ai-guardian cache from manipulation (prevents cache poisoning)
+        "*rm*.cache/ai-guardian/*",
+        "*mv*.cache/ai-guardian/*",
+        "*sed*.cache/ai-guardian/*",
+        "*awk*.cache/ai-guardian/*",
+        "*>*.cache/ai-guardian/*",
+        "*chmod*.cache/ai-guardian/*",
+        "*chattr*.cache/ai-guardian/*",
+        "*vim*.cache/ai-guardian/*",
+        "*nano*.cache/ai-guardian/*",
+
         # Protect .ai-read-deny marker files from bash manipulation
         "*rm*.ai-read-deny*",          # Block: rm .ai-read-deny
         "*rm*/.ai-read-deny*",         # Block: rm /path/.ai-read-deny
@@ -137,6 +156,14 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Clear-Content*ai-guardian*",
         "*Out-File*ai-guardian*",
         "*Copy-Item*ai-guardian*",
+
+        # Protect ai-guardian cache (prevents cache poisoning)
+        "*Remove-Item*.cache/ai-guardian/*", "*Remove-Item*.cache\\ai-guardian\\*",
+        "*Move-Item*.cache/ai-guardian/*", "*Move-Item*.cache\\ai-guardian\\*",
+        "*Set-Content*.cache/ai-guardian/*", "*Set-Content*.cache\\ai-guardian\\*",
+        "*Clear-Content*.cache/ai-guardian/*", "*Clear-Content*.cache\\ai-guardian\\*",
+        "*Out-File*.cache/ai-guardian/*", "*Out-File*.cache\\ai-guardian\\*",
+        "*>*.cache/ai-guardian/*", "*>*.cache\\ai-guardian\\*",
 
         # Protect IDE hook files (Unix paths)
         "*Remove-Item*.claude/settings.json*", "*Remove-Item*.cursor/hooks.json*",
@@ -230,6 +257,68 @@ class ToolPolicyChecker:
         """
         self.config = config or self._load_config()
 
+    def _should_skip_immutable_protection(self, file_path: str, tool_name: str) -> bool:
+        """
+        Check if maintainer bypass applies for this file.
+
+        Bypass ONLY allows:
+        - Editing source code files IN the ai-guardian repository
+        - Does NOT allow editing config files (even for maintainers)
+
+        Args:
+            file_path: Path to the file being accessed
+            tool_name: Name of the tool being used
+
+        Returns:
+            bool: True if bypass should apply, False otherwise
+        """
+        # PRIORITY 1: Config/hook/cache files - NEVER bypass (even for maintainers)
+        config_patterns = [
+            "*ai-guardian.json",           # Config files
+            "*/.ai-guardian.json",         # Project config
+            "*/.config/ai-guardian/*",     # Config directory
+            "*/.cache/ai-guardian/*",      # Cache files (prevents poisoning)
+            "*/.claude/settings.json",     # IDE hooks
+            "*/.claude/hooks.json",
+            "*/.cursor/hooks.json",
+            "*/Claude/settings.json",      # Windows
+            "*/Cursor/hooks.json",
+            "*/.ai-read-deny",             # Directory markers
+            "**/.ai-read-deny",
+        ]
+
+        for pattern in config_patterns:
+            if fnmatch.fnmatch(file_path, pattern):
+                logger.debug(f"Config file always protected: {file_path}")
+                return False  # Always protected, even for maintainers
+
+        # PRIORITY 2: Is this a source code file IN the ai-guardian repo?
+        source_patterns = [
+            "*/ai-guardian/src/ai_guardian/*",    # Source directory
+            "*/ai-guardian/tests/*",               # Tests
+            "*/ai-guardian/*.md",                  # Documentation
+            "*/ai-guardian/*.py",                  # Root Python files
+            "*/ai-guardian/*.toml",                # Config files like pyproject.toml
+            "*/ai-guardian/*.txt",                 # Requirements, etc.
+            "*/ai-guardian/.github/*",             # GitHub workflows
+            "*/ai-guardian/CHANGELOG.md",          # Changelog
+            "*/ai-guardian/RELEASING.md",          # Release docs
+        ]
+
+        is_source_file = any(fnmatch.fnmatch(file_path, p) for p in source_patterns)
+        if not is_source_file:
+            logger.debug(f"Not a source file: {file_path}")
+            return False  # Not a source file, keep protected
+
+        # PRIORITY 3: Is user a GitHub maintainer?
+        if not self._is_github_maintainer_cached():
+            logger.debug("User is not a maintainer")
+            return False  # Not a maintainer, keep protected
+
+        # All checks passed: allow bypass
+        logger.info(f"✅ Maintainer bypass: allowing {tool_name} on {file_path}")
+        return True
+
     def check_tool_allowed(self, hook_data: Dict) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Check if a tool invocation is allowed.
@@ -252,8 +341,14 @@ class ToolPolicyChecker:
 
             # PRIORITY 1: Check immutable deny patterns (cannot be overridden)
             # These protect ai-guardian config, IDE hooks, and package source code
+            # EXCEPT: Maintainers can edit source code (but NOT config files)
             check_value = self._extract_check_value(tool_name, tool_input, tool_name)
             if check_value:
+                # Check if maintainer bypass applies
+                if self._should_skip_immutable_protection(check_value, tool_name):
+                    logger.info(f"✅ Maintainer bypass applied for {check_value}")
+                    return True, None, tool_name
+
                 immutable_denies = IMMUTABLE_DENY_PATTERNS.get(tool_name, [])
                 for pattern in immutable_denies:
                     if fnmatch.fnmatch(check_value, pattern):
@@ -877,6 +972,270 @@ class ToolPolicyChecker:
             return "claude_code"
 
         return "unknown"
+
+    def _get_git_repo_info(self) -> Optional[Tuple[str, str]]:
+        """
+        Extract owner/repo from git remote URL.
+
+        Returns:
+            tuple: (owner, repo) or None if not a git repo
+        """
+        try:
+            result = subprocess.run(
+                ["git", "config", "--get", "remote.origin.url"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=os.getcwd()
+            )
+            if result.returncode != 0:
+                return None
+
+            url = result.stdout.strip()
+            if not url:
+                return None
+
+            # Parse GitHub URL patterns:
+            # - https://github.com/owner/repo.git
+            # - git@github.com:owner/repo.git
+            # - https://github.com/owner/repo
+            if "github.com" not in url:
+                return None
+
+            # Extract owner/repo
+            if url.startswith("git@github.com:"):
+                path = url.replace("git@github.com:", "")
+            elif "github.com/" in url:
+                path = url.split("github.com/", 1)[1]
+            else:
+                return None
+
+            # Remove .git suffix
+            if path.endswith(".git"):
+                path = path[:-4]
+
+            # Split into owner/repo
+            parts = path.split("/")
+            if len(parts) >= 2:
+                owner, repo = parts[0], parts[1]
+                logger.debug(f"Detected git repo: {owner}/{repo}")
+                return owner, repo
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to get git repo info: {e}")
+            return None
+
+    def _get_authenticated_github_user(self) -> Optional[str]:
+        """
+        Get GitHub username from authenticated gh CLI.
+
+        SECURITY: Only uses gh API which requires real OAuth token.
+        Does NOT trust environment variables or git config (easily spoofed).
+
+        Returns:
+            str: GitHub username or None if not authenticated
+        """
+        try:
+            result = subprocess.run(
+                ["gh", "api", "user", "--jq", ".login"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                username = result.stdout.strip()
+                if username:
+                    logger.debug(f"Authenticated GitHub user: {username}")
+                    return username
+        except FileNotFoundError:
+            logger.debug("gh CLI not found")
+        except Exception as e:
+            logger.debug(f"Failed to get authenticated user: {e}")
+
+        return None
+
+    def _check_github_collaborator(self, owner: str, repo: str, username: str) -> bool:
+        """
+        Check if user has write access to repo via GitHub API.
+
+        SECURITY: Requires real GitHub authentication, can't be spoofed.
+        Returns 204 if collaborator with write access, 404 if not.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            username: GitHub username to check
+
+        Returns:
+            bool: True if user has write access, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{owner}/{repo}/collaborators/{username}"],
+                capture_output=True,
+                timeout=10
+            )
+            is_collaborator = (result.returncode == 0)
+            logger.info(f"Collaborator check for {username} on {owner}/{repo}: {is_collaborator}")
+            return is_collaborator
+        except Exception as e:
+            logger.debug(f"Collaborator check failed: {e}")
+            return False
+
+    def _get_maintainer_cache(self) -> Optional[bool]:
+        """
+        Read maintainer status from cache file.
+
+        Returns:
+            bool or None: Cached maintainer status or None if not cached/expired
+        """
+        try:
+            cache_dir = Path.home() / ".cache" / "ai-guardian"
+            cache_file = cache_dir / "maintainer-status.json"
+
+            if not cache_file.exists():
+                return None
+
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+
+            # Get current repo info
+            repo_info = self._get_git_repo_info()
+            if not repo_info:
+                return None
+
+            owner, repo = repo_info
+            repo_key = f"{owner}/{repo}"
+
+            # Check if we have a cache entry for this repo
+            repositories = cache_data.get("repositories", {})
+            repo_cache = repositories.get(repo_key)
+
+            if not repo_cache:
+                return None
+
+            # Check if cache is expired
+            checked_at = repo_cache.get("checked_at")
+            ttl_hours = cache_data.get("ttl_hours", 24)
+
+            if checked_at:
+                try:
+                    # Parse checked_at timestamp
+                    from datetime import timedelta
+                    checked_time = datetime.fromisoformat(checked_at.replace('Z', '+00:00'))
+                    current_time = datetime.now(timezone.utc)
+                    age = current_time - checked_time
+
+                    # Check if still within TTL
+                    if age < timedelta(hours=ttl_hours):
+                        is_maintainer = repo_cache.get("is_maintainer", False)
+                        logger.debug(f"Using cached maintainer status: {is_maintainer}")
+                        return is_maintainer
+                except Exception as e:
+                    logger.debug(f"Failed to parse cache timestamp: {e}")
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Failed to read maintainer cache: {e}")
+            return None
+
+    def _cache_maintainer_status(self, is_maintainer: bool) -> None:
+        """
+        Write maintainer status to cache file.
+
+        Args:
+            is_maintainer: Whether user is a maintainer
+        """
+        try:
+            repo_info = self._get_git_repo_info()
+            if not repo_info:
+                return
+
+            owner, repo = repo_info
+            repo_key = f"{owner}/{repo}"
+
+            # Get authenticated user
+            username = self._get_authenticated_github_user()
+            if not username:
+                return
+
+            cache_dir = Path.home() / ".cache" / "ai-guardian"
+            cache_file = cache_dir / "maintainer-status.json"
+
+            # Create cache directory if needed
+            cache_dir.mkdir(parents=True, exist_ok=True)
+
+            # Load existing cache or create new
+            cache_data = {}
+            if cache_file.exists():
+                try:
+                    with open(cache_file, 'r') as f:
+                        cache_data = json.load(f)
+                except:
+                    cache_data = {}
+
+            # Update cache data
+            if "repositories" not in cache_data:
+                cache_data["repositories"] = {}
+
+            cache_data["version"] = 1
+            cache_data["ttl_hours"] = int(os.environ.get("AI_GUARDIAN_MAINTAINER_CACHE_TTL_HOURS", "24"))
+            cache_data["repositories"][repo_key] = {
+                "username": username,
+                "is_maintainer": is_maintainer,
+                "checked_at": datetime.now(timezone.utc).isoformat()
+            }
+
+            # Write cache file
+            with open(cache_file, 'w') as f:
+                json.dump(cache_data, f, indent=2)
+
+            logger.debug(f"Cached maintainer status for {repo_key}: {is_maintainer}")
+
+        except Exception as e:
+            logger.debug(f"Failed to cache maintainer status: {e}")
+
+    def _is_github_maintainer_cached(self) -> bool:
+        """
+        Check if user is a maintainer of the current repository (with cache).
+
+        Returns:
+            bool: True if user is a maintainer, False otherwise
+        """
+        # Check cache first
+        cached = self._get_maintainer_cache()
+        if cached is not None:
+            return cached
+
+        try:
+            # Get repository info
+            repo_info = self._get_git_repo_info()
+            if not repo_info:
+                logger.debug("Not a git repository")
+                return False
+
+            owner, repo = repo_info
+
+            # Get authenticated GitHub user
+            username = self._get_authenticated_github_user()
+            if not username:
+                logger.debug("User not authenticated with gh CLI")
+                return False
+
+            # Check collaborator status
+            is_maintainer = self._check_github_collaborator(owner, repo, username)
+
+            # Cache result
+            self._cache_maintainer_status(is_maintainer)
+
+            return is_maintainer
+
+        except Exception as e:
+            logger.debug(f"Maintainer check failed: {e}")
+            return False
 
     def _load_config(self) -> Dict:
         """

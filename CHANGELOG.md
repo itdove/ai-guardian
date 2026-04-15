@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- GitHub maintainer bypass for source code editing (Issue #60)
+  - **Scoped bypass**: Maintainers can edit ai-guardian source code with AI assistance
+  - **Config protection**: Config files always protected (even for maintainers)
+  - **Cache protection**: Cache files protected to prevent poisoning attacks
+  - **OAuth authentication**: Uses `gh` CLI to verify GitHub identity securely
+  - **Collaborator check**: Confirms write access via GitHub API
+  - **24-hour caching**: Status cached to avoid API rate limits
+  - **Fork-friendly**: Works on maintainer's own forks
+  - **Threat model B protection**: Malicious prompts can't disable security features
+  - Allows editing: `src/ai_guardian/*`, `tests/*`, `*.md`, `*.toml`, `.github/*`
+  - Always blocks: `*ai-guardian.json`, `~/.claude/*`, `~/.cache/ai-guardian/*`
+  - Comprehensive test coverage (27 new tests in test_maintainer_bypass.py)
 - Enhanced TUI with ALL missing JSON schema configuration fields (Issue #53)
   - **New Global Settings tab**: Manage permissions_enabled and secret_scanning with time-based toggles
   - **New Remote Configs tab**: Manage remote policy URLs for loading enterprise/team permissions

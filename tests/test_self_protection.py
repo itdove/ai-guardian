@@ -9,6 +9,7 @@ Tests the IMMUTABLE_DENY_PATTERNS that protect:
 
 import json
 from unittest import TestCase
+from unittest.mock import patch
 from ai_guardian.tool_policy import ToolPolicyChecker
 
 
@@ -153,8 +154,11 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed, "Write to package source should be blocked")
         self.assertIn("package source code", error_msg)
 
-    def test_write_blocks_package_source_src(self):
-        """AI cannot write to src/ai_guardian/"""
+    @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
+    def test_write_blocks_package_source_src(self, mock_is_maintainer):
+        """AI cannot write to src/ai_guardian/ (for non-maintainers)"""
+        mock_is_maintainer.return_value = False
+
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
@@ -582,8 +586,11 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed, "Write to site-packages/ai_guardian should still be blocked")
         self.assertIn("CRITICAL FILE PROTECTED", error_msg)
 
-    def test_write_still_blocks_source_repo(self):
-        """AI cannot write to ai-guardian/src/ai_guardian/ (verify protection still works)"""
+    @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
+    def test_write_still_blocks_source_repo(self, mock_is_maintainer):
+        """AI cannot write to ai-guardian/src/ai_guardian/ (verify protection for non-maintainers)"""
+        mock_is_maintainer.return_value = False
+
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {

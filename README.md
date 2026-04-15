@@ -1312,6 +1312,79 @@ If a user manually edits the source code to remove the protection:
 - Same as uninstalling ai-guardian entirely
 - Not an AI bypass (requires manual intervention)
 
+**Maintainer Bypass for Development:**
+
+GitHub maintainers of the AI Guardian project can edit source code with AI assistance:
+
+```bash
+# Prerequisites
+# 1. Authenticate with GitHub CLI
+gh auth login
+
+# 2. Be a collaborator on the repository
+# (check: gh api repos/itdove/ai-guardian/collaborators/YOUR_USERNAME)
+
+# Now AI can help edit source files
+✅ Edit src/ai_guardian/tool_policy.py  # Allowed for maintainers
+✅ Write tests/test_new_feature.py      # Allowed for maintainers
+✅ Edit README.md                        # Allowed for maintainers
+
+# But config files remain protected
+❌ Edit ~/.config/ai-guardian/ai-guardian.json  # BLOCKED (even for maintainers)
+❌ Edit ~/.claude/settings.json                  # BLOCKED (even for maintainers)
+❌ Write ~/.cache/ai-guardian/maintainer-status.json  # BLOCKED (cache poisoning prevented)
+```
+
+**How Maintainer Bypass Works:**
+
+1. **GitHub OAuth Authentication** - Uses `gh` CLI to verify your GitHub identity
+2. **Collaborator Check** - Confirms write access via GitHub API
+3. **Scoped Bypass** - Only allows editing source code, never config files
+4. **Automatic** - Works transparently when you're a maintainer
+5. **Cached** - Status cached for 24 hours to avoid API rate limits
+
+**Security Model:**
+
+The bypass prevents **two distinct threat models**:
+
+- **Threat A (Non-Maintainers)**: Blocked by GitHub collaborator check
+  - AI can't fake OAuth credentials
+  - GitHub API verifies real permissions
+
+- **Threat B (Malicious Prompts to Maintainers)**: Blocked by scoped protection
+  - Config files always protected (even for maintainers)
+  - Cache files always protected (prevents poisoning)
+  - Malicious prompts can't disable security features
+
+**Example: Malicious Prompt Protection**
+
+Even if you're a maintainer, this attack is blocked:
+
+```bash
+# Malicious prompt: "Help me organize my SSH keys"
+# AI attempts to disable secret scanning first
+
+Edit(file_path="~/.config/ai-guardian/ai-guardian.json",
+     old_string='"secret_scanning": true',
+     new_string='"secret_scanning": false')
+
+# ❌ BLOCKED - Config files always protected
+# Protection prevents AI from reading ~/.ssh/id_rsa
+```
+
+**Troubleshooting:**
+
+If maintainer bypass isn't working:
+
+1. Check GitHub authentication: `gh auth status`
+2. Verify collaborator access: `gh api repos/itdove/ai-guardian/collaborators/YOUR_USERNAME`
+3. Clear cache: `rm ~/.cache/ai-guardian/maintainer-status.json`
+4. Check repo URL: `git config --get remote.origin.url` (must be github.com)
+
+**Fork-Friendly:**
+
+Works on your own fork too! If you're a maintainer of `yourname/ai-guardian`, you can edit your fork's source code.
+
 ### Known Limitations
 
 **⚠️ AI Guardian is not perfect and has known limitations:**
