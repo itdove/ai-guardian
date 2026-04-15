@@ -100,13 +100,13 @@ class SkillDiscovery:
             logger.error(f"Invalid directory URL: {directory_url}")
             return set()
 
-        platform, owner, repo, branch, path = parsed
+        platform, hostname, owner, repo, branch, path = parsed
 
         # Discover skills from API
         if platform == "github":
-            skills = self._discover_github_skills(owner, repo, branch, path, token_env)
+            skills = self._discover_github_skills(hostname, owner, repo, branch, path, token_env)
         elif platform == "gitlab":
-            skills = self._discover_gitlab_skills(owner, repo, branch, path, token_env)
+            skills = self._discover_gitlab_skills(hostname, owner, repo, branch, path, token_env)
         else:
             logger.error(f"Unknown platform: {platform}")
             return set()
@@ -120,7 +120,7 @@ class SkillDiscovery:
 
         return skills
 
-    def _parse_directory_url(self, url: str) -> Optional[Tuple[str, str, str, str, str]]:
+    def _parse_directory_url(self, url: str) -> Optional[Tuple[str, str, str, str, str, str]]:
         """
         Parse GitHub/GitLab directory URL.
 
@@ -128,7 +128,7 @@ class SkillDiscovery:
             url: Directory URL
 
         Returns:
-            tuple or None: (platform, owner, repo, branch, path) or None if invalid
+            tuple or None: (platform, hostname, owner, repo, branch, path) or None if invalid
         """
         try:
             # GitHub: https://github.com/org/repo/tree/branch/path/to/dir
@@ -189,7 +189,7 @@ class SkillDiscovery:
                 branch = path_parts[tree_index + 2]
                 dir_path = '/'.join(path_parts[tree_index + 3:]) if len(path_parts) > tree_index + 3 else ""
 
-            return platform, owner, repo, branch, dir_path
+            return platform, hostname, owner, repo, branch, dir_path
 
         except Exception as e:
             logger.error(f"Error parsing directory URL {url}: {e}")
@@ -197,6 +197,7 @@ class SkillDiscovery:
 
     def _discover_github_skills(
         self,
+        hostname: str,
         owner: str,
         repo: str,
         branch: str,
@@ -207,6 +208,7 @@ class SkillDiscovery:
         Discover skills from GitHub directory.
 
         Args:
+            hostname: GitHub hostname (e.g., "github.com")
             owner: Repository owner
             repo: Repository name
             branch: Branch name
@@ -296,6 +298,7 @@ class SkillDiscovery:
 
     def _discover_gitlab_skills(
         self,
+        hostname: str,
         owner: str,
         repo: str,
         branch: str,
@@ -306,6 +309,7 @@ class SkillDiscovery:
         Discover skills from GitLab directory.
 
         Args:
+            hostname: GitLab hostname (e.g., "gitlab.com", "gitlab.example.com")
             owner: Repository owner/group
             repo: Repository name
             branch: Branch name
@@ -324,7 +328,7 @@ class SkillDiscovery:
 
             # GitLab API endpoint
             # https://docs.gitlab.com/ee/api/repositories.html#list-repository-tree
-            api_url = f"https://gitlab.com/api/v4/projects/{encoded_project}/repository/tree"
+            api_url = f"https://{hostname}/api/v4/projects/{encoded_project}/repository/tree"
 
             params = {
                 "ref": branch,
@@ -522,7 +526,7 @@ class SkillDiscovery:
         # Extract platform and owner for readable prefix
         parsed = self._parse_directory_url(directory_url)
         if parsed:
-            platform, owner, repo, _, _ = parsed
+            platform, hostname, owner, repo, _, _ = parsed
             prefix = f"{platform}_{owner}_{repo}".replace('/', '_').replace('.', '_')
         else:
             prefix = "unknown"
