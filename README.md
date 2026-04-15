@@ -856,6 +856,105 @@ Most modern editors (VSCode, JetBrains, etc.) automatically recognize the `$sche
 
 **See also:** [ai-guardian-example.json](ai-guardian-example.json) for a complete configuration example with detailed comments.
 
+#### Immutable Remote Configurations (Enterprise Policy Enforcement)
+
+**NEW in Issue #67**: Remote configurations can mark sections and permission rules as `immutable` to prevent local configs from overriding them.
+
+**Use Cases:**
+- ✅ **Enterprise Security Compliance**: Enforce mandatory skill allowlists that users cannot extend
+- ✅ **Regulatory Requirements**: Ensure prompt injection detection cannot be weakened or disabled
+- ✅ **Zero-Trust Environments**: Centrally managed pattern servers that cannot be overridden
+- ✅ **Audit & Compliance**: Provable policy enforcement with immutable remote rules
+
+**Per-Matcher Immutability:**
+
+Mark specific permission rules as immutable by matcher:
+
+```json
+{
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli"],
+      "immutable": true
+    }
+  ]
+}
+```
+
+When `immutable: true`, local configs **cannot add or modify rules** for that matcher. Users can still add rules for other matchers.
+
+**Section Immutability:**
+
+Mark entire sections as immutable:
+
+```json
+{
+  "prompt_injection": {
+    "enabled": true,
+    "sensitivity": "high",
+    "detector": "heuristic",
+    "immutable": true
+  },
+  "pattern_server": {
+    "enabled": true,
+    "url": "https://company.com/patterns",
+    "immutable": true
+  }
+}
+```
+
+When `immutable: true`, the **entire section** from local configs is ignored.
+
+**Complete Enterprise Example:**
+
+```json
+{
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli", "git-cli"],
+      "immutable": true
+    },
+    {
+      "matcher": "Bash",
+      "mode": "deny",
+      "patterns": ["*rm -rf*", "*dd if=*"],
+      "immutable": true
+    }
+  ],
+  "prompt_injection": {
+    "enabled": true,
+    "sensitivity": "high",
+    "detector": "heuristic",
+    "immutable": true
+  },
+  "pattern_server": {
+    "enabled": true,
+    "url": "https://company.com/patterns",
+    "auth": {
+      "method": "bearer",
+      "token_env": "COMPANY_PATTERN_TOKEN"
+    },
+    "immutable": true
+  }
+}
+```
+
+With this remote config:
+- ✅ Local can add MCP, Write, Read permission rules (not immutable)
+- ❌ Local cannot add/modify Skill or Bash rules (immutable)
+- ❌ Local cannot change prompt_injection settings (immutable)
+- ❌ Local cannot override pattern_server config (immutable)
+
+**Benefits:**
+- **Security**: Enterprise policies cannot be weakened by local overrides
+- **Compliance**: Auditable, provable policy enforcement
+- **Flexibility**: Granular control - only lock what needs locking
+- **Backward Compatible**: Existing configs work unchanged (immutable defaults to false)
+
 #### Remote Configs vs Directory Discovery
 
 **Use `remote_configs` (Recommended):**

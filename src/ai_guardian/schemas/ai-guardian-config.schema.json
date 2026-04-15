@@ -81,6 +81,11 @@
             }
           ],
           "default": true
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
         }
       },
       "additionalProperties": true
@@ -100,6 +105,11 @@
             }
           ],
           "default": true
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
         }
       },
       "additionalProperties": true
@@ -119,6 +129,11 @@
               "$ref": "#/definitions/time_based_feature"
             }
           ],
+          "default": false
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
           "default": false
         },
         "url": {
@@ -194,6 +209,11 @@
           ],
           "default": true
         },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
+        },
         "detector": {
           "type": "string",
           "enum": ["heuristic", "rebuff", "llm-guard"],
@@ -248,6 +268,11 @@
           "description": "Enable directory exclusions feature",
           "default": false
         },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
+        },
         "paths": {
           "type": "array",
           "description": "Directory paths to exclude from .ai-read-deny blocking. Supports ~ expansion, ** for recursive, * for single level. .ai-read-deny markers ALWAYS block (no config can override).",
@@ -288,6 +313,11 @@
               }
             ]
           }
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot add or modify rules for this matcher. Used in remote configs to enforce enterprise policies.",
+          "default": false
         }
       },
       "additionalProperties": true

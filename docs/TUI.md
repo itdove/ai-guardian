@@ -552,6 +552,61 @@ Gitleaks detects 100+ secret types including:
 - OAuth credentials
 - Custom patterns (via pattern server)
 
+
+#### Immutable Remote Configurations (Issue #67)
+
+**NEW**: Remote configurations can mark sections and permission rules as `immutable` to enforce enterprise policies.
+
+**How Immutability Appears in TUI:**
+
+1. **Remote Configs Tab**:
+   - Remote configs with immutable sections/rules are displayed with a visual indicator
+   - Warning message: "⚠ This remote config contains immutable sections that override local settings"
+   - Immutable sections are highlighted or marked with a 🔒 icon
+
+2. **Skills/MCP Tabs**:
+   - When a matcher is marked as immutable in remote config, local rules for that matcher cannot be added
+   - Add button shows: "Cannot add rules - Skill matcher is immutable (enforced by remote config)"
+   - Existing local rules for immutable matchers are not shown (filtered out during merge)
+
+3. **Other Settings Tabs** (Prompt Injection, Pattern Server, etc.):
+   - When a section is marked as immutable in remote config, local overrides are ignored
+   - Section displays: "⚠ Settings enforced by remote config (immutable)"
+   - Edit/modify buttons are disabled with tooltip: "Cannot modify - section is immutable"
+
+**Example Immutable Remote Config:**
+
+Per-Matcher Immutability:
+```json
+{
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["daf-*", "gh-cli"],
+      "immutable": true
+    }
+  ]
+}
+```
+
+Section Immutability:
+```json
+{
+  "prompt_injection": {
+    "enabled": true,
+    "sensitivity": "high",
+    "immutable": true
+  }
+}
+```
+
+**Enterprise Use Cases:**
+- Enforce mandatory skill allowlists that users cannot extend
+- Prevent weakening of prompt injection detection settings
+- Lock pattern server configuration for compliance
+- Centrally managed security policies with proven enforcement
+
 #### Troubleshooting
 
 **"Gitleaks not found"**

@@ -44,7 +44,15 @@
           "valid_until": "2026-04-20T00:00:00Z",
           "_comment": "Testing period ends April 20"
         }
-      ]
+      ],
+      "_immutable_example_remote_config": {
+        "_comment": "In remote config ONLY: Add immutable: true to prevent local override",
+        "matcher": "Skill",
+        "mode": "allow",
+        "patterns": ["daf-*", "gh-cli"],
+        "immutable": true,
+        "_explanation": "Local configs cannot add or modify Skill rules when immutable is true"
+      }
     },
     {
       "_comment": "MCP tools - must be explicitly allowed (optional - can use settings.json)",
@@ -67,7 +75,15 @@
         "*rm -rf*",
         "*mkfs*",
         "*dd if=*"
-      ]
+      ],
+      "_immutable_example_remote_config": {
+        "_comment": "In remote config: Prevent local configs from allowing dangerous commands",
+        "matcher": "Bash",
+        "mode": "deny",
+        "patterns": ["*rm -rf*", "*dd if=*"],
+        "immutable": true,
+        "_explanation": "Enterprise security requirement - cannot be overridden locally"
+      }
     },
     {
       "_comment": "Enterprise restrictions - block system directory writes",
@@ -152,6 +168,13 @@
       "disabled_until": "2026-04-13T16:30:00Z",
       "reason": "Maintenance window - pattern server offline"
     },
+    "_immutable_example_remote_config": {
+      "_comment": "In remote config: Enforce custom pattern server that cannot be overridden",
+      "enabled": true,
+      "url": "https://company.com/patterns",
+      "immutable": true,
+      "_explanation": "Enterprise pattern server - local configs cannot disable or override"
+    },
     "url": null,
     "patterns_endpoint": "/patterns/gitleaks/8.18.1",
     "auth": {
@@ -180,6 +203,14 @@
       "value": false,
       "disabled_until": "2026-04-13T18:00:00Z",
       "reason": "Testing documentation with prompt injection examples"
+    },
+    "_immutable_example_remote_config": {
+      "_comment": "In remote config: Mark entire section as immutable to enforce enterprise policy",
+      "enabled": true,
+      "sensitivity": "high",
+      "detector": "heuristic",
+      "immutable": true,
+      "_explanation": "Local configs cannot change prompt injection settings when immutable is true"
     },
     "detector": "heuristic",
     "_detector_options": ["heuristic", "rebuff", "llm-guard"],
@@ -373,5 +404,101 @@
     "2": "Project local config (./.ai-guardian.json in project root)",
     "3": "User global config (~/.config/ai-guardian/ai-guardian.json)",
     "4": "Remote configs (enterprise policy - highest priority)"
+  },
+
+  "_immutability_feature": {
+    "_comment": "====================================================================",
+    "_comment2": "IMMUTABLE FLAG - Enterprise Policy Enforcement (NEW in Issue #67)",
+    "_comment3": "====================================================================",
+    "_overview": "Remote configs can mark sections/rules as immutable to prevent local override",
+    "_use_cases": {
+      "1": "Enterprise Security Compliance: Enforce mandatory skill allowlists",
+      "2": "Regulatory Requirements: Ensure prompt injection detection cannot be weakened",
+      "3": "Zero-Trust Environments: Centrally managed pattern servers",
+      "4": "Audit & Compliance: Provable policy enforcement"
+    },
+    "_per_matcher_immutability": {
+      "_description": "Mark specific permission rules as immutable (by matcher)",
+      "_example": {
+        "permissions": [
+          {
+            "matcher": "Skill",
+            "mode": "allow",
+            "patterns": ["daf-*", "gh-cli"],
+            "immutable": true,
+            "_effect": "Local configs cannot add/modify Skill rules"
+          },
+          {
+            "matcher": "Bash",
+            "mode": "deny",
+            "patterns": ["*rm -rf*", "*dd if=*"],
+            "immutable": true,
+            "_effect": "Local configs cannot add/modify Bash rules"
+          }
+        ]
+      }
+    },
+    "_section_immutability": {
+      "_description": "Mark entire sections as immutable",
+      "_example": {
+        "prompt_injection": {
+          "enabled": true,
+          "sensitivity": "high",
+          "detector": "heuristic",
+          "immutable": true,
+          "_effect": "Entire prompt_injection section cannot be overridden locally"
+        },
+        "pattern_server": {
+          "enabled": true,
+          "url": "https://company.com/patterns",
+          "immutable": true,
+          "_effect": "Pattern server config cannot be disabled or changed locally"
+        }
+      }
+    },
+    "_complete_remote_config_example": {
+      "_comment": "Example enterprise remote config with immutability",
+      "_url": "https://company.com/ai-guardian-policy.json",
+      "_config": {
+        "permissions": [
+          {
+            "matcher": "Skill",
+            "mode": "allow",
+            "patterns": ["daf-*", "gh-cli", "git-cli"],
+            "immutable": true
+          },
+          {
+            "matcher": "Bash",
+            "mode": "deny",
+            "patterns": ["*rm -rf*", "*dd if=*"],
+            "immutable": true
+          }
+        ],
+        "prompt_injection": {
+          "enabled": true,
+          "sensitivity": "high",
+          "detector": "heuristic",
+          "immutable": true
+        },
+        "pattern_server": {
+          "enabled": true,
+          "url": "https://company.com/patterns",
+          "auth": {
+            "method": "bearer",
+            "token_env": "COMPANY_PATTERN_TOKEN"
+          },
+          "immutable": true
+        }
+      },
+      "_behavior": {
+        "_allowed_locally": "Users can add MCP, Write, Read rules (not immutable)",
+        "_blocked_locally": [
+          "Cannot add/modify Skill or Bash rules (immutable)",
+          "Cannot change prompt_injection settings (immutable)",
+          "Cannot override pattern_server config (immutable)"
+        ]
+      }
+    },
+    "_backward_compatibility": "Existing configs without immutable field work unchanged (defaults to false)"
   }
 }
