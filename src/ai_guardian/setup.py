@@ -8,6 +8,7 @@ with support for remote configuration URLs.
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -171,6 +172,39 @@ class IDESetup:
     def __init__(self):
         """Initialize IDE setup manager."""
         pass
+
+    def verify_gitleaks_installed(self) -> Tuple[bool, str]:
+        """
+        Check if Gitleaks binary is installed and accessible.
+
+        Returns:
+            tuple: (success: bool, message: str)
+                - success: True if Gitleaks is installed, False otherwise
+                - message: Status message with details or installation instructions
+        """
+        try:
+            result = subprocess.run(
+                ['gitleaks', 'version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                # Extract version from output (first line typically contains version)
+                version_line = result.stdout.strip().split('\n')[0] if result.stdout else "unknown version"
+                return True, f"✓ Gitleaks is installed: {version_line}"
+            else:
+                return False, "❌ Gitleaks command failed - please reinstall"
+        except FileNotFoundError:
+            return False, (
+                "❌ Gitleaks not found\n"
+                "   Install from: https://github.com/gitleaks/gitleaks#installing\n"
+                "   Or use: brew install gitleaks (macOS)"
+            )
+        except subprocess.TimeoutExpired:
+            return False, "❌ Gitleaks check timed out - installation may be corrupted"
+        except Exception as e:
+            return False, f"❌ Error checking Gitleaks: {e}"
 
     def detect_ide(self) -> Optional[str]:
         """
@@ -405,10 +439,26 @@ class IDESetup:
                 json.dump(merged_config, f, indent=2)
                 f.write('\n')  # Add trailing newline
 
+            # Verify Gitleaks installation
+            gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
+
             message = f"✓ Successfully configured {ide_name} hooks at {config_path}\n"
+            message += f"\n  {gitleaks_message}\n"
+
+            if not gitleaks_installed:
+                message += (
+                    "\n  ⚠️  WARNING: Secret scanning will be disabled without Gitleaks!\n"
+                    "      AI Guardian requires Gitleaks for secret detection.\n"
+                )
+
             message += f"\n  Next steps:\n"
-            message += f"  1. Restart {ide_name} for changes to take effect\n"
-            message += f"  2. Test with: echo '{{\"prompt\": \"test\"}}' | ai-guardian\n"
+            if not gitleaks_installed:
+                message += f"  1. Install Gitleaks (see above)\n"
+                message += f"  2. Restart {ide_name} for changes to take effect\n"
+                message += f"  3. Test with: echo '{{\"prompt\": \"test\"}}' | ai-guardian\n"
+            else:
+                message += f"  1. Restart {ide_name} for changes to take effect\n"
+                message += f"  2. Test with: echo '{{\"prompt\": \"test\"}}' | ai-guardian\n"
 
             return True, message
 
