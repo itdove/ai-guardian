@@ -47,7 +47,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.status_code = 200
         mock_response.text = '{"test": "data"}'
 
-        with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response):
+        with patch('requests.get', return_value=mock_response):
             config = self.fetcher.fetch_config("http://example.com/config.json")
 
             # Verify config was fetched
@@ -80,7 +80,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.text = '{"test": "data"}'
 
         # Initial fetch
-        with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response):
+        with patch('requests.get', return_value=mock_response):
             config = self.fetcher.fetch_config("http://example.com/config.json")
             self.assertIsNotNone(config)
 
@@ -108,7 +108,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.text = '{"test": "data"}'
 
         # Initial fetch
-        with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response):
+        with patch('requests.get', return_value=mock_response):
             config = self.fetcher.fetch_config("http://example.com/config.json")
             self.assertIsNotNone(config)
 
@@ -140,7 +140,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.text = '{"test": "data"}'
 
         # Initial fetch
-        with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response):
+        with patch('requests.get', return_value=mock_response):
             config = self.fetcher.fetch_config("http://example.com/config.json")
             self.assertIsNotNone(config)
 
@@ -173,7 +173,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.text = '{"test": "data"}'
 
         # Initial fetch
-        with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response):
+        with patch('requests.get', return_value=mock_response):
             config = self.fetcher.fetch_config("http://example.com/config.json")
             self.assertIsNotNone(config)
 
@@ -205,7 +205,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.text = '{"test": "data"}'
 
         # Should raise ValueError when trying to convert "invalid" to int
-        with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response):
+        with patch('requests.get', return_value=mock_response):
             with self.assertRaises(ValueError):
                 self.fetcher.fetch_config("http://example.com/config.json")
 
