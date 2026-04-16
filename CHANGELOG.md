@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Gitleaks prerequisite verification and improved error handling (Issue #73)
+- Pattern server re-enabled with strict priority and graceful fallback (Issue #79)
+  - **Priority order**: Pattern server → Project config → Gitleaks defaults
+  - **Enterprise enforcement**: Pattern servers can now enforce organization-wide security policies
+  - **Graceful fallback**: Automatically falls back to project config or defaults if pattern server is unreachable, authentication fails, or returns errors
+  - **Enhanced logging**: Clear visibility into which configuration source is being used (pattern server, project config, or defaults)
+  - **Pattern validation**: Warns if pattern server returns fewer than 50 rules (standard Gitleaks has 100+ rules)
+  - **Fallback triggers**: Network errors, authentication errors (401/403), pattern server disabled, or fetch failures
+  - **Documentation**: Pattern servers must include both organization-specific AND default Gitleaks patterns for complete coverage
+  - Restores original implementation from commit aed4db0 with improved error handling and observability
   - **Setup verification**: `ai-guardian setup` now checks if Gitleaks is installed and displays warning
   - **Visible warnings**: Missing Gitleaks shows clear warning message (previously silent)
   - **Smart error handling**: Authentication errors block operation (user can fix), network errors warn but allow (fail-open)

@@ -1025,6 +1025,32 @@ def _handle_violations_command(args):
     return 0
 
 
+def _count_gitleaks_patterns(config_path):
+    """
+    Count the number of rules in a Gitleaks TOML configuration file.
+
+    Args:
+        config_path: Path to the Gitleaks config file
+
+    Returns:
+        int: Number of [[rules]] sections found, or 0 if unable to count
+    """
+    try:
+        if not config_path or not Path(config_path).exists():
+            return 0
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Count [[rules]] sections (each represents one detection rule)
+        rule_count = content.count('[[rules]]')
+        return rule_count
+
+    except Exception as e:
+        logging.debug(f"Error counting patterns in {config_path}: {e}")
+        return 0
+
+
 def _is_gitleaks_config_content(content):
     """
     Detect if content looks like a gitleaks configuration file.
@@ -1095,21 +1121,48 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         report_file = None
         try:
             # Determine which Gitleaks configuration to use
+            # Priority order:
+            # 1. Pattern Server (if enabled and reachable) - Enterprise policy
+            # 2. Project .gitleaks.toml (if exists) - Project customization
+            # 3. Gitleaks defaults (always available) - Fallback
             gitleaks_config_path = None
+            config_source = "gitleaks defaults"  # Track which config is being used
 
-            # NOTE: Pattern server config is intentionally NOT used here because it contains
-            # only Red Hat-specific patterns and lacks the default gitleaks rules for common
-            # secrets (AWS keys, RSA keys, etc.). Using it would miss standard secret types.
-            # We rely on gitleaks' built-in default config which has comprehensive coverage.
+            # Priority 1: Pattern server (if enabled and available)
+            if HAS_PATTERN_SERVER:
+                pattern_config = _load_pattern_server_config()
+                if pattern_config:
+                    try:
+                        pattern_client = PatternServerClient(pattern_config)
+                        server_patterns = pattern_client.get_patterns_path()
+                        if server_patterns:
+                            gitleaks_config_path = server_patterns
+                            config_source = "pattern server"
+                            logging.info(f"Using pattern server config: {server_patterns}")
+                    except Exception as e:
+                        logging.warning(f"Pattern server error, falling back to project/default config: {e}")
 
-            # Check for project-specific .gitleaks.toml
-            project_config = Path(".gitleaks.toml")
-            if project_config.exists():
-                gitleaks_config_path = project_config
-                logging.debug(f"Using project config: {project_config}")
-            else:
-                # Use gitleaks default config (no --config flag)
-                logging.debug("Using gitleaks default config")
+            # Priority 2: Project-specific .gitleaks.toml (if pattern server not used)
+            if not gitleaks_config_path:
+                project_config = Path(".gitleaks.toml")
+                if project_config.exists():
+                    gitleaks_config_path = project_config
+                    config_source = "project config"
+                    logging.info(f"Using project config: {project_config}")
+                else:
+                    # Priority 3: Use gitleaks default config (no --config flag)
+                    logging.info("Using gitleaks default config (built-in patterns)")
+
+            # Validate pattern completeness if using pattern server
+            if config_source == "pattern server" and gitleaks_config_path:
+                pattern_count = _count_gitleaks_patterns(gitleaks_config_path)
+                if pattern_count > 0 and pattern_count < 50:
+                    logging.warning(
+                        f"Pattern server returned only {pattern_count} rules. "
+                        f"Standard Gitleaks has 100+ rules. "
+                        f"Your pattern server may be missing common secret types (AWS keys, RSA keys, etc.). "
+                        f"Ensure your pattern server includes both organization-specific AND default Gitleaks patterns."
+                    )
 
             # Create temporary report file for JSON output
             with tempfile.NamedTemporaryFile(
