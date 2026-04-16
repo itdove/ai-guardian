@@ -157,6 +157,11 @@
           "description": "Endpoint path for patterns (appended to url)",
           "default": "/patterns/gitleaks/8.18.1"
         },
+        "warn_on_failure": {
+          "type": "boolean",
+          "description": "Show warning when pattern server fails (auth errors, network errors, etc). Default: true. Set to false to suppress warnings.",
+          "default": true
+        },
         "auth": {
           "type": "object",
           "description": "Authentication configuration for pattern server",

@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Documentation**: Pattern servers must include both organization-specific AND default Gitleaks patterns for complete coverage
   - Restores original implementation from commit aed4db0 with improved error handling and observability
   - **Setup verification**: `ai-guardian setup` now checks if Gitleaks is installed and displays warning
+  - **Pattern server failure warnings**: New `warn_on_failure` config option (default: true) to control visibility of pattern server errors
+  - **Generic branding**: Removed organization-specific references from TUI and defaults (pattern server URLs, token paths)
+
+
   - **Visible warnings**: Missing Gitleaks shows clear warning message (previously silent)
   - **Smart error handling**: Authentication errors block operation (user can fix), network errors warn but allow (fail-open)
   - **Installation guidance**: Clear instructions for macOS, Linux, and Windows
