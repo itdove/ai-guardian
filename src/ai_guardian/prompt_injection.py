@@ -13,9 +13,11 @@ Design Philosophy:
 - Fail-open: Allow operation on detection errors
 """
 
+import fnmatch
 import logging
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, Union, List
 
 from ai_guardian.config_utils import is_expired
@@ -101,6 +103,8 @@ class PromptInjectionDetector:
                 - allowlist_patterns: list of regex patterns to ignore
                 - custom_patterns: list of additional regex patterns to check
                 - max_score_threshold: float (0.0-1.0, default 0.75)
+                - ignore_files: list of glob patterns for files to skip (default [])
+                - ignore_tools: list of tool name patterns to skip (default [])
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
@@ -109,6 +113,8 @@ class PromptInjectionDetector:
         self.allowlist_patterns = self.config.get("allowlist_patterns", [])
         self.custom_patterns = self.config.get("custom_patterns", [])
         self.max_score_threshold = self.config.get("max_score_threshold", 0.75)
+        self.ignore_files = self.config.get("ignore_files", [])
+        self.ignore_tools = self.config.get("ignore_tools", [])
 
         # Compile regex patterns for performance
         self._compiled_patterns = [
@@ -241,6 +247,92 @@ class PromptInjectionDetector:
                 return True
         return False
 
+    def _is_file_ignored(self, file_path: Optional[str]) -> bool:
+        """
+        Check if a file path matches any ignore_files pattern.
+
+        Supports glob patterns with wildcards:
+        - * matches any characters except /
+        - ** matches any characters including /
+        - ? matches a single character
+        - ~ is expanded to user home directory
+
+        Args:
+            file_path: The file path to check (can be None)
+
+        Returns:
+            True if file should be ignored (skip detection), False otherwise
+
+        Examples:
+            >>> detector = PromptInjectionDetector({"ignore_files": ["**/.claude/skills/*/SKILL.md"]})
+            >>> detector._is_file_ignored("/home/user/.claude/skills/code-review/SKILL.md")
+            True
+
+            >>> detector._is_file_ignored("/home/user/project/src/main.py")
+            False
+        """
+        if not file_path:
+            return False
+
+        if not self.ignore_files:
+            return False
+
+        # Expand ~ in file_path for proper matching
+        expanded_path = str(Path(file_path).expanduser())
+
+        for pattern in self.ignore_files:
+            # Expand ~ in pattern
+            expanded_pattern = str(Path(pattern).expanduser())
+
+            # Check if pattern matches using fnmatch (glob-style)
+            if fnmatch.fnmatch(expanded_path, expanded_pattern):
+                logger.debug(f"File '{file_path}' matches ignore pattern '{pattern}'")
+                return True
+
+        return False
+
+    def _is_tool_ignored(self, tool_name: Optional[str]) -> bool:
+        """
+        Check if a tool name matches any ignore_tools pattern.
+
+        Supports wildcard patterns:
+        - * matches any characters
+        - ? matches a single character
+        - Exact match (e.g., "Skill", "Read")
+        - Prefix match (e.g., "mcp__*")
+
+        Args:
+            tool_name: The tool name to check (can be None)
+
+        Returns:
+            True if tool should be ignored (skip detection), False otherwise
+
+        Examples:
+            >>> detector = PromptInjectionDetector({"ignore_tools": ["Skill"]})
+            >>> detector._is_tool_ignored("Skill")
+            True
+
+            >>> detector = PromptInjectionDetector({"ignore_tools": ["mcp__*"]})
+            >>> detector._is_tool_ignored("mcp__notebooklm__notebook_list")
+            True
+
+            >>> detector._is_tool_ignored("Read")
+            False
+        """
+        if not tool_name:
+            return False
+
+        if not self.ignore_tools:
+            return False
+
+        for pattern in self.ignore_tools:
+            # Check if pattern matches using fnmatch (glob-style)
+            if fnmatch.fnmatch(tool_name, pattern):
+                logger.debug(f"Tool '{tool_name}' matches ignore pattern '{pattern}'")
+                return True
+
+        return False
+
     def _heuristic_detection(self, content: str) -> Tuple[bool, float, str]:
         """
         Perform heuristic/pattern-based detection.
@@ -316,12 +408,14 @@ class PromptInjectionDetector:
 
         return is_injection, confidence, matched_text
 
-    def detect(self, content: str) -> Tuple[bool, Optional[str]]:
+    def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
         Detect prompt injection in the given content.
 
         Args:
             content: The text to check for prompt injection
+            file_path: Optional file path being scanned (for ignore_files matching)
+            tool_name: Optional tool name being used (for ignore_tools matching)
 
         Returns:
             Tuple of (is_injection, error_message)
@@ -335,6 +429,16 @@ class PromptInjectionDetector:
             return False, None
 
         try:
+            # Check if tool should be ignored
+            if self._is_tool_ignored(tool_name):
+                logger.info(f"Skipping prompt injection detection for ignored tool: {tool_name}")
+                return False, None
+
+            # Check if file should be ignored based on path
+            if self._is_file_ignored(file_path):
+                logger.info(f"Skipping prompt injection detection for ignored file: {file_path}")
+                return False, None
+
             # Check allowlist first
             if self._check_allowlist(content):
                 logger.debug("Content matches allowlist pattern, skipping detection")
@@ -399,16 +503,18 @@ class PromptInjectionDetector:
             return False, None
 
 
-def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None) -> Tuple[bool, Optional[str]]:
+def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
     """
     Convenience function to check for prompt injection.
 
     Args:
         content: The text to check for prompt injection
         config: Optional configuration dictionary
+        file_path: Optional file path being scanned (for ignore_files matching)
+        tool_name: Optional tool name being used (for ignore_tools matching)
 
     Returns:
         Tuple of (is_injection, error_message)
     """
     detector = PromptInjectionDetector(config)
-    return detector.detect(content)
+    return detector.detect(content, file_path=file_path, tool_name=tool_name)

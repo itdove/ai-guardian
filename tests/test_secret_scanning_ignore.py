@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""
+Tests for secret scanning ignore_tools and ignore_files functionality.
+"""
+
+import unittest
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ai_guardian import check_secrets_with_gitleaks
+
+
+class TestSecretScanningIgnoreTools(unittest.TestCase):
+    """Tests for ignore_tools configuration in secret scanning."""
+
+    def test_ignore_tools_exact_match(self):
+        """Test that exact tool name matching works."""
+        secret_content = "aws_access_key_id=AKIAIOSFODNN7EXAMPLE"
+        ignore_tools = ["Read"]
+
+        # Without tool_name - should detect (if gitleaks is available)
+        # This test documents behavior, actual detection depends on gitleaks binary
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            ignore_tools=ignore_tools
+        )
+        # Without tool_name specified, should scan normally
+
+        # With Read tool - should NOT scan (ignored)
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            tool_name="Read",
+            ignore_tools=ignore_tools
+        )
+        self.assertFalse(is_secret, "Read tool should be ignored")
+        self.assertIsNone(error_msg)
+
+        # With different tool - should scan normally
+        # (actual detection depends on gitleaks availability)
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            tool_name="Bash",
+            ignore_tools=ignore_tools
+        )
+        # Bash tool should not be ignored
+
+    def test_ignore_tools_wildcard_pattern(self):
+        """Test that wildcard patterns work."""
+        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # gitleaks:allow
+        ignore_tools = ["mcp__*"]
+
+        # MCP tools should be ignored
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            tool_name="mcp__notebooklm__notebook_list",
+            ignore_tools=ignore_tools
+        )
+        self.assertFalse(is_secret, "MCP tool should be ignored")
+        self.assertIsNone(error_msg)
+
+        # Non-MCP tools should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            tool_name="Read",
+            ignore_tools=ignore_tools
+        )
+        # Read tool should not be ignored (depends on gitleaks)
+
+    def test_ignore_tools_none_tool_name(self):
+        """Test that None tool_name doesn't match ignore patterns."""
+        secret_content = "api_key=sk-proj-abc123def456"
+        ignore_tools = ["Read"]
+
+        # None tool_name should still scan
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            tool_name=None,
+            ignore_tools=ignore_tools
+        )
+        # Should scan normally (no tool specified)
+
+    def test_ignore_tools_empty_list(self):
+        """Test that empty ignore_tools list doesn't break anything."""
+        secret_content = "password=SuperSecret123!"
+        ignore_tools = []
+
+        # Should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.txt",
+            tool_name="Read",
+            ignore_tools=ignore_tools
+        )
+        # Empty list means scan all tools
+
+
+class TestSecretScanningIgnoreFiles(unittest.TestCase):
+    """Tests for ignore_files configuration in secret scanning."""
+
+    def test_ignore_files_exact_match(self):
+        """Test that exact file path matching works."""
+        secret_content = "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        ignore_files = ["/tmp/test-fixture.json"]
+
+        # Without file_path - should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test.json",
+            ignore_files=ignore_files
+        )
+        # No file_path specified, should scan
+
+        # With ignored file_path - should NOT scan
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="test-fixture.json",
+            file_path="/tmp/test-fixture.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Ignored file should skip scanning")
+        self.assertIsNone(error_msg)
+
+        # With different file_path - should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="production.json",
+            file_path="/etc/production.json",
+            ignore_files=ignore_files
+        )
+        # Different path should scan normally
+
+    def test_ignore_files_glob_patterns(self):
+        """Test that glob patterns work for file paths."""
+        secret_content = "stripe_key=sk_test_1234567890abcdef"
+        ignore_files = [
+            "**/tests/fixtures/**",
+            "**/examples/**/*.example.*",
+            "**/.gitleaks.toml"
+        ]
+
+        # Test fixtures should be ignored
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="credentials.json",
+            file_path="/home/user/project/tests/fixtures/credentials.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Test fixture should be ignored")
+
+        # Example files should be ignored
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="config.example.json",
+            file_path="/home/user/project/examples/config/config.example.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Example file should be ignored")
+
+        # .gitleaks.toml should be ignored
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename=".gitleaks.toml",
+            file_path="/home/user/project/.gitleaks.toml",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, ".gitleaks.toml should be ignored")
+
+        # Regular files should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="config.json",
+            file_path="/home/user/project/config.json",
+            ignore_files=ignore_files
+        )
+        # Regular file should scan
+
+    def test_ignore_files_tilde_expansion(self):
+        """Test that ~ expansion works in file paths."""
+        import os
+        from pathlib import Path
+
+        secret_content = "token=abc123"
+        ignore_files = ["~/.config/test/fixture.json"]
+
+        # Expand ~ to actual home directory
+        home = str(Path.home())
+        expanded_path = f"{home}/.config/test/fixture.json"
+
+        # Should match after expansion
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="fixture.json",
+            file_path=expanded_path,
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Path with ~ should match expanded path")
+
+
+class TestSecretScanningIgnoreBoth(unittest.TestCase):
+    """Tests for using both ignore_tools and ignore_files together."""
+
+    def test_ignore_both_tools_and_files(self):
+        """Test that both ignore_tools and ignore_files work together."""
+        secret_content = "database_password=MySuperSecretPassword123!"
+        ignore_tools = ["Read"]
+        ignore_files = ["**/tests/fixtures/**"]
+
+        # Ignored by tool name
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="data.json",
+            tool_name="Read",
+            file_path="/home/user/project/src/data.json",
+            ignore_tools=ignore_tools,
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Should be ignored by tool name")
+
+        # Ignored by file path
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="fixture.json",
+            tool_name="Bash",
+            file_path="/home/user/project/tests/fixtures/fixture.json",
+            ignore_tools=ignore_tools,
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Should be ignored by file path")
+
+        # Both specified - still ignored (defense in depth)
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="fixture.json",
+            tool_name="Read",
+            file_path="/home/user/project/tests/fixtures/fixture.json",
+            ignore_tools=ignore_tools,
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Should be ignored by either condition")
+
+        # Neither matches - should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="production.json",
+            tool_name="Bash",
+            file_path="/etc/production.json",
+            ignore_tools=ignore_tools,
+            ignore_files=ignore_files
+        )
+        # Should scan normally
+
+    def test_real_world_test_fixtures(self):
+        """Test real-world scenario: test fixtures with fake credentials."""
+        # Common pattern: test fixtures with fake AWS keys
+        test_fixture_content = """
+        {
+            "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+            "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        }
+        """
+
+        ignore_files = [
+            "**/tests/**/*.fixture.json",
+            "**/tests/fixtures/**",
+            "**/examples/**"
+        ]
+
+        # Test fixture should be ignored
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            test_fixture_content,
+            filename="auth.fixture.json",
+            file_path="/home/user/project/tests/auth.fixture.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Test fixture with fake AWS keys should be ignored")
+
+        # Production config should scan normally
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            test_fixture_content,
+            filename="production.json",
+            file_path="/etc/app/production.json",
+            ignore_files=ignore_files
+        )
+        # Production file should scan (depends on gitleaks availability)
+
+
+if __name__ == "__main__":
+    unittest.main()

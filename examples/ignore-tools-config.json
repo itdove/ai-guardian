@@ -1,0 +1,16 @@
+{
+  "$schema": "../src/ai_guardian/schemas/ai-guardian-config.schema.json",
+  "prompt_injection": {
+    "enabled": true,
+    "sensitivity": "medium",
+    "ignore_tools": [
+      "Skill:code-review",
+      "Skill:security-review"
+    ],
+    "ignore_files": [
+      "**/.claude/skills/*/SKILL.md",
+      "**/CLAUDE.md",
+      "**/AGENTS.md"
+    ]
+  }
+}
