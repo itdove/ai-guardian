@@ -110,8 +110,8 @@ class SecretsContent(Container):
                 yield Static("", id="gitleaks-status")
                 yield Static(
                     "[dim]Detection sources (in priority order):\n"
-                    "  1. Project-specific: .gitleaks.toml (if exists)\n"
-                    "  2. Pattern server: Red Hat patterns (if enabled below)\n"
+                    "  1. Pattern server: Organization patterns (if enabled below)\n"
+                    "  2. Project-specific: .gitleaks.toml (if exists)\n"
                     "  3. Built-in: Gitleaks default rules (AWS, GitHub, SSH keys, etc.)[/dim]",
                     id="gitleaks-config"
                 )
@@ -131,13 +131,18 @@ class SecretsContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Server URL:")
-                    yield Input(placeholder="https://patterns.security.redhat.com", id="pattern-server-url")
+                    yield Input(placeholder="https://pattern-server.example.com", id="pattern-server-url")
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Patterns Endpoint:")
                     yield Input(placeholder="/patterns/gitleaks/8.18.1", id="pattern-server-endpoint")
                     yield Static("[dim](Press Enter to save)[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Warn on Failure:")
+                    yield Checkbox("", id="pattern-server-warn-on-failure", value=True)
+                    yield Static("[dim]Show warnings when pattern server fails (auth, network, etc)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Auth Method:")
@@ -151,7 +156,7 @@ class SecretsContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Token File:")
-                    yield Input(placeholder="~/.config/rh-gitleaks/auth.jwt", id="pattern-server-token-file")
+                    yield Input(placeholder="~/.config/ai-guardian/pattern-token", id="pattern-server-token-file")
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 yield Static("[dim]Press 't' to test connection[/dim]", classes="setting-row")
@@ -225,12 +230,13 @@ class SecretsContent(Container):
         # Pattern server status
         pattern_server = config.get("pattern_server", {})
         enabled_value = pattern_server.get("enabled", False)
-        server_url = pattern_server.get("url", pattern_server.get("server_url", "https://patterns.security.redhat.com"))
+        server_url = pattern_server.get("url", pattern_server.get("server_url", ""))
         patterns_endpoint = pattern_server.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
+        warn_on_failure = pattern_server.get("warn_on_failure", True)
         auth = pattern_server.get("auth", {})
         auth_method = auth.get("method", "bearer")
         token_env = auth.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
-        token_file = auth.get("token_file", "~/.config/rh-gitleaks/auth.jwt")
+        token_file = auth.get("token_file", "~/.config/ai-guardian/pattern-token")
 
         # Update time-based toggle and inputs
         try:
@@ -239,6 +245,7 @@ class SecretsContent(Container):
 
             self.query_one("#pattern-server-url", Input).value = server_url
             self.query_one("#pattern-server-endpoint", Input).value = patterns_endpoint
+            self.query_one("#pattern-server-warn-on-failure", Checkbox).value = warn_on_failure
             self.query_one("#pattern-server-auth-method", Input).value = auth_method
             self.query_one("#pattern-server-token-env", Input).value = token_env
             self.query_one("#pattern-server-token-file", Input).value = token_file
@@ -337,6 +344,8 @@ class SecretsContent(Container):
         """Handle checkbox toggle."""
         if event.checkbox.id == "violation-logging-enabled":
             self.save_violation_logging_enabled(event.value)
+        elif event.checkbox.id == "pattern-server-warn-on-failure":
+            self.save_pattern_server_field("warn_on_failure", event.value)
         elif event.checkbox.id and event.checkbox.id.startswith("log-type-"):
             self.save_log_types()
 

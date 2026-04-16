@@ -52,6 +52,9 @@ class PatternServerClient:
         self.base_url = config.get("url")
         self.patterns_endpoint = config.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
 
+        # Warning configuration - enabled by default, can be disabled
+        self.warn_on_failure = config.get("warn_on_failure", True)
+
         # Auth configuration
         auth_config = config.get("auth", {})
         self.token_env = auth_config.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
@@ -154,8 +157,8 @@ class PatternServerClient:
             token = self._get_auth_token()
             if not token:
                 logger.error("Pattern server authentication token not found")
-                logger.info(f"Set token via: export {self.token_env}='your-token'")
-                logger.info(f"Or save to: {self.token_file}")
+                logger.info(f"Set token via environment variable: export {self.token_env}='your-token'")
+                logger.info(f"Or save to file: {self.token_file}")
                 return False
 
             # Build URL

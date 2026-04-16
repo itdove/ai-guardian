@@ -1139,6 +1139,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             gitleaks_config_path = server_patterns
                             config_source = "pattern server"
                             logging.info(f"Using pattern server config: {server_patterns}")
+                        elif pattern_client.warn_on_failure:
+                            # Pattern server was configured but failed to provide patterns
+                            # Warnings can be disabled by setting "warn_on_failure": false in config
+                            logging.warning(
+                                f"Pattern server configured at {pattern_config.get('url')} but patterns unavailable. "
+                                f"Falling back to project config or gitleaks defaults. "
+                                f"Common causes: missing/invalid auth token, network error, server down. "
+                                f"Check token at {pattern_client.token_file} or see ~/.config/ai-guardian/ai-guardian.log for details."
+                            )
                     except Exception as e:
                         logging.warning(f"Pattern server error, falling back to project/default config: {e}")
 

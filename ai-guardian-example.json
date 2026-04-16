@@ -177,6 +177,8 @@
     },
     "url": null,
     "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+    "warn_on_failure": true,
+    "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",
     "auth": {
       "method": "bearer",
       "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
