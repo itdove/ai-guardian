@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -31,6 +33,50 @@ try:
 except ImportError:
     HAS_REQUESTS = False
     logger.warning("requests library not installed - skill discovery not available")
+
+
+def _parse_skill_frontmatter(content: str) -> Optional[str]:
+    """
+    Parse SKILL.md frontmatter and extract the skill name.
+
+    Args:
+        content: SKILL.md file content
+
+    Returns:
+        str or None: Skill name from frontmatter, or None if not found
+    """
+    try:
+        # Check for YAML frontmatter delimiters
+        if not content.startswith('---\n'):
+            return None
+
+        # Find the closing delimiter
+        end_marker = content.find('\n---\n', 4)
+        if end_marker == -1:
+            # Try alternative ending (--- at end of file)
+            end_marker = content.find('\n---', 4)
+            if end_marker == -1:
+                return None
+
+        # Extract frontmatter YAML
+        frontmatter_yaml = content[4:end_marker]
+
+        # Parse YAML
+        frontmatter = yaml.safe_load(frontmatter_yaml)
+
+        if not isinstance(frontmatter, dict):
+            return None
+
+        # Extract name field
+        name = frontmatter.get('name')
+        if name and isinstance(name, str):
+            return name.strip()
+
+        return None
+
+    except Exception as e:
+        logger.debug(f"Error parsing skill frontmatter: {e}")
+        return None
 
 
 class SkillDiscovery:
@@ -280,7 +326,11 @@ class SkillDiscovery:
                     dir_name = item.get("name", "")
                     # Skip hidden directories and common non-skill dirs
                     if dir_name and not dir_name.startswith('.') and dir_name not in ['__pycache__', 'node_modules']:
-                        skill_name = f"Skill:{dir_name}"
+                        # Try to read SKILL.md frontmatter to get canonical name
+                        skill_name = self._get_skill_name_from_github(
+                            hostname, owner, repo, branch, f"{path}/{dir_name}" if path else dir_name,
+                            dir_name, headers
+                        )
                         skills.add(skill_name)
                         logger.debug(f"Found skill: {skill_name}")
 
@@ -295,6 +345,61 @@ class SkillDiscovery:
         except Exception as e:
             logger.error(f"Unexpected error discovering GitHub skills: {e}")
             return set()
+
+    def _get_skill_name_from_github(
+        self,
+        hostname: str,
+        owner: str,
+        repo: str,
+        branch: str,
+        skill_path: str,
+        dir_name: str,
+        headers: Dict[str, str]
+    ) -> str:
+        """
+        Get skill name from SKILL.md frontmatter on GitHub.
+
+        Args:
+            hostname: GitHub hostname
+            owner: Repository owner
+            repo: Repository name
+            branch: Branch name
+            skill_path: Path to skill directory
+            dir_name: Directory name (fallback)
+            headers: Request headers with authentication
+
+        Returns:
+            str: Skill name in format "Skill:name"
+        """
+        try:
+            # Fetch SKILL.md file
+            skill_md_path = f"{skill_path}/SKILL.md"
+            api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{skill_md_path}?ref={branch}"
+
+            logger.debug(f"Fetching SKILL.md: {api_url}")
+            response = requests.get(api_url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                file_data = response.json()
+                # GitHub API returns base64-encoded content
+                import base64
+                content = base64.b64decode(file_data.get('content', '')).decode('utf-8')
+
+                # Parse frontmatter
+                skill_name = _parse_skill_frontmatter(content)
+                if skill_name:
+                    logger.debug(f"Using frontmatter name '{skill_name}' for directory '{dir_name}'")
+                    return f"Skill:{skill_name}"
+                else:
+                    logger.warning(f"No valid frontmatter name found in {skill_md_path}, using directory name")
+            else:
+                logger.warning(f"SKILL.md not found for {skill_path} (HTTP {response.status_code}), using directory name")
+
+        except Exception as e:
+            logger.debug(f"Error reading SKILL.md for {skill_path}: {e}")
+
+        # Fallback to directory name
+        return f"Skill:{dir_name}"
 
     def _discover_gitlab_skills(
         self,
@@ -393,7 +498,11 @@ class SkillDiscovery:
                     dir_name = item.get("name", "")
                     # Skip hidden directories and common non-skill dirs
                     if dir_name and not dir_name.startswith('.') and dir_name not in ['__pycache__', 'node_modules']:
-                        skill_name = f"Skill:{dir_name}"
+                        # Try to read SKILL.md frontmatter to get canonical name
+                        skill_name = self._get_skill_name_from_gitlab(
+                            hostname, project_path, branch, f"{path}/{dir_name}" if path else dir_name,
+                            dir_name, headers
+                        )
                         skills.add(skill_name)
                         logger.debug(f"Found skill: {skill_name}")
 
@@ -408,6 +517,60 @@ class SkillDiscovery:
         except Exception as e:
             logger.error(f"Unexpected error discovering GitLab skills: {e}")
             return set()
+
+    def _get_skill_name_from_gitlab(
+        self,
+        hostname: str,
+        project_path: str,
+        branch: str,
+        skill_path: str,
+        dir_name: str,
+        headers: Dict[str, str]
+    ) -> str:
+        """
+        Get skill name from SKILL.md frontmatter on GitLab.
+
+        Args:
+            hostname: GitLab hostname
+            project_path: Project path (owner/repo)
+            branch: Branch name
+            skill_path: Path to skill directory
+            dir_name: Directory name (fallback)
+            headers: Request headers with authentication
+
+        Returns:
+            str: Skill name in format "Skill:name"
+        """
+        try:
+            # Fetch SKILL.md file
+            skill_md_path = f"{skill_path}/SKILL.md"
+            encoded_project = project_path.replace("/", "%2F")
+            encoded_file_path = skill_md_path.replace("/", "%2F")
+
+            api_url = f"https://{hostname}/api/v4/projects/{encoded_project}/repository/files/{encoded_file_path}/raw"
+            params = {"ref": branch}
+
+            logger.debug(f"Fetching SKILL.md: {api_url}")
+            response = requests.get(api_url, headers=headers, params=params, timeout=10)
+
+            if response.status_code == 200:
+                content = response.text
+
+                # Parse frontmatter
+                skill_name = _parse_skill_frontmatter(content)
+                if skill_name:
+                    logger.debug(f"Using frontmatter name '{skill_name}' for directory '{dir_name}'")
+                    return f"Skill:{skill_name}"
+                else:
+                    logger.warning(f"No valid frontmatter name found in {skill_md_path}, using directory name")
+            else:
+                logger.warning(f"SKILL.md not found for {skill_path} (HTTP {response.status_code}), using directory name")
+
+        except Exception as e:
+            logger.debug(f"Error reading SKILL.md for {skill_path}: {e}")
+
+        # Fallback to directory name
+        return f"Skill:{dir_name}"
 
     def _discover_local_skills(self, directory_path: str) -> Set[str]:
         """
@@ -439,9 +602,27 @@ class SkillDiscovery:
                     dir_name = item.name
                     # Skip hidden directories and common non-skill dirs
                     if dir_name and not dir_name.startswith('.') and dir_name not in ['__pycache__', 'node_modules']:
-                        skill_name = f"Skill:{dir_name}"
-                        skills.add(skill_name)
-                        logger.debug(f"Found skill: {skill_name}")
+                        # Try to read SKILL.md frontmatter to get canonical name
+                        skill_md_file = item / "SKILL.md"
+                        skill_name = dir_name  # Default to directory name
+
+                        if skill_md_file.exists() and skill_md_file.is_file():
+                            try:
+                                content = skill_md_file.read_text(encoding='utf-8')
+                                frontmatter_name = _parse_skill_frontmatter(content)
+                                if frontmatter_name:
+                                    skill_name = frontmatter_name
+                                    logger.debug(f"Using frontmatter name '{skill_name}' for directory '{dir_name}'")
+                                else:
+                                    logger.warning(f"No valid frontmatter name in {skill_md_file}, using directory name")
+                            except Exception as e:
+                                logger.debug(f"Error reading SKILL.md for {dir_name}: {e}")
+                        else:
+                            logger.warning(f"SKILL.md not found in {item}, using directory name")
+
+                        skill_name_formatted = f"Skill:{skill_name}"
+                        skills.add(skill_name_formatted)
+                        logger.debug(f"Found skill: {skill_name_formatted}")
 
             return skills
 
