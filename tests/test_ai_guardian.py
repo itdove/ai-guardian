@@ -155,9 +155,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertIn("Network or server issue", stderr_output, "Should mention network issue")
         self.assertIn("continue", stderr_output.lower(), "Should indicate operation continues")
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_process_hook_input_clean_prompt(self, mock_check_secrets):
+    def test_process_hook_input_clean_prompt(self, mock_check_secrets, mock_load_config):
         """Test processing clean prompt input"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (False, None)
 
         hook_input = json.dumps({
@@ -173,9 +175,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertIsNone(response["output"], "Clean Claude Code prompt should have no output")
         mock_check_secrets.assert_called_once()
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_process_hook_input_with_secret(self, mock_check_secrets):
+    def test_process_hook_input_with_secret(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with secret"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
@@ -254,9 +258,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Should succeed (fail-open) even if there are internal issues
         self.assertIn(response["exit_code"], [0, 2], "Should return valid exit code")
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_process_hook_input_with_multiline_prompt(self, mock_check_secrets):
+    def test_process_hook_input_with_multiline_prompt(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with multiple lines"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (False, None)
 
         multiline_prompt = "Line 1\nLine 2\nLine 3"
@@ -273,9 +279,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         call_args = mock_check_secrets.call_args[0]
         self.assertEqual(call_args[0], multiline_prompt)
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_process_hook_input_with_unicode(self, mock_check_secrets):
+    def test_process_hook_input_with_unicode(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with Unicode characters"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (False, None)
 
         unicode_prompt = "Hello 世界 🔒 Здравствуй"
@@ -341,9 +349,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Should fail-open with exit code 0
         self.assertEqual(response["exit_code"], 0, "Errors should fail-open with exit code 0")
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_secret_detection_integration(self, mock_pattern_config):
+    def test_secret_detection_integration(self, mock_pattern_config, mock_secret_config):
         """Integration test: End-to-end secret detection"""
+        # Enable secret scanning
+        mock_secret_config.return_value = None  # Use default (enabled)
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
 
@@ -419,9 +430,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertTrue(output_data["continue"], "Should continue for clean prompt")
         self.assertNotIn("user_message", output_data, "No error message for clean prompt")
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_cursor_format_with_secret(self, mock_check_secrets):
+    def test_cursor_format_with_secret(self, mock_check_secrets, mock_load_config):
         """Test Cursor format with secret"""
+        mock_load_config.return_value = None  # Use default (enabled)
         error_msg = "SECRET DETECTED"
         mock_check_secrets.return_value = (True, error_msg)
 
@@ -572,9 +585,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertFalse(is_denied)
         self.assertIsNone(deny_reason)
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_pretooluse_hook_with_clean_file(self, mock_check_secrets):
+    def test_pretooluse_hook_with_clean_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with clean file"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (False, None)
 
         import tempfile
@@ -599,9 +614,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         finally:
             os.unlink(temp_path)
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_pretooluse_hook_with_secret_file(self, mock_check_secrets):
+    def test_pretooluse_hook_with_secret_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with file containing secret"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -623,9 +640,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         finally:
             os.unlink(temp_path)
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_cursor_pretooluse_hook(self, mock_check_secrets):
+    def test_cursor_pretooluse_hook(self, mock_check_secrets, mock_load_config):
         """Test Cursor preToolUse hook format"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -921,9 +940,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         finally:
             os.unlink(temp_path)
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_copilot_pretooluse_hook_with_secret(self, mock_check_secrets):
+    def test_copilot_pretooluse_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot preToolUse hook blocks file with secret"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -969,9 +990,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(response["exit_code"], 0)
         self.assertIsNone(response["output"])
 
+    @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_copilot_prompt_hook_with_secret(self, mock_check_secrets):
+    def test_copilot_prompt_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot userPromptSubmitted blocks prompt with secret"""
+        mock_load_config.return_value = None  # Use default (enabled)
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
