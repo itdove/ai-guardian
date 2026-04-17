@@ -785,6 +785,7 @@ class ToolPolicyChecker:
 
         msg = (
             f"\n{'='*70}\n"
+            f"🚨 BLOCKED BY POLICY\n"
             f"🚫 TOOL ACCESS DENIED\n"
             f"{'='*70}\n\n"
             f"Tool: {tool_name}\n"
@@ -828,7 +829,9 @@ class ToolPolicyChecker:
         msg += '      }\n'
         msg += '    ]\n'
         msg += '  }\n\n'
-        msg += "Or ask your administrator to update the enterprise policy.\n"
+        msg += "Or ask your administrator to update the enterprise policy.\n\n"
+        msg += "This permission rule is configured to protect your system.\n"
+        msg += "DO NOT attempt workarounds - contact the system administrator if access is needed.\n"
         msg += f"{'='*70}\n"
 
         return msg
@@ -888,6 +891,7 @@ class ToolPolicyChecker:
 
         base_message = (
             f"\n{'='*70}\n"
+            f"🚨 BLOCKED BY POLICY\n"
             f"🔒 CRITICAL FILE PROTECTED\n"
             f"{'='*70}\n\n"
             f"This file is protected by ai-guardian and cannot be modified.\n\n"
@@ -900,7 +904,10 @@ class ToolPolicyChecker:
             diagnostic = self._diagnose_maintainer_bypass()
             return base_message + (
                 f"\nReason: Repository source file (maintainer bypass not available)\n\n"
-                f"{diagnostic}\n"
+                f"{diagnostic}\n\n"
+                f"This protection prevents AI agents from bypassing security controls.\n"
+                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
+                f"To edit these files, use your text editor manually.\n"
                 f"{'='*70}\n"
             )
 
@@ -928,6 +935,7 @@ class ToolPolicyChecker:
                 f"  • .ai-read-deny marker files (directory protection)\n\n"
                 f"This protection cannot be disabled via configuration.\n"
                 f"It ensures directory protection cannot be bypassed by AI agents.\n\n"
+                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
                 f"To remove directory protection, delete .ai-read-deny manually.\n"
                 f"\n{'='*70}\n"
             )
@@ -941,6 +949,7 @@ class ToolPolicyChecker:
                 f"  • .ai-read-deny marker files (directory protection)\n\n"
                 f"This protection cannot be disabled via configuration.\n"
                 f"It ensures ai-guardian cannot be bypassed by AI agents.\n\n"
+                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
                 f"To edit these files, use your text editor manually.\n"
                 f"\n{'='*70}\n"
             )
