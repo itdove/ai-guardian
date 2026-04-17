@@ -1191,10 +1191,19 @@ If legitimate prompts are being blocked, you have several options:
 ```
 
 **Tool patterns:**
-- `"Skill:code-review"` - Ignore only the code-review skill
+- `"Skill:code-review"` - Ignore only the code-review skill (both input and output)
 - `"Skill:*"` or `"Skill"` - Ignore all skills
 - `"mcp__notebooklm__*"` - Ignore all NotebookLM MCP tools
 - `"Read"` - Ignore the Read tool
+
+**How ignore_tools works (NEW in v1.4.0):**
+- **PreToolUse**: Scans tool inputs (e.g., file content before tool reads it)
+- **PostToolUse**: Scans tool outputs (e.g., skill execution results)
+- **Correlation**: Skill tools automatically correlate input and output
+  - Example: `"Skill:code-review"` ignores:
+    - ✅ Reading code-review SKILL.md documentation (PreToolUse)
+    - ✅ Code-review skill execution results (PostToolUse)
+  - Prevents false positives from educational attack patterns in skill docs
 
 **File patterns** (glob syntax):
 - `**/.claude/skills/*/SKILL.md` - All SKILL.md files in any skill directory
@@ -1213,6 +1222,14 @@ If legitimate prompts are being blocked, you have several options:
   }
 }
 ```
+
+**Why both are needed:**
+- `ignore_tools` covers skill execution (PreToolUse + PostToolUse)
+- `ignore_files` covers direct file access (Read tool, not skill execution)
+- Together they handle all access patterns:
+  - ✅ Skill:code-review execution → `ignore_tools` handles it
+  - ✅ Read tool accessing SKILL.md → `ignore_files` handles it
+  - ✅ Bash cat SKILL.md → `ignore_files` doesn't help (no file_path), but rare edge case
 
 **Method 2: Allowlist Patterns (Content-Based)**
 
