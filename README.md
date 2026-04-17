@@ -390,14 +390,18 @@ cd ~/project/secrets && touch .ai-read-deny
     "sensitivity": "medium",
     "allowlist_patterns": ["test:.*"],
     "ignore_tools": ["Skill:code-review"],
-    "ignore_files": ["**/.claude/skills/*/SKILL.md"]
+    "ignore_files": [
+      "**/.claude/skills/*/SKILL.md",
+      "**/.claude/projects/**/tool-results/**"
+    ]
   }
 }
 ```
 
 **NEW in v1.4.0:**
 - `ignore_tools` - Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)
-- `ignore_files` - Skip detection for specific files (e.g., `"**/.claude/skills/*/SKILL.md"`)
+- `ignore_files` - Skip detection for specific files (e.g., `"**/.claude/skills/*/SKILL.md"`, `"**/.claude/projects/**/tool-results/**"`)
+- Recommended: Include both skill files AND tool-results to prevent false positives from cached outputs
 - See [False Positives](#prompt-injection-false-positives) for detailed usage
 
 ### 🔒 Secret Scanning
@@ -1183,6 +1187,7 @@ If legitimate prompts are being blocked, you have several options:
     ],
     "ignore_files": [
       "**/.claude/skills/*/SKILL.md",   // All skill documentation
+      "**/.claude/projects/**/tool-results/**",  // Cached tool results
       "**/CLAUDE.md",                    // Project instructions
       "**/AGENTS.md"                     // Agent instructions
     ]
@@ -1191,13 +1196,23 @@ If legitimate prompts are being blocked, you have several options:
 ```
 
 **Tool patterns:**
-- `"Skill:code-review"` - Ignore only the code-review skill
+- `"Skill:code-review"` - Ignore only the code-review skill (both input and output)
 - `"Skill:*"` or `"Skill"` - Ignore all skills
 - `"mcp__notebooklm__*"` - Ignore all NotebookLM MCP tools
 - `"Read"` - Ignore the Read tool
 
+**How ignore_tools works (NEW in v1.4.0):**
+- **PreToolUse**: Scans tool inputs (e.g., file content before tool reads it)
+- **PostToolUse**: Scans tool outputs (e.g., skill execution results)
+- **Correlation**: Skill tools automatically correlate input and output
+  - Example: `"Skill:code-review"` ignores:
+    - ✅ Reading code-review SKILL.md documentation (PreToolUse)
+    - ✅ Code-review skill execution results (PostToolUse)
+  - Prevents false positives from educational attack patterns in skill docs
+
 **File patterns** (glob syntax):
 - `**/.claude/skills/*/SKILL.md` - All SKILL.md files in any skill directory
+- `**/.claude/projects/**/tool-results/**` - Cached tool outputs (prevents re-scanning)
 - `**/tests/**/*.md` - All markdown files in test directories
 - `~/Documents/security-*.md` - Files in home directory (~ expands)
 - `*` matches any characters except `/`
@@ -1209,10 +1224,22 @@ If legitimate prompts are being blocked, you have several options:
 {
   "prompt_injection": {
     "ignore_tools": ["Skill:code-review"],
-    "ignore_files": ["**/.claude/skills/*/SKILL.md"]
+    "ignore_files": [
+      "**/.claude/skills/code-review/**",        // Skill files
+      "**/.claude/projects/**/tool-results/**"   // Cached tool outputs
+    ]
   }
 }
 ```
+
+**Why both are needed:**
+- `ignore_tools` covers skill execution (PreToolUse + PostToolUse)
+- `ignore_files` covers direct file access (Read tool, not skill execution)
+- Together they handle all access patterns:
+  - ✅ Skill:code-review execution → `ignore_tools` handles it
+  - ✅ Read tool accessing SKILL.md → `ignore_files` handles it
+  - ✅ Read tool accessing cached tool results → `ignore_files` handles it
+  - ✅ Bash cat SKILL.md → `ignore_files` doesn't help (no file_path), but rare edge case
 
 **Method 2: Allowlist Patterns (Content-Based)**
 

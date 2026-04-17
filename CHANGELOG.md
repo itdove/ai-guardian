@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Skip detection for specific tools using patterns: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
   - Granular control: ignore specific skills (e.g., `"Skill:code-review"`) or all skills (`"Skill"` or `"Skill:*"`)
   - Composite tool identifiers: automatically created for Skill tools (e.g., `"Skill:code-review"`)
+  - **PreToolUse + PostToolUse correlation**: ignore_tools patterns now work on BOTH:
+    - PreToolUse: tool inputs (e.g., Skill reading SKILL.md documentation)
+    - PostToolUse: tool outputs (e.g., Skill execution results)
+    - Correlation ensures cached tool results inherit ignore from original invocation
   - Supports wildcards: `*` (any chars), `?` (single char)
   - Use case: Skill documentation with example attack patterns no longer triggers false positives
   - Available in both `prompt_injection` and `secret_scanning` configuration sections
@@ -19,14 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Skip detection for specific files using glob patterns
   - Supports glob wildcards: `*` (any chars except /), `**` (any chars including /), `?` (single char)
   - Supports tilde expansion: `~` expands to home directory
-  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
-  - Use cases: SKILL.md files, test fixtures with fake credentials, example configuration files
+  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/.claude/projects/**/tool-results/**"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
+  - Use cases: SKILL.md files, cached tool results, test fixtures with fake credentials, example configuration files
+  - Recommended pattern for skills: `"**/.claude/projects/**/tool-results/**"` prevents re-scanning cached skill outputs
   - Available in both `prompt_injection` and `secret_scanning` configuration sections
 - **Defense in depth**: Use both `ignore_tools` and `ignore_files` together for comprehensive false positive handling
 - Comprehensive test coverage: 10 new tests for `ignore_tools`, 9 new tests for `ignore_files`
 - Example configuration files: `examples/ignore-tools-config.json`, `examples/secret-scanning-ignore-config.json`
 
 ### Changed
+- **Improved logging for debugging false positives**
+  - Log messages now include full file paths (not just filenames)
+  - Before: `"Scanning file 'SKILL.md' for secrets..."`
+  - After: `"Scanning file 'SKILL.md' (/home/user/.claude/skills/foo/SKILL.md) for secrets..."`
+  - Prompt injection warnings now include file path: `"Prompt injection detected in /path/to/file, blocking operation"`
+  - Makes it easy to identify which specific file triggered detection
+  - Helps users quickly add files to `ignore_files` configuration
 
 ### Fixed
 - **CRITICAL: Bash tool bypass vulnerability** (discovered during code review)

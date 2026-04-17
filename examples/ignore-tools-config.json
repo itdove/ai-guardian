@@ -9,6 +9,7 @@
     ],
     "ignore_files": [
       "**/.claude/skills/*/SKILL.md",
+      "**/.claude/projects/**/tool-results/**",
       "**/CLAUDE.md",
       "**/AGENTS.md"
     ]

@@ -1520,30 +1520,41 @@ def process_hook_input():
                 # No output to scan - allow
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
-            logging.info(f"Scanning {tool_name} output for secrets...")
+            # Create composite tool identifier for more granular ignore patterns
+            # This allows ignore_tools to match both PreToolUse (input) and PostToolUse (output)
+            # For Skill tool: "Skill:code-review"
+            # For MCP tools: already have composite name like "mcp__notebooklm__chat"
+            tool_identifier = tool_name
+            if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
+                tool_input = hook_data["tool_use"].get("input", {})
+                if tool_name == "Skill" and tool_input.get("skill"):
+                    tool_identifier = f"Skill:{tool_input['skill']}"
+                    logging.debug(f"Created composite identifier for PostToolUse: {tool_identifier}")
+
+            logging.info(f"Scanning {tool_identifier} output for secrets...")
 
             # Load secret scanning config for ignore lists
             secret_config = _load_secret_scanning_config()
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
 
-            # Check for secrets in the output
+            # Check for secrets in the output (use composite identifier for ignore matching)
             has_secrets, error_message = check_secrets_with_gitleaks(
-                tool_output, f"{tool_name}_output",
+                tool_output, f"{tool_identifier}_output",
                 context={"ide_type": ide_type.value, "hook_event": "posttooluse"},
-                tool_name=tool_name,
+                tool_name=tool_identifier,
                 ignore_files=ignore_files,
                 ignore_tools=ignore_tools
             )
 
             if has_secrets:
                 # Block output from reaching AI
-                logging.warning(f"Secrets detected in {tool_name} output")
+                logging.warning(f"Secrets detected in {tool_identifier} output")
                 return format_response(ide_type, has_secrets=True,
                                      error_message=error_message,
                                      hook_event=hook_event)
 
-            logging.info(f"✓ No secrets detected in {tool_name} output")
+            logging.info(f"✓ No secrets detected in {tool_identifier} output")
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
         # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
@@ -1623,7 +1634,11 @@ def process_hook_input():
                 logging.warning("Could not extract file content, allowing operation")
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
-            logging.info(f"Scanning file '{filename}' for secrets...")
+            # Log with full path for debugging false positives
+            if file_path:
+                logging.info(f"Scanning file '{filename}' ({file_path}) for secrets...")
+            else:
+                logging.info(f"Scanning file '{filename}' for secrets...")
 
         else:
             # Prompt hook - scan the user's prompt
@@ -1655,12 +1670,15 @@ def process_hook_input():
                     if is_injection:
                         # Prompt injection detected - block operation
                         if ide_type != IDEType.CURSOR:
-                            logging.warning("Prompt injection detected, blocking operation")
+                            if file_path:
+                                logging.warning(f"Prompt injection detected in {file_path}, blocking operation")
+                            else:
+                                logging.warning("Prompt injection detected, blocking operation")
 
                         # Log prompt injection violation
                         _log_prompt_injection_violation(
                             filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event}
+                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path}
                         )
 
                         return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
@@ -1702,7 +1720,10 @@ def process_hook_input():
 
             # No secrets found, allow operation
             if hook_event == "pretooluse":
-                logging.info(f"✓ No secrets detected in file '{filename}'")
+                if file_path:
+                    logging.info(f"✓ No secrets detected in file '{filename}' ({file_path})")
+                else:
+                    logging.info(f"✓ No secrets detected in file '{filename}'")
             else:
                 logging.info("✓ No secrets detected in prompt")
         elif secret_config and ide_type != IDEType.CURSOR:
