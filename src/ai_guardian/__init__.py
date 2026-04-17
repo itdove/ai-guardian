@@ -1623,7 +1623,11 @@ def process_hook_input():
                 logging.warning("Could not extract file content, allowing operation")
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
-            logging.info(f"Scanning file '{filename}' for secrets...")
+            # Log with full path for debugging false positives
+            if file_path:
+                logging.info(f"Scanning file '{filename}' ({file_path}) for secrets...")
+            else:
+                logging.info(f"Scanning file '{filename}' for secrets...")
 
         else:
             # Prompt hook - scan the user's prompt
@@ -1655,12 +1659,15 @@ def process_hook_input():
                     if is_injection:
                         # Prompt injection detected - block operation
                         if ide_type != IDEType.CURSOR:
-                            logging.warning("Prompt injection detected, blocking operation")
+                            if file_path:
+                                logging.warning(f"Prompt injection detected in {file_path}, blocking operation")
+                            else:
+                                logging.warning("Prompt injection detected, blocking operation")
 
                         # Log prompt injection violation
                         _log_prompt_injection_violation(
                             filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event}
+                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path}
                         )
 
                         return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
@@ -1702,7 +1709,10 @@ def process_hook_input():
 
             # No secrets found, allow operation
             if hook_event == "pretooluse":
-                logging.info(f"✓ No secrets detected in file '{filename}'")
+                if file_path:
+                    logging.info(f"✓ No secrets detected in file '{filename}' ({file_path})")
+                else:
+                    logging.info(f"✓ No secrets detected in file '{filename}'")
             else:
                 logging.info("✓ No secrets detected in prompt")
         elif secret_config and ide_type != IDEType.CURSOR:
