@@ -320,7 +320,9 @@ class ErrorMessageReadabilityTest(TestCase):
 
             # Verify formatting
             self.assertIn("="*70, error_msg, "Should have separator line")
+            self.assertIn("🚨 BLOCKED BY POLICY", error_msg, "Should have policy blocked header")
             self.assertIn("🔒 SECRET DETECTED", error_msg, "Should have clear header")
+            self.assertIn("DO NOT attempt to bypass", error_msg, "Should have anti-bypass language")
 
     def test_prompt_injection_error_message_has_proper_formatting(self):
         """Prompt injection errors should be well-formatted"""
@@ -336,5 +338,7 @@ class ErrorMessageReadabilityTest(TestCase):
 
             # Verify formatting
             self.assertIn("="*70, error_msg, "Should have separator line")
+            self.assertIn("🚨 BLOCKED BY POLICY", error_msg, "Should have policy blocked header")
             self.assertIn("🚨 PROMPT INJECTION DETECTED", error_msg, "Should have clear header")
             self.assertIn("Detection details:", error_msg, "Should have labeled section")
+            self.assertIn("DO NOT attempt to bypass", error_msg, "Should have anti-bypass language")

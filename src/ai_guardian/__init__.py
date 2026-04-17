@@ -550,12 +550,14 @@ def extract_file_content_from_tool(hook_data):
             if is_denied:
                 error_msg = (
                     f"\n{'='*70}\n"
+                    f"🚨 BLOCKED BY POLICY\n"
                     f"🚫 ACCESS DENIED - Directory Protected\n"
                     f"{'='*70}\n\n"
                     f"The file '{file_path}' is located in a directory that contains\n"
                     f"a .ai-read-deny marker file.\n\n"
                     f"Protected directory: {denied_dir}\n\n"
-                    f"This directory and all its subdirectories are blocked from AI access.\n"
+                    f"This directory and all its subdirectories are blocked from AI access.\n\n"
+                    f"DO NOT attempt workarounds - the protection is intentional.\n\n"
                     f"Please remove the .ai-read-deny file if you need AI access to this\n"
                     f"directory, or move the file to an accessible location.\n"
                     f"\n{'='*70}\n"
@@ -613,12 +615,14 @@ def extract_file_content_from_tool(hook_data):
         if is_denied:
             error_msg = (
                 f"\n{'='*70}\n"
+                f"🚨 BLOCKED BY POLICY\n"
                 f"🚫 ACCESS DENIED - Directory Protected\n"
                 f"{'='*70}\n\n"
                 f"The file '{file_path}' is located in a directory that contains\n"
                 f"a .ai-read-deny marker file.\n\n"
                 f"Protected directory: {denied_dir}\n\n"
-                f"This directory and all its subdirectories are blocked from AI access.\n"
+                f"This directory and all its subdirectories are blocked from AI access.\n\n"
+                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
                 f"Please remove the .ai-read-deny file if you need AI access to this\n"
                 f"directory, or move the file to an accessible location.\n"
                 f"\n{'='*70}\n"
@@ -1319,6 +1323,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 # Build error message with details if available
                 error_msg = (
                     f"\n{'='*70}\n"
+                    f"🚨 BLOCKED BY POLICY\n"
                     f"🔒 SECRET DETECTED\n"
                     f"{'='*70}\n\n"
                     "Gitleaks has detected sensitive information in your prompt/file.\n"
@@ -1338,6 +1343,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 error_msg += (
                     "\nThis operation has been blocked for security.\n"
                     "Please remove the sensitive information and try again.\n\n"
+                    "DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
                 )
 
                 # Only show generic list if we don't have specific details
@@ -1397,6 +1403,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     # Authentication error - BLOCK (user can fix by updating credentials)
                     error_msg = (
                         f"\n{'='*70}\n"
+                        f"🚨 BLOCKED BY POLICY\n"
                         f"🔒 AUTHENTICATION ERROR\n"
                         f"{'='*70}\n\n"
                         f"Gitleaks authentication failed (exit code {result.returncode}).\n"
@@ -1405,6 +1412,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         error_msg += f"\nError: {stderr_preview}\n"
                     error_msg += (
                         "\nThis operation has been blocked for security.\n\n"
+                        "DO NOT attempt to bypass this protection - fix the authentication issue.\n\n"
                         "If using pattern-servers:\n"
                         "  1. Check your authentication token is valid\n"
                         "  2. Update token: export AI_GUARDIAN_PATTERN_TOKEN='your-token'\n"

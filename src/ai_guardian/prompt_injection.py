@@ -472,10 +472,12 @@ class PromptInjectionDetector:
 
                 error_msg = (
                     f"\n{'='*70}\n"
+                    f"🚨 BLOCKED BY POLICY\n"
                     f"🚨 PROMPT INJECTION DETECTED\n"
                     f"{'='*70}\n\n"
                     "AI Guardian has detected a potential prompt injection attack.\n"
                     "This operation has been blocked for security.\n\n"
+                    "DO NOT attempt to bypass this protection - it prevents malicious prompts.\n\n"
                     f"Detection details:\n"
                     f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
                     f"  • Method: {self.detector_type}\n"
