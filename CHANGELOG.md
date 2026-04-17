@@ -33,13 +33,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Improved policy blocking messages** (Issue #88)
-  - Added "🚨 BLOCKED BY POLICY" header to all tool denial messages
+  - Added "🚨 BLOCKED BY POLICY" header to **all blocking messages** for consistency:
+    - Tool permission denials (immutable files, deny patterns, no permission rules)
+    - Secret detection (gitleaks findings)
+    - Prompt injection detection
+    - Directory protection (.ai-read-deny markers)
+    - Authentication errors (gitleaks auth failures)
   - Log messages now include specific reason for blocking:
     - Before: `"Tool 'Bash' blocked by policy"`
     - After: `"🚨 BLOCKED BY POLICY: Tool 'Bash' - Critical file protected: ai-guardian config"`
-  - Added explicit anti-workaround language to prevent AI agents from retrying:
-    - "DO NOT attempt workarounds - the protection is intentional"
-    - "DO NOT attempt workarounds - contact the system administrator if access is needed"
+  - Added explicit anti-bypass language to **all** blocking messages to prevent AI agents from retrying:
+    - Tool policy: "DO NOT attempt workarounds - the protection is intentional"
+    - Secret detection: "DO NOT attempt to bypass this protection - it prevents credential leaks"
+    - Prompt injection: "DO NOT attempt to bypass this protection - it prevents malicious prompts"
+    - Directory protection: "DO NOT attempt workarounds - the protection is intentional"
+    - Authentication errors: "DO NOT attempt to bypass this protection - fix the authentication issue"
   - Error messages now clearly explain WHY operations are blocked
   - New `_extract_block_reason()` helper extracts concise reasons for logging:
     - "Critical file protected: ai-guardian config"
@@ -47,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - "No permission rule configured"
     - "Not in allow list"
   - Comprehensive test coverage: 10 new tests in `test_block_reason_extraction.py`
+  - Updated all error message tests to verify "🚨 BLOCKED BY POLICY" header
 - **Improved logging for debugging false positives**
   - Log messages now include full file paths (not just filenames)
   - Before: `"Scanning file 'SKILL.md' for secrets..."`
