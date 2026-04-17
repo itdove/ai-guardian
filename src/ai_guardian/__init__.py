@@ -13,6 +13,7 @@ Automatically detects IDE type and uses appropriate response format.
 __version__ = "1.4.0-dev"
 
 import argparse
+import fnmatch
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -495,6 +496,21 @@ def extract_tool_result(hook_data):
                 output = (tool_response.get("output") or
                          tool_response.get("content") or
                          tool_response.get("result"))
+
+                # SECURITY FIX: Check stdout/stderr for Bash/command tools
+                # This prevents the Bash bypass vulnerability where secrets in
+                # stdout/stderr were not scanned (only output/content/result were checked)
+                if not output:
+                    stdout = tool_response.get("stdout")
+                    stderr = tool_response.get("stderr")
+
+                    # Combine stdout and stderr - both can contain sensitive data
+                    if stdout and stderr:
+                        output = f"{stdout}\n{stderr}"
+                    elif stdout:
+                        output = stdout
+                    elif stderr:
+                        output = stderr
 
                 # Don't convert dict to JSON if no explicit output field
                 # Metadata dicts aren't meant to be scanned
@@ -1076,7 +1092,9 @@ def _is_gitleaks_config_content(content):
     return matches >= 3
 
 
-def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None):
+def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
+                                file_path: Optional[str] = None, tool_name: Optional[str] = None,
+                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -1089,6 +1107,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         content: The text content to scan for secrets
         filename: Optional filename for context in error messages
         context: Optional context dict for violation logging (ide_type, hook_event, etc.)
+        file_path: Optional file path being scanned (for ignore_files matching)
+        tool_name: Optional tool name being used (for ignore_tools matching)
+        ignore_files: Optional list of glob patterns for files to skip
+        ignore_tools: Optional list of tool name patterns to skip
 
     Returns:
         tuple: (has_secrets: bool, error_message: str or None)
@@ -1096,6 +1118,24 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             - error_message: Detailed error if secrets found, None otherwise
     """
     try:
+        # Check if tool should be ignored
+        if ignore_tools and tool_name:
+            for pattern in ignore_tools:
+                if fnmatch.fnmatch(tool_name, pattern):
+                    logging.info(f"Skipping secret scanning for ignored tool: {tool_name}")
+                    return False, None
+
+        # Check if file should be ignored
+        if ignore_files and file_path:
+            file_path_obj = Path(file_path).expanduser()
+            for pattern in ignore_files:
+                # Use Path.match() which supports ** glob patterns
+                # fnmatch doesn't support ** so we need pathlib
+                expanded_pattern = str(Path(pattern).expanduser())
+                if file_path_obj.match(expanded_pattern):
+                    logging.info(f"Skipping secret scanning for ignored file: {file_path}")
+                    return False, None
+
         # Skip scanning if content appears to be a gitleaks config file
         # This prevents false positives when viewing pattern files
         if _is_gitleaks_config_content(content):
@@ -1482,10 +1522,18 @@ def process_hook_input():
 
             logging.info(f"Scanning {tool_name} output for secrets...")
 
+            # Load secret scanning config for ignore lists
+            secret_config = _load_secret_scanning_config()
+            ignore_files = secret_config.get("ignore_files", []) if secret_config else []
+            ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
+
             # Check for secrets in the output
             has_secrets, error_message = check_secrets_with_gitleaks(
                 tool_output, f"{tool_name}_output",
-                context={"ide_type": ide_type.value, "hook_event": "posttooluse"}
+                context={"ide_type": ide_type.value, "hook_event": "posttooluse"},
+                tool_name=tool_name,
+                ignore_files=ignore_files,
+                ignore_tools=ignore_tools
             )
 
             if has_secrets:
@@ -1497,6 +1545,31 @@ def process_hook_input():
 
             logging.info(f"✓ No secrets detected in {tool_name} output")
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
+        # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
+        tool_name = None
+        tool_identifier = None  # Composite identifier like "Skill:code-review" or "mcp__server__tool"
+        if hook_event in ["pretooluse", "beforereadfile"]:
+            # Extract tool name and input from hook_data
+            tool_input = {}
+            if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
+                tool_name = hook_data["tool_use"].get("name")
+                tool_input = hook_data["tool_use"].get("input", {})
+            elif "tool" in hook_data and isinstance(hook_data["tool"], dict):
+                tool_name = hook_data["tool"].get("name")
+                tool_input = hook_data.get("tool_input", {})
+            elif "tool_name" in hook_data:
+                tool_name = hook_data["tool_name"]
+                tool_input = hook_data.get("tool_input", {})
+
+            # Create composite tool identifier for more granular ignore patterns
+            # For Skill tool: "Skill:code-review"
+            # For MCP tools: already have composite name like "mcp__notebooklm__chat"
+            # For other tools: just use tool_name
+            if tool_name == "Skill" and tool_input.get("skill"):
+                tool_identifier = f"Skill:{tool_input['skill']}"
+            else:
+                tool_identifier = tool_name
 
         # Check tool permissions for PreToolUse events (MCP servers and Skills)
         if hook_event in ["pretooluse", "beforereadfile"] and HAS_TOOL_POLICY:
@@ -1510,14 +1583,14 @@ def process_hook_input():
                     default=True
                 ):
                     policy_checker = ToolPolicyChecker()
-                    is_allowed, error_message, tool_name = policy_checker.check_tool_allowed(hook_data)
+                    is_allowed, error_message, checked_tool_name = policy_checker.check_tool_allowed(hook_data)
 
                     if not is_allowed:
-                        logging.warning(f"Tool '{tool_name}' blocked by policy")
+                        logging.warning(f"Tool '{checked_tool_name}' blocked by policy")
                         return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
 
-                    if tool_name and ide_type != IDEType.CURSOR:
-                        logging.info(f"✓ Tool '{tool_name}' allowed by policy")
+                    if checked_tool_name and ide_type != IDEType.CURSOR:
+                        logging.info(f"✓ Tool '{checked_tool_name}' allowed by policy")
                 elif permissions_config and ide_type != IDEType.CURSOR:
                     # Permissions enforcement is temporarily disabled
                     logging.info("⚠️  Tool permissions enforcement temporarily disabled")
@@ -1527,6 +1600,7 @@ def process_hook_input():
 
         content_to_scan = None
         filename = "unknown"
+        file_path = None
 
         if hook_event in ["pretooluse", "beforereadfile"]:
             # PreToolUse or beforeReadFile hook - scan file content
@@ -1575,7 +1649,7 @@ def process_hook_input():
                     default=True
                 ):
                     is_injection, injection_error = check_prompt_injection(
-                        content_to_scan, injection_config
+                        content_to_scan, injection_config, file_path=file_path, tool_name=tool_identifier
                     )
 
                     if is_injection:
@@ -1609,9 +1683,17 @@ def process_hook_input():
             datetime.now(timezone.utc),
             default=True
         ):
+            # Extract ignore lists from config
+            ignore_files = secret_config.get("ignore_files", []) if secret_config else []
+            ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
+
             has_secrets, error_message = check_secrets_with_gitleaks(
                 content_to_scan, filename,
-                context={"ide_type": ide_type.value, "hook_event": hook_event}
+                context={"ide_type": ide_type.value, "hook_event": hook_event},
+                file_path=file_path,
+                tool_name=tool_identifier,
+                ignore_files=ignore_files,
+                ignore_tools=ignore_tools
             )
 
             if has_secrets:

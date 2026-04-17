@@ -388,17 +388,43 @@ cd ~/project/secrets && touch .ai-read-deny
     "enabled": true,
     "detector": "heuristic",
     "sensitivity": "medium",
-    "allowlist_patterns": ["test:.*"]
+    "allowlist_patterns": ["test:.*"],
+    "ignore_tools": ["Skill:code-review"],
+    "ignore_files": ["**/.claude/skills/*/SKILL.md"]
   }
 }
 ```
+
+**NEW in v1.4.0:**
+- `ignore_tools` - Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)
+- `ignore_files` - Skip detection for specific files (e.g., `"**/.claude/skills/*/SKILL.md"`)
+- See [False Positives](#prompt-injection-false-positives) for detailed usage
 
 ### 🔒 Secret Scanning
 Multi-layered secret detection before AI interactions:
 - **Prompt scanning**: Check user prompts before sending to AI
 - **File scanning**: Verify files before AI reads them
+- **Tool output scanning**: Verify tool outputs before sending to AI (NEW in v1.4.0)
 - Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) - industry-standard scanner
 - Comprehensive pattern detection (API keys, tokens, private keys, etc.)
+
+**Configuration example** (`~/.config/ai-guardian/ai-guardian.json`):
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "ignore_files": [
+      "**/tests/fixtures/**",
+      "**/.env.example"
+    ]
+  }
+}
+```
+
+**NEW in v1.4.0:**
+- `ignore_files` - Skip scanning for test fixtures and example files
+- `ignore_tools` - Skip scanning for specific tools (rarely needed)
+- See [False Positives](#secret-scanning-false-positives) for detailed usage
 
 ### 🎛️ MCP Server & Skill Permissions
 Control which MCP servers and skills Claude Code can use with fine-grained allow/deny lists:
@@ -1056,7 +1082,50 @@ cd ~/my-project/node_modules && touch .ai-read-deny
 
 #### Secret Scanning False Positives
 
-**Method 1: Inline Comments (Quick Fix)**
+**Method 1: Ignore Files/Tools (Recommended for Test Fixtures)**
+
+**NEW in v1.4.0**: Skip scanning specific files or tools. Perfect for test fixtures with fake credentials.
+
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "ignore_files": [
+      "**/tests/fixtures/**",           // All test fixture files
+      "**/tests/**/*.fixture.json",     // Fixture JSON files
+      "**/examples/**/*.example.*",     // Example config files
+      "**/.env.example",                // Example env files
+      "**/.gitleaks.toml"               // Gitleaks config files
+    ],
+    "ignore_tools": []                  // Usually not needed for secrets
+  }
+}
+```
+
+**File patterns** (glob syntax):
+- `**/tests/fixtures/**` - All files under any tests/fixtures directory
+- `**/*.example.*` - All .example files (config.example.json, .env.example)
+- `**/README.md` - Documentation files that may contain example credentials
+- `~/Documents/test-*.json` - Files in home directory (~ expands)
+
+**Tool patterns:**
+- Typically not needed for secret scanning (most secrets are in files)
+- Could be useful if a specific tool always reads test data
+
+**Example: Skip test fixtures but still scan production configs:**
+```json
+{
+  "secret_scanning": {
+    "ignore_files": [
+      "**/tests/**",
+      "**/examples/**",
+      "**/.env.example"
+    ]
+  }
+}
+```
+
+**Method 2: Inline Comments (Quick Fix)**
 
 Add `gitleaks:allow` anywhere on the line to mark it as a false positive:
 
@@ -1069,7 +1138,7 @@ const token = "sk_test_fake_token_123";  // gitleaks:allow
 password = "example_password"  # gitleaks:allow
 ```
 
-**Method 2: Project Configuration File**
+**Method 3: Project Configuration File**
 
 Create `.gitleaks.toml` in your project root for project-wide allowlists:
 
@@ -1097,9 +1166,57 @@ See [Gitleaks Configuration](https://github.com/gitleaks/gitleaks#configuration)
 
 #### Prompt Injection False Positives
 
-If legitimate prompts are being blocked, add allowlist patterns to your configuration:
+If legitimate prompts are being blocked, you have several options:
 
-**Configuration** (`~/.config/ai-guardian/ai-guardian.json`):
+**Method 1: Ignore Specific Tools (Recommended for Skills/Documentation)**
+
+**NEW in v1.4.0**: Skip detection for specific tools or files. Perfect for Skill documentation that contains example attack patterns.
+
+```json
+{
+  "prompt_injection": {
+    "enabled": true,
+    "ignore_tools": [
+      "Skill:code-review",              // Ignore specific skill
+      "Skill:security-review",           // Another specific skill
+      "Skill:*"                          // Or ignore all skills
+    ],
+    "ignore_files": [
+      "**/.claude/skills/*/SKILL.md",   // All skill documentation
+      "**/CLAUDE.md",                    // Project instructions
+      "**/AGENTS.md"                     // Agent instructions
+    ]
+  }
+}
+```
+
+**Tool patterns:**
+- `"Skill:code-review"` - Ignore only the code-review skill
+- `"Skill:*"` or `"Skill"` - Ignore all skills
+- `"mcp__notebooklm__*"` - Ignore all NotebookLM MCP tools
+- `"Read"` - Ignore the Read tool
+
+**File patterns** (glob syntax):
+- `**/.claude/skills/*/SKILL.md` - All SKILL.md files in any skill directory
+- `**/tests/**/*.md` - All markdown files in test directories
+- `~/Documents/security-*.md` - Files in home directory (~ expands)
+- `*` matches any characters except `/`
+- `**` matches any characters including `/`
+- `?` matches a single character
+
+**Defense in depth:** Use both `ignore_tools` AND `ignore_files` for comprehensive coverage:
+```json
+{
+  "prompt_injection": {
+    "ignore_tools": ["Skill:code-review"],
+    "ignore_files": ["**/.claude/skills/*/SKILL.md"]
+  }
+}
+```
+
+**Method 2: Allowlist Patterns (Content-Based)**
+
+If you need to allow specific content patterns regardless of tool/file:
 
 ```json
 {

@@ -122,6 +122,22 @@
           "type": "boolean",
           "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
           "default": false
+        },
+        "ignore_files": {
+          "type": "array",
+          "description": "Glob patterns for files to skip during secret scanning (NEW in v1.4.0). Useful for test fixtures, examples, and documentation with fake credentials. Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char), ~ (home directory). Examples: '**/tests/fixtures/**', '**/examples/**/*.example.*', '**/.gitleaks.toml'",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_tools": {
+          "type": "array",
+          "description": "Tool name patterns to skip during secret scanning (NEW in v1.4.0). Useful for tools that read test data or documentation. Supports wildcards: * (any chars), ? (single char). Examples: [] (scan all tools), specific use cases vary. Most users should use ignore_files instead for test fixtures.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "additionalProperties": true
@@ -269,6 +285,22 @@
         "custom_patterns": {
           "type": "array",
           "description": "Additional detection patterns to check",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_files": {
+          "type": "array",
+          "description": "Glob patterns for files to skip during prompt injection detection (NEW in v1.4.0). Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char), ~ (home directory). Example: '**/.claude/skills/*/SKILL.md' to ignore all skill documentation files.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_tools": {
+          "type": "array",
+          "description": "Tool name patterns to skip during prompt injection detection (NEW in v1.4.0). Supports wildcards: * (any chars), ? (single char). Examples: 'Skill:code-review' (ignore specific skill), 'Skill:*' or 'Skill' (ignore all skills), 'mcp__*' (ignore all MCP tools). Useful for tools that legitimately read documentation containing example attack patterns.",
           "items": {
             "type": "string"
           },

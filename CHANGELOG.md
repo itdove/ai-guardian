@@ -8,10 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **ignore_tools** configuration for prompt injection and secret scanning (Issue #84)
+  - Skip detection for specific tools using patterns: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
+  - Granular control: ignore specific skills (e.g., `"Skill:code-review"`) or all skills (`"Skill"` or `"Skill:*"`)
+  - Composite tool identifiers: automatically created for Skill tools (e.g., `"Skill:code-review"`)
+  - Supports wildcards: `*` (any chars), `?` (single char)
+  - Use case: Skill documentation with example attack patterns no longer triggers false positives
+  - Available in both `prompt_injection` and `secret_scanning` configuration sections
+- **ignore_files** configuration for prompt injection and secret scanning (Issue #84)
+  - Skip detection for specific files using glob patterns
+  - Supports glob wildcards: `*` (any chars except /), `**` (any chars including /), `?` (single char)
+  - Supports tilde expansion: `~` expands to home directory
+  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
+  - Use cases: SKILL.md files, test fixtures with fake credentials, example configuration files
+  - Available in both `prompt_injection` and `secret_scanning` configuration sections
+- **Defense in depth**: Use both `ignore_tools` and `ignore_files` together for comprehensive false positive handling
+- Comprehensive test coverage: 10 new tests for `ignore_tools`, 9 new tests for `ignore_files`
+- Example configuration files: `examples/ignore-tools-config.json`, `examples/secret-scanning-ignore-config.json`
 
 ### Changed
 
 ### Fixed
+- **CRITICAL: Bash tool bypass vulnerability** (discovered during code review)
+  - Root cause: PostToolUse hook checked `output`, `content`, `result` fields but NOT `stdout`/`stderr`
+  - Impact: Bash tool could read secrets/injections without detection (e.g., `Bash(command="cat ~/.aws/credentials")`)
+  - Fix: Added `stdout` and `stderr` extraction in `extract_tool_result()`
+  - Both streams now combined and scanned for secrets and prompt injections
+  - 12 new tests covering Bash output scanning
+  - All tool outputs now scanned equally (Read, Bash, Grep, etc.)
 
 ## [1.3.0] - 2026-04-16
 
