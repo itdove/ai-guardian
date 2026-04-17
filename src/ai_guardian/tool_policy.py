@@ -465,10 +465,9 @@ class ToolPolicyChecker:
                                     rule["matcher"],
                                     tool_value=check_value
                                 )
-                                print(warn_msg, flush=True)
                                 logger.warning(f"Policy violation (warn mode): {tool_name} - {pattern_str}")
-                                # Continue execution - return allowed
-                                return True, None, tool_name
+                                # Continue execution - return allowed WITH warning message
+                                return True, warn_msg, tool_name
                             else:
                                 # Block execution
                                 error_msg = self._format_deny_message(
@@ -532,10 +531,9 @@ class ToolPolicyChecker:
                         permission_rules[0]["matcher"],
                         tool_value=check_value
                     )
-                    print(warn_msg, flush=True)
                     logger.warning(f"Policy violation (warn mode): {tool_name} not in allow list")
-                    # Continue execution - return allowed
-                    return True, None, tool_name
+                    # Continue execution - return allowed WITH warning message
+                    return True, warn_msg, tool_name
                 else:
                     # Block execution
                     error_msg = self._format_deny_message(

@@ -1862,6 +1862,11 @@ def process_hook_input():
                         reason_summary = _extract_block_reason(error_message) if error_message else "policy violation"
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}' - {reason_summary}")
                         return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+                    elif is_allowed and error_message:
+                        # Warn mode: allowed but with warning message
+                        logging.warning(f"⚠️  POLICY WARNING: Tool '{checked_tool_name}' allowed but violates policy")
+                        # Send warning to user via stderr (for Claude Code) or JSON reason (for other IDEs)
+                        print(error_message, file=sys.stderr)
 
                     if checked_tool_name and ide_type != IDEType.CURSOR:
                         logging.info(f"✓ Tool '{checked_tool_name}' allowed by policy")

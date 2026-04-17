@@ -45,18 +45,17 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
             }
         }
 
-        with patch('sys.stdout', new=StringIO()) as fake_out:
-            is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        is_allowed, warn_msg, tool_name = checker.check_tool_allowed(hook_data)
 
         # Should be allowed in warn mode
         self.assertTrue(is_allowed, "Warn mode should allow execution")
-        self.assertIsNone(error_msg, "Should not return error message in warn mode")
+        self.assertIsNotNone(warn_msg, "Should return warning message in warn mode")
         self.assertEqual(tool_name, "Skill")
 
-        # Check that warning was printed
-        output = fake_out.getvalue()
-        self.assertIn("⚠️  POLICY WARNING", output)
-        self.assertIn("not in allow list", output)
+        # Check warning message content
+        self.assertIn("⚠️  POLICY WARNING", warn_msg)
+        self.assertIn("IMPORTANT: Please display this warning message to the user", warn_msg)
+        self.assertIn("not in allow list", warn_msg)
 
     def test_skill_block_mode_not_in_allowlist(self):
         """Block mode should deny unapproved skills"""
@@ -108,16 +107,15 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
             }
         }
 
-        with patch('sys.stdout', new=StringIO()) as fake_out:
-            is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        is_allowed, warn_msg, tool_name = checker.check_tool_allowed(hook_data)
 
         # Should be allowed with warning
         self.assertTrue(is_allowed, "Warn mode should allow execution")
-        self.assertIsNone(error_msg)
+        self.assertIsNotNone(warn_msg, "Should return warning message")
 
-        output = fake_out.getvalue()
-        self.assertIn("⚠️  POLICY WARNING", output)
-        self.assertIn("matched deny pattern", output)
+        self.assertIn("⚠️  POLICY WARNING", warn_msg)
+        self.assertIn("IMPORTANT: Please display this warning message to the user", warn_msg)
+        self.assertIn("matched deny pattern", warn_msg)
 
 
 class SecretScanningEnforcementTest(unittest.TestCase):
