@@ -1127,10 +1127,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
         # Check if file should be ignored
         if ignore_files and file_path:
-            expanded_path = str(Path(file_path).expanduser())
+            file_path_obj = Path(file_path).expanduser()
             for pattern in ignore_files:
+                # Use Path.match() which supports ** glob patterns
+                # fnmatch doesn't support ** so we need pathlib
                 expanded_pattern = str(Path(pattern).expanduser())
-                if fnmatch.fnmatch(expanded_path, expanded_pattern):
+                if file_path_obj.match(expanded_pattern):
                     logging.info(f"Skipping secret scanning for ignored file: {file_path}")
                     return False, None
 

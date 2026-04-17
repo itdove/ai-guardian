@@ -288,8 +288,15 @@ class ToolPolicyChecker:
             "**/.ai-read-deny",
         ]
 
+        file_path_obj = Path(file_path)
         for pattern in config_patterns:
-            if fnmatch.fnmatch(file_path, pattern):
+            # Use Path.match() for ** patterns, fnmatch for simple * patterns
+            if "**" in pattern:
+                matches = file_path_obj.match(pattern)
+            else:
+                matches = fnmatch.fnmatch(file_path, pattern)
+
+            if matches:
                 logger.debug(f"Config file always protected: {file_path}")
                 return False  # Always protected, even for maintainers
 
@@ -352,8 +359,17 @@ class ToolPolicyChecker:
                     return True, None, tool_name
 
                 immutable_denies = IMMUTABLE_DENY_PATTERNS.get(tool_name, [])
+                # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
+                is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
                 for pattern in immutable_denies:
-                    if fnmatch.fnmatch(check_value, pattern):
+                    # For file path tools with ** patterns: use Path.match()
+                    # Otherwise: use fnmatch to match patterns within command strings or simple globs
+                    if is_file_path_tool and "**" in pattern:
+                        matches = Path(check_value).match(pattern)
+                    else:
+                        matches = fnmatch.fnmatch(check_value, pattern)
+
+                    if matches:
                         error_msg = self._format_immutable_deny_message(check_value, tool_name)
                         self._log_violation(
                             tool_name=tool_name,
@@ -413,10 +429,19 @@ class ToolPolicyChecker:
                     mode = "deny" if patterns else None
 
                 if mode == "deny":
+                    # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
+                    is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
                     for pattern_entry in patterns:
                         # Extract pattern string from entry (supports both str and dict formats)
                         pattern_str = self._extract_pattern_string(pattern_entry)
-                        if fnmatch.fnmatch(check_value, pattern_str):
+                        # For file path tools with ** patterns: use Path.match()
+                        # Otherwise: use fnmatch to match patterns within command strings or simple globs
+                        if is_file_path_tool and "**" in pattern_str:
+                            matches = Path(check_value).match(pattern_str)
+                        else:
+                            matches = fnmatch.fnmatch(check_value, pattern_str)
+
+                        if matches:
                             logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
                             error_msg = self._format_deny_message(
                                 tool_name,
@@ -449,10 +474,19 @@ class ToolPolicyChecker:
 
                 if mode == "allow":
                     has_allow_rules = True
+                    # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
+                    is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
                     for pattern_entry in patterns:
                         # Extract pattern string from entry (supports both str and dict formats)
                         pattern_str = self._extract_pattern_string(pattern_entry)
-                        if fnmatch.fnmatch(check_value, pattern_str):
+                        # For file path tools with ** patterns: use Path.match()
+                        # Otherwise: use fnmatch to match patterns within command strings or simple globs
+                        if is_file_path_tool and "**" in pattern_str:
+                            matches = Path(check_value).match(pattern_str)
+                        else:
+                            matches = fnmatch.fnmatch(check_value, pattern_str)
+
+                        if matches:
                             logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern_str}")
                             return True, None, tool_name
 

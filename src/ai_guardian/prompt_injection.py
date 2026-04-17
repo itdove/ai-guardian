@@ -278,14 +278,15 @@ class PromptInjectionDetector:
             return False
 
         # Expand ~ in file_path for proper matching
-        expanded_path = str(Path(file_path).expanduser())
+        file_path_obj = Path(file_path).expanduser()
 
         for pattern in self.ignore_files:
             # Expand ~ in pattern
             expanded_pattern = str(Path(pattern).expanduser())
 
-            # Check if pattern matches using fnmatch (glob-style)
-            if fnmatch.fnmatch(expanded_path, expanded_pattern):
+            # Use Path.match() which supports ** glob patterns
+            # fnmatch doesn't support ** so we need pathlib
+            if file_path_obj.match(expanded_pattern):
                 logger.debug(f"File '{file_path}' matches ignore pattern '{pattern}'")
                 return True
 
