@@ -115,6 +115,7 @@ class PromptInjectionDetector:
         self.max_score_threshold = self.config.get("max_score_threshold", 0.75)
         self.ignore_files = self.config.get("ignore_files", [])
         self.ignore_tools = self.config.get("ignore_tools", [])
+        self.enforcement = self.config.get("enforcement", "block")
 
         # Compile regex patterns for performance
         self._compiled_patterns = [
@@ -470,32 +471,57 @@ class PromptInjectionDetector:
                 if len(matched_pattern) > 150:
                     pattern_preview += "..."
 
-                error_msg = (
-                    f"\n{'='*70}\n"
-                    f"🚨 BLOCKED BY POLICY\n"
-                    f"🚨 PROMPT INJECTION DETECTED\n"
-                    f"{'='*70}\n\n"
-                    "AI Guardian has detected a potential prompt injection attack.\n"
-                    "This operation has been blocked for security.\n\n"
-                    "DO NOT attempt to bypass this protection - it prevents malicious prompts.\n\n"
-                    f"Detection details:\n"
-                    f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
-                    f"  • Method: {self.detector_type}\n"
-                    f"  • Pattern detected: {pattern_preview}\n\n"
-                    "Common injection patterns:\n"
-                    "  • \"Ignore previous instructions\"\n"
-                    "  • \"You are now in DAN mode\"\n"
-                    "  • \"Reveal your system prompt\"\n"
-                    "  • Role-playing attacks\n"
-                    "  • Delimiter/encoding bypasses\n\n"
-                    "If this is a false positive, you can:\n"
-                    "  1. Adjust sensitivity in ~/.config/ai-guardian/ai-guardian.json\n"
-                    "  2. Add allowlist patterns for legitimate use cases\n"
-                    "  3. Temporarily disable: \"prompt_injection\": {\"enabled\": false}\n\n"
-                    f"{'='*70}\n"
-                )
+                # Check enforcement level
+                if self.enforcement == "warn":
+                    # Build warning message
+                    warn_msg = (
+                        f"\n{'='*70}\n"
+                        f"⚠️  POLICY WARNING\n"
+                        f"🚨 PROMPT INJECTION DETECTED\n"
+                        f"{'='*70}\n\n"
+                        "AI Guardian has detected a potential prompt injection attack.\n\n"
+                        f"Detection details:\n"
+                        f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
+                        f"  • Method: {self.detector_type}\n"
+                        f"  • Pattern detected: {pattern_preview}\n\n"
+                        "⚠️  This violates your organization's policy but execution is allowed.\n"
+                        "This activity is logged and may be reviewed by your administrator.\n\n"
+                        "If this is a false positive, you can:\n"
+                        "  1. Adjust sensitivity in ~/.config/ai-guardian/ai-guardian.json\n"
+                        "  2. Add allowlist patterns for legitimate use cases\n"
+                        f"{'='*70}\n"
+                    )
+                    print(warn_msg, flush=True)
+                    logger.warning(f"Prompt injection detected (warn mode): confidence={confidence:.2f}")
+                    return False, None  # Allow execution
+                else:
+                    # Block execution
+                    error_msg = (
+                        f"\n{'='*70}\n"
+                        f"🚨 BLOCKED BY POLICY\n"
+                        f"🚨 PROMPT INJECTION DETECTED\n"
+                        f"{'='*70}\n\n"
+                        "AI Guardian has detected a potential prompt injection attack.\n"
+                        "This operation has been blocked for security.\n\n"
+                        "DO NOT attempt to bypass this protection - it prevents malicious prompts.\n\n"
+                        f"Detection details:\n"
+                        f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
+                        f"  • Method: {self.detector_type}\n"
+                        f"  • Pattern detected: {pattern_preview}\n\n"
+                        "Common injection patterns:\n"
+                        "  • \"Ignore previous instructions\"\n"
+                        "  • \"You are now in DAN mode\"\n"
+                        "  • \"Reveal your system prompt\"\n"
+                        "  • Role-playing attacks\n"
+                        "  • Delimiter/encoding bypasses\n\n"
+                        "If this is a false positive, you can:\n"
+                        "  1. Adjust sensitivity in ~/.config/ai-guardian/ai-guardian.json\n"
+                        "  2. Add allowlist patterns for legitimate use cases\n"
+                        "  3. Temporarily disable: \"prompt_injection\": {\"enabled\": false}\n\n"
+                        f"{'='*70}\n"
+                    )
 
-                return True, error_msg
+                    return True, error_msg
 
             return False, None
 

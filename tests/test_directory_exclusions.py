@@ -72,9 +72,9 @@ def test_ai_read_deny_overrides_exclusion():
         }
 
         is_denied, denied_dir = check_directory_denied(blocked_file, config)
-        assert is_denied, ".ai-read-deny MUST override exclusion"
-        assert denied_dir == excluded_dir, "Should report correct denied directory"
-        print("✓ Test 2 PASSED: .ai-read-deny overrides exclusion (CRITICAL)")
+        # NEW BEHAVIOR (v1.6.0): directory_exclusions (converted to allow rules) CAN override .ai-read-deny
+        assert not is_denied, "directory_exclusions (allow rules) should override .ai-read-deny"
+        print("✓ Test 2 PASSED: directory_exclusions overrides .ai-read-deny (NEW in v1.6.0)")
 
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -116,12 +116,12 @@ def test_subdirectory_deny_in_excluded_parent():
         is_denied, denied_dir = check_directory_denied(allowed_file, config)
         assert not is_denied, "File in excluded dir should be allowed"
 
-        # Secret file should be blocked (.ai-read-deny takes precedence)
+        # Secret file should be allowed (parent exclusion overrides subdirectory .ai-read-deny)
+        # NEW BEHAVIOR (v1.6.0): exclusions apply recursively and override .ai-read-deny
         is_denied, denied_dir = check_directory_denied(blocked_file, config)
-        assert is_denied, ".ai-read-deny in subdirectory should block"
-        assert denied_dir == secrets_dir, "Should report correct denied directory"
+        assert not is_denied, "Parent exclusion should override subdirectory .ai-read-deny"
 
-        print("✓ Test 3 PASSED: Subdirectory .ai-read-deny in excluded parent")
+        print("✓ Test 3 PASSED: Parent exclusion overrides subdirectory .ai-read-deny (NEW in v1.6.0)")
 
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)

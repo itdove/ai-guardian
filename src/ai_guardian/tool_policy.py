@@ -388,6 +388,9 @@ class ToolPolicyChecker:
                 # No rules found - check if this tool type requires explicit allow
                 if self._requires_explicit_allow(tool_name):
                     logger.warning(f"Tool '{tool_name}' requires explicit permission but no rule found")
+
+                    # Check default enforcement level (block by default when no rules)
+                    # For tools requiring explicit allow, we block by default
                     error_msg = self._format_deny_message(
                         tool_name,
                         "no permission rule",
@@ -422,6 +425,7 @@ class ToolPolicyChecker:
             for rule in permission_rules:
                 mode = rule.get("mode")
                 patterns = rule.get("patterns", [])
+                enforcement = rule.get("enforcement", "block")  # Default to block
 
                 # Legacy format support
                 if mode is None:
@@ -443,12 +447,6 @@ class ToolPolicyChecker:
 
                         if matches:
                             logger.warning(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
-                            error_msg = self._format_deny_message(
-                                tool_name,
-                                f"matched deny pattern: {pattern_str}",
-                                rule["matcher"],
-                                tool_value=check_value
-                            )
 
                             # Log violation
                             self._log_violation(
@@ -459,7 +457,27 @@ class ToolPolicyChecker:
                                 hook_data=hook_data
                             )
 
-                            return False, error_msg, tool_name
+                            # Check enforcement level
+                            if enforcement == "warn":
+                                warn_msg = self._format_warn_message(
+                                    tool_name,
+                                    f"matched deny pattern: {pattern_str}",
+                                    rule["matcher"],
+                                    tool_value=check_value
+                                )
+                                print(warn_msg, flush=True)
+                                logger.warning(f"Policy violation (warn mode): {tool_name} - {pattern_str}")
+                                # Continue execution - return allowed
+                                return True, None, tool_name
+                            else:
+                                # Block execution
+                                error_msg = self._format_deny_message(
+                                    tool_name,
+                                    f"matched deny pattern: {pattern_str}",
+                                    rule["matcher"],
+                                    tool_value=check_value
+                                )
+                                return False, error_msg, tool_name
 
             # Second pass: check allow rules
             has_allow_rules = False
@@ -490,15 +508,12 @@ class ToolPolicyChecker:
                             logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern_str}")
                             return True, None, tool_name
 
-            # If we have allow rules but no match, deny
+            # If we have allow rules but no match, deny (or warn)
             if has_allow_rules:
                 logger.warning(f"Tool '{tool_name}' not in allow list")
-                error_msg = self._format_deny_message(
-                    tool_name,
-                    "not in allow list",
-                    permission_rules[0]["matcher"],
-                    tool_value=check_value
-                )
+
+                # Check enforcement level from the first allow rule
+                enforcement = permission_rules[0].get("enforcement", "block")
 
                 # Log violation
                 self._log_violation(
@@ -509,7 +524,27 @@ class ToolPolicyChecker:
                     hook_data=hook_data
                 )
 
-                return False, error_msg, tool_name
+                # Check enforcement level
+                if enforcement == "warn":
+                    warn_msg = self._format_warn_message(
+                        tool_name,
+                        "not in allow list",
+                        permission_rules[0]["matcher"],
+                        tool_value=check_value
+                    )
+                    print(warn_msg, flush=True)
+                    logger.warning(f"Policy violation (warn mode): {tool_name} not in allow list")
+                    # Continue execution - return allowed
+                    return True, None, tool_name
+                else:
+                    # Block execution
+                    error_msg = self._format_deny_message(
+                        tool_name,
+                        "not in allow list",
+                        permission_rules[0]["matcher"],
+                        tool_value=check_value
+                    )
+                    return False, error_msg, tool_name
 
             # No allow rules - allow by default (already passed deny check)
             logger.info(f"✓ Tool '{tool_name}' is allowed (no allow patterns in rules)")
@@ -833,6 +868,49 @@ class ToolPolicyChecker:
         msg += "This permission rule is configured to protect your system.\n"
         msg += "DO NOT attempt workarounds - contact the system administrator if access is needed.\n"
         msg += f"{'='*70}\n"
+
+        return msg
+
+    def _format_warn_message(self, tool_name: str, reason: str, matcher: Optional[str], tool_value: Optional[str] = None) -> str:
+        """
+        Format warning message for policy violations in warn mode.
+
+        Args:
+            tool_name: Name of the tool
+            reason: Reason for warning (pattern that matched)
+            matcher: The matcher from the permission rule (if found)
+            tool_value: The specific value that was checked
+
+        Returns:
+            str: Formatted warning message
+        """
+        msg = (
+            f"\n{'='*70}\n"
+            f"⚠️  POLICY WARNING\n"
+            f"{'='*70}\n\n"
+            f"Tool: {tool_name}\n"
+        )
+
+        if tool_value:
+            if tool_name == "Skill":
+                label = "Skill Name"
+            elif matcher in ["Edit", "Read", "Write"]:
+                label = "File Path"
+            else:
+                label = "Value"
+            msg += f"{label}: {tool_value}\n"
+
+        msg += f"Warning: {reason}\n"
+
+        if matcher:
+            msg += f"Matcher: {matcher}\n"
+
+        msg += (
+            f"\n⚠️  This violates your organization's policy but execution is allowed.\n"
+            f"This activity may be logged and reviewed by your administrator.\n"
+            f"\nTo resolve this warning, update your configuration or contact your administrator.\n"
+            f"{'='*70}\n"
+        )
 
         return msg
 

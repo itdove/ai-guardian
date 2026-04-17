@@ -296,8 +296,8 @@ def _is_path_excluded(file_path, config):
     """
     Check if a file path is within a directory exclusion.
 
-    Directory exclusions disable .ai-read-deny blocking for specific paths.
-    Note: .ai-read-deny markers ALWAYS take precedence over exclusions.
+    Directory exclusions can override .ai-read-deny blocking for specific paths.
+    This allows creating allowlists (e.g., block ~/.claude/skills/* except approved ones).
 
     Args:
         file_path: Absolute path to the file being accessed
@@ -375,22 +375,143 @@ def _is_path_excluded(file_path, config):
         return False
 
 
+def _check_directory_rules(file_path, config):
+    """
+    Check directory rules (allow/deny) in order.
+
+    Rules are evaluated sequentially, with the last matching rule winning.
+    This allows flexible configurations like:
+    - Deny all skills, then allow specific ones
+    - Allow all projects, then deny specific subdirectories
+
+    Args:
+        file_path: Absolute path to the file being accessed
+        config: Configuration dict containing directory_rules
+
+    Returns:
+        tuple: (decision, enforcement) where:
+            - decision: "allow", "deny", or None (no matching rule)
+            - enforcement: "block", "warn", or None
+    """
+    try:
+        if not config:
+            return None, None
+
+        # Get directory_rules array
+        directory_rules = config.get("directory_rules", [])
+
+        # Backward compatibility: convert directory_exclusions to rules
+        dir_exclusions = config.get("directory_exclusions", {})
+        if dir_exclusions.get("enabled") and dir_exclusions.get("paths"):
+            # Log deprecation warning once
+            if not hasattr(_check_directory_rules, '_warned_deprecation'):
+                logging.warning("directory_exclusions is deprecated - use directory_rules instead")
+                _check_directory_rules._warned_deprecation = True
+
+            # Prepend exclusions as allow rules (so they have lower priority than explicit rules)
+            backward_compat_rule = {
+                "mode": "allow",
+                "paths": dir_exclusions["paths"],
+                "enforcement": "block"  # Default enforcement for backward compat
+            }
+            directory_rules = [backward_compat_rule] + directory_rules
+
+        if not directory_rules:
+            return None, None
+
+        # Convert file path to absolute path
+        abs_file_path = os.path.abspath(os.path.expanduser(file_path))
+
+        # Evaluate rules in order, last match wins
+        final_decision = None
+        final_enforcement = None
+
+        for rule in directory_rules:
+            if not isinstance(rule, dict):
+                logging.warning(f"Invalid directory rule (not a dict): {rule}")
+                continue
+
+            mode = rule.get("mode")
+            if mode not in ["allow", "deny"]:
+                logging.warning(f"Invalid rule mode: {mode} (must be 'allow' or 'deny')")
+                continue
+
+            enforcement = rule.get("enforcement", "block")  # Default to block
+            if enforcement not in ["block", "warn"]:
+                logging.warning(f"Invalid enforcement level: {enforcement} (must be 'block' or 'warn')")
+                enforcement = "block"
+
+            paths = rule.get("paths", [])
+            if not isinstance(paths, list):
+                logging.warning(f"Invalid paths in rule (not a list): {paths}")
+                continue
+
+            # Check if file matches any pattern in this rule
+            for pattern in paths:
+                if not isinstance(pattern, str):
+                    continue
+
+                try:
+                    # Expand tilde and convert to absolute path
+                    expanded_pattern = os.path.abspath(os.path.expanduser(pattern))
+
+                    # Check for wildcards
+                    if "**" in expanded_pattern:
+                        # Recursive wildcard: match directory and all subdirectories
+                        base_path = expanded_pattern.replace("/**", "").replace("**", "")
+                        if abs_file_path.startswith(base_path):
+                            final_decision = mode
+                            final_enforcement = enforcement
+                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (enforcement={enforcement})")
+                            break
+                    elif "*" in expanded_pattern:
+                        # Single-level wildcard: use fnmatch
+                        import fnmatch
+                        file_parent = os.path.dirname(abs_file_path)
+                        if fnmatch.fnmatch(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
+                            final_decision = mode
+                            final_enforcement = enforcement
+                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (enforcement={enforcement})")
+                            break
+                    else:
+                        # Exact path match
+                        if abs_file_path.startswith(expanded_pattern + os.sep) or abs_file_path == expanded_pattern:
+                            final_decision = mode
+                            final_enforcement = enforcement
+                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (enforcement={enforcement})")
+                            break
+
+                except Exception as e:
+                    logging.warning(f"Error processing rule pattern '{pattern}': {e}")
+                    continue
+
+        return final_decision, final_enforcement
+
+    except Exception as e:
+        logging.error(f"Error checking directory rules: {e}")
+        return None
+
+
 def check_directory_denied(file_path, config=None):
     """
-    Check if a file is in a directory (or subdirectory) that contains a .ai-read-deny marker file.
+    Check if a file should be blocked based on directory rules and .ai-read-deny markers.
 
-    This function walks up the directory tree from the file's location to check if any
-    parent directory contains a .ai-read-deny file, which indicates the directory and all
-    its subdirectories should be blocked from AI access.
+    This function implements order-based directory access control:
+    1. directory_rules are evaluated in order (last match wins)
+    2. .ai-read-deny markers are checked
+    3. Rules can override markers (allow rules override .ai-read-deny)
 
-    PRECEDENCE: .ai-read-deny ALWAYS takes precedence over directory exclusions.
-    1. First checks for .ai-read-deny marker (if found, BLOCKS regardless of exclusions)
-    2. Then checks if path is excluded (if excluded, ALLOWS - skips blocking)
-    3. Otherwise ALLOWS (no .ai-read-deny found, not excluded)
+    PRECEDENCE (in order of evaluation):
+    1. Check directory_rules for explicit allow/deny
+    2. Check for .ai-read-deny marker files
+    3. If marker found and rules say "allow" → ALLOW (rules override marker)
+    4. If marker found and no "allow" rule → BLOCK (marker wins)
+    5. If no marker and rules say "deny" → BLOCK
+    6. Default → ALLOW
 
     Args:
         file_path: Path to the file being accessed
-        config: Optional configuration dict containing directory_exclusions
+        config: Optional configuration dict containing directory_rules
 
     Returns:
         tuple: (is_denied: bool, denied_directory: str or None)
@@ -404,33 +525,28 @@ def check_directory_denied(file_path, config=None):
                 policy_checker = ToolPolicyChecker()
                 config = policy_checker.config
             except Exception as e:
-                logging.debug(f"Could not load config for directory exclusions: {e}")
+                logging.debug(f"Could not load config for directory rules: {e}")
                 config = {}
 
         # Convert to absolute path
         abs_path = os.path.abspath(file_path)
 
-        # Get the directory containing the file
-        current_dir = os.path.dirname(abs_path)
+        # PRIORITY 1: Check directory_rules
+        rule_decision, rule_enforcement = _check_directory_rules(abs_path, config) if config else (None, None)
 
-        # PRIORITY 1: Check for .ai-read-deny marker (ALWAYS takes precedence)
-        # Walk up the directory tree
-        is_path_in_exclusion = _is_path_excluded(abs_path, config) if config else False
+        # PRIORITY 2: Check for .ai-read-deny marker files
+        current_dir = os.path.dirname(abs_path)
+        deny_marker_found = False
+        denied_directory = None
 
         while True:
             deny_marker = os.path.join(current_dir, ".ai-read-deny")
 
             if os.path.exists(deny_marker):
-                # CRITICAL: .ai-read-deny ALWAYS blocks (no config option can override this)
-                if is_path_in_exclusion:
-                    logging.info(f"Found .ai-read-deny at {current_dir} (blocks even though path is in excluded directory)")
-                else:
-                    logging.info(f"Found .ai-read-deny marker in {current_dir}")
-
-                # Log directory blocking violation
-                _log_directory_blocking_violation(file_path, current_dir, is_excluded=is_path_in_exclusion)
-
-                return True, current_dir
+                deny_marker_found = True
+                denied_directory = current_dir
+                logging.info(f"Found .ai-read-deny marker in {current_dir}")
+                break
 
             # Move to parent directory
             parent_dir = os.path.dirname(current_dir)
@@ -441,17 +557,67 @@ def check_directory_denied(file_path, config=None):
 
             current_dir = parent_dir
 
-        # PRIORITY 2: No .ai-read-deny found - check if path is excluded
-        # (Exclusions only matter when there's no .ai-read-deny marker)
-        if is_path_in_exclusion:
-            logging.info(f"Directory exclusion active for {abs_path} (no .ai-read-deny found)")
-            return False, None
+        # PRIORITY 3: Apply decision logic
+        if deny_marker_found:
+            # Marker found - check if rules override it
+            if rule_decision == "allow":
+                logging.info(f"Found .ai-read-deny at {denied_directory}, but directory rules allow access - allowing")
+                return False, None  # ALLOW - rule overrides marker
+            else:
+                # No allow rule to override - block (or warn)
+                # Check if there's a deny rule with warn enforcement
+                if rule_enforcement == "warn":
+                    warn_msg = (
+                        f"\n{'='*70}\n"
+                        f"⚠️  POLICY WARNING\n"
+                        f"🔒 DIRECTORY ACCESS VIOLATION\n"
+                        f"{'='*70}\n\n"
+                        f"File: {file_path}\n"
+                        f"Protected directory: {denied_directory}\n\n"
+                        f"⚠️  This violates your organization's policy but access is allowed.\n"
+                        f"This activity is logged and may be reviewed by your administrator.\n"
+                        f"{'='*70}\n"
+                    )
+                    print(warn_msg, flush=True)
+                    logging.warning(f"Directory access warning (warn mode): {file_path}")
+                    _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
+                    return False, None  # ALLOW with warning
+                else:
+                    # Block access
+                    logging.info(f".ai-read-deny marker blocks access to {denied_directory}")
+                    _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
+                    return True, denied_directory  # BLOCK
 
-        # PRIORITY 3: Not excluded, no .ai-read-deny - allow access
+        # No .ai-read-deny marker - check rule decision
+        if rule_decision == "deny":
+            # Check enforcement level
+            if rule_enforcement == "warn":
+                warn_msg = (
+                    f"\n{'='*70}\n"
+                    f"⚠️  POLICY WARNING\n"
+                    f"🔒 DIRECTORY ACCESS VIOLATION\n"
+                    f"{'='*70}\n\n"
+                    f"File: {file_path}\n"
+                    f"Directory rules deny access\n\n"
+                    f"⚠️  This violates your organization's policy but access is allowed.\n"
+                    f"This activity is logged and may be reviewed by your administrator.\n"
+                    f"{'='*70}\n"
+                )
+                print(warn_msg, flush=True)
+                logging.warning(f"Directory access warning (warn mode): {file_path}")
+                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
+                return False, None  # ALLOW with warning
+            else:
+                # Block access
+                logging.info(f"Directory rules deny access to {abs_path}")
+                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
+                return True, os.path.dirname(abs_path)  # BLOCK
+
+        # Default: allow access
         return False, None
 
     except Exception as e:
-        logging.error(f"Error checking for .ai-read-deny: {e}")
+        logging.error(f"Error checking directory access: {e}")
         # Fail-open: allow access if check fails
         return False, None
 
@@ -558,8 +724,10 @@ def extract_file_content_from_tool(hook_data):
                     f"Protected directory: {denied_dir}\n\n"
                     f"This directory and all its subdirectories are blocked from AI access.\n\n"
                     f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                    f"Please remove the .ai-read-deny file if you need AI access to this\n"
-                    f"directory, or move the file to an accessible location.\n"
+                    f"To allow access:\n"
+                    f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
+                    f"  2. Move this file to an accessible location\n"
+                    f"  3. Add this path to directory_exclusions in ai-guardian.json\n"
                     f"\n{'='*70}\n"
                 )
                 return None, os.path.basename(file_path), file_path, True, error_msg
@@ -623,8 +791,10 @@ def extract_file_content_from_tool(hook_data):
                 f"Protected directory: {denied_dir}\n\n"
                 f"This directory and all its subdirectories are blocked from AI access.\n\n"
                 f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                f"Please remove the .ai-read-deny file if you need AI access to this\n"
-                f"directory, or move the file to an accessible location.\n"
+                f"To allow access:\n"
+                f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
+                f"  2. Move this file to an accessible location\n"
+                f"  3. Add this path to directory_exclusions in ai-guardian.json\n"
                 f"\n{'='*70}\n"
             )
             return None, os.path.basename(file_path), file_path, True, error_msg
@@ -865,7 +1035,7 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
         }
 
         if is_excluded:
-            context["note"] = ".ai-read-deny ALWAYS takes precedence over directory exclusions"
+            context["note"] = "Directory exclusions can override .ai-read-deny markers (path was excluded but deny marker existed)"
 
         violation_logger.log_violation(
             violation_type="directory_blocking",
@@ -1143,7 +1313,8 @@ def _is_gitleaks_config_content(content):
 
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
-                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None):
+                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
+                                enforcement: str = "block"):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -1160,6 +1331,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         tool_name: Optional tool name being used (for ignore_tools matching)
         ignore_files: Optional list of glob patterns for files to skip
         ignore_tools: Optional list of tool name patterns to skip
+        enforcement: Enforcement level - "block" (default) or "warn"
 
     Returns:
         tuple: (has_secrets: bool, error_message: str or None)
@@ -1365,7 +1537,38 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 # Log secret detection violation with details
                 _log_secret_detection_violation(filename, context, secret_details)
 
-                return True, error_msg
+                # Check enforcement level
+                if enforcement == "warn":
+                    # Build warning message (similar to error but different header)
+                    warn_msg = (
+                        f"\n{'='*70}\n"
+                        f"⚠️  POLICY WARNING\n"
+                        f"🔒 SECRET DETECTED\n"
+                        f"{'='*70}\n\n"
+                        "Gitleaks has detected sensitive information in your prompt/file.\n"
+                    )
+                    if secret_details:
+                        warn_msg += "\n"
+                        warn_msg += f"Secret Type: {secret_details['rule_id']}\n"
+                        if secret_details.get('line_number'):
+                            warn_msg += f"Location: {secret_details['file']}, line {secret_details['line_number']}\n"
+                        else:
+                            warn_msg += f"File: {secret_details['file']}\n"
+                        if secret_details.get('total_findings'):
+                            warn_msg += f"Total findings: {secret_details['total_findings']}\n"
+                    warn_msg += (
+                        "\n⚠️  This violates your organization's policy but execution is allowed.\n"
+                        "This activity is logged and may be reviewed by your administrator.\n\n"
+                        "If this is a false positive, add '# gitleaks:allow' to the line\n"
+                        "or see: https://github.com/gitleaks/gitleaks#configuration\n"
+                        f"{'='*70}\n"
+                    )
+                    print(warn_msg, flush=True)
+                    logging.warning(f"Secret detected (warn mode): {secret_details.get('rule_id') if secret_details else 'unknown'}")
+                    return False, None  # Allow execution - return no secrets found
+                else:
+                    # Block execution
+                    return True, error_msg
 
             elif result.returncode in [0, 1]:
                 # No secrets found (0 or 1 are both "clean" states)
@@ -1590,6 +1793,7 @@ def process_hook_input():
             secret_config = _load_secret_scanning_config()
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
+            enforcement = secret_config.get("enforcement", "block") if secret_config else "block"
 
             # Check for secrets in the output (use composite identifier for ignore matching)
             has_secrets, error_message = check_secrets_with_gitleaks(
@@ -1597,7 +1801,8 @@ def process_hook_input():
                 context={"ide_type": ide_type.value, "hook_event": "posttooluse"},
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
-                ignore_tools=ignore_tools
+                ignore_tools=ignore_tools,
+                enforcement=enforcement
             )
 
             if has_secrets:
@@ -1759,6 +1964,7 @@ def process_hook_input():
             # Extract ignore lists from config
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
+            enforcement = secret_config.get("enforcement", "block") if secret_config else "block"
 
             has_secrets, error_message = check_secrets_with_gitleaks(
                 content_to_scan, filename,
@@ -1766,7 +1972,8 @@ def process_hook_input():
                 file_path=file_path,
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
-                ignore_tools=ignore_tools
+                ignore_tools=ignore_tools,
+                enforcement=enforcement
             )
 
             if has_secrets:

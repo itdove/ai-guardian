@@ -8,6 +8,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enforcement levels: warn vs block** across all detection areas (NEW in v1.7.0)
+  - Configurable enforcement for informed users vs restrictive security
+  - **"warn" mode**: Show policy violation warnings but allow execution (inform mode)
+  - **"block" mode**: Prevent execution when policy violated (default, restrictive mode)
+  - Available for:
+    - **Tool permissions**: Set enforcement per-rule with `"enforcement": "warn"|"block"`
+      - Example: Allow unapproved skills with warning instead of blocking
+      - Config: `{"matcher": "Skill", "mode": "allow", "patterns": ["approved"], "enforcement": "warn"}`
+    - **Secret scanning**: Set global enforcement with `"secret_scanning": {"enforcement": "warn"}`
+      - Example: Warn about leaked credentials but allow operation
+      - Useful during development or testing phases
+    - **Prompt injection**: Set global enforcement with `"prompt_injection": {"enforcement": "warn"}`
+      - Example: Monitor injection attempts without blocking
+      - Helps identify false positives before enforcing
+    - **Directory rules**: Set enforcement per-rule with `"enforcement": "warn"|"block"`
+      - Example: Monitor unauthorized skill access without blocking
+      - Config: `{"mode": "deny", "paths": ["~/.claude/skills/**"], "enforcement": "warn"}`
+  - All violations are **still logged** for audit and review, regardless of enforcement level
+  - Warning messages clearly indicate policy violation and that activity is logged
+  - Default: "block" mode for all features (backward compatible)
+  - Use case: Gradual policy rollout - start with "warn" to identify issues, then switch to "block"
+  - Comprehensive test coverage: 12 new tests in `test_enforcement_levels.py`
+- **Order-based directory access control** with `directory_rules` (NEW in v1.6.0)
+  - Replace filesystem `.ai-read-deny` markers with config-driven rules
+  - Rules are evaluated in order with **last match winning** (firewall-style)
+  - Supports flexible allow/deny combinations:
+    - Deny all, allow specific: `[{mode: "deny", paths: ["~/.claude/skills/**"]}, {mode: "allow", paths: ["~/.claude/skills/approved-*/**"]}]`
+    - Allow all, deny specific: `[{mode: "allow", paths: ["~/projects/**"]}, {mode: "deny", paths: ["~/projects/secret/**"]}]`
+  - Rules can **override `.ai-read-deny` markers** (allow rules win)
+  - Supports ~ expansion, ** for recursive, * for single-level wildcards
+  - Ideal for **enterprise skill allowlists**: centrally manage which skills are accessible
+  - Backward compatible: `directory_exclusions` automatically converted to allow rules (deprecated)
+  - Example: Block all Claude Code skills except approved ones without touching the filesystem
 - **ignore_tools** configuration for prompt injection and secret scanning (Issue #84)
   - Skip detection for specific tools using patterns: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
   - Granular control: ignore specific skills (e.g., `"Skill:code-review"`) or all skills (`"Skill"` or `"Skill:*"`)

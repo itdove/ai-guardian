@@ -118,6 +118,12 @@
           ],
           "default": true
         },
+        "enforcement": {
+          "type": "string",
+          "enum": ["block", "warn"],
+          "description": "Enforcement level (NEW in v1.7.0): 'block' prevents execution when secrets detected (default), 'warn' shows warning but allows execution",
+          "default": "block"
+        },
         "immutable": {
           "type": "boolean",
           "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
@@ -242,6 +248,12 @@
           ],
           "default": true
         },
+        "enforcement": {
+          "type": "string",
+          "enum": ["block", "warn"],
+          "description": "Enforcement level (NEW in v1.7.0): 'block' prevents execution when injection detected (default), 'warn' shows warning but allows execution",
+          "default": "block"
+        },
         "immutable": {
           "type": "boolean",
           "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
@@ -308,9 +320,41 @@
         }
       }
     },
+    "directory_rules": {
+      "type": "array",
+      "description": "Order-based directory access control rules (NEW in v1.6.0). Rules are evaluated sequentially with last match winning. Supports flexible allow/deny patterns for enterprise skill allowlists and path restrictions.",
+      "items": {
+        "type": "object",
+        "required": ["mode", "paths"],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["allow", "deny"],
+            "description": "Access mode: 'allow' permits access, 'deny' blocks access"
+          },
+          "paths": {
+            "type": "array",
+            "description": "Directory paths for this rule. Supports ~ expansion, ** for recursive, * for single level. Last matching rule wins.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "enforcement": {
+            "type": "string",
+            "enum": ["block", "warn"],
+            "description": "Enforcement level (NEW in v1.7.0): 'block' prevents access when denied (default), 'warn' shows warning but allows access",
+            "default": "block"
+          }
+        },
+        "additionalProperties": false
+      },
+      "default": []
+    },
     "directory_exclusions": {
       "type": "object",
-      "description": "Directory exclusions for .ai-read-deny blocking (NEW in v1.5.0). CRITICAL: .ai-read-deny markers ALWAYS take precedence over exclusions.",
+      "description": "DEPRECATED: Use directory_rules instead. Directory exclusions can override .ai-read-deny blocking (v1.5.0). Automatically converted to directory_rules internally.",
+      "deprecated": true,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -324,7 +368,7 @@
         },
         "paths": {
           "type": "array",
-          "description": "Directory paths to exclude from .ai-read-deny blocking. Supports ~ expansion, ** for recursive, * for single level. .ai-read-deny markers ALWAYS block (no config can override).",
+          "description": "Directory paths to exclude from .ai-read-deny blocking (exclusions override deny markers). Supports ~ expansion, ** for recursive, * for single level. Ideal for enterprise skill allowlists.",
           "items": {
             "type": "string"
           },
@@ -362,6 +406,12 @@
               }
             ]
           }
+        },
+        "enforcement": {
+          "type": "string",
+          "enum": ["block", "warn"],
+          "description": "Enforcement level (NEW in v1.7.0): 'block' prevents execution (default), 'warn' shows warning but allows execution",
+          "default": "block"
         },
         "immutable": {
           "type": "boolean",
