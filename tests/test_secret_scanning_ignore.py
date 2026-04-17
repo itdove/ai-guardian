@@ -278,7 +278,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
         is_secret, error_msg = check_secrets_with_gitleaks(
             test_fixture_content,
             filename="auth.fixture.json",
-            file_path="/home/user/project/tests/auth.fixture.json",
+            file_path="/home/user/project/tests/fixtures/auth.fixture.json",
             ignore_files=ignore_files
         )
         self.assertFalse(is_secret, "Test fixture with fake AWS keys should be ignored")
