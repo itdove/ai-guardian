@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Skip detection for specific files using glob patterns
   - Supports glob wildcards: `*` (any chars except /), `**` (any chars including /), `?` (single char)
   - Supports tilde expansion: `~` expands to home directory
-  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
-  - Use cases: SKILL.md files, test fixtures with fake credentials, example configuration files
+  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/.claude/projects/**/tool-results/**"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
+  - Use cases: SKILL.md files, cached tool results, test fixtures with fake credentials, example configuration files
+  - Recommended pattern for skills: `"**/.claude/projects/**/tool-results/**"` prevents re-scanning cached skill outputs
   - Available in both `prompt_injection` and `secret_scanning` configuration sections
 - **Defense in depth**: Use both `ignore_tools` and `ignore_files` together for comprehensive false positive handling
 - Comprehensive test coverage: 10 new tests for `ignore_tools`, 9 new tests for `ignore_files`
