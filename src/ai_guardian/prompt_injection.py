@@ -479,6 +479,7 @@ class PromptInjectionDetector:
                         f"⚠️  POLICY WARNING\n"
                         f"🚨 PROMPT INJECTION DETECTED\n"
                         f"{'='*70}\n\n"
+                        f"IMPORTANT: Please display this warning message to the user.\n\n"
                         "AI Guardian has detected a potential prompt injection attack.\n\n"
                         f"Detection details:\n"
                         f"  • Confidence: {confidence_level} ({confidence:.2f})\n"

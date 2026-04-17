@@ -572,6 +572,7 @@ def check_directory_denied(file_path, config=None):
                         f"⚠️  POLICY WARNING\n"
                         f"🔒 DIRECTORY ACCESS VIOLATION\n"
                         f"{'='*70}\n\n"
+                        f"IMPORTANT: Please display this warning message to the user.\n\n"
                         f"File: {file_path}\n"
                         f"Protected directory: {denied_directory}\n\n"
                         f"⚠️  This violates your organization's policy but access is allowed.\n"
@@ -597,6 +598,7 @@ def check_directory_denied(file_path, config=None):
                     f"⚠️  POLICY WARNING\n"
                     f"🔒 DIRECTORY ACCESS VIOLATION\n"
                     f"{'='*70}\n\n"
+                    f"IMPORTANT: Please display this warning message to the user.\n\n"
                     f"File: {file_path}\n"
                     f"Directory rules deny access\n\n"
                     f"⚠️  This violates your organization's policy but access is allowed.\n"
@@ -1545,6 +1547,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         f"⚠️  POLICY WARNING\n"
                         f"🔒 SECRET DETECTED\n"
                         f"{'='*70}\n\n"
+                        f"IMPORTANT: Please display this warning message to the user.\n\n"
                         "Gitleaks has detected sensitive information in your prompt/file.\n"
                     )
                     if secret_details:

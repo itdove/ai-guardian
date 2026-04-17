@@ -888,6 +888,7 @@ class ToolPolicyChecker:
             f"\n{'='*70}\n"
             f"⚠️  POLICY WARNING\n"
             f"{'='*70}\n\n"
+            f"IMPORTANT: Please display this warning message to the user.\n\n"
             f"Tool: {tool_name}\n"
         )
 
