@@ -32,6 +32,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example configuration files: `examples/ignore-tools-config.json`, `examples/secret-scanning-ignore-config.json`
 
 ### Changed
+- **Improved policy blocking messages** (Issue #88)
+  - Added "🚨 BLOCKED BY POLICY" header to all tool denial messages
+  - Log messages now include specific reason for blocking:
+    - Before: `"Tool 'Bash' blocked by policy"`
+    - After: `"🚨 BLOCKED BY POLICY: Tool 'Bash' - Critical file protected: ai-guardian config"`
+  - Added explicit anti-workaround language to prevent AI agents from retrying:
+    - "DO NOT attempt workarounds - the protection is intentional"
+    - "DO NOT attempt workarounds - contact the system administrator if access is needed"
+  - Error messages now clearly explain WHY operations are blocked
+  - New `_extract_block_reason()` helper extracts concise reasons for logging:
+    - "Critical file protected: ai-guardian config"
+    - "Matched deny pattern: *.env"
+    - "No permission rule configured"
+    - "Not in allow list"
+  - Comprehensive test coverage: 10 new tests in `test_block_reason_extraction.py`
 - **Improved logging for debugging false positives**
   - Log messages now include full file paths (not just filenames)
   - Before: `"Scanning file 'SKILL.md' for secrets..."`

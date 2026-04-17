@@ -299,8 +299,10 @@ class ErrorMessageReadabilityTest(TestCase):
 
         # Verify formatting
         self.assertIn("="*70, error_msg, "Should have separator line")
+        self.assertIn("🚨 BLOCKED BY POLICY", error_msg, "Should have policy blocked header")
         self.assertIn("🚫 TOOL ACCESS DENIED", error_msg, "Should have clear header")
         self.assertIn("Tool:", error_msg, "Should have labeled fields")
+        self.assertIn("DO NOT attempt workarounds", error_msg, "Should have anti-workaround language")
 
     @patch('ai_guardian._load_pattern_server_config')
     def test_secret_error_message_has_proper_formatting(self, mock_pattern_config):

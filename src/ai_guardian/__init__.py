@@ -761,6 +761,51 @@ def _load_secret_scanning_config():
         return None
 
 
+def _extract_block_reason(error_message: str) -> str:
+    """
+    Extract a concise reason from error message for logging.
+
+    Args:
+        error_message: The full error message from policy checker
+
+    Returns:
+        str: Concise reason suitable for log messages
+
+    Examples:
+        - "Critical file protected: ai-guardian config"
+        - "Matched deny pattern: *.env"
+        - "No permission rule"
+    """
+    import re
+
+    if "CRITICAL FILE PROTECTED" in error_message:
+        if "ai-guardian configuration" in error_message:
+            return "Critical file protected: ai-guardian config"
+        elif "Repository source file" in error_message:
+            return "Critical file protected: source code"
+        elif "Directory protection marker" in error_message:
+            return "Critical file protected: .ai-read-deny marker"
+        else:
+            return "Critical file protected"
+
+    elif "matched deny pattern:" in error_message:
+        # Extract the pattern
+        match = re.search(r'matched deny pattern: ([^\n]+)', error_message)
+        if match:
+            pattern = match.group(1).strip()
+            return f"Matched deny pattern: {pattern}"
+        return "Matched deny pattern"
+
+    elif "no permission rule" in error_message:
+        return "No permission rule configured"
+
+    elif "not in allow list" in error_message:
+        return "Not in allow list"
+
+    else:
+        return "Policy violation"
+
+
 def _is_ai_guardian_test_file(file_path):
     """
     Check if a file path is an ai-guardian project test file.
@@ -1597,7 +1642,9 @@ def process_hook_input():
                     is_allowed, error_message, checked_tool_name = policy_checker.check_tool_allowed(hook_data)
 
                     if not is_allowed:
-                        logging.warning(f"Tool '{checked_tool_name}' blocked by policy")
+                        # Extract reason summary for logging
+                        reason_summary = _extract_block_reason(error_message) if error_message else "policy violation"
+                        logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}' - {reason_summary}")
                         return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
 
                     if checked_tool_name and ide_type != IDEType.CURSOR:
