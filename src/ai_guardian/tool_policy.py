@@ -42,59 +42,70 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Hardcoded critical protections - cannot be disabled or bypassed
+#
+# BYPASS BEHAVIOR (via _should_skip_immutable_protection):
+# - Edit/Write on development source: BYPASSED (enables contributor workflow)
+# - Edit/Write on config/hooks/cache/pip: ALWAYS blocked (no bypass)
+# - Bash/PowerShell on anything: ALWAYS blocked (no bypass)
+#
 # These patterns are checked FIRST, before any user-configured permissions
 IMMUTABLE_DENY_PATTERNS = {
     "Write": [
-        # Protect ai-guardian config files
+        # Config files - ALWAYS protected (even for repo owners)
         "*ai-guardian.json",
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
 
-        # Protect ai-guardian cache (prevents cache poisoning)
+        # Cache files - ALWAYS protected (prevents cache poisoning)
         "*/.cache/ai-guardian/*",
 
-        # Protect IDE hook files (CRITICAL - prevents disabling ai-guardian)
+        # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
         "*/.claude/settings.json",
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
         "*/Claude/settings.json",    # Windows
         "*/Cursor/hooks.json",        # Windows
 
-        # Protect ai-guardian package (self-protection)
-        "*/site-packages/ai_guardian/*",           # Installed package
-        "*/ai-guardian/src/ai_guardian/*",         # Source repo (with hyphen)
-        "*/ai-guardian/ai_guardian/*",             # Alternative source layout
+        # Package code - Pip ALWAYS protected, dev source bypassed for Write/Edit only
+        "*/site-packages/ai_guardian/*",           # Pip-installed - always blocked
+        "*/ai-guardian/src/ai_guardian/*",         # Dev source - bypassed for Write/Edit
+        "*/ai-guardian/ai_guardian/*",             # Alternative layout
 
-        # Protect .ai-read-deny marker files (directory protection)
+        # Directory markers - ALWAYS protected (prevents bypass of directory rules)
         "*/.ai-read-deny",
         "**/.ai-read-deny",
     ],
 
     "Edit": [
-        # Same patterns - protect from Edit tool
+        # Config files - ALWAYS protected (even for repo owners)
         "*ai-guardian.json",
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
 
-        # Protect ai-guardian cache (prevents cache poisoning)
+        # Cache files - ALWAYS protected (prevents cache poisoning)
         "*/.cache/ai-guardian/*",
 
+        # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
         "*/.claude/settings.json",
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
         "*/Claude/settings.json",
         "*/Cursor/hooks.json",
-        "*/site-packages/ai_guardian/*",           # Installed package
-        "*/ai-guardian/src/ai_guardian/*",         # Source repo (with hyphen)
-        "*/ai-guardian/ai_guardian/*",             # Alternative source layout
 
-        # Protect .ai-read-deny marker files (directory protection)
+        # Package code - Pip ALWAYS protected, dev source bypassed for Write/Edit only
+        "*/site-packages/ai_guardian/*",           # Pip-installed - always blocked
+        "*/ai-guardian/src/ai_guardian/*",         # Dev source - bypassed for Write/Edit
+        "*/ai-guardian/ai_guardian/*",             # Alternative layout
+
+        # Directory markers - ALWAYS protected (prevents bypass of directory rules)
         "*/.ai-read-deny",
         "**/.ai-read-deny",
     ],
 
     "Bash": [
         # Block commands that could modify protected files
+        # Note: NO BYPASS for Bash - always blocks even on dev source
+        # (Prevents rm, mv, chmod, etc. on source code)
         "*sed*ai-guardian*",
         "*sed*site-packages/ai_guardian*", "*sed*ai-guardian/src/ai_guardian*", "*sed*ai-guardian/ai_guardian*",
         "*awk*ai-guardian*",
@@ -149,6 +160,9 @@ IMMUTABLE_DENY_PATTERNS = {
     ],
 
     "PowerShell": [
+        # Note: NO BYPASS for PowerShell - always blocks even on dev source
+        # (Prevents Remove-Item, Move-Item, etc. on source code)
+
         # Protect ai-guardian config files
         "*Remove-Item*ai-guardian*",
         "*Move-Item*ai-guardian*",
@@ -260,11 +274,20 @@ class ToolPolicyChecker:
 
     def _should_skip_immutable_protection(self, file_path: str, tool_name: str) -> bool:
         """
-        Check if maintainer bypass applies for this file.
+        Check if immutable protection should be bypassed for this file.
 
-        Bypass ONLY allows:
-        - Editing source code files IN the ai-guardian repository
-        - Does NOT allow editing config files (even for maintainers)
+        Bypass allows:
+        - Editing source code files IN the ai-guardian development repository
+        - Does NOT allow editing config files, hooks, or cache (NEVER bypassed)
+        - Does NOT allow editing pip-installed packages (production code)
+
+        Security model:
+        - Config/hooks/cache: ALWAYS protected (even for repo owners)
+        - Pip-installed code: ALWAYS protected (production deployment)
+        - Development source: ALLOWED for contributors (fork + PR workflow)
+          - Changes only affect local development environment
+          - Relies on PR review process for security
+          - Enables standard open-source contribution workflow
 
         Args:
             file_path: Path to the file being accessed
@@ -273,7 +296,7 @@ class ToolPolicyChecker:
         Returns:
             bool: True if bypass should apply, False otherwise
         """
-        # PRIORITY 1: Config/hook/cache files - NEVER bypass (even for maintainers)
+        # PRIORITY 1: Config/hook/cache files - NEVER bypass (even for repo owners)
         config_patterns = [
             "*ai-guardian.json",           # Config files
             "*/.ai-guardian.json",         # Project config
@@ -298,9 +321,17 @@ class ToolPolicyChecker:
 
             if matches:
                 logger.debug(f"Config file always protected: {file_path}")
-                return False  # Always protected, even for maintainers
+                return False  # Always protected, even for repo owners
 
-        # PRIORITY 2: Is this a source code file IN the ai-guardian repo?
+        # PRIORITY 2: Is this a source code file IN the ai-guardian development repo?
+        # Only applies to file-path tools (Edit, Write, Read), NOT command tools (Bash, PowerShell)
+        # Command tools are checked by immutable patterns to prevent rm/Remove-Item/etc.
+        is_file_path_tool = tool_name in ["Edit", "Write", "Read", "NotebookEdit"]
+
+        if not is_file_path_tool:
+            logger.debug(f"Command tool {tool_name} - not checking source patterns")
+            return False  # Command tools always check immutable patterns
+
         source_patterns = [
             "*/ai-guardian/src/ai_guardian/*",    # Source directory
             "*/ai-guardian/tests/*",               # Tests
@@ -318,14 +349,15 @@ class ToolPolicyChecker:
             logger.debug(f"Not a source file: {file_path}")
             return False  # Not a source file, keep protected
 
-        # PRIORITY 3: Is user a GitHub maintainer?
-        logger.info(f"Checking maintainer status for source file: {file_path}")
-        if not self._is_github_maintainer_cached():
-            logger.info("❌ User is not a maintainer - source file remains protected")
-            return False  # Not a maintainer, keep protected
-
-        # All checks passed: allow bypass
-        logger.info(f"✅ Maintainer bypass: allowing {tool_name} on {file_path}")
+        # PRIORITY 3: Allow editing development source code with file-path tools
+        # This enables standard open-source workflow (fork + PR + review)
+        # Security relies on:
+        # - PR review process (maintainers review all changes)
+        # - CI/CD testing (detects behavior changes)
+        # - Public review (community scrutiny)
+        # - Pip-installed code still protected (production deployments)
+        logger.info(f"✅ Development source file: allowing {tool_name} on {file_path}")
+        logger.info("   Note: Changes affect local development only, not pip-installed versions")
         return True
 
     def check_tool_allowed(self, hook_data: Dict) -> Tuple[bool, Optional[str], Optional[str]]:
@@ -349,13 +381,13 @@ class ToolPolicyChecker:
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
 
             # PRIORITY 1: Check immutable deny patterns (cannot be overridden)
-            # These protect ai-guardian config, IDE hooks, and package source code
-            # EXCEPT: Maintainers can edit source code (but NOT config files)
+            # These protect ai-guardian config, IDE hooks, and pip-installed package code
+            # EXCEPT: Development source code can be edited (fork + PR workflow)
             check_value = self._extract_check_value(tool_name, tool_input, tool_name)
             if check_value:
-                # Check if maintainer bypass applies
+                # Check if this is development source code (allowed for contributors)
                 if self._should_skip_immutable_protection(check_value, tool_name):
-                    logger.info(f"✅ Maintainer bypass applied for {check_value}")
+                    logger.info(f"✅ Development source code: allowing {tool_name} on {check_value}")
                     return True, None, tool_name
 
                 immutable_denies = IMMUTABLE_DENY_PATTERNS.get(tool_name, [])
@@ -949,9 +981,10 @@ class ToolPolicyChecker:
         ]
         is_config_file = any(fnmatch.fnmatch(check_value, p) for p in config_patterns)
 
-        # Check if this is a source file that could potentially use maintainer bypass
+        # Check if this is ai-guardian source code (development or pip-installed)
         # ONLY if it's NOT a config file
         source_patterns = [
+            # Development repository patterns
             "*/ai-guardian/src/ai_guardian/*",
             "*/ai-guardian/tests/*",
             "*/ai-guardian/*.md",
@@ -959,6 +992,8 @@ class ToolPolicyChecker:
             "*/ai-guardian/*.toml",
             "*/ai-guardian/*.txt",
             "*/ai-guardian/.github/*",
+            # Pip-installed package patterns
+            "*/site-packages/ai_guardian/*",
         ]
         is_source_file = (not is_config_file) and any(fnmatch.fnmatch(check_value, p) for p in source_patterns)
 
@@ -1000,14 +1035,19 @@ class ToolPolicyChecker:
             )
 
         # Add diagnostic information for source files
+        # Note: This should only be reached for pip-installed code (site-packages),
+        # since development repo source files are allowed via _should_skip_immutable_protection
         if is_source_file:
-            diagnostic = self._diagnose_maintainer_bypass()
             return base_message + (
-                f"\nReason: Repository source file (maintainer bypass not available)\n\n"
-                f"{diagnostic}\n\n"
-                f"This protection prevents AI agents from bypassing security controls.\n"
-                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                f"To edit these files, use your text editor manually.\n"
+                f"\nReason: Pip-installed package source code (production deployment)\n\n"
+                f"This file is part of the pip-installed ai-guardian package and cannot\n"
+                f"be modified to prevent bypassing security controls in production.\n\n"
+                f"If you're developing ai-guardian:\n"
+                f"  1. Clone the repository: git clone https://github.com/itdove/ai-guardian\n"
+                f"  2. Install in development mode: pip install -e .\n"
+                f"  3. Edit source files in the cloned repository\n\n"
+                f"Development source files CAN be edited - this protection only applies\n"
+                f"to pip-installed production code.\n"
                 f"{'='*70}\n"
             )
 

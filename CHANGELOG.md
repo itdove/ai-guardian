@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Issue #105: Enable contributor workflow for open-source development**
+  - Contributors can now use AI assistance to edit ai-guardian source code in development repos
+  - Removes maintainer-only restriction for editing development source files
+  - Enables standard fork + PR workflow for external contributors
+  - Security model:
+    - Config/hooks/cache files: ALWAYS protected (even for repo owners)
+    - Pip-installed code: ALWAYS protected (production deployments)
+    - Development source code: ALLOWED for all users (relies on PR review process)
+  - Bash/PowerShell commands on source files still blocked (rm, Remove-Item, etc.)
+  - Only Edit/Write/Read tools can modify development source files
+  - Added comprehensive test coverage in `tests/test_contributor_workflow.py`
+  - Updated error messages to distinguish pip-installed vs development source code
+
+### Security
+- **Issue #105: Confirmed self-protection is immune to action=log bypass**
+  - Self-protection patterns ALWAYS block, regardless of `action="log"` configuration
+  - User's `directory_rules.action="log"` setting does NOT bypass config/hooks protection
+  - User's permission rules with `action="log"` do NOT bypass critical file protection
+  - Immutable patterns are checked FIRST (PRIORITY 1) before user permissions
+  - No action parameter in immutable deny logic - hardcoded to block
+  - Added verification tests in `tests/test_issue_105_log_bypass.py`
+  - Issue #105 was filed as preventive security measure - vulnerability never existed
+
 ### Fixed
 - **Bug #102: Directory rules don't support combined wildcards (e.g., daf-*/**)**
   - Patterns combining single-level (`*`) and recursive (`**`) wildcards now work correctly
