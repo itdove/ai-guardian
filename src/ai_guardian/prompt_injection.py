@@ -475,7 +475,9 @@ class PromptInjectionDetector:
                 # Check action
                 if self.action == "log":
                     logger.warning(f"Prompt injection detected (log mode): confidence={confidence:.2f} - execution allowed")
-                    return False, None, True  # Allow execution, no error, but detected (for violation logging)
+                    # Return warning message to display to user via systemMessage
+                    warn_msg = f"⚠️  Prompt injection detected (log mode): confidence={confidence:.2f} - execution allowed"
+                    return False, warn_msg, True  # Allow execution, warning message, detected (for violation logging)
                 else:
                     # Block execution
                     logger.error(f"Prompt injection detected: confidence={confidence:.2f}")

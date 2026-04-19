@@ -29,11 +29,11 @@ class DirectoryRulesOrderTest(unittest.TestCase):
         }
 
         # Denied by first rule
-        is_denied, _ = check_directory_denied("/tmp/skills/blocked/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/skills/blocked/file.txt", config)
         self.assertTrue(is_denied, "Should be denied by first rule")
 
         # Allowed by second rule (overrides first)
-        is_denied, _ = check_directory_denied("/tmp/skills/approved/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/skills/approved/file.txt", config)
         self.assertFalse(is_denied, "Should be allowed by second rule")
 
     def test_last_rule_wins_allow_then_deny(self):
@@ -46,11 +46,11 @@ class DirectoryRulesOrderTest(unittest.TestCase):
         }
 
         # Allowed by first rule
-        is_denied, _ = check_directory_denied("/tmp/projects/public/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/projects/public/file.txt", config)
         self.assertFalse(is_denied, "Should be allowed by first rule")
 
         # Denied by second rule (overrides first)
-        is_denied, _ = check_directory_denied("/tmp/projects/secret/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/projects/secret/file.txt", config)
         self.assertTrue(is_denied, "Should be denied by second rule")
 
     def test_multiple_rules_last_match_wins(self):
@@ -64,15 +64,15 @@ class DirectoryRulesOrderTest(unittest.TestCase):
         }
 
         # Denied by first rule
-        is_denied, _ = check_directory_denied("/tmp/blocked/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/blocked/file.txt", config)
         self.assertTrue(is_denied)
 
         # Allowed by second rule
-        is_denied, _ = check_directory_denied("/tmp/allow/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/allow/file.txt", config)
         self.assertFalse(is_denied)
 
         # Denied by third rule (overrides second)
-        is_denied, _ = check_directory_denied("/tmp/allow/deny-again/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/allow/deny-again/file.txt", config)
         self.assertTrue(is_denied)
 
 
@@ -91,7 +91,7 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
             test_file.touch()
 
             # Without rule: should be denied
-            is_denied, _ = check_directory_denied(str(test_file), {})
+            is_denied, _, _ = check_directory_denied(str(test_file), {})
             self.assertTrue(is_denied, "Should be denied by .ai-read-deny marker")
 
             # With allow rule: should be allowed (rule overrides marker)
@@ -100,7 +100,7 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
                     {"mode": "allow", "paths": [tmpdir]}
                 ]
             }
-            is_denied, _ = check_directory_denied(str(test_file), config)
+            is_denied, _, _ = check_directory_denied(str(test_file), config)
             self.assertFalse(is_denied, "Allow rule should override .ai-read-deny marker")
 
     def test_deny_marker_without_allow_rule(self):
@@ -117,7 +117,7 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
                 ]
             }
 
-            is_denied, _ = check_directory_denied(str(test_file), config)
+            is_denied, _, _ = check_directory_denied(str(test_file), config)
             self.assertTrue(is_denied, ".ai-read-deny should block when no allow rule matches")
 
     def test_deny_rule_without_marker(self):
@@ -133,7 +133,7 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
                 ]
             }
 
-            is_denied, _ = check_directory_denied(str(test_file), config)
+            is_denied, _, _ = check_directory_denied(str(test_file), config)
             self.assertTrue(is_denied, "Deny rule should block even without marker")
 
 
@@ -149,17 +149,17 @@ class DirectoryRulesWildcardsTest(unittest.TestCase):
         }
 
         # Should match at any depth
-        is_denied, _ = check_directory_denied("/tmp/skills/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/skills/file.txt", config)
         self.assertTrue(is_denied)
 
-        is_denied, _ = check_directory_denied("/tmp/skills/sub/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/skills/sub/file.txt", config)
         self.assertTrue(is_denied)
 
-        is_denied, _ = check_directory_denied("/tmp/skills/sub/deep/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/skills/sub/deep/file.txt", config)
         self.assertTrue(is_denied)
 
         # Should not match outside directory
-        is_denied, _ = check_directory_denied("/tmp/other/file.txt", config)
+        is_denied, _, _ = check_directory_denied("/tmp/other/file.txt", config)
         self.assertFalse(is_denied)
 
     def test_tilde_expansion(self):
@@ -173,7 +173,7 @@ class DirectoryRulesWildcardsTest(unittest.TestCase):
 
         # Should expand ~ and match
         test_path = os.path.join(home, ".claude", "skills", "test.txt")
-        is_denied, _ = check_directory_denied(test_path, config)
+        is_denied, _, _ = check_directory_denied(test_path, config)
         self.assertTrue(is_denied, "~ should expand to home directory")
 
 
@@ -196,7 +196,7 @@ class BackwardCompatibilityTest(unittest.TestCase):
                 }
             }
 
-            is_denied, _ = check_directory_denied(str(test_file), config)
+            is_denied, _, _ = check_directory_denied(str(test_file), config)
             self.assertFalse(is_denied, "directory_exclusions should work as allow rules")
 
     def test_exclusions_have_lower_priority_than_explicit_rules(self):
@@ -216,7 +216,7 @@ class BackwardCompatibilityTest(unittest.TestCase):
                 ]
             }
 
-            is_denied, _ = check_directory_denied(str(test_file), config)
+            is_denied, _, _ = check_directory_denied(str(test_file), config)
             self.assertTrue(is_denied, "Explicit deny rule should override backward compat allow")
 
 
@@ -243,12 +243,12 @@ class SkillAllowlistExampleTest(unittest.TestCase):
 
         # Approved skill: allowed
         approved = os.path.join(skills_dir, "bugfix-workflow", "SKILL.md")
-        is_denied, _ = check_directory_denied(approved, config)
+        is_denied, _, _ = check_directory_denied(approved, config)
         self.assertFalse(is_denied, "Approved skill should be allowed")
 
         # Unapproved skill: denied
         unapproved = os.path.join(skills_dir, "database-migration", "SKILL.md")
-        is_denied, _ = check_directory_denied(unapproved, config)
+        is_denied, _, _ = check_directory_denied(unapproved, config)
         self.assertTrue(is_denied, "Unapproved skill should be denied")
 
 

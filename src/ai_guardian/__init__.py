@@ -145,7 +145,7 @@ def detect_ide_type(hook_data):
     return IDEType.CLAUDE_CODE
 
 
-def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt"):
+def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None):
     """
     Format the response based on IDE type and hook event.
 
@@ -156,6 +156,9 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             - Only displayed when blocking execution (has_secrets=True)
             - Not displayed in log mode - all IDEs discard messages when allowing execution
         hook_event: "prompt", "pretooluse", or "posttooluse" to determine response format
+        warning_message: Optional warning message for log mode (allows execution but shows warning)
+            - Only displayed when NOT blocking (has_secrets=False)
+            - Uses systemMessage field for Claude Code to display warning to user
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
@@ -163,11 +166,11 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
     IDE Message Display Behavior:
         All IDEs (Claude Code, Cursor, Aider, GitHub Copilot):
             - Block mode: error_message displayed to user
-            - Log mode: error_message NOT displayed (only logged for audit)
+            - Log mode: warning_message displayed via systemMessage (Claude Code only)
 
         Tested and confirmed (April 2026):
-            - Claude Code: exit 0 = no output shown
-            - Cursor: continue:true = user_message not shown
+            - Claude Code: systemMessage field displays warning without blocking
+            - Cursor: continue:true = user_message not shown (no warning support)
     """
     if ide_type == IDEType.GITHUB_COPILOT:
         # GitHub Copilot uses JSON response format
@@ -237,36 +240,72 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     }
                 }
             else:
-                # Allow - return empty JSON or omit decision field
+                # Allow - return empty JSON or include systemMessage for warnings
                 response = {}
+                if warning_message:
+                    # Log mode: display warning but allow execution
+                    response["systemMessage"] = warning_message
 
             return {
                 "output": json.dumps(response),
                 "exit_code": 0  # PostToolUse uses JSON response, not exit code
             }
         elif hook_event == "prompt":
-            # UserPromptSubmit: MUST use exit codes (JSON not supported)
-            # KNOWN ISSUE: Claude Code displays "Original prompt:" with secret values when exit != 0
-            #              This is a Claude Code limitation - UserPromptSubmit doesn't accept JSON responses
-            #              Hook validation error: "Hook JSON output validation failed" if we try JSON
-            # TODO: Report to Claude Code team as security issue
+            # UserPromptSubmit: Uses JSON response format (per official docs)
+            # https://code.claude.com/docs/en/hooks
             if has_secrets and error_message:
-                # Print error to stderr
-                print(error_message, file=sys.stderr)
+                # Block with JSON response - prevents secret leakage
+                response = {
+                    "decision": "block",
+                    "reason": error_message,
+                    "hookSpecificOutput": {
+                        "hookEventName": "UserPromptSubmit"
+                    }
+                }
+            else:
+                # Allow - return empty JSON or include systemMessage for warnings
+                response = {}
+                if warning_message:
+                    # Log mode: display warning but allow execution
+                    response["systemMessage"] = warning_message
 
             return {
-                "output": None,
-                "exit_code": 2 if has_secrets else 0
+                "output": json.dumps(response),
+                "exit_code": 0  # UserPromptSubmit uses JSON response, not exit codes
             }
         else:
-            # PreToolUse uses exit codes
+            # PreToolUse: Uses JSON response format with hookSpecificOutput
+            # https://github.com/anthropics/claude-code/blob/main/plugins/plugin-dev/skills/hook-development/SKILL.md
             if has_secrets and error_message:
-                # Print error to stderr
-                print(error_message, file=sys.stderr)
+                # Block with proper PreToolUse format
+                response = {
+                    "hookSpecificOutput": {
+                        "permissionDecision": "deny",
+                        "hookEventName": "PreToolUse"
+                    },
+                    "systemMessage": error_message
+                }
+            elif warning_message:
+                # Log mode: display warning but allow execution
+                response = {
+                    "hookSpecificOutput": {
+                        "permissionDecision": "allow",
+                        "hookEventName": "PreToolUse"
+                    },
+                    "systemMessage": warning_message
+                }
+            else:
+                # Allow with no message
+                response = {
+                    "hookSpecificOutput": {
+                        "permissionDecision": "allow",
+                        "hookEventName": "PreToolUse"
+                    }
+                }
 
             return {
-                "output": None,
-                "exit_code": 2 if has_secrets else 0
+                "output": json.dumps(response),
+                "exit_code": 0  # PreToolUse uses JSON response, not exit codes
             }
 
 
@@ -543,9 +582,10 @@ def check_directory_denied(file_path, config=None):
         config: Optional configuration dict containing directory_rules
 
     Returns:
-        tuple: (is_denied: bool, denied_directory: str or None)
+        tuple: (is_denied: bool, denied_directory: str or None, warning_message: str or None)
                - is_denied: True if access should be blocked
                - denied_directory: The directory containing .ai-read-deny, if found
+               - warning_message: Warning message for log mode (when action="log")
     """
     try:
         # Load config if not provided
@@ -591,19 +631,20 @@ def check_directory_denied(file_path, config=None):
             # Marker found - check if rules override it
             if rule_decision == "allow":
                 logging.info(f"Found .ai-read-deny at {denied_directory}, but directory rules allow access - allowing")
-                return False, None  # ALLOW - rule overrides marker
+                return False, None, None  # ALLOW - rule overrides marker
             else:
                 # No allow rule to override - block or log
                 # Check if there's a deny rule with log action
                 if rule_action == "log":
                     logging.warning(f"Directory access violation (log mode): {file_path} - access allowed")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    return False, None  # ALLOW - logged for audit
+                    warn_msg = f"⚠️  Directory access violation (log mode): File in protected directory '{denied_directory}' - access allowed"
+                    return False, None, warn_msg  # ALLOW - logged for audit, with warning
                 else:
                     # Block access
                     logging.error(f".ai-read-deny marker blocks access to {denied_directory}")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    return True, denied_directory  # BLOCK
+                    return True, denied_directory, None  # BLOCK
 
         # No .ai-read-deny marker - check rule decision
         if rule_decision == "deny":
@@ -611,20 +652,21 @@ def check_directory_denied(file_path, config=None):
             if rule_action == "log":
                 logging.warning(f"Directory access violation (log mode): {file_path} - access allowed")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
-                return False, None  # ALLOW - logged for audit
+                warn_msg = f"⚠️  Directory access violation (log mode): Directory rules matched '{file_path}' - access allowed"
+                return False, None, warn_msg  # ALLOW - logged for audit, with warning
             else:
                 # Block access
                 logging.error(f"Directory rules deny access to {abs_path}")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
-                return True, os.path.dirname(abs_path)  # BLOCK
+                return True, os.path.dirname(abs_path), None  # BLOCK
 
         # Default: allow access
-        return False, None
+        return False, None, None
 
     except Exception as e:
         logging.error(f"Error checking directory access: {e}")
         # Fail-open: allow access if check fails
-        return False, None
+        return False, None, None
 
 
 def extract_tool_result(hook_data):
@@ -643,8 +685,17 @@ def extract_tool_result(hook_data):
         tuple: (output: str or None, tool_name: str)
     """
     try:
-        # Get tool name from top-level field
-        tool_name = hook_data.get("tool_name", "unknown")
+        # Get tool name from multiple possible locations
+        tool_name = hook_data.get("tool_name")
+        logging.info(f"extract_tool_result: tool_name from hook_data.tool_name = {tool_name}")
+        if not tool_name and "tool_use" in hook_data:
+            # Try tool_use.name format (Claude Code format)
+            if isinstance(hook_data["tool_use"], dict):
+                tool_name = hook_data["tool_use"].get("name")
+                logging.info(f"extract_tool_result: tool_name from tool_use.name = {tool_name}")
+        if not tool_name:
+            tool_name = "unknown"
+            logging.info("extract_tool_result: tool_name defaulted to 'unknown'")
 
         # Tools that modify state - don't scan their responses
         # These return metadata only, content was already scanned in PreToolUse
@@ -708,7 +759,8 @@ def extract_file_content_from_tool(hook_data):
         hook_data: Parsed JSON input from PreToolUse or beforeReadFile hook
 
     Returns:
-        tuple: (content: str or None, filename: str, file_path: str or None, is_denied: bool, deny_reason: str or None)
+        tuple: (content: str or None, filename: str, file_path: str or None, is_denied: bool, deny_reason: str or None, warning_message: str or None)
+               - warning_message: Warning for log mode (when action="log")
     """
     try:
         # Cursor beforeReadFile format: includes content and file_path directly
@@ -717,7 +769,7 @@ def extract_file_content_from_tool(hook_data):
             file_path = hook_data["file_path"]
 
             # Check if directory is denied
-            is_denied, denied_dir = check_directory_denied(file_path)
+            is_denied, denied_dir, dir_warning = check_directory_denied(file_path)
             if is_denied:
                 error_msg = (
                     f"\n{'='*70}\n"
@@ -735,9 +787,9 @@ def extract_file_content_from_tool(hook_data):
                     f"  3. Add this path to directory_exclusions in ai-guardian.json\n"
                     f"\n{'='*70}\n"
                 )
-                return None, os.path.basename(file_path), file_path, True, error_msg
+                return None, os.path.basename(file_path), file_path, True, error_msg, None
 
-            return content, os.path.basename(file_path), file_path, False, None
+            return content, os.path.basename(file_path), file_path, False, None, dir_warning
 
         # Try to extract file path from different possible locations
         file_path = None
@@ -778,13 +830,13 @@ def extract_file_content_from_tool(hook_data):
 
         if not file_path:
             logging.warning("Could not extract file path from hook data")
-            return None, "unknown_file", None, False, None
+            return None, "unknown_file", None, False, None, None
 
         # Expand ~ to home directory
         file_path = os.path.expanduser(file_path)
 
         # Check if directory is denied BEFORE reading the file
-        is_denied, denied_dir = check_directory_denied(file_path)
+        is_denied, denied_dir, dir_warning = check_directory_denied(file_path)
         if is_denied:
             error_msg = (
                 f"\n{'='*70}\n"
@@ -802,26 +854,26 @@ def extract_file_content_from_tool(hook_data):
                 f"  3. Add this path to directory_exclusions in ai-guardian.json\n"
                 f"\n{'='*70}\n"
             )
-            return None, os.path.basename(file_path), file_path, True, error_msg
+            return None, os.path.basename(file_path), file_path, True, error_msg, None
 
         # Read the file content
         try:
             with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                 content = f.read()
-            return content, os.path.basename(file_path), file_path, False, None
+            return content, os.path.basename(file_path), file_path, False, None, dir_warning
         except FileNotFoundError:
             logging.warning(f"File not found: {file_path}")
-            return None, os.path.basename(file_path), file_path, False, None
+            return None, os.path.basename(file_path), file_path, False, None, dir_warning
         except PermissionError:
             logging.warning(f"Permission denied reading file: {file_path}")
-            return None, os.path.basename(file_path), file_path, False, None
+            return None, os.path.basename(file_path), file_path, False, None, dir_warning
         except Exception as e:
             logging.error(f"Error reading file {file_path}: {e}")
-            return None, os.path.basename(file_path), file_path, False, None
+            return None, os.path.basename(file_path), file_path, False, None, dir_warning
 
     except Exception as e:
         logging.error(f"Error extracting file from tool data: {e}")
-        return None, "unknown_file", None, False, None
+        return None, "unknown_file", None, False, None, None
 
 
 def _load_pattern_server_config():
@@ -1857,6 +1909,7 @@ def process_hook_input():
 
             # Extract tool output
             tool_output, tool_name = extract_tool_result(hook_data)
+            logging.info(f"PostToolUse: tool_name={tool_name}, has_output={tool_output is not None}")
 
             if tool_output is None:
                 # No output to scan - allow
@@ -1867,11 +1920,19 @@ def process_hook_input():
             # For Skill tool: "Skill:code-review"
             # For MCP tools: already have composite name like "mcp__notebooklm__chat"
             tool_identifier = tool_name
+
+            # Get tool_input from either tool_use.input or tool_input field
+            tool_input = {}
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
                 tool_input = hook_data["tool_use"].get("input", {})
-                if tool_name == "Skill" and tool_input.get("skill"):
-                    tool_identifier = f"Skill:{tool_input['skill']}"
-                    logging.debug(f"Created composite identifier for PostToolUse: {tool_identifier}")
+            elif "tool_input" in hook_data and isinstance(hook_data["tool_input"], dict):
+                tool_input = hook_data["tool_input"]
+
+            if tool_name == "Skill" and tool_input.get("skill"):
+                tool_identifier = f"Skill:{tool_input['skill']}"
+                logging.info(f"PostToolUse (with output): Created composite identifier {tool_identifier}")
+
+            logging.info(f"PostToolUse tool_identifier: {tool_identifier}")
 
             logging.info(f"Scanning {tool_identifier} output for secrets...")
 
@@ -1897,7 +1958,11 @@ def process_hook_input():
                                      hook_event=hook_event)
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
+
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
+        # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
+        warning_messages = []
 
         # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
         tool_name = None
@@ -1944,8 +2009,10 @@ def process_hook_input():
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}' - {reason_summary}")
                         return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
                     elif is_allowed and error_message:
-                        # Log mode: allowed but violation logged
+                        # Log mode: allowed but violation logged - display warning to user
                         logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
+                        # Accumulate warning message to display at the end
+                        warning_messages.append(error_message)
 
                     if checked_tool_name and ide_type != IDEType.CURSOR:
                         logging.info(f"✓ Tool '{checked_tool_name}' allowed by policy")
@@ -1963,23 +2030,31 @@ def process_hook_input():
         if hook_event in ["pretooluse", "beforereadfile"]:
             # PreToolUse or beforeReadFile hook - scan file content
             logging.info(f"Processing {hook_event} hook...")
-            content_to_scan, filename, file_path, is_denied, deny_reason = extract_file_content_from_tool(hook_data)
+            content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
 
             # Check if directory access is denied
             if is_denied:
                 logging.warning(f"Directory access denied for file '{file_path}'")
                 return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event)
+            elif dir_warning:
+                # Log mode: directory violation detected but execution allowed
+                # Accumulate warning message to display at the end
+                warning_messages.append(dir_warning)
 
             # Skip scanning ai-guardian's own test files (contain example secrets)
             # IMPORTANT: Only skips ai-guardian tests, not user project tests
             if file_path and _is_ai_guardian_test_file(file_path):
                 logging.debug(f"Skipping scan for ai-guardian test file: {file_path}")
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
+                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
 
             if content_to_scan is None:
                 # Could not extract file content - allow operation (fail-open)
                 logging.warning("Could not extract file content, allowing operation")
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
+                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
 
             # Log with full path for debugging false positives
             if file_path:
@@ -2030,9 +2105,14 @@ def process_hook_input():
                                 logging.warning("Prompt injection detected, blocking operation")
 
                         return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
+                    elif injection_detected and injection_error:
+                        # Log mode: injection detected but execution allowed - display warning
+                        # Accumulate warning message to display at the end
+                        warning_messages.append(injection_error)
 
                     if ide_type != IDEType.CURSOR:
-                        logging.info("✓ No prompt injection detected")
+                        if not injection_detected:
+                            logging.info("✓ No prompt injection detected")
                 elif injection_config and ide_type != IDEType.CURSOR:
                     # Prompt injection detection is temporarily disabled
                     logging.info("⚠️  Prompt injection detection temporarily disabled")
@@ -2078,7 +2158,10 @@ def process_hook_input():
             # Secret scanning is temporarily disabled
             logging.info("⚠️  Secret scanning temporarily disabled")
 
-        return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+        # Combine all warning messages if any exist
+        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+
+        return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
 
     except json.JSONDecodeError as e:
         logging.error(f"Failed to parse hook input: {e}")

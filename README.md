@@ -58,7 +58,9 @@ cp ai-guardian-example.json ~/.config/ai-guardian/ai-guardian.json
 
 The `ai-guardian setup` command automatically configures IDE hooks for you.
 
-**⚠️ IMPORTANT:** Run `ai-guardian setup` after upgrading to get the latest security hooks. New versions may add additional hooks (e.g., PostToolUse for output scanning).
+**⚠️ IMPORTANT:** 
+- Run `ai-guardian setup` after upgrading to get the latest security hooks. New versions may add additional hooks (e.g., PostToolUse for output scanning).
+- If you manually add other hooks, **ai-guardian MUST be the first PostToolUse hook** (required for log mode warnings). UserPromptSubmit ordering only matters if using prompt injection log mode. See [Hook Ordering Documentation](docs/HOOK_ORDERING.md) for details.
 
 ### Basic Usage
 

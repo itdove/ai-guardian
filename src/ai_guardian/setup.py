@@ -30,6 +30,10 @@ class IDESetup:
             "config_path": "~/.claude/settings.json",
             "config_dir_env_var": "CLAUDE_CONFIG_DIR",  # Respects this env var
             "config_filename": "settings.json",
+            # CRITICAL: ai-guardian MUST be the FIRST PostToolUse hook.
+            # Claude Code only displays the first hook's systemMessage field.
+            # Log mode warnings are displayed in PostToolUse - if ai-guardian is not first, warnings are suppressed.
+            # See docs/HOOK_ORDERING.md for details.
             "hooks": {
                 "UserPromptSubmit": [
                     {
@@ -271,9 +275,12 @@ class IDESetup:
             print(f"Error creating backup: {e}", file=sys.stderr)
             return None
 
-    def merge_hooks(self, existing_config: Dict, ai_guardian_hooks: Dict, ide_type: str) -> Dict:
+    def merge_hooks(self, existing_config: Dict, ai_guardian_hooks: Dict, ide_type: str) -> Tuple[Dict, List[str]]:
         """
-        Merge ai-guardian hooks into existing config.
+        Merge ai-guardian hooks into existing config, ensuring ai-guardian is first.
+
+        CRITICAL: ai-guardian MUST be first in PostToolUse for log mode warning visibility.
+        Recommended first in UserPromptSubmit/PreToolUse for consistency.
 
         Args:
             existing_config: Existing IDE configuration
@@ -281,8 +288,12 @@ class IDESetup:
             ide_type: IDE type ('claude' or 'cursor')
 
         Returns:
-            dict: Merged configuration
+            tuple: (merged_config: dict, warnings: list of str)
+                - merged_config: Updated configuration
+                - warnings: List of warning messages if multiple hooks detected
         """
+        warnings = []
+
         if ide_type == "claude":
             # Claude Code: merge into hooks section
             if "hooks" not in existing_config:
@@ -290,10 +301,68 @@ class IDESetup:
 
             # Merge UserPromptSubmit, PreToolUse, and PostToolUse hooks
             for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
-                if hook_name in ai_guardian_hooks:
-                    existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
+                if hook_name not in ai_guardian_hooks:
+                    continue
 
-            return existing_config
+                # Get or create the hook type array
+                if hook_name not in existing_config["hooks"]:
+                    existing_config["hooks"][hook_name] = []
+
+                # Find or create the "*" matcher entry
+                hook_list = existing_config["hooks"][hook_name]
+                star_matcher = None
+                star_matcher_idx = -1
+
+                for idx, entry in enumerate(hook_list):
+                    if isinstance(entry, dict) and entry.get("matcher") == "*":
+                        star_matcher = entry
+                        star_matcher_idx = idx
+                        break
+
+                # If no "*" matcher exists, create it from ai_guardian_hooks
+                if star_matcher is None:
+                    # Use the template from ai_guardian_hooks
+                    existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
+                    continue
+
+                # Get or create hooks array within the matcher
+                if "hooks" not in star_matcher:
+                    star_matcher["hooks"] = []
+
+                hooks_array = star_matcher["hooks"]
+
+                # Find other hooks (not ai-guardian)
+                ai_guardian_exists = False
+                other_hooks = []
+
+                for idx, hook in enumerate(hooks_array):
+                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                        ai_guardian_exists = True
+                    else:
+                        other_hooks.append(hook)
+
+                # Always use the ai-guardian hook from template for consistency
+                template_matcher = ai_guardian_hooks[hook_name][0]
+                ai_guardian_hook = template_matcher["hooks"][0]
+
+                # Check if there are other hooks (warn user about ordering)
+                if other_hooks:
+                    hook_names = []
+                    for h in other_hooks:
+                        if isinstance(h, dict):
+                            cmd = h.get("command", "unknown")
+                            hook_names.append(cmd)
+
+                    warnings.append(
+                        f"⚠️  {hook_name}: Found other hooks [{', '.join(hook_names)}]. "
+                        f"ai-guardian has been placed first to ensure warnings display correctly."
+                    )
+
+                # Rebuild hooks array with ai-guardian first
+                star_matcher["hooks"] = [ai_guardian_hook] + other_hooks
+                existing_config["hooks"][hook_name][star_matcher_idx] = star_matcher
+
+            return existing_config, warnings
 
         elif ide_type == "cursor":
             # Cursor: merge hooks at top level
@@ -310,9 +379,9 @@ class IDESetup:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
 
-            return existing_config
+            return existing_config, warnings
 
-        return existing_config
+        return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
         """
@@ -401,8 +470,9 @@ class IDESetup:
                     return False, f"Invalid JSON in {config_path}: {e}"
 
             # Merge hooks
+            hook_warnings = []
             if ide_type == "claude":
-                merged_config = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
             elif ide_type == "cursor":
                 # For Cursor, we need to merge differently
                 merged_config = existing_config.copy()
@@ -444,6 +514,16 @@ class IDESetup:
 
             message = f"✓ Successfully configured {ide_name} hooks at {config_path}\n"
             message += f"\n  {gitleaks_message}\n"
+
+            # Display hook ordering warnings if any
+            if hook_warnings:
+                message += "\n  Hook Ordering:\n"
+                for warning in hook_warnings:
+                    message += f"  {warning}\n"
+                message += (
+                    "\n  📚 For more information about hook ordering, see:\n"
+                    "     https://github.com/itdove/ai-guardian/blob/main/docs/HOOK_ORDERING.md\n"
+                )
 
             if not gitleaks_installed:
                 message += (

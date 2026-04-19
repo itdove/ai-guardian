@@ -172,7 +172,9 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         self.assertEqual(response["exit_code"], 0, "Clean prompt should return exit code 0")
-        self.assertIsNone(response["output"], "Clean Claude Code prompt should have no output")
+        # UserPromptSubmit now returns empty JSON for allow
+        output = json.loads(response["output"])
+        self.assertEqual(output, {}, "Clean prompt should return empty JSON")
         mock_check_secrets.assert_called_once()
 
     @patch('ai_guardian._load_secret_scanning_config')
@@ -190,7 +192,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         with patch('sys.stdin', StringIO(hook_input)):
             response = ai_guardian.process_hook_input()
 
-        self.assertEqual(response["exit_code"], 2, "Secret detection should return exit code 2")
+        # UserPromptSubmit now uses JSON response format (not exit codes)
+        self.assertEqual(response["exit_code"], 0, "Exit code should be 0 with JSON response")
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block", "Should block when secret detected")
+        self.assertIn("SECRET DETECTED", output["reason"])
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
 
     def test_process_hook_input_empty_prompt(self):
         """Test processing empty prompt"""
@@ -374,7 +381,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             secret_input = json.dumps({"prompt": "My token: ghp_16C0123456789abcdefghijklmTEST0000"})
             with patch('sys.stdin', StringIO(secret_input)):
                 response = ai_guardian.process_hook_input()
-            self.assertEqual(response["exit_code"], 2)
+            # UserPromptSubmit now uses JSON response format
+            self.assertEqual(response["exit_code"], 0)
+            output = json.loads(response["output"])
+            self.assertEqual(output["decision"], "block")
 
         except (FileNotFoundError, subprocess.CalledProcessError):
             self.skipTest("Gitleaks binary not available for integration test")
@@ -456,23 +466,31 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(output_data["user_message"], error_msg)
 
     def test_format_response_claude_code_allow(self):
-        """Test format_response for Claude Code (allow)"""
+        """Test format_response for Claude Code UserPromptSubmit (allow)"""
         response = ai_guardian.format_response(
             ai_guardian.IDEType.CLAUDE_CODE,
-            has_secrets=False
+            has_secrets=False,
+            hook_event="prompt"
         )
-        self.assertIsNone(response["output"])
+        # UserPromptSubmit returns empty JSON for allow
+        output = json.loads(response["output"])
+        self.assertEqual(output, {})
         self.assertEqual(response["exit_code"], 0)
 
     def test_format_response_claude_code_block(self):
-        """Test format_response for Claude Code (block)"""
+        """Test format_response for Claude Code UserPromptSubmit (block)"""
         response = ai_guardian.format_response(
             ai_guardian.IDEType.CLAUDE_CODE,
             has_secrets=True,
-            error_message="Test error"
+            error_message="Test error",
+            hook_event="prompt"
         )
-        self.assertIsNone(response["output"])
-        self.assertEqual(response["exit_code"], 2)
+        # UserPromptSubmit returns JSON with decision:block
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block")
+        self.assertEqual(output["reason"], "Test error")
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
+        self.assertEqual(response["exit_code"], 0)
 
     def test_format_response_cursor_allow(self):
         """Test format_response for Cursor (allow)"""
@@ -538,7 +556,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
                     "parameters": {"file_path": temp_path}
                 }
             }
-            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "test content")
             self.assertTrue(filename.endswith('.txt'))
             self.assertFalse(is_denied)
@@ -557,7 +575,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             hook_data = {
                 "parameters": {"file_path": temp_path}
             }
-            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "another test")
             self.assertFalse(is_denied)
             self.assertIsNone(deny_reason)
@@ -571,7 +589,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
                 "parameters": {"file_path": "/nonexistent/file.txt"}
             }
         }
-        content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+        content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
         self.assertIsNone(content)
         self.assertEqual(filename, "file.txt")
         self.assertFalse(is_denied)
@@ -580,7 +598,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_extract_file_content_no_file_path(self):
         """Test file extraction with no file path"""
         hook_data = {"tool_use": {"parameters": {}}}
-        content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+        content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
         self.assertIsNone(content)
         self.assertFalse(is_denied)
         self.assertIsNone(deny_reason)
@@ -606,7 +624,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             with patch('sys.stdin', StringIO(hook_input)):
                 response = ai_guardian.process_hook_input()
 
+            # PreToolUse now uses JSON format with hookSpecificOutput
             self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output = json.loads(response["output"])
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
             mock_check_secrets.assert_called_once()
             # Verify it scanned the file content
             call_args = mock_check_secrets.call_args[0]
@@ -635,7 +659,15 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             with patch('sys.stdin', StringIO(hook_input)):
                 response = ai_guardian.process_hook_input()
 
-            self.assertEqual(response["exit_code"], 2)
+            # PreToolUse now uses JSON format with hookSpecificOutput
+            self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output = json.loads(response["output"])
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+            self.assertIn("systemMessage", output)
+            self.assertIn("SECRET DETECTED", output["systemMessage"])
+
             mock_check_secrets.assert_called_once()
         finally:
             os.unlink(temp_path)
@@ -903,7 +935,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
                 "toolName": "read_file",
                 "toolArgs": json.dumps({"file_path": temp_path})
             }
-            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "copilot test content")
             self.assertTrue(filename.endswith('.txt'))
             self.assertFalse(is_denied)
@@ -1073,7 +1105,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         # Should block since prompt injection is auto-enabled (expired disable)
-        self.assertEqual(response["exit_code"], 2)
+        # UserPromptSubmit now uses JSON response format
+        self.assertEqual(response["exit_code"], 0, "Exit code should be 0 with JSON response")
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block", "Should block when injection detected")
         # Injection check should be called
         mock_check_injection.assert_called_once()
 
@@ -1176,7 +1211,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         # Should block since secret scanning is auto-enabled
-        self.assertEqual(response["exit_code"], 2)
+        # UserPromptSubmit now uses JSON response format
+        self.assertEqual(response["exit_code"], 0)
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block")
         # Secret check should be called
         mock_check_secrets.assert_called_once()
 

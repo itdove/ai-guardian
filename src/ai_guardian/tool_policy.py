@@ -459,7 +459,10 @@ class ToolPolicyChecker:
                             if action == "log":
                                 logger.warning(f"Policy violation (log mode): {tool_name} - {pattern_str} - execution allowed")
                                 # Continue execution - logged for audit
-                                return True, None, tool_name
+                                # Return warning message to display to user via systemMessage
+                                display_name = self._format_tool_display_name(tool_name, tool_input)
+                                warn_msg = f"⚠️  Policy violation (log mode): {display_name} matched deny pattern - execution allowed"
+                                return True, warn_msg, tool_name
                             else:
                                 # Block execution
                                 logger.error(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
@@ -520,7 +523,10 @@ class ToolPolicyChecker:
                 if action == "log":
                     logger.warning(f"Policy violation (log mode): {tool_name} not in allow list - execution allowed")
                     # Continue execution - logged for audit
-                    return True, None, tool_name
+                    # Return warning message to display to user via systemMessage
+                    display_name = self._format_tool_display_name(tool_name, tool_input)
+                    warn_msg = f"⚠️  Policy violation (log mode): {display_name} not in allow list - execution allowed"
+                    return True, warn_msg, tool_name
                 else:
                     # Block execution
                     logger.error(f"Tool '{tool_name}' not in allow list")
@@ -572,6 +578,42 @@ class ToolPolicyChecker:
         except Exception as e:
             logger.error(f"Error extracting tool info: {e}")
             return None, {}
+
+    def _format_tool_display_name(self, tool_name: str, tool_input: Dict) -> str:
+        """
+        Format a user-friendly display name for a tool with its key parameters.
+
+        Args:
+            tool_name: The tool name (e.g., "Skill", "Read", "Bash")
+            tool_input: The tool input parameters
+
+        Returns:
+            Formatted display name (e.g., "Skill(database-migration)", "Read(file.txt)", "Bash(ls -la)")
+        """
+        if not tool_input:
+            return tool_name
+
+        # For Skill tool: show skill name
+        if tool_name == "Skill" and "skill" in tool_input:
+            return f"Skill({tool_input['skill']})"
+
+        # For Read/Write/Edit: show file path (basename only for brevity)
+        if tool_name in ["Read", "Write", "Edit"] and "file_path" in tool_input:
+            import os
+            file_path = tool_input["file_path"]
+            basename = os.path.basename(file_path) if file_path else "unknown"
+            return f"{tool_name}({basename})"
+
+        # For Bash: show first 40 chars of command
+        if tool_name == "Bash" and "command" in tool_input:
+            command = tool_input["command"]
+            if len(command) > 40:
+                command = command[:37] + "..."
+            return f"Bash({command})"
+
+        # For MCP tools: already have descriptive names like "mcp__server__tool"
+        # Just return as-is
+        return tool_name
 
     def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
         """

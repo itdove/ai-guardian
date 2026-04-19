@@ -206,13 +206,61 @@ if details.get("total_findings"):
 
 **Note**: No actual secret value in violation log!
 
-### Layer 7: KNOWN LIMITATION - UserPromptSubmit Secret Leakage
+### Layer 7: KNOWN LIMITATION - UserPromptSubmit Terminal Display
 
-**Location**: `src/ai_guardian/__init__.py:238-252`
+**Location**: `src/ai_guardian/__init__.py:247-260`
 
-**THE PROBLEM (UNFIXABLE WITH CURRENT CLAUDE CODE)**:
+**THE LIMITATION (Claude Code Behavior)**:
 
-When Claude Code's UserPromptSubmit hook blocks via exit codes, Claude Code displays the original prompt alongside the error message, **leaking secret values**:
+When ai-guardian blocks prompts containing secrets using `decision: "block"` in JSON response, Claude Code displays the original prompt in the terminal error message.
+
+**What we implemented:**
+```python
+response = {
+    "decision": "block",
+    "reason": error_message,  # Our sanitized message
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit"
+    }
+}
+```
+
+**What Claude Code shows:**
+```
+======================================================================
+🚨 BLOCKED BY POLICY
+🔒 SECRET DETECTED
+======================================================================
+(our sanitized error message - no secret here)
+
+Original prompt: AWS_ACCESS_KEY_ID=AKIA****************  ← SECRET VISIBLE # gitleaks:allow
+```
+
+**Why this happens:**
+- Claude Code appends "Original prompt:" when `decision: "block"` is used
+- This is Claude Code's design - we cannot control this behavior
+- The `reason` field shows our message, but Claude Code adds the original prompt below it
+
+**What IS protected:**
+- ✅ Secret does NOT reach Claude's API (hook blocks before submission)
+- ✅ Secret does NOT appear in conversation history/session
+- ✅ Secret does NOT get sent to Anthropic servers
+- ✅ Only metadata in our error message (type, file, line)
+
+**What is NOT protected:**
+- ❌ Secret visible in user's terminal when blocking occurs
+- This is the trade-off for blocking secrets from reaching Claude
+
+**Why we accept this limitation:**
+- Preventing secrets from reaching Claude's API is MORE IMPORTANT than hiding from terminal
+- The terminal leak is local only (user's screen)
+- The alternative (allowing secrets to Claude) is worse
+- This is a Claude Code design decision we cannot work around
+
+**Attempted alternatives:**
+- `systemMessage` without blocking - would hide secret BUT allows it to reach Claude (rejected)
+- Exit codes only - still shows "Original prompt:" (doesn't help)
+- No JSON response - interpreted as allow (defeats the purpose)
 
 ```
 ======================================================================
@@ -221,7 +269,7 @@ When Claude Code's UserPromptSubmit hook blocks via exit codes, Claude Code disp
 ======================================================================
 (our error message - no secret here)
 
-Original prompt: AWS_ACCESS_KEY_ID=AKIAIOSFODNN7REALKEY  ← SECRET LEAKED! # gitleaks:allow
+Original prompt: AWS_ACCESS_KEY_ID=AKIA****************  ← SECRET LEAKED! # gitleaks:allow
     AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYREALKEY # gitleaks:allow
 ```
 

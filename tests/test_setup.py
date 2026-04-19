@@ -130,7 +130,7 @@ class TestIDESetup:
             'PreToolUse': [{'test': 'hook2'}]
         }
 
-        merged = setup.merge_hooks(existing_config, ai_guardian_hooks, 'claude')
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'claude')
 
         assert 'hooks' in merged
         assert 'UserPromptSubmit' in merged['hooks']
@@ -150,7 +150,7 @@ class TestIDESetup:
             'UserPromptSubmit': [{'test': 'hook'}]
         }
 
-        merged = setup.merge_hooks(existing_config, ai_guardian_hooks, 'claude')
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'claude')
 
         assert 'hooks' in merged
         assert 'OtherHook' in merged['hooks']  # Preserved
@@ -167,7 +167,7 @@ class TestIDESetup:
             'beforeReadFile': [{'command': 'ai-guardian'}]
         }
 
-        merged = setup.merge_hooks(existing_config, ai_guardian_hooks, 'cursor')
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'cursor')
 
         assert 'version' in merged
         assert 'hooks' in merged

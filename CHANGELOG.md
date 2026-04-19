@@ -7,66 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security (Breaking Changes)
-- **REMOVED `action` field from `secret_scanning` configuration**
-  - Secret scanning ALWAYS blocks when secrets are detected (no "log" mode)
-  - Rationale: `action: "log"` mode created security hole - secrets would reach Claude's API/session
-  - **Migration**: Remove `"action": "log"` from `secret_scanning` section
-  - To test with secrets: use `enabled: false`, `ignore_files`, `ignore_tools`, or `gitleaks:allow` comments
-  
-- **KNOWN LIMITATION: UserPromptSubmit secret display** (Claude Code issue)
-  - When blocking prompts with secrets, Claude Code displays the blocked prompt to the user
-  - The secret does NOT reach Claude's API/session (hook blocks before submission)
-  - Leak is limited to terminal/UI display
-  - See `docs/SECRET_REDACTION.md` for details
-
-### Changed (Breaking Changes)
-- **RESTRUCTURED `directory_rules` configuration**
-  - Moved `action` from per-rule to top level (applies to all rules)
-  - **New format**: `{"action": "log", "rules": [{"mode": "deny", "paths": [...]}]}`
-  - **Old format** (still supported): `[{"mode": "deny", "paths": [...]}]` (defaults to `action: "block"`)
-  - Rationale: Global action makes more sense than per-rule action
-
 ### Added
-- **Reserved `secret_scanning.engines` field** for future multi-engine support (v2.0.0)
-  - NOT YET IMPLEMENTED - Gitleaks only for now
-  - See `docs/MULTI_ENGINE_SUPPORT.md` for v2.0.0 plan (Issue #91)
-
-- **Action levels (log vs block)** for gradual policy rollout
-  - Tool permissions: per-rule `action` field
-  - Prompt injection: global `action` field  
-  - Directory rules: global `action` field
-  - Use case: Start with "log" mode to identify issues, then switch to "block"
-
-- **Order-based directory access control** with `directory_rules`
-  - Config-driven rules with last-match-wins evaluation (firewall-style)
-  - Rules can override `.ai-read-deny` markers
-  - Backward compatible with `directory_exclusions`
+- **Action levels (log vs block)** for audit mode and gradual policy rollout (Issues #84, #88)
+  - Configure `action: "log"` to audit violations without blocking
+  - Configure `action: "block"` to enforce policies
+  - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
+  - Secret scanning always blocks (no action field for security)
+  - Log mode displays clear warnings: `PreToolUse:ToolName says: ⚠️ Policy violation (log mode): ...`
 
 - **ignore_tools and ignore_files** for false positive handling (Issue #84)
   - Skip detection for specific tools: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
   - Skip detection for specific files: `"**/.claude/skills/*/SKILL.md"`
-  - PreToolUse + PostToolUse correlation for tool patterns
   - Works for both prompt injection and secret scanning
 
-### Changed
-- **Improved policy blocking messages** (Issue #88)
-  - Added "🚨 BLOCKED BY POLICY" header to all blocking messages
-  - Log messages include specific block reason
-  - Anti-bypass language to prevent AI retry attempts
+- **Smart hook ordering in setup command**
+  - `ai-guardian setup` ensures ai-guardian is first in all hooks arrays
+  - Preserves existing hooks after ai-guardian
+  - Warns if multiple hooks detected
+  - Critical for log mode warning visibility - see `docs/HOOK_ORDERING.md`
 
-- **Improved logging for debugging**
-  - Full file paths in log messages (not just filenames)
-  - Helps identify which files triggered detection
+- **Reserved `secret_scanning.engines` field** for future multi-engine support
+  - Not yet implemented - reserved for v2.0.0
+  - See `docs/MULTI_ENGINE_SUPPORT.md` for roadmap (Issue #91)
+
+### Changed (Breaking Changes)
+- **Restructured `directory_rules` configuration**
+  - Moved `action` from per-rule to top-level (applies to all rules)
+  - New format: `{"action": "log", "rules": [{"mode": "deny", "paths": [...]}]}`
+  - Old format still supported: `[{"mode": "deny", "paths": [...]}]` (defaults to `action: "block"`)
+
+- **Improved policy blocking messages** (Issue #88)
+  - Added "🚨 BLOCKED BY POLICY" header with clear reasons
+  - Tool display names show parameters: `Skill(database-migration)`, `Read(config.json)`
+  - Anti-bypass language to prevent AI retry attempts
 
 ### Fixed
 - **CRITICAL: Bash tool bypass vulnerability**
-  - PostToolUse now scans Bash `stdout`/`stderr` for secrets and injections
+  - PostToolUse now scans Bash `stdout`/`stderr` for secrets and prompt injection
   - Previously only checked `output`, `content`, `result` fields
 
+### Security
+- **Secret scanning always blocks** - no `action` field available for security reasons
+- **KNOWN LIMITATION**: When blocking UserPromptSubmit secrets, Claude Code displays the blocked prompt (with secret) in terminal output. The secret does NOT reach Claude's API or conversation history, but is visible in the user's local terminal. See `docs/SECRET_REDACTION.md` for details.
+
 ### Documentation
-- **Added `docs/SECRET_REDACTION.md`**: 8 defensive layers for secret redaction
-- **Added `docs/MULTI_ENGINE_SUPPORT.md`**: v2.0.0 implementation plan
+- Added `docs/SECRET_REDACTION.md` - Defense-in-depth secret redaction layers
+- Added `docs/MULTI_ENGINE_SUPPORT.md` - Multi-engine support roadmap
+- Added `docs/HOOK_ORDERING.md` - Hook ordering requirements for log mode warnings
 
 ## [1.3.0] - 2026-04-16
 
