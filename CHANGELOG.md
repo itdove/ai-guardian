@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **User-friendly error handling for malformed configuration files**
+  - Clear JSON parsing errors displayed via systemMessage in all hook types
+  - Error messages include file path, line number, column number, and problem description
+  - Fail-open with warning: continues with default configuration when config has errors
+  - Centralized config loading with `_load_config_file()` function
+  - Comprehensive test coverage in `tests/test_config_error_handling.py`
+  - Prevents silent failures when configuration JSON is malformed
+
 - **Action levels (log vs block)** for audit mode and gradual policy rollout (Issues #84, #88)
   - Configure `action: "log"` to audit violations without blocking
   - Configure `action: "block"` to enforce policies

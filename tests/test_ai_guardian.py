@@ -159,7 +159,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_clean_prompt(self, mock_check_secrets, mock_load_config):
         """Test processing clean prompt input"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         hook_input = json.dumps({
@@ -181,7 +181,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_with_secret(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
@@ -269,7 +269,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_with_multiline_prompt(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with multiple lines"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         multiline_prompt = "Line 1\nLine 2\nLine 3"
@@ -290,7 +290,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_with_unicode(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with Unicode characters"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         unicode_prompt = "Hello 世界 🔒 Здравствуй"
@@ -361,7 +361,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_secret_detection_integration(self, mock_pattern_config, mock_secret_config):
         """Integration test: End-to-end secret detection"""
         # Enable secret scanning
-        mock_secret_config.return_value = None  # Use default (enabled)
+        mock_secret_config.return_value = (None, None)  # Use default (enabled)
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
 
@@ -444,7 +444,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_cursor_format_with_secret(self, mock_check_secrets, mock_load_config):
         """Test Cursor format with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         error_msg = "SECRET DETECTED"
         mock_check_secrets.return_value = (True, error_msg)
 
@@ -607,7 +607,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_pretooluse_hook_with_clean_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with clean file"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         import tempfile
@@ -642,7 +642,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_pretooluse_hook_with_secret_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with file containing secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -676,7 +676,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_cursor_pretooluse_hook(self, mock_check_secrets, mock_load_config):
         """Test Cursor preToolUse hook format"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -976,7 +976,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_copilot_pretooluse_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot preToolUse hook blocks file with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -1026,7 +1026,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_copilot_prompt_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot userPromptSubmitted blocks prompt with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
@@ -1050,14 +1050,14 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure prompt injection as temporarily disabled (future expiration)
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z",
                 "reason": "Testing prompt injection examples"
             },
             "detector": "heuristic"
-        }
+        }, None)
 
         mock_check_secrets.return_value = (False, None)
         # Injection check shouldn't be called since feature is disabled
@@ -1084,14 +1084,14 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure prompt injection with expired disable period (past date)
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2020-01-01T00:00:00Z",  # Past date
                 "reason": "Expired disable"
             },
             "detector": "heuristic"
-        }
+        }, None)
 
         mock_check_secrets.return_value = (False, None)
         mock_check_injection.return_value = (True, "Injection detected", True)
@@ -1120,13 +1120,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure permissions as temporarily disabled
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z",
                 "reason": "Emergency debugging"
             }
-        }
+        }, None)
 
         mock_check_secrets.return_value = (False, None)
 
@@ -1161,13 +1161,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure secret scanning as temporarily disabled
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z",
                 "reason": "Testing with known-safe example secrets"
             }
-        }
+        }, None)
 
         # Even if check_secrets would find secrets, it shouldn't be called
         mock_check_secrets.return_value = (True, "Secret detected")
@@ -1192,13 +1192,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure secret scanning with expired disable period
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2020-01-01T00:00:00Z",  # Past date
                 "reason": "Expired disable"
             }
-        }
+        }, None)
 
         mock_check_secrets.return_value = (True, "Secret detected")
 
@@ -1227,18 +1227,18 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Prompt injection: enabled (boolean)
-        mock_injection_config.return_value = {
+        mock_injection_config.return_value = ({
             "enabled": True,
             "detector": "heuristic"
-        }
+        }, None)
 
         # Secret scanning: temporarily disabled
-        mock_secret_config.return_value = {
+        mock_secret_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z"
             }
-        }
+        }, None)
 
         mock_check_injection.return_value = (False, None, False)
         mock_check_secrets.return_value = (True, "Secret detected")

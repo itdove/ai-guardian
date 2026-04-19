@@ -876,6 +876,58 @@ def extract_file_content_from_tool(hook_data):
         return None, "unknown_file", None, False, None, None
 
 
+def _load_config_file():
+    """
+    Load ai-guardian.json configuration file with detailed error reporting.
+
+    Returns:
+        tuple: (config_dict or None, error_message or None)
+            - config_dict: Parsed configuration if successful
+            - error_message: User-friendly error message if failed, suitable for systemMessage
+    """
+    try:
+        # Try user global config first
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        if not config_path.exists():
+            # Try project local config
+            config_path = Path.cwd() / ".ai-guardian.json"
+
+        if not config_path.exists():
+            # No config file found - not an error, just use defaults
+            return None, None
+
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            return config, None
+
+        except json.JSONDecodeError as e:
+            error_msg = (
+                f"⚠️  Configuration Error: Failed to parse {config_path}\n"
+                f"JSON Error: {e.msg} (line {e.lineno}, column {e.colno})\n"
+                f"Using default configuration. Please fix the config file."
+            )
+            logging.error(f"JSON parse error in {config_path}: {e}")
+            return None, error_msg
+
+        except Exception as e:
+            error_msg = (
+                f"⚠️  Configuration Error: Failed to read {config_path}\n"
+                f"Error: {str(e)}\n"
+                f"Using default configuration."
+            )
+            logging.error(f"Error reading config {config_path}: {e}")
+            return None, error_msg
+
+    except Exception as e:
+        # Unexpected error in config path resolution
+        error_msg = f"⚠️  Configuration Error: {str(e)}"
+        logging.error(f"Unexpected error loading config: {e}")
+        return None, error_msg
+
+
 def _load_pattern_server_config():
     """
     Load pattern server configuration from ai-guardian.json.
@@ -981,28 +1033,14 @@ def _load_prompt_injection_config():
     Load prompt injection configuration from ai-guardian.json.
 
     Returns:
-        dict: Prompt injection configuration or None
+        tuple: (config_dict or None, error_message or None)
     """
-    try:
-        # Try user global config first
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        if not config_path.exists():
-            # Try project local config
-            config_path = Path.cwd() / ".ai-guardian.json"
-
-        if not config_path.exists():
-            return None
-
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-
-        return config.get("prompt_injection")
-
-    except Exception as e:
-        logging.debug(f"Error loading prompt injection config: {e}")
-        return None
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return None, error_msg
+    if config is None:
+        return None, None
+    return config.get("prompt_injection"), None
 
 
 def _load_permissions_config():
@@ -1010,28 +1048,14 @@ def _load_permissions_config():
     Load permissions configuration from ai-guardian.json.
 
     Returns:
-        dict: Permissions configuration or None
+        tuple: (config_dict or None, error_message or None)
     """
-    try:
-        # Try user global config first
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        if not config_path.exists():
-            # Try project local config
-            config_path = Path.cwd() / ".ai-guardian.json"
-
-        if not config_path.exists():
-            return None
-
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-
-        return config.get("permissions_enabled")
-
-    except Exception as e:
-        logging.debug(f"Error loading permissions config: {e}")
-        return None
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return None, error_msg
+    if config is None:
+        return None, None
+    return config.get("permissions_enabled"), None
 
 
 def _load_secret_scanning_config():
@@ -1039,28 +1063,14 @@ def _load_secret_scanning_config():
     Load secret scanning configuration from ai-guardian.json.
 
     Returns:
-        dict: Secret scanning configuration or None
+        tuple: (config_dict or None, error_message or None)
     """
-    try:
-        # Try user global config first
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        if not config_path.exists():
-            # Try project local config
-            config_path = Path.cwd() / ".ai-guardian.json"
-
-        if not config_path.exists():
-            return None
-
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-
-        return config.get("secret_scanning")
-
-    except Exception as e:
-        logging.debug(f"Error loading secret scanning config: {e}")
-        return None
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return None, error_msg
+    if config is None:
+        return None, None
+    return config.get("secret_scanning"), None
 
 
 def _extract_block_reason(error_message: str) -> str:
@@ -1937,7 +1947,13 @@ def process_hook_input():
             logging.info(f"Scanning {tool_identifier} output for secrets...")
 
             # Load secret scanning config for ignore lists
-            secret_config = _load_secret_scanning_config()
+            secret_config, config_error = _load_secret_scanning_config()
+
+            # If config has errors, display warning but continue with defaults
+            if config_error:
+                logging.warning("Config error in PostToolUse, displaying warning")
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=config_error)
+
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
 
@@ -1992,7 +2008,9 @@ def process_hook_input():
         # Check tool permissions for PreToolUse events (MCP servers and Skills)
         if hook_event in ["pretooluse", "beforereadfile"] and HAS_TOOL_POLICY:
             try:
-                permissions_config = _load_permissions_config()
+                permissions_config, config_error = _load_permissions_config()
+                if config_error:
+                    warning_messages.append(config_error)
 
                 # Check if permissions enforcement is enabled (supports time-based disabling)
                 if is_feature_enabled(
@@ -2077,7 +2095,9 @@ def process_hook_input():
         # Check for prompt injection BEFORE scanning for secrets
         if HAS_PROMPT_INJECTION:
             try:
-                injection_config = _load_prompt_injection_config()
+                injection_config, config_error = _load_prompt_injection_config()
+                if config_error:
+                    warning_messages.append(config_error)
 
                 # Check if prompt injection detection is enabled (supports time-based disabling)
                 if injection_config and is_feature_enabled(
@@ -2121,7 +2141,9 @@ def process_hook_input():
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for secrets in the content
-        secret_config = _load_secret_scanning_config()
+        secret_config, config_error = _load_secret_scanning_config()
+        if config_error:
+            warning_messages.append(config_error)
 
         # Check if secret scanning is enabled (supports time-based disabling)
         if is_feature_enabled(
