@@ -58,8 +58,16 @@ def test_directory_blocking():
         print("Testing directory blocking feature...")
         print("=" * 70)
 
+        # Use explicit config with block mode (not log mode)
+        test_config = {
+            "directory_rules": {
+                "action": "block",
+                "rules": []
+            }
+        }
+
         # Test 1: Allowed file should not be blocked
-        is_denied, denied_path, _ = check_directory_denied(allowed_file)
+        is_denied, denied_path, _ = check_directory_denied(allowed_file, test_config)
         assert not is_denied, f"FAIL: Allowed file was blocked"
         assert denied_path is None, f"FAIL: Allowed file has denied path"
         print(f"✓ Test 1 PASSED: Allowed file is accessible")
@@ -67,7 +75,7 @@ def test_directory_blocking():
         print(f"  Blocked: {is_denied}")
 
         # Test 2: File in denied directory should be blocked
-        is_denied, denied_path, _ = check_directory_denied(blocked_file)
+        is_denied, denied_path, _ = check_directory_denied(blocked_file, test_config)
         assert is_denied, f"FAIL: Denied file was not blocked"
         assert denied_path == denied_dir, f"FAIL: Wrong denied directory reported"
         print(f"✓ Test 2 PASSED: File in denied directory is blocked")
@@ -76,7 +84,7 @@ def test_directory_blocking():
         print(f"  Denied dir: {denied_path}")
 
         # Test 3: File in subdirectory of denied directory should be blocked
-        is_denied, denied_path, _ = check_directory_denied(deeply_blocked_file)
+        is_denied, denied_path, _ = check_directory_denied(deeply_blocked_file, test_config)
         assert is_denied, f"FAIL: Nested file in denied directory was not blocked"
         assert denied_path == denied_dir, f"FAIL: Wrong denied directory reported for nested file"
         print(f"✓ Test 3 PASSED: Nested file in denied directory is blocked")

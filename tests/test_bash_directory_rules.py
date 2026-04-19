@@ -139,8 +139,20 @@ class TestBashDirectoryRules(unittest.TestCase):
 
             stdin_input = json.dumps(hook_data)
 
+            # Mock config to use block mode (not log mode)
+            mock_config = {
+                "directory_rules": {
+                    "action": "block",
+                    "rules": []
+                }
+            }
+
             with patch('sys.stdin', StringIO(stdin_input)):
-                response = process_hook_input()
+                with patch('ai_guardian.ToolPolicyChecker') as mock_policy_cls:
+                    mock_policy = mock_policy_cls.return_value
+                    mock_policy.config = mock_config
+                    mock_policy.check_tool_allowed.return_value = (True, None, "Read")
+                    response = process_hook_input()
 
             # PreToolUse uses JSON response
             output = json.loads(response["output"])

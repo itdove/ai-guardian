@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Bug #93: Directory rules ignore action=log setting and block instead**
+  - When `directory_rules.action` was set to "log", .ai-read-deny markers still blocked access
+  - Global action setting was not applied when no specific rule matched the path
+  - Fixed by returning global action even when no rules match (applies to .ai-read-deny markers)
+  - Now correctly allows access with warnings in log mode as intended
+  - Added comprehensive test coverage in `tests/test_directory_rules_log_mode_bug.py`
+
 - **Bug #94: Directory rules incorrectly parse Bash command text as file paths**
   - Bash commands were incorrectly treated as file paths in PreToolUse hooks
   - Error messages incorrectly showed "File: daf git create enhancement..." for Bash commands
