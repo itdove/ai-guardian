@@ -249,8 +249,10 @@ class MaintainerBypassTest(TestCase):
             self.assertTrue(result, f"Source file should be allowed for maintainers: {file_path}")
 
     @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_should_skip_source_files_blocked_for_non_maintainers(self, mock_is_maintainer):
-        """Source files blocked for non-maintainers"""
+    def test_should_skip_source_files_allowed_for_contributors(self, mock_is_maintainer):
+        """Source files allowed for contributors (fork + PR workflow)"""
+        # Note: Maintainer check is no longer required for source code editing
+        # This enables standard open-source contribution workflow
         mock_is_maintainer.return_value = False
 
         # Test source files in ai-guardian repo
@@ -261,7 +263,7 @@ class MaintainerBypassTest(TestCase):
 
         for file_path in source_files:
             result = self.policy_checker._should_skip_immutable_protection(file_path, "Write")
-            self.assertFalse(result, f"Source file should be blocked for non-maintainers: {file_path}")
+            self.assertTrue(result, f"Source file should be allowed for contributors: {file_path}")
 
     # ========================================================================
     # Test: Integration with check_tool_allowed
@@ -412,8 +414,10 @@ class MaintainerBypassTest(TestCase):
         self.assertIn("CRITICAL FILE PROTECTED", error_msg)
 
     @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_non_maintainer_cannot_write_source(self, mock_is_maintainer):
-        """Non-maintainer cannot write to source code"""
+    def test_contributor_can_write_source(self, mock_is_maintainer):
+        """Contributors can write to source code (fork + PR workflow)"""
+        # Note: Maintainer check is no longer required for source code editing
+        # This enables standard open-source contribution workflow
         mock_is_maintainer.return_value = False
 
         hook_data = {
@@ -421,15 +425,16 @@ class MaintainerBypassTest(TestCase):
             "tool_use": {
                 "name": "Write",
                 "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py"
+                    "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+                    "content": "# Modified source code"
                 }
             }
         }
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "Non-maintainer should be blocked from source code")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertTrue(is_allowed, "Contributors should be allowed to edit source code")
+        self.assertIsNone(error_msg, "No error for allowed operations")
 
     # ========================================================================
     # Test: Malicious prompt scenarios (Threat Model B)

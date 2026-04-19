@@ -80,6 +80,55 @@ gh pr create --web
 
 See [Handling False Positives](README.md#handling-false-positives) in the README for more configuration options.
 
+## AI-Assisted Development
+
+**You can use Claude or other AI assistants to contribute to ai-guardian!**
+
+### What's Allowed
+
+✅ **Development source code** - You can use AI to edit:
+- Source files: `src/ai_guardian/*.py`
+- Test files: `tests/*.py`
+- Documentation: `*.md`, `*.txt`
+- Configuration: `pyproject.toml`, `.github/workflows/*`
+
+These changes only affect your local development environment until merged.
+
+### What's Always Protected
+
+🔒 **Critical files** - AI assistance is blocked for:
+- **Config files**: `~/.config/ai-guardian/ai-guardian.json`
+- **IDE hooks**: `~/.claude/settings.json`, `~/.cursor/hooks.json`
+- **Cache files**: `~/.cache/ai-guardian/*`
+- **Directory markers**: `.ai-read-deny` files
+- **Pip-installed code**: `/usr/lib/.../site-packages/ai_guardian/*`
+
+These files remain protected even for repository owners to prevent accidental security bypasses.
+
+### Security Model
+
+**Standard open-source workflow:**
+1. You edit code with AI assistance in your local fork
+2. Submit pull request with changes
+3. Maintainers review (looking for backdoors, vulnerabilities)
+4. CI/CD tests run automatically
+5. Community review on public PR
+6. Maintainer merges after approval
+
+**Note**: Pip-installed ai-guardian on users' systems stays protected even if malicious code is in a PR.
+
+### Best Practices
+
+- ⚠️ **Be cautious** when AI suggests changes to security-critical code
+- ✅ **Review carefully** before committing (AI can make mistakes)
+- ✅ **Run tests** before submitting PR: `pytest`
+- ✅ **Small PRs** are easier to review for security issues
+- ⚠️ **Never disable** config/hooks protection for "convenience"
+
+### For Maintainers
+
+Repository collaborators have the same permissions as contributors - config files and hooks remain protected for everyone. This defense-in-depth approach ensures even maintainers can't accidentally compromise the security model.
+
 ## Detailed Setup
 
 ### 1. Fork the Repository

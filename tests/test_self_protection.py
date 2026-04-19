@@ -155,8 +155,8 @@ class SelfProtectionTest(TestCase):
         self.assertIn("package source code", error_msg)
 
     @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_write_blocks_package_source_src(self, mock_is_maintainer):
-        """AI cannot write to src/ai_guardian/ (for non-maintainers)"""
+    def test_write_allows_development_source_for_contributors(self, mock_is_maintainer):
+        """Contributors can write to development src/ai_guardian/ (fork + PR workflow)"""
         mock_is_maintainer.return_value = False
 
         hook_data = {
@@ -164,14 +164,16 @@ class SelfProtectionTest(TestCase):
             "tool_use": {
                 "name": "Write",
                 "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__main__.py"
+                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__main__.py",
+                    "content": "# Modified source"
                 }
             }
         }
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "Write to source code should be blocked")
+        self.assertTrue(is_allowed, "Contributors should be able to write development source code")
+        self.assertIsNone(error_msg, "No error for allowed operations")
 
     # ========================================================================
     # Test: AI cannot modify config files (Edit tool)
@@ -587,8 +589,8 @@ class SelfProtectionTest(TestCase):
         self.assertIn("CRITICAL FILE PROTECTED", error_msg)
 
     @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_write_still_blocks_source_repo(self, mock_is_maintainer):
-        """AI cannot write to ai-guardian/src/ai_guardian/ (verify protection for non-maintainers)"""
+    def test_write_allows_development_source_for_contributors_init(self, mock_is_maintainer):
+        """Contributors can write to ai-guardian/src/ai_guardian/ (fork + PR workflow)"""
         mock_is_maintainer.return_value = False
 
         hook_data = {
@@ -596,15 +598,16 @@ class SelfProtectionTest(TestCase):
             "tool_use": {
                 "name": "Write",
                 "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__init__.py"
+                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__init__.py",
+                    "content": "# Modified source"
                 }
             }
         }
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "Write to ai-guardian/src/ai_guardian should still be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertTrue(is_allowed, "Contributors should be able to write development source")
+        self.assertIsNone(error_msg, "No error for allowed operations")
 
     def test_edit_allows_user_project_with_ai_guardian_in_name(self):
         """AI can edit files in user project with 'ai_guardian' in directory name"""
@@ -1047,8 +1050,8 @@ class SelfProtectionTest(TestCase):
         self.assertIn("with spaces", error_msg)
         self.assertIn("trying to write ABOUT the tool", error_msg)
 
-    def test_error_message_includes_workaround_tip_for_edit_protected_readme(self):
-        """Error message includes tip when editing protected README with ai-guardian in name"""
+    def test_error_message_for_pip_installed_readme(self):
+        """Error message for pip-installed README explains it's production code"""
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
@@ -1064,8 +1067,12 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed)
-        self.assertIn("💡 TIP", error_msg)
-        self.assertIn("ai - guardian", error_msg)
+        # Should explain this is pip-installed production code
+        self.assertIn("Pip-installed", error_msg)
+        self.assertIn("production deployment", error_msg)
+        # Should provide guidance on how to develop
+        self.assertIn("git clone", error_msg)
+        self.assertIn("Development source files CAN be edited", error_msg)
 
     def test_error_message_includes_workaround_tip_for_protected_txt_in_docs(self):
         """Error message includes tip for protected .txt file with ai-guardian in path"""
