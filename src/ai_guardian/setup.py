@@ -30,6 +30,10 @@ class IDESetup:
             "config_path": "~/.claude/settings.json",
             "config_dir_env_var": "CLAUDE_CONFIG_DIR",  # Respects this env var
             "config_filename": "settings.json",
+            # CRITICAL: ai-guardian MUST be the FIRST PostToolUse hook.
+            # Claude Code only displays the first hook's systemMessage field.
+            # Log mode warnings are displayed in PostToolUse - if ai-guardian is not first, warnings are suppressed.
+            # See docs/HOOK_ORDERING.md for details.
             "hooks": {
                 "UserPromptSubmit": [
                     {
@@ -271,9 +275,12 @@ class IDESetup:
             print(f"Error creating backup: {e}", file=sys.stderr)
             return None
 
-    def merge_hooks(self, existing_config: Dict, ai_guardian_hooks: Dict, ide_type: str) -> Dict:
+    def merge_hooks(self, existing_config: Dict, ai_guardian_hooks: Dict, ide_type: str) -> Tuple[Dict, List[str]]:
         """
-        Merge ai-guardian hooks into existing config.
+        Merge ai-guardian hooks into existing config, ensuring ai-guardian is first.
+
+        CRITICAL: ai-guardian MUST be first in PostToolUse for log mode warning visibility.
+        Recommended first in UserPromptSubmit/PreToolUse for consistency.
 
         Args:
             existing_config: Existing IDE configuration
@@ -281,8 +288,12 @@ class IDESetup:
             ide_type: IDE type ('claude' or 'cursor')
 
         Returns:
-            dict: Merged configuration
+            tuple: (merged_config: dict, warnings: list of str)
+                - merged_config: Updated configuration
+                - warnings: List of warning messages if multiple hooks detected
         """
+        warnings = []
+
         if ide_type == "claude":
             # Claude Code: merge into hooks section
             if "hooks" not in existing_config:
@@ -290,10 +301,68 @@ class IDESetup:
 
             # Merge UserPromptSubmit, PreToolUse, and PostToolUse hooks
             for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
-                if hook_name in ai_guardian_hooks:
-                    existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
+                if hook_name not in ai_guardian_hooks:
+                    continue
 
-            return existing_config
+                # Get or create the hook type array
+                if hook_name not in existing_config["hooks"]:
+                    existing_config["hooks"][hook_name] = []
+
+                # Find or create the "*" matcher entry
+                hook_list = existing_config["hooks"][hook_name]
+                star_matcher = None
+                star_matcher_idx = -1
+
+                for idx, entry in enumerate(hook_list):
+                    if isinstance(entry, dict) and entry.get("matcher") == "*":
+                        star_matcher = entry
+                        star_matcher_idx = idx
+                        break
+
+                # If no "*" matcher exists, create it from ai_guardian_hooks
+                if star_matcher is None:
+                    # Use the template from ai_guardian_hooks
+                    existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
+                    continue
+
+                # Get or create hooks array within the matcher
+                if "hooks" not in star_matcher:
+                    star_matcher["hooks"] = []
+
+                hooks_array = star_matcher["hooks"]
+
+                # Find other hooks (not ai-guardian)
+                ai_guardian_exists = False
+                other_hooks = []
+
+                for idx, hook in enumerate(hooks_array):
+                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                        ai_guardian_exists = True
+                    else:
+                        other_hooks.append(hook)
+
+                # Always use the ai-guardian hook from template for consistency
+                template_matcher = ai_guardian_hooks[hook_name][0]
+                ai_guardian_hook = template_matcher["hooks"][0]
+
+                # Check if there are other hooks (warn user about ordering)
+                if other_hooks:
+                    hook_names = []
+                    for h in other_hooks:
+                        if isinstance(h, dict):
+                            cmd = h.get("command", "unknown")
+                            hook_names.append(cmd)
+
+                    warnings.append(
+                        f"⚠️  {hook_name}: Found other hooks [{', '.join(hook_names)}]. "
+                        f"ai-guardian has been placed first to ensure warnings display correctly."
+                    )
+
+                # Rebuild hooks array with ai-guardian first
+                star_matcher["hooks"] = [ai_guardian_hook] + other_hooks
+                existing_config["hooks"][hook_name][star_matcher_idx] = star_matcher
+
+            return existing_config, warnings
 
         elif ide_type == "cursor":
             # Cursor: merge hooks at top level
@@ -310,9 +379,9 @@ class IDESetup:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
 
-            return existing_config
+            return existing_config, warnings
 
-        return existing_config
+        return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
         """
@@ -401,8 +470,9 @@ class IDESetup:
                     return False, f"Invalid JSON in {config_path}: {e}"
 
             # Merge hooks
+            hook_warnings = []
             if ide_type == "claude":
-                merged_config = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
             elif ide_type == "cursor":
                 # For Cursor, we need to merge differently
                 merged_config = existing_config.copy()
@@ -445,6 +515,16 @@ class IDESetup:
             message = f"✓ Successfully configured {ide_name} hooks at {config_path}\n"
             message += f"\n  {gitleaks_message}\n"
 
+            # Display hook ordering warnings if any
+            if hook_warnings:
+                message += "\n  Hook Ordering:\n"
+                for warning in hook_warnings:
+                    message += f"  {warning}\n"
+                message += (
+                    "\n  📚 For more information about hook ordering, see:\n"
+                    "     https://github.com/itdove/ai-guardian/blob/main/docs/HOOK_ORDERING.md\n"
+                )
+
             if not gitleaks_installed:
                 message += (
                     "\n  ⚠️  WARNING: Secret scanning will be disabled without Gitleaks!\n"
@@ -464,6 +544,50 @@ class IDESetup:
 
         except Exception as e:
             return False, f"Error setting up IDE hooks: {e}"
+
+    def migrate_pattern_server_config(self, config: Dict) -> Tuple[bool, Dict]:
+        """
+        Migrate old root-level pattern_server config to new nested structure.
+
+        NEW in v1.7.0: pattern_server should be nested under secret_scanning.
+
+        Args:
+            config: Configuration dictionary to migrate
+
+        Returns:
+            tuple: (migrated: bool, updated_config: dict)
+                - migrated: True if migration was performed, False if no migration needed
+                - updated_config: Migrated configuration
+        """
+        # Check if old root-level pattern_server exists
+        if "pattern_server" not in config:
+            return False, config
+
+        # Check if already migrated (nested under secret_scanning)
+        secret_scanning = config.get("secret_scanning", {})
+        if "pattern_server" in secret_scanning:
+            # Already has new structure, remove old root-level one
+            old_pattern_server = config.pop("pattern_server")
+            return True, config
+
+        # Perform migration: move to secret_scanning.pattern_server
+        old_pattern_server = config.pop("pattern_server")
+
+        # Remove deprecated 'enabled' field
+        if isinstance(old_pattern_server, dict) and "enabled" in old_pattern_server:
+            enabled = old_pattern_server.pop("enabled")
+            # If it was explicitly disabled, set to null instead
+            if not enabled:
+                old_pattern_server = None
+
+        # Ensure secret_scanning section exists
+        if "secret_scanning" not in config:
+            config["secret_scanning"] = {}
+
+        # Move pattern_server under secret_scanning
+        config["secret_scanning"]["pattern_server"] = old_pattern_server
+
+        return True, config
 
     def setup_remote_config(self, url: str, dry_run: bool = False) -> Tuple[bool, str]:
         """
@@ -533,13 +657,93 @@ class IDESetup:
         except Exception as e:
             return False, f"Error setting up remote config: {e}"
 
+    def check_and_migrate_pattern_server(
+        self,
+        dry_run: bool = False,
+        interactive: bool = True
+    ) -> Tuple[bool, str]:
+        """
+        Check for old pattern_server config and offer to migrate.
+
+        Args:
+            dry_run: If True, show what would be changed without applying
+            interactive: If True, prompt user for confirmation
+
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            # Get config path
+            config_dir = get_config_dir()
+            config_path = config_dir / "ai-guardian.json"
+
+            # Check if config exists
+            if not config_path.exists():
+                return True, "No ai-guardian.json found - nothing to migrate"
+
+            # Load config
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except json.JSONDecodeError as e:
+                return False, f"Invalid JSON in {config_path}: {e}"
+
+            # Check if migration needed
+            migrated, updated_config = self.migrate_pattern_server_config(config)
+
+            if not migrated:
+                return True, "✓ Configuration already using new structure (v1.7.0+)"
+
+            # Show what will change
+            message = f"Found deprecated pattern_server configuration at root level.\n"
+            message += f"Will migrate to new structure (v1.7.0+): secret_scanning.pattern_server\n\n"
+
+            if dry_run:
+                message += f"[DRY RUN] Would update {config_path}:\n"
+                message += json.dumps(updated_config, indent=2)
+                return True, message
+
+            # Confirm with user if interactive
+            if interactive:
+                print(message)
+                print(f"Config file: {config_path}")
+                try:
+                    response = input("\nMigrate now? [y/N]: ")
+                    if response.lower() not in ['y', 'yes']:
+                        return False, "Migration cancelled"
+                except KeyboardInterrupt:
+                    return False, "\nMigration cancelled"
+
+            # Create backup
+            backup_path = self.backup_config(config_path)
+            if backup_path:
+                print(f"✓ Backup created: {backup_path}", file=sys.stderr)
+
+            # Write migrated config
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(updated_config, f, indent=2)
+                f.write('\n')  # Add trailing newline
+
+            message = f"✓ Successfully migrated pattern_server configuration\n"
+            message += f"  Config file: {config_path}\n"
+            message += f"  Backup: {backup_path}\n"
+            message += f"\n  Changes:\n"
+            message += f"  • Moved pattern_server from root level to secret_scanning.pattern_server\n"
+            message += f"  • Removed deprecated 'enabled' field (presence = enabled)\n"
+
+            return True, message
+
+        except Exception as e:
+            return False, f"Error migrating pattern_server config: {e}"
+
 
 def setup_hooks(
     ide_type: Optional[str] = None,
     remote_config_url: Optional[str] = None,
     dry_run: bool = False,
     force: bool = False,
-    interactive: bool = True
+    interactive: bool = True,
+    migrate_pattern_server: bool = False
 ) -> bool:
     """
     Setup IDE hooks with optional remote config.
@@ -550,11 +754,25 @@ def setup_hooks(
         dry_run: If True, show what would be changed without applying
         force: If True, overwrite existing hooks
         interactive: If True, prompt user for confirmation
+        migrate_pattern_server: If True, check and migrate old pattern_server config
 
     Returns:
         bool: True if successful, False otherwise
     """
     setup = IDESetup()
+
+    # Handle pattern_server migration if requested
+    if migrate_pattern_server:
+        success, message = setup.check_and_migrate_pattern_server(
+            dry_run=dry_run,
+            interactive=interactive
+        )
+        print(message)
+        if not success and not message.endswith("cancelled"):
+            return False
+        # If only migrating (no IDE setup or remote config), return early
+        if ide_type is None and not remote_config_url:
+            return success
 
     # Handle remote config setup if requested
     if remote_config_url:
@@ -562,6 +780,9 @@ def setup_hooks(
         print(message)
         if not success:
             return False
+        # If only setting up remote config (no IDE setup), return early
+        if ide_type is None and not migrate_pattern_server:
+            return success
 
     # Auto-detect IDE if not specified
     if not ide_type:

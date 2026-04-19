@@ -104,8 +104,16 @@
     },
     "secret_scanning": {
       "type": "object",
-      "description": "Secret scanning with Gitleaks control (NEW in v1.4.0). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats.",
+      "description": "Secret scanning with Gitleaks control (NEW in v1.4.0). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats. NOTE: Currently hardcoded to Gitleaks only - multi-engine support (engines field) planned for v2.0.0.",
       "properties": {
+        "engines": {
+          "type": "array",
+          "description": "RESERVED/FUTURE: List of secret scanning engines to use (planned for v2.0.0). Currently not implemented - Gitleaks is always used regardless of this setting. Future engines: gitleaks, trufflehog, detect-secrets, secretlint.",
+          "items": {
+            "type": "string"
+          },
+          "default": ["gitleaks"]
+        },
         "enabled": {
           "oneOf": [
             {
@@ -138,26 +146,111 @@
             "type": "string"
           },
           "default": []
+        },
+        "pattern_server": {
+          "type": ["object", "null"],
+          "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server (NEW in v1.7.0: nested under secret_scanning). Configure this section to use enterprise patterns instead of Gitleaks defaults. Presence = enabled, null or absence = disabled (use defaults). Supports cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults.",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": {
+              "oneOf": [
+                {
+                  "type": "boolean",
+                  "description": "DEPRECATED: Use presence/absence of pattern_server section instead. Will be removed in v2.0.0."
+                },
+                {
+                  "$ref": "#/definitions/time_based_feature"
+                }
+              ],
+              "default": false
+            },
+            "url": {
+              "type": ["string", "null"],
+              "description": "Pattern server base URL (required if using pattern server)"
+            },
+            "patterns_endpoint": {
+              "type": "string",
+              "description": "Endpoint path for patterns (appended to url)",
+              "default": "/patterns/gitleaks/8.18.1"
+            },
+            "warn_on_failure": {
+              "type": "boolean",
+              "description": "Show warning when pattern server fails (auth errors, network errors, etc). Default: true. Set to false to suppress warnings.",
+              "default": true
+            },
+            "immutable": {
+              "type": "boolean",
+              "description": "If true, local configs cannot override this pattern_server section. Used in remote configs to enforce enterprise policies.",
+              "default": false
+            },
+            "auth": {
+              "type": "object",
+              "description": "Authentication configuration for pattern server",
+              "additionalProperties": true,
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": ["bearer", "token"],
+                  "description": "Authentication method",
+                  "default": "bearer"
+                },
+                "token_env": {
+                  "type": "string",
+                  "description": "Environment variable name containing auth token"
+                },
+                "token_file": {
+                  "type": "string",
+                  "description": "Path to file containing auth token (supports ~ expansion)"
+                }
+              }
+            },
+            "cache": {
+              "type": "object",
+              "description": "Pattern cache configuration",
+              "additionalProperties": true,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Cache file path (supports ~ expansion)",
+                  "default": "~/.cache/ai-guardian/patterns.toml"
+                },
+                "refresh_interval_hours": {
+                  "type": "number",
+                  "description": "Hours between automatic pattern refresh",
+                  "default": 12,
+                  "minimum": 1
+                },
+                "expire_after_hours": {
+                  "type": "number",
+                  "description": "Hours until cached patterns expire",
+                  "default": 168,
+                  "minimum": 1
+                }
+              }
+            }
+          }
         }
       },
       "additionalProperties": true
     },
     "pattern_server": {
       "type": "object",
-      "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server. Most users should use default Gitleaks patterns. Supports time-based disabling (NEW in v1.4.0).",
+      "description": "DEPRECATED: Move to secret_scanning.pattern_server (v1.7.0+). This root-level location is supported for backward compatibility but will be removed in v2.0.0.",
+      "deprecated": true,
       "additionalProperties": true,
       "properties": {
         "enabled": {
           "oneOf": [
             {
               "type": "boolean",
-              "description": "Simple boolean format for permanent enable/disable"
+              "description": "DEPRECATED: Use presence/absence of pattern_server section instead"
             },
             {
               "$ref": "#/definitions/time_based_feature"
             }
           ],
-          "default": false
+          "default": false,
+          "deprecated": true
         },
         "immutable": {
           "type": "boolean",
@@ -242,6 +335,12 @@
           ],
           "default": true
         },
+        "action": {
+          "type": "string",
+          "enum": ["block", "log"],
+          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'log' logs violation but allows execution (audit mode)",
+          "default": "block"
+        },
         "immutable": {
           "type": "boolean",
           "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
@@ -308,9 +407,72 @@
         }
       }
     },
+    "directory_rules": {
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "DEPRECATED: Array format. Use object format with action field instead.",
+          "items": {
+            "type": "object",
+            "required": ["mode", "paths"],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["allow", "deny"]
+              },
+              "paths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "description": "Order-based directory access control rules (NEW in v1.6.0). Rules are evaluated sequentially with last match winning. Supports flexible allow/deny patterns for enterprise skill allowlists and path restrictions.",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["block", "log"],
+              "description": "Action on violation: 'block' prevents access (default), 'log' logs violation but allows access (audit mode). Applies to ALL rules.",
+              "default": "block"
+            },
+            "rules": {
+              "type": "array",
+              "description": "List of directory access rules evaluated in order (last match wins)",
+              "items": {
+                "type": "object",
+                "required": ["mode", "paths"],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": ["allow", "deny"],
+                    "description": "Access mode: 'allow' permits access, 'deny' blocks access"
+                  },
+                  "paths": {
+                    "type": "array",
+                    "description": "Directory paths for this rule. Supports ~ expansion, ** for recursive, * for single level.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "default": {"action": "block", "rules": []}
+    },
     "directory_exclusions": {
       "type": "object",
-      "description": "Directory exclusions for .ai-read-deny blocking (NEW in v1.5.0). CRITICAL: .ai-read-deny markers ALWAYS take precedence over exclusions.",
+      "description": "DEPRECATED: Use directory_rules instead. Directory exclusions can override .ai-read-deny blocking (v1.5.0). Automatically converted to directory_rules internally.",
+      "deprecated": true,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -324,7 +486,7 @@
         },
         "paths": {
           "type": "array",
-          "description": "Directory paths to exclude from .ai-read-deny blocking. Supports ~ expansion, ** for recursive, * for single level. .ai-read-deny markers ALWAYS block (no config can override).",
+          "description": "Directory paths to exclude from .ai-read-deny blocking (exclusions override deny markers). Supports ~ expansion, ** for recursive, * for single level. Ideal for enterprise skill allowlists.",
           "items": {
             "type": "string"
           },
@@ -362,6 +524,12 @@
               }
             ]
           }
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "log"],
+          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'log' logs violation but allows execution (audit mode)",
+          "default": "block"
         },
         "immutable": {
           "type": "boolean",

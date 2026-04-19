@@ -153,44 +153,38 @@
       "value": false,
       "disabled_until": "2026-04-13T16:00:00Z",
       "reason": "Testing with known-safe example secrets"
-    }
-  },
-
-  "pattern_server": {
-    "_comment": "Optional: Enhanced secret detection patterns from a pattern server",
-    "_comment2": "This is an ADVANCED feature - most users should use default Gitleaks patterns",
-    "_comment3": "Configure your organization's pattern server URL and authentication",
-    "_comment4": "NEW in v1.4.0: Supports time-based disabling (like other features)",
-    "enabled": false,
-    "_simple_format": "false (boolean - permanent enable/disable)",
-    "_extended_format_example": {
-      "value": false,
-      "disabled_until": "2026-04-13T16:30:00Z",
-      "reason": "Maintenance window - pattern server offline"
     },
-    "_immutable_example_remote_config": {
-      "_comment": "In remote config: Enforce custom pattern server that cannot be overridden",
-      "enabled": true,
-      "url": "https://company.com/patterns",
-      "immutable": true,
-      "_explanation": "Enterprise pattern server - local configs cannot disable or override"
-    },
-    "url": null,
-    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
-    "warn_on_failure": true,
-    "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",
-    "auth": {
-      "method": "bearer",
-      "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
-      "token_file": "~/.config/ai-guardian/pattern-token",
-      "_comment": "Token auth: Set env var OR save to token_file (pick one method)",
-      "_comment2": "Get token from your pattern server's web interface"
-    },
-    "cache": {
-      "path": "~/.cache/ai-guardian/patterns.toml",
-      "refresh_interval_hours": 12,
-      "expire_after_hours": 168,
-      "_comment": "Patterns auto-refresh every 12h, expire after 7 days"
+    "_pattern_server_comment": "NEW in v1.7.0: pattern_server nested under secret_scanning (was at root level)",
+    "pattern_server": {
+      "_comment": "Optional: Enhanced secret detection patterns from a pattern server",
+      "_comment2": "This is an ADVANCED feature - most users should use default Gitleaks patterns",
+      "_comment3": "Presence of this section = enabled. To disable: set to null or remove entirely.",
+      "_comment4": "Cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults",
+      "_usage": "Remove this entire 'pattern_server' section if you don't need it (will use defaults)",
+      "_immutable_example_remote_config": {
+        "_comment": "In remote config: Enforce custom pattern server that cannot be overridden",
+        "url": "https://company.com/patterns",
+        "immutable": true,
+        "_explanation": "Enterprise pattern server - local configs cannot disable or override"
+      },
+      "url": null,
+      "_url_comment": "Set to your pattern server URL to enable. Example: 'https://patterns.security.redhat.com'",
+      "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+      "warn_on_failure": true,
+      "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
+        "token_file": "~/.config/ai-guardian/pattern-token",
+        "_comment": "Token auth: Set env var OR save to token_file (pick one method)",
+        "_comment2": "Get token from your pattern server's web interface"
+      },
+      "cache": {
+        "path": "~/.cache/ai-guardian/patterns.toml",
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168,
+        "_comment": "Patterns auto-refresh every 12h, expire after 7 days"
+      }
     }
   },
 

@@ -58,7 +58,9 @@ cp ai-guardian-example.json ~/.config/ai-guardian/ai-guardian.json
 
 The `ai-guardian setup` command automatically configures IDE hooks for you.
 
-**⚠️ IMPORTANT:** Run `ai-guardian setup` after upgrading to get the latest security hooks. New versions may add additional hooks (e.g., PostToolUse for output scanning).
+**⚠️ IMPORTANT:** 
+- Run `ai-guardian setup` after upgrading to get the latest security hooks. New versions may add additional hooks (e.g., PostToolUse for output scanning).
+- If you manually add other hooks, **ai-guardian MUST be the first PostToolUse hook** (required for log mode warnings). UserPromptSubmit ordering only matters if using prompt injection log mode. See [Hook Ordering Documentation](docs/HOOK_ORDERING.md) for details.
 
 ### Basic Usage
 
@@ -430,6 +432,84 @@ Multi-layered secret detection before AI interactions:
 - `ignore_tools` - Skip scanning for specific tools (rarely needed)
 - See [False Positives](#secret-scanning-false-positives) for detailed usage
 
+### 📊 Action Modes: Log vs Block
+**NEW in v1.7.0**: Configurable action for each security policy - choose between audit mode and blocking mode:
+
+- **`"block"` mode** (default): Prevent execution when policy is violated - strict security
+- **`"log"` mode**: Log violations but allow execution - audit/inform mode for gradual rollout
+
+**Why "log" instead of "warn"?**
+- Claude Code hooks don't display non-blocking messages to users (exit 0 = no output shown)
+- Violations are logged at WARNING level for audit purposes
+- TUI and log files capture all violations regardless of mode
+- "Log mode" accurately describes behavior: violations logged but execution allowed
+
+**Use cases for log mode:**
+- 🔄 **Gradual policy rollout**: Start with "log" to identify false positives, then switch to "block"
+- 📊 **Policy testing**: Monitor what would be blocked without disrupting users
+- 🏢 **Compliance audit**: Track violations for review without blocking workflow
+- 🧪 **Development/testing**: Allow operations during development while tracking policy violations
+
+**Available for all detection areas:**
+
+**Tool permissions** (per-rule):
+```json
+{
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["approved-skill"],
+      "action": "log"
+    }
+  ]
+}
+```
+
+**Secret scanning** (global):
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "action": "log"
+  }
+}
+```
+
+**Prompt injection** (global):
+```json
+{
+  "prompt_injection": {
+    "enabled": true,
+    "detector": "heuristic",
+    "action": "log"
+  }
+}
+```
+
+**Directory rules** (per-rule):
+```json
+{
+  "directory_rules": [
+    {
+      "mode": "deny",
+      "paths": ["~/.claude/skills/**"],
+      "action": "log"
+    }
+  ]
+}
+```
+
+**Logging levels:**
+- Log mode: Violations logged at **WARNING** level
+- Block mode: Violations logged at **ERROR** level
+
+**Violation tracking:**
+- All violations are logged to ViolationLogger regardless of action mode
+- View violations in TUI with `ai-guardian tui`
+- Violations include timestamp, type, details, and suggested fixes
+- Perfect for compliance auditing and security monitoring
+
 ### 🎛️ MCP Server & Skill Permissions
 Control which MCP servers and skills Claude Code can use with fine-grained allow/deny lists:
 
@@ -536,7 +616,9 @@ Auto-detects IDE type and uses the appropriate response format.
 ## Requirements
 
 - **Python 3.9 or higher**
-- **Gitleaks 8.x** - Open-source secret scanner
+- **Gitleaks 8.x** - Open-source secret scanner (currently the only supported engine)
+
+> **Note**: Multi-engine support (TruffleHog, detect-secrets, etc.) is planned for v2.0.0. See [docs/MULTI_ENGINE_SUPPORT.md](docs/MULTI_ENGINE_SUPPORT.md) for details.
 
 ### Installing Gitleaks
 
@@ -1300,43 +1382,89 @@ If you get too many false positives, lower the sensitivity:
 
 ### Pattern Server (Advanced)
 
-**⚠️ IMPORTANT:** Pattern Server is currently **NOT used** for Gitleaks secret scanning. This is an optional enterprise feature reserved for future use.
+**Optional enterprise feature** for fetching custom secret detection patterns from a centralized server instead of using Gitleaks' built-in patterns.
 
-**Current Behavior:** AI Guardian uses Gitleaks' built-in patterns for secret detection. Pattern server integration exists in the codebase but is intentionally disabled to ensure comprehensive coverage of standard secret types (AWS keys, GitHub tokens, RSA keys, etc.).
+**Purpose:** Organizations can maintain custom pattern definitions for:
+- Organization-specific secret formats
+- Internal API key patterns  
+- Custom token formats
+- Compliance-specific detection rules
 
-**Why disabled?** Pattern servers typically contain organization-specific patterns and may lack default Gitleaks rules for common secrets. Using them could result in missed detections.
+**When to use:**
+- ✅ Enterprise environments with custom secret types
+- ✅ Compliance requirements for specific pattern coverage
+- ✅ Centralized pattern management across teams
+
+**When NOT needed:**
+- ✅ Individual developers (Gitleaks defaults are comprehensive)
+- ✅ Standard secret types (AWS, GitHub, RSA keys - already in Gitleaks)
+
+⚠️ **Warning:** Pattern servers must include default Gitleaks patterns AND custom patterns. Organization-only patterns may miss common secrets.
 
 **Configuration (`~/.config/ai-guardian/ai-guardian.json`):**
 
+**NEW in v1.7.0:** `pattern_server` is now nested under `secret_scanning` for clearer scoping.
+
 ```json
 {
-  "pattern_server": {
+  "secret_scanning": {
     "enabled": true,
-    "url": "https://your-pattern-server.example.com",
-    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
-    "auth": {
-      "method": "bearer",
-      "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
-      "token_file": "~/.config/ai-guardian/pattern-token"
-    },
-    "cache": {
-      "path": "~/.cache/ai-guardian/patterns.toml",
-      "refresh_interval_hours": 12,
-      "expire_after_hours": 168
+    "action": "block",
+    "pattern_server": {
+      "url": "https://patterns.security.redhat.com",
+      "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
+        "token_file": "~/.config/ai-guardian/pattern-token"
+      },
+      "cache": {
+        "path": "~/.cache/ai-guardian/patterns.toml",
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168
+      },
+      "warn_on_failure": true
     }
   }
 }
 ```
 
-**Note:** Even if configured, this section is not currently used by Gitleaks secret scanning. It's reserved for future enhancements.
+**Simplified configuration:**
+- ✅ **No `enabled` field needed** - presence of section = enabled
+- ✅ **To disable**: Set `pattern_server` to `null` or remove section
+- ✅ **Backward compatible**: Old root-level config still works (with deprecation warning)
 
-### Gitleaks Secret Scanning Configuration
+**How it works:**
+1. Patterns fetched from server on first use
+2. Cached locally for 12 hours (configurable)
+3. Auto-refreshed when cache expires
+4. Falls back to defaults if server unavailable
 
-**Actual Configuration Priority (Current Implementation):**
-1. **Project `.gitleaks.toml`** (if exists in current directory) - highest priority
-2. **Gitleaks built-in patterns** - comprehensive default coverage
+**Migrating from v1.6.0:**
 
-**Pattern Server is NOT consulted** - See code comment in `src/ai_guardian/__init__.py:1100-1103`
+If you have old root-level `pattern_server` config, migrate to new nested structure:
+
+```bash
+# Dry run - see what would change
+ai-guardian setup --migrate-pattern-server --dry-run
+
+# Migrate (interactive - prompts for confirmation)
+ai-guardian setup --migrate-pattern-server
+
+# Migrate (non-interactive)
+ai-guardian setup --migrate-pattern-server --yes
+```
+
+**See:**
+- [docs/SECRET_SCANNING_VS_PATTERN_SERVER.md](docs/SECRET_SCANNING_VS_PATTERN_SERVER.md) - Detailed explanation
+- [docs/PATTERN_SERVER_MIGRATION_GUIDE.md](docs/PATTERN_SERVER_MIGRATION_GUIDE.md) - Step-by-step migration guide
+
+### Gitleaks Pattern Priority
+
+**Pattern source priority (highest to lowest):**
+1. **Pattern Server** (if enabled and reachable) - Enterprise patterns
+2. **Project `.gitleaks.toml`** (if exists in current directory) - Project overrides
+3. **Gitleaks built-in patterns** - Default fallback (100+ rules)
 
 #### Error Handling and Fallback Behavior
 

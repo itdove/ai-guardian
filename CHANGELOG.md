@@ -8,70 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **ignore_tools** configuration for prompt injection and secret scanning (Issue #84)
-  - Skip detection for specific tools using patterns: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
-  - Granular control: ignore specific skills (e.g., `"Skill:code-review"`) or all skills (`"Skill"` or `"Skill:*"`)
-  - Composite tool identifiers: automatically created for Skill tools (e.g., `"Skill:code-review"`)
-  - **PreToolUse + PostToolUse correlation**: ignore_tools patterns now work on BOTH:
-    - PreToolUse: tool inputs (e.g., Skill reading SKILL.md documentation)
-    - PostToolUse: tool outputs (e.g., Skill execution results)
-    - Correlation ensures cached tool results inherit ignore from original invocation
-  - Supports wildcards: `*` (any chars), `?` (single char)
-  - Use case: Skill documentation with example attack patterns no longer triggers false positives
-  - Available in both `prompt_injection` and `secret_scanning` configuration sections
-- **ignore_files** configuration for prompt injection and secret scanning (Issue #84)
-  - Skip detection for specific files using glob patterns
-  - Supports glob wildcards: `*` (any chars except /), `**` (any chars including /), `?` (single char)
-  - Supports tilde expansion: `~` expands to home directory
-  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/.claude/projects/**/tool-results/**"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
-  - Use cases: SKILL.md files, cached tool results, test fixtures with fake credentials, example configuration files
-  - Recommended pattern for skills: `"**/.claude/projects/**/tool-results/**"` prevents re-scanning cached skill outputs
-  - Available in both `prompt_injection` and `secret_scanning` configuration sections
-- **Defense in depth**: Use both `ignore_tools` and `ignore_files` together for comprehensive false positive handling
-- Comprehensive test coverage: 10 new tests for `ignore_tools`, 9 new tests for `ignore_files`
-- Example configuration files: `examples/ignore-tools-config.json`, `examples/secret-scanning-ignore-config.json`
+- **User-friendly error handling for malformed configuration files**
+  - Clear JSON parsing errors displayed via systemMessage in all hook types
+  - Error messages include file path, line number, column number, and problem description
+  - Fail-open with warning: continues with default configuration when config has errors
+  - Centralized config loading with `_load_config_file()` function
+  - Comprehensive test coverage in `tests/test_config_error_handling.py`
+  - Prevents silent failures when configuration JSON is malformed
 
-### Changed
+- **Action levels (log vs block)** for audit mode and gradual policy rollout (Issues #84, #88)
+  - Configure `action: "log"` to audit violations without blocking
+  - Configure `action: "block"` to enforce policies
+  - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
+  - Secret scanning always blocks (no action field for security)
+  - Log mode displays clear warnings: `PreToolUse:ToolName says: ⚠️ Policy violation (log mode): ...`
+
+- **ignore_tools and ignore_files** for false positive handling (Issue #84)
+  - Skip detection for specific tools: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
+  - Skip detection for specific files: `"**/.claude/skills/*/SKILL.md"`
+  - Works for both prompt injection and secret scanning
+
+- **Smart hook ordering in setup command**
+  - `ai-guardian setup` ensures ai-guardian is first in all hooks arrays
+  - Preserves existing hooks after ai-guardian
+  - Warns if multiple hooks detected
+  - Critical for log mode warning visibility - see `docs/HOOK_ORDERING.md`
+
+- **Reserved `secret_scanning.engines` field** for future multi-engine support
+  - Not yet implemented - reserved for v2.0.0
+  - See `docs/MULTI_ENGINE_SUPPORT.md` for roadmap (Issue #91)
+
+### Changed (Breaking Changes)
+- **Restructured `directory_rules` configuration**
+  - Moved `action` from per-rule to top-level (applies to all rules)
+  - New format: `{"action": "log", "rules": [{"mode": "deny", "paths": [...]}]}`
+  - Old format still supported: `[{"mode": "deny", "paths": [...]}]` (defaults to `action: "block"`)
+
 - **Improved policy blocking messages** (Issue #88)
-  - Added "🚨 BLOCKED BY POLICY" header to **all blocking messages** for consistency:
-    - Tool permission denials (immutable files, deny patterns, no permission rules)
-    - Secret detection (gitleaks findings)
-    - Prompt injection detection
-    - Directory protection (.ai-read-deny markers)
-    - Authentication errors (gitleaks auth failures)
-  - Log messages now include specific reason for blocking:
-    - Before: `"Tool 'Bash' blocked by policy"`
-    - After: `"🚨 BLOCKED BY POLICY: Tool 'Bash' - Critical file protected: ai-guardian config"`
-  - Added explicit anti-bypass language to **all** blocking messages to prevent AI agents from retrying:
-    - Tool policy: "DO NOT attempt workarounds - the protection is intentional"
-    - Secret detection: "DO NOT attempt to bypass this protection - it prevents credential leaks"
-    - Prompt injection: "DO NOT attempt to bypass this protection - it prevents malicious prompts"
-    - Directory protection: "DO NOT attempt workarounds - the protection is intentional"
-    - Authentication errors: "DO NOT attempt to bypass this protection - fix the authentication issue"
-  - Error messages now clearly explain WHY operations are blocked
-  - New `_extract_block_reason()` helper extracts concise reasons for logging:
-    - "Critical file protected: ai-guardian config"
-    - "Matched deny pattern: *.env"
-    - "No permission rule configured"
-    - "Not in allow list"
-  - Comprehensive test coverage: 10 new tests in `test_block_reason_extraction.py`
-  - Updated all error message tests to verify "🚨 BLOCKED BY POLICY" header
-- **Improved logging for debugging false positives**
-  - Log messages now include full file paths (not just filenames)
-  - Before: `"Scanning file 'SKILL.md' for secrets..."`
-  - After: `"Scanning file 'SKILL.md' (/home/user/.claude/skills/foo/SKILL.md) for secrets..."`
-  - Prompt injection warnings now include file path: `"Prompt injection detected in /path/to/file, blocking operation"`
-  - Makes it easy to identify which specific file triggered detection
-  - Helps users quickly add files to `ignore_files` configuration
+  - Added "🚨 BLOCKED BY POLICY" header with clear reasons
+  - Tool display names show parameters: `Skill(database-migration)`, `Read(config.json)`
+  - Anti-bypass language to prevent AI retry attempts
 
 ### Fixed
-- **CRITICAL: Bash tool bypass vulnerability** (discovered during code review)
-  - Root cause: PostToolUse hook checked `output`, `content`, `result` fields but NOT `stdout`/`stderr`
-  - Impact: Bash tool could read secrets/injections without detection (e.g., `Bash(command="cat ~/.aws/credentials")`)
-  - Fix: Added `stdout` and `stderr` extraction in `extract_tool_result()`
-  - Both streams now combined and scanned for secrets and prompt injections
-  - 12 new tests covering Bash output scanning
-  - All tool outputs now scanned equally (Read, Bash, Grep, etc.)
+- **Improved clarity of directory access log mode warnings**
+  - Changed confusing "Directory access violation...access allowed" to clearer format
+  - Now shows: "Policy violation (log mode): Directory rules deny 'path' but allowed for audit"
+  - Includes the denied directory/file path in warning messages
+  - Eliminates contradictory language that confused users
+
+- **CRITICAL: Bash tool bypass vulnerability**
+  - PostToolUse now scans Bash `stdout`/`stderr` for secrets and prompt injection
+  - Previously only checked `output`, `content`, `result` fields
+
+### Security
+- **Secret scanning always blocks** - no `action` field available for security reasons
+- **KNOWN LIMITATION**: When blocking UserPromptSubmit secrets, Claude Code displays the blocked prompt (with secret) in terminal output. The secret does NOT reach Claude's API or conversation history, but is visible in the user's local terminal. See `docs/SECRET_REDACTION.md` for details.
+
+### Documentation
+- Added `docs/SECRET_REDACTION.md` - Defense-in-depth secret redaction layers
+- Added `docs/MULTI_ENGINE_SUPPORT.md` - Multi-engine support roadmap
+- Added `docs/HOOK_ORDERING.md` - Hook ordering requirements for log mode warnings
 
 ## [1.3.0] - 2026-04-16
 

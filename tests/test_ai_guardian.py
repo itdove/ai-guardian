@@ -159,7 +159,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_clean_prompt(self, mock_check_secrets, mock_load_config):
         """Test processing clean prompt input"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         hook_input = json.dumps({
@@ -172,14 +172,16 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         self.assertEqual(response["exit_code"], 0, "Clean prompt should return exit code 0")
-        self.assertIsNone(response["output"], "Clean Claude Code prompt should have no output")
+        # UserPromptSubmit now returns empty JSON for allow
+        output = json.loads(response["output"])
+        self.assertEqual(output, {}, "Clean prompt should return empty JSON")
         mock_check_secrets.assert_called_once()
 
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_with_secret(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
@@ -190,7 +192,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         with patch('sys.stdin', StringIO(hook_input)):
             response = ai_guardian.process_hook_input()
 
-        self.assertEqual(response["exit_code"], 2, "Secret detection should return exit code 2")
+        # UserPromptSubmit now uses JSON response format (not exit codes)
+        self.assertEqual(response["exit_code"], 0, "Exit code should be 0 with JSON response")
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block", "Should block when secret detected")
+        self.assertIn("SECRET DETECTED", output["reason"])
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
 
     def test_process_hook_input_empty_prompt(self):
         """Test processing empty prompt"""
@@ -262,7 +269,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_with_multiline_prompt(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with multiple lines"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         multiline_prompt = "Line 1\nLine 2\nLine 3"
@@ -283,7 +290,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_with_unicode(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with Unicode characters"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         unicode_prompt = "Hello 世界 🔒 Здравствуй"
@@ -354,7 +361,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_secret_detection_integration(self, mock_pattern_config, mock_secret_config):
         """Integration test: End-to-end secret detection"""
         # Enable secret scanning
-        mock_secret_config.return_value = None  # Use default (enabled)
+        mock_secret_config.return_value = (None, None)  # Use default (enabled)
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
 
@@ -374,7 +381,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             secret_input = json.dumps({"prompt": "My token: ghp_16C0123456789abcdefghijklmTEST0000"})
             with patch('sys.stdin', StringIO(secret_input)):
                 response = ai_guardian.process_hook_input()
-            self.assertEqual(response["exit_code"], 2)
+            # UserPromptSubmit now uses JSON response format
+            self.assertEqual(response["exit_code"], 0)
+            output = json.loads(response["output"])
+            self.assertEqual(output["decision"], "block")
 
         except (FileNotFoundError, subprocess.CalledProcessError):
             self.skipTest("Gitleaks binary not available for integration test")
@@ -434,7 +444,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_cursor_format_with_secret(self, mock_check_secrets, mock_load_config):
         """Test Cursor format with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         error_msg = "SECRET DETECTED"
         mock_check_secrets.return_value = (True, error_msg)
 
@@ -456,23 +466,31 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(output_data["user_message"], error_msg)
 
     def test_format_response_claude_code_allow(self):
-        """Test format_response for Claude Code (allow)"""
+        """Test format_response for Claude Code UserPromptSubmit (allow)"""
         response = ai_guardian.format_response(
             ai_guardian.IDEType.CLAUDE_CODE,
-            has_secrets=False
+            has_secrets=False,
+            hook_event="prompt"
         )
-        self.assertIsNone(response["output"])
+        # UserPromptSubmit returns empty JSON for allow
+        output = json.loads(response["output"])
+        self.assertEqual(output, {})
         self.assertEqual(response["exit_code"], 0)
 
     def test_format_response_claude_code_block(self):
-        """Test format_response for Claude Code (block)"""
+        """Test format_response for Claude Code UserPromptSubmit (block)"""
         response = ai_guardian.format_response(
             ai_guardian.IDEType.CLAUDE_CODE,
             has_secrets=True,
-            error_message="Test error"
+            error_message="Test error",
+            hook_event="prompt"
         )
-        self.assertIsNone(response["output"])
-        self.assertEqual(response["exit_code"], 2)
+        # UserPromptSubmit returns JSON with decision:block
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block")
+        self.assertEqual(output["reason"], "Test error")
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
+        self.assertEqual(response["exit_code"], 0)
 
     def test_format_response_cursor_allow(self):
         """Test format_response for Cursor (allow)"""
@@ -538,7 +556,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
                     "parameters": {"file_path": temp_path}
                 }
             }
-            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "test content")
             self.assertTrue(filename.endswith('.txt'))
             self.assertFalse(is_denied)
@@ -557,7 +575,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             hook_data = {
                 "parameters": {"file_path": temp_path}
             }
-            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "another test")
             self.assertFalse(is_denied)
             self.assertIsNone(deny_reason)
@@ -571,7 +589,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
                 "parameters": {"file_path": "/nonexistent/file.txt"}
             }
         }
-        content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+        content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
         self.assertIsNone(content)
         self.assertEqual(filename, "file.txt")
         self.assertFalse(is_denied)
@@ -580,7 +598,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_extract_file_content_no_file_path(self):
         """Test file extraction with no file path"""
         hook_data = {"tool_use": {"parameters": {}}}
-        content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+        content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
         self.assertIsNone(content)
         self.assertFalse(is_denied)
         self.assertIsNone(deny_reason)
@@ -589,7 +607,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_pretooluse_hook_with_clean_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with clean file"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
         import tempfile
@@ -606,7 +624,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             with patch('sys.stdin', StringIO(hook_input)):
                 response = ai_guardian.process_hook_input()
 
+            # PreToolUse now uses JSON format with hookSpecificOutput
             self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output = json.loads(response["output"])
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+
             mock_check_secrets.assert_called_once()
             # Verify it scanned the file content
             call_args = mock_check_secrets.call_args[0]
@@ -618,7 +642,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_pretooluse_hook_with_secret_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with file containing secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -635,7 +659,15 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             with patch('sys.stdin', StringIO(hook_input)):
                 response = ai_guardian.process_hook_input()
 
-            self.assertEqual(response["exit_code"], 2)
+            # PreToolUse now uses JSON format with hookSpecificOutput
+            self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output = json.loads(response["output"])
+            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
+            self.assertIn("systemMessage", output)
+            self.assertIn("SECRET DETECTED", output["systemMessage"])
+
             mock_check_secrets.assert_called_once()
         finally:
             os.unlink(temp_path)
@@ -644,7 +676,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_cursor_pretooluse_hook(self, mock_check_secrets, mock_load_config):
         """Test Cursor preToolUse hook format"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -903,7 +935,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
                 "toolName": "read_file",
                 "toolArgs": json.dumps({"file_path": temp_path})
             }
-            content, filename, file_path, is_denied, deny_reason = ai_guardian.extract_file_content_from_tool(hook_data)
+            content, filename, file_path, is_denied, deny_reason, warning_message = ai_guardian.extract_file_content_from_tool(hook_data)
             self.assertEqual(content, "copilot test content")
             self.assertTrue(filename.endswith('.txt'))
             self.assertFalse(is_denied)
@@ -944,7 +976,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_copilot_pretooluse_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot preToolUse hook blocks file with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         import tempfile
@@ -994,7 +1026,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_copilot_prompt_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot userPromptSubmitted blocks prompt with secret"""
-        mock_load_config.return_value = None  # Use default (enabled)
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (True, "SECRET DETECTED")
 
         hook_input = json.dumps({
@@ -1018,18 +1050,18 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure prompt injection as temporarily disabled (future expiration)
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z",
                 "reason": "Testing prompt injection examples"
             },
             "detector": "heuristic"
-        }
+        }, None)
 
         mock_check_secrets.return_value = (False, None)
         # Injection check shouldn't be called since feature is disabled
-        mock_check_injection.return_value = (True, "Injection detected")
+        mock_check_injection.return_value = (True, "Injection detected", True)
 
         hook_input = json.dumps({
             "hook_event_name": "UserPromptSubmit",
@@ -1052,17 +1084,17 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure prompt injection with expired disable period (past date)
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2020-01-01T00:00:00Z",  # Past date
                 "reason": "Expired disable"
             },
             "detector": "heuristic"
-        }
+        }, None)
 
         mock_check_secrets.return_value = (False, None)
-        mock_check_injection.return_value = (True, "Injection detected")
+        mock_check_injection.return_value = (True, "Injection detected", True)
 
         hook_input = json.dumps({
             "hook_event_name": "UserPromptSubmit",
@@ -1073,7 +1105,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         # Should block since prompt injection is auto-enabled (expired disable)
-        self.assertEqual(response["exit_code"], 2)
+        # UserPromptSubmit now uses JSON response format
+        self.assertEqual(response["exit_code"], 0, "Exit code should be 0 with JSON response")
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block", "Should block when injection detected")
         # Injection check should be called
         mock_check_injection.assert_called_once()
 
@@ -1085,13 +1120,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure permissions as temporarily disabled
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z",
                 "reason": "Emergency debugging"
             }
-        }
+        }, None)
 
         mock_check_secrets.return_value = (False, None)
 
@@ -1126,13 +1161,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure secret scanning as temporarily disabled
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z",
                 "reason": "Testing with known-safe example secrets"
             }
-        }
+        }, None)
 
         # Even if check_secrets would find secrets, it shouldn't be called
         mock_check_secrets.return_value = (True, "Secret detected")
@@ -1157,13 +1192,13 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Configure secret scanning with expired disable period
-        mock_load_config.return_value = {
+        mock_load_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2020-01-01T00:00:00Z",  # Past date
                 "reason": "Expired disable"
             }
-        }
+        }, None)
 
         mock_check_secrets.return_value = (True, "Secret detected")
 
@@ -1176,7 +1211,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         # Should block since secret scanning is auto-enabled
-        self.assertEqual(response["exit_code"], 2)
+        # UserPromptSubmit now uses JSON response format
+        self.assertEqual(response["exit_code"], 0)
+        output = json.loads(response["output"])
+        self.assertEqual(output["decision"], "block")
         # Secret check should be called
         mock_check_secrets.assert_called_once()
 
@@ -1189,20 +1227,20 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         from datetime import datetime, timezone
 
         # Prompt injection: enabled (boolean)
-        mock_injection_config.return_value = {
+        mock_injection_config.return_value = ({
             "enabled": True,
             "detector": "heuristic"
-        }
+        }, None)
 
         # Secret scanning: temporarily disabled
-        mock_secret_config.return_value = {
+        mock_secret_config.return_value = ({
             "enabled": {
                 "value": False,
                 "disabled_until": "2099-12-31T23:59:59Z"
             }
-        }
+        }, None)
 
-        mock_check_injection.return_value = (False, None)
+        mock_check_injection.return_value = (False, None, False)
         mock_check_secrets.return_value = (True, "Secret detected")
 
         hook_input = json.dumps({

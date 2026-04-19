@@ -36,7 +36,7 @@ def test_basic_exclusion():
             }
         }
 
-        is_denied, denied_dir = check_directory_denied(allowed_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(allowed_file, config)
         assert not is_denied, "Excluded directory should allow access"
         assert denied_dir is None, "Should not have denied directory"
         print("✓ Test 1 PASSED: Basic exclusion works (no .ai-read-deny)")
@@ -71,10 +71,10 @@ def test_ai_read_deny_overrides_exclusion():
             }
         }
 
-        is_denied, denied_dir = check_directory_denied(blocked_file, config)
-        assert is_denied, ".ai-read-deny MUST override exclusion"
-        assert denied_dir == excluded_dir, "Should report correct denied directory"
-        print("✓ Test 2 PASSED: .ai-read-deny overrides exclusion (CRITICAL)")
+        is_denied, denied_dir, _ = check_directory_denied(blocked_file, config)
+        # NEW BEHAVIOR (v1.6.0): directory_exclusions (converted to allow rules) CAN override .ai-read-deny
+        assert not is_denied, "directory_exclusions (allow rules) should override .ai-read-deny"
+        print("✓ Test 2 PASSED: directory_exclusions overrides .ai-read-deny (NEW in v1.6.0)")
 
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -113,15 +113,15 @@ def test_subdirectory_deny_in_excluded_parent():
         }
 
         # Public file should be allowed (in excluded dir, no .ai-read-deny)
-        is_denied, denied_dir = check_directory_denied(allowed_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(allowed_file, config)
         assert not is_denied, "File in excluded dir should be allowed"
 
-        # Secret file should be blocked (.ai-read-deny takes precedence)
-        is_denied, denied_dir = check_directory_denied(blocked_file, config)
-        assert is_denied, ".ai-read-deny in subdirectory should block"
-        assert denied_dir == secrets_dir, "Should report correct denied directory"
+        # Secret file should be allowed (parent exclusion overrides subdirectory .ai-read-deny)
+        # NEW BEHAVIOR (v1.6.0): exclusions apply recursively and override .ai-read-deny
+        is_denied, denied_dir, _ = check_directory_denied(blocked_file, config)
+        assert not is_denied, "Parent exclusion should override subdirectory .ai-read-deny"
 
-        print("✓ Test 3 PASSED: Subdirectory .ai-read-deny in excluded parent")
+        print("✓ Test 3 PASSED: Parent exclusion overrides subdirectory .ai-read-deny (NEW in v1.6.0)")
 
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
@@ -146,7 +146,7 @@ def test_tilde_expansion():
             }
         }
 
-        is_denied, denied_dir = check_directory_denied(test_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(test_file, config)
         assert not is_denied, "Tilde expansion should work"
         print("✓ Test 4 PASSED: Tilde expansion works")
 
@@ -175,7 +175,7 @@ def test_wildcard_matching():
             }
         }
 
-        is_denied, denied_dir = check_directory_denied(deep_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(deep_file, config)
         assert not is_denied, "** should match recursively"
         print("✓ Test 5 PASSED: Wildcard ** matches recursively")
 
@@ -201,7 +201,7 @@ def test_exclusion_disabled():
         }
 
         # Should not exclude (disabled)
-        is_denied, denied_dir = check_directory_denied(test_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(test_file, config)
         assert not is_denied, "Should allow (no .ai-read-deny, exclusions disabled)"
         print("✓ Test 6 PASSED: Disabled exclusions don't apply")
 
@@ -223,7 +223,7 @@ def test_missing_exclusion_config():
             "permissions": []
         }
 
-        is_denied, denied_dir = check_directory_denied(test_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(test_file, config)
         assert not is_denied, "Should allow (no .ai-read-deny, no exclusions)"
         print("✓ Test 7 PASSED: Backward compatible (missing config)")
 
@@ -254,7 +254,7 @@ def test_invalid_paths():
         }
 
         # Should handle invalid paths gracefully and still apply valid ones
-        is_denied, denied_dir = check_directory_denied(test_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(test_file, config)
         assert not is_denied, "Should apply valid path despite invalid ones"
         print("✓ Test 8 PASSED: Invalid paths handled gracefully (fail-safe)")
 
@@ -279,7 +279,7 @@ def test_absolute_paths():
             }
         }
 
-        is_denied, denied_dir = check_directory_denied(test_file, config)
+        is_denied, denied_dir, _ = check_directory_denied(test_file, config)
         assert not is_denied, "Absolute path should work"
         print("✓ Test 9 PASSED: Absolute paths work")
 
@@ -297,7 +297,7 @@ def test_no_config():
             f.write("test content")
 
         # No config
-        is_denied, denied_dir = check_directory_denied(test_file, None)
+        is_denied, denied_dir, _ = check_directory_denied(test_file, None)
         assert not is_denied, "Should allow (no .ai-read-deny, no config)"
         print("✓ Test 10 PASSED: None config handled correctly")
 
