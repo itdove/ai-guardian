@@ -233,7 +233,7 @@ response = {
 ======================================================================
 (our sanitized error message - no secret here)
 
-Original prompt: AWS_ACCESS_KEY_ID=AKIA****************  ← SECRET VISIBLE # gitleaks:allow
+Original prompt: AWS_ACCESS_KEY_ID=AKIAIOSFODNN7REALKEY # nosecret  ← SECRET VISIBLE # gitleaks:allow
 ```
 
 **Why this happens:**
@@ -269,7 +269,7 @@ Original prompt: AWS_ACCESS_KEY_ID=AKIA****************  ← SECRET VISIBLE # gi
 ======================================================================
 (our error message - no secret here)
 
-Original prompt: AWS_ACCESS_KEY_ID=AKIA****************  ← SECRET LEAKED! # gitleaks:allow
+Original prompt: AWS_ACCESS_KEY_ID=AKIAIOSFODNN7REALKEY # nosecret  ← SECRET LEAKED! # gitleaks:allow
     AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYREALKEY # gitleaks:allow
 ```
 
