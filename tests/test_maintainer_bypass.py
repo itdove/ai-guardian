@@ -504,7 +504,8 @@ class MaintainerBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Bash cache poisoning should be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        # Bug #94 fix: Bash errors now show "CRITICAL COMMAND BLOCKED" not "FILE PROTECTED"
+        self.assertIn("CRITICAL COMMAND BLOCKED", error_msg)
 
     # ========================================================================
     # Test: Retry logic and improved error handling (Issue #68)

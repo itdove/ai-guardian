@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Bug #94: Directory rules incorrectly parse Bash command text as file paths**
+  - Bash commands were incorrectly treated as file paths in PreToolUse hooks
+  - Error messages incorrectly showed "File: daf git create enhancement..." for Bash commands
+  - Fixed by only checking file paths for file-reading tools (Read, Grep, Glob, etc.)
+  - Bash error messages now correctly show "Command:" instead of "File:"
+  - Added comprehensive test coverage in `tests/test_bash_directory_rules.py`
+
 ### Added
 - **User-friendly error handling for malformed configuration files**
   - Clear JSON parsing errors displayed via systemMessage in all hook types
