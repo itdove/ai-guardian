@@ -493,7 +493,8 @@ def _check_directory_rules(file_path, config):
             directory_rules = [backward_compat_rule] + directory_rules
 
         if not directory_rules:
-            return None, None
+            # No rules, but global_action still applies to .ai-read-deny markers
+            return None, global_action
 
         # Convert file path to absolute path
         abs_file_path = os.path.abspath(os.path.expanduser(file_path))
@@ -552,8 +553,10 @@ def _check_directory_rules(file_path, config):
                     logging.warning(f"Error processing rule pattern '{pattern}': {e}")
                     continue
 
-        # Return decision and global action (applies to all rules)
-        return final_decision, global_action if final_decision else None
+        # Return decision and global action
+        # Note: global_action is returned even when no rule matches because
+        # it applies to ALL violations, including .ai-read-deny markers (issue #93)
+        return final_decision, global_action
 
     except Exception as e:
         logging.error(f"Error checking directory rules: {e}")
