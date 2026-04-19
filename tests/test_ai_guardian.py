@@ -618,7 +618,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         try:
             hook_input = json.dumps({
                 "hook_event_name": "PreToolUse",
-                "tool_use": {"parameters": {"file_path": temp_path}}
+                "tool_use": {
+                    "name": "Read",
+                    "parameters": {"file_path": temp_path}
+                }
             })
 
             with patch('sys.stdin', StringIO(hook_input)):
@@ -653,7 +656,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         try:
             hook_input = json.dumps({
                 "hook_event_name": "PreToolUse",
-                "tool_use": {"parameters": {"file_path": temp_path}}
+                "tool_use": {
+                    "name": "Read",
+                    "parameters": {"file_path": temp_path}
+                }
             })
 
             with patch('sys.stdin', StringIO(hook_input)):
@@ -687,7 +693,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         try:
             hook_input = json.dumps({
                 "hook_name": "preToolUse",
-                "tool": {"file_path": temp_path}
+                "tool": {
+                    "name": "Read",
+                    "file_path": temp_path
+                },
+                "tool_input": {"file_path": temp_path}
             })
 
             with patch('sys.stdin', StringIO(hook_input)):

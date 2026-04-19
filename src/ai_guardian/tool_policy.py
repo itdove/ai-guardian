@@ -560,14 +560,24 @@ class ToolPolicyChecker:
             tool_name = None
             tool_input = {}
 
-            # Claude Code format: tool_use.name
+            # Claude Code format: tool_use.name + tool_use.input or tool_use.parameters
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
                 tool_name = hook_data["tool_use"].get("name")
-                tool_input = hook_data["tool_use"].get("input", {})
+                # Try both "input" (PostToolUse) and "parameters" (PreToolUse)
+                tool_input = hook_data["tool_use"].get("input") or hook_data["tool_use"].get("parameters", {})
             # Cursor format: tool.name
             elif "tool" in hook_data and isinstance(hook_data["tool"], dict):
                 tool_name = hook_data["tool"].get("name")
                 tool_input = hook_data.get("tool_input", {})
+            # GitHub Copilot format: toolName + toolArgs (JSON string)
+            elif "toolName" in hook_data:
+                tool_name = hook_data["toolName"]
+                # toolArgs is a JSON string in Copilot format
+                if "toolArgs" in hook_data:
+                    try:
+                        tool_input = json.loads(hook_data["toolArgs"])
+                    except (json.JSONDecodeError, TypeError):
+                        tool_input = {}
             # Alternative: direct tool_name field
             elif "tool_name" in hook_data:
                 tool_name = hook_data["tool_name"]
@@ -900,17 +910,31 @@ class ToolPolicyChecker:
         return msg
 
 
-    def _format_immutable_deny_message(self, file_path: str, tool_name: str) -> str:
+    def _format_immutable_deny_message(self, check_value: str, tool_name: str) -> str:
         """
         Format error message for immutable deny (cannot be overridden).
 
         Args:
-            file_path: The file path that was blocked
+            check_value: The value that was blocked (file path, command, etc.)
             tool_name: The tool that was blocked
 
         Returns:
             str: Formatted error message
         """
+        # Determine the appropriate label based on tool type
+        if tool_name == "Bash":
+            value_label = "Command"
+            protection_context = "command pattern"
+        elif tool_name == "Skill":
+            value_label = "Skill"
+            protection_context = "skill name"
+        elif tool_name.startswith("mcp__"):
+            value_label = "MCP Tool"
+            protection_context = "tool name"
+        else:
+            value_label = "File"
+            protection_context = "file path"
+
         # First, check if this is a config file (these are NEVER source files)
         config_patterns = [
             "*ai-guardian.json",
@@ -923,7 +947,7 @@ class ToolPolicyChecker:
             "*/Claude/settings.json",
             "*/Cursor/hooks.json",
         ]
-        is_config_file = any(fnmatch.fnmatch(file_path, p) for p in config_patterns)
+        is_config_file = any(fnmatch.fnmatch(check_value, p) for p in config_patterns)
 
         # Check if this is a source file that could potentially use maintainer bypass
         # ONLY if it's NOT a config file
@@ -936,32 +960,44 @@ class ToolPolicyChecker:
             "*/ai-guardian/*.txt",
             "*/ai-guardian/.github/*",
         ]
-        is_source_file = (not is_config_file) and any(fnmatch.fnmatch(file_path, p) for p in source_patterns)
+        is_source_file = (not is_config_file) and any(fnmatch.fnmatch(check_value, p) for p in source_patterns)
 
         # Check if this is a .ai-read-deny marker file
-        is_marker_file = (file_path.endswith('.ai-read-deny') or
-                         '/.ai-read-deny' in file_path or
-                         '\\.ai-read-deny' in file_path or
-                         '.ai-read-deny' in file_path)
+        is_marker_file = (check_value.endswith('.ai-read-deny') or
+                         '/.ai-read-deny' in check_value or
+                         '\\.ai-read-deny' in check_value or
+                         '.ai-read-deny' in check_value)
 
         # Check if this looks like documentation/discussion vs. actual config
         is_likely_documentation = (
-            file_path.endswith('.md') or
-            file_path.endswith('.txt') or
-            '/docs/' in file_path or
-            '/documentation/' in file_path or
-            'README' in file_path.upper()
+            check_value.endswith('.md') or
+            check_value.endswith('.txt') or
+            '/docs/' in check_value or
+            '/documentation/' in check_value or
+            'README' in check_value.upper()
         )
 
-        base_message = (
-            f"\n{'='*70}\n"
-            f"🚨 BLOCKED BY POLICY\n"
-            f"🔒 CRITICAL FILE PROTECTED\n"
-            f"{'='*70}\n\n"
-            f"This file is protected by ai-guardian and cannot be modified.\n\n"
-            f"File: {file_path}\n"
-            f"Tool: {tool_name}\n"
-        )
+        # Format base message with appropriate label
+        if tool_name == "Bash":
+            base_message = (
+                f"\n{'='*70}\n"
+                f"🚨 BLOCKED BY POLICY\n"
+                f"🔒 CRITICAL COMMAND BLOCKED\n"
+                f"{'='*70}\n\n"
+                f"This command matches a protected pattern and cannot be executed.\n\n"
+                f"{value_label}: {check_value}\n"
+                f"Tool: {tool_name}\n"
+            )
+        else:
+            base_message = (
+                f"\n{'='*70}\n"
+                f"🚨 BLOCKED BY POLICY\n"
+                f"🔒 CRITICAL FILE PROTECTED\n"
+                f"{'='*70}\n\n"
+                f"This file is protected by ai-guardian and cannot be modified.\n\n"
+                f"{value_label}: {check_value}\n"
+                f"Tool: {tool_name}\n"
+            )
 
         # Add diagnostic information for source files
         if is_source_file:
@@ -977,8 +1013,8 @@ class ToolPolicyChecker:
 
         # Add workaround tip if this looks like documentation mentioning the tool
         tip_message = ""
-        file_path_lower = file_path.lower()
-        mentions_tool = 'ai-guardian' in file_path_lower or 'ai_guardian' in file_path_lower
+        check_value_lower = check_value.lower()
+        mentions_tool = 'ai-guardian' in check_value_lower or 'ai_guardian' in check_value_lower
         if is_likely_documentation and mentions_tool:
             tip_message = (
                 f"\n💡 TIP: If you're trying to write ABOUT the tool (not modify it):\n"

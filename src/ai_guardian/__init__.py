@@ -1988,10 +1988,20 @@ def process_hook_input():
             tool_input = {}
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
                 tool_name = hook_data["tool_use"].get("name")
-                tool_input = hook_data["tool_use"].get("input", {})
+                # Try both "parameters" (PreToolUse) and "input" (PostToolUse)
+                tool_input = hook_data["tool_use"].get("parameters") or hook_data["tool_use"].get("input", {})
             elif "tool" in hook_data and isinstance(hook_data["tool"], dict):
                 tool_name = hook_data["tool"].get("name")
                 tool_input = hook_data.get("tool_input", {})
+            elif "toolName" in hook_data:
+                # GitHub Copilot format
+                tool_name = hook_data["toolName"]
+                # toolArgs is a JSON string in Copilot format
+                if "toolArgs" in hook_data:
+                    try:
+                        tool_input = json.loads(hook_data["toolArgs"])
+                    except (json.JSONDecodeError, TypeError):
+                        tool_input = {}
             elif "tool_name" in hook_data:
                 tool_name = hook_data["tool_name"]
                 tool_input = hook_data.get("tool_input", {})
@@ -2046,39 +2056,64 @@ def process_hook_input():
         file_path = None
 
         if hook_event in ["pretooluse", "beforereadfile"]:
-            # PreToolUse or beforeReadFile hook - scan file content
+            # PreToolUse or beforeReadFile hook
             logging.info(f"Processing {hook_event} hook...")
-            content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
 
-            # Check if directory access is denied
-            if is_denied:
-                logging.warning(f"Directory access denied for file '{file_path}'")
-                return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event)
-            elif dir_warning:
-                # Log mode: directory violation detected but execution allowed
-                # Accumulate warning message to display at the end
-                warning_messages.append(dir_warning)
+            # Only extract file content for file-reading tools
+            # Bash, Write, Edit, etc. don't read files in PreToolUse - they have command/content parameters
+            # Bug #94: Bash commands were incorrectly treated as file paths
+            FILE_READING_TOOLS = [
+                # Claude Code tool names
+                "Read", "Grep", "Glob",
+                # GitHub Copilot tool names
+                "read_file", "read", "grep", "search",
+                # Cursor tool names (if different)
+                "ReadFile"
+            ]
 
-            # Skip scanning ai-guardian's own test files (contain example secrets)
-            # IMPORTANT: Only skips ai-guardian tests, not user project tests
-            if file_path and _is_ai_guardian_test_file(file_path):
-                logging.debug(f"Skipping scan for ai-guardian test file: {file_path}")
+            if tool_name in FILE_READING_TOOLS or hook_event == "beforereadfile":
+                # Extract file content for tools that read files
+                content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
 
-                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+                # Check if directory access is denied
+                if is_denied:
+                    logging.warning(f"Directory access denied for file '{file_path}'")
+                    return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event)
+                elif dir_warning:
+                    # Log mode: directory violation detected but execution allowed
+                    # Accumulate warning message to display at the end
+                    warning_messages.append(dir_warning)
 
-            if content_to_scan is None:
-                # Could not extract file content - allow operation (fail-open)
-                logging.warning("Could not extract file content, allowing operation")
+                # Skip scanning ai-guardian's own test files (contain example secrets)
+                # IMPORTANT: Only skips ai-guardian tests, not user project tests
+                if file_path and _is_ai_guardian_test_file(file_path):
+                    logging.debug(f"Skipping scan for ai-guardian test file: {file_path}")
 
-                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
 
-            # Log with full path for debugging false positives
-            if file_path:
-                logging.info(f"Scanning file '{filename}' ({file_path}) for secrets...")
+                if content_to_scan is None:
+                    # Could not extract file content - allow operation (fail-open)
+                    logging.warning("Could not extract file content, allowing operation")
+
+                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+
+                # Log with full path for debugging false positives
+                if file_path:
+                    logging.info(f"Scanning file '{filename}' ({file_path}) for secrets...")
+                else:
+                    logging.info(f"Scanning file '{filename}' for secrets...")
             else:
-                logging.info(f"Scanning file '{filename}' for secrets...")
+                # Non-file-reading tool (Bash, Write, Edit, etc.)
+                # These tools don't read files in PreToolUse, so no content to scan here
+                # They are checked by tool_policy.py for command patterns
+                logging.info(f"Tool '{tool_name}' does not read files - skipping file content scan")
+
+                # No content to scan for these tools in PreToolUse
+                # Allow operation (secret scanning happens for Bash in PostToolUse if enabled)
+                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
 
         else:
             # Prompt hook - scan the user's prompt
