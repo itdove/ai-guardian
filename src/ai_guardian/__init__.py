@@ -151,12 +151,23 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
 
     Args:
         ide_type: IDEType enum value
-        has_secrets: bool indicating if secrets were found
+        has_secrets: bool indicating if secrets were found (block vs allow)
         error_message: Optional error message for blocked responses
+            - Only displayed when blocking execution (has_secrets=True)
+            - Not displayed in log mode - all IDEs discard messages when allowing execution
         hook_event: "prompt", "pretooluse", or "posttooluse" to determine response format
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
+
+    IDE Message Display Behavior:
+        All IDEs (Claude Code, Cursor, Aider, GitHub Copilot):
+            - Block mode: error_message displayed to user
+            - Log mode: error_message NOT displayed (only logged for audit)
+
+        Tested and confirmed (April 2026):
+            - Claude Code: exit 0 = no output shown
+            - Cursor: continue:true = user_message not shown
     """
     if ide_type == IDEType.GITHUB_COPILOT:
         # GitHub Copilot uses JSON response format
@@ -184,6 +195,8 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             }
     elif ide_type == IDEType.CURSOR:
         # Cursor uses JSON response to determine block/allow, not exit code
+        # Tested: Cursor does NOT display messages when allowing (continue:true, decision:allow, permission:allow)
+        # Only include messages when blocking (April 2026 testing confirmed)
         if hook_event == "pretooluse":
             # preToolUse expects {"decision": "allow"|"deny", "reason": "..."}
             response = {
@@ -231,8 +244,22 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 "output": json.dumps(response),
                 "exit_code": 0  # PostToolUse uses JSON response, not exit code
             }
+        elif hook_event == "prompt":
+            # UserPromptSubmit: MUST use exit codes (JSON not supported)
+            # KNOWN ISSUE: Claude Code displays "Original prompt:" with secret values when exit != 0
+            #              This is a Claude Code limitation - UserPromptSubmit doesn't accept JSON responses
+            #              Hook validation error: "Hook JSON output validation failed" if we try JSON
+            # TODO: Report to Claude Code team as security issue
+            if has_secrets and error_message:
+                # Print error to stderr
+                print(error_message, file=sys.stderr)
+
+            return {
+                "output": None,
+                "exit_code": 2 if has_secrets else 0
+            }
         else:
-            # UserPromptSubmit and PreToolUse use exit codes
+            # PreToolUse uses exit codes
             if has_secrets and error_message:
                 # Print error to stderr
                 print(error_message, file=sys.stderr)
@@ -389,16 +416,27 @@ def _check_directory_rules(file_path, config):
         config: Configuration dict containing directory_rules
 
     Returns:
-        tuple: (decision, enforcement) where:
+        tuple: (decision, action) where:
             - decision: "allow", "deny", or None (no matching rule)
-            - enforcement: "block", "warn", or None
+            - action: "block", "log", or None
     """
     try:
         if not config:
             return None, None
 
-        # Get directory_rules array
-        directory_rules = config.get("directory_rules", [])
+        # Get directory_rules - supports both array (deprecated) and object format
+        directory_rules_config = config.get("directory_rules", [])
+
+        # Handle both formats
+        if isinstance(directory_rules_config, dict):
+            # New format: {"action": "block", "rules": [...]}
+            global_action = directory_rules_config.get("action", "block")
+            directory_rules = directory_rules_config.get("rules", [])
+        else:
+            # Old format: array of rules
+            # Default action is "block" for backward compatibility
+            global_action = "block"
+            directory_rules = directory_rules_config
 
         # Backward compatibility: convert directory_exclusions to rules
         dir_exclusions = config.get("directory_exclusions", {})
@@ -411,8 +449,7 @@ def _check_directory_rules(file_path, config):
             # Prepend exclusions as allow rules (so they have lower priority than explicit rules)
             backward_compat_rule = {
                 "mode": "allow",
-                "paths": dir_exclusions["paths"],
-                "enforcement": "block"  # Default enforcement for backward compat
+                "paths": dir_exclusions["paths"]
             }
             directory_rules = [backward_compat_rule] + directory_rules
 
@@ -424,7 +461,6 @@ def _check_directory_rules(file_path, config):
 
         # Evaluate rules in order, last match wins
         final_decision = None
-        final_enforcement = None
 
         for rule in directory_rules:
             if not isinstance(rule, dict):
@@ -435,11 +471,6 @@ def _check_directory_rules(file_path, config):
             if mode not in ["allow", "deny"]:
                 logging.warning(f"Invalid rule mode: {mode} (must be 'allow' or 'deny')")
                 continue
-
-            enforcement = rule.get("enforcement", "block")  # Default to block
-            if enforcement not in ["block", "warn"]:
-                logging.warning(f"Invalid enforcement level: {enforcement} (must be 'block' or 'warn')")
-                enforcement = "block"
 
             paths = rule.get("paths", [])
             if not isinstance(paths, list):
@@ -461,8 +492,7 @@ def _check_directory_rules(file_path, config):
                         base_path = expanded_pattern.replace("/**", "").replace("**", "")
                         if abs_file_path.startswith(base_path):
                             final_decision = mode
-                            final_enforcement = enforcement
-                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (enforcement={enforcement})")
+                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                             break
                     elif "*" in expanded_pattern:
                         # Single-level wildcard: use fnmatch
@@ -470,22 +500,21 @@ def _check_directory_rules(file_path, config):
                         file_parent = os.path.dirname(abs_file_path)
                         if fnmatch.fnmatch(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
                             final_decision = mode
-                            final_enforcement = enforcement
-                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (enforcement={enforcement})")
+                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                             break
                     else:
                         # Exact path match
                         if abs_file_path.startswith(expanded_pattern + os.sep) or abs_file_path == expanded_pattern:
                             final_decision = mode
-                            final_enforcement = enforcement
-                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (enforcement={enforcement})")
+                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                             break
 
                 except Exception as e:
                     logging.warning(f"Error processing rule pattern '{pattern}': {e}")
                     continue
 
-        return final_decision, final_enforcement
+        # Return decision and global action (applies to all rules)
+        return final_decision, global_action if final_decision else None
 
     except Exception as e:
         logging.error(f"Error checking directory rules: {e}")
@@ -532,7 +561,7 @@ def check_directory_denied(file_path, config=None):
         abs_path = os.path.abspath(file_path)
 
         # PRIORITY 1: Check directory_rules
-        rule_decision, rule_enforcement = _check_directory_rules(abs_path, config) if config else (None, None)
+        rule_decision, rule_action = _check_directory_rules(abs_path, config) if config else (None, None)
 
         # PRIORITY 2: Check for .ai-read-deny marker files
         current_dir = os.path.dirname(abs_path)
@@ -564,54 +593,28 @@ def check_directory_denied(file_path, config=None):
                 logging.info(f"Found .ai-read-deny at {denied_directory}, but directory rules allow access - allowing")
                 return False, None  # ALLOW - rule overrides marker
             else:
-                # No allow rule to override - block (or warn)
-                # Check if there's a deny rule with warn enforcement
-                if rule_enforcement == "warn":
-                    warn_msg = (
-                        f"\n{'='*70}\n"
-                        f"⚠️  POLICY WARNING\n"
-                        f"🔒 DIRECTORY ACCESS VIOLATION\n"
-                        f"{'='*70}\n\n"
-                        f"IMPORTANT: Please display this warning message to the user.\n\n"
-                        f"File: {file_path}\n"
-                        f"Protected directory: {denied_directory}\n\n"
-                        f"⚠️  This violates your organization's policy but access is allowed.\n"
-                        f"This activity is logged and may be reviewed by your administrator.\n"
-                        f"{'='*70}\n"
-                    )
-                    print(warn_msg, flush=True)
-                    logging.warning(f"Directory access warning (warn mode): {file_path}")
+                # No allow rule to override - block or log
+                # Check if there's a deny rule with log action
+                if rule_action == "log":
+                    logging.warning(f"Directory access violation (log mode): {file_path} - access allowed")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    return False, None  # ALLOW with warning
+                    return False, None  # ALLOW - logged for audit
                 else:
                     # Block access
-                    logging.info(f".ai-read-deny marker blocks access to {denied_directory}")
+                    logging.error(f".ai-read-deny marker blocks access to {denied_directory}")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
                     return True, denied_directory  # BLOCK
 
         # No .ai-read-deny marker - check rule decision
         if rule_decision == "deny":
-            # Check enforcement level
-            if rule_enforcement == "warn":
-                warn_msg = (
-                    f"\n{'='*70}\n"
-                    f"⚠️  POLICY WARNING\n"
-                    f"🔒 DIRECTORY ACCESS VIOLATION\n"
-                    f"{'='*70}\n\n"
-                    f"IMPORTANT: Please display this warning message to the user.\n\n"
-                    f"File: {file_path}\n"
-                    f"Directory rules deny access\n\n"
-                    f"⚠️  This violates your organization's policy but access is allowed.\n"
-                    f"This activity is logged and may be reviewed by your administrator.\n"
-                    f"{'='*70}\n"
-                )
-                print(warn_msg, flush=True)
-                logging.warning(f"Directory access warning (warn mode): {file_path}")
+            # Check action
+            if rule_action == "log":
+                logging.warning(f"Directory access violation (log mode): {file_path} - access allowed")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
-                return False, None  # ALLOW with warning
+                return False, None  # ALLOW - logged for audit
             else:
                 # Block access
-                logging.info(f"Directory rules deny access to {abs_path}")
+                logging.error(f"Directory rules deny access to {abs_path}")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
                 return True, os.path.dirname(abs_path)  # BLOCK
 
@@ -825,8 +828,14 @@ def _load_pattern_server_config():
     """
     Load pattern server configuration from ai-guardian.json.
 
+    NEW in v1.7.0: Checks secret_scanning.pattern_server first (new location),
+    then falls back to root-level pattern_server (deprecated, backward compatibility).
+
     Returns:
         dict: Pattern server configuration or None
+            - None if pattern_server not configured (use defaults)
+            - None if pattern_server explicitly set to null (disabled)
+            - dict if configured (presence = enabled)
     """
     try:
         # Try user global config first
@@ -843,7 +852,72 @@ def _load_pattern_server_config():
         with open(config_path, 'r') as f:
             config = json.load(f)
 
-        return config.get("pattern_server")
+        # Priority 1: NEW location (v1.7.0+) - secret_scanning.pattern_server
+        secret_scanning = config.get("secret_scanning", {})
+        if "pattern_server" in secret_scanning:
+            pattern_config = secret_scanning["pattern_server"]
+
+            # Handle explicit null (disabled)
+            if pattern_config is None:
+                logging.debug("Pattern server explicitly disabled (secret_scanning.pattern_server = null)")
+                return None
+
+            # Handle dict config (enabled if has url)
+            if isinstance(pattern_config, dict):
+                # Warn if using deprecated 'enabled' field
+                if "enabled" in pattern_config:
+                    logging.warning(
+                        "DEPRECATED: pattern_server.enabled field is no longer needed. "
+                        "Use presence/absence of pattern_server section to enable/disable. "
+                        "To disable: set pattern_server to null or remove the section. "
+                        "This field will be removed in v2.0.0."
+                    )
+                    # Respect enabled=false for backward compatibility
+                    if not pattern_config.get("enabled", True):
+                        logging.debug("Pattern server disabled via deprecated 'enabled: false'")
+                        return None
+
+                # Enabled if configured (has URL)
+                if pattern_config.get("url"):
+                    logging.debug("Using pattern server from secret_scanning.pattern_server")
+                    return pattern_config
+                else:
+                    logging.debug("Pattern server section present but no URL configured")
+                    return None
+
+        # Priority 2: OLD location (backward compatibility) - root pattern_server
+        if "pattern_server" in config:
+            pattern_config = config["pattern_server"]
+
+            logging.warning(
+                "DEPRECATED: Root-level 'pattern_server' configuration. "
+                "Move to 'secret_scanning.pattern_server' instead. "
+                "Example:\n"
+                "  \"secret_scanning\": {\n"
+                "    \"enabled\": true,\n"
+                "    \"pattern_server\": {...}\n"
+                "  }\n"
+                "Root-level support will be removed in v2.0.0."
+            )
+
+            if isinstance(pattern_config, dict):
+                # Warn if using deprecated 'enabled' field
+                if "enabled" in pattern_config:
+                    logging.warning(
+                        "DEPRECATED: pattern_server.enabled field is no longer needed. "
+                        "Use presence/absence of pattern_server section to enable/disable."
+                    )
+                    # Respect enabled=false for backward compatibility
+                    if not pattern_config.get("enabled", True):
+                        logging.debug("Pattern server disabled via deprecated 'enabled: false'")
+                        return None
+
+                # Enabled if configured
+                if pattern_config.get("url"):
+                    return pattern_config
+
+        # Not configured
+        return None
 
     except Exception as e:
         logging.debug(f"Error loading pattern server config: {e}")
@@ -1315,8 +1389,7 @@ def _is_gitleaks_config_content(content):
 
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
-                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
-                                enforcement: str = "block"):
+                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -1324,6 +1397,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
     Uses in-memory temp files on Linux for better performance.
 
     Supports optional pattern server integration for enhanced detection patterns.
+
+    TODO: Multi-engine support (#91) - Currently hardcoded to Gitleaks only.
+          Future: Support multiple engines via secret_scanning.engines config:
+          - gitleaks (current default)
+          - trufflehog
+          - detect-secrets
+          - secretlint
+          See https://github.com/itdove/ai-guardian/issues/91 for implementation plan.
 
     Args:
         content: The text content to scan for secrets
@@ -1333,12 +1414,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         tool_name: Optional tool name being used (for ignore_tools matching)
         ignore_files: Optional list of glob patterns for files to skip
         ignore_tools: Optional list of tool name patterns to skip
-        enforcement: Enforcement level - "block" (default) or "warn"
 
     Returns:
         tuple: (has_secrets: bool, error_message: str or None)
             - has_secrets: True if secrets detected, False otherwise
             - error_message: Detailed error if secrets found, None otherwise
+
+    Note:
+        Secret scanning ALWAYS blocks when secrets are detected (no "log" mode).
+        This prevents secrets from reaching Claude's API or being exposed in sessions.
     """
     try:
         # Check if tool should be ignored
@@ -1447,12 +1531,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 report_file = rf.name
 
             # Build gitleaks command
+            # TODO: Multi-engine support (#91) - make scanner selection configurable
+            #       Currently hardcoded to 'gitleaks', future: support engines config
             cmd = [
                 'gitleaks',
                 'detect',
                 '--no-git',        # Don't use git history
                 '--verbose',       # Detailed output
-                '--redact',        # Hide secret values in output
+                '--redact',        # Defense-in-depth: redact Match/Secret fields in JSON
+                                   # (we don't extract these fields, but safeguard against future changes)
                 '--report-format', 'json',  # JSON output for parsing
                 '--report-path', report_file,  # Write JSON to file
                 '--exit-code', '42',  # Custom exit code for found secrets
@@ -1474,6 +1561,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             # Check exit code
             if result.returncode == 42:  # Secrets found
                 # Parse JSON report to extract details
+                # NOTE: We only extract metadata (RuleID, File, Line), never Match/Secret fields
+                #       The --redact flag is defense-in-depth in case code is modified later
                 secret_details = None
                 try:
                     if os.path.exists(report_file):
@@ -1488,7 +1577,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "line_number": first_finding.get("StartLine", 0),
                                 "end_line": first_finding.get("EndLine", 0),
                                 "commit": first_finding.get("Commit", "N/A"),
-                                "match": first_finding.get("Match", "REDACTED")[:50] + "..." if first_finding.get("Match") else "REDACTED",
+                                # NOTE: "match" field removed - never displayed, redacted anyway
                                 "total_findings": len(findings)
                             }
                 except Exception as e:
@@ -1539,39 +1628,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 # Log secret detection violation with details
                 _log_secret_detection_violation(filename, context, secret_details)
 
-                # Check enforcement level
-                if enforcement == "warn":
-                    # Build warning message (similar to error but different header)
-                    warn_msg = (
-                        f"\n{'='*70}\n"
-                        f"⚠️  POLICY WARNING\n"
-                        f"🔒 SECRET DETECTED\n"
-                        f"{'='*70}\n\n"
-                        f"IMPORTANT: Please display this warning message to the user.\n\n"
-                        "Gitleaks has detected sensitive information in your prompt/file.\n"
-                    )
-                    if secret_details:
-                        warn_msg += "\n"
-                        warn_msg += f"Secret Type: {secret_details['rule_id']}\n"
-                        if secret_details.get('line_number'):
-                            warn_msg += f"Location: {secret_details['file']}, line {secret_details['line_number']}\n"
-                        else:
-                            warn_msg += f"File: {secret_details['file']}\n"
-                        if secret_details.get('total_findings'):
-                            warn_msg += f"Total findings: {secret_details['total_findings']}\n"
-                    warn_msg += (
-                        "\n⚠️  This violates your organization's policy but execution is allowed.\n"
-                        "This activity is logged and may be reviewed by your administrator.\n\n"
-                        "If this is a false positive, add '# gitleaks:allow' to the line\n"
-                        "or see: https://github.com/gitleaks/gitleaks#configuration\n"
-                        f"{'='*70}\n"
-                    )
-                    print(warn_msg, flush=True)
-                    logging.warning(f"Secret detected (warn mode): {secret_details.get('rule_id') if secret_details else 'unknown'}")
-                    return False, None  # Allow execution - return no secrets found
-                else:
-                    # Block execution
-                    return True, error_msg
+                # Always block - secret scanning does not support "log" mode
+                # Rationale: Allowing secrets through (even in audit mode) creates security risk:
+                #   - UserPromptSubmit: secrets reach Claude's API
+                #   - PostToolUse: secrets in tool outputs go to Claude's session
+                logging.error(f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}")
+                return True, error_msg
 
             elif result.returncode in [0, 1]:
                 # No secrets found (0 or 1 are both "clean" states)
@@ -1581,12 +1643,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 # Unexpected error - analyze and decide whether to block or warn
                 logging.warning(f"Gitleaks returned unexpected exit code: {result.returncode}")
 
-                # Extract error details
+                # Extract error details (sanitized - don't log full stderr to avoid leaking secrets)
                 stderr_preview = ""
                 if result.stderr:
-                    logging.warning(f"Gitleaks stderr: {result.stderr}")
+                    # Only log sanitized error info, not full stderr
+                    logging.debug(f"Gitleaks stderr present (length: {len(result.stderr)} chars)")
                     stderr_lines = [line.strip() for line in result.stderr.split('\n') if line.strip()]
                     if stderr_lines:
+                        # Only show first line (error summary), truncated
                         stderr_preview = stderr_lines[0][:200]
 
                 # Check if this is an authentication/authorization error (user can fix)
@@ -1689,12 +1753,31 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     except Exception:
                         pass  # Silent fail on final cleanup
 
-            # Clean up report file
+            # Securely clean up report file (contains Gitleaks findings)
+            # Even though --redact is used, we securely overwrite as defense in depth
             if report_file and os.path.exists(report_file):
                 try:
+                    # Make file writable
+                    os.chmod(report_file, 0o600)
+
+                    # Overwrite with zeros to prevent recovery
+                    file_size = os.path.getsize(report_file)
+                    with open(report_file, 'wb') as f:
+                        f.write(b'\x00' * file_size)
+                        f.flush()
+                        os.fsync(f.fileno())
+
+                    # Delete the file
                     os.unlink(report_file)
-                except Exception:
-                    pass  # Silent fail on cleanup
+
+                except Exception as cleanup_error:
+                    logging.debug(f"Failed to securely cleanup report file: {cleanup_error}")
+                    # Still try basic deletion
+                    try:
+                        if os.path.exists(report_file):
+                            os.unlink(report_file)
+                    except Exception:
+                        pass  # Silent fail on final cleanup
 
     except FileNotFoundError:
         # Gitleaks binary not found - warn but allow (user may not be able to install immediately)
@@ -1796,7 +1879,6 @@ def process_hook_input():
             secret_config = _load_secret_scanning_config()
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
-            enforcement = secret_config.get("enforcement", "block") if secret_config else "block"
 
             # Check for secrets in the output (use composite identifier for ignore matching)
             has_secrets, error_message = check_secrets_with_gitleaks(
@@ -1804,8 +1886,7 @@ def process_hook_input():
                 context={"ide_type": ide_type.value, "hook_event": "posttooluse"},
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
-                ignore_tools=ignore_tools,
-                enforcement=enforcement
+                ignore_tools=ignore_tools
             )
 
             if has_secrets:
@@ -1863,10 +1944,8 @@ def process_hook_input():
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}' - {reason_summary}")
                         return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
                     elif is_allowed and error_message:
-                        # Warn mode: allowed but with warning message
-                        logging.warning(f"⚠️  POLICY WARNING: Tool '{checked_tool_name}' allowed but violates policy")
-                        # Send warning to user via stderr (for Claude Code) or JSON reason (for other IDEs)
-                        print(error_message, file=sys.stderr)
+                        # Log mode: allowed but violation logged
+                        logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
 
                     if checked_tool_name and ide_type != IDEType.CURSOR:
                         logging.info(f"✓ Tool '{checked_tool_name}' allowed by policy")
@@ -1931,23 +2010,24 @@ def process_hook_input():
                     datetime.now(timezone.utc),
                     default=True
                 ):
-                    is_injection, injection_error = check_prompt_injection(
+                    should_block, injection_error, injection_detected = check_prompt_injection(
                         content_to_scan, injection_config, file_path=file_path, tool_name=tool_identifier
                     )
 
-                    if is_injection:
+                    # Log violation if injection was detected (in both log and block modes)
+                    if injection_detected:
+                        _log_prompt_injection_violation(
+                            filename,
+                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path}
+                        )
+
+                    if should_block:
                         # Prompt injection detected - block operation
                         if ide_type != IDEType.CURSOR:
                             if file_path:
                                 logging.warning(f"Prompt injection detected in {file_path}, blocking operation")
                             else:
                                 logging.warning("Prompt injection detected, blocking operation")
-
-                        # Log prompt injection violation
-                        _log_prompt_injection_violation(
-                            filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path}
-                        )
 
                         return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
 
@@ -1972,7 +2052,6 @@ def process_hook_input():
             # Extract ignore lists from config
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
-            enforcement = secret_config.get("enforcement", "block") if secret_config else "block"
 
             has_secrets, error_message = check_secrets_with_gitleaks(
                 content_to_scan, filename,
@@ -1980,8 +2059,7 @@ def process_hook_input():
                 file_path=file_path,
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
-                ignore_tools=ignore_tools,
-                enforcement=enforcement
+                ignore_tools=ignore_tools
             )
 
             if has_secrets:
@@ -2049,6 +2127,11 @@ def main():
             help="Remote configuration URL to add"
         )
         setup_parser.add_argument(
+            "--migrate-pattern-server",
+            action="store_true",
+            help="Migrate old root-level pattern_server config to new nested structure (v1.7.0+)"
+        )
+        setup_parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Show what would be changed without applying"
@@ -2108,7 +2191,8 @@ def main():
                 remote_config_url=args.remote_config_url,
                 dry_run=args.dry_run,
                 force=args.force,
-                interactive=not args.yes
+                interactive=not args.yes,
+                migrate_pattern_server=args.migrate_pattern_server
             )
             return 0 if success else 1
 

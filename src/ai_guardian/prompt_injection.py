@@ -115,7 +115,7 @@ class PromptInjectionDetector:
         self.max_score_threshold = self.config.get("max_score_threshold", 0.75)
         self.ignore_files = self.config.get("ignore_files", [])
         self.ignore_tools = self.config.get("ignore_tools", [])
-        self.enforcement = self.config.get("enforcement", "block")
+        self.action = self.config.get("action", "block")
 
         # Compile regex patterns for performance
         self._compiled_patterns = [
@@ -410,7 +410,7 @@ class PromptInjectionDetector:
 
         return is_injection, confidence, matched_text
 
-    def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str], bool]:
         """
         Detect prompt injection in the given content.
 
@@ -420,31 +420,32 @@ class PromptInjectionDetector:
             tool_name: Optional tool name being used (for ignore_tools matching)
 
         Returns:
-            Tuple of (is_injection, error_message)
-            - is_injection: True if injection detected
-            - error_message: Formatted error message if injection found, None otherwise
+            Tuple of (should_block, error_message, detected)
+            - should_block: Whether to block execution (False in log mode, True in block mode)
+            - error_message: Formatted error message if should_block is True, None otherwise
+            - detected: Whether injection was detected (True even in log mode, for violation logging)
         """
         if not self.enabled:
-            return False, None
+            return False, None, False
 
         if not content or not content.strip():
-            return False, None
+            return False, None, False
 
         try:
             # Check if tool should be ignored
             if self._is_tool_ignored(tool_name):
                 logger.info(f"Skipping prompt injection detection for ignored tool: {tool_name}")
-                return False, None
+                return False, None, False
 
             # Check if file should be ignored based on path
             if self._is_file_ignored(file_path):
                 logger.info(f"Skipping prompt injection detection for ignored file: {file_path}")
-                return False, None
+                return False, None, False
 
             # Check allowlist first
             if self._check_allowlist(content):
                 logger.debug("Content matches allowlist pattern, skipping detection")
-                return False, None
+                return False, None, False
 
             # Perform detection based on configured detector type
             if self.detector_type == "heuristic":
@@ -471,32 +472,13 @@ class PromptInjectionDetector:
                 if len(matched_pattern) > 150:
                     pattern_preview += "..."
 
-                # Check enforcement level
-                if self.enforcement == "warn":
-                    # Build warning message
-                    warn_msg = (
-                        f"\n{'='*70}\n"
-                        f"⚠️  POLICY WARNING\n"
-                        f"🚨 PROMPT INJECTION DETECTED\n"
-                        f"{'='*70}\n\n"
-                        f"IMPORTANT: Please display this warning message to the user.\n\n"
-                        "AI Guardian has detected a potential prompt injection attack.\n\n"
-                        f"Detection details:\n"
-                        f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
-                        f"  • Method: {self.detector_type}\n"
-                        f"  • Pattern detected: {pattern_preview}\n\n"
-                        "⚠️  This violates your organization's policy but execution is allowed.\n"
-                        "This activity is logged and may be reviewed by your administrator.\n\n"
-                        "If this is a false positive, you can:\n"
-                        "  1. Adjust sensitivity in ~/.config/ai-guardian/ai-guardian.json\n"
-                        "  2. Add allowlist patterns for legitimate use cases\n"
-                        f"{'='*70}\n"
-                    )
-                    print(warn_msg, flush=True)
-                    logger.warning(f"Prompt injection detected (warn mode): confidence={confidence:.2f}")
-                    return False, None  # Allow execution
+                # Check action
+                if self.action == "log":
+                    logger.warning(f"Prompt injection detected (log mode): confidence={confidence:.2f} - execution allowed")
+                    return False, None, True  # Allow execution, no error, but detected (for violation logging)
                 else:
                     # Block execution
+                    logger.error(f"Prompt injection detected: confidence={confidence:.2f}")
                     error_msg = (
                         f"\n{'='*70}\n"
                         f"🚨 BLOCKED BY POLICY\n"
@@ -522,18 +504,18 @@ class PromptInjectionDetector:
                         f"{'='*70}\n"
                     )
 
-                    return True, error_msg
+                    return True, error_msg, True  # Block, error message, detected
 
-            return False, None
+            return False, None, False  # No injection detected
 
         except Exception as e:
             # Fail-open: allow operation on errors
             logger.error(f"Error during prompt injection detection: {e}")
             logger.debug("Failing open - allowing operation")
-            return False, None
+            return False, None, False
 
 
-def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str], bool]:
     """
     Convenience function to check for prompt injection.
 
@@ -544,7 +526,10 @@ def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None
         tool_name: Optional tool name being used (for ignore_tools matching)
 
     Returns:
-        Tuple of (is_injection, error_message)
+        Tuple of (should_block, error_message, detected)
+        - should_block: Whether to block execution (False in log mode, True in block mode)
+        - error_message: Error message if should_block is True, None otherwise
+        - detected: Whether injection was detected (True even in log mode, for violation logging)
     """
     detector = PromptInjectionDetector(config)
     return detector.detect(content, file_path=file_path, tool_name=tool_name)

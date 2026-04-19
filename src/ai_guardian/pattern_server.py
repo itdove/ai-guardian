@@ -46,9 +46,14 @@ class PatternServerClient:
 
         Args:
             config: Pattern server configuration from ai-guardian.json
+
+        NEW in v1.7.0: 'enabled' field is deprecated. Presence of config = enabled.
+        Still supports 'enabled' field for backward compatibility (with warning).
         """
         # Store enabled config (supports both boolean and time-based formats)
-        self.enabled_config = config.get("enabled", False)
+        # Default to True since config presence = enabled (v1.7.0+)
+        # Only False if explicitly set (backward compatibility)
+        self.enabled_config = config.get("enabled", True)
         self.base_url = config.get("url")
         self.patterns_endpoint = config.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
 

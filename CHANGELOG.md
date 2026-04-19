@@ -7,104 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (Breaking Changes)
+- **REMOVED `action` field from `secret_scanning` configuration**
+  - Secret scanning ALWAYS blocks when secrets are detected (no "log" mode)
+  - Rationale: `action: "log"` mode created security hole - secrets would reach Claude's API/session
+  - **Migration**: Remove `"action": "log"` from `secret_scanning` section
+  - To test with secrets: use `enabled: false`, `ignore_files`, `ignore_tools`, or `gitleaks:allow` comments
+  
+- **KNOWN LIMITATION: UserPromptSubmit secret display** (Claude Code issue)
+  - When blocking prompts with secrets, Claude Code displays the blocked prompt to the user
+  - The secret does NOT reach Claude's API/session (hook blocks before submission)
+  - Leak is limited to terminal/UI display
+  - See `docs/SECRET_REDACTION.md` for details
+
+### Changed (Breaking Changes)
+- **RESTRUCTURED `directory_rules` configuration**
+  - Moved `action` from per-rule to top level (applies to all rules)
+  - **New format**: `{"action": "log", "rules": [{"mode": "deny", "paths": [...]}]}`
+  - **Old format** (still supported): `[{"mode": "deny", "paths": [...]}]` (defaults to `action: "block"`)
+  - Rationale: Global action makes more sense than per-rule action
+
 ### Added
-- **Enforcement levels: warn vs block** across all detection areas (NEW in v1.7.0)
-  - Configurable enforcement for informed users vs restrictive security
-  - **"warn" mode**: Show policy violation warnings but allow execution (inform mode)
-  - **"block" mode**: Prevent execution when policy violated (default, restrictive mode)
-  - Available for:
-    - **Tool permissions**: Set enforcement per-rule with `"enforcement": "warn"|"block"`
-      - Example: Allow unapproved skills with warning instead of blocking
-      - Config: `{"matcher": "Skill", "mode": "allow", "patterns": ["approved"], "enforcement": "warn"}`
-    - **Secret scanning**: Set global enforcement with `"secret_scanning": {"enforcement": "warn"}`
-      - Example: Warn about leaked credentials but allow operation
-      - Useful during development or testing phases
-    - **Prompt injection**: Set global enforcement with `"prompt_injection": {"enforcement": "warn"}`
-      - Example: Monitor injection attempts without blocking
-      - Helps identify false positives before enforcing
-    - **Directory rules**: Set enforcement per-rule with `"enforcement": "warn"|"block"`
-      - Example: Monitor unauthorized skill access without blocking
-      - Config: `{"mode": "deny", "paths": ["~/.claude/skills/**"], "enforcement": "warn"}`
-  - All violations are **still logged** for audit and review, regardless of enforcement level
-  - Warning messages clearly indicate policy violation and that activity is logged
-  - Default: "block" mode for all features (backward compatible)
-  - Use case: Gradual policy rollout - start with "warn" to identify issues, then switch to "block"
-  - Comprehensive test coverage: 12 new tests in `test_enforcement_levels.py`
-- **Order-based directory access control** with `directory_rules` (NEW in v1.6.0)
-  - Replace filesystem `.ai-read-deny` markers with config-driven rules
-  - Rules are evaluated in order with **last match winning** (firewall-style)
-  - Supports flexible allow/deny combinations:
-    - Deny all, allow specific: `[{mode: "deny", paths: ["~/.claude/skills/**"]}, {mode: "allow", paths: ["~/.claude/skills/approved-*/**"]}]`
-    - Allow all, deny specific: `[{mode: "allow", paths: ["~/projects/**"]}, {mode: "deny", paths: ["~/projects/secret/**"]}]`
-  - Rules can **override `.ai-read-deny` markers** (allow rules win)
-  - Supports ~ expansion, ** for recursive, * for single-level wildcards
-  - Ideal for **enterprise skill allowlists**: centrally manage which skills are accessible
-  - Backward compatible: `directory_exclusions` automatically converted to allow rules (deprecated)
-  - Example: Block all Claude Code skills except approved ones without touching the filesystem
-- **ignore_tools** configuration for prompt injection and secret scanning (Issue #84)
-  - Skip detection for specific tools using patterns: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
-  - Granular control: ignore specific skills (e.g., `"Skill:code-review"`) or all skills (`"Skill"` or `"Skill:*"`)
-  - Composite tool identifiers: automatically created for Skill tools (e.g., `"Skill:code-review"`)
-  - **PreToolUse + PostToolUse correlation**: ignore_tools patterns now work on BOTH:
-    - PreToolUse: tool inputs (e.g., Skill reading SKILL.md documentation)
-    - PostToolUse: tool outputs (e.g., Skill execution results)
-    - Correlation ensures cached tool results inherit ignore from original invocation
-  - Supports wildcards: `*` (any chars), `?` (single char)
-  - Use case: Skill documentation with example attack patterns no longer triggers false positives
-  - Available in both `prompt_injection` and `secret_scanning` configuration sections
-- **ignore_files** configuration for prompt injection and secret scanning (Issue #84)
-  - Skip detection for specific files using glob patterns
-  - Supports glob wildcards: `*` (any chars except /), `**` (any chars including /), `?` (single char)
-  - Supports tilde expansion: `~` expands to home directory
-  - Examples: `"**/.claude/skills/*/SKILL.md"`, `"**/.claude/projects/**/tool-results/**"`, `"**/tests/fixtures/**"`, `"**/.env.example"`
-  - Use cases: SKILL.md files, cached tool results, test fixtures with fake credentials, example configuration files
-  - Recommended pattern for skills: `"**/.claude/projects/**/tool-results/**"` prevents re-scanning cached skill outputs
-  - Available in both `prompt_injection` and `secret_scanning` configuration sections
-- **Defense in depth**: Use both `ignore_tools` and `ignore_files` together for comprehensive false positive handling
-- Comprehensive test coverage: 10 new tests for `ignore_tools`, 9 new tests for `ignore_files`
-- Example configuration files: `examples/ignore-tools-config.json`, `examples/secret-scanning-ignore-config.json`
+- **Reserved `secret_scanning.engines` field** for future multi-engine support (v2.0.0)
+  - NOT YET IMPLEMENTED - Gitleaks only for now
+  - See `docs/MULTI_ENGINE_SUPPORT.md` for v2.0.0 plan (Issue #91)
+
+- **Action levels (log vs block)** for gradual policy rollout
+  - Tool permissions: per-rule `action` field
+  - Prompt injection: global `action` field  
+  - Directory rules: global `action` field
+  - Use case: Start with "log" mode to identify issues, then switch to "block"
+
+- **Order-based directory access control** with `directory_rules`
+  - Config-driven rules with last-match-wins evaluation (firewall-style)
+  - Rules can override `.ai-read-deny` markers
+  - Backward compatible with `directory_exclusions`
+
+- **ignore_tools and ignore_files** for false positive handling (Issue #84)
+  - Skip detection for specific tools: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
+  - Skip detection for specific files: `"**/.claude/skills/*/SKILL.md"`
+  - PreToolUse + PostToolUse correlation for tool patterns
+  - Works for both prompt injection and secret scanning
 
 ### Changed
 - **Improved policy blocking messages** (Issue #88)
-  - Added "🚨 BLOCKED BY POLICY" header to **all blocking messages** for consistency:
-    - Tool permission denials (immutable files, deny patterns, no permission rules)
-    - Secret detection (gitleaks findings)
-    - Prompt injection detection
-    - Directory protection (.ai-read-deny markers)
-    - Authentication errors (gitleaks auth failures)
-  - Log messages now include specific reason for blocking:
-    - Before: `"Tool 'Bash' blocked by policy"`
-    - After: `"🚨 BLOCKED BY POLICY: Tool 'Bash' - Critical file protected: ai-guardian config"`
-  - Added explicit anti-bypass language to **all** blocking messages to prevent AI agents from retrying:
-    - Tool policy: "DO NOT attempt workarounds - the protection is intentional"
-    - Secret detection: "DO NOT attempt to bypass this protection - it prevents credential leaks"
-    - Prompt injection: "DO NOT attempt to bypass this protection - it prevents malicious prompts"
-    - Directory protection: "DO NOT attempt workarounds - the protection is intentional"
-    - Authentication errors: "DO NOT attempt to bypass this protection - fix the authentication issue"
-  - Error messages now clearly explain WHY operations are blocked
-  - New `_extract_block_reason()` helper extracts concise reasons for logging:
-    - "Critical file protected: ai-guardian config"
-    - "Matched deny pattern: *.env"
-    - "No permission rule configured"
-    - "Not in allow list"
-  - Comprehensive test coverage: 10 new tests in `test_block_reason_extraction.py`
-  - Updated all error message tests to verify "🚨 BLOCKED BY POLICY" header
-- **Improved logging for debugging false positives**
-  - Log messages now include full file paths (not just filenames)
-  - Before: `"Scanning file 'SKILL.md' for secrets..."`
-  - After: `"Scanning file 'SKILL.md' (/home/user/.claude/skills/foo/SKILL.md) for secrets..."`
-  - Prompt injection warnings now include file path: `"Prompt injection detected in /path/to/file, blocking operation"`
-  - Makes it easy to identify which specific file triggered detection
-  - Helps users quickly add files to `ignore_files` configuration
+  - Added "🚨 BLOCKED BY POLICY" header to all blocking messages
+  - Log messages include specific block reason
+  - Anti-bypass language to prevent AI retry attempts
+
+- **Improved logging for debugging**
+  - Full file paths in log messages (not just filenames)
+  - Helps identify which files triggered detection
 
 ### Fixed
-- **CRITICAL: Bash tool bypass vulnerability** (discovered during code review)
-  - Root cause: PostToolUse hook checked `output`, `content`, `result` fields but NOT `stdout`/`stderr`
-  - Impact: Bash tool could read secrets/injections without detection (e.g., `Bash(command="cat ~/.aws/credentials")`)
-  - Fix: Added `stdout` and `stderr` extraction in `extract_tool_result()`
-  - Both streams now combined and scanned for secrets and prompt injections
-  - 12 new tests covering Bash output scanning
-  - All tool outputs now scanned equally (Read, Bash, Grep, etc.)
+- **CRITICAL: Bash tool bypass vulnerability**
+  - PostToolUse now scans Bash `stdout`/`stderr` for secrets and injections
+  - Previously only checked `output`, `content`, `result` fields
+
+### Documentation
+- **Added `docs/SECRET_REDACTION.md`**: 8 defensive layers for secret redaction
+- **Added `docs/MULTI_ENGINE_SUPPORT.md`**: v2.0.0 implementation plan
 
 ## [1.3.0] - 2026-04-16
 

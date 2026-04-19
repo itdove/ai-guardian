@@ -1029,7 +1029,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
         mock_check_secrets.return_value = (False, None)
         # Injection check shouldn't be called since feature is disabled
-        mock_check_injection.return_value = (True, "Injection detected")
+        mock_check_injection.return_value = (True, "Injection detected", True)
 
         hook_input = json.dumps({
             "hook_event_name": "UserPromptSubmit",
@@ -1062,7 +1062,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         }
 
         mock_check_secrets.return_value = (False, None)
-        mock_check_injection.return_value = (True, "Injection detected")
+        mock_check_injection.return_value = (True, "Injection detected", True)
 
         hook_input = json.dumps({
             "hook_event_name": "UserPromptSubmit",
@@ -1202,7 +1202,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             }
         }
 
-        mock_check_injection.return_value = (False, None)
+        mock_check_injection.return_value = (False, None, False)
         mock_check_secrets.return_value = (True, "Secret detected")
 
         hook_input = json.dumps({
