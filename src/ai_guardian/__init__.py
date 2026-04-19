@@ -530,13 +530,39 @@ def _check_directory_rules(file_path, config):
                     if "**" in expanded_pattern:
                         # Recursive wildcard: match directory and all subdirectories
                         base_path = expanded_pattern.replace("/**", "").replace("**", "")
-                        if abs_file_path.startswith(base_path):
-                            final_decision = mode
-                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
-                            break
+
+                        # Check if base_path still contains wildcards (e.g., daf-*/**, ~/projects/*/src/**)
+                        if "*" in base_path:
+                            # Use fnmatch to match the directory structure
+                            # For pattern like /home/user/.claude/skills/daf-*/**
+                            # base_path is /home/user/.claude/skills/daf-*
+                            # We need to check if abs_file_path is under a directory matching base_path
+
+                            # Check all parent directories from abs_file_path upwards
+                            current_path = abs_file_path
+                            matched = False
+
+                            while current_path and current_path != os.path.dirname(current_path):
+                                # Check if this directory matches the base pattern
+                                if fnmatch.fnmatch(current_path, base_path):
+                                    # Found a matching directory - the file is under it
+                                    matched = True
+                                    break
+                                # Move to parent directory
+                                current_path = os.path.dirname(current_path)
+
+                            if matched:
+                                final_decision = mode
+                                logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
+                                break
+                        else:
+                            # No wildcards in base_path, use simple startswith
+                            if abs_file_path.startswith(base_path):
+                                final_decision = mode
+                                logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
+                                break
                     elif "*" in expanded_pattern:
                         # Single-level wildcard: use fnmatch
-                        import fnmatch
                         file_parent = os.path.dirname(abs_file_path)
                         if fnmatch.fnmatch(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
                             final_decision = mode
