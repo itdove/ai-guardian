@@ -636,9 +636,9 @@ def check_directory_denied(file_path, config=None):
                 # No allow rule to override - block or log
                 # Check if there's a deny rule with log action
                 if rule_action == "log":
-                    logging.warning(f"Directory access violation (log mode): {file_path} - access allowed")
+                    logging.warning(f"Policy violation (log mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    warn_msg = f"⚠️  Directory access violation (log mode): File in protected directory '{denied_directory}' - access allowed"
+                    warn_msg = f"⚠️  Policy violation (log mode): Directory '{denied_directory}' denied by marker but allowed for audit"
                     return False, None, warn_msg  # ALLOW - logged for audit, with warning
                 else:
                     # Block access
@@ -650,9 +650,9 @@ def check_directory_denied(file_path, config=None):
         if rule_decision == "deny":
             # Check action
             if rule_action == "log":
-                logging.warning(f"Directory access violation (log mode): {file_path} - access allowed")
+                logging.warning(f"Policy violation (log mode): {file_path} - denied by rules but allowed for audit")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
-                warn_msg = f"⚠️  Directory access violation (log mode): Directory rules matched '{file_path}' - access allowed"
+                warn_msg = f"⚠️  Policy violation (log mode): Directory rules deny '{file_path}' but allowed for audit"
                 return False, None, warn_msg  # ALLOW - logged for audit, with warning
             else:
                 # Block access

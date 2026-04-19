@@ -50,6 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Anti-bypass language to prevent AI retry attempts
 
 ### Fixed
+- **Improved clarity of directory access log mode warnings**
+  - Changed confusing "Directory access violation...access allowed" to clearer format
+  - Now shows: "Policy violation (log mode): Directory rules deny 'path' but allowed for audit"
+  - Includes the denied directory/file path in warning messages
+  - Eliminates contradictory language that confused users
+
 - **CRITICAL: Bash tool bypass vulnerability**
   - PostToolUse now scans Bash `stdout`/`stderr` for secrets and prompt injection
   - Previously only checked `output`, `content`, `result` fields
