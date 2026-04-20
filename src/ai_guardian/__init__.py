@@ -1689,10 +1689,24 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     engine_config = select_engine(engines_list)
                     logging.info(f"Using scanner engine: {engine_config.type}")
                 except RuntimeError as e:
-                    # No scanner found - this will be handled by FileNotFoundError below
-                    logging.warning(f"Scanner engine selection failed: {e}")
+                    # No scanner found - raise error instead of silent fallback
+                    error_msg = (
+                        f"\n{'='*70}\n"
+                        f"🚨 BLOCKED BY POLICY\n"
+                        f"🔒 SCANNER NOT FOUND\n"
+                        f"{'='*70}\n\n"
+                        f"{str(e)}\n\n"
+                        f"Secret scanning is enabled but no scanner is available.\n\n"
+                        f"This operation has been blocked for security.\n"
+                        f"Install a scanner or update your configuration.\n"
+                        f"{'='*70}\n"
+                    )
+                    logging.error(f"Scanner engine selection failed: {e}")
+                    return True, error_msg  # Block the operation
                 except Exception as e:
-                    logging.warning(f"Error selecting scanner engine, falling back to gitleaks: {e}")
+                    logging.error(f"Unexpected error selecting scanner engine: {e}")
+                    # For unexpected errors, fail open with warning
+                    return False, None
 
             # Build scanner command
             if engine_config and HAS_SCANNER_ENGINE:
