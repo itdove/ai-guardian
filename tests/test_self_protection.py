@@ -1145,6 +1145,79 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed)
         self.assertNotIn("💡 TIP", error_msg)
 
+    # ========================================================================
+    # Test: Issue #113 - Fail-closed when file_path missing (prevent bypass)
+    # ========================================================================
+
+    def test_edit_blocks_when_file_path_missing_issue_113(self):
+        """
+        Issue #113: AI cannot bypass IMMUTABLE checks by sending malformed tool_input
+
+        BUG: If tool_input is empty or missing 'file_path', check_value becomes None
+        and IMMUTABLE pattern checks were skipped. This allowed bypassing protections.
+
+        FIX: For file-path tools, fail-closed (block) if file_path is missing.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {}  # Missing file_path
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Edit with missing file_path should be blocked")
+        self.assertIsNotNone(error_msg, "Error message should be provided")
+        self.assertIn("Missing required parameter", error_msg)
+        self.assertIn("file_path", error_msg)
+
+    def test_write_blocks_when_file_path_missing_issue_113(self):
+        """Write tool should block when file_path is missing (Issue #113)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                # Missing "input" field entirely
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Write with missing file_path should be blocked")
+        self.assertIn("Missing required parameter", error_msg)
+
+    def test_read_blocks_when_file_path_missing_issue_113(self):
+        """Read tool should block when file_path is missing (Issue #113)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {"limit": 100}  # Has other params but missing file_path
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read with missing file_path should be blocked")
+        self.assertIn("Missing required parameter", error_msg)
+
+    def test_notebookedit_blocks_when_file_path_missing_issue_113(self):
+        """NotebookEdit tool should block when file_path is missing (Issue #113)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "NotebookEdit",
+                "input": {}
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "NotebookEdit with missing file_path should be blocked")
+        self.assertIn("Missing required parameter", error_msg)
+
 
 if __name__ == '__main__':
     import unittest

@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Issue #105 was filed as preventive security measure - vulnerability never existed
 
 ### Fixed
+- **Bug #113: Self-protection bypass when file_path parameter is missing**
+  - File-path tools (Edit, Write, Read, NotebookEdit) now fail-closed when file_path is missing
+  - Previously, malformed tool_input with missing file_path would bypass IMMUTABLE pattern checks
+  - AI could potentially bypass config/hooks protection by sending empty tool parameters
+  - Fixed by requiring file_path parameter for security checks on file-path tools
+  - Added comprehensive test coverage in `tests/test_self_protection.py`
+  - Affects: Edit, Write, Read, NotebookEdit tools with empty or malformed input
+
 - **Bug #102: Directory rules don't support combined wildcards (e.g., daf-*/**)**
   - Patterns combining single-level (`*`) and recursive (`**`) wildcards now work correctly
   - Example: `~/.claude/skills/daf-*/**` now matches all files under daf-git/, daf-jira/, etc.

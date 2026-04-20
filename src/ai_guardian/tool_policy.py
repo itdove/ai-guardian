@@ -384,6 +384,33 @@ class ToolPolicyChecker:
             # These protect ai-guardian config, IDE hooks, and pip-installed package code
             # EXCEPT: Development source code can be edited (fork + PR workflow)
             check_value = self._extract_check_value(tool_name, tool_input, tool_name)
+
+            # For file-path tools (Edit/Write/Read/NotebookEdit), require check_value
+            # If we can't extract file_path, fail-closed to prevent bypass (Issue #113)
+            is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
+            if is_file_path_tool and not check_value:
+                error_msg = (
+                    f"\n{'='*70}\n"
+                    f"🚨 BLOCKED BY POLICY\n"
+                    f"{'='*70}\n"
+                    f"Tool: {tool_name}\n"
+                    f"Reason: Missing required parameter (file_path)\n"
+                    f"\n"
+                    f"File-path tools require a file_path parameter for security checks.\n"
+                    f"This operation has been blocked to prevent bypassing immutable\n"
+                    f"file protections.\n"
+                    f"{'='*70}\n"
+                )
+                logger.error(f"🚨 BLOCKED: {tool_name} - missing file_path parameter")
+                self._log_violation(
+                    tool_name=tool_name,
+                    check_value="<missing file_path>",
+                    reason="missing required parameter",
+                    matcher=tool_name,
+                    hook_data=hook_data
+                )
+                return False, error_msg, tool_name
+
             if check_value:
                 # Check if this is development source code (allowed for contributors)
                 if self._should_skip_immutable_protection(check_value, tool_name):
@@ -840,6 +867,11 @@ class ToolPolicyChecker:
 
         # Edit: extract file_path from input
         if matcher == "Edit":
+            file_path = tool_input.get("file_path")
+            return file_path if file_path else None
+
+        # NotebookEdit: extract file_path from input
+        if matcher == "NotebookEdit":
             file_path = tool_input.get("file_path")
             return file_path if file_path else None
 
