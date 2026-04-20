@@ -8,7 +8,7 @@
   "properties": {
     "permissions": {
       "type": "object",
-      "description": "Tool permissions configuration (NEW unified structure in v1.4.0). Controls whether AI Guardian enforces tool permission rules and defines the permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed.",
+      "description": "Tool permissions configuration - WHERE THE RULES LIVE. Controls whether AI Guardian enforces tool permission rules and defines the permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Works with permissions_directories (auto-discovery feeds INTO this section). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed. NEW unified structure in v1.4.0.",
       "properties": {
         "enabled": {
           "oneOf": [
@@ -67,7 +67,7 @@
           }
         }
       ],
-      "description": "OPTIONAL/ADVANCED: Auto-discover permissions from directories. Most users should use remote_configs instead. Supports both object format (allow/deny arrays) and direct array format."
+      "description": "OPTIONAL/ADVANCED: Auto-discover tool permissions - HOW TO AUTO-POPULATE RULES. Scans directories/GitHub repos for permission files and merges discovered rules INTO permissions.rules. Data flow: scan directories → discover permission files → generate rules → merge into permissions.rules. NOT related to directory_rules (filesystem path access control). Most users should use remote_configs instead. Supports both object format (allow/deny arrays) and direct array format."
     },
     "remote_configs": {
       "type": "object",
@@ -430,7 +430,7 @@
         },
         {
           "type": "object",
-          "description": "Order-based directory access control rules (NEW in v1.6.0). Rules are evaluated sequentially with last match winning. Supports flexible allow/deny patterns for enterprise skill allowlists and path restrictions.",
+          "description": "Filesystem path access control - Controls which PATHS can be accessed/read. Order-based directory access control rules (NEW in v1.6.0). Rules are evaluated sequentially with last match winning. Supports flexible allow/deny patterns for enterprise skill allowlists and path restrictions. COMPLETELY SEPARATE from permissions_directories (which auto-discovers TOOL permissions, not path restrictions). Common confusion: permissions_directories = where to find tool permission config, directory_rules = which paths to protect.",
           "properties": {
             "action": {
               "type": "string",
@@ -471,7 +471,7 @@
     },
     "directory_exclusions": {
       "type": "object",
-      "description": "DEPRECATED: Use directory_rules instead. Directory exclusions can override .ai-read-deny blocking (v1.5.0). Automatically converted to directory_rules internally.",
+      "description": "DEPRECATED: Use directory_rules instead. Filesystem path access control - Controls which PATHS can be accessed/read. NOT related to permissions_directories (which auto-discovers TOOL permissions). Directory exclusions can override .ai-read-deny blocking (v1.5.0). Automatically converted to directory_rules internally.",
       "deprecated": true,
       "properties": {
         "enabled": {
@@ -580,7 +580,7 @@
     "directory_entry": {
       "type": "object",
       "required": ["url"],
-      "description": "Directory to scan for auto-discovery of permissions. In object format (allow/deny arrays), mode is determined by which array the entry is in. In array format, mode defaults to 'allow' if not specified.",
+      "description": "Directory to scan for auto-discovery of tool permissions (NOT filesystem path blocking). Scans directory or GitHub repo for permission files and generates tool permission rules. Purpose: Auto-populate permissions.rules, not block directories. In object format (allow/deny arrays), mode is determined by which array the entry is in. In array format, mode defaults to 'allow' if not specified.",
       "properties": {
         "matcher": {
           "type": "string",

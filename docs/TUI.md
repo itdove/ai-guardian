@@ -310,6 +310,13 @@ Manage Skill permission rules (allow/deny patterns).
 
 #### Overview
 
+**Purpose:** Controls which **TOOLS** (Skills) the AI can execute.
+
+**Relationship to other tabs:**
+- This tab edits the `permissions.rules` section (matcher: "Skill")
+- Works with **Permissions Discovery** tab (tab 8): Auto-discovered skills feed INTO this allow/deny list
+- **NOT related** to **Directory Protection** tab (tab 9): That controls filesystem PATHS, not tool execution
+
 Skills are CLI commands exposed by AI coding assistants (e.g., `daf-cli`, `release`, `gh-cli`). This tab controls which Skills the AI can execute.
 
 #### Configuration Structure
@@ -422,6 +429,13 @@ Patterns can have expiration timestamps for temporary permissions:
 Manage MCP (Model Context Protocol) server permissions.
 
 #### Overview
+
+**Purpose:** Controls which **TOOLS** (MCP servers) the AI can invoke.
+
+**Relationship to other tabs:**
+- This tab edits the `permissions.rules` section (matcher: "mcp__*")
+- Works with **Permissions Discovery** tab (tab 8): Auto-discovered MCP permissions feed INTO this allow/deny list
+- **NOT related** to **Directory Protection** tab (tab 9): That controls filesystem PATHS, not tool execution
 
 MCP servers are external tools/services accessed via the Model Context Protocol. Examples include:
 - `mcp__notebooklm-mcp__*` - NotebookLM operations
@@ -858,6 +872,18 @@ Manage auto-discovery of permissions from local directories or GitHub repositori
 
 #### Overview
 
+**Purpose:** Auto-discover **TOOL** permissions from directories/repos and merge INTO `permissions.rules`.
+
+**Relationship to other tabs:**
+- Discovered permissions automatically populate **Skills** (tab 3) and **MCP Servers** (tab 4) allow lists
+- This is the `permissions_directories` configuration section
+- **Data flow:** Scan directories → Discover permission files → Generate rules → **Merge into** `permissions.rules`
+- **NOT related** to **Directory Protection** tab (tab 9): Despite similar names, this discovers TOOL permissions, not filesystem path restrictions
+
+**Critical distinction:**
+- **This tab (Permissions Discovery):** WHERE to find tool permission files (config source)
+- **Directory Protection tab:** WHICH paths to block from AI access (security policy)
+
 Permissions Discovery allows AI Guardian to automatically load permission rules from specified directories or GitHub repos. This is useful for:
 - **Shared team permissions**: Store in Git, auto-load across team
 - **Project-specific rules**: Each repo defines its own required permissions
@@ -1012,6 +1038,21 @@ Permissions from multiple discovered files are merged:
 Manage directory exclusions and `.ai-read-deny` marker scanning.
 
 #### Overview
+
+**Purpose:** Controls which **PATHS** (directories/files) the AI can access/read.
+
+**Relationship to other tabs:**
+- This is the `directory_rules` (or `directory_exclusions` deprecated) configuration section
+- **COMPLETELY SEPARATE** from **Permissions Discovery** tab (tab 8)
+- **NOT related** to Skills/MCP permissions (tabs 3-4)
+
+**Critical distinction - avoid confusion:**
+- **Permissions Discovery tab (8):** Auto-discovers TOOL permissions (which tools can run)
+- **This tab (Directory Protection):** Blocks filesystem PATHS (e.g., block `~/.ssh` directory)
+
+**Common mistake:**  
+❌ "I want to block a tool from accessing `/etc` → use Permissions Discovery"  
+✅ "I want to block ANY tool from accessing `/etc` → use Directory Protection"
 
 Directory Protection prevents AI agents from reading sensitive directories by:
 1. **Exclusion paths**: Manually specified directories to block

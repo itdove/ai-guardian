@@ -699,6 +699,55 @@ Remote policies: Centrally managed, cannot be bypassed
 
 The following manual configuration is provided for reference or advanced use cases.
 
+### Configuration Concepts
+
+AI Guardian has three main configuration areas that serve distinct purposes. Understanding the difference is critical:
+
+| Configuration Section | Purpose | What It Controls | When to Use |
+|----------------------|---------|------------------|-------------|
+| **`permissions`** | Tool permission enforcement | Which **TOOLS** can run (Skills, MCP, Bash, Write, etc.) | Required for Skills; optional for enterprise MCP/Bash restrictions |
+| **`permissions_directories`** | Auto-discovery of tool permissions | Automatically populates `permissions` rules from directories/GitHub | Advanced: Dynamic permission loading from repos |
+| **`directory_rules`** | Filesystem access control | Which **PATHS** can be accessed/read (e.g., block `~/.ssh`) | Protect sensitive directories from AI access |
+
+#### How `permissions` and `permissions_directories` Work Together
+
+These two sections complement each other for tool permission management:
+
+1. **`permissions`** - WHERE THE RULES LIVE
+   - Contains the actual permission rules that are enforced
+   - Manual configuration: You explicitly list allowed/denied tools
+   - Example: `{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}`
+
+2. **`permissions_directories`** - HOW TO AUTO-POPULATE RULES
+   - Scans directories or GitHub repos for permission files
+   - Automatically discovers and loads rules → merges into `permissions.rules`
+   - Example: Scan `~/.claude/skills/` and auto-allow all discovered skills
+
+**Data Flow:**
+```
+permissions_directories → Scan directories → Discover permission files → Generate rules → Merge into permissions.rules
+```
+
+**When to use:**
+- Use **only `permissions`**: For static, manually curated tool lists (most users)
+- Use **both together**: For dynamic discovery from shared repos (advanced users)
+- Recommended: Use `remote_configs` instead of `permissions_directories` (easier to manage)
+
+#### How `directory_rules` is DIFFERENT
+
+**CRITICAL:** Despite the similar name, `directory_rules` is **completely unrelated** to `permissions` and `permissions_directories`:
+
+- **`permissions` + `permissions_directories`**: Control which **TOOLS** can execute
+- **`directory_rules`**: Control which **PATHS** can be accessed
+
+**Example use cases:**
+- `permissions`: "Block the `rm -rf` Bash pattern" (tool permission)
+- `directory_rules`: "Block access to `~/.ssh` directory" (filesystem access)
+
+**Common confusion:**
+❌ "I want to block a tool from accessing `/etc` → use `permissions_directories`"  
+✅ "I want to block ANY tool from accessing `/etc` → use `directory_rules`"
+
 ### Claude Code
 
 Add to `~/.claude/settings.json`:
@@ -1917,6 +1966,57 @@ Instead, we recommend researching prompt injection through:
 - Security research from reputable sources
 
 For testing AI Guardian, use generic `test:` prefixed strings rather than actual attack patterns.
+
+### Q: What's the difference between `permissions` and `permissions_directories`?
+
+**A:** They work **together** for tool permission management:
+
+- **`permissions`** - WHERE THE RULES LIVE  
+  Manual configuration of which tools (Skills, MCP, Bash) are allowed/denied.  
+  Example: `{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}`
+
+- **`permissions_directories`** - HOW TO AUTO-POPULATE RULES  
+  Scans directories/GitHub repos for permission files and automatically merges discovered rules into `permissions.rules`.  
+  Example: Scan `~/.claude/skills/` to auto-allow all discovered skills.
+
+**Data flow:** `permissions_directories` → scan → discover → generate rules → **merge into** `permissions.rules`
+
+**Most users:** Just use `permissions` for manual configuration.  
+**Advanced users:** Use both for dynamic discovery from shared repos.  
+**Recommended:** Use `remote_configs` instead of `permissions_directories` (simpler to manage).
+
+### Q: What's the difference between `permissions_directories` and `directory_rules`?
+
+**A:** These are **completely different** features despite similar names:
+
+| Feature | Purpose | What it Controls |
+|---------|---------|------------------|
+| `permissions_directories` | Tool permission auto-discovery | Which **TOOLS** can run |
+| `directory_rules` | Filesystem access control | Which **PATHS** can be accessed |
+
+**Example:**
+- ❌ Wrong: "Block tools from accessing `/etc` → use `permissions_directories`"
+- ✅ Correct: "Block ANY tool from accessing `/etc` → use `directory_rules`"
+
+**Common confusion:** They both have "directory" in the name but:
+- `permissions_directories`: Specifies where to **find** permission rules (config source)
+- `directory_rules`: Specifies which **paths** to protect (security policy)
+
+### Q: When should I use `permissions_directories`?
+
+**A:** Only for **advanced use cases**:
+
+✅ **Use `permissions_directories` when:**
+- You have a shared GitHub/GitLab repo with team permission files
+- You maintain multiple permission files across projects
+- You want permissions to auto-update when repo changes
+
+❌ **Don't use if:**
+- You have a static list of allowed tools (use `permissions` instead)
+- You want enterprise policies (use `remote_configs` instead - much easier)
+- You're just getting started (keep it simple with manual `permissions`)
+
+**Recommendation:** Most users should use `remote_configs` for centralized policy management instead of `permissions_directories`.
 
 ## Contributing
 
