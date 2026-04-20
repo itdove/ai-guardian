@@ -15,13 +15,16 @@ from ai_guardian.tool_policy import ToolPolicyChecker
 def test_valid_config_loads_successfully():
     """Test that a valid configuration loads without errors."""
     valid_config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": ["daf-*", "gh-cli"]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": ["daf-*", "gh-cli"]
+                }
+            ]
+        }
     }
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -33,6 +36,7 @@ def test_valid_config_loads_successfully():
         config = checker._load_json_file(Path(temp_path), "test")
         assert config is not None
         assert "permissions" in config
+        assert "rules" in config["permissions"]
     finally:
         Path(temp_path).unlink()
 
@@ -40,13 +44,16 @@ def test_valid_config_loads_successfully():
 def test_invalid_mode_rejected_at_load():
     """Test that invalid permission mode is rejected at load time."""
     invalid_config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "invalid_mode",  # Invalid!
-                "patterns": ["daf-*"]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "invalid_mode",  # Invalid!
+                    "patterns": ["daf-*"]
+                }
+            ]
+        }
     }
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -86,12 +93,15 @@ def test_invalid_detector_rejected_at_load():
 def test_missing_required_fields_rejected_at_load():
     """Test that missing required fields are rejected at load time."""
     invalid_config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                # Missing "mode" and "patterns" (required)
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    # Missing "mode" and "patterns" (required)
+                }
+            ]
+        }
     }
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -127,25 +137,25 @@ def test_empty_config_is_valid():
 def test_complex_valid_config_loads():
     """Test that a complex valid configuration loads successfully."""
     complex_config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": [
-                    "daf-*",
-                    {
-                        "pattern": "debug-*",
-                        "valid_until": "2026-04-13T12:00:00Z"
-                    }
-                ]
-            }
-        ],
-        "permissions_enabled": {
+        "permissions": {
             "enabled": {
                 "value": False,
                 "disabled_until": "2026-04-13T18:00:00Z",
                 "reason": "Emergency debugging"
-            }
+            },
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": [
+                        "daf-*",
+                        {
+                            "pattern": "debug-*",
+                            "valid_until": "2026-04-13T12:00:00Z"
+                        }
+                    ]
+                }
+            ]
         },
         "prompt_injection": {
             "enabled": True,
@@ -163,7 +173,6 @@ def test_complex_valid_config_loads():
         config = checker._load_json_file(Path(temp_path), "test")
         assert config is not None
         assert "permissions" in config
-        assert "permissions_enabled" in config
         assert "prompt_injection" in config
     finally:
         Path(temp_path).unlink()
@@ -172,20 +181,23 @@ def test_complex_valid_config_loads():
 def test_immutable_field_in_permissions_is_valid():
     """Test that immutable field in permission rules is valid (Issue #67)."""
     config_with_immutable = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": ["daf-*"],
-                "immutable": True
-            },
-            {
-                "matcher": "Bash",
-                "mode": "deny",
-                "patterns": ["*rm -rf*"],
-                "immutable": False
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": ["daf-*"],
+                    "immutable": True
+                },
+                {
+                    "matcher": "Bash",
+                    "mode": "deny",
+                    "patterns": ["*rm -rf*"],
+                    "immutable": False
+                }
+            ]
+        }
     }
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -196,8 +208,8 @@ def test_immutable_field_in_permissions_is_valid():
         checker = ToolPolicyChecker()
         config = checker._load_json_file(Path(temp_path), "test")
         assert config is not None
-        assert config["permissions"][0]["immutable"] is True
-        assert config["permissions"][1]["immutable"] is False
+        assert config["permissions"]["rules"][0]["immutable"] is True
+        assert config["permissions"]["rules"][1]["immutable"] is False
     finally:
         Path(temp_path).unlink()
 

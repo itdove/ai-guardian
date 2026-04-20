@@ -91,7 +91,10 @@ def test_valid_config_validates(schema, valid_config):
 def test_minimal_valid_config(schema):
     """Test that a minimal valid configuration passes validation."""
     minimal_config = {
-        "permissions": []
+        "permissions": {
+            "enabled": True,
+            "rules": []
+        }
     }
 
     try:
@@ -115,13 +118,16 @@ def test_empty_config_is_valid(schema):
 def test_permission_rule_structure(schema):
     """Test that permission rules validate correctly."""
     config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": ["daf-*", "gh-cli"]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": ["daf-*", "gh-cli"]
+                }
+            ]
+        }
     }
 
     try:
@@ -134,19 +140,22 @@ def test_permission_rule_structure(schema):
 def test_time_based_pattern(schema):
     """Test that time-based patterns validate correctly."""
     config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": [
-                    "daf-*",
-                    {
-                        "pattern": "debug-*",
-                        "valid_until": "2026-04-13T12:00:00Z"
-                    }
-                ]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": [
+                        "daf-*",
+                        {
+                            "pattern": "debug-*",
+                            "valid_until": "2026-04-13T12:00:00Z"
+                        }
+                    ]
+                }
+            ]
+        }
     }
 
     try:
@@ -159,7 +168,7 @@ def test_time_based_pattern(schema):
 def test_time_based_feature_boolean(schema):
     """Test that boolean feature toggles validate correctly."""
     config = {
-        "permissions_enabled": {
+        "permissions": {
             "enabled": True
         },
         "secret_scanning": {
@@ -177,7 +186,7 @@ def test_time_based_feature_boolean(schema):
 def test_time_based_feature_extended(schema):
     """Test that extended time-based feature toggles validate correctly."""
     config = {
-        "permissions_enabled": {
+        "permissions": {
             "enabled": {
                 "value": False,
                 "disabled_until": "2026-04-13T18:00:00Z",
@@ -216,13 +225,16 @@ def test_prompt_injection_config(schema):
 def test_invalid_mode_rejected(schema):
     """Test that invalid permission mode is rejected."""
     config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "invalid_mode",
-                "patterns": ["daf-*"]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "invalid_mode",
+                    "patterns": ["daf-*"]
+                }
+            ]
+        }
     }
 
     with pytest.raises(ValidationError):
@@ -259,12 +271,15 @@ def test_invalid_sensitivity_rejected(schema):
 def test_missing_required_fields_rejected(schema):
     """Test that permission rules missing required fields are rejected."""
     config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                # missing mode and patterns
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    # missing mode and patterns
+                }
+            ]
+        }
     }
 
     with pytest.raises(ValidationError):
@@ -344,18 +359,21 @@ def test_pattern_server_config(schema):
 def test_time_based_bash_allow_pattern(schema):
     """Test that time-based Bash allow patterns validate correctly."""
     config = {
-        "permissions": [
-            {
-                "matcher": "Bash",
-                "mode": "allow",
-                "patterns": [
-                    {
-                        "pattern": "*docker rm*",
-                        "valid_until": "2026-04-13T15:00:00Z"
-                    }
-                ]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Bash",
+                    "mode": "allow",
+                    "patterns": [
+                        {
+                            "pattern": "*docker rm*",
+                            "valid_until": "2026-04-13T15:00:00Z"
+                        }
+                    ]
+                }
+            ]
+        }
     }
 
     try:
@@ -368,20 +386,23 @@ def test_time_based_bash_allow_pattern(schema):
 def test_mixed_simple_and_time_based_patterns(schema):
     """Test that mixed simple and time-based patterns validate correctly."""
     config = {
-        "permissions": [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": [
-                    "daf-*",
-                    "gh-cli",
-                    {
-                        "pattern": "debug-*",
-                        "valid_until": "2026-04-13T12:00:00Z"
-                    }
-                ]
-            }
-        ]
+        "permissions": {
+            "enabled": True,
+            "rules": [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": [
+                        "daf-*",
+                        "gh-cli",
+                        {
+                            "pattern": "debug-*",
+                            "valid_until": "2026-04-13T12:00:00Z"
+                        }
+                    ]
+                }
+            ]
+        }
     }
 
     try:

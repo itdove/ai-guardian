@@ -100,7 +100,7 @@ Manage global security feature toggles with time-based controls.
 
 #### Features
 
-**Tool Permissions Enforcement** (`permissions_enabled`)
+**Tool Permissions Enforcement** (`permissions.enabled`)
 - Controls whether AI Guardian enforces tool permission rules
 - When disabled, all tools are allowed without checks
 - Supports time-based temporary disabling
@@ -154,11 +154,15 @@ Each setting supports three operational modes:
 **Example configuration**:
 ```json
 {
-  "permissions_enabled": {
-    "value": false,
-    "valid_until": "2026-04-15T18:00:00Z"
+  "permissions": {
+    "enabled": {
+      "value": false,
+      "disabled_until": "2026-04-15T18:00:00Z"
+    }
   },
-  "secret_scanning": true
+  "secret_scanning": {
+    "enabled": true
+  }
 }
 ```
 
@@ -1199,14 +1203,21 @@ From lowest to highest priority:
 
 ```json
 {
-  "permissions_enabled": true,
-  "secret_scanning": {
-    "value": false,
-    "valid_until": "2026-04-15T18:00:00Z"
+  "permissions": {
+    "enabled": true,
+    "rules": [
+      {
+        "matcher": "Skill",
+        "mode": "allow",
+        "patterns": ["daf-*", "release", "gh-cli"]
+      }
+    ]
   },
-  "skills": {
-    "allow": ["daf-*", "release", "gh-cli"],
-    "deny": []
+  "secret_scanning": {
+    "enabled": {
+      "value": false,
+      "disabled_until": "2026-04-15T18:00:00Z"
+    }
   },
   "mcp_servers": {
     "allow": ["mcp__notebooklm-mcp__*"],

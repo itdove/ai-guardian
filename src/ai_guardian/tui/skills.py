@@ -250,7 +250,12 @@ class SkillsContent(Container):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    all_permissions = config.get("permissions", [])
+                    # NEW unified structure in v1.4.0
+                    permissions_obj = config.get("permissions", {})
+                    if isinstance(permissions_obj, dict):
+                        all_permissions = permissions_obj.get("rules", [])
+                    else:
+                        all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
 
                     # Extract allow and deny patterns for Skill matcher
                     for perm in all_permissions:
@@ -392,7 +397,12 @@ class SkillsContent(Container):
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
 
-            all_permissions = config.get("permissions", [])
+            # NEW unified structure in v1.4.0
+            permissions_obj = config.get("permissions", {})
+            if isinstance(permissions_obj, dict):
+                all_permissions = permissions_obj.get("rules", [])
+            else:
+                all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
 
             # Find and remove pattern
             for perm in all_permissions:
@@ -404,7 +414,11 @@ class SkillsContent(Container):
                         if not patterns:
                             all_permissions.remove(perm)
 
-                        config["permissions"] = all_permissions
+                        # Save back to new structure
+                        if isinstance(config.get("permissions"), dict):
+                            config["permissions"]["rules"] = all_permissions
+                        else:
+                            config["permissions"] = {"enabled": True, "rules": all_permissions}
 
                         with open(config_path, 'w', encoding='utf-8') as f:
                             json.dump(config, f, indent=2)

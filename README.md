@@ -190,7 +190,7 @@ ai-guardian tui
 The TUI uses a modern tab-based interface with separate tabs for each concern:
 
 1. **⚙️ Global Settings** - Global security feature toggles (NEW)
-   - Manage `permissions_enabled` with time-based toggles
+   - Manage permissions enforcement (`permissions.enabled`) with time-based toggles
    - Manage `secret_scanning` with time-based toggles
    - Support for temporary disabling with expiration timestamps
    - Visual status indicators and auto re-enabling

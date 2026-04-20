@@ -18,84 +18,59 @@
   "_comment15": "No configuration can disable these protections - they are hardcoded",
   "_comment16": "====================================================================",
 
-  "permissions": [
-    {
-      "_comment": "Skills - must be explicitly allowed",
-      "matcher": "Skill",
-      "mode": "allow",
-      "patterns": [
-        "daf-*",
-        "gh-cli",
-        "git-cli",
-        "glab-cli",
-        "arc",
-        "claude-api",
-        "update-config"
-      ],
-      "_time_based_example": [
-        "daf-*",
-        {
-          "pattern": "debug-*",
-          "valid_until": "2026-04-13T12:00:00Z",
-          "_comment": "Temporary debug access until noon UTC"
-        },
-        {
-          "pattern": "experimental-*",
-          "valid_until": "2026-04-20T00:00:00Z",
-          "_comment": "Testing period ends April 20"
-        }
-      ],
-      "_immutable_example_remote_config": {
-        "_comment": "In remote config ONLY: Add immutable: true to prevent local override",
+  "permissions": {
+    "_comment": "NEW unified structure in v1.4.0: combines enabled flag and rules in one object",
+    "enabled": true,
+    "rules": [
+      {
+        "_comment": "Skills - must be explicitly allowed",
         "matcher": "Skill",
         "mode": "allow",
-        "patterns": ["daf-*", "gh-cli"],
-        "immutable": true,
-        "_explanation": "Local configs cannot add or modify Skill rules when immutable is true"
-      }
-    },
-    {
-      "_comment": "MCP tools - must be explicitly allowed (optional - can use settings.json)",
-      "matcher": "mcp__*",
-      "mode": "allow",
-      "patterns": [
-        "mcp__notebooklm-mcp__notebook_list",
-        "mcp__notebooklm-mcp__notebook_get",
-        "mcp__notebooklm-mcp__notebook_query",
-        "mcp__notebooklm-mcp__source_add",
-        "mcp__atlassian__getJiraIssue",
-        "mcp__atlassian__searchJiraIssuesUsingJql"
-      ]
-    },
-    {
-      "_comment": "Enterprise restrictions - block dangerous Bash operations",
-      "matcher": "Bash",
-      "mode": "deny",
-      "patterns": [
-        "*rm -rf*",
-        "*mkfs*",
-        "*dd if=*"
-      ],
-      "_immutable_example_remote_config": {
-        "_comment": "In remote config: Prevent local configs from allowing dangerous commands",
+        "patterns": [
+          "daf-*",
+          "gh-cli",
+          "git-cli",
+          "glab-cli",
+          "arc",
+          "claude-api",
+          "update-config"
+        ]
+      },
+      {
+        "_comment": "MCP tools - must be explicitly allowed",
+        "matcher": "mcp__*",
+        "mode": "allow",
+        "patterns": [
+          "mcp__notebooklm-mcp__notebook_list",
+          "mcp__notebooklm-mcp__notebook_get",
+          "mcp__notebooklm-mcp__notebook_query",
+          "mcp__notebooklm-mcp__source_add",
+          "mcp__atlassian__getJiraIssue",
+          "mcp__atlassian__searchJiraIssuesUsingJql"
+        ]
+      },
+      {
+        "_comment": "Block dangerous Bash operations",
         "matcher": "Bash",
         "mode": "deny",
-        "patterns": ["*rm -rf*", "*dd if=*"],
-        "immutable": true,
-        "_explanation": "Enterprise security requirement - cannot be overridden locally"
+        "patterns": [
+          "*rm -rf*",
+          "*mkfs*",
+          "*dd if=*"
+        ]
+      },
+      {
+        "_comment": "Block system directory writes",
+        "matcher": "Write",
+        "mode": "deny",
+        "patterns": [
+          "/etc/*",
+          "/sys/*",
+          "/proc/*"
+        ]
       }
-    },
-    {
-      "_comment": "Enterprise restrictions - block system directory writes",
-      "matcher": "Write",
-      "mode": "deny",
-      "patterns": [
-        "/etc/*",
-        "/sys/*",
-        "/proc/*"
-      ]
-    }
-  ],
+    ]
+  },
 
   "permissions_directories": {
     "_comment": "OPTIONAL/ADVANCED: Auto-discover from directories (most users should use remote_configs instead)",
@@ -128,19 +103,6 @@
     ],
     "refresh_interval_hours": 12,
     "expire_after_hours": 168
-  },
-
-  "permissions_enabled": {
-    "_comment": "NEW in v1.4.0: Global tool permissions enforcement control",
-    "_comment2": "Controls whether tool permissions (MCP/Skills) are enforced",
-    "_comment3": "Supports both boolean (permanent) and time-based (temporary) formats",
-    "enabled": true,
-    "_simple_format": "true (boolean - permanent enable/disable)",
-    "_extended_format_example": {
-      "value": false,
-      "disabled_until": "2026-04-13T18:00:00Z",
-      "reason": "Emergency debugging - production incident"
-    }
   },
 
   "secret_scanning": {
@@ -313,76 +275,28 @@
   },
 
   "_permission_format": {
-    "_comment": "Matcher-based permission format with mode:",
+    "_comment": "NEW unified structure in v1.4.0",
     "_structure": {
-      "matcher": "Tool name pattern (e.g., 'Skill', 'mcp__*', 'Bash', 'Write')",
-      "mode": "allow or deny",
-      "patterns": ["List of patterns to allow/deny (string or object with valid_until)"]
+      "permissions": {
+        "enabled": "boolean or {value, disabled_until, reason}",
+        "immutable": "boolean (remote configs only)",
+        "rules": [
+          {
+            "matcher": "Skill | mcp__* | Bash | Write | Read",
+            "mode": "allow | deny",
+            "patterns": ["pattern1", "pattern2"],
+            "immutable": "boolean (optional, per-rule)"
+          }
+        ]
+      }
     },
-    "_explanation": "Each rule is either an allow-list (mode: allow) or deny-list (mode: deny)",
-    "_precedence": "All deny rules checked first (from any source), then allow rules",
-    "_time_based_expiration": {
-      "_comment": "NEW in v1.3.0: Patterns support optional time-based expiration",
-      "_simple_format": "daf-*",
-      "_extended_format": {
+    "_time_based_patterns": {
+      "_simple": "daf-*",
+      "_expiring": {
         "pattern": "debug-*",
         "valid_until": "2026-04-13T12:00:00Z"
-      },
-      "_explanation": "Extended format adds optional valid_until field (ISO 8601 timestamp in UTC)",
-      "_behavior": "Expired patterns are automatically filtered out during permission checks",
-      "_fail_safe": "Invalid timestamps or missing fields default to non-expiring (permanent)"
-    },
-    "_examples": [
-      {
-        "matcher": "Skill",
-        "mode": "allow",
-        "patterns": ["daf-*", "gh-cli"],
-        "_explanation": "Allow skills: daf-* and gh-cli"
-      },
-      {
-        "matcher": "Skill",
-        "mode": "allow",
-        "patterns": [
-          "daf-*",
-          {
-            "pattern": "debug-*",
-            "valid_until": "2026-04-13T12:00:00Z",
-            "_comment": "Temporary debug access"
-          }
-        ],
-        "_explanation": "Mixed simple and time-limited patterns"
-      },
-      {
-        "matcher": "mcp__*",
-        "mode": "allow",
-        "patterns": ["mcp__notebooklm-mcp__*"],
-        "_explanation": "Allow all notebooklm MCP tools"
-      },
-      {
-        "matcher": "Bash",
-        "mode": "deny",
-        "patterns": ["*rm -rf*"],
-        "_explanation": "Block dangerous bash commands"
-      },
-      {
-        "matcher": "Bash",
-        "mode": "allow",
-        "patterns": [
-          {
-            "pattern": "*docker rm*",
-            "valid_until": "2026-04-13T15:00:00Z",
-            "_comment": "Container cleanup until 15:00 UTC"
-          }
-        ],
-        "_explanation": "Temporary permission for Docker cleanup"
-      },
-      {
-        "matcher": "Write",
-        "mode": "deny",
-        "patterns": ["/etc/*"],
-        "_explanation": "Block writes to /etc"
       }
-    ]
+    }
   },
 
   "_pattern_matching": {
@@ -402,99 +316,28 @@
     "4": "Remote configs (enterprise policy - highest priority)"
   },
 
-  "_immutability_feature": {
-    "_comment": "====================================================================",
-    "_comment2": "IMMUTABLE FLAG - Enterprise Policy Enforcement (NEW in Issue #67)",
-    "_comment3": "====================================================================",
-    "_overview": "Remote configs can mark sections/rules as immutable to prevent local override",
-    "_use_cases": {
-      "1": "Enterprise Security Compliance: Enforce mandatory skill allowlists",
-      "2": "Regulatory Requirements: Ensure prompt injection detection cannot be weakened",
-      "3": "Zero-Trust Environments: Centrally managed pattern servers",
-      "4": "Audit & Compliance: Provable policy enforcement"
+  "_immutability_examples": {
+    "_section_level": {
+      "permissions": {
+        "enabled": true,
+        "immutable": true,
+        "rules": [],
+        "_effect": "Locks entire permissions (enabled + all rules)"
+      }
     },
-    "_per_matcher_immutability": {
-      "_description": "Mark specific permission rules as immutable (by matcher)",
-      "_example": {
-        "permissions": [
+    "_rule_level": {
+      "permissions": {
+        "enabled": true,
+        "rules": [
           {
             "matcher": "Skill",
             "mode": "allow",
-            "patterns": ["daf-*", "gh-cli"],
+            "patterns": ["daf-*"],
             "immutable": true,
-            "_effect": "Local configs cannot add/modify Skill rules"
-          },
-          {
-            "matcher": "Bash",
-            "mode": "deny",
-            "patterns": ["*rm -rf*", "*dd if=*"],
-            "immutable": true,
-            "_effect": "Local configs cannot add/modify Bash rules"
+            "_effect": "Locks only Skill matcher, users can add MCP/Bash/Write rules"
           }
         ]
       }
-    },
-    "_section_immutability": {
-      "_description": "Mark entire sections as immutable",
-      "_example": {
-        "prompt_injection": {
-          "enabled": true,
-          "sensitivity": "high",
-          "detector": "heuristic",
-          "immutable": true,
-          "_effect": "Entire prompt_injection section cannot be overridden locally"
-        },
-        "pattern_server": {
-          "enabled": true,
-          "url": "https://company.com/patterns",
-          "immutable": true,
-          "_effect": "Pattern server config cannot be disabled or changed locally"
-        }
-      }
-    },
-    "_complete_remote_config_example": {
-      "_comment": "Example enterprise remote config with immutability",
-      "_url": "https://company.com/ai-guardian-policy.json",
-      "_config": {
-        "permissions": [
-          {
-            "matcher": "Skill",
-            "mode": "allow",
-            "patterns": ["daf-*", "gh-cli", "git-cli"],
-            "immutable": true
-          },
-          {
-            "matcher": "Bash",
-            "mode": "deny",
-            "patterns": ["*rm -rf*", "*dd if=*"],
-            "immutable": true
-          }
-        ],
-        "prompt_injection": {
-          "enabled": true,
-          "sensitivity": "high",
-          "detector": "heuristic",
-          "immutable": true
-        },
-        "pattern_server": {
-          "enabled": true,
-          "url": "https://company.com/patterns",
-          "auth": {
-            "method": "bearer",
-            "token_env": "COMPANY_PATTERN_TOKEN"
-          },
-          "immutable": true
-        }
-      },
-      "_behavior": {
-        "_allowed_locally": "Users can add MCP, Write, Read rules (not immutable)",
-        "_blocked_locally": [
-          "Cannot add/modify Skill or Bash rules (immutable)",
-          "Cannot change prompt_injection settings (immutable)",
-          "Cannot override pattern_server config (immutable)"
-        ]
-      }
-    },
-    "_backward_compatibility": "Existing configs without immutable field work unchanged (defaults to false)"
+    }
   }
 }

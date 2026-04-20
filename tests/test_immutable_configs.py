@@ -23,25 +23,31 @@ class ImmutableConfigTest(TestCase):
         """Remote config with immutable matcher blocks local rules for that matcher"""
         # Simulate remote config with immutable Skill matcher
         remote_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*", "gh-cli"],
-                    "immutable": True
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*", "gh-cli"],
+                        "immutable": True
+                    }
+                ]
+            }
         }
 
         # Simulate local config trying to add more Skill rules
         local_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["my-custom-skill"]
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["my-custom-skill"]
+                    }
+                ]
+            }
         }
 
         # Create checker and merge configs
@@ -57,7 +63,9 @@ class ImmutableConfigTest(TestCase):
 
         # Verify: local Skill rule should be filtered out
         skill_patterns = []
-        for rule in result.get("permissions", []):
+        permissions_obj = result.get("permissions", {})
+        rules = permissions_obj.get("rules", []) if isinstance(permissions_obj, dict) else permissions_obj
+        for rule in rules:
             if rule.get("matcher") == "Skill":
                 skill_patterns.extend(rule.get("patterns", []))
 
@@ -70,25 +78,31 @@ class ImmutableConfigTest(TestCase):
         """Local configs can still add rules for non-immutable matchers"""
         # Remote config with immutable Skill matcher
         remote_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"],
-                    "immutable": True
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"],
+                        "immutable": True
+                    }
+                ]
+            }
         }
 
         # Local config adds MCP rules (not immutable)
         local_config = {
-            "permissions": [
-                {
-                    "matcher": "mcp__*",
-                    "mode": "allow",
-                    "patterns": ["mcp__notebooklm-mcp__*"]
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "mcp__*",
+                        "mode": "allow",
+                        "patterns": ["mcp__notebooklm-mcp__*"]
+                    }
+                ]
+            }
         }
 
         checker = ToolPolicyChecker()
@@ -99,7 +113,9 @@ class ImmutableConfigTest(TestCase):
 
         # Verify: MCP rule should be present (not immutable)
         mcp_found = False
-        for rule in result.get("permissions", []):
+        permissions_obj = result.get("permissions", {})
+        rules = permissions_obj.get("rules", []) if isinstance(permissions_obj, dict) else permissions_obj
+        for rule in rules:
             if rule.get("matcher") == "mcp__*":
                 mcp_found = True
                 assert "mcp__notebooklm-mcp__*" in rule.get("patterns", [])
@@ -109,35 +125,41 @@ class ImmutableConfigTest(TestCase):
     def test_multiple_immutable_matchers(self):
         """Multiple matchers can be marked as immutable"""
         remote_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"],
-                    "immutable": True
-                },
-                {
-                    "matcher": "Bash",
-                    "mode": "deny",
-                    "patterns": ["*rm -rf*"],
-                    "immutable": True
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"],
+                        "immutable": True
+                    },
+                    {
+                        "matcher": "Bash",
+                        "mode": "deny",
+                        "patterns": ["*rm -rf*"],
+                        "immutable": True
+                    }
+                ]
+            }
         }
 
         local_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["custom-*"]
-                },
-                {
-                    "matcher": "Bash",
-                    "mode": "allow",
-                    "patterns": ["*safe-command*"]
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["custom-*"]
+                    },
+                    {
+                        "matcher": "Bash",
+                        "mode": "allow",
+                        "patterns": ["*safe-command*"]
+                    }
+                ]
+            }
         }
 
         checker = ToolPolicyChecker()
@@ -150,7 +172,9 @@ class ImmutableConfigTest(TestCase):
         result = checker._merge_configs(result, remote_config, set(), set())
 
         # Both Skill and Bash local rules should be filtered out
-        for rule in result.get("permissions", []):
+        permissions_obj = result.get("permissions", {})
+        rules = permissions_obj.get("rules", []) if isinstance(permissions_obj, dict) else permissions_obj
+        for rule in rules:
             if rule.get("matcher") == "Skill":
                 assert "custom-*" not in rule.get("patterns", [])
             if rule.get("matcher") == "Bash":
@@ -262,14 +286,17 @@ class ImmutableConfigTest(TestCase):
     def test_configs_without_immutable_field_work_unchanged(self):
         """Existing configs without immutable field work as before"""
         config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"]
-                    # No immutable field
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"]
+                        # No immutable field
+                    }
+                ]
+            }
         }
 
         checker = ToolPolicyChecker()
@@ -283,14 +310,17 @@ class ImmutableConfigTest(TestCase):
     def test_immutable_false_treated_as_non_immutable(self):
         """immutable: false is treated the same as missing field"""
         config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"],
-                    "immutable": False
-                }
-            ],
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"],
+                        "immutable": False
+                    }
+                ]
+            },
             "prompt_injection": {
                 "enabled": True,
                 "immutable": False
@@ -312,20 +342,23 @@ class ImmutableConfigTest(TestCase):
         """_get_immutable_matchers correctly identifies immutable matchers"""
         remote_configs = [
             {
-                "permissions": [
-                    {
-                        "matcher": "Skill",
-                        "mode": "allow",
-                        "patterns": ["daf-*"],
-                        "immutable": True
-                    },
-                    {
-                        "matcher": "Bash",
-                        "mode": "deny",
-                        "patterns": ["*rm -rf*"],
-                        "immutable": False
-                    }
-                ]
+                "permissions": {
+                    "enabled": True,
+                    "rules": [
+                        {
+                            "matcher": "Skill",
+                            "mode": "allow",
+                            "patterns": ["daf-*"],
+                            "immutable": True
+                        },
+                        {
+                            "matcher": "Bash",
+                            "mode": "deny",
+                            "patterns": ["*rm -rf*"],
+                            "immutable": False
+                        }
+                    ]
+                }
             }
         ]
 
@@ -368,14 +401,17 @@ class ImmutableConfigTest(TestCase):
     def test_immutable_field_validates_in_schema(self):
         """Configs with immutable field pass schema validation"""
         config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"],
-                    "immutable": True
-                }
-            ],
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"],
+                        "immutable": True
+                    }
+                ]
+            },
             "prompt_injection": {
                 "enabled": True,
                 "immutable": True
@@ -392,7 +428,7 @@ class ImmutableConfigTest(TestCase):
 
             # Should load successfully with immutable fields
             assert loaded_config is not None
-            assert loaded_config["permissions"][0]["immutable"] is True
+            assert loaded_config["permissions"]["rules"][0]["immutable"] is True
             assert loaded_config["prompt_injection"]["immutable"] is True
         finally:
             Path(temp_path).unlink()
@@ -400,14 +436,17 @@ class ImmutableConfigTest(TestCase):
     def test_invalid_immutable_type_rejected(self):
         """Invalid immutable field type is rejected by schema"""
         config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"],
-                    "immutable": "yes"  # Invalid: should be boolean
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"],
+                        "immutable": "yes"  # Invalid: should be boolean
+                    }
+                ]
+            }
         }
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -431,25 +470,31 @@ class ImmutableConfigTest(TestCase):
         """Enterprise can enforce skill allowlist that users cannot extend"""
         # Enterprise remote config
         enterprise_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*", "gh-cli"],
-                    "immutable": True
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*", "gh-cli"],
+                        "immutable": True
+                    }
+                ]
+            }
         }
 
         # User tries to add custom skill
         user_config = {
-            "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["my-custom-skill"]
-                }
-            ]
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["my-custom-skill"]
+                    }
+                ]
+            }
         }
 
         # Create checker with both configs
