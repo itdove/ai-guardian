@@ -409,3 +409,177 @@ class PatternServerWarningsTest(TestCase):
         self.assertIn("Falling back", warning_text, "Should mention fallback behavior")
         self.assertIn("Common causes", warning_text, "Should mention common causes")
         self.assertIn("token", warning_text.lower(), "Should mention token")
+
+    @patch('ai_guardian.pattern_server.logger')
+    @patch('requests.get')
+    def test_public_url_without_token_succeeds(self, mock_get, mock_logger):
+        """Test that public URLs work without authentication token"""
+        # Setup: Pattern server pointing to public URL (GitHub raw content)
+        config = {
+            "url": "https://raw.githubusercontent.com",
+            "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
+            "auth": {"token_env": "TEST_TOKEN"}
+        }
+
+        # Mock successful response (200 OK) for unauthenticated request
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "[rules]\n# Test patterns"
+        mock_get.return_value = mock_response
+
+        # NO token in environment (public URL scenario)
+        with patch.dict('os.environ', {}, clear=True):
+            # Use a temporary cache directory
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config["cache"] = {"path": str(Path(tmpdir) / "test_patterns.toml")}
+                client = PatternServerClient(config)
+
+                # Execute: Try to get patterns (should succeed without token)
+                patterns_path = client.get_patterns_path()
+
+                # Verify: Should succeed and return cache path
+                self.assertIsNotNone(patterns_path, "Should succeed for public URLs without token")
+                self.assertTrue(patterns_path.exists(), "Cache file should be created")
+
+                # Verify the request was made without Authorization header
+                mock_get.assert_called_once()
+                call_args = mock_get.call_args
+                headers = call_args[1]['headers']
+                self.assertNotIn('Authorization', headers, "Should not include Authorization header for public URLs")
+
+                # Check that debug log mentions unauthenticated request
+                debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
+                self.assertTrue(
+                    any("unauthenticated" in str(call).lower() for call in debug_calls),
+                    f"Expected debug log about unauthenticated request. Got: {debug_calls}"
+                )
+
+    @patch('ai_guardian.pattern_server.logger')
+    @patch('requests.get')
+    def test_public_url_with_token_uses_auth(self, mock_get, mock_logger):
+        """Test that authentication is used when token is available, even for public URLs"""
+        # Setup: Pattern server pointing to public URL with token available
+        config = {
+            "url": "https://raw.githubusercontent.com",
+            "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
+            "auth": {"token_env": "TEST_TOKEN"}
+        }
+
+        # Mock successful response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "[rules]\n# Test patterns"
+        mock_get.return_value = mock_response
+
+        # Token IS available in environment
+        with patch.dict('os.environ', {'TEST_TOKEN': 'ghp_test_token_12345'}):
+            # Use a temporary cache directory
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config["cache"] = {"path": str(Path(tmpdir) / "test_patterns.toml")}
+                client = PatternServerClient(config)
+
+                # Execute: Try to get patterns (should use token)
+                patterns_path = client.get_patterns_path()
+
+                # Verify: Should succeed and use authentication
+                self.assertIsNotNone(patterns_path, "Should succeed with token")
+
+                # Verify the request included Authorization header
+                mock_get.assert_called_once()
+                call_args = mock_get.call_args
+                headers = call_args[1]['headers']
+                self.assertIn('Authorization', headers, "Should include Authorization header when token available")
+                self.assertEqual(headers['Authorization'], 'Bearer ghp_test_token_12345')
+
+                # Check debug log mentions using authentication
+                debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
+                self.assertTrue(
+                    any("Using authentication" in str(call) for call in debug_calls),
+                    f"Expected debug log about using authentication. Got: {debug_calls}"
+                )
+
+    @patch('ai_guardian.pattern_server.logger')
+    @patch('requests.get')
+    def test_private_url_without_token_shows_helpful_error(self, mock_get, mock_logger):
+        """Test that private URLs without token show helpful error message"""
+        # Setup: Pattern server pointing to private endpoint
+        config = {
+            "url": "https://private-patterns.example.com",
+            "patterns_endpoint": "/api/v1/patterns",
+            "auth": {"token_env": "PRIVATE_PATTERN_TOKEN"}
+        }
+
+        # Mock 401 Unauthorized response (requires auth)
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_get.return_value = mock_response
+
+        # NO token in environment
+        with patch.dict('os.environ', {}, clear=True):
+            # Use a temporary cache directory
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config["cache"] = {"path": str(Path(tmpdir) / "test_patterns.toml")}
+                client = PatternServerClient(config)
+
+                # Execute: Try to get patterns (should fail with helpful message)
+                patterns_path = client.get_patterns_path()
+
+                # Verify: Should fail
+                self.assertIsNone(patterns_path, "Should fail for private URLs without token")
+
+                # Check error message mentions authentication is required
+                error_calls = [str(call) for call in mock_logger.error.call_args_list]
+                self.assertTrue(
+                    any("requires authentication" in str(call) for call in error_calls),
+                    f"Expected error about authentication required. Got: {error_calls}"
+                )
+
+                # Check info message shows how to set token
+                info_calls = [str(call) for call in mock_logger.info.call_args_list]
+                self.assertTrue(
+                    any("PRIVATE_PATTERN_TOKEN" in str(call) for call in info_calls),
+                    f"Expected info about setting token. Got: {info_calls}"
+                )
+
+    @patch('ai_guardian.pattern_server.logger')
+    @patch('requests.get')
+    def test_private_url_with_wrong_token_shows_check_token_error(self, mock_get, mock_logger):
+        """Test that private URLs with wrong token show different error message"""
+        # Setup: Pattern server with token configured
+        config = {
+            "url": "https://private-patterns.example.com",
+            "patterns_endpoint": "/api/v1/patterns",
+            "auth": {"token_env": "PRIVATE_PATTERN_TOKEN"}
+        }
+
+        # Mock 401 Unauthorized response (wrong token)
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        mock_get.return_value = mock_response
+
+        # Token IS set but wrong
+        with patch.dict('os.environ', {'PRIVATE_PATTERN_TOKEN': 'wrong_token'}):
+            # Use a temporary cache directory
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config["cache"] = {"path": str(Path(tmpdir) / "test_patterns.toml")}
+                client = PatternServerClient(config)
+
+                # Execute: Try to get patterns (should fail)
+                patterns_path = client.get_patterns_path()
+
+                # Verify: Should fail
+                self.assertIsNone(patterns_path, "Should fail with wrong token")
+
+                # Check error message mentions checking the token (different from "no token")
+                error_calls = [str(call) for call in mock_logger.error.call_args_list]
+                self.assertTrue(
+                    any("authentication failed" in str(call).lower() for call in error_calls),
+                    f"Expected error about authentication failed. Got: {error_calls}"
+                )
+
+                # Should mention checking the token
+                info_calls = [str(call) for call in mock_logger.info.call_args_list]
+                self.assertTrue(
+                    any("check your" in str(call).lower() for call in info_calls),
+                    f"Expected info about checking token. Got: {info_calls}"
+                )

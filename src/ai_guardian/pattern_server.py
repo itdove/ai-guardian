@@ -158,22 +158,21 @@ class PatternServerClient:
             True if successful, False otherwise
         """
         try:
-            # Get authentication token
-            token = self._get_auth_token()
-            if not token:
-                logger.error("Pattern server authentication token not found")
-                logger.info(f"Set token via environment variable: export {self.token_env}='your-token'")
-                logger.info(f"Or save to file: {self.token_file}")
-                return False
-
             # Build URL
             url = f"{self.base_url.rstrip('/')}{self.patterns_endpoint}"
 
             # Prepare headers
             headers = {
-                "Authorization": f"Bearer {token}",
                 "User-Agent": "ai-guardian/1.0.0",
             }
+
+            # Get authentication token (optional)
+            token = self._get_auth_token()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                logger.debug("Using authentication for pattern server")
+            else:
+                logger.debug("No authentication token - attempting unauthenticated request")
 
             logger.info(f"Fetching patterns from pattern server: {self.base_url}")
 
@@ -181,8 +180,13 @@ class PatternServerClient:
             response = requests.get(url, headers=headers, timeout=10)
 
             if response.status_code == 401:
-                logger.error("Pattern server authentication failed (401 Unauthorized)")
-                logger.info("Please check your authentication token")
+                if token:
+                    logger.error("Pattern server authentication failed (401 Unauthorized)")
+                    logger.info("Please check your authentication token")
+                else:
+                    logger.error("Pattern server requires authentication but no token configured")
+                    logger.info(f"Set token via environment variable: export {self.token_env}='your-token'")
+                    logger.info(f"Or save to file: {self.token_file}")
                 return False
             elif response.status_code == 403:
                 logger.error("Pattern server access forbidden (403 Forbidden)")
