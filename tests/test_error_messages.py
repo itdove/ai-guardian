@@ -270,6 +270,140 @@ class PromptInjectionErrorMessageTest(TestCase):
                     self.assertTrue(True, "Pattern was truncated with ellipsis")
 
 
+class ImmutablePatternErrorMessageTest(TestCase):
+    """Test suite for immutable pattern error messages (Issue #145)"""
+
+    def test_immutable_pattern_shows_triggered_pattern(self):
+        """Immutable pattern error should show which pattern was triggered"""
+        config = {
+            "permissions": []
+        }
+
+        policy_checker = ToolPolicyChecker(config=config)
+
+        # Try to edit a protected file (.claude/settings.json)
+        hook_data = {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "/home/user/.claude/settings.json"}
+        }
+
+        allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(allowed, "Editing .claude/settings.json should be blocked")
+        self.assertIsNotNone(error_msg, "Should have error message")
+
+        # Verify error message contains the triggered pattern
+        self.assertIn("Triggered Pattern:", error_msg,
+                     "Error message should show the triggered pattern")
+        self.assertIn(".claude/settings.json", error_msg,
+                     "Error message should contain the pattern that matched")
+        self.assertIn("Protection Type:", error_msg,
+                     "Error message should show protection type")
+
+    def test_immutable_bash_command_shows_triggered_pattern(self):
+        """Immutable bash command error should show which pattern was triggered"""
+        config = {
+            "permissions": []
+        }
+
+        policy_checker = ToolPolicyChecker(config=config)
+
+        # Try to run a bash command that modifies ai-guardian
+        hook_data = {
+            "tool_name": "Bash",
+            "tool_input": {"command": "rm ~/.config/ai-guardian/ai-guardian.json"}
+        }
+
+        allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(allowed, "Removing ai-guardian.json should be blocked")
+        self.assertIsNotNone(error_msg, "Should have error message")
+
+        # Verify error message contains the triggered pattern
+        self.assertIn("Triggered Pattern:", error_msg,
+                     "Error message should show the triggered pattern")
+        self.assertIn("Protection Type:", error_msg,
+                     "Error message should show protection type")
+        self.assertIn("CRITICAL COMMAND BLOCKED", error_msg,
+                     "Error message should show command blocked header")
+
+
+class DirectoryRuleErrorMessageTest(TestCase):
+    """Test suite for directory rule error messages (Issue #145)"""
+
+    def test_directory_rule_shows_triggered_pattern(self):
+        """Directory rule error should show which pattern was triggered"""
+        import ai_guardian
+        import tempfile
+        import os
+
+        # Create a temporary directory and file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = os.path.join(tmpdir, "test.txt")
+            with open(test_file, 'w') as f:
+                f.write("test content")
+
+            # Create config with directory rule denying the temp directory
+            config = {
+                "directory_rules": {
+                    "action": "block",
+                    "rules": [
+                        {
+                            "mode": "deny",
+                            "paths": [f"{tmpdir}/**"]
+                        }
+                    ]
+                }
+            }
+
+            # Check if directory is denied
+            is_denied, denied_dir, warning, matched_pattern = ai_guardian.check_directory_denied(
+                test_file, config
+            )
+
+            self.assertTrue(is_denied, "File in denied directory should be blocked")
+            self.assertIsNotNone(matched_pattern, "Should have matched pattern")
+            self.assertIn(tmpdir, matched_pattern,
+                         "Matched pattern should contain the directory path")
+            self.assertIn("**", matched_pattern,
+                         "Matched pattern should show the wildcard pattern")
+
+    def test_directory_marker_shows_protection_type(self):
+        """Directory marker error should show protection type clearly"""
+        import ai_guardian
+        import tempfile
+        import os
+
+        # Create a temporary directory with .ai-read-deny marker
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create .ai-read-deny marker
+            marker_file = os.path.join(tmpdir, ".ai-read-deny")
+            with open(marker_file, 'w') as f:
+                f.write("")
+
+            test_file = os.path.join(tmpdir, "test.txt")
+            with open(test_file, 'w') as f:
+                f.write("test content")
+
+            # Create config with block action (default)
+            config = {
+                "directory_rules": {
+                    "action": "block",
+                    "rules": []
+                }
+            }
+
+            # Check if directory is denied
+            is_denied, denied_dir, warning, matched_pattern = ai_guardian.check_directory_denied(
+                test_file, config=config
+            )
+
+            self.assertTrue(is_denied, "File with .ai-read-deny marker should be blocked")
+            self.assertEqual(denied_dir, tmpdir, "Should identify the directory with marker")
+            # matched_pattern should be None for marker-based blocks (not rule-based)
+            self.assertIsNone(matched_pattern, "Marker-based blocks don't have a rule pattern")
+
+
 class ErrorMessageReadabilityTest(TestCase):
     """Test that enhanced error messages remain readable and well-formatted"""
 
