@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Flexible Scanner Engine Support** - Multi-scanner support for secret detection (Issue #154)
+  - Support for BetterLeaks (20-40% faster than Gitleaks)
+  - Support for LeakTK (auto-pattern management)
+  - Automatic fallback to available scanners via `engines` configuration
+  - Custom scanner support with configurable commands and output parsers
+  - Enhanced error messages showing scanner type and pattern source (Issue #153)
+  - New modules: `scanners/engine_builder.py` and `scanners/output_parsers.py`
+
 - **Directory Rules System** - Order-based access control (Issue #82)
   - Replaces `directory_exclusions` with more flexible `directory_rules`
   - Rules evaluated in order with last-match-wins precedence

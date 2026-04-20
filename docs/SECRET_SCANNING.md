@@ -5,6 +5,7 @@ This guide explains how AI Guardian's secret scanning works, including configura
 ## Table of Contents
 
 - [Overview](#overview)
+- [Scanner Engines](#scanner-engines)
 - [Configuration](#configuration)
 - [Pattern Server Integration](#pattern-server-integration)
 - [Secret Redaction Security](#secret-redaction-security)
@@ -24,6 +25,148 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 **Think of it like this:**
 - `secret_scanning` = "Should I scan?" (always blocks secrets when found)
 - `pattern_server` = "What secrets should I look for?"
+
+---
+
+## Scanner Engines
+
+**NEW in v1.4.0:** AI Guardian now supports multiple scanner engines with automatic fallback.
+
+### Supported Scanners
+
+| Scanner | Speed | Pattern Management | Output Format | Installation |
+|---------|-------|-------------------|---------------|--------------|
+| **Gitleaks** | Standard | Manual config | JSON | `brew install gitleaks` |
+| **BetterLeaks** | 20-40% faster | Manual config | JSON (same as Gitleaks) | `brew install betterleaks` |
+| **LeakTK** | Standard | Auto-managed | JSON (custom) | `brew install leaktk/tap/leaktk` |
+
+### Configuration
+
+**Default (Gitleaks only):**
+```json
+{
+  "secret_scanning": {
+    "enabled": true
+    // Uses gitleaks by default
+  }
+}
+```
+
+**Recommended (BetterLeaks with Gitleaks fallback):**
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "engines": ["betterleaks", "gitleaks"]
+  }
+}
+```
+
+**Behavior:**
+- Tries BetterLeaks first (if installed)
+- Falls back to Gitleaks if BetterLeaks not found
+- Works on any system (automatic detection)
+
+**Three-Scanner Fallback:**
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "engines": ["leaktk", "betterleaks", "gitleaks"]
+  }
+}
+```
+
+### Advanced Configuration
+
+**Custom Binary Path:**
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "engines": [
+      {
+        "type": "betterleaks",
+        "binary": "/opt/betterleaks/bin/betterleaks",
+        "extra_flags": ["--regex-engine=re2"]
+      },
+      "gitleaks"
+    ]
+  }
+}
+```
+
+**Custom Scanner:**
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "engines": [
+      {
+        "type": "custom",
+        "binary": "my-scanner",
+        "command_template": [
+          "{binary}", "scan",
+          "--input", "{source_file}",
+          "--output", "{report_file}",
+          "--format", "json"
+        ],
+        "success_exit_code": 0,
+        "secrets_found_exit_code": 1,
+        "output_format": "gitleaks-compatible"
+      }
+    ]
+  }
+}
+```
+
+### Scanner Selection
+
+AI Guardian automatically selects the first available scanner from your `engines` list:
+
+1. Checks if scanner binary exists in PATH
+2. Uses first found scanner
+3. If none found, shows error with installation instructions
+
+**Example:**
+```bash
+# With config: "engines": ["betterleaks", "gitleaks"]
+
+# If betterleaks installed:
+$ which betterleaks
+/usr/local/bin/betterleaks
+# → Uses betterleaks
+
+# If betterleaks NOT installed:
+$ which betterleaks
+# (not found)
+$ which gitleaks
+/usr/local/bin/gitleaks
+# → Uses gitleaks (fallback)
+```
+
+### Error Messages
+
+Error messages now show which scanner detected the secret:
+
+```
+======================================================================
+🚨 BLOCKED BY POLICY
+🔒 SECRET DETECTED
+======================================================================
+
+Betterleaks has detected sensitive information in your prompt/file.
+
+Secret Type: aws-access-token
+Location: config.py, line 5
+Total findings: 1
+
+Detection Source:
+  Scanner: betterleaks
+  Patterns: Built-in Defaults (100+ rules)
+
+This operation has been blocked for security.
+```
 
 ---
 
@@ -54,7 +197,7 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 ✅ **Global enable/disable** - Turn secret scanning on or off (always blocks when enabled)
 ✅ **Ignore patterns** - Skip specific files or tools  
-✅ **Scanner selection** - Which engine to use (currently only Gitleaks)
+✅ **Scanner selection** - Which engine(s) to use (Gitleaks, BetterLeaks, LeakTK, or custom)
 
 **Note:** Secret scanning **always blocks** when secrets are detected - no "log only" mode for security reasons.
 

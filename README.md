@@ -36,8 +36,12 @@ Combine with:
 ## Quick Start
 
 ```bash
-# 1. Install Gitleaks (macOS)
-brew install gitleaks
+# 1. Install a secret scanner (macOS)
+brew install gitleaks           # Standard (recommended)
+# OR
+brew install betterleaks        # Faster alternative (20-40% faster)
+# OR
+brew install leaktk/tap/leaktk  # Auto-pattern management
 
 # 2. Install AI Guardian from PyPI
 pip install ai-guardian
