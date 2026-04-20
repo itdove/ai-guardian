@@ -64,7 +64,7 @@ The `ai-guardian setup` command automatically configures IDE hooks for you.
 
 **⚠️ IMPORTANT:** 
 - Run `ai-guardian setup` after upgrading to get the latest security hooks. New versions may add additional hooks (e.g., PostToolUse for output scanning).
-- If you manually add other hooks, **ai-guardian MUST be the first PostToolUse hook** (required for log mode warnings). UserPromptSubmit ordering only matters if using prompt injection log mode. See [Hook Ordering Documentation](docs/HOOK_ORDERING.md) for details.
+- If you manually add other hooks, **ai-guardian MUST be the first PostToolUse hook** (required for warn mode warnings). UserPromptSubmit ordering only matters if using prompt injection warn mode. See [Hook Ordering Documentation](docs/HOOK_ORDERING.md) for details.
 
 ### Basic Usage
 
@@ -442,17 +442,28 @@ Multi-layered secret detection before AI interactions:
 - **`"block"` mode** (default): Prevent execution when policy is violated - strict security
 - **`"log"` mode**: Log violations but allow execution - audit/inform mode for gradual rollout
 
-**Why "log" instead of "warn"?**
-- Claude Code hooks don't display non-blocking messages to users (exit 0 = no output shown)
-- Violations are logged at WARNING level for audit purposes
-- TUI and log files capture all violations regardless of mode
-- "Log mode" accurately describes behavior: violations logged but execution allowed
+**Action Modes:**
 
-**Use cases for log mode:**
-- 🔄 **Gradual policy rollout**: Start with "log" to identify false positives, then switch to "block"
-- 📊 **Policy testing**: Monitor what would be blocked without disrupting users
-- 🏢 **Compliance audit**: Track violations for review without blocking workflow
-- 🧪 **Development/testing**: Allow operations during development while tracking policy violations
+AI Guardian supports three enforcement levels:
+
+| Mode | Execution | User Warning | Logged | Use Case |
+|------|-----------|--------------|--------|----------|
+| `block` | ❌ Blocked | Error shown | ✅ ERROR | **Enforce** policy |
+| `warn` | ✅ Allowed | ⚠️ Warning shown | ✅ WARNING | **Educate** user |
+| `log-only` | ✅ Allowed | Silent | ✅ WARNING | **Monitor** silently |
+
+**Use cases by mode:**
+
+**`action="warn"`** (User-Facing):
+- 🔄 **Gradual policy rollout**: Users see warnings, can adjust behavior
+- 📊 **Policy testing**: Monitor violations WITH user awareness
+- 🏢 **User education**: Teach users about policies before strict enforcement
+
+**`action="log-only"`** (Silent Monitoring - NEW):
+- 📈 **Baseline metrics**: Understand current violations without user disruption
+- 🔬 **Impact analysis**: Measure policy impact before user communication
+- 🤫 **Compliance audit**: Track violations silently for reporting
+- 🎯 **Production monitoring**: Passive detection without workflow interruption
 
 **Available for all detection areas:**
 
@@ -464,19 +475,9 @@ Multi-layered secret detection before AI interactions:
       "matcher": "Skill",
       "mode": "allow",
       "patterns": ["approved-skill"],
-      "action": "log"
+      "action": "warn"  // or "log-only" or "block" (default)
     }
   ]
-}
-```
-
-**Secret scanning** (global):
-```json
-{
-  "secret_scanning": {
-    "enabled": true,
-    "action": "log"
-  }
 }
 ```
 
@@ -486,27 +487,29 @@ Multi-layered secret detection before AI interactions:
   "prompt_injection": {
     "enabled": true,
     "detector": "heuristic",
-    "action": "log"
+    "action": "warn"  // or "log-only" or "block" (default)
   }
 }
 ```
 
-**Directory rules** (per-rule):
+**Directory rules** (global):
 ```json
 {
-  "directory_rules": [
-    {
-      "mode": "deny",
-      "paths": ["~/.claude/skills/**"],
-      "action": "log"
-    }
-  ]
+  "directory_rules": {
+    "action": "warn",  // or "log-only" or "block" (default)
+    "rules": [
+      {
+        "mode": "deny",
+        "paths": ["~/.claude/skills/**"]
+      }
+    ]
+  }
 }
 ```
 
 **Logging levels:**
-- Log mode: Violations logged at **WARNING** level
-- Block mode: Violations logged at **ERROR** level
+- `warn`/`log-only` mode: Violations logged at **WARNING** level
+- `block` mode: Violations logged at **ERROR** level
 
 **Violation tracking:**
 - All violations are logged to ViolationLogger regardless of action mode
