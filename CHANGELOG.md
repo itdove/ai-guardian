@@ -7,107 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Tests
-- **Issue #101: Added comprehensive unit tests for pattern_server warn_on_failure configuration**
-  - Tests verify warnings are shown when `warn_on_failure: true` (default behavior)
-  - Tests verify warnings are suppressed when `warn_on_failure: false`
-  - Tests cover different failure scenarios (auth errors, network errors, timeouts, server unavailable)
-  - Tests verify secret detection still works correctly when pattern server fails (fallback to default)
-  - Added 12 new tests in `tests/test_pattern_server_warnings.py`
-  - Pattern server module now has 57% code coverage
-
-### Changed
-- **Issue #105: Enable contributor workflow for open-source development**
-  - Contributors can now use AI assistance to edit ai-guardian source code in development repos
-  - Removes maintainer-only restriction for editing development source files
-  - Enables standard fork + PR workflow for external contributors
-  - Security model:
-    - Config/hooks/cache files: ALWAYS protected (even for repo owners)
-    - Pip-installed code: ALWAYS protected (production deployments)
-    - Development source code: ALLOWED for all users (relies on PR review process)
-  - Bash/PowerShell commands on source files still blocked (rm, Remove-Item, etc.)
-  - Only Edit/Write/Read tools can modify development source files
-  - Added comprehensive test coverage in `tests/test_contributor_workflow.py`
-  - Updated error messages to distinguish pip-installed vs development source code
-
-### Security
-- **Issue #105: Confirmed self-protection is immune to action=log bypass**
-  - Self-protection patterns ALWAYS block, regardless of `action="log"` configuration
-  - User's `directory_rules.action="log"` setting does NOT bypass config/hooks protection
-  - User's permission rules with `action="log"` do NOT bypass critical file protection
-  - Immutable patterns are checked FIRST (PRIORITY 1) before user permissions
-  - No action parameter in immutable deny logic - hardcoded to block
-  - Added verification tests in `tests/test_issue_105_log_bypass.py`
-  - Issue #105 was filed as preventive security measure - vulnerability never existed
-
-### Fixed
-- **Bug #113: Self-protection bypass when file_path parameter is missing**
-  - File-path tools (Edit, Write, Read, NotebookEdit) now fail-closed when file_path is missing
-  - Previously, malformed tool_input with missing file_path would bypass IMMUTABLE pattern checks
-  - AI could potentially bypass config/hooks protection by sending empty tool parameters
-  - Fixed by requiring file_path parameter for security checks on file-path tools
-  - Added comprehensive test coverage in `tests/test_self_protection.py`
-  - Affects: Edit, Write, Read, NotebookEdit tools with empty or malformed input
-
-- **Bug #102: Directory rules don't support combined wildcards (e.g., daf-*/**)**
-  - Patterns combining single-level (`*`) and recursive (`**`) wildcards now work correctly
-  - Example: `~/.claude/skills/daf-*/**` now matches all files under daf-git/, daf-jira/, etc.
-  - Previously treated the `*` as a literal character after stripping `**`
-  - Fixed by using fnmatch to match directory patterns when wildcards remain in base path
-  - Added comprehensive test coverage in `tests/test_combined_wildcards.py`
-  - Users can now use concise patterns instead of listing each directory explicitly
-
-- **Bug #93: Directory rules ignore action=log setting and block instead**
-  - When `directory_rules.action` was set to "log", .ai-read-deny markers still blocked access
-  - Global action setting was not applied when no specific rule matched the path
-  - Fixed by returning global action even when no rules match (applies to .ai-read-deny markers)
-  - Now correctly allows access with warnings in log mode as intended
-  - Added comprehensive test coverage in `tests/test_directory_rules_log_mode_bug.py`
-
-- **Bug #94: Directory rules incorrectly parse Bash command text as file paths**
-  - Bash commands were incorrectly treated as file paths in PreToolUse hooks
-  - Error messages incorrectly showed "File: daf git create enhancement..." for Bash commands
-  - Fixed by only checking file paths for file-reading tools (Read, Grep, Glob, etc.)
-  - Bash error messages now correctly show "Command:" instead of "File:"
-  - Added comprehensive test coverage in `tests/test_bash_directory_rules.py`
-
 ### Added
-- **User-friendly error handling for malformed configuration files**
-  - Clear JSON parsing errors displayed via systemMessage in all hook types
-  - Error messages include file path, line number, column number, and problem description
-  - Fail-open with warning: continues with default configuration when config has errors
-  - Centralized config loading with `_load_config_file()` function
-  - Comprehensive test coverage in `tests/test_config_error_handling.py`
-  - Prevents silent failures when configuration JSON is malformed
-
-- **Action levels (log vs block)** for audit mode and gradual policy rollout (Issues #84, #88)
-  - Configure `action: "log"` to audit violations without blocking
-  - Configure `action: "block"` to enforce policies
-  - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
-  - Secret scanning always blocks (no action field for security)
-  - Log mode displays clear warnings: `PreToolUse:ToolName says: ⚠️ Policy violation (log mode): ...`
-
-- **ignore_tools and ignore_files** for false positive handling (Issue #84)
-  - Skip detection for specific tools: `"Skill:code-review"`, `"Skill:*"`, `"mcp__*"`
-  - Skip detection for specific files: `"**/.claude/skills/*/SKILL.md"`
-  - Works for both prompt injection and secret scanning
-
-- **Smart hook ordering in setup command**
-  - `ai-guardian setup` ensures ai-guardian is first in all hooks arrays
-  - Preserves existing hooks after ai-guardian
-  - Warns if multiple hooks detected
-  - Critical for log mode warning visibility - see `docs/HOOK_ORDERING.md`
-
 - **Directory Rules System** - Order-based access control (Issue #82)
   - Replaces `directory_exclusions` with more flexible `directory_rules`
   - Rules evaluated in order with last-match-wins precedence
   - Each rule has `mode: "allow"|"deny"` and `paths: [...]`
-  - Wildcard support: `**` (recursive), `*` (single-level)
+  - Supports `action: "log"|"block"` for audit mode and gradual rollout
+  - Wildcard support: `**` (recursive), `*` (single-level), combined patterns (e.g., `daf-*/**`)
   - Can override .ai-read-deny markers with allow rules
   - Backward compatible: `directory_exclusions` auto-converted to allow rules
-  - See `tests/test_directory_rules.py` for complete examples
 
-## [1.3.0] - 2024-04-09
+- **Action levels (log vs block)** for audit mode and gradual policy rollout (Issues #84, #88)
+  - Configure `action: "log"` to audit violations without blocking
+  - Configure `action: "block"` to enforce policies (default)
+  - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
+  - Secret scanning always blocks (no action field for security)
+  - Log mode warnings displayed via JSON systemMessage in PreToolUse/UserPromptSubmit hooks
+  - All violations logged to TUI and violation log regardless of action
+
+- **Ignore patterns** for false positive handling (Issue #84)
+  - `ignore_tools`: Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)
+  - `ignore_files`: Skip detection for specific files (e.g., `"**/.claude/skills/*/SKILL.md"`)
+  - Works for both prompt injection and secret scanning
+
+- **Pattern server test coverage** (Issue #101)
+  - Added 12 comprehensive tests for `warn_on_failure` configuration
+  - Tests cover auth errors, network errors, timeouts, and fallback behavior
+  - Pattern server module now has 57% code coverage
+
+- **User-friendly error handling** for malformed configuration files
+  - Clear JSON parsing errors with file path, line number, column number
+  - Fail-open with warning: continues with default configuration when config has errors
+  - Prevents silent failures when configuration JSON is malformed
+
+### Changed
+- **Enable contributor workflow** for open-source development (Issue #105)
+  - Contributors can now use AI assistance to edit ai-guardian source code in development repos
+  - Enables standard fork + PR workflow for external contributors
+  - Security model: Config/hooks/cache/pip-installed always protected; development source allowed via Edit/Write/Read only
+  - Updated error messages to distinguish pip-installed vs development source code
+
+- **Smart hook ordering** in setup command
+  - `ai-guardian setup` ensures ai-guardian is first in all hooks arrays
+  - Critical for log mode warning visibility (only first hook's systemMessage is displayed)
+  - Preserves existing hooks after ai-guardian
+
+### Fixed
+- **Bug #113**: Self-protection bypass when file_path parameter is missing
+  - File-path tools (Edit, Write, Read, NotebookEdit) now fail-closed when file_path is missing
+  - Previously, malformed tool_input could bypass IMMUTABLE pattern checks
+
+## [1.3.0] - 2026-04-09
 
 ### Added
 - **Tool output scanning** with PostToolUse hook for Claude Code and Cursor
@@ -135,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Only protects actual config and source files
   - Allows editing issue templates for project maintenance
 
-## [1.2.0] - 2024-04-02
+## [1.2.0] - 2026-04-02
 
 ### Added
 - **Prompt injection detection** with heuristic pattern matching
@@ -153,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Includes violation type, timestamp, details, and suggested fixes
   - Perfect for compliance auditing and security monitoring
 
-## [1.1.0] - 2024-03-15
+## [1.1.0] - 2026-03-15
 
 ### Added
 - **MCP Server & Skill Permissions** system for granular access control
@@ -178,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - AI cannot remove directory protection markers (.ai-read-deny)
   - Unbreakable protection loop - tools blocked before execution
 
-## [1.0.0] - 2024-03-01
+## [1.0.0] - 2026-03-01
 
 ### Added
 - **Secret scanning** with Gitleaks integration
