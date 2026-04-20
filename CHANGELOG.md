@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests
+- **Issue #101: Added comprehensive unit tests for pattern_server warn_on_failure configuration**
+  - Tests verify warnings are shown when `warn_on_failure: true` (default behavior)
+  - Tests verify warnings are suppressed when `warn_on_failure: false`
+  - Tests cover different failure scenarios (auth errors, network errors, timeouts, server unavailable)
+  - Tests verify secret detection still works correctly when pattern server fails (fallback to default)
+  - Added 12 new tests in `tests/test_pattern_server_warnings.py`
+  - Pattern server module now has 57% code coverage
+
 ### Changed
 - **Issue #105: Enable contributor workflow for open-source development**
   - Contributors can now use AI assistance to edit ai-guardian source code in development repos
