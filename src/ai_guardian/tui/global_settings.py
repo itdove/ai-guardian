@@ -101,13 +101,13 @@ class GlobalSettingsContent(Container):
                 self.app.notify(f"Error loading config: {e}", severity="error")
                 return
 
-        # Load permissions_enabled setting
-        permissions_enabled = config.get("permissions_enabled", {})
-        if isinstance(permissions_enabled, dict):
-            permissions_value = permissions_enabled.get("enabled", True)
+        # Load permissions.enabled setting (NEW unified structure in v1.4.0)
+        permissions = config.get("permissions", {})
+        if isinstance(permissions, dict):
+            permissions_value = permissions.get("enabled", True)
         else:
-            # Legacy format - just a boolean at top level
-            permissions_value = config.get("permissions_enabled", True)
+            # Default if permissions section doesn't exist
+            permissions_value = True
 
         # Load secret_scanning setting
         secret_scanning = config.get("secret_scanning", {})
@@ -214,12 +214,33 @@ class GlobalSettingsContent(Container):
             else:
                 config = {}
 
-            # Save in new format - always use object with enabled property
-            if isinstance(value, bool):
-                config[config_key] = {"enabled": value}
+            # NEW unified structure in v1.4.0: save to nested structure
+            if config_key == "permissions_enabled":
+                # Save to permissions.enabled instead
+                if "permissions" not in config or not isinstance(config["permissions"], dict):
+                    config["permissions"] = {"enabled": True, "rules": []}
+
+                # Update the enabled field
+                if isinstance(value, bool):
+                    config["permissions"]["enabled"] = value
+                else:
+                    config["permissions"]["enabled"] = value
+            elif config_key == "secret_scanning":
+                # Secret scanning keeps its own top-level structure
+                if isinstance(value, bool):
+                    if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+                        config["secret_scanning"] = {}
+                    config["secret_scanning"]["enabled"] = value
+                else:
+                    if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+                        config["secret_scanning"] = {}
+                    config["secret_scanning"]["enabled"] = value
             else:
-                # Time-based format
-                config[config_key] = {"enabled": value}
+                # Other settings (if any in the future)
+                if isinstance(value, bool):
+                    config[config_key] = {"enabled": value}
+                else:
+                    config[config_key] = {"enabled": value}
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)

@@ -257,7 +257,13 @@ class PermissionsScreen(Screen):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    permissions = config.get("permissions", [])
+                    # NEW unified structure in v1.4.0: permissions is object with rules array
+                    permissions_obj = config.get("permissions", {})
+                    if isinstance(permissions_obj, dict):
+                        permissions = permissions_obj.get("rules", [])
+                    else:
+                        # Legacy format: permissions is array directly
+                        permissions = permissions_obj if isinstance(permissions_obj, list) else []
             except Exception as e:
                 self.notify(f"Error loading permissions: {e}", severity="error")
 
@@ -311,7 +317,12 @@ class PermissionsScreen(Screen):
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                permissions = config.get("permissions", [])
+                # NEW unified structure in v1.4.0
+                permissions_obj = config.get("permissions", {})
+                if isinstance(permissions_obj, dict):
+                    permissions = permissions_obj.get("rules", [])
+                else:
+                    permissions = permissions_obj if isinstance(permissions_obj, list) else []
 
             if index >= len(permissions):
                 self.notify("Permission not found", severity="error")
@@ -322,7 +333,11 @@ class PermissionsScreen(Screen):
             def handle_result(updated_rule: Dict) -> None:
                 if updated_rule:
                     permissions[index] = updated_rule
-                    config["permissions"] = permissions
+                    # Save back to new structure
+                    if isinstance(config.get("permissions"), dict):
+                        config["permissions"]["rules"] = permissions
+                    else:
+                        config["permissions"] = {"enabled": True, "rules": permissions}
 
                     with open(config_path, 'w', encoding='utf-8') as f:
                         json.dump(config, f, indent=2)
@@ -347,7 +362,12 @@ class PermissionsScreen(Screen):
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                permissions = config.get("permissions", [])
+                # NEW unified structure in v1.4.0
+                permissions_obj = config.get("permissions", {})
+                if isinstance(permissions_obj, dict):
+                    permissions = permissions_obj.get("rules", [])
+                else:
+                    permissions = permissions_obj if isinstance(permissions_obj, list) else []
 
             if index >= len(permissions):
                 self.notify("Permission not found", severity="error")
@@ -355,7 +375,11 @@ class PermissionsScreen(Screen):
 
             # Remove the permission
             removed_rule = permissions.pop(index)
-            config["permissions"] = permissions
+            # Save back to new structure
+            if isinstance(config.get("permissions"), dict):
+                config["permissions"]["rules"] = permissions
+            else:
+                config["permissions"] = {"enabled": True, "rules": permissions}
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)

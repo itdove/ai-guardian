@@ -7,11 +7,35 @@
   "additionalProperties": true,
   "properties": {
     "permissions": {
-      "type": "array",
-      "description": "Permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed.",
-      "items": {
-        "$ref": "#/definitions/permission_rule"
-      }
+      "type": "object",
+      "description": "Tool permissions configuration (NEW unified structure in v1.4.0). Controls whether AI Guardian enforces tool permission rules and defines the permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed.",
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
+        },
+        "rules": {
+          "type": "array",
+          "description": "Permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed.",
+          "items": {
+            "$ref": "#/definitions/permission_rule"
+          }
+        }
+      },
+      "additionalProperties": true
     },
     "permissions_directories": {
       "oneOf": [
@@ -77,30 +101,6 @@
           "minimum": 1
         }
       }
-    },
-    "permissions_enabled": {
-      "type": "object",
-      "description": "Global tool permissions enforcement control (NEW in v1.4.0). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats.",
-      "properties": {
-        "enabled": {
-          "oneOf": [
-            {
-              "type": "boolean",
-              "description": "Simple boolean format for permanent enable/disable"
-            },
-            {
-              "$ref": "#/definitions/time_based_feature"
-            }
-          ],
-          "default": true
-        },
-        "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
-          "default": false
-        }
-      },
-      "additionalProperties": true
     },
     "secret_scanning": {
       "type": "object",

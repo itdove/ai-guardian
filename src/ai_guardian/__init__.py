@@ -1084,7 +1084,15 @@ def _load_permissions_config():
         return None, error_msg
     if config is None:
         return None, None
-    return config.get("permissions_enabled"), None
+
+    # NEW unified structure in v1.4.0: permissions.enabled
+    permissions = config.get("permissions")
+    if isinstance(permissions, dict):
+        # Return the enabled field from the permissions object
+        return {"enabled": permissions.get("enabled", True)}, None
+
+    # Fallback: default to enabled
+    return {"enabled": True}, None
 
 
 def _load_secret_scanning_config():

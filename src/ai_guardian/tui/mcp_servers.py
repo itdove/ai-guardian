@@ -281,8 +281,13 @@ class MCPServersContent(Container):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
+                    # NEW unified structure in v1.4.0
+                    permissions_obj = config.get("permissions", {})
+                    if isinstance(permissions_obj, dict):
+                        all_permissions = permissions_obj.get("rules", [])
+                    else:
+                        all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
                     # Filter only MCP permissions
-                    all_permissions = config.get("permissions", [])
                     permissions = [p for p in all_permissions if p.get("matcher", "").startswith("mcp__")]
             except Exception as e:
                 self.app.notify(f"Error loading permissions: {e}", severity="error")
@@ -342,7 +347,12 @@ class MCPServersContent(Container):
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                all_permissions = config.get("permissions", [])
+                # NEW unified structure in v1.4.0
+                permissions_obj = config.get("permissions", {})
+                if isinstance(permissions_obj, dict):
+                    all_permissions = permissions_obj.get("rules", [])
+                else:
+                    all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
                 mcp_permissions = [p for p in all_permissions if p.get("matcher", "").startswith("mcp__")]
 
             if index >= len(mcp_permissions):
@@ -362,7 +372,11 @@ class MCPServersContent(Container):
                                 break
                             mcp_count += 1
 
-                    config["permissions"] = all_permissions
+                    # Save back to new structure
+                    if isinstance(config.get("permissions"), dict):
+                        config["permissions"]["rules"] = all_permissions
+                    else:
+                        config["permissions"] = {"enabled": True, "rules": all_permissions}
 
                     with open(config_path, 'w', encoding='utf-8') as f:
                         json.dump(config, f, indent=2)
@@ -387,7 +401,12 @@ class MCPServersContent(Container):
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                all_permissions = config.get("permissions", [])
+                # NEW unified structure in v1.4.0
+                permissions_obj = config.get("permissions", {})
+                if isinstance(permissions_obj, dict):
+                    all_permissions = permissions_obj.get("rules", [])
+                else:
+                    all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
 
             # Find and remove the MCP permission
             mcp_count = 0
@@ -398,7 +417,11 @@ class MCPServersContent(Container):
                         break
                     mcp_count += 1
 
-            config["permissions"] = all_permissions
+            # Save back to new structure
+            if isinstance(config.get("permissions"), dict):
+                config["permissions"]["rules"] = all_permissions
+            else:
+                config["permissions"] = {"enabled": True, "rules": all_permissions}
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)

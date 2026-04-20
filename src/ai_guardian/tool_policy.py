@@ -761,25 +761,25 @@ class ToolPolicyChecker:
         Returns:
             list: List of matching permission rules (may be empty)
         """
-        permissions = self.config.get("permissions", [])
+        permissions = self.config.get("permissions", {})
 
-        # Handle old format (dict with deny/allow) - convert to new format
+        # New unified format: object with enabled, immutable, rules
         if isinstance(permissions, dict):
-            logger.debug("Converting old permissions format to new array format")
-            # Create a catch-all rule
-            return [{
-                "matcher": "*",
-                "allow": permissions.get("allow", []),
-                "deny": permissions.get("deny", [])
-            }]
-
-        # New format: array of rules
-        if not isinstance(permissions, list):
+            rules = permissions.get("rules", [])
+        # Legacy format: array of rules directly (pre-v1.4.0)
+        elif isinstance(permissions, list):
+            logger.debug("Legacy permissions format detected (array) - consider updating to new structure")
+            rules = permissions
+        else:
             logger.warning(f"Invalid permissions format: {type(permissions)}")
             return []
 
+        if not isinstance(rules, list):
+            logger.warning(f"Invalid permissions.rules format: {type(rules)}")
+            return []
+
         matching_rules = []
-        for rule in permissions:
+        for rule in rules:
             if not isinstance(rule, dict):
                 continue
 
@@ -1726,7 +1726,14 @@ class ToolPolicyChecker:
 
         for remote_config in remote_configs:
             permissions = remote_config.get("permissions", [])
-            for rule in permissions:
+            # Handle new unified structure (permissions is an object with rules)
+            if isinstance(permissions, dict):
+                rules = permissions.get("rules", [])
+            else:
+                # Legacy format (permissions is an array)
+                rules = permissions
+
+            for rule in rules:
                 if rule.get("immutable", False):
                     matcher = rule.get("matcher")
                     if matcher:
@@ -1753,7 +1760,7 @@ class ToolPolicyChecker:
             "pattern_server",
             "secret_scanning",
             "directory_exclusions",
-            "permissions_enabled"
+            "permissions"
         ]
 
         for remote_config in remote_configs:
@@ -1768,7 +1775,11 @@ class ToolPolicyChecker:
     def _get_defaults(self) -> Dict:
         """Get default empty configuration."""
         return {
-            "permissions": [],
+            "permissions": {
+                "enabled": True,
+                "immutable": False,
+                "rules": []
+            },
             "permissions_directories": {
                 "deny": [],
                 "allow": []
@@ -1944,8 +1955,48 @@ class ToolPolicyChecker:
                 continue
 
             if key == "permissions":
-                # Special handling for permissions array with immutability filtering
-                if isinstance(value, list):
+                # Special handling for permissions object with immutability filtering
+                if isinstance(value, dict):
+                    # New unified format: permissions is an object with enabled, immutable, rules
+                    base_permissions = result.get(key, {})
+                    if not isinstance(base_permissions, dict):
+                        base_permissions = {"enabled": True, "immutable": False, "rules": []}
+
+                    # Merge the object
+                    merged_permissions = base_permissions.copy()
+
+                    # Merge enabled field (if not immutable at section level)
+                    if "enabled" in value and key not in immutable_sections:
+                        merged_permissions["enabled"] = value["enabled"]
+
+                    # Merge immutable field (always take from override)
+                    if "immutable" in value:
+                        merged_permissions["immutable"] = value["immutable"]
+
+                    # Merge rules array with matcher-level immutability filtering
+                    if "rules" in value:
+                        override_rules = value["rules"]
+                        if isinstance(override_rules, list):
+                            # Filter out rules for immutable matchers
+                            filtered_rules = []
+                            for rule in override_rules:
+                                matcher = rule.get("matcher")
+                                if matcher in immutable_matchers:
+                                    logger.info(f"Skipping override for immutable matcher: {matcher}")
+                                else:
+                                    filtered_rules.append(rule)
+
+                            # Concatenate with existing rules
+                            existing_rules = merged_permissions.get("rules", [])
+                            if isinstance(existing_rules, list):
+                                merged_permissions["rules"] = existing_rules + filtered_rules
+                            else:
+                                merged_permissions["rules"] = filtered_rules
+
+                    result[key] = merged_permissions
+                elif isinstance(value, list):
+                    # Legacy format: permissions is array of rules directly (pre-v1.4.0)
+                    logger.debug("Legacy permissions array format in override - converting to new structure")
                     # Filter out rules for immutable matchers
                     filtered_rules = []
                     for rule in value:
@@ -1955,11 +2006,21 @@ class ToolPolicyChecker:
                         else:
                             filtered_rules.append(rule)
 
-                    # Merge filtered rules with existing ones
-                    if isinstance(result.get(key), list):
+                    # If base is new format (dict), merge into rules
+                    if isinstance(result.get(key), dict):
+                        base_permissions = result[key]
+                        existing_rules = base_permissions.get("rules", [])
+                        if isinstance(existing_rules, list):
+                            base_permissions["rules"] = existing_rules + filtered_rules
+                        else:
+                            base_permissions["rules"] = filtered_rules
+                        result[key] = base_permissions
+                    # If base is also legacy format (list), just concatenate
+                    elif isinstance(result.get(key), list):
                         result[key] = result[key] + filtered_rules
                     else:
-                        result[key] = filtered_rules
+                        # Base is missing or invalid - create new structure
+                        result[key] = {"enabled": True, "immutable": False, "rules": filtered_rules}
                 else:
                     result[key] = value
             elif key in result:
@@ -2166,13 +2227,28 @@ class ToolPolicyChecker:
             list_type: "allow" or "deny"
             items: List of patterns to add
         """
-        # Ensure permissions is a list
-        if "permissions" not in config or not isinstance(config["permissions"], list):
-            config["permissions"] = []
+        # Ensure permissions is the new unified structure
+        if "permissions" not in config:
+            config["permissions"] = {"enabled": True, "immutable": False, "rules": []}
+
+        permissions = config["permissions"]
+
+        # Handle new unified format
+        if isinstance(permissions, dict):
+            if "rules" not in permissions:
+                permissions["rules"] = []
+            rules = permissions["rules"]
+        # Legacy format: array directly
+        elif isinstance(permissions, list):
+            rules = permissions
+        else:
+            # Invalid format - create new structure
+            config["permissions"] = {"enabled": True, "immutable": False, "rules": []}
+            rules = config["permissions"]["rules"]
 
         # Find existing rule with this matcher and mode
         mode = list_type  # "allow" or "deny"
-        for rule in config["permissions"]:
+        for rule in rules:
             if rule.get("matcher") == matcher and rule.get("mode") == mode:
                 # Add to existing rule's patterns
                 if "patterns" not in rule:
@@ -2186,4 +2262,4 @@ class ToolPolicyChecker:
             "mode": mode,
             "patterns": items
         }
-        config["permissions"].append(new_rule)
+        rules.append(new_rule)
