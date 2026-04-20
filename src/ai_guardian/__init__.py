@@ -455,9 +455,10 @@ def _check_directory_rules(file_path, config):
         config: Configuration dict containing directory_rules
 
     Returns:
-        tuple: (decision, action) where:
+        tuple: (decision, action, matched_pattern) where:
             - decision: "allow", "deny", or None (no matching rule)
             - action: "block", "log", or None
+            - matched_pattern: The pattern that triggered the match, or None
     """
     try:
         if not config:
@@ -494,13 +495,14 @@ def _check_directory_rules(file_path, config):
 
         if not directory_rules:
             # No rules, but global_action still applies to .ai-read-deny markers
-            return None, global_action
+            return None, global_action, None
 
         # Convert file path to absolute path
         abs_file_path = os.path.abspath(os.path.expanduser(file_path))
 
         # Evaluate rules in order, last match wins
         final_decision = None
+        matched_pattern = None
 
         for rule in directory_rules:
             if not isinstance(rule, dict):
@@ -553,12 +555,14 @@ def _check_directory_rules(file_path, config):
 
                             if matched:
                                 final_decision = mode
+                                matched_pattern = pattern
                                 logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                                 break
                         else:
                             # No wildcards in base_path, use simple startswith
                             if abs_file_path.startswith(base_path):
                                 final_decision = mode
+                                matched_pattern = pattern
                                 logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                                 break
                     elif "*" in expanded_pattern:
@@ -566,12 +570,14 @@ def _check_directory_rules(file_path, config):
                         file_parent = os.path.dirname(abs_file_path)
                         if fnmatch.fnmatch(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
                             final_decision = mode
+                            matched_pattern = pattern
                             logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                             break
                     else:
                         # Exact path match
                         if abs_file_path.startswith(expanded_pattern + os.sep) or abs_file_path == expanded_pattern:
                             final_decision = mode
+                            matched_pattern = pattern
                             logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
                             break
 
@@ -579,14 +585,14 @@ def _check_directory_rules(file_path, config):
                     logging.warning(f"Error processing rule pattern '{pattern}': {e}")
                     continue
 
-        # Return decision and global action
+        # Return decision, global action, and matched pattern
         # Note: global_action is returned even when no rule matches because
         # it applies to ALL violations, including .ai-read-deny markers (issue #93)
-        return final_decision, global_action
+        return final_decision, global_action, matched_pattern
 
     except Exception as e:
         logging.error(f"Error checking directory rules: {e}")
-        return None
+        return None, None, None
 
 
 def check_directory_denied(file_path, config=None):
@@ -611,10 +617,11 @@ def check_directory_denied(file_path, config=None):
         config: Optional configuration dict containing directory_rules
 
     Returns:
-        tuple: (is_denied: bool, denied_directory: str or None, warning_message: str or None)
+        tuple: (is_denied: bool, denied_directory: str or None, warning_message: str or None, matched_pattern: str or None)
                - is_denied: True if access should be blocked
                - denied_directory: The directory containing .ai-read-deny, if found
                - warning_message: Warning message for log mode (when action="log")
+               - matched_pattern: The directory rule pattern that triggered the match, if any
     """
     try:
         # Load config if not provided
@@ -630,7 +637,7 @@ def check_directory_denied(file_path, config=None):
         abs_path = os.path.abspath(file_path)
 
         # PRIORITY 1: Check directory_rules
-        rule_decision, rule_action = _check_directory_rules(abs_path, config) if config else (None, None)
+        rule_decision, rule_action, matched_pattern = _check_directory_rules(abs_path, config) if config else (None, None, None)
 
         # PRIORITY 2: Check for .ai-read-deny marker files
         current_dir = os.path.dirname(abs_path)
@@ -660,7 +667,7 @@ def check_directory_denied(file_path, config=None):
             # Marker found - check if rules override it
             if rule_decision == "allow":
                 logging.info(f"Found .ai-read-deny at {denied_directory}, but directory rules allow access - allowing")
-                return False, None, None  # ALLOW - rule overrides marker
+                return False, None, None, matched_pattern  # ALLOW - rule overrides marker
             else:
                 # No allow rule to override - block or log
                 # Check if there's a deny rule with log action
@@ -668,12 +675,12 @@ def check_directory_denied(file_path, config=None):
                     logging.warning(f"Policy violation (log mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
                     warn_msg = f"⚠️  Policy violation (log mode): Directory '{denied_directory}' denied by marker but allowed for audit"
-                    return False, None, warn_msg  # ALLOW - logged for audit, with warning
+                    return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
                 else:
                     # Block access
                     logging.error(f".ai-read-deny marker blocks access to {denied_directory}")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    return True, denied_directory, None  # BLOCK
+                    return True, denied_directory, None, matched_pattern  # BLOCK
 
         # No .ai-read-deny marker - check rule decision
         if rule_decision == "deny":
@@ -682,20 +689,20 @@ def check_directory_denied(file_path, config=None):
                 logging.warning(f"Policy violation (log mode): {file_path} - denied by rules but allowed for audit")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
                 warn_msg = f"⚠️  Policy violation (log mode): Directory rules deny '{file_path}' but allowed for audit"
-                return False, None, warn_msg  # ALLOW - logged for audit, with warning
+                return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
             else:
                 # Block access
                 logging.error(f"Directory rules deny access to {abs_path}")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
-                return True, os.path.dirname(abs_path), None  # BLOCK
+                return True, os.path.dirname(abs_path), None, matched_pattern  # BLOCK
 
         # Default: allow access
-        return False, None, None
+        return False, None, None, None
 
     except Exception as e:
         logging.error(f"Error checking directory access: {e}")
         # Fail-open: allow access if check fails
-        return False, None, None
+        return False, None, None, None
 
 
 def extract_tool_result(hook_data):
@@ -798,24 +805,39 @@ def extract_file_content_from_tool(hook_data):
             file_path = hook_data["file_path"]
 
             # Check if directory is denied
-            is_denied, denied_dir, dir_warning = check_directory_denied(file_path)
+            is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
             if is_denied:
                 error_msg = (
                     f"\n{'='*70}\n"
                     f"🚨 BLOCKED BY POLICY\n"
-                    f"🚫 ACCESS DENIED - Directory Protected\n"
+                    f"🚫 DIRECTORY ACCESS DENIED\n"
                     f"{'='*70}\n\n"
-                    f"The file '{file_path}' is located in a directory that contains\n"
-                    f"a .ai-read-deny marker file.\n\n"
-                    f"Protected directory: {denied_dir}\n\n"
-                    f"This directory and all its subdirectories are blocked from AI access.\n\n"
-                    f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                    f"To allow access:\n"
-                    f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
-                    f"  2. Move this file to an accessible location\n"
-                    f"  3. Add this path to directory_exclusions in ai-guardian.json\n"
-                    f"\n{'='*70}\n"
+                    f"File: {file_path}\n"
                 )
+                if denied_dir:
+                    error_msg += f"Protected Directory: {denied_dir}\n"
+                if matched_pattern:
+                    error_msg += f"Triggered Pattern: {matched_pattern}\n"
+                    error_msg += f"\nProtection Type: Directory rule\n\n"
+                    error_msg += (
+                        f"This file is blocked by a directory access rule.\n\n"
+                        f"DO NOT attempt workarounds - the protection is intentional.\n\n"
+                        f"To allow access:\n"
+                        f"  1. Update directory_rules in ai-guardian.json\n"
+                        f"  2. Move this file to an accessible location\n"
+                    )
+                else:
+                    error_msg += f"\nProtection Type: .ai-read-deny marker\n\n"
+                    error_msg += (
+                        f"This directory contains a .ai-read-deny marker file.\n"
+                        f"All subdirectories are blocked from AI access.\n\n"
+                        f"DO NOT attempt workarounds - the protection is intentional.\n\n"
+                        f"To allow access:\n"
+                        f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
+                        f"  2. Move this file to an accessible location\n"
+                        f"  3. Add an allow rule in directory_rules config\n"
+                    )
+                error_msg += f"\n{'='*70}\n"
                 return None, os.path.basename(file_path), file_path, True, error_msg, None
 
             return content, os.path.basename(file_path), file_path, False, None, dir_warning
@@ -865,24 +887,39 @@ def extract_file_content_from_tool(hook_data):
         file_path = os.path.expanduser(file_path)
 
         # Check if directory is denied BEFORE reading the file
-        is_denied, denied_dir, dir_warning = check_directory_denied(file_path)
+        is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
         if is_denied:
             error_msg = (
                 f"\n{'='*70}\n"
                 f"🚨 BLOCKED BY POLICY\n"
-                f"🚫 ACCESS DENIED - Directory Protected\n"
+                f"🚫 DIRECTORY ACCESS DENIED\n"
                 f"{'='*70}\n\n"
-                f"The file '{file_path}' is located in a directory that contains\n"
-                f"a .ai-read-deny marker file.\n\n"
-                f"Protected directory: {denied_dir}\n\n"
-                f"This directory and all its subdirectories are blocked from AI access.\n\n"
-                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                f"To allow access:\n"
-                f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
-                f"  2. Move this file to an accessible location\n"
-                f"  3. Add this path to directory_exclusions in ai-guardian.json\n"
-                f"\n{'='*70}\n"
+                f"File: {file_path}\n"
             )
+            if denied_dir:
+                error_msg += f"Protected Directory: {denied_dir}\n"
+            if matched_pattern:
+                error_msg += f"Triggered Pattern: {matched_pattern}\n"
+                error_msg += f"\nProtection Type: Directory rule\n\n"
+                error_msg += (
+                    f"This file is blocked by a directory access rule.\n\n"
+                    f"DO NOT attempt workarounds - the protection is intentional.\n\n"
+                    f"To allow access:\n"
+                    f"  1. Update directory_rules in ai-guardian.json\n"
+                    f"  2. Move this file to an accessible location\n"
+                )
+            else:
+                error_msg += f"\nProtection Type: .ai-read-deny marker\n\n"
+                error_msg += (
+                    f"This directory contains a .ai-read-deny marker file.\n"
+                    f"All subdirectories are blocked from AI access.\n\n"
+                    f"DO NOT attempt workarounds - the protection is intentional.\n\n"
+                    f"To allow access:\n"
+                    f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
+                    f"  2. Move this file to an accessible location\n"
+                    f"  3. Add an allow rule in directory_rules config\n"
+                )
+            error_msg += f"\n{'='*70}\n"
             return None, os.path.basename(file_path), file_path, True, error_msg, None
 
         # Read the file content

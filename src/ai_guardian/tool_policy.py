@@ -429,7 +429,7 @@ class ToolPolicyChecker:
                         matches = fnmatch.fnmatch(check_value, pattern)
 
                     if matches:
-                        error_msg = self._format_immutable_deny_message(check_value, tool_name)
+                        error_msg = self._format_immutable_deny_message(check_value, tool_name, pattern)
                         self._log_violation(
                             tool_name=tool_name,
                             check_value=check_value,
@@ -974,13 +974,14 @@ class ToolPolicyChecker:
         return msg
 
 
-    def _format_immutable_deny_message(self, check_value: str, tool_name: str) -> str:
+    def _format_immutable_deny_message(self, check_value: str, tool_name: str, matched_pattern: str = None) -> str:
         """
         Format error message for immutable deny (cannot be overridden).
 
         Args:
             check_value: The value that was blocked (file path, command, etc.)
             tool_name: The tool that was blocked
+            matched_pattern: The specific immutable pattern that triggered the block
 
         Returns:
             str: Formatted error message
@@ -1055,6 +1056,8 @@ class ToolPolicyChecker:
                 f"{value_label}: {check_value}\n"
                 f"Tool: {tool_name}\n"
             )
+            if matched_pattern:
+                base_message += f"Triggered Pattern: {matched_pattern}\n"
         else:
             base_message = (
                 f"\n{'='*70}\n"
@@ -1065,13 +1068,15 @@ class ToolPolicyChecker:
                 f"{value_label}: {check_value}\n"
                 f"Tool: {tool_name}\n"
             )
+            if matched_pattern:
+                base_message += f"Triggered Pattern: {matched_pattern}\n"
 
         # Add diagnostic information for source files
         # Note: This should only be reached for pip-installed code (site-packages),
         # since development repo source files are allowed via _should_skip_immutable_protection
         if is_source_file:
             return base_message + (
-                f"\nReason: Pip-installed package source code (production deployment)\n\n"
+                f"\nProtection Type: Pip-installed package source code (production deployment)\n\n"
                 f"This file is part of the pip-installed ai-guardian package and cannot\n"
                 f"be modified to prevent bypassing security controls in production.\n\n"
                 f"If you're developing ai-guardian:\n"
@@ -1099,7 +1104,7 @@ class ToolPolicyChecker:
 
         if is_marker_file:
             return base_message + tip_message + (
-                f"\nReason: Directory protection marker\n\n"
+                f"\nProtection Type: Directory protection marker\n\n"
                 f"Protected files:\n"
                 f"  • ai-guardian configuration files\n"
                 f"  • IDE hook configuration (Claude, Cursor)\n"
@@ -1113,7 +1118,7 @@ class ToolPolicyChecker:
             )
         else:
             return base_message + tip_message + (
-                f"\nReason: Critical security configuration\n\n"
+                f"\nProtection Type: Immutable file protection\n\n"
                 f"Protected files:\n"
                 f"  • ai-guardian configuration files\n"
                 f"  • IDE hook configuration (Claude, Cursor)\n"

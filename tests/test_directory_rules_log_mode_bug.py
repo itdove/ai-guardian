@@ -45,7 +45,7 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
                 }
             }
 
-            is_denied, denied_dir, warn_msg = check_directory_denied(test_file, config)
+            is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
 
             # Should be allowed with warning (bug: currently blocks)
             self.assertFalse(is_denied, "Log mode should allow access even with .ai-read-deny marker")
@@ -74,7 +74,7 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
                 }
             }
 
-            is_denied, denied_dir, warn_msg = check_directory_denied(test_file, config)
+            is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
 
             # Should be allowed with warning
             self.assertFalse(is_denied, "Log mode should allow access")
@@ -101,7 +101,7 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
                 }
             }
 
-            is_denied, denied_dir, warn_msg = check_directory_denied(test_file, config)
+            is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
 
             # Should be blocked
             self.assertTrue(is_denied, "Block mode should deny access with .ai-read-deny marker")
