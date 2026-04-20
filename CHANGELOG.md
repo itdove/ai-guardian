@@ -78,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing hooks after ai-guardian
 
 ### Fixed
+- **Bug #155**: False positives in prompt injection detection for heredoc content
+  - Heredoc content is now stripped before prompt injection pattern matching
+  - Prevents false positives when writing security documentation or test fixtures
+  - Reuses `_strip_bash_heredoc_content()` function from tool_policy.py (PR #152)
+  - Example: `cat > doc.md <<EOF\n"Ignore previous instructions"\nEOF` now allowed
+  - Real injection attempts outside heredocs still detected and blocked
+  - Added 20 comprehensive tests in `tests/test_prompt_injection_heredoc.py`
+
 - **Bug #113**: Self-protection bypass when file_path parameter is missing
   - File-path tools (Edit, Write, Read, NotebookEdit) now fail-closed when file_path is missing
   - Previously, malformed tool_input could bypass IMMUTABLE pattern checks
