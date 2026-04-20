@@ -78,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing hooks after ai-guardian
 
 ### Fixed
+- **Bug #162**: Pattern server requires authentication for public URLs on first run
+  - Pattern server now makes authentication optional for public URLs
+  - Only adds Authorization header when token is available
+  - Allows fetching patterns from public repositories (GitHub raw content, etc.)
+  - Better error messages distinguishing public vs private URL failures
+  - Backward compatible: authenticated endpoints still work as before
+  - Added 5 comprehensive tests covering public/private URL scenarios
+
 - **Bug #155**: False positives in prompt injection detection for heredoc content
   - Heredoc content is now stripped before prompt injection pattern matching
   - Prevents false positives when writing security documentation or test fixtures
