@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, Union, List
 
 from ai_guardian.config_utils import is_expired
+from ai_guardian.tool_policy import _strip_bash_heredoc_content
 
 logger = logging.getLogger(__name__)
 
@@ -487,26 +488,31 @@ class PromptInjectionDetector:
                 logger.info(f"Skipping prompt injection detection for ignored file: {file_path}")
                 return False, None, False
 
-            # Check allowlist first
-            if self._check_allowlist(content):
+            # Strip heredoc content before checking for injection patterns
+            # This prevents false positives when heredoc content mentions protected keywords
+            # Only checks command structure, not heredoc data (Issue #155)
+            content_to_check = _strip_bash_heredoc_content(content)
+
+            # Check allowlist first (use stripped content to avoid false positives)
+            if self._check_allowlist(content_to_check):
                 logger.debug("Content matches allowlist pattern, skipping detection")
                 return False, None, False
 
-            # Perform detection based on configured detector type
+            # Perform detection based on configured detector type (use stripped content)
             if self.detector_type == "heuristic":
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
             elif self.detector_type == "rebuff":
                 # Placeholder for Rebuff integration
                 logger.warning("Rebuff detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
             elif self.detector_type == "llm-guard":
                 # Placeholder for LLM Guard integration
                 logger.warning("LLM Guard detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
             else:
                 # Unknown detector type, use heuristic
                 logger.warning(f"Unknown detector type '{self.detector_type}', using heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
 
             if is_injection:
                 # Format error message
