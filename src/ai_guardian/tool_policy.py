@@ -15,6 +15,7 @@ import fnmatch
 import json
 import logging
 import os
+import re
 import subprocess
 import time
 from datetime import datetime, timezone, timedelta
@@ -242,6 +243,78 @@ IMMUTABLE_DENY_PATTERNS = {
         "*mv *.ai-read-deny*", "*move *.ai-read-deny*",
     ]
 }
+
+
+def _strip_bash_heredoc_content(command: str) -> str:
+    """
+    Strip heredoc content from bash commands for pattern matching.
+
+    This prevents false positives when heredoc content contains protected
+    keywords or patterns. Only the command structure is checked, not the
+    heredoc data.
+
+    Supports heredoc formats:
+    - <<EOF ... EOF
+    - <<'EOF' ... EOF (quoted)
+    - <<"EOF" ... EOF (quoted)
+    - <<-EOF ... EOF (dash format for tab stripping)
+
+    Args:
+        command: The bash command string (may be multi-line)
+
+    Returns:
+        Command with heredoc content replaced by placeholders
+
+    Example:
+        Input:  cat <<'EOF'\\nrm ai-guardian.json\\nEOF
+        Output: cat <<'EOF'\\nEOF
+    """
+    if not command or '<<' not in command:
+        return command
+
+    # Pattern to match heredoc start
+    # Groups: (1) optional dash, (2) quote if quoted, (3) delimiter if quoted, (4) delimiter if unquoted
+    heredoc_start_pattern = re.compile(
+        r"<<(-)?(?:(['\"])(\w+)\2|(\w+))",
+        re.MULTILINE
+    )
+
+    # Find all heredocs and their positions
+    replacements = []
+
+    for match in heredoc_start_pattern.finditer(command):
+        # Extract delimiter (group 3 if quoted, group 4 if unquoted)
+        delimiter = match.group(3) if match.group(3) else match.group(4)
+        heredoc_start = match.end()  # Position after the delimiter
+
+        # Find the first newline after the heredoc delimiter
+        # The heredoc content starts AFTER this newline (commands can follow on same line)
+        first_newline = command.find('\n', heredoc_start)
+        if first_newline == -1:
+            # No newline found, no heredoc content to strip
+            continue
+
+        content_start = first_newline  # Position of the newline before content
+
+        # Find the end delimiter (must be on its own line)
+        # Pattern: newline + optional whitespace + delimiter + end of line
+        end_pattern = re.compile(
+            rf'\n\s*{re.escape(delimiter)}\s*(?=\n|$)',
+            re.MULTILINE
+        )
+
+        end_match = end_pattern.search(command, content_start)
+        if end_match:
+            # Mark this range for removal (content between newlines)
+            # Remove from after the first newline to before the delimiter newline
+            replacements.append((content_start, end_match.start()))
+
+    # Apply replacements in reverse order to maintain positions
+    result = command
+    for start, end in reversed(replacements):
+        result = result[:start] + result[end:]
+
+    return result
 
 
 class ToolPolicyChecker:
@@ -853,7 +926,13 @@ class ToolPolicyChecker:
         # Bash/Shell/PowerShell: extract command from input
         if matcher == "Bash" or matcher == "Shell" or matcher == "PowerShell":
             command = tool_input.get("command")
-            return command if command else None
+            if not command:
+                return None
+            # For Bash/Shell, strip heredoc content to avoid false positives
+            # PowerShell doesn't use heredocs, so we skip this for PowerShell
+            if matcher in ["Bash", "Shell"]:
+                return _strip_bash_heredoc_content(command)
+            return command
 
         # Write: extract file_path from input
         if matcher == "Write":
