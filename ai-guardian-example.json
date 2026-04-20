@@ -19,7 +19,11 @@
   "_comment16": "====================================================================",
 
   "permissions": {
-    "_comment": "NEW unified structure in v1.4.0: combines enabled flag and rules in one object",
+    "_comment": "Tool permission enforcement - WHERE THE RULES LIVE",
+    "_comment2": "Controls which TOOLS can run (Skills, MCP servers, Bash, Write, etc.)",
+    "_comment3": "This is the actual enforcement layer - rules here are checked when tools execute",
+    "_comment4": "Works with permissions_directories (auto-discovery feeds INTO this section)",
+    "_comment5": "NEW unified structure in v1.4.0: combines enabled flag and rules in one object",
     "enabled": true,
     "rules": [
       {
@@ -73,8 +77,12 @@
   },
 
   "permissions_directories": {
-    "_comment": "OPTIONAL/ADVANCED: Auto-discover from directories (most users should use remote_configs instead)",
-    "_comment2": "Use this for local development or when you can't pre-list all items",
+    "_comment": "OPTIONAL/ADVANCED: Auto-discover tool permissions - HOW TO AUTO-POPULATE RULES",
+    "_comment2": "Scans directories/GitHub repos for permission files → merges discovered rules INTO permissions.rules",
+    "_comment3": "This is NOT about blocking directories - that's directory_rules (see below)",
+    "_comment4": "Data flow: scan directories → discover permission files → generate rules → merge into permissions.rules",
+    "_comment5": "Most users should use remote_configs instead (easier to manage)",
+    "_comment6": "Use this for local development or when you can't pre-list all items",
     "_examples": [
       {
         "matcher": "Skill",
@@ -206,10 +214,15 @@
   },
 
   "directory_exclusions": {
-    "_comment": "Directory exclusions for .ai-read-deny blocking (NEW in v1.5.0)",
-    "_comment2": "Disable .ai-read-deny blocking for specific directory paths",
-    "_comment3": "CRITICAL: .ai-read-deny markers ALWAYS take precedence over exclusions",
-    "_comment4": "Config-based (safe from AI manipulation, unlike marker files)",
+    "_comment": "DEPRECATED: Use directory_rules instead (v1.6.0+). Automatically converted internally.",
+    "_comment2": "Filesystem path access control - Controls which PATHS can be accessed/read",
+    "_comment3": "⚠️ NOT RELATED to permissions_directories (despite similar names):",
+    "_comment4": "  - permissions_directories: Auto-discovers TOOL permission rules",
+    "_comment5": "  - directory_exclusions/directory_rules: Blocks AI access to specific PATHS (e.g., ~/.ssh)",
+    "_comment6": "Directory exclusions for .ai-read-deny blocking (NEW in v1.5.0)",
+    "_comment7": "Disable .ai-read-deny blocking for specific directory paths",
+    "_comment8": "CRITICAL: .ai-read-deny markers ALWAYS take precedence over exclusions",
+    "_comment9": "Config-based (safe from AI manipulation, unlike marker files)",
     "enabled": false,
     "_simple_format": "false (boolean - permanent enable/disable)",
     "paths": [],

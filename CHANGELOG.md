@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Documentation: Clarified configuration section differences** (Issue #150)
+  - Added "Configuration Concepts" section to README explaining the three main config areas
+  - New comparison table showing differences between `permissions`, `permissions_directories`, and `directory_rules`
+  - Expanded FAQ with three new questions addressing common configuration confusion:
+    - Q: What's the difference between `permissions` and `permissions_directories`?
+    - Q: What's the difference between `permissions_directories` and `directory_rules`?
+    - Q: When should I use `permissions_directories`?
+  - Improved comments in `ai-guardian-example.json`:
+    - `permissions`: Clarified as "WHERE THE RULES LIVE" (tool execution control)
+    - `permissions_directories`: Clarified as "HOW TO AUTO-POPULATE RULES" (auto-discovery feeds INTO permissions.rules)
+    - `directory_exclusions`/`directory_rules`: Clarified as completely separate from permissions (filesystem path access control)
+  - Updated `docs/TUI.md` to explain tab relationships:
+    - Tabs 3-4 (Skills, MCP Servers) work together for tool permissions
+    - Tab 8 (Permissions Discovery) feeds INTO tabs 3-4
+    - Tab 9 (Directory Protection) is separate (filesystem access, not tool permissions)
+  - Enhanced schema descriptions in `ai-guardian-config.schema.json` for all three sections
+  - Key clarification: `permissions_directories` discovers TOOL permissions; `directory_rules` blocks filesystem PATHS
+
 ### Changed
 - **BREAKING**: Replaced `action="log"` with `action="warn"` for clearer semantics (Issue #159)
   - Old behavior: `action="log"` logged violations and showed warning to user
