@@ -337,8 +337,8 @@
         },
         "action": {
           "type": "string",
-          "enum": ["block", "log"],
-          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'log' logs violation but allows execution (audit mode)",
+          "enum": ["block", "warn", "log-only"],
+          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
           "default": "block"
         },
         "immutable": {
@@ -434,8 +434,8 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["block", "log"],
-              "description": "Action on violation: 'block' prevents access (default), 'log' logs violation but allows access (audit mode). Applies to ALL rules.",
+              "enum": ["block", "warn", "log-only"],
+              "description": "Action on violation: 'block' prevents access (default), 'warn' logs violation and shows warning to user but allows access, 'log-only' logs violation silently without user warning. Applies to ALL rules.",
               "default": "block"
             },
             "rules": {
@@ -527,8 +527,8 @@
         },
         "action": {
           "type": "string",
-          "enum": ["block", "log"],
-          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'log' logs violation but allows execution (audit mode)",
+          "enum": ["block", "warn", "log-only"],
+          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
           "default": "block"
         },
         "immutable": {

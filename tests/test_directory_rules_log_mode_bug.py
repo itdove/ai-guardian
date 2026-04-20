@@ -18,9 +18,9 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
     def test_marker_with_global_log_action_no_matching_rule(self):
         """
         Bug: When .ai-read-deny marker exists but no rule matches,
-        global action="log" should still apply (allow with warning).
+        global action="warn" should still apply (allow with warning).
 
-        Config: action="log" globally, but rules don't match this path
+        Config: action="warn" globally, but rules don't match this path
         Expected: Allow access with warning
         Actual (before fix): Blocks access
         """
@@ -32,10 +32,10 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             test_file = os.path.join(tmpdir, "test.txt")
             Path(test_file).touch()
 
-            # Global action is "log", but no rule matches this path
+            # Global action is "warn", but no rule matches this path
             config = {
                 "directory_rules": {
-                    "action": "log",
+                    "action": "warn",
                     "rules": [
                         {
                             "mode": "deny",
@@ -48,15 +48,15 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
 
             # Should be allowed with warning (bug: currently blocks)
-            self.assertFalse(is_denied, "Log mode should allow access even with .ai-read-deny marker")
-            self.assertIsNone(denied_dir, "Should not be denied when action=log")
-            self.assertIsNotNone(warn_msg, "Should return warning message in log mode")
-            self.assertIn("log mode", warn_msg.lower())
+            self.assertFalse(is_denied, "Warn mode should allow access even with .ai-read-deny marker")
+            self.assertIsNone(denied_dir, "Should not be denied when action=warn")
+            self.assertIsNotNone(warn_msg, "Should return warning message in warn mode")
+            self.assertIn("warn mode", warn_msg.lower())
 
     def test_marker_with_global_log_action_empty_rules(self):
         """
         Bug: When .ai-read-deny marker exists with no rules defined,
-        global action="log" should apply (allow with warning).
+        global action="warn" should apply (allow with warning).
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create .ai-read-deny marker
@@ -66,10 +66,10 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             test_file = os.path.join(tmpdir, "test.txt")
             Path(test_file).touch()
 
-            # Global action is "log", no rules defined
+            # Global action is "warn", no rules defined
             config = {
                 "directory_rules": {
-                    "action": "log",
+                    "action": "warn",
                     "rules": []
                 }
             }
@@ -77,9 +77,9 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
 
             # Should be allowed with warning
-            self.assertFalse(is_denied, "Log mode should allow access")
+            self.assertFalse(is_denied, "Warn mode should allow access")
             self.assertIsNone(denied_dir)
-            self.assertIsNotNone(warn_msg, "Should return warning message in log mode")
+            self.assertIsNotNone(warn_msg, "Should return warning message in warn mode")
 
     def test_marker_with_global_block_action_no_matching_rule(self):
         """

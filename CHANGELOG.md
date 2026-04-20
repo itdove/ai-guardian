@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING**: Replaced `action="log"` with `action="warn"` for clearer semantics (Issue #159)
+  - Old behavior: `action="log"` logged violations and showed warning to user
+  - New behavior: `action="warn"` logs violations and shows warning to user (same behavior, clearer name)
+  - Migration: Replace all `"action": "log"` with `"action": "warn"` in your configuration
+  - Affects: tool permissions, prompt injection, directory rules
+
 ### Added
+- **New `action="log-only"` mode** for silent monitoring without user warnings (Issue #159)
+  - Logs violations for audit purposes but does NOT show warnings to users
+  - Useful for baseline metrics, impact analysis, compliance audits, and passive monitoring
+  - Available for: tool permissions, prompt injection, directory rules
+  - Action modes summary:
+    - `action="block"` - Prevents execution (default)
+    - `action="warn"` - Logs violation + shows warning to user + allows execution
+    - `action="log-only"` - Logs violation silently without user warning + allows execution
+
 - **Flexible Scanner Engine Support** - Multi-scanner support for secret detection (Issue #154)
   - Support for BetterLeaks (20-40% faster than Gitleaks)
   - Support for LeakTK (auto-pattern management)
@@ -20,17 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaces `directory_exclusions` with more flexible `directory_rules`
   - Rules evaluated in order with last-match-wins precedence
   - Each rule has `mode: "allow"|"deny"` and `paths: [...]`
-  - Supports `action: "log"|"block"` for audit mode and gradual rollout
+  - Supports `action: "warn"|"log-only"|"block"` for audit mode and gradual rollout
   - Wildcard support: `**` (recursive), `*` (single-level), combined patterns (e.g., `daf-*/**`)
   - Can override .ai-read-deny markers with allow rules
   - Backward compatible: `directory_exclusions` auto-converted to allow rules
 
-- **Action levels (log vs block)** for audit mode and gradual policy rollout (Issues #84, #88)
-  - Configure `action: "log"` to audit violations without blocking
+- **Action levels** for audit mode and gradual policy rollout (Issues #84, #88, #159)
+  - Configure `action: "warn"` to show warning to user but allow execution
+  - Configure `action: "log-only"` to log silently without user warning (NEW in #159)
   - Configure `action: "block"` to enforce policies (default)
   - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
   - Secret scanning always blocks (no action field for security)
-  - Log mode warnings displayed via JSON systemMessage in PreToolUse/UserPromptSubmit hooks
+  - Warn mode warnings displayed via JSON systemMessage in PreToolUse/UserPromptSubmit hooks
   - All violations logged to TUI and violation log regardless of action
 
 - **Ignore patterns** for false positive handling (Issue #84)

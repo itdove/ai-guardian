@@ -588,13 +588,17 @@ class ToolPolicyChecker:
                             )
 
                             # Check action
-                            if action == "log":
-                                logger.warning(f"Policy violation (log mode): {tool_name} - {pattern_str} - execution allowed")
+                            if action == "warn":
+                                logger.warning(f"Policy violation (warn mode): {tool_name} - {pattern_str} - execution allowed")
                                 # Continue execution - logged for audit
                                 # Return warning message to display to user via systemMessage
                                 display_name = self._format_tool_display_name(tool_name, tool_input)
-                                warn_msg = f"⚠️  Policy violation (log mode): {display_name} matched deny pattern - execution allowed"
+                                warn_msg = f"⚠️  Policy violation (warn mode): {display_name} matched deny pattern - execution allowed"
                                 return True, warn_msg, tool_name
+                            elif action == "log-only":
+                                logger.warning(f"Policy violation (log-only mode): {tool_name} - {pattern_str} - execution allowed (silent)")
+                                # Continue execution - logged for audit, NO warning to user
+                                return True, None, tool_name
                             else:
                                 # Block execution
                                 logger.error(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
@@ -652,13 +656,17 @@ class ToolPolicyChecker:
                 )
 
                 # Check action
-                if action == "log":
-                    logger.warning(f"Policy violation (log mode): {tool_name} not in allow list - execution allowed")
+                if action == "warn":
+                    logger.warning(f"Policy violation (warn mode): {tool_name} not in allow list - execution allowed")
                     # Continue execution - logged for audit
                     # Return warning message to display to user via systemMessage
                     display_name = self._format_tool_display_name(tool_name, tool_input)
-                    warn_msg = f"⚠️  Policy violation (log mode): {display_name} not in allow list - execution allowed"
+                    warn_msg = f"⚠️  Policy violation (warn mode): {display_name} not in allow list - execution allowed"
                     return True, warn_msg, tool_name
+                elif action == "log-only":
+                    logger.warning(f"Policy violation (log-only mode): {tool_name} not in allow list - execution allowed (silent)")
+                    # Continue execution - logged for audit, NO warning to user
+                    return True, None, tool_name
                 else:
                     # Block execution
                     logger.error(f"Tool '{tool_name}' not in allow list")

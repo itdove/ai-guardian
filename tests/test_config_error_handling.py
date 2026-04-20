@@ -21,7 +21,7 @@ class TestConfigErrorHandling(unittest.TestCase):
   "permissions": [
     {
       "matcher": "Skill",
-      "action": "log"
+      "action": "warn"
       "patterns": ["test"]
     }
   ]
@@ -60,7 +60,7 @@ class TestConfigErrorHandling(unittest.TestCase):
   "permissions": [
     {
       "matcher": "Skill",
-      "action": "log",
+      "action": "warn",
       "patterns": ["test"]
     }
   ]
