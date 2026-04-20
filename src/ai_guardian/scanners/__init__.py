@@ -1,0 +1,29 @@
+"""
+Scanner engine modules for flexible secret detection.
+
+This package provides:
+- engine_builder: Configuration and command building for different scanner engines
+- output_parsers: Parsers for different scanner output formats
+"""
+
+from ai_guardian.scanners.engine_builder import (
+    EngineConfig,
+    ENGINE_PRESETS,
+    select_engine,
+    build_scanner_command
+)
+from ai_guardian.scanners.output_parsers import (
+    ScannerOutputParser,
+    get_parser,
+    OUTPUT_PARSERS
+)
+
+__all__ = [
+    'EngineConfig',
+    'ENGINE_PRESETS',
+    'select_engine',
+    'build_scanner_command',
+    'ScannerOutputParser',
+    'get_parser',
+    'OUTPUT_PARSERS'
+]

@@ -60,6 +60,15 @@ except ImportError:
     HAS_VIOLATION_LOGGER = False
     logging.debug("violation_logger module not available")
 
+# Import scanner engine modules for flexible scanner support
+try:
+    from ai_guardian.scanners.engine_builder import select_engine, build_scanner_command
+    from ai_guardian.scanners.output_parsers import get_parser
+    HAS_SCANNER_ENGINE = True
+except ImportError:
+    HAS_SCANNER_ENGINE = False
+    logging.debug("scanner engine modules not available - using legacy gitleaks only")
+
 # Configure logging - will be disabled for Cursor hooks
 # Set up file handler with rotation
 _log_file = get_config_dir() / "ai-guardian.log"
@@ -1660,33 +1669,60 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             with tempfile.NamedTemporaryFile(
                 mode='w',
                 suffix='.json',
-                prefix='gitleaks_report_',
+                prefix='scanner_report_',
                 dir=tmp_base_dir,
                 delete=False
             ) as rf:
                 report_file = rf.name
 
-            # Build gitleaks command
-            # TODO: Multi-engine support (#91) - make scanner selection configurable
-            #       Currently hardcoded to 'gitleaks', future: support engines config
-            cmd = [
-                'gitleaks',
-                'detect',
-                '--no-git',        # Don't use git history
-                '--verbose',       # Detailed output
-                '--redact',        # Defense-in-depth: redact Match/Secret fields in JSON
-                                   # (we don't extract these fields, but safeguard against future changes)
-                '--report-format', 'json',  # JSON output for parsing
-                '--report-path', report_file,  # Write JSON to file
-                '--exit-code', '42',  # Custom exit code for found secrets
-                '--source', tmp_file_path,
-            ]
+            # Select scanner engine from configuration (Issue #154: Flexible scanner engine support)
+            engine_config = None
+            if HAS_SCANNER_ENGINE:
+                try:
+                    # Load engine configuration (defaults to ["gitleaks"] for backward compatibility)
+                    scanner_config, _ = _load_secret_scanning_config()
+                    engines_list = ["gitleaks"]  # Default fallback
+                    if scanner_config and isinstance(scanner_config, dict):
+                        engines_list = scanner_config.get("engines", ["gitleaks"])
 
-            # Add custom config if we have one
-            if gitleaks_config_path:
-                cmd.extend(['--config', str(Path(gitleaks_config_path).absolute())])
+                    # Select first available engine
+                    engine_config = select_engine(engines_list)
+                    logging.info(f"Using scanner engine: {engine_config.type}")
+                except RuntimeError as e:
+                    # No scanner found - this will be handled by FileNotFoundError below
+                    logging.warning(f"Scanner engine selection failed: {e}")
+                except Exception as e:
+                    logging.warning(f"Error selecting scanner engine, falling back to gitleaks: {e}")
 
-            # Run Gitleaks scanner
+            # Build scanner command
+            if engine_config and HAS_SCANNER_ENGINE:
+                # Use flexible engine builder (Issue #154)
+                cmd = build_scanner_command(
+                    engine_config=engine_config,
+                    source_file=tmp_file_path,
+                    report_file=report_file,
+                    config_path=str(Path(gitleaks_config_path).absolute()) if gitleaks_config_path else None
+                )
+            else:
+                # Legacy fallback: hardcoded gitleaks command
+                logging.debug("Using legacy gitleaks command (scanner engine not available)")
+                cmd = [
+                    'gitleaks',
+                    'detect',
+                    '--no-git',        # Don't use git history
+                    '--verbose',       # Detailed output
+                    '--redact',        # Defense-in-depth: redact Match/Secret fields in JSON
+                                       # (we don't extract these fields, but safeguard against future changes)
+                    '--report-format', 'json',  # JSON output for parsing
+                    '--report-path', report_file,  # Write JSON to file
+                    '--exit-code', '42',  # Custom exit code for found secrets
+                    '--source', tmp_file_path,
+                ]
+                # Add custom config if we have one
+                if gitleaks_config_path:
+                    cmd.extend(['--config', str(Path(gitleaks_config_path).absolute())])
+
+            # Run scanner
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -1694,38 +1730,66 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 timeout=30  # Prevent hanging
             )
 
+            # Determine expected exit codes for secrets found/success
+            # Use engine-specific codes if available, otherwise use gitleaks defaults
+            expected_secrets_code = engine_config.secrets_found_exit_code if engine_config else 42
+            expected_success_codes = [engine_config.success_exit_code] if engine_config else [0, 1]
+            # Also accept exit code 1 for gitleaks compatibility
+            if engine_config and engine_config.type == "gitleaks" and 1 not in expected_success_codes:
+                expected_success_codes.append(1)
+
             # Check exit code
-            if result.returncode == 42:  # Secrets found
-                # Parse JSON report to extract details
-                # NOTE: We only extract metadata (RuleID, File, Line), never Match/Secret fields
-                #       The --redact flag is defense-in-depth in case code is modified later
+            if result.returncode == expected_secrets_code:  # Secrets found
+                # Parse scanner output using appropriate parser (Issue #154)
                 secret_details = None
-                try:
-                    if os.path.exists(report_file):
-                        with open(report_file, 'r', encoding='utf-8') as f:
-                            findings = json.load(f)
-                        if findings and len(findings) > 0:
-                            # Get first finding for details
-                            first_finding = findings[0]
+                scan_result = None
+
+                if engine_config and HAS_SCANNER_ENGINE:
+                    # Use flexible parser based on engine type
+                    try:
+                        parser = get_parser(engine_config.output_parser)
+                        scan_result = parser.parse(report_file)
+                        if scan_result and scan_result.get("has_secrets"):
+                            # Convert to legacy format for compatibility
+                            first_finding = scan_result["findings"][0] if scan_result["findings"] else {}
                             secret_details = {
-                                "rule_id": first_finding.get("RuleID", "Unknown"),
-                                "file": first_finding.get("File", filename),
-                                "line_number": first_finding.get("StartLine", 0),
-                                "end_line": first_finding.get("EndLine", 0),
-                                "commit": first_finding.get("Commit", "N/A"),
-                                # NOTE: "match" field removed - never displayed, redacted anyway
-                                "total_findings": len(findings)
+                                "rule_id": first_finding.get("rule_id", "Unknown"),
+                                "file": first_finding.get("file", filename),
+                                "line_number": first_finding.get("line_number", 0),
+                                "end_line": first_finding.get("end_line", 0),
+                                "commit": first_finding.get("commit", "N/A"),
+                                "total_findings": scan_result.get("total_findings", 0)
                             }
-                except Exception as e:
-                    logging.debug(f"Failed to parse Gitleaks JSON report: {e}")
+                    except Exception as e:
+                        logging.error(f"Failed to parse scanner output with {engine_config.output_parser} parser: {e}")
+                else:
+                    # Legacy parser for gitleaks
+                    try:
+                        if os.path.exists(report_file):
+                            with open(report_file, 'r', encoding='utf-8') as f:
+                                findings = json.load(f)
+                            if findings and len(findings) > 0:
+                                # Get first finding for details
+                                first_finding = findings[0]
+                                secret_details = {
+                                    "rule_id": first_finding.get("RuleID", "Unknown"),
+                                    "file": first_finding.get("File", filename),
+                                    "line_number": first_finding.get("StartLine", 0),
+                                    "end_line": first_finding.get("EndLine", 0),
+                                    "commit": first_finding.get("Commit", "N/A"),
+                                    "total_findings": len(findings)
+                                }
+                    except Exception as e:
+                        logging.debug(f"Failed to parse scanner JSON report: {e}")
 
                 # Build error message with details if available
+                scanner_name = engine_config.type if engine_config else "Gitleaks"
                 error_msg = (
                     f"\n{'='*70}\n"
                     f"🚨 BLOCKED BY POLICY\n"
                     f"🔒 SECRET DETECTED\n"
                     f"{'='*70}\n\n"
-                    "Gitleaks has detected sensitive information in your prompt/file.\n"
+                    f"{scanner_name.capitalize()} has detected sensitive information in your prompt/file.\n"
                 )
 
                 # Include specific details if we have them
@@ -1738,6 +1802,20 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         error_msg += f"File: {secret_details['file']}\n"
                     if secret_details.get('total_findings'):
                         error_msg += f"Total findings: {secret_details['total_findings']}\n"
+
+                # Add detection source information (Issue #153)
+                error_msg += "\nDetection Source:\n"
+                error_msg += f"  Scanner: {scanner_name}\n"
+
+                if config_source == "pattern server" and pattern_config:
+                    error_msg += "  Patterns: LeakTK Pattern Server\n"
+                    error_msg += f"  URL: {pattern_config.get('url', 'N/A')}\n"
+                    error_msg += f"  Endpoint: {pattern_config.get('patterns_endpoint', 'N/A')}\n"
+                elif config_source == "project config" and gitleaks_config_path:
+                    error_msg += "  Patterns: Project Configuration\n"
+                    error_msg += f"  Config: {gitleaks_config_path}\n"
+                elif config_source == "gitleaks defaults":
+                    error_msg += "  Patterns: Built-in Defaults (100+ rules)\n"
 
                 error_msg += (
                     "\nThis operation has been blocked for security.\n"
@@ -1771,8 +1849,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 logging.error(f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}")
                 return True, error_msg
 
-            elif result.returncode in [0, 1]:
-                # No secrets found (0 or 1 are both "clean" states)
+            elif result.returncode in expected_success_codes:
+                # No secrets found
                 return False, None
 
             else:
@@ -1916,25 +1994,26 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         pass  # Silent fail on final cleanup
 
     except FileNotFoundError:
-        # Gitleaks binary not found - warn but allow (user may not be able to install immediately)
-        logging.warning("Gitleaks binary not found - skipping secret scanning")
-        logging.warning("Install Gitleaks: https://github.com/gitleaks/gitleaks#installing")
+        # Scanner binary not found - warn but allow (user may not be able to install immediately)
+        scanner_name = engine_config.type if engine_config else "scanner"
+        logging.warning(f"{scanner_name} binary not found - skipping secret scanning")
 
         # Print visible warning to stderr
         warning_msg = (
             f"\n{'='*70}\n"
             f"⚠️  SECRET SCANNING DISABLED\n"
             f"{'='*70}\n\n"
-            "Gitleaks binary not found - secret scanning is currently disabled.\n\n"
-            "AI Guardian requires Gitleaks to scan for sensitive information like:\n"
+            f"{scanner_name.capitalize()} binary not found - secret scanning is currently disabled.\n\n"
+            "AI Guardian requires a secret scanner to detect sensitive information like:\n"
             "  • API keys and tokens\n"
             "  • Private keys (SSH, RSA, PGP)\n"
             "  • Database credentials\n"
             "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
-            "Install Gitleaks:\n"
-            "  macOS:   brew install gitleaks\n"
-            "  Linux:   See https://github.com/gitleaks/gitleaks#installing\n"
-            "  Windows: See https://github.com/gitleaks/gitleaks#installing\n\n"
+            "Install a supported scanner:\n"
+            "  Gitleaks:     brew install gitleaks\n"
+            "  BetterLeaks:  brew install betterleaks (20-40% faster)\n"
+            "  LeakTK:       brew install leaktk/tap/leaktk\n\n"
+            "See https://github.com/itdove/ai-guardian for more information.\n\n"
             "Operation will continue, but secrets will NOT be detected.\n"
             "After installation, restart your IDE.\n"
             f"{'='*70}\n"
