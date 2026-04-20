@@ -2177,8 +2177,13 @@ def process_hook_input():
                     datetime.now(timezone.utc),
                     default=True
                 ):
+                    # Determine source type based on hook event
+                    # UserPromptSubmit = user input (check all patterns, threshold 0.75)
+                    # PreToolUse = file content (check critical patterns only, threshold 0.90)
+                    source_type = "user_prompt" if hook_event == "prompt" else "file_content"
+
                     should_block, injection_error, injection_detected = check_prompt_injection(
-                        content_to_scan, injection_config, file_path=file_path, tool_name=tool_identifier
+                        content_to_scan, injection_config, file_path=file_path, tool_name=tool_identifier, source_type=source_type
                     )
 
                     # Log violation if injection was detected (in both log and block modes)

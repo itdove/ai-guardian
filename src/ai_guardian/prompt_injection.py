@@ -31,10 +31,15 @@ class PromptInjectionDetector:
 
     Default: Heuristic/pattern-based detection (no dependencies, fast)
     Optional: ML-based detection (Rebuff, LLM Guard, etc.)
+
+    Context-Aware Detection:
+    - User prompts: All patterns checked with medium sensitivity (threshold 0.75)
+    - File content: Only critical patterns checked with high sensitivity (threshold 0.90)
     """
 
-    # Common prompt injection patterns (case-insensitive)
-    INJECTION_PATTERNS = [
+    # Critical patterns - checked everywhere (user prompts AND file content)
+    # These are high-confidence attack patterns that should always be detected
+    CRITICAL_PATTERNS = [
         # Explicit instruction override
         r'ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|directives?|commands?|prompts?)',
         r'disregard\s+(all\s+)?(previous|prior|above)\s+(instructions?|directives?|commands?)',
@@ -44,41 +49,51 @@ class PromptInjectionDetector:
         # System/mode override attempts
         r'you\s+are\s+now\s+(in\s+)?(developer|debug|admin|god|dan)\s+mode',
         r'enable\s+(developer|debug|admin|god|dan)\s+mode',
-        r'system\s+(override|mode|prompt)',
         r'enter\s+(developer|debug|admin)\s+mode',
-
-        # Role manipulation
-        r'you\s+are\s+no\s+longer\s+(an?\s+)?AI',
-        r'act\s+as\s+(if\s+you\s+are\s+)?(an?\s+)?(unfiltered|unrestricted|uncensored)',
-        r'pretend\s+(you\s+are|to\s+be)\s+(an?\s+)?(unfiltered|unrestricted|human)',
-        r'roleplay\s+as\s+(an?\s+)?(unfiltered|unrestricted|hacker)',
 
         # Information exfiltration
         r'reveal\s+(your\s+)?(system\s+)?(prompt|instructions?|rules)',
         r'show\s+(me\s+)?(your\s+)?(system\s+)?(prompt|instructions?|rules)',
-        r'what\s+(are|is)\s+your\s+(system\s+)?(prompt|instructions?|rules)',
         r'print\s+(your\s+)?(system\s+)?(prompt|instructions?|configuration)',
         r'output\s+(your\s+)?(system\s+)?(prompt|instructions?|configuration)',
-        r'display\s+(your\s+)?(system\s+)?(prompt|instructions?|rules)',
 
         # Constraint bypassing
         r'bypass\s+(all\s+)?(safety|security|content|ethical)\s+(filters?|checks?|guidelines?)',
         r'disable\s+(all\s+)?(safety|security|content|ethical)\s+(filters?|checks?|guidelines?)',
         r'remove\s+(all\s+)?(safety|security|content|ethical)\s+(filters?|checks?|constraints?)',
+
+        # Direct harm instructions
+        r'generate\s+(malicious|harmful|offensive)\s+(code|content)',
+        r'create\s+(malware|exploit|backdoor)',
+        r'(write|create)\s+(a\s+)?(virus|trojan|ransomware)',
+    ]
+
+    # Documentation patterns - only checked in user prompts (NOT in file content)
+    # These patterns are common in documentation, tutorials, and examples
+    DOCUMENTATION_PATTERNS = [
+        # System/mode mentions (common in docs)
+        r'system\s+(override|mode|prompt)',
+
+        # Role manipulation (common in examples)
+        r'you\s+are\s+no\s+longer\s+(an?\s+)?AI',
+        r'act\s+as\s+(if\s+you\s+are\s+)?(an?\s+)?(unfiltered|unrestricted|uncensored)',
+        r'pretend\s+(you\s+are|to\s+be)\s+(an?\s+)?(unfiltered|unrestricted|human)',
+        r'roleplay\s+as\s+(an?\s+)?(unfiltered|unrestricted|hacker)',
+
+        # Information exfiltration (common in docs describing attacks)
+        r'what\s+(are|is)\s+your\s+(system\s+)?(prompt|instructions?|rules)',
+        r'display\s+(your\s+)?(system\s+)?(prompt|instructions?|rules)',
+
+        # Constraint bypassing (common in examples)
         r'turn\s+off\s+(safety|security|content|ethical)\s+(filters?|guidelines?|checks?)',
 
-        # Delimiter/encoding attacks
+        # Delimiter/encoding attacks (common in security docs)
         r'&lt;/?system&gt;',  # HTML-encoded system tags
         r'\\x[0-9a-f]{2}(\\x[0-9a-f]{2}){3,}',  # Hex encoding chains
         r'&#x?[0-9a-f]+;(&#x?[0-9a-f]+;){3,}',  # HTML entity encoding
 
         # Many-shot pattern indicators (simplified)
         r'(Q:|A:|Question:|Answer:)(\s*\n\s*){3,}(Q:|A:|Question:|Answer:)',  # Multiple Q&A pairs
-
-        # Direct harm instructions
-        r'generate\s+(malicious|harmful|offensive)\s+(code|content)',
-        r'create\s+(malware|exploit|backdoor)',
-        r'(write|create)\s+(a\s+)?(virus|trojan|ransomware)',
     ]
 
     # Suspicious phrases that might indicate injection (lower confidence)
@@ -118,9 +133,15 @@ class PromptInjectionDetector:
         self.action = self.config.get("action", "block")
 
         # Compile regex patterns for performance
-        self._compiled_patterns = [
+        # Critical patterns - always checked
+        self._compiled_critical = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-            for pattern in self.INJECTION_PATTERNS
+            for pattern in self.CRITICAL_PATTERNS
+        ]
+        # Documentation patterns - only checked for user prompts
+        self._compiled_documentation = [
+            re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+            for pattern in self.DOCUMENTATION_PATTERNS
         ]
         self._compiled_suspicious = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
@@ -335,32 +356,46 @@ class PromptInjectionDetector:
 
         return False
 
-    def _heuristic_detection(self, content: str) -> Tuple[bool, float, str]:
+    def _heuristic_detection(self, content: str, source_type: str = "user_prompt") -> Tuple[bool, float, str]:
         """
         Perform heuristic/pattern-based detection.
 
         Args:
             content: The text to check for injection patterns
+            source_type: Source of content - "user_prompt" or "file_content"
 
         Returns:
             Tuple of (is_injection, confidence_score, matched_pattern)
         """
         matches = []
 
-        # Check high-confidence patterns
-        for pattern in self._compiled_patterns:
-            match = pattern.search(content)
-            if match:
-                matches.append(("high", match.group(0), pattern.pattern))
+        # For file content, only check critical patterns with higher threshold
+        # For user prompts, check all patterns
+        if source_type == "file_content":
+            # Only check critical patterns for file content
+            pattern_sets = [("high", self._compiled_critical)]
+        else:
+            # Check both critical and documentation patterns for user prompts
+            pattern_sets = [
+                ("high", self._compiled_critical),
+                ("high", self._compiled_documentation)
+            ]
 
-        # Check custom patterns (treat as high confidence)
+        # Check patterns based on source type
+        for confidence_level, pattern_list in pattern_sets:
+            for pattern in pattern_list:
+                match = pattern.search(content)
+                if match:
+                    matches.append((confidence_level, match.group(0), pattern.pattern))
+
+        # Check custom patterns (treat as high confidence, check for all sources)
         for pattern in self._compiled_custom:
             match = pattern.search(content)
             if match:
                 matches.append(("high", match.group(0), pattern.pattern))
 
-        # Check suspicious patterns (lower confidence)
-        if self.sensitivity in ["medium", "high"]:
+        # Check suspicious patterns (lower confidence) - only for user prompts
+        if source_type == "user_prompt" and self.sensitivity in ["medium", "high"]:
             for pattern in self._compiled_suspicious:
                 match = pattern.search(content)
                 if match:
@@ -395,22 +430,31 @@ class PromptInjectionDetector:
         else:
             return False, 0.0, ""
 
-        
-        sensitivity_thresholds = {
-            "low": 0.85,    # Only very obvious attacks
-            "medium": 0.75,  # Balanced approach
-            "high": 0.60,    # More aggressive detection
-        }
+        # Different thresholds based on source type
+        if source_type == "file_content":
+            # Higher threshold for file content (more strict)
+            sensitivity_thresholds = {
+                "low": 0.95,    # Only very obvious attacks
+                "medium": 0.90,  # High confidence only
+                "high": 0.85,    # Still require high confidence
+            }
+        else:
+            # Normal thresholds for user prompts
+            sensitivity_thresholds = {
+                "low": 0.85,    # Only very obvious attacks
+                "medium": 0.75,  # Balanced approach
+                "high": 0.60,    # More aggressive detection
+            }
 
-        threshold = sensitivity_thresholds.get(self.sensitivity, 0.75)
+        threshold = sensitivity_thresholds.get(self.sensitivity, 0.75 if source_type == "user_prompt" else 0.90)
         is_injection = confidence >= threshold
 
         if is_injection:
-            logger.debug(f"Detected injection pattern: '{matched_text[:50]}...'")
+            logger.debug(f"Detected injection pattern in {source_type}: '{matched_text[:50]}...'")
 
         return is_injection, confidence, matched_text
 
-    def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str], bool]:
+    def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None, source_type: str = "user_prompt") -> Tuple[bool, Optional[str], bool]:
         """
         Detect prompt injection in the given content.
 
@@ -418,6 +462,7 @@ class PromptInjectionDetector:
             content: The text to check for prompt injection
             file_path: Optional file path being scanned (for ignore_files matching)
             tool_name: Optional tool name being used (for ignore_tools matching)
+            source_type: Source of content - "user_prompt" (default) or "file_content"
 
         Returns:
             Tuple of (should_block, error_message, detected)
@@ -449,19 +494,19 @@ class PromptInjectionDetector:
 
             # Perform detection based on configured detector type
             if self.detector_type == "heuristic":
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
             elif self.detector_type == "rebuff":
                 # Placeholder for Rebuff integration
                 logger.warning("Rebuff detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
             elif self.detector_type == "llm-guard":
                 # Placeholder for LLM Guard integration
                 logger.warning("LLM Guard detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
             else:
                 # Unknown detector type, use heuristic
                 logger.warning(f"Unknown detector type '{self.detector_type}', using heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content)
+                is_injection, confidence, matched_pattern = self._heuristic_detection(content, source_type)
 
             if is_injection:
                 # Format error message
@@ -517,7 +562,7 @@ class PromptInjectionDetector:
             return False, None, False
 
 
-def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None) -> Tuple[bool, Optional[str], bool]:
+def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None, source_type: str = "user_prompt") -> Tuple[bool, Optional[str], bool]:
     """
     Convenience function to check for prompt injection.
 
@@ -526,6 +571,7 @@ def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None
         config: Optional configuration dictionary
         file_path: Optional file path being scanned (for ignore_files matching)
         tool_name: Optional tool name being used (for ignore_tools matching)
+        source_type: Source of content - "user_prompt" (default) or "file_content"
 
     Returns:
         Tuple of (should_block, error_message, detected)
@@ -534,4 +580,4 @@ def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None
         - detected: Whether injection was detected (True even in log mode, for violation logging)
     """
     detector = PromptInjectionDetector(config)
-    return detector.detect(content, file_path=file_path, tool_name=tool_name)
+    return detector.detect(content, file_path=file_path, tool_name=tool_name, source_type=source_type)
