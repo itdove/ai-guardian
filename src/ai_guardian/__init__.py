@@ -1639,15 +1639,35 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             gitleaks_config_path = server_patterns
                             config_source = "pattern server"
                             logging.info(f"Using pattern server config: {server_patterns}")
-                        elif pattern_client.warn_on_failure:
-                            # Pattern server was configured but failed to provide patterns
-                            # Warnings can be disabled by setting "warn_on_failure": false in config
-                            logging.warning(
-                                f"Pattern server configured at {pattern_config.get('url')} but patterns unavailable. "
-                                f"Falling back to project config or gitleaks defaults. "
-                                f"Common causes: missing/invalid auth token, network error, server down. "
-                                f"Check token at {pattern_client.token_file} or see ~/.config/ai-guardian/ai-guardian.log for details."
+                        else:
+                            # Pattern server configured but failed to provide patterns
+                            # BLOCK the operation - do NOT fallback to defaults
+                            error_msg = (
+                                f"\n{'='*70}\n"
+                                f"🚨 BLOCKED BY POLICY\n"
+                                f"🔒 PATTERN SERVER UNAVAILABLE\n"
+                                f"{'='*70}\n\n"
+                                f"Secret scanning is enabled with pattern server configured.\n"
+                                f"Pattern server is required but failed to provide patterns.\n\n"
+                                f"Server: {pattern_config.get('url')}\n"
+                                f"Endpoint: {pattern_config.get('patterns_endpoint', 'N/A')}\n\n"
+                                f"Common causes:\n"
+                                f"  • Network error (server unreachable)\n"
+                                f"  • Authentication failure (invalid token)\n"
+                                f"  • Server returned error (404, 500, etc.)\n"
+                                f"  • Cached patterns expired\n\n"
+                                f"This operation has been blocked for security.\n\n"
+                                f"To fix:\n"
+                                f"  1. Check network connectivity to pattern server\n"
+                                f"  2. Verify authentication token is valid\n"
+                                f"  3. Check server logs for errors\n"
+                                f"  4. OR disable pattern server in config to use defaults\n\n"
+                                f"Configuration: ~/.config/ai-guardian/ai-guardian.json\n"
+                                f"Logs: ~/.config/ai-guardian/ai-guardian.log\n"
+                                f"{'='*70}\n"
                             )
+                            logging.error(f"Pattern server failure - blocking operation (secret_scanning enabled)")
+                            return True, error_msg
                     except Exception as e:
                         logging.warning(f"Pattern server error, falling back to project/default config: {e}")
 

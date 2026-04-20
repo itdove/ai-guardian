@@ -97,6 +97,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing hooks after ai-guardian
 
 ### Fixed
+- **Bug #165**: Pattern server silently falls back to defaults instead of blocking when unavailable
+  - **SECURITY FIX**: Operations are now blocked when pattern server is configured but unavailable
+  - Previously, AI Guardian silently fell back to gitleaks defaults, defeating organization-specific secret detection
+  - New behavior: If pattern server is configured, those specific patterns are **required**
+  - Pattern server unavailable + cache expired → **BLOCKS operation** with detailed error message
+  - Pattern server unavailable + cache still valid → Uses cached patterns (graceful degradation)
+  - Breaking change: `warn_on_failure` flag no longer controls fallback behavior (always blocks for security)
+  - Updated README.md "Error Handling and Fallback Behavior" section to reflect blocking behavior
+  - Updated tests to verify blocking instead of fallback
+  - Security impact: **High** - prevents organization-specific secrets from leaking when pattern server is down
+
 - **Bug #162**: Pattern server requires authentication for public URLs on first run
   - Pattern server now makes authentication optional for public URLs
   - Only adds Authorization header when token is available

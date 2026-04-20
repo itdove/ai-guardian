@@ -1524,7 +1524,7 @@ ai-guardian setup --migrate-pattern-server --yes
 
 #### Error Handling and Fallback Behavior
 
-AI Guardian handles Gitleaks errors gracefully with different behaviors based on the error type:
+AI Guardian handles Gitleaks errors with different behaviors based on the error type:
 
 **Missing Gitleaks Binary:**
 - **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
@@ -1532,22 +1532,20 @@ AI Guardian handles Gitleaks errors gracefully with different behaviors based on
 - **Warning shown:** Clear message with installation instructions for macOS, Linux, Windows
 - **Setup check:** `ai-guardian setup` verifies Gitleaks is installed and warns during IDE hook setup
 
-**Authentication Errors (401/403):**
+**Pattern Server Configured but Unavailable:**
 - **Behavior:** 🔒 **BLOCKS operation** with visible error message
-- **Rationale:** User can fix by updating credentials/token
-- **Error shown:** Detailed authentication error with troubleshooting steps
-- **Guidance:** Instructions for updating `AI_GUARDIAN_PATTERN_TOKEN` or disabling pattern servers
+- **Rationale:** If you configure a pattern server, those specific patterns are required for security
+- **When blocked:** Pattern server unreachable AND cached patterns expired
+- **Exception:** If cached patterns still valid, uses cache (graceful degradation)
+- **Error shown:** Detailed troubleshooting steps with pattern server URL and endpoint
+- **To fix:** 
+  1. Restore pattern server connectivity
+  2. Verify authentication token is valid
+  3. OR disable pattern server in config to use defaults
 
-**Network/Server Errors (timeout, connection):**
-- **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
-- **Rationale:** User cannot control server being down (fail-open for availability)
-- **Warning shown:** Network issue detected with pattern server disable instructions
-- **Fallback:** Continues with default Gitleaks patterns
-
-**Other Errors:**
-- **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
-- **Rationale:** Fail-open for availability
-- **Warning shown:** Generic error with troubleshooting steps
+**No Pattern Server Configured:**
+- **Behavior:** ✅ Uses project `.gitleaks.toml` or Gitleaks built-in patterns
+- **Rationale:** No pattern server configured means defaults are acceptable
 
 **Example Error Messages:**
 

@@ -93,12 +93,12 @@ class PatternServerWarningsTest(TestCase):
 
         self.assertFalse(client.warn_on_failure, "warn_on_failure should be False when set")
 
-    @patch('logging.warning')
+    @patch('logging.error')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_warn_on_failure_true_shows_warning(self, mock_client_class, mock_pattern_config, mock_log_warning):
-        """Test that warnings ARE shown when warn_on_failure is True"""
-        # Setup: Pattern server configured with warn_on_failure=True
+    def test_pattern_server_failure_blocks_with_error(self, mock_client_class, mock_pattern_config, mock_log_error):
+        """Test that operation is BLOCKED when pattern server fails"""
+        # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
             "warn_on_failure": True
@@ -115,20 +115,28 @@ class PatternServerWarningsTest(TestCase):
         # Execute: Scan content (will attempt to use pattern server)
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, _ = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Warning should be logged
-        # Check if logging.warning was called with a message about pattern server
-        warning_calls = [str(call) for call in mock_log_warning.call_args_list]
+        # Verify: Operation should be blocked
+        self.assertTrue(has_secrets, "Operation should be blocked")
+        self.assertIsNotNone(error_msg, "Error message should be returned")
+
+        # Check if logging.error was called
+        error_calls = [str(call) for call in mock_log_error.call_args_list]
         self.assertTrue(
-            any("Pattern server configured" in str(call) for call in warning_calls),
-            f"Expected pattern server warning to be logged. Got calls: {warning_calls}"
+            any("Pattern server failure" in str(call) for call in error_calls),
+            f"Expected pattern server error to be logged. Got calls: {error_calls}"
         )
 
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_warn_on_failure_false_suppresses_warning(self, mock_client_class, mock_pattern_config):
-        """Test that warnings are NOT shown when warn_on_failure is False"""
+    def test_pattern_server_blocks_even_when_warn_on_failure_false(self, mock_client_class, mock_pattern_config):
+        """
+        Test that operation is BLOCKED even when warn_on_failure is False.
+
+        Note: As of the security fix for issue #165, the warn_on_failure flag
+        no longer controls blocking behavior. Pattern server failures always block.
+        """
         # Setup: Pattern server configured with warn_on_failure=False
         pattern_config = {
             "url": "https://pattern-server.example.com",
@@ -149,23 +157,17 @@ class PatternServerWarningsTest(TestCase):
         # Execute: Scan content (will attempt to use pattern server)
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, _ = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: No warning should be logged about pattern server
-        warning_logs = [r for r in self.log_capture if r.levelno == logging.WARNING]
-        warning_messages = [r.getMessage() for r in warning_logs]
+        # Verify: Operation should be blocked (security fix)
+        self.assertTrue(has_secrets, "Operation should be blocked even with warn_on_failure=False")
+        self.assertIsNotNone(error_msg, "Error message should be returned")
+        self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
 
-        # Check that NO warning mentions pattern server failure
-        self.assertFalse(
-            any("Pattern server configured" in msg for msg in warning_messages),
-            f"Expected NO pattern server warning when warn_on_failure=False. Got: {warning_messages}"
-        )
-
-    @patch('logging.warning')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_warn_on_failure_default_shows_warning(self, mock_client_class, mock_pattern_config, mock_log_warning):
-        """Test that warnings ARE shown by default (when warn_on_failure not specified)"""
+    def test_pattern_server_blocks_by_default(self, mock_client_class, mock_pattern_config):
+        """Test that operation is BLOCKED by default (when warn_on_failure not specified)"""
         # Setup: Pattern server configured without warn_on_failure field
         pattern_config = {
             "url": "https://pattern-server.example.com"
@@ -183,14 +185,12 @@ class PatternServerWarningsTest(TestCase):
         # Execute: Scan content (will attempt to use pattern server)
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, _ = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Warning should be logged (default behavior)
-        warning_calls = [str(call) for call in mock_log_warning.call_args_list]
-        self.assertTrue(
-            any("Pattern server configured" in str(call) for call in warning_calls),
-            f"Expected pattern server warning by default. Got calls: {warning_calls}"
-        )
+        # Verify: Operation should be blocked by default
+        self.assertTrue(has_secrets, "Operation should be blocked by default")
+        self.assertIsNotNone(error_msg, "Error message should be returned")
+        self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
 
     @patch('ai_guardian.pattern_server.logger')
     @patch('requests.get')
@@ -338,45 +338,48 @@ class PatternServerWarningsTest(TestCase):
 
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_integration_warn_on_failure_with_secret_detection(self, mock_client_class, mock_pattern_config):
+    def test_pattern_server_unavailable_blocks_operation(self, mock_client_class, mock_pattern_config):
         """
-        Integration test: Verify that secret detection still works correctly
-        even when pattern server fails with warn_on_failure=False
+        Test that operations are BLOCKED when pattern server is configured but unavailable.
+
+        This is the critical security fix: if you configure a pattern server,
+        those specific patterns are required. We do NOT fall back to defaults.
         """
-        # Setup: Pattern server configured with warn_on_failure=False
+        # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
-            "warn_on_failure": False
+            "patterns_endpoint": "/patterns/gitleaks/8.27.0"
         }
         mock_pattern_config.return_value = pattern_config
 
         # Mock client that fails to get patterns (returns None)
-        # This simulates pattern server being down
+        # This simulates: pattern server down + cache expired
         mock_client = MagicMock()
-        mock_client.warn_on_failure = False
         mock_client.get_patterns_path.return_value = None
+        mock_client.token_file = Path("/tmp/test-token")
         mock_client_class.return_value = mock_client
 
-        # Execute: Scan content with actual secret (should fall back to default gitleaks)
-        secret_content = "My GitHub token: ghp_16C0123456789abcdefghijklmTEST0000"
-
+        # Execute: Attempt to scan content
+        content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
-                secret_content, "test.txt"
-            )
+            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Secret detection should still work (using default gitleaks config)
-        self.assertTrue(has_secrets, "Secret detection should work even when pattern server fails")
-        self.assertIsNotNone(error_msg, "Error message should be returned for detected secret")
+        # Verify: Operation should be BLOCKED
+        self.assertTrue(has_secrets, "Operation should be blocked (has_secrets=True)")
+        self.assertIsNotNone(error_msg, "Error message should be returned")
+        self.assertIn("BLOCKED BY POLICY", error_msg, "Error should indicate blocking policy")
+        self.assertIn("PATTERN SERVER UNAVAILABLE", error_msg, "Error should mention pattern server")
+        self.assertIn("pattern-server.example.com", error_msg, "Error should show server URL")
+        self.assertIn("/patterns/gitleaks/8.27.0", error_msg, "Error should show endpoint")
 
-    @patch('logging.warning')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_warn_on_failure_warning_message_content(self, mock_client_class, mock_pattern_config, mock_log_warning):
-        """Test that warning message contains helpful information"""
-        # Setup: Pattern server configured with warn_on_failure=True
+    def test_blocking_error_message_content(self, mock_client_class, mock_pattern_config):
+        """Test that blocking error message contains helpful information"""
+        # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
+            "patterns_endpoint": "/api/patterns",
             "warn_on_failure": True
         }
         mock_pattern_config.return_value = pattern_config
@@ -391,24 +394,22 @@ class PatternServerWarningsTest(TestCase):
         # Execute: Scan content
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Warning message contains helpful details
-        # Find the pattern server warning call
-        pattern_server_warnings = [
-            call[0][0] for call in mock_log_warning.call_args_list
-            if "Pattern server configured" in str(call)
-        ]
+        # Verify: Error message contains helpful details
+        self.assertTrue(has_secrets, "Operation should be blocked")
+        self.assertIsNotNone(error_msg, "Error message should be returned")
 
-        self.assertTrue(len(pattern_server_warnings) > 0, "Should have pattern server warning")
-
-        warning_text = pattern_server_warnings[0]
-
-        # Check for helpful information in warning
-        self.assertIn("pattern-server.example.com", warning_text, "Should mention server URL")
-        self.assertIn("Falling back", warning_text, "Should mention fallback behavior")
-        self.assertIn("Common causes", warning_text, "Should mention common causes")
-        self.assertIn("token", warning_text.lower(), "Should mention token")
+        # Check for helpful information in error message
+        self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
+        self.assertIn("PATTERN SERVER UNAVAILABLE", error_msg, "Should indicate pattern server unavailable")
+        self.assertIn("pattern-server.example.com", error_msg, "Should mention server URL")
+        self.assertIn("/api/patterns", error_msg, "Should mention endpoint")
+        self.assertIn("Common causes", error_msg, "Should list common causes")
+        self.assertIn("Network error", error_msg, "Should mention network error")
+        self.assertIn("Authentication failure", error_msg, "Should mention auth failure")
+        self.assertIn("To fix", error_msg, "Should provide fix instructions")
+        self.assertIn("disable pattern server", error_msg, "Should mention disabling as option")
 
     @patch('ai_guardian.pattern_server.logger')
     @patch('requests.get')
