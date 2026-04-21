@@ -1736,7 +1736,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     error_msg = (
                         f"\n{'='*70}\n"
                         f"🚨 BLOCKED BY POLICY\n"
-                        f"🔒 SCANNER NOT FOUND\n"
+                        f"🔒 NO SCANNER AVAILABLE\n"
                         f"{'='*70}\n\n"
                         f"{str(e)}\n\n"
                         f"Secret scanning is enabled but no scanner is available.\n\n"
