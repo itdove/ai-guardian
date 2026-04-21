@@ -204,6 +204,112 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
         )
         self.assertFalse(is_secret, "Path with ~ should match expanded path")
 
+    def test_ignore_files_combined_wildcard_patterns(self):
+        """Test combined wildcard patterns like code-*/** and daf-*/** (issue #172)"""
+        from pathlib import Path
+
+        secret_content = "aws_access_key_id=AKIAIOSFODNN7EXAMPLE"
+        ignore_files = [
+            "~/.claude/skills/code-*/**",      # Combined: single-level + recursive
+            "**/skills/daf-*/**",              # Leading ** + combined pattern
+        ]
+
+        home = str(Path.home())
+
+        # Should match code-review, code-analysis, etc. with tilde expansion
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="SKILL.md",
+            file_path=f"{home}/.claude/skills/code-review/SKILL.md",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Combined pattern should match code-* skills")
+
+        # Should match code-analysis
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="config.json",
+            file_path=f"{home}/.claude/skills/code-analysis/config.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Combined pattern should match code-analysis")
+
+        # Should match daf-git, daf-jira anywhere in filesystem (leading **)
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="SKILL.md",
+            file_path="/project/.daf-sessions/.claude/skills/daf-jira/SKILL.md",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Leading ** + combined pattern should match daf-jira anywhere")
+
+        # Should match daf-config in different location
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="helper.py",
+            file_path=f"{home}/.daf-sessions/.claude/skills/daf-config/helper.py",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Leading ** should match daf-config in .daf-sessions")
+
+        # Should NOT match non-matching patterns
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="SKILL.md",
+            file_path=f"{home}/.claude/skills/database-migration/SKILL.md",
+            ignore_files=ignore_files
+        )
+        # database-migration doesn't match code-* or daf-*, so should scan
+        # (Actual detection depends on gitleaks availability)
+
+    def test_ignore_files_leading_double_star_patterns(self):
+        """Test leading ** patterns work in ignore_files (issue #172)"""
+        from pathlib import Path
+
+        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # gitleaks:allow
+        ignore_files = [
+            "**/.claude/skills/approved-*/**",  # Leading ** + combined pattern
+            "**/tool-results/**",  # Leading ** pattern
+        ]
+
+        home = str(Path.home())
+
+        # Should match approved-* skills anywhere
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="SKILL.md",
+            file_path=f"{home}/.claude/skills/approved-skill/SKILL.md",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Leading ** should match approved-* skills in home")
+
+        # Should match in different location
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="config.json",
+            file_path="/projects/myapp/.claude/skills/approved-workflow/config.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "Leading ** should match approved-* skills in project")
+
+        # Should match tool-results anywhere
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="output.json",
+            file_path=f"{home}/.claude/projects/session-abc/tool-results/bash/output.json",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "**/tool-results/** should match tool-results anywhere")
+
+        # Should match nested tool-results
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            secret_content,
+            filename="data.txt",
+            file_path="/project/deep/nested/path/tool-results/read/data.txt",
+            ignore_files=ignore_files
+        )
+        self.assertFalse(is_secret, "**/tool-results/** should match deeply nested tool-results")
+
 
 class TestSecretScanningIgnoreBoth(unittest.TestCase):
     """Tests for using both ignore_tools and ignore_files together."""
