@@ -2375,7 +2375,9 @@ def process_hook_input():
                                     tool_details = f" (file_path='{file_path}')"
 
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
-                        return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+                        # Include any config errors with the blocking message
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
                         logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
@@ -2419,7 +2421,9 @@ def process_hook_input():
                 # Check if directory access is denied
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
-                    return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event)
+                    # Include any config errors with the blocking message
+                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                    return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning)
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
                     # Accumulate warning message to display at the end
@@ -2506,7 +2510,9 @@ def process_hook_input():
                             else:
                                 logging.info("Blocking operation due to prompt injection detection")
 
-                        return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
+                        # Include any config errors with the blocking message
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning)
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
                         # Accumulate warning message to display at the end
@@ -2548,7 +2554,9 @@ def process_hook_input():
 
             if has_secrets:
                 # Secrets found - block operation
-                return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+                # Include any warning messages (e.g., JSON config errors) with the blocking message
+                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
 
             # No secrets found, allow operation
             if hook_event == "pretooluse":
