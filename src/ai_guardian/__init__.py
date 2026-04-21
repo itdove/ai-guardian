@@ -70,6 +70,17 @@ except ImportError:
     logging.debug("scanner engine modules not available - using legacy gitleaks only")
 
 # Configure logging - will be disabled for Cursor hooks
+# Custom log record factory to add version to all log records
+_old_factory = logging.getLogRecordFactory()
+
+def _record_factory(*args, **kwargs):
+    """Custom log record factory that injects version into all log records."""
+    record = _old_factory(*args, **kwargs)
+    record.version = __version__
+    return record
+
+logging.setLogRecordFactory(_record_factory)
+
 # Set up file handler with rotation
 _log_file = get_config_dir() / "ai-guardian.log"
 _log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -81,7 +92,7 @@ _file_handler = RotatingFileHandler(
     encoding='utf-8'
 )
 _file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    '%(asctime)s - v%(version)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 ))
 
@@ -97,6 +108,12 @@ logging.basicConfig(
 
 # Global logger instance
 logger = logging.getLogger(__name__)
+
+# Log version at startup
+logger.info(f"AI Guardian v{__version__} initialized")
+logger.info(f"Python {sys.version.split()[0]}")
+import platform
+logger.info(f"Platform: {platform.platform()}")
 
 
 class IDEType(Enum):
