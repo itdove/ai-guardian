@@ -200,7 +200,8 @@ class TestBuildScannerCommand(unittest.TestCase):
         )
 
         self.assertIn("betterleaks", cmd)
-        self.assertIn("detect", cmd)
+        self.assertIn("dir", cmd)
+        self.assertIn("--validation=false", cmd)
         self.assertIn("/tmp/test.txt", cmd)
 
     def test_build_leaktk_command(self):

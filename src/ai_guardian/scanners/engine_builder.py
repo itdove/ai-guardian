@@ -49,7 +49,7 @@ ENGINE_PRESETS = {
         type="gitleaks",
         binary="gitleaks",
         command_template=[
-            "{binary}", "detect", "--no-git", "--verbose", "--redact",
+            "{binary}", "detect", "--no-git", "--verbose", "--redact=100",
             "--report-format", "json", "--report-path", "{report_file}",
             "--exit-code", "42", "--source", "{source_file}"
         ],
@@ -63,9 +63,9 @@ ENGINE_PRESETS = {
         type="betterleaks",
         binary="betterleaks",
         command_template=[
-            "{binary}", "detect", "--no-git", "--verbose", "--redact",
+            "{binary}", "dir", "--verbose", "--redact=100",
             "--report-format", "json", "--report-path", "{report_file}",
-            "--exit-code", "42", "--source", "{source_file}"
+            "--exit-code", "42", "--validation=false", "{source_file}"
         ],
         config_flag=["--config", "{config_path}"],
         output_parser="gitleaks",  # Same format as gitleaks

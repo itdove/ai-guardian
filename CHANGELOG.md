@@ -142,6 +142,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatible: authenticated endpoints still work as before
   - Added 5 comprehensive tests covering public/private URL scenarios
 
+
+- **Bug**: betterleaks scanner not detecting secrets (command configuration error)
+  - Fixed betterleaks command template to use correct `dir` subcommand instead of `detect`
+  - Removed `--no-git` flag (not supported by betterleaks dir command)
+  - Fixed `--source` flag to use positional argument (betterleaks dir takes path as positional arg)
+  - Fixed `--redact` to use explicit value `--redact=100` for both gitleaks and betterleaks
+  - **Added `--validation=false`** to disable API validation (catch all secrets, not just currently-valid ones)
+  - Root cause: betterleaks uses different command structure than gitleaks
+  - Impact: betterleaks users experienced NO secret detection (all secrets passed through undetected)
+  - Severity: **CRITICAL** - Complete bypass of secret scanning when using betterleaks engine
+  - Note: betterleaks excludes certain known example keys (e.g., "AKIAIOSFODNN7EXAMPLE") from detection
+  - Now tested and working: betterleaks correctly detects AWS keys, API keys, and other secrets
+
+
 - **Bug #155**: False positives in prompt injection detection for heredoc content
   - Heredoc content is now stripped before prompt injection pattern matching
   - Prevents false positives when writing security documentation or test fixtures

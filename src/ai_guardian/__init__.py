@@ -2175,8 +2175,6 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         logging.error(traceback.format_exc())
         # Fail open - don't block on errors
         return False, None
-
-
 def process_hook_input():
     """
     Process hook input from stdin and check for secrets.
