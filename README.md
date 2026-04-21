@@ -436,11 +436,12 @@ Multi-layered secret detection before AI interactions:
 - `ignore_tools` - Skip scanning for specific tools (rarely needed)
 - See [False Positives](#secret-scanning-false-positives) for detailed usage
 
-### 📊 Action Modes: Log vs Block
-**NEW in v1.7.0**: Configurable action for each security policy - choose between audit mode and blocking mode:
+### 📊 Action Modes: Warn, Log, or Block
+**NEW in v1.4.0**: Configurable action for each security policy - choose between audit mode and blocking mode:
 
 - **`"block"` mode** (default): Prevent execution when policy is violated - strict security
-- **`"log"` mode**: Log violations but allow execution - audit/inform mode for gradual rollout
+- **`"warn"` mode**: Log violations with user warning but allow execution - educate users during gradual rollout
+- **`"log-only"` mode**: Log violations silently without user warning - passive monitoring
 
 **Action Modes:**
 
@@ -1458,8 +1459,6 @@ If you get too many false positives, lower the sensitivity:
 ⚠️ **Warning:** Pattern servers must include default Gitleaks patterns AND custom patterns. Organization-only patterns may miss common secrets.
 
 **Configuration (`~/.config/ai-guardian/ai-guardian.json`):**
-
-**NEW in v1.7.0:** `pattern_server` is now nested under `secret_scanning` for clearer scoping.
 
 ```json
 {
