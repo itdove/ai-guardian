@@ -1069,6 +1069,7 @@ def _load_config_file():
                 f"Using default configuration. Please fix the config file."
             )
             logging.error(f"JSON parse error in {config_path}: {e}")
+            print(error_msg, file=sys.stderr)
             return None, error_msg
 
         except Exception as e:
