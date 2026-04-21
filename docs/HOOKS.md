@@ -4,11 +4,156 @@ This guide explains how AI Guardian hooks work with Claude Code and other IDEs, 
 
 ## Table of Contents
 
+- [Using Custom Config Directories](#using-custom-config-directories)
 - [Hook Ordering Requirements](#hook-ordering-requirements)
 - [Hook Types and Warnings](#hook-types-and-warnings)
 - [Hook Limitations](#hook-limitations)
 - [Setup and Verification](#setup-and-verification)
 - [Use Cases for Log Mode](#use-cases-for-log-mode)
+
+---
+
+## Using Custom Config Directories
+
+### AI_GUARDIAN_CONFIG_DIR Environment Variable
+
+By default, ai-guardian reads configuration from `~/.config/ai-guardian/ai-guardian.json`. You can override this using the `AI_GUARDIAN_CONFIG_DIR` environment variable to use different configurations for different projects or environments.
+
+**Priority order for config directory:**
+1. `AI_GUARDIAN_CONFIG_DIR` (highest priority)
+2. `XDG_CONFIG_HOME/ai-guardian`
+3. `~/.config/ai-guardian` (default)
+
+### Problem: Environment Variables Not Inherited by Hooks
+
+When Claude Code runs hooks, it spawns them as subprocesses that **do not inherit environment variables** from your shell. This means setting `export AI_GUARDIAN_CONFIG_DIR=/custom/path` in your terminal won't work automatically.
+
+### Solution: Bash Wrapper
+
+To use `AI_GUARDIAN_CONFIG_DIR` with Claude Code hooks, you need to configure a bash wrapper that explicitly forwards the environment variable.
+
+**Update your `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`) hook configuration:**
+
+**Before (doesn't work):**
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-guardian",
+            "statusMessage": "🛡️ Scanning prompt..."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**After (works with AI_GUARDIAN_CONFIG_DIR):**
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["-c", "AI_GUARDIAN_CONFIG_DIR=${AI_GUARDIAN_CONFIG_DIR:-~/.config/ai-guardian} ai-guardian"],
+            "statusMessage": "🛡️ Scanning prompt..."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Apply the same change to all hook types:** `PreToolUse` and `PostToolUse`.
+
+### How the Wrapper Works
+
+The bash wrapper uses shell parameter expansion `${VAR:-default}`:
+- If `AI_GUARDIAN_CONFIG_DIR` is set in your environment → uses that value
+- If not set → falls back to `~/.config/ai-guardian`
+
+This means:
+- ✅ Your `settings.json` remains generic (same file for all configs)
+- ✅ You switch configs by only changing the environment variable
+- ✅ No need to edit `settings.json` when switching configs
+- ✅ Works for teammates who don't use custom configs (uses default)
+
+### Usage Example
+
+```bash
+# Terminal 1: Use custom config for SDLC testing
+export AI_GUARDIAN_CONFIG_DIR=/tmp/ai-guardian-sdlc
+mkdir -p /tmp/ai-guardian-sdlc
+cat > /tmp/ai-guardian-sdlc/ai-guardian.json <<'JSON'
+{
+  "secret_scanning": {
+    "enabled": true,
+    "engines": ["betterleaks"]
+  }
+}
+JSON
+claude  # Uses /tmp/ai-guardian-sdlc config
+
+# Terminal 2: Use production config
+export AI_GUARDIAN_CONFIG_DIR=/tmp/ai-guardian-prod
+mkdir -p /tmp/ai-guardian-prod
+cat > /tmp/ai-guardian-prod/ai-guardian.json <<'JSON'
+{
+  "secret_scanning": {
+    "enabled": true,
+    "engines": ["gitleaks"],
+    "action": "block"
+  }
+}
+JSON
+claude  # Uses /tmp/ai-guardian-prod config
+
+# Terminal 3: No custom config (uses default)
+claude  # Uses ~/.config/ai-guardian config
+```
+
+### Automatic Validation
+
+If you set `AI_GUARDIAN_CONFIG_DIR` but forget to configure the bash wrapper, ai-guardian will detect this and show a helpful error message:
+
+```
+🚨 Configuration Error: AI_GUARDIAN_CONFIG_DIR not respected
+
+You have set:
+  AI_GUARDIAN_CONFIG_DIR=/tmp/ai-guardian-sdlc
+
+But ai-guardian is using:
+  ~/.config/ai-guardian
+
+This happens when Claude Code hook subprocesses don't inherit environment variables.
+
+To fix, update your Claude Code hook configuration in:
+  ~/.claude/settings.json
+
+[... fix instructions ...]
+```
+
+### Alternative: XDG_CONFIG_HOME
+
+If you prefer not to use the bash wrapper, you can set `XDG_CONFIG_HOME` instead:
+
+```bash
+export XDG_CONFIG_HOME=/custom/config
+# ai-guardian will use /custom/config/ai-guardian/
+```
+
+`XDG_CONFIG_HOME` may be inherited by Claude Code on some systems, but this is not guaranteed. The bash wrapper approach is more reliable.
 
 ---
 

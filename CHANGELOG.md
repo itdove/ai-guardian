@@ -142,6 +142,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatible: authenticated endpoints still work as before
   - Added 5 comprehensive tests covering public/private URL scenarios
 
+
+- **Bug #177**: AI_GUARDIAN_CONFIG_DIR environment variable not respected when running as Claude Code hook
+  - Added runtime validation to detect when `AI_GUARDIAN_CONFIG_DIR` is set but not being used
+  - Shows helpful error message with bash wrapper configuration instructions
+  - Updated `docs/HOOKS.md` with comprehensive guide for using custom config directories
+  - Documents bash wrapper approach: `"command": "bash", "args": ["-c", "AI_GUARDIAN_CONFIG_DIR=${AI_GUARDIAN_CONFIG_DIR:-~/.config/ai-guardian} ai-guardian"]`
+  - Root cause: Claude Code hook subprocesses don't inherit environment variables from parent shell
+  - Solution: Configure bash wrapper in `~/.claude/settings.json` to forward env vars
+  - Keeps `settings.json` generic (same for all configs) - switch configs by only changing env var
+  - Added comprehensive tests for config directory validation
+
 - **Bug #155**: False positives in prompt injection detection for heredoc content
   - Heredoc content is now stripped before prompt injection pattern matching
   - Prevents false positives when writing security documentation or test fixtures
