@@ -1622,65 +1622,86 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         try:
             # Determine which Gitleaks configuration to use
             # Priority order:
-            # 1. Pattern Server (if enabled and reachable) - Enterprise policy
-            # 2. Project .gitleaks.toml (if exists) - Project customization
-            # 3. Gitleaks defaults (always available) - Fallback
+            # 1. Pattern Server (if enabled and available) - Enterprise policy
+            # 2. Scanner Engines (first available from config) - Falls back automatically
+            #    - Engines auto-detect .gitleaks.toml if they support it
+            # 3. BLOCK if no scanner available
             gitleaks_config_path = None
-            config_source = "gitleaks defaults"  # Track which config is being used
+            config_source = None
+            pattern_server_attempted = False
 
             # Priority 1: Pattern server (if enabled and available)
             if HAS_PATTERN_SERVER:
                 pattern_config = _load_pattern_server_config()
                 if pattern_config:
+                    pattern_server_attempted = True
                     try:
                         pattern_client = PatternServerClient(pattern_config)
                         server_patterns = pattern_client.get_patterns_path()
                         if server_patterns:
+                            # SUCCESS: Use pattern server
                             gitleaks_config_path = server_patterns
                             config_source = "pattern server"
                             logging.info(f"Using pattern server config: {server_patterns}")
                         else:
-                            # Pattern server configured but failed to provide patterns
-                            # BLOCK the operation - do NOT fallback to defaults
-                            error_msg = (
-                                f"\n{'='*70}\n"
-                                f"🚨 BLOCKED BY POLICY\n"
-                                f"🔒 PATTERN SERVER UNAVAILABLE\n"
-                                f"{'='*70}\n\n"
-                                f"Secret scanning is enabled with pattern server configured.\n"
-                                f"Pattern server is required but failed to provide patterns.\n\n"
-                                f"Server: {pattern_config.get('url')}\n"
-                                f"Endpoint: {pattern_config.get('patterns_endpoint', 'N/A')}\n\n"
-                                f"Common causes:\n"
-                                f"  • Network error (server unreachable)\n"
-                                f"  • Authentication failure (invalid token)\n"
-                                f"  • Server returned error (404, 500, etc.)\n"
-                                f"  • Cached patterns expired\n\n"
-                                f"This operation has been blocked for security.\n\n"
-                                f"To fix:\n"
-                                f"  1. Check network connectivity to pattern server\n"
-                                f"  2. Verify authentication token is valid\n"
-                                f"  3. Check server logs for errors\n"
-                                f"  4. OR disable pattern server in config to use defaults\n\n"
-                                f"Configuration: ~/.config/ai-guardian/ai-guardian.json\n"
-                                f"Logs: ~/.config/ai-guardian/ai-guardian.log\n"
-                                f"{'='*70}\n"
+                            # Pattern server failed - will try scanner engines below
+                            logging.warning(
+                                f"Pattern server unavailable ({pattern_config.get('url')}), "
+                                f"falling back to scanner engines"
                             )
-                            logging.error(f"Pattern server failure - blocking operation (secret_scanning enabled)")
-                            return True, error_msg
                     except Exception as e:
-                        logging.warning(f"Pattern server error, falling back to project/default config: {e}")
+                        logging.warning(f"Pattern server error, trying scanner engines: {e}")
 
-            # Priority 2: Project-specific .gitleaks.toml (if pattern server not used)
-            if not gitleaks_config_path:
-                project_config = Path(".gitleaks.toml")
-                if project_config.exists():
-                    gitleaks_config_path = project_config
-                    config_source = "project config"
-                    logging.info(f"Using project config: {project_config}")
-                else:
-                    # Priority 3: Use gitleaks default config (no --config flag)
-                    logging.info("Using gitleaks default config (built-in patterns)")
+            # Priority 2: Scanner Engines (if pattern server not used)
+            engine_config = None
+            if not gitleaks_config_path and HAS_SCANNER_ENGINE:
+                try:
+                    scanner_config, _ = _load_secret_scanning_config()
+                    engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
+
+                    # Select first available engine (logs warnings for unavailable ones)
+                    engine_config = select_engine(engines_list)
+
+                    # Log context about why we're using scanner engines
+                    if pattern_server_attempted:
+                        logging.warning(
+                            f"Using {engine_config.type} scanner (pattern server unavailable)"
+                        )
+                    else:
+                        logging.info(f"Using {engine_config.type} scanner")
+
+                    config_source = f"{engine_config.type} defaults"
+
+                except RuntimeError as e:
+                    # NO SCANNER AVAILABLE - BLOCK
+                    error_msg = (
+                        f"\n{'='*70}\n"
+                        f"🚨 BLOCKED BY POLICY\n"
+                        f"🔒 NO SCANNER AVAILABLE\n"
+                        f"{'='*70}\n\n"
+                        f"Secret scanning is enabled but no scanner is available.\n\n"
+                    )
+
+                    if pattern_server_attempted:
+                        error_msg += (
+                            f"Attempted fallback:\n"
+                            f"  1. Pattern server: {pattern_config.get('url')} - unavailable\n"
+                            f"  2. Scanner engines: {engines_list} - none installed\n\n"
+                        )
+                    else:
+                        error_msg += (
+                            f"Tried scanner engines: {engines_list} - none installed\n\n"
+                        )
+
+                    error_msg += (
+                        f"This operation has been blocked for security.\n\n"
+                        f"To fix:\n"
+                        f"  1. Install a scanner: brew install gitleaks\n"
+                        f"  2. OR disable secret_scanning in config\n"
+                        f"{'='*70}\n"
+                    )
+                    logging.error(f"No scanner available")
+                    return True, error_msg
 
             # Validate pattern completeness if using pattern server
             if config_source == "pattern server" and gitleaks_config_path:
@@ -1703,25 +1724,19 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             ) as rf:
                 report_file = rf.name
 
-            # Select scanner engine from configuration (Issue #154: Flexible scanner engine support)
-            engine_config = None
-            if HAS_SCANNER_ENGINE:
+            # If we have pattern server config, select engine for using it
+            # (engine_config already set above if using scanner defaults)
+            if gitleaks_config_path and not engine_config and HAS_SCANNER_ENGINE:
                 try:
-                    # Load engine configuration (defaults to ["gitleaks"] for backward compatibility)
                     scanner_config, _ = _load_secret_scanning_config()
-                    engines_list = ["gitleaks"]  # Default fallback
-                    if scanner_config and isinstance(scanner_config, dict):
-                        engines_list = scanner_config.get("engines", ["gitleaks"])
-
-                    # Select first available engine
+                    engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
                     engine_config = select_engine(engines_list)
-                    logging.info(f"Using scanner engine: {engine_config.type}")
                 except RuntimeError as e:
-                    # No scanner found - raise error instead of silent fallback
+                    # No scanner found - error already logged
                     error_msg = (
                         f"\n{'='*70}\n"
                         f"🚨 BLOCKED BY POLICY\n"
-                        f"🔒 SCANNER NOT FOUND\n"
+                        f"🔒 NO SCANNER AVAILABLE\n"
                         f"{'='*70}\n\n"
                         f"{str(e)}\n\n"
                         f"Secret scanning is enabled but no scanner is available.\n\n"
@@ -1730,10 +1745,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         f"{'='*70}\n"
                     )
                     logging.error(f"Scanner engine selection failed: {e}")
-                    return True, error_msg  # Block the operation
+                    return True, error_msg
                 except Exception as e:
                     logging.error(f"Unexpected error selecting scanner engine: {e}")
-                    # For unexpected errors, fail open with warning
                     return False, None
 
             # Build scanner command

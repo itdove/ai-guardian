@@ -42,12 +42,12 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 ### Configuration
 
-**Default (Gitleaks only):**
+**Default (Gitleaks):**
 ```json
 {
   "secret_scanning": {
     "enabled": true
-    // Uses gitleaks by default
+    // Defaults to gitleaks if not specified
   }
 }
 ```
@@ -124,9 +124,10 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 AI Guardian automatically selects the first available scanner from your `engines` list:
 
-1. Checks if scanner binary exists in PATH
-2. Uses first found scanner
-3. If none found, shows error with installation instructions
+1. **Defaults to gitleaks:** If no `engines` configured, uses `["gitleaks"]`
+2. **Checks availability:** Tries each scanner binary in order
+3. **Selects first found:** Uses the first scanner that exists in PATH
+4. **Blocks if none found:** Shows error with installation instructions
 
 **Example:**
 ```bash
@@ -373,25 +374,63 @@ This operation has been blocked for security.
 
 ### Pattern Priority Order
 
-When scanning for secrets, ai-guardian uses patterns in this priority:
+When scanning for secrets, AI Guardian uses patterns in this priority:
 
 ```
-1. Pattern Server (if enabled and reachable)
+1. Pattern Server (if configured and available)
+   - Enterprise/organization-specific patterns
+   - Cached for 7 days if server becomes unavailable
    ↓
-2. Project .gitleaks.toml (if exists in current directory)
+2. Scanner Engines (first available from engines list)
+   - Example: ["betterleaks", "gitleaks", "leaktk"]
+   - Tries each scanner in order until one is found
+   - Automatically uses .gitleaks.toml if scanner supports it
    ↓
-3. Gitleaks built-in patterns (always available, fallback)
+3. BLOCK if no scanner is available
 ```
 
-**Example scenario:**
+**Key Changes:**
+- ✅ Always falls back to scanner engines when pattern server fails
+- ✅ Scanner engines automatically detect and use `.gitleaks.toml` if present
+- ✅ No configuration needed - fallback is automatic
+- ✅ Clear logging at each fallback step
+
+**Example Scenarios:**
+
+**Scenario 1: Pattern server available**
 ```bash
 # Your setup
-~/.config/ai-guardian/ai-guardian.json  # pattern_server enabled
+~/.config/ai-guardian/ai-guardian.json  # pattern_server configured
+/your/project/.gitleaks.toml            # exists
+
+# Result: Uses Pattern Server patterns
+# .gitleaks.toml is IGNORED (pattern server takes priority)
+```
+
+**Scenario 2: Pattern server down, gitleaks installed**
+```bash
+# Your setup
+~/.config/ai-guardian/ai-guardian.json  # pattern_server configured
+/your/project/.gitleaks.toml            # exists
+$ which gitleaks
+/usr/local/bin/gitleaks
+
+# Result:
+# 1. Pattern server unavailable (logged warning)
+# 2. Falls back to gitleaks scanner
+# 3. Gitleaks automatically uses .gitleaks.toml (if present)
+# 4. Or uses built-in patterns (if .gitleaks.toml not found)
+```
+
+**Scenario 3: No pattern server, has .gitleaks.toml**
+```bash
+# Your setup
+~/.config/ai-guardian/ai-guardian.json  # no pattern_server
 /your/project/.gitleaks.toml            # exists
 
 # Result:
-# ai-guardian uses Pattern Server patterns (priority 1)
-# .gitleaks.toml is IGNORED
+# 1. Uses gitleaks scanner (no pattern server configured)
+# 2. Gitleaks automatically detects and uses .gitleaks.toml
 ```
 
 ### Pattern Server Workflow

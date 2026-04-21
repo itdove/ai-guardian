@@ -44,9 +44,9 @@ class TestScannerEngineIntegration(unittest.TestCase):
         # Verify it blocks
         self.assertTrue(has_secrets, "Should block when scanner not found")
         self.assertIsNotNone(error_msg)
-        self.assertIn("SCANNER NOT FOUND", error_msg)
+        self.assertIn("NO SCANNER AVAILABLE", error_msg)
         self.assertIn("Secret scanning is enabled but no scanner is available", error_msg)
-        self.assertIn("Install a scanner or update your configuration", error_msg)
+        self.assertIn("Install a scanner", error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.select_engine')

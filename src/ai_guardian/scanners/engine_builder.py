@@ -153,7 +153,11 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
             logging.info(f"Selected scanner engine: {engine_config.type}")
             return engine_config
         else:
-            logging.debug(f"Scanner not found: {engine_config.type} (binary: {engine_config.binary})")
+            # Log warning when scanner not available (helps users understand fallback chain)
+            logging.warning(
+                f"Scanner '{engine_config.type}' (binary: {engine_config.binary}) "
+                f"not available, trying next scanner in list"
+            )
 
     # No engine found - provide helpful error message
     raise RuntimeError(
