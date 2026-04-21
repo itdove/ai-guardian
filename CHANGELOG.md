@@ -115,6 +115,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing hooks after ai-guardian
 
 ### Fixed
+- **Bug #172**: Inconsistent glob pattern matching between `directory_rules` and `ignore_files`
+  - Fixed `directory_rules.paths` to support leading `**` patterns (e.g., `**/.claude/skills/**`, `**/skills/daf-*/**`)
+  - Previously, patterns starting with `**` were converted to absolute paths, making them relative to current working directory
+  - Now both `directory_rules` and `ignore_files` support the same glob patterns consistently
+  - Enterprise use case: Single pattern `**/skills/daf-*/**` now works across all skill locations (home, daf-sessions, projects)
+  - Implementation: Added custom `_match_leading_doublestar_pattern()` function for proper `**` support
+  - Updated both `directory_rules` and `ignore_files` to use the same pattern matching logic
+
 - **Bug #165**: Pattern server silently falls back to defaults instead of blocking when unavailable
   - **SECURITY FIX**: Operations are now blocked when pattern server is configured but unavailable
   - Previously, AI Guardian silently fell back to gitleaks defaults, defeating organization-specific secret detection

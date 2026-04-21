@@ -139,6 +139,99 @@ class CombinedWildcardsTest(unittest.TestCase):
         is_denied, _, _, _ = check_directory_denied(other_file, config)
         self.assertTrue(is_denied, "Non-daf skills should be denied")
 
+    def test_leading_double_star_pattern(self):
+        """Leading ** should match paths anywhere in filesystem (issue #172)"""
+        home = os.path.expanduser("~")
+
+        config = {
+            "directory_rules": [
+                # Allow .claude/skills anywhere in filesystem
+                {"mode": "allow", "paths": ["**/.claude/skills/**"]}
+            ]
+        }
+
+        # Should match in home directory
+        home_skill = os.path.join(home, ".claude", "skills", "code-review", "SKILL.md")
+        is_denied, _, _, _ = check_directory_denied(home_skill, config)
+        self.assertFalse(is_denied, "Leading ** should match ~/.claude/skills/**")
+
+        # Should match in daf-sessions directory
+        daf_skill = os.path.join(home, ".daf-sessions", ".claude", "skills", "daf-git", "SKILL.md")
+        is_denied, _, _, _ = check_directory_denied(daf_skill, config)
+        self.assertFalse(is_denied, "Leading ** should match .daf-sessions/.claude/skills/**")
+
+        # Should match in project directory
+        project_skill = os.path.join(home, "projects", "myapp", ".claude", "skills", "custom", "file.txt")
+        is_denied, _, _, _ = check_directory_denied(project_skill, config)
+        self.assertFalse(is_denied, "Leading ** should match project/.claude/skills/**")
+
+    def test_leading_double_star_with_combined_wildcard(self):
+        """Leading ** combined with single-level wildcard (issue #172)"""
+        home = os.path.expanduser("~")
+
+        config = {
+            "directory_rules": [
+                # Deny all skills first
+                {"mode": "deny", "paths": ["**/.claude/skills/**"]},
+                # Then allow only daf-* skills anywhere
+                {"mode": "allow", "paths": ["**/skills/daf-*/**"]}
+            ]
+        }
+
+        # Should match daf-git in home
+        daf_git_home = os.path.join(home, ".claude", "skills", "daf-git", "SKILL.md")
+        is_denied, _, _, _ = check_directory_denied(daf_git_home, config)
+        self.assertFalse(is_denied, "**/skills/daf-*/** should match daf-git anywhere")
+
+        # Should match daf-jira in daf-sessions
+        daf_jira_sessions = os.path.join(home, ".daf-sessions", ".claude", "skills", "daf-jira", "config.json")
+        is_denied, _, _, _ = check_directory_denied(daf_jira_sessions, config)
+        self.assertFalse(is_denied, "**/skills/daf-*/** should match daf-jira anywhere")
+
+        # Should match daf-config in project
+        daf_config_project = os.path.join(home, "projects", "ai-guardian", ".claude", "skills", "daf-config", "file.txt")
+        is_denied, _, _, _ = check_directory_denied(daf_config_project, config)
+        self.assertFalse(is_denied, "**/skills/daf-*/** should match daf-config in project")
+
+        # Should NOT match non-daf skills
+        code_review = os.path.join(home, ".claude", "skills", "code-review", "SKILL.md")
+        is_denied, _, _, _ = check_directory_denied(code_review, config)
+        self.assertTrue(is_denied, "Non-daf skills should be denied")
+
+    def test_real_world_enterprise_skill_allowlist(self):
+        """Enterprise scenario: Allow approved skills across all locations (issue #172)"""
+        home = os.path.expanduser("~")
+
+        # Enterprise config: Allow daf-* skills anywhere, deny everything else
+        config = {
+            "directory_rules": [
+                {"mode": "deny", "paths": ["**/.claude/skills/**"]},
+                {"mode": "allow", "paths": ["**/skills/daf-*/**"]}
+            ]
+        }
+
+        # Test all locations where skills might exist
+        skill_locations = [
+            os.path.join(home, ".claude", "skills", "daf-git", "SKILL.md"),
+            os.path.join(home, ".daf-sessions", ".claude", "skills", "daf-jira", "SKILL.md"),
+            os.path.join(home, "projects", "myapp", ".claude", "skills", "daf-status", "helper.py"),
+        ]
+
+        for skill_path in skill_locations:
+            is_denied, _, _, _ = check_directory_denied(skill_path, config)
+            self.assertFalse(is_denied, f"daf-* skills should be allowed anywhere: {skill_path}")
+
+        # Non-daf skills should be denied everywhere
+        non_daf_locations = [
+            os.path.join(home, ".claude", "skills", "code-review", "SKILL.md"),
+            os.path.join(home, ".daf-sessions", ".claude", "skills", "release", "SKILL.md"),
+            os.path.join(home, "projects", "myapp", ".claude", "skills", "custom-skill", "file.txt"),
+        ]
+
+        for skill_path in non_daf_locations:
+            is_denied, _, _, _ = check_directory_denied(skill_path, config)
+            self.assertTrue(is_denied, f"Non-daf skills should be denied: {skill_path}")
+
 
 if __name__ == "__main__":
     unittest.main()
