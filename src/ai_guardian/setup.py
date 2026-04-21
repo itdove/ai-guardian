@@ -828,14 +828,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "max_score_threshold": 0.75,
             "allowlist_patterns": [],
             "custom_patterns": [],
-            "ignore_tools": [
-                "Skill:code-review",
-                "Skill:security-review"
-            ],
-            "ignore_files": [
-                "**/.claude/skills/code-review/**",
-                "**/.claude/skills/security-review/**"
-            ]
+            "ignore_tools": [],
+            "ignore_files": []
         },
 
         "permissions": {
