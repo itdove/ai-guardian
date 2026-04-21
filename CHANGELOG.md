@@ -133,6 +133,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing hooks after ai-guardian
 
 ### Fixed
+- **Bug #183**: Hardcoded pattern `*mv*ai-guardian*` blocks legitimate user scripts
+  - Fixed overly broad protection pattern that blocked any file containing 'ai-guardian' in the name
+  - Changed pattern from `*mv*ai-guardian*` to `*mv*ai-guardian.json*` to only protect config files
+  - Previously blocked: `mv generate-ai-guardian-config.sh includes/` (user script - should be allowed)
+  - Now allowed: User scripts with 'ai-guardian' in filename can be moved/renamed
+  - Still protected: Actual config files like `ai-guardian.json` and `.ai-guardian.json`
+  - Impact: Users can now organize their own scripts without false positives from self-protection
+  - Added 3 comprehensive tests in `tests/test_self_protection.py`
+
 - **Bug #172**: Inconsistent glob pattern matching between `directory_rules` and `ignore_files`
   - Fixed `directory_rules.paths` to support leading `**` patterns (e.g., `**/.claude/skills/**`, `**/skills/daf-*/**`)
   - Previously, patterns starting with `**` were converted to absolute paths, making them relative to current working directory

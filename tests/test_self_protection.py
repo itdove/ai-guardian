@@ -426,6 +426,54 @@ class SelfProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "Bash mv of config should be blocked")
 
+    def test_bash_blocks_mv_hidden_config(self):
+        """AI cannot use mv to move/rename .ai-guardian.json files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "mv .ai-guardian.json /tmp/backup.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash mv of .ai-guardian.json should be blocked")
+
+    def test_bash_allows_mv_user_scripts_with_ai_guardian_in_name(self):
+        """AI can move user scripts that contain 'ai-guardian' in the filename (Issue #183)"""
+        # Test case 1: Script with ai-guardian in name
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "mv generate-ai-guardian-config.sh includes/"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Bash mv of user script with 'ai-guardian' in name should be allowed")
+
+        # Test case 2: Another user script
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "mv my-ai-guardian-helper.py scripts/"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Bash mv of user Python script with 'ai-guardian' in name should be allowed")
+
     # ========================================================================
     # Test: AI cannot bypass via Bash chmod/chattr
     # ========================================================================
