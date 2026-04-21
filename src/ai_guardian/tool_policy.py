@@ -132,7 +132,7 @@ IMMUTABLE_DENY_PATTERNS = {
         "*rm*ai-guardian.json*",
         "*rm*.claude/settings.json*",
         "*rm*.cursor/hooks.json*",
-        "*mv*ai-guardian*",
+        "*mv*ai-guardian.json*",
         "*mv*.claude/settings.json*",
         "*mv*.cursor/hooks.json*",
 
