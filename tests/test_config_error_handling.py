@@ -182,5 +182,48 @@ class TestConfigErrorHandling(unittest.TestCase):
                     sys.stderr = old_stderr
 
 
+    def test_json_error_with_format_response_blocking(self):
+        """Test that JSON errors are included when blocking operations."""
+        from ai_guardian import format_response, IDEType
+
+        warning_msg = "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
+        error_msg = "🚨 BLOCKED: Secret detected"
+
+        # Test Claude Code with prompt hook (blocking)
+        result = format_response(
+            IDEType.CLAUDE_CODE,
+            has_secrets=True,
+            error_message=error_msg,
+            hook_event="prompt",
+            warning_message=warning_msg
+        )
+
+        # Should include both warning and error
+        output = json.loads(result["output"])
+        self.assertIn(warning_msg, output["reason"])
+        self.assertIn(error_msg, output["reason"])
+        # Warning should appear before error
+        self.assertTrue(output["reason"].index(warning_msg) < output["reason"].index(error_msg))
+
+    def test_json_error_with_format_response_log_mode(self):
+        """Test that JSON errors are shown in log mode (no blocking)."""
+        from ai_guardian import format_response, IDEType
+
+        warning_msg = "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
+
+        # Test Claude Code with prompt hook (log mode)
+        result = format_response(
+            IDEType.CLAUDE_CODE,
+            has_secrets=False,
+            hook_event="prompt",
+            warning_message=warning_msg
+        )
+
+        # Should include warning in systemMessage
+        output = json.loads(result["output"])
+        self.assertIn("systemMessage", output)
+        self.assertIn(warning_msg, output["systemMessage"])
+
+
 if __name__ == '__main__':
     unittest.main()
