@@ -1515,37 +1515,51 @@ ai-guardian setup --migrate-pattern-server --yes
 - [docs/SECRET_SCANNING_VS_PATTERN_SERVER.md](docs/SECRET_SCANNING_VS_PATTERN_SERVER.md) - Detailed explanation
 - [docs/PATTERN_SERVER_MIGRATION_GUIDE.md](docs/PATTERN_SERVER_MIGRATION_GUIDE.md) - Step-by-step migration guide
 
-### Gitleaks Pattern Priority
+### Secret Scanning Pattern Priority
 
 **Pattern source priority (highest to lowest):**
-1. **Pattern Server** (if enabled and reachable) - Enterprise patterns
-2. **Project `.gitleaks.toml`** (if exists in current directory) - Project overrides
-3. **Gitleaks built-in patterns** - Default fallback (100+ rules)
+1. **Pattern Server** (if configured and available) - Enterprise patterns
+2. **Scanner Engines** (first available from config) - Automatic fallback
+   - Engines automatically use `.gitleaks.toml` if they support it
+   - Example fallback order: betterleaks → gitleaks → leaktk
+3. **BLOCK** if no scanner available
 
 #### Error Handling and Fallback Behavior
 
-AI Guardian handles Gitleaks errors with different behaviors based on the error type:
+AI Guardian handles scanner errors with automatic fallback:
 
-**Missing Gitleaks Binary:**
-- **Behavior:** ⚠️ Warns (prints to stderr) but allows operation to continue
-- **Rationale:** User may not be able to install immediately
-- **Warning shown:** Clear message with installation instructions for macOS, Linux, Windows
-- **Setup check:** `ai-guardian setup` verifies Gitleaks is installed and warns during IDE hook setup
+**Pattern Server Unavailable:**
+- **Cache valid (< 7 days):** Uses cached patterns
+- **Cache expired (> 7 days):** Falls back to scanner engines
+- **Behavior:** Logs warning and tries scanner engines
+- **Rationale:** More resilient - always tries to scan rather than blocking
 
-**Pattern Server Configured but Unavailable:**
-- **Behavior:** 🔒 **BLOCKS operation** with visible error message
-- **Rationale:** If you configure a pattern server, those specific patterns are required for security
-- **When blocked:** Pattern server unreachable AND cached patterns expired
-- **Exception:** If cached patterns still valid, uses cache (graceful degradation)
-- **Error shown:** Detailed troubleshooting steps with pattern server URL and endpoint
-- **To fix:** 
-  1. Restore pattern server connectivity
-  2. Verify authentication token is valid
-  3. OR disable pattern server in config to use defaults
+**Scanner Engines:**
+- **Defaults to gitleaks:** Uses `["gitleaks"]` if not configured
+- Tries engines in order from config (e.g., betterleaks → gitleaks → leaktk)
+- Logs warning for each unavailable scanner
+- Uses first available scanner
+- Scanner automatically uses `.gitleaks.toml` if it supports it
 
-**No Pattern Server Configured:**
-- **Behavior:** ✅ Uses project `.gitleaks.toml` or Gitleaks built-in patterns
-- **Rationale:** No pattern server configured means defaults are acceptable
+**No Scanner Available:**
+- **Behavior:** 🔒 **BLOCKS operation** with error message
+- **Rationale:** Secret scanning enabled but no way to scan
+- **Error shown:** Installation instructions for available scanners
+- **To fix:**
+  1. Install a scanner: `brew install gitleaks`
+  2. OR disable `secret_scanning` in config
+
+**Example Fallback:**
+```bash
+# Config: "engines": ["betterleaks", "gitleaks"]
+# Pattern server down, betterleaks not installed, gitleaks installed
+
+# Log output:
+WARNING - Pattern server unavailable (https://pattern-server.example.com), falling back to scanner engines
+WARNING - Scanner 'betterleaks' (binary: betterleaks) not available, trying next scanner in list
+INFO - Selected scanner engine: gitleaks
+WARNING - Using gitleaks scanner (pattern server unavailable)
+```
 
 **Example Error Messages:**
 

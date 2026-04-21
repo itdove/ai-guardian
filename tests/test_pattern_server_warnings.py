@@ -93,11 +93,11 @@ class PatternServerWarningsTest(TestCase):
 
         self.assertFalse(client.warn_on_failure, "warn_on_failure should be False when set")
 
-    @patch('logging.error')
+    @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_pattern_server_failure_blocks_with_error(self, mock_client_class, mock_pattern_config, mock_log_error):
-        """Test that operation is BLOCKED when pattern server fails"""
+    def test_pattern_server_failure_falls_back_to_engines(self, mock_client_class, mock_pattern_config, mock_select_engine):
+        """Test that operation falls back to scanner engines when pattern server fails"""
         # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
@@ -112,32 +112,46 @@ class PatternServerWarningsTest(TestCase):
         mock_client.token_file = Path("/tmp/test-token")
         mock_client_class.return_value = mock_client
 
-        # Execute: Scan content (will attempt to use pattern server)
+        # Mock scanner engine selection to succeed
+        from ai_guardian.scanners.engine_builder import EngineConfig
+        mock_engine = EngineConfig(
+            type="gitleaks",
+            binary="gitleaks",
+            command_template=["gitleaks", "detect"],
+            success_exit_code=0,
+            secrets_found_exit_code=1,
+            output_parser="gitleaks"
+        )
+        mock_select_engine.return_value = mock_engine
+
+        # Execute: Scan content (will attempt to use pattern server, then fall back)
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                with patch('shutil.which', return_value='/usr/local/bin/gitleaks'):
+                    with patch('subprocess.run') as mock_run:
+                        # Mock successful scan with no secrets
+                        mock_run.return_value = MagicMock(returncode=0)
+                        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Operation should be blocked
-        self.assertTrue(has_secrets, "Operation should be blocked")
-        self.assertIsNotNone(error_msg, "Error message should be returned")
+        # Verify: Operation should succeed (fall back to engines)
+        self.assertFalse(has_secrets, "Operation should succeed with fallback to engines")
+        self.assertIsNone(error_msg, "No error message should be returned")
 
-        # Check if logging.error was called
-        error_calls = [str(call) for call in mock_log_error.call_args_list]
-        self.assertTrue(
-            any("Pattern server failure" in str(call) for call in error_calls),
-            f"Expected pattern server error to be logged. Got calls: {error_calls}"
-        )
+        # Verify select_engine was called (fallback occurred)
+        self.assertTrue(mock_select_engine.called, "Should have fallen back to scanner engines")
 
+    @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_pattern_server_blocks_even_when_warn_on_failure_false(self, mock_client_class, mock_pattern_config):
+    def test_pattern_server_fails_falls_back_to_engines(self, mock_client_class, mock_pattern_config, mock_select_engine):
         """
-        Test that operation is BLOCKED even when warn_on_failure is False.
+        Test that operation falls back to scanner engines when pattern server fails.
 
-        Note: As of the security fix for issue #165, the warn_on_failure flag
-        no longer controls blocking behavior. Pattern server failures always block.
+        Note: As of issue #170, pattern server failures now fall back to scanner engines
+        instead of blocking immediately.
         """
-        # Setup: Pattern server configured with warn_on_failure=False
+        # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
             "warn_on_failure": False
@@ -151,27 +165,43 @@ class PatternServerWarningsTest(TestCase):
         mock_client.token_file = Path("/tmp/test-token")
         mock_client_class.return_value = mock_client
 
+        # Mock scanner engine selection to succeed
+        from ai_guardian.scanners.engine_builder import EngineConfig
+        mock_engine = EngineConfig(
+            type="gitleaks",
+            binary="gitleaks",
+            command_template=["gitleaks", "detect"],
+            success_exit_code=0,
+            secrets_found_exit_code=1,
+            output_parser="gitleaks"
+        )
+        mock_select_engine.return_value = mock_engine
+
         # Clear any previous log captures
         self.log_capture.clear()
 
-        # Execute: Scan content (will attempt to use pattern server)
+        # Execute: Scan content (will attempt to use pattern server, then fall back)
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                with patch('shutil.which', return_value='/usr/local/bin/gitleaks'):
+                    with patch('subprocess.run') as mock_run:
+                        # Mock successful scan with no secrets
+                        mock_run.return_value = MagicMock(returncode=0)
+                        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Operation should be blocked (security fix)
-        self.assertTrue(has_secrets, "Operation should be blocked even with warn_on_failure=False")
-        self.assertIsNotNone(error_msg, "Error message should be returned")
-        self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
+        # Verify: Operation should succeed (fall back to engines)
+        self.assertFalse(has_secrets, "Operation should succeed with fallback to engines")
+        self.assertIsNone(error_msg, "No error message should be returned")
 
+    @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_pattern_server_blocks_by_default(self, mock_client_class, mock_pattern_config):
-        """Test that operation is BLOCKED by default (when warn_on_failure not specified)"""
+    def test_pattern_server_and_no_engines_blocks(self, mock_client_class, mock_pattern_config, mock_select_engine):
+        """Test that operation is BLOCKED when pattern server fails AND no scanner engines available"""
         # Setup: Pattern server configured without warn_on_failure field
         pattern_config = {
             "url": "https://pattern-server.example.com"
-            # Note: warn_on_failure not specified, should default to True
         }
         mock_pattern_config.return_value = pattern_config
 
@@ -182,15 +212,25 @@ class PatternServerWarningsTest(TestCase):
         mock_client.token_file = Path("/tmp/test-token")
         mock_client_class.return_value = mock_client
 
-        # Execute: Scan content (will attempt to use pattern server)
+        # Mock scanner engine selection to fail (no scanners available)
+        mock_select_engine.side_effect = RuntimeError(
+            "No secret scanner found. Install one of:\n"
+            "  • Gitleaks: brew install gitleaks\n"
+            "  • BetterLeaks: brew install betterleaks\n"
+            "  • LeakTK: brew install leaktk/tap/leaktk"
+        )
+
+        # Execute: Scan content (will attempt to use pattern server, then engines, both fail)
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Operation should be blocked by default
-        self.assertTrue(has_secrets, "Operation should be blocked by default")
+        # Verify: Operation should be blocked (no scanner available)
+        self.assertTrue(has_secrets, "Operation should be blocked when no scanner available")
         self.assertIsNotNone(error_msg, "Error message should be returned")
         self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
+        self.assertIn("NO SCANNER AVAILABLE", error_msg, "Should indicate no scanner")
 
     @patch('ai_guardian.pattern_server.logger')
     @patch('requests.get')
@@ -336,14 +376,15 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected 503 server error in logs. Got: {error_calls}"
                 )
 
+    @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_pattern_server_unavailable_blocks_operation(self, mock_client_class, mock_pattern_config):
+    def test_pattern_server_unavailable_falls_back_to_engines(self, mock_client_class, mock_pattern_config, mock_select_engine):
         """
-        Test that operations are BLOCKED when pattern server is configured but unavailable.
+        Test that operations fall back to scanner engines when pattern server is unavailable.
 
-        This is the critical security fix: if you configure a pattern server,
-        those specific patterns are required. We do NOT fall back to defaults.
+        As of issue #170, pattern server failures now fall back to scanner engines
+        instead of blocking immediately. This provides better resilience.
         """
         # Setup: Pattern server configured
         pattern_config = {
@@ -359,23 +400,40 @@ class PatternServerWarningsTest(TestCase):
         mock_client.token_file = Path("/tmp/test-token")
         mock_client_class.return_value = mock_client
 
+        # Mock scanner engine selection to succeed
+        from ai_guardian.scanners.engine_builder import EngineConfig
+        mock_engine = EngineConfig(
+            type="gitleaks",
+            binary="gitleaks",
+            command_template=["gitleaks", "detect"],
+            success_exit_code=0,
+            secrets_found_exit_code=1,
+            output_parser="gitleaks"
+        )
+        mock_select_engine.return_value = mock_engine
+
         # Execute: Attempt to scan content
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                with patch('shutil.which', return_value='/usr/local/bin/gitleaks'):
+                    with patch('subprocess.run') as mock_run:
+                        # Mock successful scan with no secrets
+                        mock_run.return_value = MagicMock(returncode=0)
+                        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Operation should be BLOCKED
-        self.assertTrue(has_secrets, "Operation should be blocked (has_secrets=True)")
-        self.assertIsNotNone(error_msg, "Error message should be returned")
-        self.assertIn("BLOCKED BY POLICY", error_msg, "Error should indicate blocking policy")
-        self.assertIn("PATTERN SERVER UNAVAILABLE", error_msg, "Error should mention pattern server")
-        self.assertIn("pattern-server.example.com", error_msg, "Error should show server URL")
-        self.assertIn("/patterns/gitleaks/8.27.0", error_msg, "Error should show endpoint")
+        # Verify: Operation should succeed (fall back to engines)
+        self.assertFalse(has_secrets, "Operation should succeed with fallback to engines")
+        self.assertIsNone(error_msg, "No error message should be returned")
 
+        # Verify select_engine was called (fallback occurred)
+        self.assertTrue(mock_select_engine.called, "Should have fallen back to scanner engines")
+
+    @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_blocking_error_message_content(self, mock_client_class, mock_pattern_config):
-        """Test that blocking error message contains helpful information"""
+    def test_blocking_error_message_when_no_scanner(self, mock_client_class, mock_pattern_config, mock_select_engine):
+        """Test that blocking error message contains helpful information when no scanner available"""
         # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
@@ -391,10 +449,14 @@ class PatternServerWarningsTest(TestCase):
         mock_client.token_file = Path("/home/user/.config/ai-guardian/pattern-token")
         mock_client_class.return_value = mock_client
 
+        # Mock scanner engine selection to fail
+        mock_select_engine.side_effect = RuntimeError("No secret scanner found")
+
         # Execute: Scan content
         content = "This is test content"
         with patch('ai_guardian.HAS_PATTERN_SERVER', True):
-            has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
         # Verify: Error message contains helpful details
         self.assertTrue(has_secrets, "Operation should be blocked")
@@ -402,14 +464,78 @@ class PatternServerWarningsTest(TestCase):
 
         # Check for helpful information in error message
         self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
-        self.assertIn("PATTERN SERVER UNAVAILABLE", error_msg, "Should indicate pattern server unavailable")
+        self.assertIn("NO SCANNER AVAILABLE", error_msg, "Should indicate no scanner available")
         self.assertIn("pattern-server.example.com", error_msg, "Should mention server URL")
-        self.assertIn("/api/patterns", error_msg, "Should mention endpoint")
-        self.assertIn("Common causes", error_msg, "Should list common causes")
-        self.assertIn("Network error", error_msg, "Should mention network error")
-        self.assertIn("Authentication failure", error_msg, "Should mention auth failure")
         self.assertIn("To fix", error_msg, "Should provide fix instructions")
-        self.assertIn("disable pattern server", error_msg, "Should mention disabling as option")
+        self.assertIn("Install a scanner", error_msg, "Should mention installing scanner")
+
+    @patch('logging.warning')
+    @patch('logging.info')
+    @patch('subprocess.run')
+    @patch('shutil.which')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.PatternServerClient')
+    def test_engines_fallback_order_with_logging(self, mock_client_class, mock_pattern_config,
+                                                   mock_scanning_config, mock_which, mock_run,
+                                                   mock_log_info, mock_log_warning):
+        """Test that engines are tried in order with warnings logged for unavailable ones"""
+        # Setup: Pattern server unavailable
+        pattern_config = {
+            "url": "https://pattern-server.example.com"
+        }
+        mock_pattern_config.return_value = pattern_config
+
+        mock_client = MagicMock()
+        mock_client.get_patterns_path.return_value = None  # Pattern server fails
+        mock_client_class.return_value = mock_client
+
+        # Scanner config: try betterleaks, then gitleaks
+        scanner_config = {
+            "engines": ["betterleaks", "gitleaks"]
+        }
+        mock_scanning_config.return_value = (scanner_config, None)
+
+        # Mock: betterleaks not installed, gitleaks installed
+        def which_side_effect(binary):
+            if binary == "betterleaks":
+                return None  # Not found
+            elif binary == "gitleaks":
+                return "/usr/local/bin/gitleaks"  # Found
+            return None
+
+        mock_which.side_effect = which_side_effect
+
+        # Mock successful gitleaks run
+        mock_run.return_value = MagicMock(returncode=0)
+
+        # Execute: Scan content
+        content = "This is test content"
+        with patch('ai_guardian.HAS_PATTERN_SERVER', True):
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+
+        # Verify: Operation succeeded with gitleaks
+        self.assertFalse(has_secrets, "Operation should succeed with gitleaks")
+        self.assertIsNone(error_msg, "No error message")
+
+        # Check that warnings were logged
+        warning_calls = [str(call) for call in mock_log_warning.call_args_list]
+        info_calls = [str(call) for call in mock_log_info.call_args_list]
+
+        # Should log warning about pattern server unavailable
+        self.assertTrue(
+            any("Pattern server unavailable" in str(call) or "pattern server" in str(call).lower()
+                for call in warning_calls),
+            f"Expected pattern server warning. Got: {warning_calls}"
+        )
+
+        # Should log warning about betterleaks not available
+        self.assertTrue(
+            any("betterleaks" in str(call) and "not available" in str(call).lower()
+                for call in warning_calls),
+            f"Expected betterleaks unavailable warning. Got: {warning_calls}"
+        )
 
     @patch('ai_guardian.pattern_server.logger')
     @patch('requests.get')
