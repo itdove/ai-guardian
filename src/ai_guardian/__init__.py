@@ -2378,9 +2378,10 @@ def process_hook_input():
             # Only extract file content for file-reading tools
             # Bash, Write, Edit, etc. don't read files in PreToolUse - they have command/content parameters
             # Bug #94: Bash commands were incorrectly treated as file paths
+            # Bug #174: Glob removed - uses 'pattern' parameter, not 'file_path', doesn't read content in PreToolUse
             FILE_READING_TOOLS = [
                 # Claude Code tool names
-                "Read", "Grep", "Glob",
+                "Read", "Grep",
                 # GitHub Copilot tool names
                 "read_file", "read", "grep", "search",
                 # Cursor tool names (if different)

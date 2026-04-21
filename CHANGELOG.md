@@ -154,6 +154,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - File-path tools (Edit, Write, Read, NotebookEdit) now fail-closed when file_path is missing
   - Previously, malformed tool_input could bypass IMMUTABLE pattern checks
 
+- **Bug #174**: Misleading warnings when Glob tool is used in PreToolUse hook
+  - Removed Glob from FILE_READING_TOOLS list - Glob uses `pattern` parameter, not `file_path`
+  - Eliminates false warnings: "Could not extract file path" and "Could not extract file content"
+  - Glob now correctly treated as non-file-reading tool (no content scan at PreToolUse stage)
+  - File content scanning for Glob results happens in PostToolUse hook (after pattern matching)
+  - Added test to verify Glob operations don't generate misleading warnings
+
 ## [1.3.0] - 2026-04-09
 
 ### Added

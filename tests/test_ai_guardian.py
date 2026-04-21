@@ -726,6 +726,45 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Should fail-open (allow) when file cannot be read
         self.assertEqual(response["exit_code"], 0)
 
+    @patch('ai_guardian.ToolPolicyChecker')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.logging')
+    def test_pretooluse_glob_no_warnings(self, mock_logging, mock_load_config, mock_policy_checker_class):
+        """Test that Glob tool doesn't generate misleading warnings (Issue #174)"""
+        # Mock config to avoid user config errors
+        mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
+
+        # Mock ToolPolicyChecker to avoid loading user's config
+        mock_policy_checker = MagicMock()
+        mock_policy_checker.check_tool.return_value = (True, None)  # Allow Glob tool
+        mock_policy_checker_class.return_value = mock_policy_checker
+
+        # Glob uses 'pattern' parameter, not 'file_path'
+        # It should not trigger file content extraction warnings
+        hook_input = json.dumps({
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Glob",
+                "parameters": {"pattern": "**/*.py"}
+            }
+        })
+
+        with patch('sys.stdin', StringIO(hook_input)):
+            response = ai_guardian.process_hook_input()
+
+        # Should succeed (exit_code 0)
+        self.assertEqual(response["exit_code"], 0)
+
+        # Verify that logging.warning was NOT called for file path/content extraction
+        warning_calls = [str(call) for call in mock_logging.warning.call_args_list]
+
+        # These warnings should NOT appear for Glob
+        for call in warning_calls:
+            self.assertNotIn("Could not extract file path from hook data", call,
+                           "Should not warn about missing file_path for Glob")
+            self.assertNotIn("Could not extract file content, allowing operation", call,
+                           "Should not warn about missing file content for Glob")
+
     # ========== PostToolUse Tests ==========
 
     def test_detect_hook_event_posttooluse(self):
