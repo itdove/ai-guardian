@@ -189,7 +189,11 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 "permissionDecision": "deny" if has_secrets else "allow"
             }
             if has_secrets and error_message:
-                response["permissionDecisionReason"] = error_message
+                # Prepend warning messages if present (e.g., JSON config errors)
+                final_error = error_message
+                if warning_message:
+                    final_error = f"{warning_message}\n\n{error_message}"
+                response["permissionDecisionReason"] = final_error
 
             return {
                 "output": json.dumps(response),
@@ -198,8 +202,12 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         else:
             # userPromptSubmitted uses exit codes like Claude Code
             if has_secrets and error_message:
+                # Prepend warning messages if present (e.g., JSON config errors)
+                final_error = error_message
+                if warning_message:
+                    final_error = f"{warning_message}\n\n{error_message}"
                 # Print error to stderr
-                print(error_message, file=sys.stderr)
+                print(final_error, file=sys.stderr)
 
             return {
                 "output": None,
@@ -209,27 +217,32 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         # Cursor uses JSON response to determine block/allow, not exit code
         # Tested: Cursor does NOT display messages when allowing (continue:true, decision:allow, permission:allow)
         # Only include messages when blocking (April 2026 testing confirmed)
+        # Prepend warning messages if present (e.g., JSON config errors)
+        final_error = error_message
+        if has_secrets and error_message and warning_message:
+            final_error = f"{warning_message}\n\n{error_message}"
+
         if hook_event == "pretooluse":
             # preToolUse expects {"decision": "allow"|"deny", "reason": "..."}
             response = {
                 "decision": "deny" if has_secrets else "allow",
             }
-            if has_secrets and error_message:
-                response["reason"] = error_message
+            if has_secrets and final_error:
+                response["reason"] = final_error
         elif hook_event == "beforereadfile":
             # beforeReadFile expects {"permission": "allow"|"deny", "user_message": "..."}
             response = {
                 "permission": "deny" if has_secrets else "allow",
             }
-            if has_secrets and error_message:
-                response["user_message"] = error_message
+            if has_secrets and final_error:
+                response["user_message"] = final_error
         else:
             # beforeSubmitPrompt expects {"continue": bool, "user_message": "..."}
             response = {
                 "continue": not has_secrets,
             }
-            if has_secrets and error_message:
-                response["user_message"] = error_message
+            if has_secrets and final_error:
+                response["user_message"] = final_error
 
         return {
             "output": json.dumps(response),
@@ -240,9 +253,13 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         if hook_event == "posttooluse":
             # PostToolUse expects JSON response with decision/reason format
             if has_secrets:
+                # Prepend warning messages if present (e.g., JSON config errors)
+                final_error = error_message or "Secrets detected in tool output"
+                if warning_message:
+                    final_error = f"{warning_message}\n\n{final_error}"
                 response = {
                     "decision": "block",
-                    "reason": error_message or "Secrets detected in tool output",
+                    "reason": final_error,
                     "hookSpecificOutput": {
                         "hookEventName": "PostToolUse",
                         "additionalContext": "Tool output contained sensitive information and was blocked by ai-guardian"
@@ -264,9 +281,13 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             # https://code.claude.com/docs/en/hooks
             if has_secrets and error_message:
                 # Block with JSON response - prevents secret leakage
+                # Prepend warning messages if present (e.g., JSON config errors)
+                final_error = error_message
+                if warning_message:
+                    final_error = f"{warning_message}\n\n{error_message}"
                 response = {
                     "decision": "block",
-                    "reason": error_message,
+                    "reason": final_error,
                     "hookSpecificOutput": {
                         "hookEventName": "UserPromptSubmit"
                     }
@@ -287,12 +308,16 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             # https://github.com/anthropics/claude-code/blob/main/plugins/plugin-dev/skills/hook-development/SKILL.md
             if has_secrets and error_message:
                 # Block with proper PreToolUse format
+                # Prepend warning messages if present (e.g., JSON config errors)
+                final_error = error_message
+                if warning_message:
+                    final_error = f"{warning_message}\n\n{error_message}"
                 response = {
                     "hookSpecificOutput": {
                         "permissionDecision": "deny",
                         "hookEventName": "PreToolUse"
                     },
-                    "systemMessage": error_message
+                    "systemMessage": final_error
                 }
             elif warning_message:
                 # Log mode: display warning but allow execution
@@ -1069,6 +1094,7 @@ def _load_config_file():
                 f"Using default configuration. Please fix the config file."
             )
             logging.error(f"JSON parse error in {config_path}: {e}")
+            print(error_msg, file=sys.stderr)
             return None, error_msg
 
         except Exception as e:
@@ -2349,7 +2375,9 @@ def process_hook_input():
                                     tool_details = f" (file_path='{file_path}')"
 
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
-                        return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+                        # Include any config errors with the blocking message
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
                         logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
@@ -2393,7 +2421,9 @@ def process_hook_input():
                 # Check if directory access is denied
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
-                    return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event)
+                    # Include any config errors with the blocking message
+                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                    return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning)
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
                     # Accumulate warning message to display at the end
@@ -2480,7 +2510,9 @@ def process_hook_input():
                             else:
                                 logging.info("Blocking operation due to prompt injection detection")
 
-                        return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
+                        # Include any config errors with the blocking message
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning)
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
                         # Accumulate warning message to display at the end
@@ -2522,7 +2554,9 @@ def process_hook_input():
 
             if has_secrets:
                 # Secrets found - block operation
-                return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
+                # Include any warning messages (e.g., JSON config errors) with the blocking message
+                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
 
             # No secrets found, allow operation
             if hook_event == "pretooluse":
