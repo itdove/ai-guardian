@@ -1266,6 +1266,155 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed, "NotebookEdit with missing file_path should be blocked")
         self.assertIn("Missing required parameter", error_msg)
 
+    # ========================================================================
+    # Test: Issue #188 - Allow legitimate content mentioning "ai-guardian"
+    # ========================================================================
+
+    def test_bash_allows_writing_code_review_mentioning_ai_guardian_issue_188(self):
+        """
+        Issue #188: AI can write code reviews mentioning "ai-guardian" to normal files
+
+        BUG: Pattern "*>*ai-guardian*" blocked ANY redirect with "ai-guardian" in content
+        FIX: Made patterns path-specific - only block when targeting protected files
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "echo 'The ai-guardian hook prevented the secret from being committed' > /tmp/review.md"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Writing code review mentioning ai-guardian to /tmp should be allowed")
+        self.assertIsNone(error_msg, "No error for allowed operation")
+
+    def test_bash_allows_writing_documentation_about_ai_guardian_issue_188(self):
+        """Issue #188: AI can write documentation about ai-guardian to normal files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "echo 'Install ai-guardian using pip install ai-guardian' > /home/user/docs/README.md"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Writing documentation about ai-guardian should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_bash_allows_writing_bug_report_mentioning_ai_guardian_issue_188(self):
+        """Issue #188: AI can write bug reports mentioning ai-guardian to normal files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "cat <<'EOF' > /tmp/bug-report.txt\nThe ai-guardian configuration needs to be updated\nEOF"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Writing bug report mentioning ai-guardian should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_bash_allows_sed_on_user_file_with_ai_guardian_in_content_issue_188(self):
+        """Issue #188: AI can use sed on user files even if content mentions ai-guardian"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/old/new/' /home/user/my-project/docs/using-ai-guardian.md"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Using sed on documentation file should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_bash_still_blocks_redirect_to_actual_config_file_issue_188(self):
+        """Issue #188: Verify fix doesn't break protection - still blocks actual config files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "echo 'malicious content' > ~/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Redirect to actual config file should still be blocked")
+        self.assertIsNotNone(error_msg)
+        self.assertIn("CRITICAL", error_msg)
+
+    def test_bash_still_blocks_sed_on_actual_config_file_issue_188(self):
+        """Issue #188: Verify fix doesn't break protection - still blocks sed on actual config"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/enabled\":true/enabled\":false/' ~/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "sed on actual config file should still be blocked")
+        self.assertIsNotNone(error_msg)
+
+    def test_write_allows_documentation_file_mentioning_ai_guardian_issue_188(self):
+        """Issue #188: AI can use Write tool to create docs mentioning ai-guardian"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Write",
+                "input": {
+                    "file_path": "/home/user/my-project/docs/ai-guardian-setup.md",
+                    "content": "# How to use ai-guardian\n\nInstall ai-guardian using pip install ai-guardian"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Writing documentation file mentioning ai-guardian should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_edit_allows_user_file_with_ai_guardian_in_content_issue_188(self):
+        """Issue #188: AI can use Edit tool on files with ai-guardian in content"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {
+                    "file_path": "/home/user/my-project/docs/tools.md",
+                    "old_string": "ai-guardian v1.0",
+                    "new_string": "ai-guardian v1.1"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Editing documentation file mentioning ai-guardian should be allowed")
+        self.assertIsNone(error_msg)
+
 
 if __name__ == '__main__':
     import unittest

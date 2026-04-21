@@ -24,6 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **Overly aggressive self-protection heuristic no longer blocks legitimate content** (Issue #188)
+  - Fixed false positives where commands mentioning "ai-guardian" in content were blocked
+  - Self-protection patterns are now path-specific, only blocking when targeting actual protected files:
+    - Config files: `*ai-guardian.json`, `*/.config/ai-guardian/*`
+    - IDE hooks: `*/.claude/settings.json`, `*/.cursor/hooks.json`
+    - Package code: `*/site-packages/ai_guardian/*`, `*/ai-guardian/src/ai_guardian/*`
+    - Cache files: `*/.cache/ai-guardian/*`
+    - Directory markers: `*/.ai-read-deny`
+  - Now allows legitimate use cases:
+    - Writing code reviews mentioning "ai-guardian" (e.g., `echo "Review mentions ai-guardian" > /tmp/review.md`)
+    - Creating documentation about ai-guardian (e.g., `echo "Install ai-guardian using pip" > docs/README.md`)
+    - Writing bug reports containing "ai-guardian" text
+  - Protection remains strong for actual config/hook files - only the heuristic is more precise
+  - Added 9 new test cases to prevent regression
 
 ## [1.4.0] - 2026-04-21
 

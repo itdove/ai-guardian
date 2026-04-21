@@ -107,28 +107,52 @@ IMMUTABLE_DENY_PATTERNS = {
         # Block commands that could modify protected files
         # Note: NO BYPASS for Bash - always blocks even on dev source
         # (Prevents rm, mv, chmod, etc. on source code)
-        "*sed*ai-guardian*",
-        "*sed*site-packages/ai_guardian*", "*sed*ai-guardian/src/ai_guardian*", "*sed*ai-guardian/ai_guardian*",
-        "*awk*ai-guardian*",
-        "*awk*site-packages/ai_guardian*", "*awk*ai-guardian/src/ai_guardian*", "*awk*ai-guardian/ai_guardian*",
+        # Patterns are path-specific to avoid blocking legitimate content mentioning "ai-guardian" (Issue #188)
+
+        # sed protection - specific paths only
+        "*sed*ai-guardian.json*", "*sed*.ai-guardian.json*",  # Config files
+        "*sed*.config/ai-guardian/*",  # Config directory
+        "*sed*site-packages/ai_guardian*", "*sed*ai-guardian/src/ai_guardian*", "*sed*ai-guardian/ai_guardian*",  # Package code
         "*sed*.claude/settings.json*",
         "*sed*.cursor/hooks.json*",
+
+        # awk protection - specific paths only
+        "*awk*ai-guardian.json*", "*awk*.ai-guardian.json*",  # Config files
+        "*awk*.config/ai-guardian/*",  # Config directory
+        "*awk*site-packages/ai_guardian*", "*awk*ai-guardian/src/ai_guardian*", "*awk*ai-guardian/ai_guardian*",  # Package code
         "*awk*.claude/settings.json*",
         "*awk*.cursor/hooks.json*",
+
+        # vim/nano protection - specific paths only
+        "*vim*ai-guardian.json*", "*vim*.ai-guardian.json*",  # Config files
+        "*vim*.config/ai-guardian/*",  # Config directory
         "*vim*.claude/settings.json*",
-        "*nano*.claude/settings.json*",
         "*vim*.cursor/hooks.json*",
+        "*nano*ai-guardian.json*", "*nano*.ai-guardian.json*",  # Config files
+        "*nano*.config/ai-guardian/*",  # Config directory
+        "*nano*.claude/settings.json*",
         "*nano*.cursor/hooks.json*",
-        "*chmod*ai-guardian*",
-        "*chmod*site-packages/ai_guardian*", "*chmod*ai-guardian/src/ai_guardian*", "*chmod*ai-guardian/ai_guardian*",
+
+        # chmod protection - specific paths only
+        "*chmod*ai-guardian.json*", "*chmod*.ai-guardian.json*",  # Config files
+        "*chmod*.config/ai-guardian/*",  # Config directory
+        "*chmod*site-packages/ai_guardian*", "*chmod*ai-guardian/src/ai_guardian*", "*chmod*ai-guardian/ai_guardian*",  # Package code
         "*chmod*.claude/settings.json*",
         "*chmod*.cursor/hooks.json*",
-        "*chattr*ai-guardian*",
+
+        # chattr protection - specific paths only
+        "*chattr*ai-guardian.json*", "*chattr*.ai-guardian.json*",  # Config files
+        "*chattr*.config/ai-guardian/*",  # Config directory
         "*chattr*.claude*", "*chattr*.cursor*",
-        "*>*ai-guardian*",
-        "*>*site-packages/ai_guardian*", "*>*ai-guardian/src/ai_guardian*", "*>*ai-guardian/ai_guardian*",
+
+        # Redirect protection - specific paths only
+        "*>*ai-guardian.json*", "*>*.ai-guardian.json*",  # Config files
+        "*>*.config/ai-guardian/*",  # Config directory
+        "*>*site-packages/ai_guardian*", "*>*ai-guardian/src/ai_guardian*", "*>*ai-guardian/ai_guardian*",  # Package code
         "*>*.claude/settings.json*",
         "*>*.cursor/hooks.json*",
+
+        # rm/mv protection - specific paths only
         "*rm*ai-guardian.json*",
         "*rm*.claude/settings.json*",
         "*rm*.cursor/hooks.json*",
@@ -163,15 +187,23 @@ IMMUTABLE_DENY_PATTERNS = {
     "PowerShell": [
         # Note: NO BYPASS for PowerShell - always blocks even on dev source
         # (Prevents Remove-Item, Move-Item, etc. on source code)
+        # Patterns are path-specific to avoid blocking legitimate content mentioning "ai-guardian" (Issue #188)
 
-        # Protect ai-guardian config files
-        "*Remove-Item*ai-guardian*",
-        "*Move-Item*ai-guardian*",
-        "*Rename-Item*ai-guardian*",
-        "*Set-Content*ai-guardian*",
-        "*Clear-Content*ai-guardian*",
-        "*Out-File*ai-guardian*",
-        "*Copy-Item*ai-guardian*",
+        # Protect ai-guardian config files - specific paths only
+        "*Remove-Item*ai-guardian.json*", "*Remove-Item*.ai-guardian.json*",
+        "*Remove-Item*.config/ai-guardian/*", "*Remove-Item*.config\\ai-guardian\\*",
+        "*Move-Item*ai-guardian.json*", "*Move-Item*.ai-guardian.json*",
+        "*Move-Item*.config/ai-guardian/*", "*Move-Item*.config\\ai-guardian\\*",
+        "*Rename-Item*ai-guardian.json*", "*Rename-Item*.ai-guardian.json*",
+        "*Rename-Item*.config/ai-guardian/*", "*Rename-Item*.config\\ai-guardian\\*",
+        "*Set-Content*ai-guardian.json*", "*Set-Content*.ai-guardian.json*",
+        "*Set-Content*.config/ai-guardian/*", "*Set-Content*.config\\ai-guardian\\*",
+        "*Clear-Content*ai-guardian.json*", "*Clear-Content*.ai-guardian.json*",
+        "*Clear-Content*.config/ai-guardian/*", "*Clear-Content*.config\\ai-guardian\\*",
+        "*Out-File*ai-guardian.json*", "*Out-File*.ai-guardian.json*",
+        "*Out-File*.config/ai-guardian/*", "*Out-File*.config\\ai-guardian\\*",
+        "*Copy-Item*ai-guardian.json*", "*Copy-Item*.ai-guardian.json*",
+        "*Copy-Item*.config/ai-guardian/*", "*Copy-Item*.config\\ai-guardian\\*",
 
         # Protect ai-guardian cache (prevents cache poisoning)
         "*Remove-Item*.cache/ai-guardian/*", "*Remove-Item*.cache\\ai-guardian\\*",
@@ -217,8 +249,11 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Out-File*ai-guardian/src/ai_guardian/*", "*Out-File*ai-guardian\\src\\ai_guardian\\*",
         "*Out-File*ai-guardian/ai_guardian/*", "*Out-File*ai-guardian\\ai_guardian\\*",
 
-        # Protect against PowerShell redirections
-        "*>*ai-guardian*", "*>>*ai-guardian*",
+        # Protect against PowerShell redirections - specific paths only
+        "*>*ai-guardian.json*", "*>*.ai-guardian.json*",
+        "*>*.config/ai-guardian/*", "*>*.config\\ai-guardian\\*",
+        "*>>*ai-guardian.json*", "*>>*.ai-guardian.json*",
+        "*>>*.config/ai-guardian/*", "*>>*.config\\ai-guardian\\*",
         "*>*.claude/settings.json*", "*>*.cursor/hooks.json*",
         "*>*Claude/settings.json*", "*>*Cursor/hooks.json*",
 
@@ -232,11 +267,15 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Copy-Item*.ai-read-deny*",
         "*>*.ai-read-deny*",
 
-        # PowerShell aliases (del, erase, rm, mv, etc.)
-        "*del *ai-guardian*", "*erase *ai-guardian*",
-        "*rm *ai-guardian*", "*rmdir *ai-guardian*",
-        "*mv *ai-guardian*", "*move *ai-guardian*",
-        "*ren *ai-guardian*", "*copy *ai-guardian*",
+        # PowerShell aliases (del, erase, rm, mv, etc.) - specific paths only
+        "*del *ai-guardian.json*", "*del *.ai-guardian.json*", "*del *.config/ai-guardian/*", "*del *.config\\ai-guardian\\*",
+        "*erase *ai-guardian.json*", "*erase *.ai-guardian.json*", "*erase *.config/ai-guardian/*", "*erase *.config\\ai-guardian\\*",
+        "*rm *ai-guardian.json*", "*rm *.ai-guardian.json*", "*rm *.config/ai-guardian/*", "*rm *.config\\ai-guardian\\*",
+        "*rmdir *ai-guardian.json*", "*rmdir *.ai-guardian.json*", "*rmdir *.config/ai-guardian/*", "*rmdir *.config\\ai-guardian\\*",
+        "*mv *ai-guardian.json*", "*mv *.ai-guardian.json*", "*mv *.config/ai-guardian/*", "*mv *.config\\ai-guardian\\*",
+        "*move *ai-guardian.json*", "*move *.ai-guardian.json*", "*move *.config/ai-guardian/*", "*move *.config\\ai-guardian\\*",
+        "*ren *ai-guardian.json*", "*ren *.ai-guardian.json*", "*ren *.config/ai-guardian/*", "*ren *.config\\ai-guardian\\*",
+        "*copy *ai-guardian.json*", "*copy *.ai-guardian.json*", "*copy *.config/ai-guardian/*", "*copy *.config\\ai-guardian\\*",
         "*rm *.claude/settings.json*", "*del *.claude/settings.json*",
         "*rm *.cursor/hooks.json*", "*del *.cursor/hooks.json*",
         "*rm *.ai-read-deny*", "*del *.ai-read-deny*",
