@@ -27,6 +27,52 @@ class AIGuardianTest(TestCase):
         self.assertIsNone(error_msg, "No error message should be returned for clean content")
 
     @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_list_content(self, mock_pattern_config):
+        """Test that list content is handled correctly (Issue #187)"""
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
+        # Agent tool can return list output - should be converted to string
+        list_content = ["line 1", "line 2", "line 3"]
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            list_content, "test.txt"
+        )
+
+        self.assertFalse(has_secrets, "Clean list content should not be flagged as secret")
+        self.assertIsNone(error_msg, "No error message should be returned for clean content")
+
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_list_containing_secret(self, mock_pattern_config):
+        """Test that secrets in list content are detected (Issue #187)"""
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
+        # Agent tool returns list with a secret in it
+        list_with_secret = ["normal text", "My token: ghp_16C0123456789abcdefghijklmTEST0000", "more text"]
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            list_with_secret, "test.txt"
+        )
+
+        self.assertTrue(has_secrets, "Secret in list should be detected")
+        self.assertIsNotNone(error_msg, "Error message should be returned for secrets")
+        self.assertIn("SECRET DETECTED", error_msg, "Error message should mention secret detection")
+
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_check_secrets_with_dict_content(self, mock_pattern_config):
+        """Test that dict content is handled correctly (Issue #187)"""
+        # Disable pattern server to use default gitleaks rules
+        mock_pattern_config.return_value = None
+
+        # Agent tool could return dict output
+        dict_content = {"key": "value", "status": "success"}
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            dict_content, "test.txt"
+        )
+
+        self.assertFalse(has_secrets, "Clean dict content should not be flagged as secret")
+        self.assertIsNone(error_msg, "No error message should be returned for clean content")
+
+    @patch('ai_guardian._load_pattern_server_config')
     def test_check_secrets_with_github_token(self, mock_pattern_config):
         """Test that GitHub tokens are detected"""
         # Disable pattern server to use default gitleaks rules
