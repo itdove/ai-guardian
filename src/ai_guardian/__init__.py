@@ -1708,11 +1708,19 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     logging.info(f"Skipping secret scanning for ignored file: {file_path}")
                     return False, None
 
+        # Convert content to string if it's not already
+        # Agent tool outputs can be lists, dicts, or other types
+        if isinstance(content, list):
+            content = '\n'.join(str(item) for item in content)
+        elif not isinstance(content, str):
+            content = str(content)
+
         # Skip scanning if content appears to be a gitleaks config file
         # This prevents false positives when viewing pattern files
         if _is_gitleaks_config_content(content):
             logging.debug("Skipping scan - content appears to be a gitleaks config file")
             return False, None
+
         # Use in-memory filesystem on Linux for better performance
         tmp_base_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
 
