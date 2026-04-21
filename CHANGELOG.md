@@ -45,22 +45,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enables faster debugging and better audit trail for security violations
 
 - **Documentation: Clarified configuration section differences** (Issue #150)
-  - Added "Configuration Concepts" section to README explaining the three main config areas
-  - New comparison table showing differences between `permissions`, `permissions_directories`, and `directory_rules`
-  - Expanded FAQ with three new questions addressing common configuration confusion:
-    - Q: What's the difference between `permissions` and `permissions_directories`?
-    - Q: What's the difference between `permissions_directories` and `directory_rules`?
-    - Q: When should I use `permissions_directories`?
-  - Improved comments in `ai-guardian-example.json`:
-    - `permissions`: Clarified as "WHERE THE RULES LIVE" (tool execution control)
-    - `permissions_directories`: Clarified as "HOW TO AUTO-POPULATE RULES" (auto-discovery feeds INTO permissions.rules)
-    - `directory_exclusions`/`directory_rules`: Clarified as completely separate from permissions (filesystem path access control)
-  - Updated `docs/TUI.md` to explain tab relationships:
-    - Tabs 3-4 (Skills, MCP Servers) work together for tool permissions
-    - Tab 8 (Permissions Discovery) feeds INTO tabs 3-4
-    - Tab 9 (Directory Protection) is separate (filesystem access, not tool permissions)
-  - Enhanced schema descriptions in `ai-guardian-config.schema.json` for all three sections
-  - Key clarification: `permissions_directories` discovers TOOL permissions; `directory_rules` blocks filesystem PATHS
+  - Added comparison table and FAQ explaining differences between `permissions`, `permissions_directories`, and `directory_rules`
+  - Key clarification: `permissions_directories` discovers tool permissions; `directory_rules` blocks filesystem paths
+
+- **Action levels for audit mode and gradual policy rollout** (Issues #84, #88, #159)
+  - `action="warn"` - Logs violation + shows warning to user + allows execution
+  - `action="log-only"` - Logs violation silently without user warning + allows execution (NEW in #159)
+  - `action="block"` - Prevents execution (default)
+  - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
+  - Secret scanning always blocks (no action field for security)
+  - Useful for baseline metrics, impact analysis, compliance audits, and passive monitoring
+  - All violations logged to TUI and violation log regardless of action
+
+- **Flexible scanner engine support** (Issues #153, #154)
+  - Support for BetterLeaks (20-40% faster than Gitleaks) and LeakTK (auto-pattern management)
+  - Automatic fallback to available scanners via `engines` configuration
+  - Custom scanner support with configurable commands and output parsers
+  - Enhanced error messages showing scanner type and pattern source
+
+- **Directory rules system** (Issue #82)
+  - Order-based access control with last-match-wins precedence
+  - Each rule has `mode: "allow"|"deny"` and `paths: [...]`
+  - Supports `action: "warn"|"log-only"|"block"` for audit mode
+  - Wildcard support: `**` (recursive), `*` (single-level), combined patterns
+  - Can override .ai-read-deny markers with allow rules
+  - Backward compatible: `directory_exclusions` auto-converted to allow rules
+
+- **Ignore patterns for false positive handling** (Issue #84)
+  - `ignore_tools`: Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)
+  - `ignore_files`: Skip detection for specific files (e.g., `"**/.claude/skills/*/SKILL.md"`)
+  - Works for both prompt injection and secret scanning
+
+- **Pattern server test coverage** (Issue #101)
+  - Added 12 comprehensive tests for `warn_on_failure` configuration
+  - Pattern server module now has 57% code coverage
+
+- **User-friendly error handling for malformed configuration**
+  - Clear JSON parsing errors with file path, line number, column number
+  - Fail-open with warning: continues with default configuration when config has errors
+
+- **Enable contributor workflow** (Issue #105)
+  - Contributors can now use AI assistance to edit ai-guardian source code in development repos
+  - Enables standard fork + PR workflow for external contributors
+  - Config/hooks/cache/pip-installed always protected; development source allowed via Edit/Write/Read
 
 ### Changed
 - **BREAKING**: Replaced `action="log"` with `action="warn"` for clearer semantics (Issue #159)
@@ -69,138 +96,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migration: Replace all `"action": "log"` with `"action": "warn"` in your configuration
   - Affects: tool permissions, prompt injection, directory rules
 
-### Added
-- **New `action="log-only"` mode** for silent monitoring without user warnings (Issue #159)
-  - Logs violations for audit purposes but does NOT show warnings to users
-  - Useful for baseline metrics, impact analysis, compliance audits, and passive monitoring
-  - Available for: tool permissions, prompt injection, directory rules
-  - Action modes summary:
-    - `action="block"` - Prevents execution (default)
-    - `action="warn"` - Logs violation + shows warning to user + allows execution
-    - `action="log-only"` - Logs violation silently without user warning + allows execution
-
-- **Flexible Scanner Engine Support** - Multi-scanner support for secret detection (Issue #154)
-  - Support for BetterLeaks (20-40% faster than Gitleaks)
-  - Support for LeakTK (auto-pattern management)
-  - Automatic fallback to available scanners via `engines` configuration
-  - Custom scanner support with configurable commands and output parsers
-  - Enhanced error messages showing scanner type and pattern source (Issue #153)
-  - New modules: `scanners/engine_builder.py` and `scanners/output_parsers.py`
-
-- **Directory Rules System** - Order-based access control (Issue #82)
-  - Replaces `directory_exclusions` with more flexible `directory_rules`
-  - Rules evaluated in order with last-match-wins precedence
-  - Each rule has `mode: "allow"|"deny"` and `paths: [...]`
-  - Supports `action: "warn"|"log-only"|"block"` for audit mode and gradual rollout
-  - Wildcard support: `**` (recursive), `*` (single-level), combined patterns (e.g., `daf-*/**`)
-  - Can override .ai-read-deny markers with allow rules
-  - Backward compatible: `directory_exclusions` auto-converted to allow rules
-
-- **Action levels** for audit mode and gradual policy rollout (Issues #84, #88, #159)
-  - Configure `action: "warn"` to show warning to user but allow execution
-  - Configure `action: "log-only"` to log silently without user warning (NEW in #159)
-  - Configure `action: "block"` to enforce policies (default)
-  - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
-  - Secret scanning always blocks (no action field for security)
-  - Warn mode warnings displayed via JSON systemMessage in PreToolUse/UserPromptSubmit hooks
-  - All violations logged to TUI and violation log regardless of action
-
-- **Ignore patterns** for false positive handling (Issue #84)
-  - `ignore_tools`: Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)
-  - `ignore_files`: Skip detection for specific files (e.g., `"**/.claude/skills/*/SKILL.md"`)
-  - Works for both prompt injection and secret scanning
-
-- **Pattern server test coverage** (Issue #101)
-  - Added 12 comprehensive tests for `warn_on_failure` configuration
-  - Tests cover auth errors, network errors, timeouts, and fallback behavior
-  - Pattern server module now has 57% code coverage
-
-- **User-friendly error handling** for malformed configuration files
-  - Clear JSON parsing errors with file path, line number, column number
-  - Fail-open with warning: continues with default configuration when config has errors
-  - Prevents silent failures when configuration JSON is malformed
-
-### Changed
-- **Enable contributor workflow** for open-source development (Issue #105)
-  - Contributors can now use AI assistance to edit ai-guardian source code in development repos
-  - Enables standard fork + PR workflow for external contributors
-  - Security model: Config/hooks/cache/pip-installed always protected; development source allowed via Edit/Write/Read only
-  - Updated error messages to distinguish pip-installed vs development source code
-
-- **Smart hook ordering** in setup command
+- **Smart hook ordering in setup command**
   - `ai-guardian setup` ensures ai-guardian is first in all hooks arrays
   - Critical for log mode warning visibility (only first hook's systemMessage is displayed)
   - Preserves existing hooks after ai-guardian
 
 ### Fixed
-- **Bug #183**: Hardcoded pattern `*mv*ai-guardian*` blocks legitimate user scripts
-  - Fixed overly broad protection pattern that blocked any file containing 'ai-guardian' in the name
-  - Changed pattern from `*mv*ai-guardian*` to `*mv*ai-guardian.json*` to only protect config files
-  - Previously blocked: `mv generate-ai-guardian-config.sh includes/` (user script - should be allowed)
-  - Now allowed: User scripts with 'ai-guardian' in filename can be moved/renamed
-  - Still protected: Actual config files like `ai-guardian.json` and `.ai-guardian.json`
-  - Impact: Users can now organize their own scripts without false positives from self-protection
-  - Added 3 comprehensive tests in `tests/test_self_protection.py`
+- **Bug #183**: Hardcoded pattern blocks legitimate user scripts
+  - Fixed overly broad protection pattern from `*mv*ai-guardian*` to `*mv*ai-guardian.json*`
+  - Users can now organize scripts with 'ai-guardian' in filename
+  - Config files remain protected
 
 - **Bug #172**: Inconsistent glob pattern matching between `directory_rules` and `ignore_files`
-  - Fixed `directory_rules.paths` to support leading `**` patterns (e.g., `**/.claude/skills/**`, `**/skills/daf-*/**`)
-  - Previously, patterns starting with `**` were converted to absolute paths, making them relative to current working directory
-  - Now both `directory_rules` and `ignore_files` support the same glob patterns consistently
-  - Enterprise use case: Single pattern `**/skills/daf-*/**` now works across all skill locations (home, daf-sessions, projects)
-  - Implementation: Added custom `_match_leading_doublestar_pattern()` function for proper `**` support
-  - Updated both `directory_rules` and `ignore_files` to use the same pattern matching logic
+  - Fixed `directory_rules.paths` to support leading `**` patterns (e.g., `**/.claude/skills/**`)
+  - Enterprise use case: Single pattern `**/skills/daf-*/**` now works across all skill locations
 
-- **Bug #165**: Pattern server silently falls back to defaults instead of blocking when unavailable
-  - **SECURITY FIX**: Operations are now blocked when pattern server is configured but unavailable
-  - Previously, AI Guardian silently fell back to gitleaks defaults, defeating organization-specific secret detection
-  - New behavior: If pattern server is configured, those specific patterns are **required**
-  - Pattern server unavailable + cache expired → **BLOCKS operation** with detailed error message
-  - Pattern server unavailable + cache still valid → Uses cached patterns (graceful degradation)
-  - Breaking change: `warn_on_failure` flag no longer controls fallback behavior (always blocks for security)
-  - Updated README.md "Error Handling and Fallback Behavior" section to reflect blocking behavior
-  - Updated tests to verify blocking instead of fallback
-  - Security impact: **High** - prevents organization-specific secrets from leaking when pattern server is down
+- **Bug #165**: Pattern server silently falls back to defaults when unavailable
+  - **SECURITY FIX**: Operations now blocked when pattern server is configured but unavailable
+  - Pattern server unavailable + cache expired → BLOCKS operation
+  - Pattern server unavailable + cache valid → Uses cached patterns
+  - Security impact: **High** - prevents organization-specific secrets from leaking
 
-- **Bug #162**: Pattern server requires authentication for public URLs on first run
+- **Bug #162**: Pattern server requires authentication for public URLs
   - Pattern server now makes authentication optional for public URLs
   - Only adds Authorization header when token is available
-  - Allows fetching patterns from public repositories (GitHub raw content, etc.)
   - Better error messages distinguishing public vs private URL failures
-  - Backward compatible: authenticated endpoints still work as before
-  - Added 5 comprehensive tests covering public/private URL scenarios
 
-
-- **Bug**: betterleaks scanner not detecting secrets (command configuration error)
-  - Fixed betterleaks command template to use correct `dir` subcommand instead of `detect`
-  - Removed `--no-git` flag (not supported by betterleaks dir command)
-  - Fixed `--source` flag to use positional argument (betterleaks dir takes path as positional arg)
-  - Fixed `--redact` to use explicit value `--redact=100` for both gitleaks and betterleaks
-  - **Added `--validation=false`** to disable API validation (catch all secrets, not just currently-valid ones)
-  - Root cause: betterleaks uses different command structure than gitleaks
-  - Impact: betterleaks users experienced NO secret detection (all secrets passed through undetected)
+- **Bug**: betterleaks scanner not detecting secrets
+  - Fixed betterleaks command template to use correct `dir` subcommand
+  - Added `--validation=false` to catch all secrets, not just currently-valid ones
   - Severity: **CRITICAL** - Complete bypass of secret scanning when using betterleaks engine
-  - Note: betterleaks excludes certain known example keys (e.g., "AKIAIOSFODNN7EXAMPLE") from detection
-  - Now tested and working: betterleaks correctly detects AWS keys, API keys, and other secrets
-
 
 - **Bug #155**: False positives in prompt injection detection for heredoc content
-  - Heredoc content is now stripped before prompt injection pattern matching
+  - Heredoc content is now stripped before pattern matching
   - Prevents false positives when writing security documentation or test fixtures
-  - Reuses `_strip_bash_heredoc_content()` function from tool_policy.py (PR #152)
-  - Example: `cat > doc.md <<EOF\n"Ignore previous instructions"\nEOF` now allowed
-  - Real injection attempts outside heredocs still detected and blocked
-  - Added 20 comprehensive tests in `tests/test_prompt_injection_heredoc.py`
+  - Real injection attempts outside heredocs still detected
 
 - **Bug #113**: Self-protection bypass when file_path parameter is missing
   - File-path tools (Edit, Write, Read, NotebookEdit) now fail-closed when file_path is missing
-  - Previously, malformed tool_input could bypass IMMUTABLE pattern checks
 
-- **Bug #174**: Misleading warnings when Glob tool is used in PreToolUse hook
-  - Removed Glob from FILE_READING_TOOLS list - Glob uses `pattern` parameter, not `file_path`
-  - Eliminates false warnings: "Could not extract file path" and "Could not extract file content"
-  - Glob now correctly treated as non-file-reading tool (no content scan at PreToolUse stage)
-  - File content scanning for Glob results happens in PostToolUse hook (after pattern matching)
-  - Added test to verify Glob operations don't generate misleading warnings
+- **Bug #174**: Misleading warnings when Glob tool is used
+  - Removed Glob from FILE_READING_TOOLS list
+  - Glob uses `pattern` parameter, not `file_path`
+  - Eliminates false warnings about missing file paths
 
 ## [1.3.0] - 2026-04-09
 
