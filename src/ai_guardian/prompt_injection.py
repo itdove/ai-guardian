@@ -230,6 +230,40 @@ class PromptInjectionDetector:
         logger.warning(f"Unknown allowlist pattern entry format: {type(pattern_entry)}")
         return True
 
+    def _sanitize_text_for_logging(self, text: str) -> str:
+        """
+        Sanitize text to prevent secrets from leaking in logs.
+
+        Redacts common secret patterns:
+        - API keys, tokens, passwords
+        - Environment variable values
+        - Long alphanumeric strings (potential tokens)
+        - Base64-encoded credentials
+
+        Args:
+            text: The text to sanitize
+
+        Returns:
+            Sanitized text with secrets redacted
+        """
+        # Redact common secret patterns (case-insensitive)
+        # Pattern: key=value or key='value' or key="value"
+        secret_patterns = [
+            (r'(api[_-]?key|apikey|token|password|passwd|pwd|secret|auth|authorization|bearer)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', r'\1=***REDACTED***'),
+            # Environment variables with common secret names
+            (r'(API_KEY|TOKEN|PASSWORD|SECRET|GITHUB_TOKEN|AWS_SECRET|OPENAI_API_KEY)=([^\s]{8,})', r'\1=***REDACTED***'),
+            # Long alphanumeric strings (potential tokens) - 32+ chars
+            (r'\b([a-zA-Z0-9]{32,})\b', r'***REDACTED-TOKEN***'),
+            # Base64-encoded strings (potential credentials) - must be 24+ chars and end with padding or not
+            (r'\b([A-Za-z0-9+/]{24,}={0,2})\b', r'***REDACTED-BASE64***'),
+        ]
+
+        sanitized = text
+        for pattern, replacement in secret_patterns:
+            sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
+
+        return sanitized
+
     def _filter_valid_patterns(self, patterns: List[Union[str, Dict]], current_time: Optional[datetime] = None) -> List[Union[str, Dict]]:
         """
         Filter out expired patterns from a list.
@@ -357,7 +391,7 @@ class PromptInjectionDetector:
 
         return False
 
-    def _heuristic_detection(self, content: str, source_type: str = "user_prompt") -> Tuple[bool, float, str]:
+    def _heuristic_detection(self, content: str, source_type: str = "user_prompt") -> Tuple[bool, float, str, str]:
         """
         Perform heuristic/pattern-based detection.
 
@@ -366,7 +400,7 @@ class PromptInjectionDetector:
             source_type: Source of content - "user_prompt" or "file_content"
 
         Returns:
-            Tuple of (is_injection, confidence_score, matched_pattern)
+            Tuple of (is_injection, confidence_score, matched_text, matched_pattern)
         """
         matches = []
 
@@ -403,7 +437,7 @@ class PromptInjectionDetector:
                     matches.append(("medium", match.group(0), pattern.pattern))
 
         if not matches:
-            return False, 0.0, ""
+            return False, 0.0, "", ""
 
         # Calculate confidence score based on matches
         high_confidence_matches = [m for m in matches if m[0] == "high"]
@@ -429,7 +463,7 @@ class PromptInjectionDetector:
             else:
                 confidence = 0.6
         else:
-            return False, 0.0, ""
+            return False, 0.0, "", ""
 
         # Different thresholds based on source type
         if source_type == "file_content":
@@ -453,7 +487,7 @@ class PromptInjectionDetector:
         if is_injection:
             logger.debug(f"Detected injection pattern in {source_type}: '{matched_text[:50]}...'")
 
-        return is_injection, confidence, matched_text
+        return is_injection, confidence, matched_text, matched_pattern
 
     def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None, source_type: str = "user_prompt") -> Tuple[bool, Optional[str], bool]:
         """
@@ -500,42 +534,65 @@ class PromptInjectionDetector:
 
             # Perform detection based on configured detector type (use stripped content)
             if self.detector_type == "heuristic":
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
+                is_injection, confidence, matched_text, matched_pattern = self._heuristic_detection(content_to_check, source_type)
             elif self.detector_type == "rebuff":
                 # Placeholder for Rebuff integration
                 logger.warning("Rebuff detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
+                is_injection, confidence, matched_text, matched_pattern = self._heuristic_detection(content_to_check, source_type)
             elif self.detector_type == "llm-guard":
                 # Placeholder for LLM Guard integration
                 logger.warning("LLM Guard detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
+                is_injection, confidence, matched_text, matched_pattern = self._heuristic_detection(content_to_check, source_type)
             else:
                 # Unknown detector type, use heuristic
                 logger.warning(f"Unknown detector type '{self.detector_type}', using heuristic")
-                is_injection, confidence, matched_pattern = self._heuristic_detection(content_to_check, source_type)
+                is_injection, confidence, matched_text, matched_pattern = self._heuristic_detection(content_to_check, source_type)
 
             if is_injection:
                 # Format error message
                 confidence_level = "High" if confidence >= 0.85 else "Medium" if confidence >= 0.65 else "Low"
 
-                # Show more of the matched pattern (up to 150 chars instead of 60)
+                # Sanitize matched text to prevent secret leakage in logs
+                sanitized_text = self._sanitize_text_for_logging(matched_text)
+
+                # Show preview of matched text (up to 100 chars)
+                text_preview = sanitized_text[:100]
+                if len(sanitized_text) > 100:
+                    text_preview += "..."
+
+                # Show pattern (up to 150 chars)
                 pattern_preview = matched_pattern[:150]
                 if len(matched_pattern) > 150:
                     pattern_preview += "..."
 
+                # Format source information for logging
+                if file_path:
+                    source_info = f"file='{file_path}'"
+                elif tool_name:
+                    source_info = f"tool='{tool_name}'"
+                else:
+                    source_info = "source='user_prompt'"
+
+                # Show context around the matched text (sanitized, up to 200 chars for main log)
+                # This helps with debugging to see what triggered the detection
+                sanitized_content = self._sanitize_text_for_logging(content)
+                content_preview = sanitized_content[:200]
+                if len(sanitized_content) > 200:
+                    content_preview += "..."
+
                 # Check action
                 if self.action == "warn":
-                    logger.warning(f"Prompt injection detected (warn mode): confidence={confidence:.2f} - execution allowed")
+                    logger.warning(f"Prompt injection detected (warn mode): {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}' - execution allowed")
                     # Return warning message to display to user via systemMessage
                     warn_msg = f"⚠️  Prompt injection detected (warn mode): confidence={confidence:.2f} - execution allowed"
                     return False, warn_msg, True  # Allow execution, warning message, detected (for violation logging)
                 elif self.action == "log-only":
-                    logger.warning(f"Prompt injection detected (log-only mode): confidence={confidence:.2f} - execution allowed (silent)")
+                    logger.warning(f"Prompt injection detected (log-only mode): {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}' - execution allowed (silent)")
                     # Allow execution - logged for audit, NO warning to user
                     return False, None, True  # Allow execution, no warning, detected (for violation logging)
                 else:
                     # Block execution
-                    logger.error(f"Prompt injection detected: confidence={confidence:.2f}")
+                    logger.error(f"Prompt injection detected: {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}'")
                     error_msg = (
                         f"\n{'='*70}\n"
                         f"🚨 BLOCKED BY POLICY\n"
@@ -547,7 +604,8 @@ class PromptInjectionDetector:
                         f"Detection details:\n"
                         f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
                         f"  • Method: {self.detector_type}\n"
-                        f"  • Pattern detected: {pattern_preview}\n\n"
+                        f"  • Pattern detected: {pattern_preview}\n"
+                        f"  • Matched text: {text_preview}\n\n"
                         "Common injection patterns:\n"
                         "  • \"Ignore previous instructions\"\n"
                         "  • \"You are now in DAN mode\"\n"

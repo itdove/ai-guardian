@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Improved logging for skill and prompt injection violations** (Issue #168)
+  - Tool permission violations now include tool-specific details in logs:
+    - Skill tool: Shows skill name and args parameter (e.g., `(skill='daf-jira', args='view AAP-12345')`)
+    - Bash tool: Shows command preview (first 100 chars, e.g., `(command='rm -rf /path/to/file...')`)
+    - Read/Write/Edit tools: Shows full file path (e.g., `(file_path='/etc/passwd')`)
+  - Prompt injection detection now logs comprehensive details:
+    - Source information (file path, tool name, or "user_prompt")
+    - Confidence score (e.g., `confidence=0.90`)
+    - Matched regex pattern (e.g., `pattern='ignore\s+(all\s+)?(previous|prior|above)...'`)
+    - Matched text substring (e.g., `text='Ignore all previous instructions'`)
+    - Full prompt context (e.g., `prompt='Please ignore all previous...'`) - up to 200 chars, sanitized
+  - **Secret sanitization**: All logged tool parameters and matched text are sanitized to prevent secrets from leaking in logs
+    - Redacts API keys, tokens, passwords, and other sensitive values
+    - Replaces secrets with `***REDACTED***` or similar placeholders
+    - Protects against credential leakage in audit logs
+  - All logging modes include full details (block, warn, log-only)
+  - Enables faster debugging and better audit trail for security violations
+
 - **Documentation: Clarified configuration section differences** (Issue #150)
   - Added "Configuration Concepts" section to README explaining the three main config areas
   - New comparison table showing differences between `permissions`, `permissions_directories`, and `directory_rules`

@@ -2229,7 +2229,28 @@ def process_hook_input():
                     if not is_allowed:
                         # Extract reason summary for logging
                         reason_summary = _extract_block_reason(error_message) if error_message else "policy violation"
-                        logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}' - {reason_summary}")
+
+                        # Extract tool-specific parameters for better logging
+                        tool_details = ""
+                        if tool_input:
+                            if checked_tool_name == "Skill" or (tool_name == "Skill" and checked_tool_name.startswith("Skill:")):
+                                # For Skill tool: show skill name and args
+                                skill_name = tool_input.get("skill", "unknown")
+                                skill_args = tool_input.get("args", "")
+                                args_preview = skill_args[:50] + "..." if len(skill_args) > 50 else skill_args
+                                tool_details = f" (skill='{skill_name}', args='{args_preview}')"
+                            elif tool_name == "Bash":
+                                # For Bash tool: show command preview
+                                command = tool_input.get("command", "")
+                                cmd_preview = command[:100] + "..." if len(command) > 100 else command
+                                tool_details = f" (command='{cmd_preview}')"
+                            elif tool_name in ["Read", "Write", "Edit"]:
+                                # For file tools: show full file path
+                                file_path = tool_input.get("file_path") or tool_input.get("path", "")
+                                if file_path:
+                                    tool_details = f" (file_path='{file_path}')"
+
+                        logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
                         return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event)
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
@@ -2353,11 +2374,12 @@ def process_hook_input():
 
                     if should_block:
                         # Prompt injection detected - block operation
+                        # Note: detailed logging (confidence, pattern, text) already done in prompt_injection.py
                         if ide_type != IDEType.CURSOR:
                             if file_path:
-                                logging.warning(f"Prompt injection detected in {file_path}, blocking operation")
+                                logging.info(f"Blocking operation for {file_path} due to prompt injection detection")
                             else:
-                                logging.warning("Prompt injection detected, blocking operation")
+                                logging.info("Blocking operation due to prompt injection detection")
 
                         return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event)
                     elif injection_detected and injection_error:

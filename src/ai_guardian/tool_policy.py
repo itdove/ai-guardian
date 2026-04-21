@@ -641,7 +641,9 @@ class ToolPolicyChecker:
 
             # If we have allow rules but no match, deny (or warn)
             if has_allow_rules:
-                logger.warning(f"Tool '{tool_name}' not in allow list")
+                # Format tool details for logging
+                tool_details = self._format_tool_log_details(tool_name, tool_input)
+                logger.warning(f"Tool '{tool_name}'{tool_details} not in allow list")
 
                 # Check enforcement level from the first allow rule
                 action = permission_rules[0].get("action", "block")
@@ -657,19 +659,19 @@ class ToolPolicyChecker:
 
                 # Check action
                 if action == "warn":
-                    logger.warning(f"Policy violation (warn mode): {tool_name} not in allow list - execution allowed")
+                    logger.warning(f"Policy violation (warn mode): {tool_name}{tool_details} not in allow list - execution allowed")
                     # Continue execution - logged for audit
                     # Return warning message to display to user via systemMessage
                     display_name = self._format_tool_display_name(tool_name, tool_input)
                     warn_msg = f"⚠️  Policy violation (warn mode): {display_name} not in allow list - execution allowed"
                     return True, warn_msg, tool_name
                 elif action == "log-only":
-                    logger.warning(f"Policy violation (log-only mode): {tool_name} not in allow list - execution allowed (silent)")
+                    logger.warning(f"Policy violation (log-only mode): {tool_name}{tool_details} not in allow list - execution allowed (silent)")
                     # Continue execution - logged for audit, NO warning to user
                     return True, None, tool_name
                 else:
                     # Block execution
-                    logger.error(f"Tool '{tool_name}' not in allow list")
+                    logger.error(f"Tool '{tool_name}'{tool_details} not in allow list")
                     error_msg = self._format_deny_message(
                         tool_name,
                         "not in allow list",
@@ -728,6 +730,82 @@ class ToolPolicyChecker:
         except Exception as e:
             logger.error(f"Error extracting tool info: {e}")
             return None, {}
+
+    def _sanitize_for_logging(self, text: str) -> str:
+        """
+        Sanitize text to prevent secrets from leaking in logs.
+
+        Redacts common secret patterns:
+        - API keys, tokens, passwords
+        - Environment variable values
+        - Long alphanumeric strings (potential tokens)
+        - Base64-encoded credentials
+
+        Args:
+            text: The text to sanitize
+
+        Returns:
+            Sanitized text with secrets redacted
+        """
+        import re
+
+        # Redact common secret patterns (case-insensitive)
+        # Pattern: key=value or key='value' or key="value"
+        secret_patterns = [
+            (r'(api[_-]?key|apikey|token|password|passwd|pwd|secret|auth|authorization|bearer)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', r'\1=***REDACTED***'),
+            # Environment variables with common secret names
+            (r'(API_KEY|TOKEN|PASSWORD|SECRET|GITHUB_TOKEN|AWS_SECRET|OPENAI_API_KEY)=([^\s]{8,})', r'\1=***REDACTED***'),
+            # Long alphanumeric strings (potential tokens) - 32+ chars
+            (r'\b([a-zA-Z0-9]{32,})\b', r'***REDACTED-TOKEN***'),
+            # Base64-encoded strings (potential credentials) - must be 24+ chars and end with padding or not
+            (r'\b([A-Za-z0-9+/]{24,}={0,2})\b', r'***REDACTED-BASE64***'),
+        ]
+
+        sanitized = text
+        for pattern, replacement in secret_patterns:
+            sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
+
+        return sanitized
+
+    def _format_tool_log_details(self, tool_name: str, tool_input: Dict) -> str:
+        """
+        Format detailed tool parameters for logging (full details for debugging).
+
+        IMPORTANT: Sanitizes output to prevent secrets from leaking in logs.
+
+        Args:
+            tool_name: The tool name
+            tool_input: The tool input parameters
+
+        Returns:
+            Formatted details string for logging (e.g., " (skill='daf-jira', args='view AAP-12345')")
+        """
+        if not tool_input:
+            return ""
+
+        # For Skill tool: show skill name and args (sanitized)
+        if tool_name == "Skill" and "skill" in tool_input:
+            skill_name = tool_input.get("skill", "unknown")
+            skill_args = tool_input.get("args", "")
+            # Sanitize args before truncating
+            sanitized_args = self._sanitize_for_logging(skill_args)
+            args_preview = sanitized_args[:50] + "..." if len(sanitized_args) > 50 else sanitized_args
+            return f" (skill='{skill_name}', args='{args_preview}')"
+
+        # For Read/Write/Edit: show full file path (already safe)
+        if tool_name in ["Read", "Write", "Edit"] and "file_path" in tool_input:
+            file_path = tool_input["file_path"]
+            return f" (file_path='{file_path}')"
+
+        # For Bash: show command preview (sanitized, first 100 chars)
+        if tool_name == "Bash" and "command" in tool_input:
+            command = tool_input["command"]
+            # Sanitize command before truncating
+            sanitized_cmd = self._sanitize_for_logging(command)
+            cmd_preview = sanitized_cmd[:100] + "..." if len(sanitized_cmd) > 100 else sanitized_cmd
+            return f" (command='{cmd_preview}')"
+
+        return ""
 
     def _format_tool_display_name(self, tool_name: str, tool_input: Dict) -> str:
         """
