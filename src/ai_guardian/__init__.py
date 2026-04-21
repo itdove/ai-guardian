@@ -2608,6 +2608,16 @@ def main():
             action="store_true",
             help="Skip confirmation prompts"
         )
+        setup_parser.add_argument(
+            "--create-config",
+            action="store_true",
+            help="Create default ai-guardian.json config file"
+        )
+        setup_parser.add_argument(
+            "--permissive",
+            action="store_true",
+            help="Use permissive config (permissions disabled, all tools allowed)"
+        )
 
         # Violations subcommand
         violations_parser = subparsers.add_parser(
@@ -2653,7 +2663,9 @@ def main():
                 dry_run=args.dry_run,
                 force=args.force,
                 interactive=not args.yes,
-                migrate_pattern_server=args.migrate_pattern_server
+                migrate_pattern_server=args.migrate_pattern_server,
+                create_config=args.create_config,
+                permissive=args.permissive
             )
             return 0 if success else 1
 

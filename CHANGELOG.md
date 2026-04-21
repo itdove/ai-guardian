@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Default config creation in setup command** (Issue #178)
+  - New `--create-config` flag for `ai-guardian setup` command to create default `ai-guardian.json` config file
+  - Two configuration modes:
+    - Default (secure): Secret scanning and prompt injection enabled, Skills/MCP blocked by default
+    - Permissive (`--permissive`): Same security features, but all tools allowed (permissions disabled)
+  - `--dry-run` flag shows config preview without creating file
+  - Improves onboarding experience - no manual config file copying required
+  - Example usage:
+    - `ai-guardian setup --create-config` - Create secure default config
+    - `ai-guardian setup --create-config --permissive` - Create permissive config
+    - `ai-guardian setup --create-config --dry-run` - Preview config without creating
+  - Config includes:
+    - Secret scanning with LeakTK patterns
+    - Prompt injection detection (medium sensitivity)
+    - Permission rules (Skills/MCP blocked by default in secure mode)
+    - Empty directory rules (no restrictions)
+    - Remote configs section for enterprise policies
+
 - **Improved logging for skill and prompt injection violations** (Issue #168)
   - Tool permission violations now include tool-specific details in logs:
     - Skill tool: Shows skill name and args parameter (e.g., `(skill='daf-jira', args='view AAP-12345')`)

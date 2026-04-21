@@ -943,3 +943,213 @@ class TestSetupHooks:
             # Check that the correct path was shown in output
             captured = capsys.readouterr()
             assert str(custom_dir / 'settings.json') in captured.out
+
+
+class TestCreateDefaultConfig:
+    """Test cases for create_default_config functionality."""
+
+    def test_create_default_config_success(self, tmp_path):
+        """Test creating default config successfully."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=False, dry_run=False)
+
+            assert success is True
+            assert '✓ Created default config' in message
+            assert 'Secret scanning: Enabled' in message
+            assert 'Prompt injection: Enabled' in message
+            assert 'Permissions: Enabled' in message
+            assert config_file.exists()
+
+            # Verify config content
+            with open(config_file) as f:
+                config = json.load(f)
+
+            assert 'secret_scanning' in config
+            assert config['secret_scanning']['enabled'] is True
+            assert 'prompt_injection' in config
+            assert config['prompt_injection']['enabled'] is True
+            assert 'permissions' in config
+            assert config['permissions']['enabled'] is True
+            assert len(config['permissions']['rules']) == 2  # Skill and MCP deny rules
+
+    def test_create_default_config_permissive(self, tmp_path):
+        """Test creating permissive config."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=True, dry_run=False)
+
+            assert success is True
+            assert '✓ Created default config' in message
+            assert 'Permissions: Disabled' in message
+            assert config_file.exists()
+
+            # Verify config content
+            with open(config_file) as f:
+                config = json.load(f)
+
+            assert config['permissions']['enabled'] is False
+            assert len(config['permissions']['rules']) == 0  # No deny rules in permissive mode
+
+    def test_create_default_config_already_exists(self, tmp_path):
+        """Test creating config when file already exists."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{"existing": "config"}')
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=False, dry_run=False)
+
+            assert success is False
+            assert 'already exists' in message
+
+    def test_create_default_config_dry_run(self, tmp_path):
+        """Test dry-run mode for config creation."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=False, dry_run=True)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert 'Would create' in message
+            assert not config_file.exists()  # File should not be created
+
+            # Verify JSON is in the message
+            assert '"secret_scanning"' in message
+            assert '"prompt_injection"' in message
+            assert '"permissions"' in message
+
+    def test_create_default_config_dry_run_permissive(self, tmp_path):
+        """Test dry-run mode with permissive config."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=True, dry_run=True)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert not config_file.exists()
+
+            # Verify permissive settings in dry-run output
+            assert '"enabled": false' in message or '"enabled":false' in message  # permissions disabled
+
+    def test_setup_hooks_with_create_config(self, tmp_path):
+        """Test setup with --create-config flag."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success = setup_hooks(
+                ide_type=None,
+                create_config=True,
+                permissive=False,
+                dry_run=False,
+                interactive=False
+            )
+
+            assert success is True
+            assert config_file.exists()
+
+    def test_setup_hooks_with_create_config_and_ide(self, tmp_path):
+        """Test setup with both --create-config and IDE setup."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+        ide_config_file = tmp_path / 'settings.json'
+
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {
+                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+                success = setup_hooks(
+                    ide_type='claude',
+                    create_config=True,
+                    permissive=False,
+                    dry_run=False,
+                    interactive=False
+                )
+
+                assert success is True
+                assert config_file.exists()
+                mock_instance.setup_ide_hooks.assert_called_once()
+
+    def test_setup_hooks_create_config_only(self, tmp_path):
+        """Test setup with only --create-config (no IDE or remote config)."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success = setup_hooks(
+                ide_type=None,
+                remote_config_url=None,
+                create_config=True,
+                permissive=False,
+                dry_run=False,
+                interactive=False
+            )
+
+            assert success is True
+            assert config_file.exists()
+
+    def test_get_default_config_template_secure(self):
+        """Test _get_default_config_template returns secure config by default."""
+        from ai_guardian.setup import _get_default_config_template
+
+        config = _get_default_config_template(permissive=False)
+
+        assert config['secret_scanning']['enabled'] is True
+        assert config['prompt_injection']['enabled'] is True
+        assert config['permissions']['enabled'] is True
+        assert len(config['permissions']['rules']) == 2
+        assert config['permissions']['rules'][0]['matcher'] == 'Skill'
+        assert config['permissions']['rules'][0]['mode'] == 'deny'
+        assert config['permissions']['rules'][1]['matcher'] == 'mcp__*'
+        assert config['permissions']['rules'][1]['mode'] == 'deny'
+
+    def test_get_default_config_template_permissive(self):
+        """Test _get_default_config_template returns permissive config."""
+        from ai_guardian.setup import _get_default_config_template
+
+        config = _get_default_config_template(permissive=True)
+
+        assert config['secret_scanning']['enabled'] is True
+        assert config['prompt_injection']['enabled'] is True
+        assert config['permissions']['enabled'] is False
+        assert len(config['permissions']['rules']) == 0
+
+    def test_create_default_config_with_schema(self, tmp_path):
+        """Test that default config includes schema reference."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=False, dry_run=False)
+
+            assert success is True
+
+            # Verify schema is included
+            with open(config_file) as f:
+                config = json.load(f)
+
+            assert '$schema' in config
+            assert 'ai-guardian-config.schema.json' in config['$schema']
