@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-21
+
 ### Added
 - **Default config creation in setup command** (Issue #178)
   - New `--create-config` flag for `ai-guardian setup` command to create default `ai-guardian.json` config file
@@ -28,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Improved logging for skill and prompt injection violations** (Issue #168)
   - Tool permission violations now include tool-specific details in logs:
-    - Skill tool: Shows skill name and args parameter (e.g., `(skill='daf-jira', args='view AAP-12345')`)
+    - Skill tool: Shows skill name and args parameter (e.g., `(skill='daf-jira', args='view PROJ-12345')`)
     - Bash tool: Shows command preview (first 100 chars, e.g., `(command='rm -rf /path/to/file...')`)
     - Read/Write/Edit tools: Shows full file path (e.g., `(file_path='/etc/passwd')`)
   - Prompt injection detection now logs comprehensive details:
@@ -62,14 +64,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic fallback to available scanners via `engines` configuration
   - Custom scanner support with configurable commands and output parsers
   - Enhanced error messages showing scanner type and pattern source
+  - Includes fixes for betterleaks command template and validation flags
 
-- **Directory rules system** (Issue #82)
+- **Directory rules system** (Issue #82, #172)
   - Order-based access control with last-match-wins precedence
   - Each rule has `mode: "allow"|"deny"` and `paths: [...]`
   - Supports `action: "warn"|"log-only"|"block"` for audit mode
-  - Wildcard support: `**` (recursive), `*` (single-level), combined patterns
+  - Wildcard support: `**` (recursive), `*` (single-level), combined patterns including leading `**`
   - Can override .ai-read-deny markers with allow rules
   - Backward compatible: `directory_exclusions` auto-converted to allow rules
+  - Consistent glob pattern matching with `ignore_files`
 
 - **Ignore patterns for false positive handling** (Issue #84)
   - `ignore_tools`: Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)
@@ -90,12 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Config/hooks/cache/pip-installed always protected; development source allowed via Edit/Write/Read
 
 ### Changed
-- **BREAKING**: Replaced `action="log"` with `action="warn"` for clearer semantics (Issue #159)
-  - Old behavior: `action="log"` logged violations and showed warning to user
-  - New behavior: `action="warn"` logs violations and shows warning to user (same behavior, clearer name)
-  - Migration: Replace all `"action": "log"` with `"action": "warn"` in your configuration
-  - Affects: tool permissions, prompt injection, directory rules
-
 - **Smart hook ordering in setup command**
   - `ai-guardian setup` ensures ai-guardian is first in all hooks arrays
   - Critical for log mode warning visibility (only first hook's systemMessage is displayed)
@@ -107,10 +105,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Users can now organize scripts with 'ai-guardian' in filename
   - Config files remain protected
 
-- **Bug #172**: Inconsistent glob pattern matching between `directory_rules` and `ignore_files`
-  - Fixed `directory_rules.paths` to support leading `**` patterns (e.g., `**/.claude/skills/**`)
-  - Enterprise use case: Single pattern `**/skills/daf-*/**` now works across all skill locations
-
 - **Bug #165**: Pattern server silently falls back to defaults when unavailable
   - **SECURITY FIX**: Operations now blocked when pattern server is configured but unavailable
   - Pattern server unavailable + cache expired → BLOCKS operation
@@ -121,11 +115,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pattern server now makes authentication optional for public URLs
   - Only adds Authorization header when token is available
   - Better error messages distinguishing public vs private URL failures
-
-- **Bug**: betterleaks scanner not detecting secrets
-  - Fixed betterleaks command template to use correct `dir` subcommand
-  - Added `--validation=false` to catch all secrets, not just currently-valid ones
-  - Severity: **CRITICAL** - Complete bypass of secret scanning when using betterleaks engine
 
 - **Bug #155**: False positives in prompt injection detection for heredoc content
   - Heredoc content is now stripped before pattern matching
@@ -237,7 +226,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/itdove/ai-guardian/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/itdove/ai-guardian/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/itdove/ai-guardian/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/itdove/ai-guardian/compare/v1.0.0...v1.1.0
