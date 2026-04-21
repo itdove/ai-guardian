@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Version information in all log entries** (Issue #190)
+  - Every log line now includes AI Guardian version (e.g., `v1.5.0`)
+  - New log format: `YYYY-MM-DD HH:MM:SS - v{VERSION} - logger - LEVEL - message`
+  - Version logged explicitly at startup with Python version and platform information
+  - Helps correlate bugs with specific releases and verify fixes
+  - No manual version strings needed in log statements - automatically injected via custom LogRecord factory
+  - Example log output:
+    ```
+    2026-04-21 18:49:20 - v1.5.0 - root - INFO - AI Guardian v1.5.0 initialized
+    2026-04-21 18:49:20 - v1.5.0 - root - INFO - Python 3.12.11
+    2026-04-21 18:49:20 - v1.5.0 - root - INFO - Platform: Darwin-25.4.0-arm64
+    ```
 
 ### Changed
 
