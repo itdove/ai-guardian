@@ -850,11 +850,6 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             ]
         },
 
-        "directory_rules": {
-            "enabled": True,
-            "rules": []
-        },
-
         "remote_configs": {
             "urls": []
         }
