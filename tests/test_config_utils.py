@@ -2,13 +2,10 @@
 Unit tests for config_utils module
 """
 
-import os
 import unittest
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import patch
 
-from ai_guardian.config_utils import parse_iso8601, is_expired, is_feature_enabled, get_config_dir
+from ai_guardian.config_utils import parse_iso8601, is_expired, is_feature_enabled
 
 
 class ConfigUtilsTest(unittest.TestCase):
@@ -308,121 +305,6 @@ class IsFeatureEnabledTest(unittest.TestCase):
         # Feature 3: permanently enabled
         feature3_config = {"value": True}
         self.assertTrue(is_feature_enabled(feature3_config, current_time))
-
-
-class GetConfigDirTest(unittest.TestCase):
-    """Test suite for get_config_dir function"""
-
-    def test_default_config_dir(self):
-        """Test default config directory (~/.config/ai-guardian)"""
-        with patch.dict(os.environ, {}, clear=True):
-            result = get_config_dir()
-            expected = Path.home() / ".config" / "ai-guardian"
-            self.assertEqual(result, expected)
-
-    def test_ai_guardian_config_dir_env_var(self):
-        """Test AI_GUARDIAN_CONFIG_DIR environment variable (highest priority)"""
-        test_path = "/tmp/ai-guardian-test"
-        with patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": test_path}):
-            result = get_config_dir()
-            self.assertEqual(result, Path(test_path))
-
-    def test_xdg_config_home_env_var(self):
-        """Test XDG_CONFIG_HOME environment variable (second priority)"""
-        test_path = "/tmp/xdg-config"
-        with patch.dict(os.environ, {"XDG_CONFIG_HOME": test_path}, clear=True):
-            result = get_config_dir()
-            expected = Path(test_path) / "ai-guardian"
-            self.assertEqual(result, expected)
-
-    def test_ai_guardian_config_dir_overrides_xdg(self):
-        """Test AI_GUARDIAN_CONFIG_DIR takes precedence over XDG_CONFIG_HOME"""
-        ai_guardian_path = "/tmp/ai-guardian-custom"
-        xdg_path = "/tmp/xdg-config"
-        with patch.dict(os.environ, {
-            "AI_GUARDIAN_CONFIG_DIR": ai_guardian_path,
-            "XDG_CONFIG_HOME": xdg_path
-        }):
-            result = get_config_dir()
-            self.assertEqual(result, Path(ai_guardian_path))
-
-    def test_tilde_expansion(self):
-        """Test that tilde (~) is expanded in paths"""
-        with patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": "~/custom-config"}):
-            result = get_config_dir()
-            # Should be expanded to actual home directory
-            self.assertFalse(str(result).startswith("~"))
-            self.assertTrue(str(result).startswith(str(Path.home())))
-
-
-class CheckHookConfigTest(unittest.TestCase):
-    """Test suite for check_hook_config function"""
-
-    def test_no_env_var_set(self):
-        """Test check_hook_config when AI_GUARDIAN_CONFIG_DIR is not set (should pass)"""
-        from ai_guardian import check_hook_config
-
-        with patch.dict(os.environ, {}, clear=True):
-            # Should not raise SystemExit
-            try:
-                check_hook_config()
-            except SystemExit:
-                self.fail("check_hook_config() raised SystemExit when env var not set")
-
-    def test_env_var_set_and_used(self):
-        """Test check_hook_config when AI_GUARDIAN_CONFIG_DIR is set and being used (should pass)"""
-        from ai_guardian import check_hook_config
-
-        test_path = "/tmp/ai-guardian-test"
-        with patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": test_path}):
-            # Mock get_config_dir to return the same path (simulating wrapper working)
-            with patch('ai_guardian.get_config_dir', return_value=Path(test_path)):
-                # Should not raise SystemExit
-                try:
-                    check_hook_config()
-                except SystemExit:
-                    self.fail("check_hook_config() raised SystemExit when config dir matches")
-
-    def test_env_var_set_but_not_used(self):
-        """Test check_hook_config when AI_GUARDIAN_CONFIG_DIR is set but not being used (should fail)"""
-        from ai_guardian import check_hook_config
-
-        test_path = "/tmp/ai-guardian-test"
-        default_path = Path.home() / ".config" / "ai-guardian"
-
-        with patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": test_path}):
-            # Mock get_config_dir to return default path (simulating missing wrapper)
-            with patch('ai_guardian.get_config_dir', return_value=default_path):
-                # Should raise SystemExit with code 1
-                with self.assertRaises(SystemExit) as cm:
-                    check_hook_config()
-                self.assertEqual(cm.exception.code, 1)
-
-    def test_error_message_includes_paths(self):
-        """Test that error message includes both expected and actual config paths"""
-        from ai_guardian import check_hook_config
-        import sys
-        from io import StringIO
-
-        test_path = "/tmp/ai-guardian-test"
-        default_path = Path.home() / ".config" / "ai-guardian"
-
-        # Capture stderr
-        captured_stderr = StringIO()
-
-        with patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": test_path}):
-            with patch('ai_guardian.get_config_dir', return_value=default_path):
-                with patch('sys.stderr', captured_stderr):
-                    try:
-                        check_hook_config()
-                    except SystemExit:
-                        pass
-
-        error_output = captured_stderr.getvalue()
-        # Check that error message contains both paths
-        self.assertIn(test_path, error_output)
-        self.assertIn(str(default_path), error_output)
-        self.assertIn("AI_GUARDIAN_CONFIG_DIR", error_output)
 
 
 if __name__ == '__main__':

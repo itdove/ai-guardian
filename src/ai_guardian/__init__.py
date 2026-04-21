@@ -2175,66 +2175,6 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         logging.error(traceback.format_exc())
         # Fail open - don't block on errors
         return False, None
-
-
-def check_hook_config():
-    """
-    Validate hook configuration when AI_GUARDIAN_CONFIG_DIR is set.
-
-    Checks if the environment variable is set but not being used (missing bash wrapper),
-    and provides helpful error message with fix instructions.
-
-    Raises:
-        SystemExit: If configuration is invalid (env var set but not used)
-    """
-    # Check if AI_GUARDIAN_CONFIG_DIR is set in environment
-    env_config_dir = os.environ.get("AI_GUARDIAN_CONFIG_DIR")
-
-    if env_config_dir:
-        # Check if we're actually using it
-        actual_config_dir = get_config_dir()
-        expected_config_dir = Path(env_config_dir).expanduser()
-
-        if actual_config_dir != expected_config_dir:
-            # The env var is set but not being used - wrapper is missing!
-            claude_config_dir = os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")
-            settings_path = Path(claude_config_dir).expanduser() / "settings.json"
-
-            error_msg = f"""
-🚨 Configuration Error: AI_GUARDIAN_CONFIG_DIR not respected
-
-You have set:
-  AI_GUARDIAN_CONFIG_DIR={env_config_dir}
-
-But ai-guardian is using:
-  {actual_config_dir}
-
-This happens when Claude Code hook subprocesses don't inherit environment variables.
-
-To fix, update your Claude Code hook configuration in:
-  {settings_path}
-
-Change:
-  {{
-    "command": "ai-guardian",
-    "statusMessage": "🛡️ Scanning..."
-  }}
-
-To:
-  {{
-    "command": "bash",
-    "args": ["-c", "AI_GUARDIAN_CONFIG_DIR=${{AI_GUARDIAN_CONFIG_DIR:-~/.config/ai-guardian}} ai-guardian"],
-    "statusMessage": "🛡️ Scanning..."
-  }}
-
-This bash wrapper forwards the environment variable to ai-guardian.
-
-See docs/HOOKS.md for more details.
-"""
-            print(error_msg, file=sys.stderr)
-            sys.exit(1)
-
-
 def process_hook_input():
     """
     Process hook input from stdin and check for secrets.
@@ -2744,9 +2684,6 @@ def main():
         return 0
 
     # No arguments - run as hook (read from stdin)
-    # First, validate hook configuration
-    check_hook_config()
-
     response = process_hook_input()
 
     # Output JSON to stdout if needed (for Cursor)
