@@ -2254,12 +2254,30 @@ class ToolPolicyChecker:
         remote_entries = []
 
         if local_config and "remote_configs" in local_config:
-            for entry in local_config["remote_configs"]:
-                remote_entries.append((entry, local_config_path))
+            # Handle both formats: dict with urls key (new) or direct list (old)
+            remote_config_data = local_config["remote_configs"]
+            if isinstance(remote_config_data, dict):
+                # New format: {"urls": [...], "refresh_interval_hours": 12, ...}
+                urls = remote_config_data.get("urls", [])
+                for entry in urls:
+                    remote_entries.append((entry, local_config_path))
+            else:
+                # Old format: direct list
+                for entry in remote_config_data:
+                    remote_entries.append((entry, local_config_path))
 
         if user_config and "remote_configs" in user_config:
-            for entry in user_config["remote_configs"]:
-                remote_entries.append((entry, user_config_path))
+            # Handle both formats: dict with urls key (new) or direct list (old)
+            remote_config_data = user_config["remote_configs"]
+            if isinstance(remote_config_data, dict):
+                # New format: {"urls": [...], "refresh_interval_hours": 12, ...}
+                urls = remote_config_data.get("urls", [])
+                for entry in urls:
+                    remote_entries.append((entry, user_config_path))
+            else:
+                # Old format: direct list
+                for entry in remote_config_data:
+                    remote_entries.append((entry, user_config_path))
 
         # Load each remote config
         for entry, base_path in remote_entries:

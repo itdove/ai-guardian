@@ -737,16 +737,154 @@ class IDESetup:
             return False, f"Error migrating pattern_server config: {e}"
 
 
+def create_default_config(
+    permissive: bool = False,
+    dry_run: bool = False
+) -> Tuple[bool, str]:
+    """
+    Create default ai-guardian.json config file.
+
+    Args:
+        permissive: If True, use permissive config (permissions disabled)
+        dry_run: If True, show what would be created without writing
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        # Check if config already exists
+        if config_path.exists() and not dry_run:
+            return False, f"Config already exists: {config_path}"
+
+        # Generate config based on mode
+        config = _get_default_config_template(permissive)
+
+        if dry_run:
+            message = f"[DRY RUN] Would create {config_path}:\n\n"
+            message += json.dumps(config, indent=2)
+            return True, message
+
+        # Ensure directory exists
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write config
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+            f.write('\n')
+
+        message = f"✓ Created default config: {config_path}\n"
+        message += f"\n  Security settings:\n"
+        message += f"  • Secret scanning: Enabled (LeakTK patterns)\n"
+        message += f"  • Prompt injection: Enabled (medium sensitivity)\n"
+
+        if permissive:
+            message += f"  • Permissions: Disabled (all tools allowed)\n"
+        else:
+            message += f"  • Permissions: Enabled (Skills/MCP blocked by default)\n"
+            message += f"\n  Next steps:\n"
+            message += f"  1. Run 'ai-guardian tui' to configure allowed skills\n"
+            message += f"  2. Or edit {config_path} manually\n"
+
+        return True, message
+
+    except Exception as e:
+        return False, f"Error creating default config: {e}"
+
+
+def _get_default_config_template(permissive: bool = False) -> Dict:
+    """
+    Get default config template based on mode.
+
+    Args:
+        permissive: If True, return permissive config (permissions disabled)
+
+    Returns:
+        dict: Default configuration
+    """
+    config = {
+        "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
+
+        "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords) using Gitleaks patterns",
+        "secret_scanning": {
+            "enabled": True,
+            "pattern_server": {
+                "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
+                "patterns_endpoint": "/patterns/gitleaks/8.27.0",
+                "warn_on_failure": True,
+                "cache": {
+                    "path": "~/.cache/ai-guardian/patterns.toml",
+                    "refresh_interval_hours": 12,
+                    "expire_after_hours": 168
+                }
+            }
+        },
+
+        "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
+        "prompt_injection": {
+            "enabled": True,
+            "detector": "heuristic",
+            "sensitivity": "medium",
+            "max_score_threshold": 0.75,
+            "allowlist_patterns": [],
+            "custom_patterns": [],
+            "ignore_tools": [],
+            "ignore_files": []
+        },
+
+        "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",
+        "permissions": {
+            "enabled": not permissive,
+            "rules": [] if permissive else [
+                {
+                    "_comment": "Skills - Blocked by default. Add allow rules via TUI.",
+                    "matcher": "Skill",
+                    "mode": "deny",
+                    "patterns": ["*"]
+                },
+                {
+                    "_comment": "MCP Servers - Blocked by default. Add allow rules via TUI.",
+                    "matcher": "mcp__*",
+                    "mode": "deny",
+                    "patterns": ["*"]
+                }
+            ]
+        },
+
+        "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). See ai-guardian-example.json for examples.",
+        "_directory_rules_example": {
+            "action": "block",
+            "rules": [
+                {
+                    "mode": "deny",
+                    "paths": ["~/.ssh/**", "~/.aws/**"]
+                }
+            ]
+        },
+
+        "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
+        "remote_configs": {
+            "urls": []
+        }
+    }
+
+    return config
+
+
 def setup_hooks(
     ide_type: Optional[str] = None,
     remote_config_url: Optional[str] = None,
     dry_run: bool = False,
     force: bool = False,
     interactive: bool = True,
-    migrate_pattern_server: bool = False
+    migrate_pattern_server: bool = False,
+    create_config: bool = False,
+    permissive: bool = False
 ) -> bool:
     """
-    Setup IDE hooks with optional remote config.
+    Setup IDE hooks with optional remote config and default config creation.
 
     Args:
         ide_type: IDE type ('claude' or 'cursor') or None for auto-detect
@@ -755,11 +893,23 @@ def setup_hooks(
         force: If True, overwrite existing hooks
         interactive: If True, prompt user for confirmation
         migrate_pattern_server: If True, check and migrate old pattern_server config
+        create_config: If True, create default ai-guardian.json config
+        permissive: If True with create_config, use permissive config (permissions disabled)
 
     Returns:
         bool: True if successful, False otherwise
     """
     setup = IDESetup()
+
+    # Handle default config creation if requested
+    if create_config:
+        success, message = create_default_config(permissive=permissive, dry_run=dry_run)
+        print(message)
+        if not success:
+            return False
+        # If only creating config (no IDE setup or remote config), return early
+        if ide_type is None and not remote_config_url and not migrate_pattern_server:
+            return success
 
     # Handle pattern_server migration if requested
     if migrate_pattern_server:
