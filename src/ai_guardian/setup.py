@@ -807,6 +807,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
     config = {
         "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
 
+        "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords) using Gitleaks patterns",
         "secret_scanning": {
             "enabled": True,
             "pattern_server": {
@@ -821,6 +822,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             }
         },
 
+        "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
         "prompt_injection": {
             "enabled": True,
             "detector": "heuristic",
@@ -832,6 +834,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "ignore_files": []
         },
 
+        "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",
         "permissions": {
             "enabled": not permissive,
             "rules": [] if permissive else [
@@ -850,6 +853,18 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             ]
         },
 
+        "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). See ai-guardian-example.json for examples.",
+        "_directory_rules_example": {
+            "action": "block",
+            "rules": [
+                {
+                    "mode": "deny",
+                    "paths": ["~/.ssh/**", "~/.aws/**"]
+                }
+            ]
+        },
+
+        "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
         "remote_configs": {
             "urls": []
         }
