@@ -844,6 +844,15 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             }
         },
 
+        "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
+        "secret_redaction": {
+            "enabled": True,
+            "action": "log-only",
+            "preserve_format": True,
+            "log_redactions": True,
+            "additional_patterns": []
+        },
+
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
         "ssrf_protection": {
             "enabled": True,

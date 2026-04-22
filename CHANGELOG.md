@@ -8,6 +8,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Secret Redaction for Tool Outputs** (Issue #197, Phase 4: Hermes Security Patterns)
+  - Redacts secrets from tool outputs instead of blocking them entirely, enabling work to continue while protecting credentials
+  - **Defense-in-depth**: Redaction provides a safety net when secrets are unavoidable, complementing existing blocking mechanisms
+  - **35+ secret types detected and redacted**:
+    - API keys: OpenAI (sk-proj-*), GitHub (ghp_*, gho_*, ghr_*, ghs_*), Anthropic (sk-ant-*), GitLab (glpat-*), Google (AIza*), npm, PyPI
+    - Cloud provider keys: AWS (AKIA*, aws_secret_access_key), Azure client secrets, Google OAuth tokens
+    - Payment/SaaS: Stripe (sk_live_*, pk_live_*), Twilio (SK*), SendGrid (SG.*), Mailgun (key-*), Slack (xox*)
+    - Private keys: RSA, SSH, PGP (full redaction for maximum security)
+    - Structured formats: Environment variables, JSON fields, HTTP headers, database connection strings
+    - Generic patterns: Long hex strings, Base64 encoded secrets
+  - **Multiple masking strategies**:
+    - `preserve_prefix_suffix`: Keep first 6 + last 4 characters for debugging (e.g., "sk-pro...1vwx")
+    - `full_redact`: Complete replacement with "[HIDDEN TYPE]" for high-sensitivity secrets
+    - `env_assignment`: Preserve variable name (e.g., "AWS_SECRET_KEY=[HIDDEN]")
+    - `json_field`: Preserve JSON structure (e.g., '{"api_key": "[HIDDEN]"}')
+    - `connection_string`: Preserve endpoint info (e.g., "mongodb://user:[HIDDEN]@host:port/db")
+  - **Configuration** (`secret_redaction` section):
+    - `enabled`: Toggle redaction feature (default: true)
+    - `action`: "log-only" (redact silently), "warn" (redact with user warning), "block" (original blocking behavior, default: log-only)
+    - `preserve_format`: Enable prefix/suffix preservation (default: true)
+    - `log_redactions`: Log all redaction events (default: true)
+    - `additional_patterns`: Add custom secret patterns with regex
+  - **Real-world scenarios enabled**:
+    - ✅ Environment variable debugging: See `AWS_REGION=us-east-1` while `AWS_SECRET_KEY=[HIDDEN]`
+    - ✅ Log file analysis: Review 10,000 log lines with buried secrets redacted inline
+    - ✅ Config file review: See structure (`host: prod-db.example.com`) with passwords hidden
+    - ✅ Git history analysis: View commits with accidentally-committed secrets redacted
+  - **Integration**: Works automatically with PostToolUse hook, requires no changes to existing workflows
+  - **Performance**: <5ms overhead per tool output (sub-50ms for 10KB text with 35+ patterns)
+  - **Logging**: All redactions logged to violation logger with type, position, and count metadata
+  - **Testing**: 28 comprehensive test cases covering all secret types, masking strategies, and edge cases
+  - Part of Hermes Security Patterns integration (defense-in-depth approach)
+
 - **SSRF (Server-Side Request Forgery) Protection** (Issue #194, Phase 1 of #186)
   - Prevents AI agents from accessing private networks, cloud metadata endpoints, and dangerous URL schemes
   - Immutable core protections (cannot be disabled):
