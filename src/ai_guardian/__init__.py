@@ -52,6 +52,14 @@ except ImportError:
     HAS_PROMPT_INJECTION = False
     logging.debug("prompt_injection module not available")
 
+# Import config file scanner
+try:
+    from ai_guardian.config_scanner import check_config_file_threats
+    HAS_CONFIG_SCANNER = True
+except ImportError:
+    HAS_CONFIG_SCANNER = False
+    logging.debug("config_scanner module not available")
+
 # Import violation logger
 try:
     from ai_guardian.violation_logger import ViolationLogger
@@ -1243,6 +1251,21 @@ def _load_prompt_injection_config():
     if config is None:
         return None, None
     return config.get("prompt_injection"), None
+
+
+def _load_config_scanner_config():
+    """
+    Load config file scanning configuration from ai-guardian.json.
+
+    Returns:
+        tuple: (config_dict or None, error_message or None)
+    """
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return None, error_msg
+    if config is None:
+        return None, None
+    return config.get("config_file_scanning"), None
 
 
 def _load_permissions_config():
@@ -2552,6 +2575,51 @@ def process_hook_input():
             except Exception as e:
                 # Fail-open: if prompt injection check fails, continue
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
+
+        # Check for config file threats (credential exfiltration patterns in AI config files)
+        # Only scan for PreToolUse/Read operations on actual files
+        logger.debug(f"Config scanner check: HAS_CONFIG_SCANNER={HAS_CONFIG_SCANNER}, hook_event={hook_event}, file_path={file_path}, has_content={content_to_scan is not None}")
+        if HAS_CONFIG_SCANNER and hook_event in ["pretooluse", "beforereadfile"] and file_path and content_to_scan:
+            logger.debug("Config scanner conditions met, running scan...")
+            try:
+                scanner_config, config_error = _load_config_scanner_config()
+                if config_error:
+                    warning_messages.append(config_error)
+
+                # Check if config file scanning is enabled (supports time-based disabling)
+                # Default to enabled even if config section doesn't exist
+                is_enabled = is_feature_enabled(
+                    scanner_config.get("enabled") if scanner_config else None,
+                    datetime.now(timezone.utc),
+                    default=True
+                )
+
+                if is_enabled:
+                    should_block, config_error, config_details = check_config_file_threats(
+                        file_path, content_to_scan, scanner_config
+                    )
+
+                    if should_block:
+                        # Config file threat detected - block operation
+                        if ide_type != IDEType.CURSOR:
+                            logging.info(f"Blocking operation for {file_path} due to config file threat")
+
+                        # Include any config errors with the blocking message
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        return format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning)
+                    elif config_details and config_error:
+                        # Log/warn mode: threat detected but execution allowed - display warning
+                        warning_messages.append(config_error)
+
+                    if ide_type != IDEType.CURSOR:
+                        if not config_details:
+                            logging.debug("✓ No config file threats detected")
+                elif ide_type != IDEType.CURSOR:
+                    # Config file scanning is temporarily disabled
+                    logging.info("⚠️  Config file scanning temporarily disabled")
+            except Exception as e:
+                # Fail-open: if config scanning fails, continue
+                logging.warning(f"Config file scanning error (fail-open): {e}")
 
         # Check for secrets in the content
         secret_config, config_error = _load_secret_scanning_config()

@@ -510,6 +510,60 @@
         }
       }
     },
+    "config_file_scanning": {
+      "type": "object",
+      "description": "Config file scanning configuration (NEW in v1.8.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log-only"],
+          "description": "Action on violation: 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
+          "default": "block"
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
+        },
+        "additional_files": {
+          "type": "array",
+          "description": "Additional config file patterns to scan (beyond defaults: CLAUDE.md, AGENTS.md, .cursorrules, .aider.conf.yml, .github/CLAUDE.md). Examples: '.github/copilot-instructions.md', 'AI_INSTRUCTIONS.md', '.windsurf/rules.md'",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_files": {
+          "type": "array",
+          "description": "Glob patterns for files to skip during config file scanning. Useful for documentation with security examples. Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char). Examples: '**/docs/security-examples.md', '**/examples/**'",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "additional_patterns": {
+          "type": "array",
+          "description": "Additional regex patterns to detect (beyond 8 core patterns). Core patterns cannot be disabled: curl with env vars, wget with env vars, env|curl, printenv|curl, cat /etc/|curl, base64|curl, aws s3 cp, gcloud storage cp",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
     "directory_rules": {
       "oneOf": [
         {
