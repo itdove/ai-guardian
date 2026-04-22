@@ -2,8 +2,15 @@
 """
 Pattern Server Integration
 
-Optional integration with external pattern servers for enhanced secret detection.
-Fetches and caches Gitleaks pattern configurations from a configured server.
+Optional integration with external pattern servers for enhanced security pattern detection.
+Fetches and caches pattern configurations from a configured server.
+
+Supports multiple pattern types:
+- Gitleaks secret detection patterns (original)
+- SSRF protection patterns (NEW in v1.8.0)
+- Unicode attack detection patterns (NEW in v1.8.0)
+- Config file scanner patterns (NEW in v1.8.0)
+- Secret redaction patterns (NEW in v1.8.0)
 
 This is a generic implementation that can work with any pattern server
 implementing a compatible API.
@@ -12,10 +19,11 @@ implementing a compatible API.
 import json
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 from ai_guardian.config_utils import is_feature_enabled
 
@@ -28,34 +36,73 @@ except ImportError:
     HAS_REQUESTS = False
     logger.debug("requests library not available - pattern server disabled")
 
+# TOML parsing support (Python 3.11+ has tomllib built-in)
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib  # type: ignore
+    HAS_TOML = True
+except ImportError:
+    HAS_TOML = False
+    logger.debug("TOML library not available - pattern parsing disabled")
+
 
 class PatternServerClient:
     """
-    Client for fetching secret detection patterns from a pattern server.
+    Client for fetching security patterns from a pattern server.
 
     Supports:
     - Bearer token authentication
     - Pattern caching with configurable TTL
     - Auto-refresh on expiration
     - Fail-safe fallback to cached patterns
+    - Multiple pattern types (gitleaks, ssrf, unicode, config-exfil, secrets)
+
+    NEW in v1.8.0: Support for multiple pattern types beyond Gitleaks.
     """
 
-    def __init__(self, config: dict):
+    # Default endpoints for different pattern types
+    DEFAULT_ENDPOINTS = {
+        "gitleaks": "/patterns/gitleaks/8.18.1",
+        "ssrf": "/patterns/ssrf/v1",
+        "unicode": "/patterns/unicode/v1",
+        "config-exfil": "/patterns/config-exfil/v1",
+        "secrets": "/patterns/secrets/v1",
+    }
+
+    # Default cache filenames for different pattern types
+    DEFAULT_CACHE_FILES = {
+        "gitleaks": "patterns.toml",
+        "ssrf": "ssrf-patterns.toml",
+        "unicode": "unicode-patterns.toml",
+        "config-exfil": "config-exfil-patterns.toml",
+        "secrets": "secrets-patterns.toml",
+    }
+
+    def __init__(self, config: dict, pattern_type: str = "gitleaks"):
         """
         Initialize pattern server client.
 
         Args:
             config: Pattern server configuration from ai-guardian.json
+            pattern_type: Type of patterns to fetch (gitleaks, ssrf, unicode, config-exfil, secrets)
 
         NEW in v1.7.0: 'enabled' field is deprecated. Presence of config = enabled.
+        NEW in v1.8.0: 'pattern_type' parameter for multi-pattern support.
         Still supports 'enabled' field for backward compatibility (with warning).
         """
+        self.pattern_type = pattern_type
+
         # Store enabled config (supports both boolean and time-based formats)
         # Default to True since config presence = enabled (v1.7.0+)
         # Only False if explicitly set (backward compatibility)
         self.enabled_config = config.get("enabled", True)
         self.base_url = config.get("url")
-        self.patterns_endpoint = config.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
+
+        # Get endpoint - use config value or default for pattern type
+        default_endpoint = self.DEFAULT_ENDPOINTS.get(pattern_type, f"/patterns/{pattern_type}/v1")
+        self.patterns_endpoint = config.get("patterns_endpoint", default_endpoint)
 
         # Warning configuration - enabled by default, can be disabled
         self.warn_on_failure = config.get("warn_on_failure", True)
@@ -67,7 +114,12 @@ class PatternServerClient:
 
         # Cache configuration
         cache_config = config.get("cache", {})
-        self.cache_path = Path(cache_config.get("path", "~/.cache/ai-guardian/patterns.toml")).expanduser()
+
+        # Get cache path - use config value or default for pattern type
+        default_cache_file = self.DEFAULT_CACHE_FILES.get(pattern_type, f"{pattern_type}-patterns.toml")
+        default_cache_path = f"~/.cache/ai-guardian/{default_cache_file}"
+        self.cache_path = Path(cache_config.get("path", default_cache_path)).expanduser()
+
         self.refresh_interval = cache_config.get("refresh_interval_hours", 12) * 3600  # hours to seconds
         self.expire_after = cache_config.get("expire_after_hours", 168) * 3600  # hours to seconds
 
@@ -77,6 +129,9 @@ class PatternServerClient:
 
         Returns:
             Path to patterns file, or None if unavailable
+
+        NOTE: This method returns the path to the TOML file for consumers that
+        parse it themselves (e.g., Gitleaks). For parsed patterns, use get_patterns().
         """
         # Check if pattern server is enabled (supports time-based disabling)
         if not is_feature_enabled(self.enabled_config, datetime.now(timezone.utc), default=False):
@@ -107,6 +162,41 @@ class PatternServerClient:
             return self.cache_path
 
         return None
+
+    def get_patterns(self) -> Optional[Dict[str, Any]]:
+        """
+        Get patterns as a parsed dictionary, fetching from server if needed.
+
+        Returns:
+            Parsed TOML patterns as dict, or None if unavailable
+
+        NEW in v1.8.0: Returns parsed patterns for use in Python code.
+        Implements fallback chain: server → cache → None
+        """
+        # Get path to patterns file (handles fetching/caching)
+        patterns_path = self.get_patterns_path()
+        if not patterns_path:
+            return None
+
+        # Parse TOML file
+        if not HAS_TOML:
+            logger.warning(f"TOML library not available, cannot parse {self.pattern_type} patterns")
+            logger.info("Install with: pip install tomli (Python <3.11)")
+            return None
+
+        try:
+            # Read and parse TOML
+            with open(patterns_path, "rb") as f:
+                patterns = tomllib.load(f)
+
+            logger.debug(f"Successfully parsed {self.pattern_type} patterns from {patterns_path}")
+            return patterns
+
+        except Exception as e:
+            logger.error(f"Error parsing {self.pattern_type} patterns from {patterns_path}: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return None
 
     def _needs_refresh(self) -> bool:
         """Check if patterns need to be refreshed."""
@@ -174,7 +264,7 @@ class PatternServerClient:
             else:
                 logger.debug("No authentication token - attempting unauthenticated request")
 
-            logger.info(f"Fetching patterns from pattern server: {self.base_url}")
+            logger.info(f"Fetching {self.pattern_type} patterns from pattern server: {self.base_url}")
 
             # Fetch patterns
             response = requests.get(url, headers=headers, timeout=10)
@@ -202,7 +292,7 @@ class PatternServerClient:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(response.text)
 
-            logger.info(f"Successfully fetched and cached patterns to {self.cache_path}")
+            logger.info(f"Successfully fetched and cached {self.pattern_type} patterns to {self.cache_path}")
             return True
 
         except requests.exceptions.Timeout:

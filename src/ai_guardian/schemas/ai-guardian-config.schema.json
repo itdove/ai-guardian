@@ -287,6 +287,28 @@
           "type": "boolean",
           "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
           "default": false
+        },
+        "pattern_server": {
+          "type": ["object", "null"],
+          "description": "OPTIONAL/ADVANCED: Secret redaction patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise secret patterns that can be updated as new secret formats emerge. Supports override modes: 'replace' (use only server patterns) or 'extend' (add to defaults).",
+          "additionalProperties": true,
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "Pattern server base URL (required if using pattern server)"
+            },
+            "patterns_endpoint": {
+              "type": "string",
+              "description": "Endpoint path for secret patterns (appended to url)",
+              "default": "/patterns/secrets/v1"
+            },
+            "auth": {
+              "$ref": "#/definitions/pattern_server_auth"
+            },
+            "cache": {
+              "$ref": "#/definitions/pattern_server_cache"
+            }
+          }
         }
       },
       "additionalProperties": true
@@ -509,6 +531,28 @@
               "type": "boolean",
               "description": "Allow emoji with zero-width joiners (e.g., family emoji 👨‍👩‍👧‍👦). When true, zero-width joiners in emoji contexts are allowed.",
               "default": true
+            },
+            "pattern_server": {
+              "type": ["object", "null"],
+              "description": "OPTIONAL/ADVANCED: Homoglyph patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise homoglyph patterns that can be updated as new scripts emerge. Immutable patterns (zero-width chars, bidi overrides) cannot be overridden.",
+              "additionalProperties": true,
+              "properties": {
+                "url": {
+                  "type": ["string", "null"],
+                  "description": "Pattern server base URL (required if using pattern server)"
+                },
+                "patterns_endpoint": {
+                  "type": "string",
+                  "description": "Endpoint path for Unicode patterns (appended to url)",
+                  "default": "/patterns/unicode/v1"
+                },
+                "auth": {
+                  "$ref": "#/definitions/pattern_server_auth"
+                },
+                "cache": {
+                  "$ref": "#/definitions/pattern_server_cache"
+                }
+              }
             }
           }
         }
@@ -565,6 +609,38 @@
           "type": "boolean",
           "description": "Allow localhost access (127.0.0.1, ::1). Default: false. Enable for local development scenarios.",
           "default": false
+        },
+        "pattern_server": {
+          "type": ["object", "null"],
+          "description": "OPTIONAL/ADVANCED: SSRF protection patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise patterns instead of hardcoded defaults. Supports three-tier system: immutable core (metadata endpoints, dangerous schemes) + pattern server/defaults (RFC 1918 ranges) + local config additions.",
+          "additionalProperties": true,
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "Pattern server base URL (required if using pattern server)"
+            },
+            "patterns_endpoint": {
+              "type": "string",
+              "description": "Endpoint path for SSRF patterns (appended to url)",
+              "default": "/patterns/ssrf/v1"
+            },
+            "allow_override": {
+              "type": "boolean",
+              "description": "Allow pattern server to override default patterns (RFC 1918 ranges). Immutable patterns (metadata endpoints) cannot be overridden.",
+              "default": true
+            },
+            "validate_critical": {
+              "type": "boolean",
+              "description": "Validate that critical patterns are present in final config (auto-add if missing)",
+              "default": true
+            },
+            "auth": {
+              "$ref": "#/definitions/pattern_server_auth"
+            },
+            "cache": {
+              "$ref": "#/definitions/pattern_server_cache"
+            }
+          }
         }
       }
     },
@@ -619,6 +695,28 @@
             "type": "string"
           },
           "default": []
+        },
+        "pattern_server": {
+          "type": ["object", "null"],
+          "description": "OPTIONAL/ADVANCED: Config exfiltration patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise patterns for detecting credential exfiltration in AI config files. Immutable core patterns cannot be overridden.",
+          "additionalProperties": true,
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "Pattern server base URL (required if using pattern server)"
+            },
+            "patterns_endpoint": {
+              "type": "string",
+              "description": "Endpoint path for config exfiltration patterns (appended to url)",
+              "default": "/patterns/config-exfil/v1"
+            },
+            "auth": {
+              "$ref": "#/definitions/pattern_server_auth"
+            },
+            "cache": {
+              "$ref": "#/definitions/pattern_server_cache"
+            }
+          }
         }
       }
     },

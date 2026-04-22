@@ -2937,6 +2937,33 @@ def main():
             help="Enable verbose output"
         )
 
+        # Show-config subcommand (NEW in v1.8.0)
+        show_config_parser = subparsers.add_parser(
+            "show-config",
+            help="Display effective configuration with source attribution"
+        )
+        show_config_parser.add_argument(
+            "--feature",
+            choices=["ssrf", "secrets", "unicode", "config-scanner", "all"],
+            default="all",
+            help="Which feature to show (default: all)"
+        )
+        show_config_parser.add_argument(
+            "--show-sources",
+            action="store_true",
+            help="Show source attribution (IMMUTABLE, SERVER, DEFAULT, LOCAL_CONFIG)"
+        )
+        show_config_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+        show_config_parser.add_argument(
+            "--config",
+            metavar="FILE",
+            help="Path to ai-guardian.json config file (default: auto-detect)"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -2990,6 +3017,68 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error running scan: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle show-config command (NEW in v1.8.0)
+        if args.command == "show-config":
+            try:
+                from ai_guardian.config_inspector import ConfigInspector
+
+                # Load config
+                if args.config:
+                    config_path = Path(args.config)
+                    if config_path.exists():
+                        import json
+                        config = json.loads(config_path.read_text())
+                    else:
+                        print(f"Error: Config file not found: {config_path}", file=sys.stderr)
+                        return 1
+                else:
+                    # Try to find config in default locations
+                    config_candidates = [
+                        Path.cwd() / "ai-guardian.json",
+                        Path.cwd() / ".ai-guardian.json",
+                        Path.home() / ".config" / "ai-guardian" / "ai-guardian.json",
+                    ]
+                    config_path = None
+                    for candidate in config_candidates:
+                        if candidate.exists():
+                            config_path = candidate
+                            break
+
+                    if config_path:
+                        import json
+                        config = json.loads(config_path.read_text())
+                    else:
+                        # No config found, use empty config (show defaults)
+                        config = {}
+
+                inspector = ConfigInspector(config)
+
+                # Output format
+                if args.json:
+                    print(inspector.export_json())
+                else:
+                    # Display specific feature or all
+                    if args.feature == "ssrf":
+                        print(inspector.show_ssrf_config(show_sources=args.show_sources))
+                    elif args.feature == "secrets":
+                        print(inspector.show_secret_config(show_sources=args.show_sources))
+                    elif args.feature == "unicode":
+                        print(inspector.show_unicode_config(show_sources=args.show_sources))
+                    elif args.feature == "config-scanner":
+                        print(inspector.show_config_scanner_config(show_sources=args.show_sources))
+                    else:  # all
+                        print(inspector.show_all(show_sources=args.show_sources))
+
+                return 0
+            except ImportError as e:
+                print(f"Error: Config inspector module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error displaying configuration: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1
