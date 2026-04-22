@@ -52,10 +52,13 @@ ai-guardian setup
 # 4. (Optional) Setup with remote configuration
 ai-guardian setup --remote-config-url https://example.com/ai-guardian-policy.json
 
-# 5. (Optional) Set up MCP/Skill permissions
-mkdir -p ~/.config/ai-guardian
-cp ai-guardian-example.json ~/.config/ai-guardian/ai-guardian.json
-# Edit the file to allow your specific skills and MCP servers
+# 5. (Optional) Create a config file
+ai-guardian setup --create-config              # Secure: Skills/MCP blocked by default
+# OR
+ai-guardian setup --create-config --permissive  # Permissive: All tools allowed
+
+# Preview config before creating (dry run)
+ai-guardian setup --create-config --dry-run
 ```
 
 ## Setup Command
@@ -78,6 +81,11 @@ ai-guardian setup --ide cursor
 
 # Setup with remote configuration URL
 ai-guardian setup --remote-config-url https://example.com/ai-guardian-policy.json
+
+# Create a basic config file (NEW in v1.4.0)
+ai-guardian setup --create-config              # Secure: Skills/MCP blocked by default
+ai-guardian setup --create-config --permissive  # Permissive: All tools allowed
+ai-guardian setup --create-config --dry-run     # Preview config without creating
 
 # Preview changes without applying
 ai-guardian setup --dry-run

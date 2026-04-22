@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Documented `--create-config` and `--permissive` flags in README** (Issue #199)
+  - Quick Start section now shows `ai-guardian setup --create-config` as the recommended way to create config files
+  - Explains difference between secure mode (default) and permissive mode (`--permissive` flag)
+  - Setup Command section includes `--create-config` examples in Basic Usage
+  - Includes dry-run preview example (`--create-config --dry-run`)
+  - Makes onboarding easier by highlighting the automated config creation introduced in v1.4.0
+
 - **Version information in all log entries** (Issue #190)
   - Every log line now includes AI Guardian version (e.g., `v1.5.0`)
   - New log format: `YYYY-MM-DD HH:MM:SS - v{VERSION} - logger - LEVEL - message`
