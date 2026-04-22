@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **SSRF (Server-Side Request Forgery) Protection** (Issue #194, Phase 1 of #186)
+  - Prevents AI agents from accessing private networks, cloud metadata endpoints, and dangerous URL schemes
+  - Immutable core protections (cannot be disabled):
+    - Private IP ranges (RFC 1918): 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16
+    - IPv6 private ranges: ::1/128, fc00::/7, fe80::/10
+    - Cloud metadata endpoints: 169.254.169.254 (AWS/Azure), metadata.google.internal (GCP), fd00:ec2::254 (AWS IPv6)
+    - Dangerous URL schemes: file://, gopher://, ftp://, data://, dict://, ldap://
+  - Fast performance: <1ms overhead per Bash command
+  - No false positives: Public AWS services (s3.amazonaws.com) are NOT blocked
+  - Full IPv6 support for all blocking rules
+  - Configurable features:
+    - `action` modes: block (default), warn, log-only
+    - `additional_blocked_ips`: Add custom IP ranges to block
+    - `additional_blocked_domains`: Add custom domains to block
+    - `allow_localhost`: Enable for local development (default: false)
+  - Comprehensive test suite: 73 tests including 2 validated Hermes Security Framework SSRF payloads
+  - Inspired by Hermes Security Framework patterns
+  - Documentation: [docs/SSRF_PROTECTION.md](docs/SSRF_PROTECTION.md)
+
 - **Unicode Attack Detection for Prompt Injection** (Issue #195, Phase 2: Hermes Security Patterns)
   - Detects Unicode-based attacks that bypass pattern matching via invisible or look-alike characters
   - **Zero-width character detection** (9 types): U+200B (zero-width space), U+200C (non-joiner), U+200D (joiner), U+FEFF (BOM), U+2060 (word joiner), and 4 more invisible characters

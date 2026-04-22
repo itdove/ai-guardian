@@ -779,6 +779,7 @@ def create_default_config(
         message += f"\n  Security settings:\n"
         message += f"  • Secret scanning: Enabled (LeakTK patterns)\n"
         message += f"  • Prompt injection: Enabled (medium sensitivity)\n"
+        message += f"  • SSRF protection: Enabled (blocks private IPs, metadata endpoints)\n"
 
         if permissive:
             message += f"  • Permissions: Disabled (all tools allowed)\n"
@@ -841,6 +842,15 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
                 "allow_rtl_languages": True,
                 "allow_emoji": True
             }
+        },
+
+        "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
+        "ssrf_protection": {
+            "enabled": True,
+            "action": "block",
+            "additional_blocked_ips": [],
+            "additional_blocked_domains": [],
+            "allow_localhost": False
         },
 
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",

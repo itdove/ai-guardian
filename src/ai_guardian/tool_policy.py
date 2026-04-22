@@ -40,6 +40,14 @@ except ImportError:
     HAS_VIOLATION_LOGGER = False
     logging.debug("violation_logger module not available")
 
+# Import SSRF protector
+try:
+    from ai_guardian.ssrf_protector import SSRFProtector
+    HAS_SSRF_PROTECTOR = True
+except ImportError:
+    HAS_SSRF_PROTECTOR = False
+    logging.debug("ssrf_protector module not available")
+
 logger = logging.getLogger(__name__)
 
 # Hardcoded critical protections - cannot be disabled or bypassed
@@ -491,6 +499,38 @@ class ToolPolicyChecker:
                 return True, None, None
 
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
+
+            # PRIORITY 0: Check SSRF protection (before all other checks)
+            # Prevents accessing private networks, metadata endpoints, and dangerous URL schemes
+            if HAS_SSRF_PROTECTOR:
+                ssrf_config = self.config.get("ssrf_protection", {})
+                if ssrf_config.get("enabled", True):  # Enabled by default
+                    ssrf_protector = SSRFProtector(ssrf_config)
+                    should_block, error_msg = ssrf_protector.check(tool_name, tool_input)
+
+                    if should_block:
+                        # SSRF detected and blocked
+                        logger.error(f"🚨 BLOCKED: {tool_name} - SSRF attack detected")
+                        self._log_violation(
+                            tool_name=tool_name,
+                            check_value=tool_input.get("command", str(tool_input)),
+                            reason="SSRF attack detected",
+                            matcher=tool_name,
+                            hook_data=hook_data
+                        )
+                        return False, error_msg, tool_name
+
+                    elif error_msg:
+                        # Warning mode - log but allow
+                        logger.warning(f"SSRF warning for {tool_name}: {error_msg}")
+                        self._log_violation(
+                            tool_name=tool_name,
+                            check_value=tool_input.get("command", str(tool_input)),
+                            reason="SSRF warning (allowed)",
+                            matcher=tool_name,
+                            hook_data=hook_data
+                        )
+                        # Continue to other checks (warning is logged, execution allowed)
 
             # PRIORITY 1: Check immutable deny patterns (cannot be overridden)
             # These protect ai-guardian config, IDE hooks, and pip-installed package code

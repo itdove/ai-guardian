@@ -456,6 +456,60 @@
         }
       }
     },
+    "ssrf_protection": {
+      "type": "object",
+      "description": "SSRF (Server-Side Request Forgery) protection configuration (NEW in v1.5.0). Prevents AI agents from accessing private networks, cloud metadata endpoints, and dangerous URL schemes. Inspired by Hermes Security Framework.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log-only"],
+          "description": "Action on violation: 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
+          "default": "block"
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
+        },
+        "additional_blocked_ips": {
+          "type": "array",
+          "description": "Additional IP addresses or CIDR ranges to block (beyond core protections). Core protections (RFC 1918, loopback, link-local, metadata endpoints) cannot be disabled.",
+          "items": {
+            "type": "string",
+            "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/[0-9]{1,2})?$|^([0-9a-fA-F:]+)(/[0-9]{1,3})?$",
+            "description": "IP address or CIDR range (IPv4 or IPv6)"
+          },
+          "default": []
+        },
+        "additional_blocked_domains": {
+          "type": "array",
+          "description": "Additional domain names to block (beyond core protections). Core protections (metadata.google.internal, etc.) cannot be disabled.",
+          "items": {
+            "type": "string",
+            "description": "Domain name to block"
+          },
+          "default": []
+        },
+        "allow_localhost": {
+          "type": "boolean",
+          "description": "Allow localhost access (127.0.0.1, ::1). Default: false. Enable for local development scenarios.",
+          "default": false
+        }
+      }
+    },
     "directory_rules": {
       "oneOf": [
         {

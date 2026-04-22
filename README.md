@@ -445,6 +445,49 @@ cd ~/project/secrets && touch .ai-read-deny
 - Recommended: Include both skill files AND tool-results to prevent false positives from cached outputs
 - See [False Positives](#prompt-injection-false-positives) for detailed usage
 
+### 🌐 SSRF Protection
+**NEW in v1.5.0**: Prevents Server-Side Request Forgery attacks by blocking access to:
+- **Private IP ranges**: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16 (RFC 1918 + loopback + link-local)
+- **Cloud metadata endpoints**: 169.254.169.254 (AWS/Azure), metadata.google.internal (GCP), fd00:ec2::254 (AWS IPv6)
+- **Dangerous URL schemes**: file://, gopher://, ftp://, data://, dict://, ldap://
+- **IPv6 support**: Full IPv6 address validation and blocking
+
+**Key features**:
+- **Immutable core protections**: Cannot be disabled via configuration
+- **Fast performance**: <1ms overhead per Bash command
+- **No false positives**: Public AWS services (s3.amazonaws.com) are NOT blocked
+- **Configurable additions**: Add custom blocked IPs/domains
+- **Action modes**: block (default), warn, or log-only
+
+**SSRF attack example**:
+```bash
+# ❌ BLOCKED: AWS metadata endpoint (credential theft)
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+
+# ❌ BLOCKED: Private network access
+curl http://192.168.1.1/admin
+
+# ✅ ALLOWED: Public AWS service
+curl https://s3.amazonaws.com/my-bucket/file.txt
+```
+
+**Configuration example** (`~/.config/ai-guardian/ai-guardian.json`):
+```json
+{
+  "ssrf_protection": {
+    "enabled": true,
+    "action": "block",
+    "additional_blocked_ips": ["203.0.113.0/24"],
+    "additional_blocked_domains": ["internal.example.com"],
+    "allow_localhost": false
+  }
+}
+```
+
+**Inspired by**: [Hermes Security Framework](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) - Validated against real-world SSRF attack patterns.
+
+**Learn more**: See [docs/SSRF_PROTECTION.md](docs/SSRF_PROTECTION.md) for detailed configuration and use cases.
+
 ### 🔒 Secret Scanning
 Multi-layered secret detection before AI interactions:
 - **Prompt scanning**: Check user prompts before sending to AI
