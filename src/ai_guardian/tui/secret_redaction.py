@@ -1,0 +1,452 @@
+#!/usr/bin/env python3
+"""
+Secret Redaction Tab Content
+
+View and configure secret redaction settings.
+Redacts sensitive information from tool outputs instead of blocking operations.
+"""
+
+import json
+from pathlib import Path
+from typing import Union, Dict, Any
+
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, VerticalScroll
+from textual.widgets import Static, Button, Input, Label, Select, Checkbox
+
+from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import TimeBasedToggle
+
+
+class SecretRedactionContent(Container):
+    """Content widget for Secret Redaction tab."""
+
+    CSS = """
+    SecretRedactionContent {
+        height: 100%;
+    }
+
+    #secret-redaction-header {
+        margin: 1 0;
+        padding: 1;
+        background: $primary;
+        color: $text;
+    }
+
+    .section {
+        margin: 1 0;
+        padding: 1;
+        background: $panel;
+        border: solid $primary;
+    }
+
+    .section-title {
+        margin: 0 0 1 0;
+        font-weight: bold;
+    }
+
+    .setting-row {
+        margin: 0.5 0;
+        height: auto;
+    }
+
+    .setting-row Label {
+        margin: 0 1 0 0;
+        width: auto;
+    }
+
+    .setting-row Select {
+        width: 30;
+    }
+
+    .setting-row Input {
+        width: 50;
+    }
+
+    .setting-row Checkbox {
+        margin: 0 1 0 0;
+    }
+
+    .setting-row Button {
+        margin: 0 0 0 1;
+    }
+
+    #additional-patterns-list {
+        margin: 1 0;
+        padding: 1;
+        background: $surface;
+        border: solid $primary;
+        min-height: 6;
+    }
+
+    #actions {
+        margin: 1 0;
+        height: auto;
+    }
+
+    #actions Button {
+        margin: 0 1 0 0;
+    }
+
+    /* Focus indicators */
+    Input:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Button:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Select:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+
+    Checkbox:focus {
+        border-left: heavy $accent;
+        text-style: bold;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        """Compose the secret redaction tab content."""
+        yield Static("[bold]Secret Redaction Settings[/bold]", id="secret-redaction-header")
+
+        with VerticalScroll():
+            # Redaction toggle section (standalone)
+            yield TimeBasedToggle(
+                title="Secret Redaction",
+                config_key="secret_redaction_enabled",
+                current_value=True,
+                help_text="Redact secrets from tool outputs instead of blocking - allows work to continue while protecting credentials",
+                id="secret_redaction_enabled_toggle",
+            )
+
+            # Default protected secret types info section
+            with Container(classes="section"):
+                yield Static("[bold]Protected Secret Types (35+ patterns)[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]The following secret types are automatically detected and redacted:\n\n"
+                    "API Keys & Tokens:\n"
+                    "  • OpenAI API Keys (sk-, sk-proj-)\n"
+                    "  • GitHub Tokens (ghp_, gho_, ghr_, ghs_)\n"
+                    "  • Anthropic API Keys (sk-ant-)\n"
+                    "  • GitLab Tokens (glpat-)\n"
+                    "  • Slack Tokens (xox-)\n"
+                    "  • Google API Keys, OAuth Tokens\n"
+                    "  • npm, PyPI, Azure tokens\n\n"
+                    "Cloud Credentials:\n"
+                    "  • AWS Access Keys (AKIA*)\n"
+                    "  • AWS Secret Keys\n"
+                    "  • Azure Client Secrets\n\n"
+                    "Payment & Services:\n"
+                    "  • Stripe Keys (all types)\n"
+                    "  • Twilio API Keys\n"
+                    "  • SendGrid, Mailgun Keys\n\n"
+                    "Sensitive Data:\n"
+                    "  • Private Keys (PEM format)\n"
+                    "  • Environment Variables\n"
+                    "  • JSON/YAML passwords\n"
+                    "  • HTTP Authorization headers[/dim]",
+                    id="default-patterns"
+                )
+
+            # Action mode section
+            with Container(classes="section"):
+                yield Static("[bold]Action on Secret Detection[/bold]", classes="section-title")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Action Mode:")
+                    yield Select(
+                        [
+                            ("Log Only (redact silently)", "log-only"),
+                            ("Warn (redact and notify)", "warn"),
+                            ("Block (prevent operation)", "block")
+                        ],
+                        value="log-only",
+                        id="action-select"
+                    )
+                    yield Static("[dim](Press 's' to save)[/dim]")
+
+                yield Static(
+                    "[dim]  • Log Only: Redacts secrets silently, logs to violation log (default)\n"
+                    "  • Warn: Redacts secrets and shows warning notification\n"
+                    "  • Block: Prevents tool execution entirely (like secret detection)[/dim]",
+                    classes="setting-row"
+                )
+
+            # Redaction options section
+            with Container(classes="section"):
+                yield Static("[bold]Redaction Options[/bold]", classes="section-title")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Preserve Format:")
+                    yield Checkbox("", id="preserve-format-checkbox", value=True)
+                    yield Static("[dim]Keep prefix/suffix visible for debugging (e.g., sk-***-xyz)[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Log Redactions:")
+                    yield Checkbox("", id="log-redactions-checkbox", value=True)
+                    yield Static("[dim]Record all redactions in violation log for audit trail[/dim]")
+
+            # Additional patterns section
+            with Container(classes="section"):
+                yield Static("[bold]Additional Redaction Patterns[/bold]", classes="section-title")
+                yield Static("Custom regex patterns to detect and redact:", classes="setting-row")
+                yield Static("", id="additional-patterns-list")
+                yield Input(placeholder="Enter custom regex pattern (e.g., MY_SECRET_[A-Z0-9]+)", id="new-pattern-input")
+                yield Static("[dim]Press 'p' to add pattern[/dim]", classes="setting-row")
+
+            # Statistics section
+            with Container(classes="section"):
+                yield Static("[bold]Redaction Statistics[/bold]", classes="section-title")
+                yield Static("", id="redaction-stats")
+
+    def on_mount(self) -> None:
+        """Load configuration when mounted."""
+        self.load_config()
+
+    def refresh_content(self) -> None:
+        """Refresh configuration (called by parent app)."""
+        self.load_config()
+
+    def load_config(self) -> None:
+        """Load and display secret redaction configuration."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        # Load config
+        config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except Exception as e:
+                self.app.notify(f"Error loading config: {e}", severity="error")
+
+        # Secret redaction settings
+        redaction_config = config.get("secret_redaction", {})
+        enabled_value = redaction_config.get("enabled", True)
+        action = redaction_config.get("action", "log-only")
+        preserve_format = redaction_config.get("preserve_format", True)
+        log_redactions = redaction_config.get("log_redactions", True)
+        additional_patterns = redaction_config.get("additional_patterns", [])
+
+        # Update widgets
+        try:
+            toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
+            self.mount_toggle(toggle, "secret_redaction_enabled", enabled_value)
+
+            self.query_one("#action-select", Select).value = action
+            self.query_one("#preserve-format-checkbox", Checkbox).value = preserve_format
+            self.query_one("#log-redactions-checkbox", Checkbox).value = log_redactions
+        except Exception:
+            pass  # Widgets may not be fully mounted yet
+
+        # Update additional patterns list
+        if additional_patterns:
+            patterns_text = "\n".join([f"  • {pattern}" for pattern in additional_patterns])
+        else:
+            patterns_text = "[dim]No additional patterns configured[/dim]"
+        self.query_one("#additional-patterns-list", Static).update(patterns_text)
+
+        # Load statistics
+        self._load_statistics()
+
+    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict]) -> None:
+        """
+        Mount a time-based toggle with the current value.
+
+        Args:
+            toggle: TimeBasedToggle widget
+            config_key: Configuration key
+            value: Current value (bool or time-based dict)
+        """
+        if isinstance(value, dict):
+            # Time-based feature
+            toggle.set_time_based_value(value)
+        else:
+            # Simple boolean
+            toggle.set_value(value)
+
+    def _load_statistics(self) -> None:
+        """Load and display secret redaction statistics."""
+        try:
+            from ai_guardian.violation_logger import ViolationLogger
+
+            logger = ViolationLogger()
+
+            # Get recent violations related to secret redaction
+            recent = logger.get_recent_violations(limit=1000)
+            redaction_count = 0
+            secret_types = {}
+
+            for v in recent:
+                reason = v.get("reason", "")
+                # Look for redaction entries
+                if "redact" in reason.lower() or "secret" in reason.lower():
+                    redaction_count += 1
+                    # Try to extract secret type from reason
+                    if ":" in reason:
+                        secret_type = reason.split(":")[0].strip()
+                        secret_types[secret_type] = secret_types.get(secret_type, 0) + 1
+
+            stats_text = f"Total Secrets Redacted: {redaction_count}\n"
+
+            if secret_types:
+                stats_text += "\nTop Secret Types:\n"
+                sorted_types = sorted(secret_types.items(), key=lambda x: x[1], reverse=True)[:5]
+                for secret_type, count in sorted_types:
+                    stats_text += f"  • {secret_type}: {count}\n"
+
+            self.query_one("#redaction-stats", Static).update(stats_text.strip())
+
+        except ImportError:
+            self.query_one("#redaction-stats", Static).update("[dim]Violation logging not available[/dim]")
+        except Exception as e:
+            self.query_one("#redaction-stats", Static).update(f"[dim]Error loading stats: {e}[/dim]")
+
+    def save_config(self, config_updates: Dict[str, Any]) -> bool:
+        """
+        Save configuration updates.
+
+        Args:
+            config_updates: Dictionary of configuration updates
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            # Load existing config
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            # Ensure secret_redaction section exists
+            if "secret_redaction" not in config:
+                config["secret_redaction"] = {}
+
+            # Update configuration
+            config["secret_redaction"].update(config_updates)
+
+            # Save config
+            config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            self.app.notify("Secret redaction configuration saved", severity="information")
+            return True
+
+        except Exception as e:
+            self.app.notify(f"Error saving config: {e}", severity="error")
+            return False
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Handle checkbox changes - save immediately."""
+        checkbox_id = event.checkbox.id
+
+        if checkbox_id == "preserve-format-checkbox":
+            self.save_config({"preserve_format": event.value})
+        elif checkbox_id == "log-redactions-checkbox":
+            self.save_config({"log_redactions": event.value})
+        elif checkbox_id and "secret_redaction_enabled" in checkbox_id:
+            # Handle TimeBasedToggle checkbox changes
+            toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_config({"enabled": value})
+
+    def on_select_changed(self, event) -> None:
+        """Handle select changes - save immediately."""
+        select_id = event.select.id
+
+        if select_id == "action-select":
+            self.save_config({"action": event.value})
+        elif select_id and "secret_redaction_enabled" in select_id:
+            # Handle TimeBasedToggle select changes
+            toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_config({"enabled": value})
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key in input fields."""
+        input_id = event.input.id
+
+        # Handle TimeBasedToggle inputs
+        if input_id and "secret_redaction_enabled" in input_id:
+            toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_config({"enabled": value})
+        elif input_id == "new-pattern-input":
+            self.add_pattern()
+
+    def action_add_pattern(self) -> None:
+        """Add custom pattern (triggered by 'p' key)."""
+        self.add_pattern()
+
+    def action_save_setting(self) -> None:
+        """Save settings (triggered by 's' key)."""
+        # Already auto-saved on change, just notify
+        self.app.notify("Settings auto-saved on change", severity="information")
+
+    def action_refresh(self) -> None:
+        """Refresh configuration (triggered by 'r' key)."""
+        self.load_config()
+        self.app.notify("Secret redaction configuration refreshed", severity="information")
+
+    def add_pattern(self) -> None:
+        """Add a custom redaction pattern."""
+        pattern_input = self.query_one("#new-pattern-input", Input)
+        pattern_value = pattern_input.value.strip()
+
+        if not pattern_value:
+            self.app.notify("Please enter a redaction pattern", severity="error")
+            return
+
+        # Try to compile as regex to validate
+        import re
+        try:
+            re.compile(pattern_value)
+        except re.error as e:
+            self.app.notify(f"Invalid regex pattern: {e}", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "secret_redaction" not in config:
+                config["secret_redaction"] = {}
+
+            if "additional_patterns" not in config["secret_redaction"]:
+                config["secret_redaction"]["additional_patterns"] = []
+
+            # Check if pattern already exists
+            if pattern_value in config["secret_redaction"]["additional_patterns"]:
+                self.app.notify("Pattern already in list", severity="warning")
+                return
+
+            config["secret_redaction"]["additional_patterns"].append(pattern_value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Clear input
+            pattern_input.value = ""
+
+            self.load_config()
+            self.app.notify(f"✓ Added redaction pattern", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
