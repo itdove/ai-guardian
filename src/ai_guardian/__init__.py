@@ -2833,6 +2833,21 @@ def main():
             action="store_true",
             help="Use permissive config (permissions disabled, all tools allowed)"
         )
+        setup_parser.add_argument(
+            "--pre-commit",
+            action="store_true",
+            help="Install pre-commit hooks for git workflow"
+        )
+        setup_parser.add_argument(
+            "--auto-install-hooks",
+            action="store_true",
+            help="Allow automatic hook installation (default: show instructions only)"
+        )
+        setup_parser.add_argument(
+            "--uninstall-hooks",
+            action="store_true",
+            help="Remove AI Guardian pre-commit hooks"
+        )
 
         # Violations subcommand
         violations_parser = subparsers.add_parser(
@@ -2867,6 +2882,61 @@ def main():
             help="Launch interactive TUI for configuration management"
         )
 
+        # Scan subcommand
+        scan_parser = subparsers.add_parser(
+            "scan",
+            help="Scan repository files for security issues"
+        )
+        scan_parser.add_argument(
+            "path",
+            nargs="?",
+            default=".",
+            help="Path to scan (file or directory, default: current directory)"
+        )
+        scan_parser.add_argument(
+            "--config",
+            metavar="FILE",
+            help="Path to ai-guardian.json config file"
+        )
+        scan_parser.add_argument(
+            "--include",
+            action="append",
+            metavar="PATTERN",
+            help="File patterns to include (glob style, can be specified multiple times)"
+        )
+        scan_parser.add_argument(
+            "--exclude",
+            action="append",
+            metavar="PATTERN",
+            help="File patterns to exclude (glob style, can be specified multiple times)"
+        )
+        scan_parser.add_argument(
+            "--config-only",
+            action="store_true",
+            help="Only scan AI config files (CLAUDE.md, AGENTS.md, etc.)"
+        )
+        scan_parser.add_argument(
+            "--sarif-output",
+            metavar="FILE",
+            help="Write SARIF format output to file (for CI/CD integration)"
+        )
+        scan_parser.add_argument(
+            "--json-output",
+            metavar="FILE",
+            help="Write JSON format output to file"
+        )
+        scan_parser.add_argument(
+            "--exit-code",
+            action="store_true",
+            help="Exit with code 1 if security issues found (for CI/CD)"
+        )
+        scan_parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Enable verbose output"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -2880,7 +2950,10 @@ def main():
                 interactive=not args.yes,
                 migrate_pattern_server=args.migrate_pattern_server,
                 create_config=args.create_config,
-                permissive=args.permissive
+                permissive=args.permissive,
+                pre_commit=args.pre_commit,
+                auto_install_hooks=args.auto_install_hooks,
+                uninstall_hooks=args.uninstall_hooks
             )
             return 0 if success else 1
 
@@ -2905,6 +2978,20 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error running TUI: {e}", file=sys.stderr)
+                return 1
+
+        # Handle scan command
+        if args.command == "scan":
+            try:
+                from ai_guardian.scanner import scan_command
+                return scan_command(args)
+            except ImportError as e:
+                print(f"Error: Scanner module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running scan: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
                 return 1
 
         # If no subcommand, just return (version was handled)
