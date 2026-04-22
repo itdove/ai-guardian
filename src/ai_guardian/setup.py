@@ -831,7 +831,16 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "allowlist_patterns": [],
             "custom_patterns": [],
             "ignore_tools": [],
-            "ignore_files": []
+            "ignore_files": [],
+            "unicode_detection": {
+                "enabled": True,
+                "detect_zero_width": True,
+                "detect_bidi_override": True,
+                "detect_tag_chars": True,
+                "detect_homoglyphs": True,
+                "allow_rtl_languages": True,
+                "allow_emoji": True
+            }
         },
 
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",

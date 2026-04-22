@@ -404,6 +404,55 @@
             "type": "string"
           },
           "default": []
+        },
+        "unicode_detection": {
+          "type": "object",
+          "description": "Unicode-based attack detection configuration (NEW in Phase 2: Issue #195). Detects attacks using invisible characters, bidirectional overrides, tag characters, and homoglyphs that bypass pattern matching.",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": {
+              "oneOf": [
+                {
+                  "type": "boolean",
+                  "description": "Simple boolean format for permanent enable/disable"
+                },
+                {
+                  "$ref": "#/definitions/time_based_feature"
+                }
+              ],
+              "default": true
+            },
+            "detect_zero_width": {
+              "type": "boolean",
+              "description": "Detect zero-width characters (9 types: zero-width space, joiner, non-joiner, etc.) that break pattern matching",
+              "default": true
+            },
+            "detect_bidi_override": {
+              "type": "boolean",
+              "description": "Detect bidirectional text override characters (RTL/LTR override) used for visual deception",
+              "default": true
+            },
+            "detect_tag_chars": {
+              "type": "boolean",
+              "description": "Detect Unicode tag characters (U+E0000 - U+E007F) used for hidden data encoding",
+              "default": true
+            },
+            "detect_homoglyphs": {
+              "type": "boolean",
+              "description": "Detect homoglyph substitutions (80+ look-alike character pairs: Cyrillic/Greek/Math symbols that look like Latin)",
+              "default": true
+            },
+            "allow_rtl_languages": {
+              "type": "boolean",
+              "description": "Allow legitimate RTL (right-to-left) languages like Arabic and Hebrew. When true, bidi overrides in RTL text blocks are allowed.",
+              "default": true
+            },
+            "allow_emoji": {
+              "type": "boolean",
+              "description": "Allow emoji with zero-width joiners (e.g., family emoji 👨‍👩‍👧‍👦). When true, zero-width joiners in emoji contexts are allowed.",
+              "default": true
+            }
+          }
         }
       }
     },
