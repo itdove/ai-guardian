@@ -2388,14 +2388,18 @@ def process_hook_input():
                         # Log to violation logger
                         from ai_guardian.violation_logger import ViolationLogger
                         violation_logger = ViolationLogger()
-                        violation_logger.log({
-                            'type': 'secret_redaction',
-                            'tool': tool_identifier,
-                            'redaction_count': len(redactions),
-                            'redacted_types': [r['type'] for r in redactions],
-                            'action': 'redacted',
-                            'mode': action
-                        })
+                        violation_logger.log_violation(
+                            violation_type='secret_redaction',
+                            blocked={
+                                'tool': tool_identifier,
+                                'redaction_count': len(redactions),
+                                'redacted_types': [r['type'] for r in redactions]
+                            },
+                            context={
+                                'action': 'redacted',
+                                'mode': action
+                            }
+                        )
 
                         # Return redacted output (allow, with modifications)
                         # For warn mode, include a warning message

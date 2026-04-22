@@ -203,6 +203,7 @@ class SecretsContent(Container):
                     yield Checkbox("Tool Permission", id="log-type-tool", value=True)
                     yield Checkbox("Directory Blocking", id="log-type-directory", value=True)
                     yield Checkbox("Secret Detected", id="log-type-secret", value=True)
+                    yield Checkbox("Secret Redaction", id="log-type-redaction", value=True)
                     yield Checkbox("Prompt Injection", id="log-type-injection", value=True)
 
     def on_mount(self) -> None:
@@ -289,7 +290,7 @@ class SecretsContent(Container):
         log_enabled = violation_logging.get("enabled", True)
         max_entries = violation_logging.get("max_entries", 1000)
         retention_days = violation_logging.get("retention_days", 30)
-        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "prompt_injection"])
+        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"])
 
         try:
             self.query_one("#violation-logging-enabled", Checkbox).value = log_enabled
@@ -300,6 +301,7 @@ class SecretsContent(Container):
             self.query_one("#log-type-tool", Checkbox).value = "tool_permission" in log_types
             self.query_one("#log-type-directory", Checkbox).value = "directory_blocking" in log_types
             self.query_one("#log-type-secret", Checkbox).value = "secret_detected" in log_types
+            self.query_one("#log-type-redaction", Checkbox).value = "secret_redaction" in log_types
             self.query_one("#log-type-injection", Checkbox).value = "prompt_injection" in log_types
         except Exception:
             pass  # Widgets may not be mounted yet
@@ -605,6 +607,8 @@ class SecretsContent(Container):
                 log_types.append("directory_blocking")
             if self.query_one("#log-type-secret", Checkbox).value:
                 log_types.append("secret_detected")
+            if self.query_one("#log-type-redaction", Checkbox).value:
+                log_types.append("secret_redaction")
             if self.query_one("#log-type-injection", Checkbox).value:
                 log_types.append("prompt_injection")
 

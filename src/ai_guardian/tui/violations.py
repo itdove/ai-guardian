@@ -217,6 +217,15 @@ class ViolationCard(Vertical):
             yield Static(f"Source: {source}", classes="violation-detail")
             yield Static(f"Pattern: {pattern}", classes="violation-detail")
 
+        elif vtype == "secret_redaction":
+            tool = blocked.get("tool", "Unknown")
+            redaction_count = blocked.get("redaction_count", 0)
+            redacted_types = blocked.get("redacted_types", [])
+            yield Static(f"Tool: {tool}", classes="violation-detail")
+            yield Static(f"Redacted: {redaction_count} secret(s)", classes="violation-detail")
+            if redacted_types:
+                yield Static(f"Types: {', '.join(redacted_types)}", classes="violation-detail")
+
         # Action buttons
         if not resolved:
             # Unresolved violations - show approve/deny buttons
@@ -321,6 +330,8 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-tool")
             with TabPane("Secrets", id="filter-secret"):
                 yield VerticalScroll(id="violations-list-secret")
+            with TabPane("Secret Redaction", id="filter-redaction"):
+                yield VerticalScroll(id="violations-list-redaction")
             with TabPane("Directories", id="filter-directory"):
                 yield VerticalScroll(id="violations-list-directory")
             with TabPane("Prompt Injection", id="filter-injection"):
@@ -351,6 +362,12 @@ class ViolationsContent(Container):
             limit=50, violation_type="secret_detected", resolved=None
         )
         self._populate_list("#violations-list-secret", secret_violations)
+
+        # Load secret redaction violations
+        redaction_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="secret_redaction", resolved=None
+        )
+        self._populate_list("#violations-list-redaction", redaction_violations)
 
         # Load directory violations
         directory_violations = self.violation_logger.get_recent_violations(
@@ -449,6 +466,7 @@ class ViolationsContent(Container):
                 "filter-all": "#violations-list-all",
                 "filter-tool-permission": "#violations-list-tool",
                 "filter-secret": "#violations-list-secret",
+                "filter-redaction": "#violations-list-redaction",
                 "filter-directory": "#violations-list-directory",
                 "filter-injection": "#violations-list-injection"
             }
@@ -551,6 +569,14 @@ class ViolationsContent(Container):
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-injection"
+        except:
+            pass
+
+    def action_filter_redaction(self) -> None:
+        """Filter secret redaction violations (triggered by '6' key)."""
+        try:
+            filter_tabs = self.query_one("#filter-tabs", TabbedContent)
+            filter_tabs.active = "filter-redaction"
         except:
             pass
 
