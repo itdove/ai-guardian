@@ -806,6 +806,39 @@
           "default": []
         }
       }
+    },
+    "violation_logging": {
+      "type": "object",
+      "description": "Violation logging configuration (NEW in v1.1.0). Logs blocked operations to JSONL file for audit and review.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable violation logging",
+          "default": true
+        },
+        "max_entries": {
+          "type": "number",
+          "description": "Maximum number of log entries to retain",
+          "default": 1000,
+          "minimum": 1
+        },
+        "retention_days": {
+          "type": "number",
+          "description": "Number of days to retain log entries",
+          "default": 30,
+          "minimum": 1
+        },
+        "log_types": {
+          "type": "array",
+          "description": "Types of violations to log. Empty array logs all types.",
+          "items": {
+            "type": "string",
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
+          },
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "definitions": {
