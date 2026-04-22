@@ -1,0 +1,33 @@
+# AI Guardian pre-commit hook configuration
+# Uses the pre-commit framework: https://pre-commit.com/
+#
+# Installation:
+#   1. Install pre-commit: pip install pre-commit
+#   2. Copy this file to your project root: cp templates/.pre-commit-config.yaml .
+#   3. Install the hooks: pre-commit install
+#
+# Or use: ai-guardian setup --pre-commit
+
+repos:
+  - repo: local
+    hooks:
+      - id: ai-guardian
+        name: AI Guardian Security Scan
+        entry: ai-guardian scan --exit-code
+        language: system
+        pass_filenames: false
+        stages: [commit]
+        verbose: true
+        # Scan all files (not just staged) for comprehensive coverage
+        # To scan only staged files, modify the entry command
+
+  # Optional: Run AI Guardian on push as well
+  # - repo: local
+  #   hooks:
+  #     - id: ai-guardian-push
+  #       name: AI Guardian Security Scan (Push)
+  #       entry: ai-guardian scan --exit-code --config-only
+  #       language: system
+  #       pass_filenames: false
+  #       stages: [push]
+  #       verbose: true

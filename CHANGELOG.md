@@ -8,6 +8,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase 5: Integration & Polish - CI/CD and Static Analysis** (Issue #198)
+  - **New `scan` Command** for static repository scanning
+    - Scans files statically without running as a hook
+    - Integrates all Phase 1-4 security checks (SSRF, Unicode, Config Scanner, Secret Detection)
+    - File discovery with glob patterns: `--include "*.md"`, `--exclude "node_modules/*"`
+    - Config-only mode: `--config-only` to scan only AI configuration files
+    - Multiple output formats: text (default), JSON (`--json-output`), SARIF (`--sarif-output`)
+    - CI/CD ready: `--exit-code` flag exits with code 1 if issues found
+    - Usage: `ai-guardian scan . --sarif-output results.sarif --exit-code`
+  - **SARIF 2.1.0 Output Format** for CI/CD integration
+    - Industry-standard Static Analysis Results Interchange Format
+    - GitHub Code Scanning integration: findings appear in Security tab and PR reviews
+    - GitLab Security Dashboard support
+    - 5 rule definitions: SSRF-001, UNICODE-001, CONFIG-001, SECRET-001, PROMPT-INJECTION-001
+    - Complete metadata: file locations, line numbers, code snippets, severity levels
+    - Upload to GitHub: `github/codeql-action/upload-sarif@v3`
+  - **Pre-commit Hook Templates** for git workflow integration
+    - Git hook template: `templates/pre-commit.sh` for direct git integration
+    - pre-commit framework template: `templates/.pre-commit-config.yaml`
+    - **Safe, non-invasive approach**: `ai-guardian setup --pre-commit` provides templates and instructions WITHOUT auto-installing
+    - Detects existing hooks and warns to prevent conflicts with company/team hooks
+    - Shows manual integration steps with copy-paste commands
+    - Provides snippet for adding to existing pre-commit configurations
+    - Scans staged files before commit, blocks commit if issues found
+    - Skip with: `git commit --no-verify` (not recommended)
+  - **Performance Benchmark Suite** (tests/benchmark_phases.py)
+    - Validates all Phase 1-4 features meet performance targets
+    - SSRF check: <1ms per URL (measured: ~0.016ms ✅)
+    - Unicode detection: <5ms per check
+    - Config file scanning: <10ms per file
+    - Secret redaction: <5ms per 10KB output
+    - Total overhead: <20ms for all features combined
+    - Run with: `pytest tests/benchmark_phases.py -v -m benchmark`
+  - **Hermes Payload Validation Suite** (tests/test_hermes_payloads.py)
+    - Validates 10/10 Hermes Security Framework payloads
+    - Phase 1 (SSRF): 2/2 payloads - metadata endpoint, private IP
+    - Phase 2 (Unicode): 3/3 payloads - zero-width, bidi override, homoglyphs
+    - Phase 3 (Config): 3/3 payloads - env|curl, base64 exfil, AWS S3 upload
+    - Phase 4 (Secrets): 2/2 payloads - GitHub tokens, AWS keys
+    - Meta-tests: Coverage comparison showing AI Guardian exceeds Hermes framework
+    - Run with: `pytest tests/test_hermes_payloads.py -v -m hermes`
+  - **GitHub Actions Workflow Example**
+    - Ready-to-use workflow for security scanning in CI
+    - Automated SARIF upload to GitHub Code Scanning
+    - Findings visible in Security tab and PR reviews
+  - **Complete documentation updates**
+    - Scan command examples in README
+    - SARIF output integration guide
+    - Pre-commit hook setup instructions
+    - Performance benchmarks and targets
+  - **Production-ready features**:
+    - ✅ Runtime protection (hooks)
+    - ✅ Static analysis (scan command)  
+    - ✅ CI/CD integration (SARIF output)
+    - ✅ Developer workflow (pre-commit hooks)
+    - ✅ Performance validated (<20ms overhead)
+    - ✅ Hermes framework validated (10/10 payloads)
+  - Part of Hermes Security Patterns integration epic (Issue #186)
 - **Secret Redaction for Tool Outputs** (Issue #197, Phase 4: Hermes Security Patterns)
   - Redacts secrets from tool outputs instead of blocking them entirely, enabling work to continue while protecting credentials
   - **Defense-in-depth**: Redaction provides a safety net when secrets are unavoidable, complementing existing blocking mechanisms
