@@ -1,0 +1,194 @@
+# Unicode Attack Detection Patterns - Example Pattern Server File
+#
+# This file demonstrates how to configure homoglyph patterns via a pattern server.
+# Format: TOML with support for comments
+#
+# Pattern Server Endpoint: /patterns/unicode/v1
+# Last Updated: 2026-04-22
+# Version: 1.0.0
+#
+# Note: Zero-width characters and bidi overrides are IMMUTABLE (cannot be overridden)
+# This file contains only homoglyph patterns that can be updated as new scripts emerge.
+
+[metadata]
+version = "1.0.0"
+updated_at = 2026-04-22T14:00:00Z
+source = "patterns.security.company.com"
+description = "Enterprise homoglyph detection patterns"
+
+# Cyrillic → Latin Homoglyphs
+# Most common attack vector - Cyrillic letters that look like Latin
+
+[[homoglyph_patterns]]
+source = "а"  # U+0430 Cyrillic lowercase a
+target = "a"  # U+0061 Latin lowercase a
+script = "Cyrillic"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "е"  # U+0435 Cyrillic lowercase ie
+target = "e"  # U+0065 Latin lowercase e
+script = "Cyrillic"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "о"  # U+043E Cyrillic lowercase o
+target = "o"  # U+006F Latin lowercase o
+script = "Cyrillic"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "р"  # U+0440 Cyrillic lowercase er
+target = "p"  # U+0070 Latin lowercase p
+script = "Cyrillic"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "с"  # U+0441 Cyrillic lowercase es
+target = "c"  # U+0063 Latin lowercase c
+script = "Cyrillic"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "у"  # U+0443 Cyrillic lowercase u
+target = "y"  # U+0079 Latin lowercase y
+script = "Cyrillic"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "х"  # U+0445 Cyrillic lowercase ha
+target = "x"  # U+0078 Latin lowercase x
+script = "Cyrillic"
+added = "2026-01-01"
+
+# Greek → Latin Homoglyphs
+
+[[homoglyph_patterns]]
+source = "α"  # U+03B1 Greek lowercase alpha
+target = "a"  # U+0061 Latin lowercase a
+script = "Greek"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "ε"  # U+03B5 Greek lowercase epsilon
+target = "e"  # U+0065 Latin lowercase e
+script = "Greek"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "ο"  # U+03BF Greek lowercase omicron
+target = "o"  # U+006F Latin lowercase o
+script = "Greek"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "ι"  # U+03B9 Greek lowercase iota
+target = "i"  # U+0069 Latin lowercase i
+script = "Greek"
+added = "2026-01-01"
+
+# Mathematical Alphanumeric Symbols → Latin
+# Unicode math symbols that render as bold/italic Latin letters
+
+[[homoglyph_patterns]]
+source = "𝐚"  # U+1D41A Mathematical bold lowercase a
+target = "a"  # U+0061 Latin lowercase a
+script = "Mathematical"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "𝐛"  # U+1D41B Mathematical bold lowercase b
+target = "b"  # U+0062 Latin lowercase b
+script = "Mathematical"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "𝐜"  # U+1D41C Mathematical bold lowercase c
+target = "c"  # U+0063 Latin lowercase c
+script = "Mathematical"
+added = "2026-01-01"
+
+# Fullwidth Latin → ASCII Latin
+# Used in Japanese/Chinese contexts, can bypass filters
+
+[[homoglyph_patterns]]
+source = "Ａ"  # U+FF21 Fullwidth Latin A
+target = "A"  # U+0041 Latin uppercase A
+script = "Fullwidth"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "ａ"  # U+FF41 Fullwidth Latin a
+target = "a"  # U+0061 Latin lowercase a
+script = "Fullwidth"
+added = "2026-01-01"
+
+# Cherokee → Latin Homoglyphs
+# Less common but used in sophisticated attacks
+
+[[homoglyph_patterns]]
+source = "Ꭺ"  # U+13AA Cherokee letter A
+target = "A"  # U+0041 Latin uppercase A
+script = "Cherokee"
+added = "2026-01-01"
+
+[[homoglyph_patterns]]
+source = "Ᏼ"  # U+13FC Cherokee letter B
+target = "B"  # U+0042 Latin uppercase B
+script = "Cherokee"
+added = "2026-02-15"
+rationale = "Added after detecting attack using Cherokee script"
+
+# New Patterns - Added as threats emerge
+# This demonstrates how pattern server enables rapid updates
+
+[[homoglyph_patterns]]
+source = "Ⲟ"  # U+2CAE Coptic capital letter O
+target = "O"  # U+004F Latin uppercase O
+script = "Coptic"
+added = "2026-04-15"
+rationale = "New attack vector discovered in Q2 2026"
+
+[[homoglyph_patterns]]
+source = "Ⲭ"  # U+2CAC Coptic capital letter X
+target = "X"  # U+0058 Latin uppercase X
+script = "Coptic"
+added = "2026-04-15"
+rationale = "Part of Coptic script homoglyph family"
+
+# Advanced Example: Script-Specific Detection
+# You can add entire script families as they're discovered
+
+# Armenian Script (example of newly added script family)
+[[homoglyph_patterns]]
+source = "Օ"  # U+0555 Armenian capital letter OH
+target = "O"  # U+004F Latin uppercase O
+script = "Armenian"
+added = "2026-04-20"
+rationale = "Armenian script contains Latin-like characters"
+
+# Pattern Updates and Version Control
+# When adding new patterns:
+# 1. Increment version in [metadata]
+# 2. Update updated_at timestamp
+# 3. Add "added" field with current date
+# 4. Add "rationale" to explain WHY this pattern was added
+# 5. Group by script family for organization
+#
+# The pattern server allows you to deploy new homoglyph detections
+# within 24 hours without waiting for a code release.
+
+# Use Cases:
+# - Emerging Unicode attack vectors (new scripts discovered)
+# - Organization-specific character confusables
+# - Regional script variants (CJK, Arabic, Hebrew)
+# - Mathematical and technical symbols
+
+# Immutable Patterns (Cannot Override):
+# These are always enforced regardless of pattern server:
+# - Zero-width characters (9 types)
+# - Bidirectional override characters
+# - Tag characters (U+E0000 - U+E007F)
+#
+# These are based on the Unicode specification and represent
+# fundamental security issues, not script-specific confusables.

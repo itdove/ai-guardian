@@ -1,0 +1,224 @@
+# Config File Exfiltration Patterns - Example Pattern Server File
+#
+# This file demonstrates how to configure credential exfiltration detection via a pattern server.
+# Format: TOML with support for comments and metadata
+#
+# Pattern Server Endpoint: /patterns/config-exfil/v1
+# Last Updated: 2026-04-22
+# Version: 1.0.0
+#
+# Note: Core patterns (env|curl, aws s3, gcp storage) are IMMUTABLE (cannot be disabled)
+# This file contains additional patterns specific to your organization.
+
+[metadata]
+version = "1.0.0"
+updated_at = 2026-04-22T16:00:00Z
+source = "patterns.security.company.com"
+description = "Enterprise config file exfiltration detection patterns"
+
+# Organization-Specific Cloud Storage Exfiltration
+
+[[patterns]]
+name = "azure_blob_upload"
+pattern = '\baz\s+storage\s+blob\s+upload\b'
+description = "Azure Blob Storage upload command"
+added = "2026-04-01"
+rationale = "Detect Azure Blob Storage exfiltration"
+
+[[patterns]]
+name = "rclone_sync"
+pattern = '\brclone\s+(?:sync|copy)\b'
+description = "Rclone sync/copy command"
+added = "2026-04-05"
+rationale = "Rclone can sync to any cloud storage"
+
+[[patterns]]
+name = "dropbox_uploader"
+pattern = '\bdropbox_uploader\.sh\b'
+description = "Dropbox uploader script"
+added = "2026-04-10"
+rationale = "Popular script for Dropbox uploads from CLI"
+
+# Internal Tool Exfiltration Detection
+
+[[patterns]]
+name = "internal_api_post"
+pattern = '\bcurl.*-X\s+POST.*internal-api\.company\.com'
+description = "POST to internal API with data"
+added = "2026-04-15"
+rationale = "Prevent exfiltration to internal logging/analytics APIs"
+
+[[patterns]]
+name = "slack_webhook"
+pattern = '\bcurl.*hooks\.slack\.com/services'
+description = "Slack webhook POST"
+added = "2026-04-18"
+rationale = "Prevent credential exfiltration via Slack webhooks"
+
+[[patterns]]
+name = "discord_webhook"
+pattern = '\bcurl.*discord\.com/api/webhooks'
+description = "Discord webhook POST"
+added = "2026-04-18"
+rationale = "Prevent credential exfiltration via Discord webhooks"
+
+# SSH/SCP Exfiltration
+
+[[patterns]]
+name = "scp_upload"
+pattern = '\bscp\s+.*@'
+description = "SCP file upload command"
+added = "2026-03-20"
+rationale = "Detect SCP-based credential exfiltration"
+
+[[patterns]]
+name = "rsync_remote"
+pattern = '\brsync\s+.*@.*:'
+description = "Rsync to remote server"
+added = "2026-03-20"
+rationale = "Detect rsync-based exfiltration"
+
+# DNS Exfiltration
+
+[[patterns]]
+name = "dns_exfil"
+pattern = '\bnslookup.*\$\{?[A-Z_][A-Z0-9_]*\}?'
+description = "DNS lookup with environment variable"
+added = "2026-04-01"
+rationale = "Detect DNS-based credential exfiltration"
+
+[[patterns]]
+name = "dig_exfil"
+pattern = '\bdig\s+.*\$\{?[A-Z_][A-Z0-9_]*\}?'
+description = "Dig command with environment variable"
+added = "2026-04-01"
+rationale = "Alternative DNS exfiltration method"
+
+# Container Registry Exfiltration
+
+[[patterns]]
+name = "docker_push"
+pattern = '\bdocker\s+push\b'
+description = "Docker image push"
+added = "2026-04-10"
+rationale = "Detect credential embedding in Docker images"
+
+[[patterns]]
+name = "podman_push"
+pattern = '\bpodman\s+push\b'
+description = "Podman image push"
+added = "2026-04-10"
+rationale = "Podman equivalent of docker push"
+
+# Reverse Shell / Backdoor Detection
+
+[[patterns]]
+name = "netcat_reverse_shell"
+pattern = '\bnc\s+.*\s+-e\s+/bin/'
+description = "Netcat reverse shell"
+added = "2026-03-15"
+rationale = "Classic reverse shell pattern"
+
+[[patterns]]
+name = "bash_reverse_shell"
+pattern = 'bash\s+-i\s+>&\s+/dev/tcp/'
+description = "Bash TCP reverse shell"
+added = "2026-03-15"
+rationale = "Bash built-in reverse shell"
+
+[[patterns]]
+name = "python_reverse_shell"
+pattern = 'python.*socket\.socket.*connect\('
+description = "Python socket-based reverse shell"
+added = "2026-03-25"
+rationale = "Python reverse shell pattern"
+
+# Package Manager Exfiltration
+
+[[patterns]]
+name = "npm_publish"
+pattern = '\bnpm\s+publish\b'
+description = "NPM package publish"
+added = "2026-04-05"
+rationale = "Prevent credential publishing to npm registry"
+
+[[patterns]]
+name = "pip_upload"
+pattern = '\btwine\s+upload\b'
+description = "Python package upload to PyPI"
+added = "2026-04-05"
+rationale = "Prevent credential publishing to PyPI"
+
+# Git Repository Exfiltration
+
+[[patterns]]
+name = "git_push_force"
+pattern = '\bgit\s+push.*--force'
+description = "Git force push"
+added = "2026-04-12"
+rationale = "Detect forced Git pushes that might include credentials"
+
+[[patterns]]
+name = "git_bundle"
+pattern = '\bgit\s+bundle\s+create'
+description = "Git bundle creation"
+added = "2026-04-12"
+rationale = "Git bundles can package entire repositories with credentials"
+
+# HTTP/HTTPS Exfiltration with Specific Tools
+
+[[patterns]]
+name = "httpie_post"
+pattern = '\bhttp\s+POST.*\$\{?[A-Z_][A-Z0-9_]*\}?'
+description = "HTTPie POST with environment variable"
+added = "2026-04-08"
+rationale = "HTTPie (http command) exfiltration detection"
+
+[[patterns]]
+name = "aria2_upload"
+pattern = '\baria2c.*--upload'
+description = "Aria2 upload"
+added = "2026-04-08"
+rationale = "Aria2 downloader can also upload files"
+
+# Steganography / Encoding
+
+[[patterns]]
+name = "base32_exfil"
+pattern = '\bbase32\b.*\|.*\bcurl\b'
+description = "Base32 encoded data piped to curl"
+added = "2026-04-15"
+rationale = "Alternative to base64 for encoding exfiltration"
+
+[[patterns]]
+name = "xxd_exfil"
+pattern = '\bxxd\b.*\|.*\bcurl\b'
+description = "Hex dump piped to curl"
+added = "2026-04-15"
+rationale = "Hex-encoded credential exfiltration"
+
+# Immutable Core Patterns (Always Enforced):
+# These CANNOT be overridden by pattern server:
+# - curl/wget with environment variables
+# - env piped to curl
+# - printenv exfiltration
+# - cat /etc/ file exfiltration
+# - base64 encoded exfiltration
+# - AWS S3 exfiltration (aws s3 cp/sync)
+# - GCP Storage exfiltration (gcloud storage cp)
+#
+# These represent fundamental credential theft vectors.
+
+# How to Use:
+# 1. Deploy this file to your pattern server at /patterns/config-exfil/v1
+# 2. Configure ai-guardian.json with pattern_server URL
+# 3. Patterns are fetched and cached automatically
+# 4. Update this file as new exfiltration methods emerge
+# 5. Changes take effect within 24 hours (default cache TTL)
+
+# Best Practices:
+# - Add "rationale" to document WHY each pattern exists
+# - Group patterns by category (cloud, git, network, etc.)
+# - Increment version when making changes
+# - Test patterns before deploying (avoid false positives)
+# - Monitor for new credential exfiltration techniques

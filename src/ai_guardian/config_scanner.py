@@ -12,6 +12,7 @@ Design Philosophy:
 - Fail-open: Allow operation on scanning errors
 
 Inspired by Hermes Security Framework patterns.
+NEW in v1.8.0: Optional pattern server support for additional exfiltration patterns.
 """
 
 import logging
@@ -140,41 +141,84 @@ class ConfigFileScanner:
                 - additional_files: list of additional config file patterns to scan
                 - ignore_files: list of glob patterns for files to skip
                 - additional_patterns: list of additional regex patterns to detect
+                - pattern_server: Dict - pattern server configuration (NEW in v1.8.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
         self.action = self.config.get("action", "block")
         self.additional_files = self.config.get("additional_files", [])
         self.ignore_files = self.config.get("ignore_files", [])
-        self.additional_patterns = self.config.get("additional_patterns", [])
 
-        # Compile core patterns for performance
+        # Load patterns using pattern loader if pattern_server configured
+        pattern_server_config = self.config.get('pattern_server')
+        if pattern_server_config:
+            logger.info("Config File Scanner: Loading patterns via pattern server")
+            merged_patterns = self._load_patterns_via_server(pattern_server_config)
+            self.all_patterns = merged_patterns.get('patterns', [])
+        else:
+            # Use hardcoded core patterns + local additional patterns
+            self.all_patterns = self.CORE_EXFIL_PATTERNS.copy()
+            # Add local additional patterns
+            # Add local additional patterns
+            for idx, pattern in enumerate(self.config.get("additional_patterns", [])):
+                if isinstance(pattern, str):
+                    # Convert string pattern to dict format
+                    self.all_patterns.append({
+                        "name": f"custom_pattern_{idx}",
+                        "pattern": pattern,
+                        "description": "Local config addition"
+                    })
+                elif isinstance(pattern, dict):
+                    self.all_patterns.append(pattern)
+
+        logger.info(f"Config File Scanner: Loaded {len(self.all_patterns)} exfiltration patterns")
+
+        # Compile all patterns for performance (includes core + server/default + local)
         self._compiled_patterns = []
-        for pattern_def in self.CORE_EXFIL_PATTERNS:
+        for pattern_def in self.all_patterns:
             try:
                 compiled = re.compile(pattern_def["pattern"], re.IGNORECASE | re.MULTILINE)
                 self._compiled_patterns.append({
                     "name": pattern_def["name"],
                     "regex": compiled,
-                    "description": pattern_def["description"],
+                    "description": pattern_def.get("description", "exfiltration pattern"),
                 })
             except re.error as e:
-                logger.warning(f"Failed to compile pattern '{pattern_def['name']}': {e}")
+                logger.warning(f"Failed to compile pattern '{pattern_def.get('name', 'unknown')}': {e}")
 
-        # Compile additional patterns if provided
-        for idx, pattern_str in enumerate(self.additional_patterns):
-            try:
-                compiled = re.compile(pattern_str, re.IGNORECASE | re.MULTILINE)
-                self._compiled_patterns.append({
-                    "name": f"custom_pattern_{idx}",
-                    "regex": compiled,
-                    "description": "custom exfiltration pattern",
-                })
-            except re.error as e:
-                logger.warning(f"Failed to compile custom pattern '{pattern_str}': {e}")
+        logger.debug(f"Compiled {len(self._compiled_patterns)} patterns for config file scanning")
 
         # Build complete config file list
         self._config_file_patterns = self.DEFAULT_CONFIG_FILES + self.additional_files
+
+    def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
+        """
+        Load patterns via pattern server with fallback to defaults.
+
+        Args:
+            pattern_server_config: Pattern server configuration
+
+        Returns:
+            Dict with 'patterns' list
+        """
+        try:
+            from ai_guardian.pattern_loader import ConfigExfilPatternLoader
+
+            loader = ConfigExfilPatternLoader()
+            merged_patterns = loader.load_patterns(
+                pattern_server_config=pattern_server_config, local_config=self.config
+            )
+
+            logger.info(f"Config File Scanner: Loaded patterns from pattern server/cache/defaults")
+            return merged_patterns
+
+        except ImportError:
+            logger.error("pattern_loader module not available, using hardcoded defaults")
+            return {'patterns': self.CORE_EXFIL_PATTERNS}
+        except Exception as e:
+            logger.error(f"Error loading patterns from pattern server: {e}")
+            logger.info("Falling back to hardcoded default patterns")
+            return {'patterns': self.CORE_EXFIL_PATTERNS}
 
     def _is_config_file(self, file_path: str) -> bool:
         """

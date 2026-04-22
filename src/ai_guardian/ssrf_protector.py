@@ -14,6 +14,7 @@ Design Philosophy:
 - Fail-closed: Block on parsing errors
 
 Inspired by Hermes Security Framework patterns.
+NEW in v1.8.0: Optional pattern server support for enterprise SSRF pattern management.
 """
 
 import ipaddress
@@ -114,12 +115,11 @@ class SSRFProtector:
                 - additional_blocked_ips: list of IP addresses/ranges to block
                 - additional_blocked_domains: list of domain names to block
                 - allow_localhost: bool (default False) - allow localhost access
+                - pattern_server: Dict - pattern server configuration (NEW in v1.8.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
         self.action = self.config.get("action", "block")
-        self.additional_blocked_ips = self.config.get("additional_blocked_ips", [])
-        self.additional_blocked_domains = self.config.get("additional_blocked_domains", [])
         self.allow_localhost = self.config.get("allow_localhost", False)
 
         # Compile URL extraction patterns
@@ -128,17 +128,51 @@ class SSRFProtector:
             for pattern in self.URL_PATTERNS
         ]
 
+        # Load patterns using pattern loader if pattern_server configured
+        pattern_server_config = self.config.get('pattern_server')
+        if pattern_server_config:
+            logger.info("SSRF Protection: Loading patterns via pattern server")
+            merged_patterns = self._load_patterns_via_server(pattern_server_config)
+            ip_ranges_to_use = merged_patterns.get('blocked_ip_ranges', [])
+            domains_to_use = merged_patterns.get('blocked_domains', [])
+        else:
+            # Use hardcoded default patterns
+            ip_ranges_to_use = [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES]
+            # Add additional IPs from local config
+            for ip in self.config.get("additional_blocked_ips", []):
+                ip_ranges_to_use.append({"cidr": ip})
+
+            domains_to_use = [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+            # Add additional domains from local config
+            for domain in self.config.get("additional_blocked_domains", []):
+                domains_to_use.append({"domain": domain})
+
         # Pre-parse IP ranges for performance
         self._blocked_ip_networks = []
-        for ip_range in self.CORE_BLOCKED_IP_RANGES + self.additional_blocked_ips:
+        for ip_range in ip_ranges_to_use:
             try:
-                network = ipaddress.ip_network(ip_range, strict=False)
+                # Handle both dict format (pattern server) and string format (legacy)
+                if isinstance(ip_range, dict):
+                    cidr = ip_range.get('cidr')
+                else:
+                    cidr = ip_range
+
+                network = ipaddress.ip_network(cidr, strict=False)
                 self._blocked_ip_networks.append(network)
-            except ValueError as e:
+            except (ValueError, TypeError) as e:
                 logger.warning(f"Invalid IP range in SSRF config: {ip_range} - {e}")
 
         # Build complete blocked domains list
-        self._blocked_domains = set(self.CORE_BLOCKED_DOMAINS + self.additional_blocked_domains)
+        self._blocked_domains = set()
+        for domain_entry in domains_to_use:
+            # Handle both dict format (pattern server) and string format (legacy)
+            if isinstance(domain_entry, dict):
+                domain = domain_entry.get('domain')
+            else:
+                domain = domain_entry
+
+            if domain:
+                self._blocked_domains.add(domain)
 
         # Remove localhost from blocked list if allow_localhost is True
         if self.allow_localhost:
@@ -148,6 +182,43 @@ class SSRFProtector:
                 net for net in self._blocked_ip_networks
                 if str(net) not in ["127.0.0.0/8", "::1/128"]
             ]
+
+        logger.info(f"SSRF Protection: Loaded {len(self._blocked_ip_networks)} IP ranges and {len(self._blocked_domains)} domains")
+
+    def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
+        """
+        Load patterns via pattern server with fallback to defaults.
+
+        Args:
+            pattern_server_config: Pattern server configuration
+
+        Returns:
+            Dict with 'blocked_ip_ranges' and 'blocked_domains' lists
+        """
+        try:
+            from ai_guardian.pattern_loader import SSRFPatternLoader
+
+            loader = SSRFPatternLoader()
+            merged_patterns = loader.load_patterns(
+                pattern_server_config=pattern_server_config, local_config=self.config
+            )
+
+            logger.info(f"SSRF Protection: Loaded patterns from pattern server/cache/defaults")
+            return merged_patterns
+
+        except ImportError:
+            logger.error("pattern_loader module not available, using hardcoded defaults")
+            return {
+                'blocked_ip_ranges': [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES],
+                'blocked_domains': [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+            }
+        except Exception as e:
+            logger.error(f"Error loading patterns from pattern server: {e}")
+            logger.info("Falling back to hardcoded default patterns")
+            return {
+                'blocked_ip_ranges': [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES],
+                'blocked_domains': [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+            }
 
     def _extract_urls(self, command: str) -> List[str]:
         """

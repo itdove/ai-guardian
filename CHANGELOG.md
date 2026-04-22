@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- **Pattern Server Support for Security Features** (Issue #206, Epic #186)
+  - **OPTIONAL/ADVANCED**: Enterprise pattern server integration for centralized pattern management
+  - **Three-tier pattern system**: Immutable core + Pattern server/defaults + Local config additions
+  - **Multiple pattern types**: SSRF, Unicode, Config Scanner, Secret Redaction
+  - **Fallback chain**: Pattern server → cache → hardcoded defaults (always available)
+  - **Features**:
+    - `PatternServerClient` extended for multiple pattern types (ssrf, unicode, config-exfil, secrets)
+    - New `PatternLoader` base class with feature-specific implementations
+    - TOML pattern file format with native comment support
+    - Source attribution tracking (IMMUTABLE, SERVER, DEFAULT, LOCAL_CONFIG)
+    - Pattern server configuration in JSON schema for all four features
+    - Maintains 100% backward compatibility (works without pattern server)
+  - **Secret Redaction** (highest value): New secret formats deployed in <24h
+    - Override modes: `replace` (server replaces defaults) or `extend` (adds to defaults)  
+    - 35+ secret types enterprise-manageable
+  - **SSRF Protection** (second priority): RFC 1918 ranges overridable via pattern server
+    - Immutable: Cloud metadata endpoints, dangerous URL schemes
+    - Overridable: Private IP ranges (enables Docker access for dev teams)
+  - **Unicode Detection**: Homoglyph patterns updateable as new scripts emerge
+    - Immutable: Zero-width chars, bidi overrides (Unicode spec-based)
+    - Overridable: 80+ homoglyph pairs managed via pattern server
+  - **Config Scanner**: Enterprise-specific exfiltration patterns
+    - Immutable: Core patterns (env|curl, AWS S3, GCP storage)
+    - Overridable: Additional pattern server patterns
+  - **Implementation**: 6 new files, 4 feature integrations, schema updates
+  - **Documentation**: Implementation plan, example patterns (future)
+  - **Testing**: Backward compatibility verified, pattern server optional
+
 - **Phase 5: Integration & Polish - CI/CD and Static Analysis** (Issue #198)
   - **New `scan` Command** for static repository scanning
     - Scans files statically without running as a hook

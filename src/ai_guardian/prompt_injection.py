@@ -5,12 +5,15 @@ Prompt Injection Detection Module
 Provides multi-layered prompt injection detection:
 - Heuristic/pattern-based detection (default, local, fast)
 - Optional ML-based detection (Rebuff, LLM Guard, custom models)
+- Unicode attack detection (NEW in Phase 2)
 
 Design Philosophy:
 - Local-first: Default detection runs entirely locally
 - Privacy-preserving: No prompts sent externally by default
 - Fast: <1ms for heuristic detection
 - Fail-open: Allow operation on detection errors
+
+NEW in v1.8.0: Optional pattern server support for homoglyph patterns.
 """
 
 import fnmatch
@@ -198,6 +201,7 @@ class UnicodeAttackDetector:
                 - detect_homoglyphs: bool (default True)
                 - allow_rtl_languages: bool (default True)
                 - allow_emoji: bool (default True)
+                - pattern_server: Dict - pattern server configuration for homoglyphs (NEW in v1.8.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
@@ -208,13 +212,63 @@ class UnicodeAttackDetector:
         self.allow_rtl_languages = self.config.get("allow_rtl_languages", True)
         self.allow_emoji = self.config.get("allow_emoji", True)
 
-        # Pre-compile character sets for O(1) lookup
+        # Pre-compile character sets for O(1) lookup (immutable patterns)
         self._zero_width_set = set(self.ZERO_WIDTH_CHARS)
         self._bidi_override_set = set(self.BIDI_OVERRIDE_CHARS)
         self._bidi_formatting_set = set(self.BIDI_FORMATTING_CHARS)
 
         # Build homoglyph lookup table for fast checking
-        self._homoglyph_map = {homoglyph: latin for homoglyph, latin in self.HOMOGLYPH_PATTERNS}
+        # Load from pattern server if configured, otherwise use hardcoded defaults
+        pattern_server_config = self.config.get('pattern_server')
+        if pattern_server_config:
+            logger.info("Unicode Attack Detection: Loading homoglyph patterns via pattern server")
+            homoglyph_patterns = self._load_homoglyphs_via_server(pattern_server_config)
+        else:
+            homoglyph_patterns = self.HOMOGLYPH_PATTERNS
+
+        self._homoglyph_map = {homoglyph: latin for homoglyph, latin in homoglyph_patterns}
+        logger.info(f"Unicode Attack Detection: Loaded {len(self._homoglyph_map)} homoglyph patterns")
+
+    def _load_homoglyphs_via_server(self, pattern_server_config: Dict) -> List[Tuple[str, str]]:
+        """
+        Load homoglyph patterns via pattern server with fallback to defaults.
+
+        Args:
+            pattern_server_config: Pattern server configuration
+
+        Returns:
+            List of (homoglyph, latin) tuples
+        """
+        try:
+            from ai_guardian.pattern_loader import UnicodePatternLoader
+
+            loader = UnicodePatternLoader()
+            merged_patterns = loader.load_patterns(
+                pattern_server_config=pattern_server_config, local_config=self.config
+            )
+
+            # Convert dict format to tuple format
+            homoglyph_list = []
+            for pattern in merged_patterns.get('homoglyph_patterns', []):
+                if isinstance(pattern, dict):
+                    homoglyph_list.append((pattern.get('source'), pattern.get('target')))
+                elif isinstance(pattern, (list, tuple)) and len(pattern) >= 2:
+                    homoglyph_list.append((pattern[0], pattern[1]))
+
+            if homoglyph_list:
+                logger.info(f"Loaded {len(homoglyph_list)} homoglyph patterns from pattern server/cache/defaults")
+                return homoglyph_list
+            else:
+                logger.warning("Pattern server returned no homoglyphs, using hardcoded defaults")
+                return self.HOMOGLYPH_PATTERNS
+
+        except ImportError:
+            logger.error("pattern_loader module not available, using hardcoded defaults")
+            return self.HOMOGLYPH_PATTERNS
+        except Exception as e:
+            logger.error(f"Error loading homoglyphs from pattern server: {e}")
+            logger.info("Falling back to hardcoded default patterns")
+            return self.HOMOGLYPH_PATTERNS
 
     def _is_emoji_context(self, text: str, position: int) -> bool:
         """

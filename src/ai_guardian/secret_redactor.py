@@ -6,11 +6,14 @@ to continue while protecting credentials. Instead of blocking operations entirel
 secrets are detected, the redactor sanitizes outputs by masking sensitive data.
 
 Part of Phase 4: Hermes Security Patterns Integration (Issue #197)
+NEW in v1.8.0: Optional pattern server support for enterprise secret pattern management.
 """
 
 import re
 import logging
 from typing import List, Dict, Tuple, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class SecretRedactor:
@@ -124,6 +127,7 @@ class SecretRedactor:
                 - preserve_format: bool - whether to preserve format in redactions (default: True)
                 - additional_patterns: List[Dict] - custom patterns to add
                 - log_redactions: bool - whether to log redaction events (default: True)
+                - pattern_server: Dict - pattern server configuration (NEW in v1.8.0)
         """
         self.config = config or {}
         self.enabled = self.config.get('enabled', True)
@@ -131,26 +135,82 @@ class SecretRedactor:
         self.preserve_format = self.config.get('preserve_format', True)
         self.log_redactions = self.config.get('log_redactions', True)
 
+        # Load patterns using pattern loader if pattern_server configured
+        pattern_server_config = self.config.get('pattern_server')
+        if pattern_server_config:
+            logger.info("Secret Redaction: Loading patterns via pattern server")
+            patterns_to_use = self._load_patterns_via_server(pattern_server_config)
+        else:
+            # Use hardcoded default patterns
+            patterns_to_use = [(p, s, t) for p, s, t in self.PATTERNS]
+
         # Compile all patterns for performance
         self.compiled_patterns = []
-        for pattern, strategy, secret_type in self.PATTERNS:
+        for pattern_info in patterns_to_use:
             try:
+                # Handle both tuple format (hardcoded) and dict format (pattern server)
+                if isinstance(pattern_info, tuple):
+                    pattern, strategy, secret_type = pattern_info
+                else:
+                    pattern = pattern_info.get('regex') or pattern_info.get('pattern')
+                    strategy = pattern_info.get('strategy', 'preserve_prefix_suffix')
+                    secret_type = pattern_info.get('secret_type', 'Unknown Secret')
+
                 compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
                 self.compiled_patterns.append((compiled, strategy, secret_type))
-            except re.error as e:
-                logging.warning(f"Failed to compile pattern for {secret_type}: {e}")
+            except (re.error, KeyError, TypeError) as e:
+                logger.warning(f"Failed to compile pattern for {secret_type if isinstance(pattern_info, tuple) else pattern_info.get('secret_type', 'unknown')}: {e}")
 
-        # Add custom patterns if configured
+        # Add custom patterns from local config (always additive)
         additional = self.config.get('additional_patterns', [])
         for custom in additional:
             try:
-                pattern = custom.get('pattern')
+                pattern = custom.get('pattern') or custom.get('regex')
                 strategy = custom.get('strategy', 'preserve_prefix_suffix')
-                secret_type = custom.get('type', 'Custom Secret')
+                secret_type = custom.get('type') or custom.get('secret_type', 'Custom Secret')
                 compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
                 self.compiled_patterns.append((compiled, strategy, secret_type))
-            except (re.error, KeyError) as e:
-                logging.warning(f"Failed to compile custom pattern: {e}")
+                logger.debug(f"Added custom pattern: {secret_type}")
+            except (re.error, KeyError, TypeError) as e:
+                logger.warning(f"Failed to compile custom pattern: {e}")
+
+        logger.info(f"Secret Redaction: Loaded {len(self.compiled_patterns)} patterns")
+
+    def _load_patterns_via_server(self, pattern_server_config: Dict) -> List:
+        """
+        Load patterns via pattern server with fallback to defaults.
+
+        Args:
+            pattern_server_config: Pattern server configuration
+
+        Returns:
+            List of patterns (either from server or defaults)
+        """
+        try:
+            from ai_guardian.pattern_loader import SecretPatternLoader
+
+            loader = SecretPatternLoader()
+            merged_patterns = loader.load_patterns(
+                pattern_server_config=pattern_server_config, local_config=self.config
+            )
+
+            # Convert pattern loader format to list of dicts
+            server_patterns = merged_patterns.get('patterns', [])
+
+            if server_patterns:
+                logger.info(f"Loaded {len(server_patterns)} patterns from pattern server/cache/defaults")
+                return server_patterns
+            else:
+                logger.warning("Pattern server returned no patterns, using hardcoded defaults")
+                return [(p, s, t) for p, s, t in self.PATTERNS]
+
+        except ImportError:
+            logger.error("pattern_loader module not available, using hardcoded defaults")
+            return [(p, s, t) for p, s, t in self.PATTERNS]
+        except Exception as e:
+            logger.error(f"Error loading patterns from pattern server: {e}")
+            logger.info("Falling back to hardcoded default patterns")
+            return [(p, s, t) for p, s, t in self.PATTERNS]
 
     def redact(self, text: str) -> Dict:
         """

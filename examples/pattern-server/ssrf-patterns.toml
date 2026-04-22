@@ -1,0 +1,115 @@
+# SSRF Protection Patterns - Example Pattern Server File
+#
+# This file demonstrates how to configure SSRF protection patterns via a pattern server.
+# Format: TOML (allows comments and is more human-readable than JSON)
+#
+# Pattern Server Endpoint: /patterns/ssrf/v1
+# Last Updated: 2026-04-22
+# Version: 1.0.0
+
+[metadata]
+version = "1.0.0"
+updated_at = 2026-04-22T10:00:00Z
+override_mode = "replace"  # "replace" = use only these patterns, "extend" = add to defaults
+source = "patterns.security.company.com"
+description = "Enterprise SSRF protection patterns for AI Guardian"
+
+# Blocked IP Ranges
+# Note: Immutable patterns (169.254.0.0/16 cloud metadata) are always enforced
+# even if not listed here. These are the overridable patterns.
+
+[[blocked_ip_ranges]]
+cidr = "10.0.0.0/8"
+description = "Private network Class A (RFC 1918)"
+added = "2026-01-01"
+rationale = "Standard private network range"
+
+[[blocked_ip_ranges]]
+cidr = "172.16.0.0/12"
+description = "Private network Class B (RFC 1918)"
+added = "2026-01-01"
+rationale = "Standard private network range"
+
+[[blocked_ip_ranges]]
+cidr = "192.168.0.0/16"
+description = "Private network Class C (RFC 1918)"
+added = "2026-01-01"
+rationale = "Standard private network range"
+
+[[blocked_ip_ranges]]
+cidr = "127.0.0.0/8"
+description = "Loopback addresses"
+added = "2026-01-01"
+rationale = "Prevent localhost access (unless allow_localhost=true in local config)"
+
+[[blocked_ip_ranges]]
+cidr = "::1/128"
+description = "IPv6 loopback"
+added = "2026-01-01"
+rationale = "IPv6 localhost equivalent"
+
+[[blocked_ip_ranges]]
+cidr = "fc00::/7"
+description = "IPv6 private network"
+added = "2026-01-01"
+rationale = "IPv6 equivalent of RFC 1918"
+
+[[blocked_ip_ranges]]
+cidr = "fe80::/10"
+description = "IPv6 link-local"
+added = "2026-01-01"
+rationale = "IPv6 link-local addresses"
+
+# Additional IP ranges for this organization
+[[blocked_ip_ranges]]
+cidr = "100.64.0.0/10"
+description = "Shared address space (CGNAT - RFC 6598)"
+added = "2026-02-15"
+rationale = "Company policy: Block CGNAT ranges used by ISPs"
+
+# Blocked Domains
+# Note: Immutable domains (metadata.google.internal, etc.) are always blocked
+# These are additional domains specific to your organization
+
+[[blocked_domains]]
+domain = "localhost"
+description = "Localhost domain"
+added = "2026-01-01"
+rationale = "Block localhost unless allow_localhost=true"
+
+[[blocked_domains]]
+domain = "instance-data"
+description = "AWS instance metadata domain"
+added = "2026-01-01"
+rationale = "AWS metadata endpoint domain name"
+
+# Organization-specific blocked domains
+[[blocked_domains]]
+domain = "internal.company.com"
+description = "Company internal services"
+added = "2026-04-01"
+rationale = "Prevent AI from accessing internal HR/payroll systems"
+
+[[blocked_domains]]
+domain = "admin.company.com"
+description = "Company admin portal"
+added = "2026-04-01"
+rationale = "Administrative interface - no AI access needed"
+
+[[blocked_domains]]
+domain = "db.company.com"
+description = "Database management portal"
+added = "2026-04-10"
+rationale = "Direct database access should go through approved tools"
+
+# Example: Development Team Override
+# If you want to ALLOW Docker (which uses 172.17.0.0/16), you would:
+# 1. Set override_mode = "replace" (above)
+# 2. Include all ranges EXCEPT 172.16.0.0/12
+# 3. Immutable patterns (169.254.0.0/16) remain enforced
+#
+# This gives dev teams Docker access while keeping metadata endpoints blocked.
+
+# Example: Removing a pattern
+# To remove 10.0.0.0/8 from blocking (allow internal network):
+# Simply omit it from the [[blocked_ip_ranges]] list when override_mode = "replace"
