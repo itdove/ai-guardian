@@ -185,6 +185,10 @@ class AIGuardianTUI(App):
                 from ai_guardian.tui.global_settings import GlobalSettingsContent
                 yield GlobalSettingsContent()
 
+            with TabPane("🛡️ Security Dashboard", id="tab-security-dashboard"):
+                from ai_guardian.tui.security_dashboard import SecurityDashboardContent
+                yield SecurityDashboardContent()
+
             with TabPane("📋 Violations", id="tab-violations"):
                 from ai_guardian.tui.violations import ViolationsContent
                 yield ViolationsContent()
@@ -204,6 +208,18 @@ class AIGuardianTUI(App):
             with TabPane("🛡️ Prompt Injection", id="tab-prompt-injection"):
                 from ai_guardian.tui.prompt_injection import PromptInjectionContent
                 yield PromptInjectionContent()
+
+            with TabPane("🌐 SSRF Protection", id="tab-ssrf"):
+                from ai_guardian.tui.ssrf import SSRFContent
+                yield SSRFContent()
+
+            with TabPane("📁 Config Scanner", id="tab-config-scanner"):
+                from ai_guardian.tui.config_scanner import ConfigScannerContent
+                yield ConfigScannerContent()
+
+            with TabPane("🔐 Secret Redaction", id="tab-secret-redaction"):
+                from ai_guardian.tui.secret_redaction import SecretRedactionContent
+                yield SecretRedactionContent()
 
             with TabPane("🌐 Remote Configs", id="tab-remote-configs"):
                 from ai_guardian.tui.remote_configs import RemoteConfigsContent
@@ -238,6 +254,9 @@ class AIGuardianTUI(App):
             "tab-mcp": ["add_allow_pattern"],
             "tab-prompt-injection": ["add_allow_pattern", "add_custom", "save_setting"],
             "tab-secrets": ["test_connection"],
+            "tab-ssrf": ["save_setting"],
+            "tab-config-scanner": ["save_setting"],
+            "tab-secret-redaction": ["save_setting"],
         }
 
         # Check if current tab supports this action
@@ -416,11 +435,15 @@ class AIGuardianTUI(App):
         tabs = self.query_one(TabbedContent)
         tab_ids = [
             "tab-global-settings",
+            "tab-security-dashboard",
             "tab-violations",
             "tab-skills",
             "tab-mcp",
             "tab-secrets",
             "tab-prompt-injection",
+            "tab-ssrf",
+            "tab-config-scanner",
+            "tab-secret-redaction",
             "tab-remote-configs",
             "tab-permissions-discovery",
             "tab-directory-protection",
@@ -439,11 +462,15 @@ class AIGuardianTUI(App):
         tabs = self.query_one(TabbedContent)
         tab_ids = [
             "tab-global-settings",
+            "tab-security-dashboard",
             "tab-violations",
             "tab-skills",
             "tab-mcp",
             "tab-secrets",
             "tab-prompt-injection",
+            "tab-ssrf",
+            "tab-config-scanner",
+            "tab-secret-redaction",
             "tab-remote-configs",
             "tab-permissions-discovery",
             "tab-directory-protection",

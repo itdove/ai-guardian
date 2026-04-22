@@ -146,6 +146,41 @@ class PromptInjectionContent(Container):
                     yield Input(placeholder="0.75", id="score-threshold-input")
                     yield Static("[dim]0.0-1.0 (Press Enter to save)[/dim]")
 
+            # Unicode Attack Detection section
+            with Container(classes="section"):
+                yield Static("[bold]Unicode Attack Detection[/bold]", classes="section-title")
+                yield Static("[dim]Detect Unicode-based attacks that bypass pattern matching[/dim]", classes="setting-row")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Detect Zero-Width Chars:")
+                    yield Checkbox("", id="detect-zero-width-checkbox", value=True)
+                    yield Static("[dim]Invisible characters that break pattern matching[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Detect Bidi Override:")
+                    yield Checkbox("", id="detect-bidi-override-checkbox", value=True)
+                    yield Static("[dim]Text display reversal for visual deception[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Detect Tag Characters:")
+                    yield Checkbox("", id="detect-tag-chars-checkbox", value=True)
+                    yield Static("[dim]Hidden data encoding in deprecated Unicode tags[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Detect Homoglyphs:")
+                    yield Checkbox("", id="detect-homoglyphs-checkbox", value=True)
+                    yield Static("[dim]Look-alike character substitution (Cyrillic/Greek)[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Allow RTL Languages:")
+                    yield Checkbox("", id="allow-rtl-languages-checkbox", value=True)
+                    yield Static("[dim]Allow legitimate right-to-left text (Arabic, Hebrew)[/dim]")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Allow Emoji:")
+                    yield Checkbox("", id="allow-emoji-checkbox", value=True)
+                    yield Static("[dim]Allow emoji characters in prompts[/dim]")
+
             # Allowlist patterns section
             with Container(classes="section"):
                 yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
@@ -196,6 +231,15 @@ class PromptInjectionContent(Container):
         allowlist = pi_config.get("allowlist_patterns", [])
         custom = pi_config.get("custom_patterns", [])
 
+        # Unicode detection settings
+        unicode_config = pi_config.get("unicode_detection", {})
+        detect_zero_width = unicode_config.get("detect_zero_width", True)
+        detect_bidi_override = unicode_config.get("detect_bidi_override", True)
+        detect_tag_chars = unicode_config.get("detect_tag_chars", True)
+        detect_homoglyphs = unicode_config.get("detect_homoglyphs", True)
+        allow_rtl_languages = unicode_config.get("allow_rtl_languages", True)
+        allow_emoji = unicode_config.get("allow_emoji", True)
+
         # Update widgets
         try:
             toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
@@ -204,6 +248,14 @@ class PromptInjectionContent(Container):
             self.query_one("#detector-select", Select).value = detector
             self.query_one("#sensitivity-select", Select).value = sensitivity
             self.query_one("#score-threshold-input", Input).value = str(score_threshold)
+
+            # Update unicode detection checkboxes
+            self.query_one("#detect-zero-width-checkbox", Checkbox).value = detect_zero_width
+            self.query_one("#detect-bidi-override-checkbox", Checkbox).value = detect_bidi_override
+            self.query_one("#detect-tag-chars-checkbox", Checkbox).value = detect_tag_chars
+            self.query_one("#detect-homoglyphs-checkbox", Checkbox).value = detect_homoglyphs
+            self.query_one("#allow-rtl-languages-checkbox", Checkbox).value = allow_rtl_languages
+            self.query_one("#allow-emoji-checkbox", Checkbox).value = allow_emoji
         except Exception:
             pass  # Widgets may not be fully mounted yet
 
@@ -335,6 +387,24 @@ class PromptInjectionContent(Container):
         elif event.input.id == "new-custom-input":
             self.add_custom_pattern()
 
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Handle checkbox changes - save unicode detection settings immediately."""
+        checkbox_id = event.checkbox.id
+
+        # Map checkbox IDs to config keys
+        unicode_setting_map = {
+            "detect-zero-width-checkbox": "detect_zero_width",
+            "detect-bidi-override-checkbox": "detect_bidi_override",
+            "detect-tag-chars-checkbox": "detect_tag_chars",
+            "detect-homoglyphs-checkbox": "detect_homoglyphs",
+            "allow-rtl-languages-checkbox": "allow_rtl_languages",
+            "allow-emoji-checkbox": "allow_emoji",
+        }
+
+        if checkbox_id in unicode_setting_map:
+            config_key = unicode_setting_map[checkbox_id]
+            self.save_unicode_detection_field(config_key, event.value)
+
     def action_update_sensitivity(self) -> None:
         """Update sensitivity and detector settings (triggered by 's' key)."""
         self.update_settings()
@@ -376,6 +446,36 @@ class PromptInjectionContent(Container):
 
         except Exception as e:
             self.app.notify(f"Error saving {field}: {e}", severity="error")
+
+    def save_unicode_detection_field(self, field: str, value: bool) -> None:
+        """Save a unicode detection field to config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "prompt_injection" not in config:
+                config["prompt_injection"] = {}
+
+            if "unicode_detection" not in config["prompt_injection"]:
+                config["prompt_injection"]["unicode_detection"] = {}
+
+            config["prompt_injection"]["unicode_detection"][field] = value
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Convert field name to human-readable
+            field_name = field.replace("_", " ").title()
+            self.app.notify(f"✓ Unicode detection: {field_name} = {value}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error saving unicode detection {field}: {e}", severity="error")
 
     def update_settings(self) -> None:
         """Update detector and sensitivity settings."""

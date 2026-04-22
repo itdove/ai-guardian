@@ -341,3 +341,161 @@ class SSRFContent(Container):
         except Exception as e:
             self.app.notify(f"Error saving config: {e}", severity="error")
             return False
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Handle checkbox changes - save immediately."""
+        checkbox_id = event.checkbox.id
+
+        if checkbox_id == "allow-localhost-checkbox":
+            self.save_config({"allow_localhost": event.value})
+        elif checkbox_id and "ssrf_protection_enabled" in checkbox_id:
+            # Handle TimeBasedToggle checkbox changes
+            toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_config({"enabled": value})
+
+    def on_select_changed(self, event) -> None:
+        """Handle select changes - save immediately."""
+        select_id = event.select.id
+
+        if select_id == "action-select":
+            self.save_config({"action": event.value})
+        elif select_id and "ssrf_protection_enabled" in select_id:
+            # Handle TimeBasedToggle select changes
+            toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_config({"enabled": value})
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key in input fields."""
+        input_id = event.input.id
+
+        # Handle TimeBasedToggle inputs
+        if input_id and "ssrf_protection_enabled" in input_id:
+            toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
+            value = toggle.get_value()
+            self.save_config({"enabled": value})
+        elif input_id == "new-blocked-ip-input":
+            self.add_blocked_ip()
+        elif input_id == "new-blocked-domain-input":
+            self.add_blocked_domain()
+
+    def action_add_ip(self) -> None:
+        """Add blocked IP (triggered by 'i' key)."""
+        self.add_blocked_ip()
+
+    def action_add_domain(self) -> None:
+        """Add blocked domain (triggered by 'd' key)."""
+        self.add_blocked_domain()
+
+    def action_save_setting(self) -> None:
+        """Save settings (triggered by 's' key)."""
+        # Already auto-saved on change, just notify
+        self.app.notify("Settings auto-saved on change", severity="information")
+
+    def action_refresh(self) -> None:
+        """Refresh configuration (triggered by 'r' key)."""
+        self.load_config()
+        self.app.notify("SSRF configuration refreshed", severity="information")
+
+    def add_blocked_ip(self) -> None:
+        """Add an IP or CIDR range to the blocked list."""
+        ip_input = self.query_one("#new-blocked-ip-input", Input)
+        ip_value = ip_input.value.strip()
+
+        if not ip_value:
+            self.app.notify("Please enter an IP address or CIDR range", severity="error")
+            return
+
+        # Basic validation - check if it looks like an IP or CIDR
+        import re
+        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$'
+        if not re.match(ip_pattern, ip_value):
+            self.app.notify("Invalid IP address or CIDR format", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "ssrf_protection" not in config:
+                config["ssrf_protection"] = {}
+
+            if "additional_blocked_ips" not in config["ssrf_protection"]:
+                config["ssrf_protection"]["additional_blocked_ips"] = []
+
+            # Check if IP already exists
+            if ip_value in config["ssrf_protection"]["additional_blocked_ips"]:
+                self.app.notify("IP/CIDR already in blocked list", severity="warning")
+                return
+
+            config["ssrf_protection"]["additional_blocked_ips"].append(ip_value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Clear input
+            ip_input.value = ""
+
+            self.load_config()
+            self.app.notify(f"✓ Added {ip_value} to blocked IPs", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding IP: {e}", severity="error")
+
+    def add_blocked_domain(self) -> None:
+        """Add a domain to the blocked list."""
+        domain_input = self.query_one("#new-blocked-domain-input", Input)
+        domain_value = domain_input.value.strip()
+
+        if not domain_value:
+            self.app.notify("Please enter a domain name", severity="error")
+            return
+
+        # Basic validation - check if it looks like a domain
+        import re
+        domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+        if not re.match(domain_pattern, domain_value):
+            self.app.notify("Invalid domain format", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "ssrf_protection" not in config:
+                config["ssrf_protection"] = {}
+
+            if "additional_blocked_domains" not in config["ssrf_protection"]:
+                config["ssrf_protection"]["additional_blocked_domains"] = []
+
+            # Check if domain already exists
+            if domain_value in config["ssrf_protection"]["additional_blocked_domains"]:
+                self.app.notify("Domain already in blocked list", severity="warning")
+                return
+
+            config["ssrf_protection"]["additional_blocked_domains"].append(domain_value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Clear input
+            domain_input.value = ""
+
+            self.load_config()
+            self.app.notify(f"✓ Added {domain_value} to blocked domains", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding domain: {e}", severity="error")
