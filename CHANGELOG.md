@@ -54,6 +54,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated JSON schema with `unicode_detection` configuration section
   - Updated `setup.py` to include `unicode_detection` in default config template (ensures `ai-guardian setup --create-config` includes new options)
 
+- **Config File Scanner** (Issue #196, Phase 3: Hermes Security Patterns)
+  - Detects credential exfiltration commands in AI configuration files that could cause persistent credential theft across ALL AI sessions
+  - **The Threat**: Malicious instructions in CLAUDE.md, AGENTS.md, or .cursorrules execute in every AI session, exfiltrating credentials from all developers on the project
+  - **Persistence Multiplier**: 1 malicious config file × N developers × M sessions = N×M credential thefts
+  - **8 Core Exfiltration Patterns** (immutable, cannot be disabled):
+    1. `curl.*\$\{?[A-Z_][A-Z0-9_]*\}?` - curl with environment variables
+    2. `wget.*\$\{?[A-Z_][A-Z0-9_]*\}?` - wget with environment variables
+    3. `\benv\s*\|.*\bcurl\b` - env piped to curl (credential exfiltration)
+    4. `\bprintenv\b.*\|.*\bcurl\b` - printenv exfiltration
+    5. `\bcat\s+(?:/etc/|~/\.ssh/|~/\.aws/).*\|.*\bcurl\b` - file exfiltration
+    6. `\bbase64\b.*\|.*\bcurl\b` - base64 encoded exfiltration
+    7. `\baws\s+s3\s+(?:cp|sync)\b` - AWS S3 upload command
+    8. `\bgcloud\s+storage\s+cp\b` - GCP Cloud Storage upload command
+  - **Standard Config Files Scanned**: CLAUDE.md, AGENTS.md, .cursorrules, .aider.conf.yml, .github/CLAUDE.md
+  - **Context-Aware Detection**: Ignores documentation examples with keywords (example, warning, don't, avoid, dangerous, attack, threat, security)
+  - **Configurable Options** under `config_file_scanning`:
+    - `enabled`: Enable/disable config file scanning (default: true)
+    - `action`: "block" (default), "warn", or "log-only"
+    - `additional_files`: Add more config file patterns to scan
+    - `ignore_files`: Glob patterns for files to skip (e.g., "**/examples/**", "**/docs/**")
+    - `additional_patterns`: Add custom regex patterns to detect
+  - **Performance**: <10ms overhead per config file scan with early exit on first match
+  - **Testing**: 37 comprehensive test cases including all 3 Hermes config file payloads
+  - **Integration**: Runs after prompt injection detection, before secret scanning in PreToolUse hook
+  - New `ConfigFileScanner` class in `src/ai_guardian/config_scanner.py`
+  - Updated JSON schema with `config_file_scanning` configuration section
+  - Updated `setup.py` to include `config_file_scanning` in default config template
+  - Inspired by Hermes Security Framework patterns
+
 - **Documented `--create-config` and `--permissive` flags in README** (Issue #199)
   - Quick Start section now shows `ai-guardian setup --create-config` as the recommended way to create config files
   - Explains difference between secure mode (default) and permissive mode (`--permissive` flag)
