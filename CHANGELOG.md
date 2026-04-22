@@ -27,6 +27,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Inspired by Hermes Security Framework patterns
   - Documentation: [docs/SSRF_PROTECTION.md](docs/SSRF_PROTECTION.md)
 
+- **Unicode Attack Detection for Prompt Injection** (Issue #195, Phase 2: Hermes Security Patterns)
+  - Detects Unicode-based attacks that bypass pattern matching via invisible or look-alike characters
+  - **Zero-width character detection** (9 types): U+200B (zero-width space), U+200C (non-joiner), U+200D (joiner), U+FEFF (BOM), U+2060 (word joiner), and 4 more invisible characters
+  - **Bidirectional override detection** (2 types): U+202E (RTL override), U+202D (LTR override) for visual deception attacks
+  - **Unicode tag character detection**: Deprecated tags (U+E0000 - U+E007F) used for hidden data encoding
+  - **Homoglyph detection** (80+ pairs): Cyrillic/Greek/Mathematical look-alikes (e.g., Cyrillic 'е' U+0435 vs Latin 'e' U+0065)
+  - **Smart false positive prevention**:
+    - Allows emoji with zero-width joiners (e.g., 👨‍👩‍👧‍👦 family emoji) when `allow_emoji: true`
+    - Allows RTL languages (Arabic, Hebrew) with legitimate bidi marks when `allow_rtl_languages: true`
+    - Context-aware detection using surrounding character analysis
+  - **Configuration options** under `prompt_injection.unicode_detection`:
+    - `enabled`: Enable/disable all Unicode detection (default: true)
+    - `detect_zero_width`: Toggle zero-width character detection (default: true)
+    - `detect_bidi_override`: Toggle bidi override detection (default: true)
+    - `detect_tag_chars`: Toggle tag character detection (default: true)
+    - `detect_homoglyphs`: Toggle homoglyph detection (default: true)
+    - `allow_rtl_languages`: Allow legitimate RTL text (default: true)
+    - `allow_emoji`: Allow emoji with zero-width joiners (default: true)
+  - **Performance**: <5ms overhead per prompt with early exit on first detection
+  - **Integration**: Works with existing action modes (block/warn/log-only)
+  - **Testing**: 40 comprehensive test cases covering all attack types and false positive scenarios
+  - Validates 3/3 Hermes unicode attack payloads (zero-width, bidi override, tag characters)
+  - Based on Tirith CLI patterns and Hermes Security Framework
+  - New `UnicodeAttackDetector` class in `src/ai_guardian/prompt_injection.py`
+  - Updated JSON schema with `unicode_detection` configuration section
+  - Updated `setup.py` to include `unicode_detection` in default config template (ensures `ai-guardian setup --create-config` includes new options)
+
 - **Documented `--create-config` and `--permissive` flags in README** (Issue #199)
   - Quick Start section now shows `ai-guardian setup --create-config` as the recommended way to create config files
   - Explains difference between secure mode (default) and permissive mode (`--permissive` flag)

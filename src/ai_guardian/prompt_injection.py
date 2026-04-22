@@ -16,6 +16,7 @@ Design Philosophy:
 import fnmatch
 import logging
 import re
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, Union, List
@@ -24,6 +25,393 @@ from ai_guardian.config_utils import is_expired
 from ai_guardian.tool_policy import _strip_bash_heredoc_content
 
 logger = logging.getLogger(__name__)
+
+
+class UnicodeAttackDetector:
+    """
+    Detects Unicode-based attacks that bypass pattern matching.
+
+    Detects:
+    - Zero-width characters (9 types) - Invisible characters that break pattern matching
+    - Bidirectional override (2 types) - Text display reversal for visual deception
+    - Tag characters - Hidden data encoding in deprecated Unicode tags
+    - Homoglyphs (80+ pairs) - Look-alike character substitution to bypass allowlists
+
+    Based on Hermes Security Patterns and Tirith CLI patterns.
+    """
+
+    # Zero-width characters (invisible)
+    ZERO_WIDTH_CHARS = [
+        '​',  # Zero-width space
+        '‌',  # Zero-width non-joiner
+        '‍',  # Zero-width joiner
+        '﻿',  # Zero-width no-break space (BOM)
+        '⁠',  # Word joiner
+        '⁡',  # Function application
+        '⁢',  # Invisible times
+        '⁣',  # Invisible separator
+        '⁤',  # Invisible plus
+    ]
+
+    # Bidirectional override characters
+    BIDI_OVERRIDE_CHARS = [
+        '‮',  # Right-to-left override
+        '‭',  # Left-to-right override
+    ]
+
+    # Additional bidi formatting characters (for context-aware detection)
+    BIDI_FORMATTING_CHARS = [
+        '‪',  # Left-to-right embedding
+        '‫',  # Right-to-left embedding
+        '‬',  # Pop directional formatting
+        '‎',  # Left-to-right mark
+        '‏',  # Right-to-left mark
+    ]
+
+    # Tag character range (deprecated Unicode tags U+E0000 - U+E007F)
+    TAG_CHAR_START = 0xE0000
+    TAG_CHAR_END = 0xE007F
+
+    # Homoglyph patterns - Cyrillic/Greek/Mathematical look-alikes for Latin chars
+    # Based on Tirith CLI patterns (80+ pairs)
+    HOMOGLYPH_PATTERNS = [
+        # Cyrillic -> Latin (most common attacks)
+        ('а', 'a'),  # U+0430 -> U+0061
+        ('е', 'e'),  # U+0435 -> U+0065
+        ('о', 'o'),  # U+043E -> U+006F
+        ('р', 'p'),  # U+0440 -> U+0070
+        ('с', 'c'),  # U+0441 -> U+0063
+        ('у', 'y'),  # U+0443 -> U+0079
+        ('х', 'x'),  # U+0445 -> U+0078
+        ('і', 'i'),  # U+0456 -> U+0069
+        ('ј', 'j'),  # U+0458 -> U+006A
+        ('ѕ', 's'),  # U+0455 -> U+0073
+        ('һ', 'h'),  # U+04BB -> U+0068
+        ('ԁ', 'd'),  # U+0501 -> U+0064
+        ('ԍ', 'g'),  # U+050D -> U+0067
+        ('ԛ', 'q'),  # U+051B -> U+0071
+        ('ԝ', 'w'),  # U+051D -> U+0077
+
+        # Greek -> Latin
+        ('α', 'a'),  # U+03B1 -> U+0061
+        ('ε', 'e'),  # U+03B5 -> U+0065
+        ('ο', 'o'),  # U+03BF -> U+006F
+        ('ι', 'i'),  # U+03B9 -> U+0069
+        ('υ', 'y'),  # U+03C5 -> U+0079
+        ('ν', 'v'),  # U+03BD -> U+0076
+        ('π', 'n'),  # U+03C0 -> U+006E (sideways)
+        ('τ', 't'),  # U+03C4 -> U+0074
+        ('ρ', 'p'),  # U+03C1 -> U+0070
+        ('μ', 'u'),  # U+03BC -> U+0075
+
+        # Mathematical alphanumeric symbols -> Latin
+        ('𝐚', 'a'),  # U+1D41A -> U+0061 (bold)
+        ('𝐛', 'b'),  # U+1D41B -> U+0062
+        ('𝐜', 'c'),  # U+1D41C -> U+0063
+        ('𝐝', 'd'),  # U+1D41D -> U+0064
+        ('𝐞', 'e'),  # U+1D41E -> U+0065
+        ('𝐟', 'f'),  # U+1D41F -> U+0066
+        ('𝐠', 'g'),  # U+1D420 -> U+0067
+        ('𝐡', 'h'),  # U+1D421 -> U+0068
+        ('𝐢', 'i'),  # U+1D422 -> U+0069
+        ('𝐣', 'j'),  # U+1D423 -> U+006A
+        ('𝐤', 'k'),  # U+1D424 -> U+006B
+        ('𝐥', 'l'),  # U+1D425 -> U+006C
+        ('𝐦', 'm'),  # U+1D426 -> U+006D
+        ('𝐧', 'n'),  # U+1D427 -> U+006E
+        ('𝐨', 'o'),  # U+1D428 -> U+006F
+        ('𝐩', 'p'),  # U+1D429 -> U+0070
+        ('𝐪', 'q'),  # U+1D42A -> U+0071
+        ('𝐫', 'r'),  # U+1D42B -> U+0072
+        ('𝐬', 's'),  # U+1D42C -> U+0073
+        ('𝐭', 't'),  # U+1D42D -> U+0074
+        ('𝐮', 'u'),  # U+1D42E -> U+0075
+        ('𝐯', 'v'),  # U+1D42F -> U+0076
+        ('𝐰', 'w'),  # U+1D430 -> U+0077
+        ('𝐱', 'x'),  # U+1D431 -> U+0078
+        ('𝐲', 'y'),  # U+1D432 -> U+0079
+        ('𝐳', 'z'),  # U+1D433 -> U+007A
+
+        # Fullwidth Latin -> ASCII Latin
+        ('Ａ', 'A'),  # U+FF21 -> U+0041
+        ('Ｂ', 'B'),  # U+FF22 -> U+0042
+        ('Ｃ', 'C'),  # U+FF23 -> U+0043
+        ('Ｄ', 'D'),  # U+FF24 -> U+0044
+        ('Ｅ', 'E'),  # U+FF25 -> U+0045
+        ('ａ', 'a'),  # U+FF41 -> U+0061
+        ('ｂ', 'b'),  # U+FF42 -> U+0062
+        ('ｃ', 'c'),  # U+FF43 -> U+0063
+        ('ｄ', 'd'),  # U+FF44 -> U+0064
+        ('ｅ', 'e'),  # U+FF45 -> U+0065
+
+        # Additional confusables
+        ('Ꭺ', 'A'),  # U+13AA Cherokee -> U+0041
+        ('Ᏼ', 'B'),  # U+13FC Cherokee -> U+0042
+        ('Ꮯ', 'C'),  # U+13CF Cherokee -> U+0043
+        ('Ꭰ', 'D'),  # U+13A0 Cherokee -> U+0044
+        ('Ꭼ', 'E'),  # U+13BC Cherokee -> U+0045
+        ('Ꮋ', 'H'),  # U+13BB Cherokee -> U+0048
+        ('Ꮖ', 'I'),  # U+13B6 Cherokee -> U+0049
+        ('Ꭻ', 'J'),  # U+13BB Cherokee -> U+004A
+        ('Ꮶ', 'K'),  # U+13B6 Cherokee -> U+004B
+        ('Ꮇ', 'M'),  # U+13B7 Cherokee -> U+004D
+        ('Ⲟ', 'O'),  # U+2CAE Coptic -> U+004F
+        ('Ꮲ', 'P'),  # U+13E2 Cherokee -> U+0050
+        ('Ꮪ', 'S'),  # U+13DA Cherokee -> U+0053
+        ('Ꭲ', 'T'),  # U+13A2 Cherokee -> U+0054
+        ('Ꮩ', 'V'),  # U+13D9 Cherokee -> U+0056
+        ('Ꮃ', 'W'),  # U+13B3 Cherokee -> U+0057
+        ('Ⲭ', 'X'),  # U+2CAC Coptic -> U+0058
+        ('Ꮍ', 'Y'),  # U+13CD Cherokee -> U+0059
+        ('Ꮓ', 'Z'),  # U+13D3 Cherokee -> U+005A
+    ]
+
+    # RTL script ranges for context-aware detection
+    RTL_SCRIPT_RANGES = [
+        (0x0590, 0x05FF),  # Hebrew
+        (0x0600, 0x06FF),  # Arabic
+        (0x0700, 0x074F),  # Syriac
+        (0x0780, 0x07BF),  # Thaana
+        (0x07C0, 0x07FF),  # N'Ko
+        (0x0800, 0x083F),  # Samaritan
+    ]
+
+    # Emoji with ZWJ sequences (legitimate use of zero-width joiner)
+    # We allow these to avoid false positives
+    EMOJI_ZWJ_RANGES = [
+        (0x1F300, 0x1F9FF),  # Emoji and symbols
+        (0x2600, 0x26FF),    # Miscellaneous symbols
+        (0x2700, 0x27BF),    # Dingbats
+        (0xFE00, 0xFE0F),    # Variation selectors
+    ]
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """
+        Initialize Unicode attack detector.
+
+        Args:
+            config: Optional configuration dictionary with keys:
+                - enabled: bool (default True)
+                - detect_zero_width: bool (default True)
+                - detect_bidi_override: bool (default True)
+                - detect_tag_chars: bool (default True)
+                - detect_homoglyphs: bool (default True)
+                - allow_rtl_languages: bool (default True)
+                - allow_emoji: bool (default True)
+        """
+        self.config = config or {}
+        self.enabled = self.config.get("enabled", True)
+        self.check_zero_width = self.config.get("detect_zero_width", True)
+        self.check_bidi_override = self.config.get("detect_bidi_override", True)
+        self.check_tag_chars = self.config.get("detect_tag_chars", True)
+        self.check_homoglyphs = self.config.get("detect_homoglyphs", True)
+        self.allow_rtl_languages = self.config.get("allow_rtl_languages", True)
+        self.allow_emoji = self.config.get("allow_emoji", True)
+
+        # Pre-compile character sets for O(1) lookup
+        self._zero_width_set = set(self.ZERO_WIDTH_CHARS)
+        self._bidi_override_set = set(self.BIDI_OVERRIDE_CHARS)
+        self._bidi_formatting_set = set(self.BIDI_FORMATTING_CHARS)
+
+        # Build homoglyph lookup table for fast checking
+        self._homoglyph_map = {homoglyph: latin for homoglyph, latin in self.HOMOGLYPH_PATTERNS}
+
+    def _is_emoji_context(self, text: str, position: int) -> bool:
+        """
+        Check if a character at position is in an emoji context.
+
+        Args:
+            text: The full text
+            position: Position to check
+
+        Returns:
+            True if character is part of an emoji sequence
+        """
+        if not self.allow_emoji:
+            return False
+
+        # Check surrounding characters for emoji code points
+        window_start = max(0, position - 5)
+        window_end = min(len(text), position + 5)
+        window = text[window_start:window_end]
+
+        for char in window:
+            code_point = ord(char)
+            for emoji_start, emoji_end in self.EMOJI_ZWJ_RANGES:
+                if emoji_start <= code_point <= emoji_end:
+                    return True
+
+        return False
+
+    def _is_rtl_context(self, text: str, position: int) -> bool:
+        """
+        Check if a character at position is in RTL language context.
+
+        Args:
+            text: The full text
+            position: Position to check
+
+        Returns:
+            True if character is in RTL language block
+        """
+        if not self.allow_rtl_languages:
+            return False
+
+        # Check surrounding characters for RTL scripts
+        window_start = max(0, position - 20)
+        window_end = min(len(text), position + 20)
+        window = text[window_start:window_end]
+
+        rtl_char_count = 0
+        for char in window:
+            code_point = ord(char)
+            for rtl_start, rtl_end in self.RTL_SCRIPT_RANGES:
+                if rtl_start <= code_point <= rtl_end:
+                    rtl_char_count += 1
+                    break
+
+        # If more than 20% of window is RTL chars, consider it RTL context
+        return rtl_char_count > len(window) * 0.2
+
+    def detect_zero_width(self, text: str) -> Tuple[bool, Optional[str]]:
+        """
+        Detect zero-width characters that could break pattern matching.
+
+        Args:
+            text: The text to check
+
+        Returns:
+            Tuple of (is_attack, details)
+        """
+        if not self.check_zero_width:
+            return False, None
+
+        for i, char in enumerate(text):
+            if char in self._zero_width_set:
+                # Check if it's a legitimate use (emoji with ZWJ)
+                if char == '‍' and self._is_emoji_context(text, i):
+                    continue
+
+                char_name = unicodedata.name(char, f"U+{ord(char):04X}")
+                context_start = max(0, i - 20)
+                context_end = min(len(text), i + 20)
+                context = text[context_start:context_end].replace(char, f"[{char_name}]")
+
+                return True, f"Zero-width character '{char_name}' at position {i}: ...{context}..."
+
+        return False, None
+
+    def detect_bidi_override(self, text: str) -> Tuple[bool, Optional[str]]:
+        """
+        Detect bidirectional override characters used for visual deception.
+
+        Args:
+            text: The text to check
+
+        Returns:
+            Tuple of (is_attack, details)
+        """
+        if not self.check_bidi_override:
+            return False, None
+
+        for i, char in enumerate(text):
+            if char in self._bidi_override_set:
+                # Check if it's in legitimate RTL language context
+                if self._is_rtl_context(text, i):
+                    continue
+
+                char_name = unicodedata.name(char, f"U+{ord(char):04X}")
+                context_start = max(0, i - 20)
+                context_end = min(len(text), i + 20)
+                context = text[context_start:context_end].replace(char, f"[{char_name}]")
+
+                return True, f"Bidi override '{char_name}' at position {i}: ...{context}..."
+
+        return False, None
+
+    def detect_tag_chars(self, text: str) -> Tuple[bool, Optional[str]]:
+        """
+        Detect Unicode tag characters (deprecated, used for hidden data).
+
+        Args:
+            text: The text to check
+
+        Returns:
+            Tuple of (is_attack, details)
+        """
+        if not self.check_tag_chars:
+            return False, None
+
+        for i, char in enumerate(text):
+            code_point = ord(char)
+            if self.TAG_CHAR_START <= code_point <= self.TAG_CHAR_END:
+                context_start = max(0, i - 20)
+                context_end = min(len(text), i + 20)
+                context = text[context_start:context_end].replace(char, f"[U+{code_point:05X}]")
+
+                return True, f"Unicode tag character U+{code_point:05X} at position {i}: ...{context}..."
+
+        return False, None
+
+    def detect_homoglyphs(self, text: str) -> Tuple[bool, Optional[str]]:
+        """
+        Detect homoglyph substitutions (look-alike characters).
+
+        Args:
+            text: The text to check
+
+        Returns:
+            Tuple of (is_attack, details)
+        """
+        if not self.check_homoglyphs:
+            return False, None
+
+        for i, char in enumerate(text):
+            if char in self._homoglyph_map:
+                latin_equivalent = self._homoglyph_map[char]
+                char_name = unicodedata.name(char, f"U+{ord(char):04X}")
+                context_start = max(0, i - 20)
+                context_end = min(len(text), i + 20)
+                context = text[context_start:context_end]
+
+                return True, f"Homoglyph '{char}' (looks like '{latin_equivalent}') at position {i}: ...{context}..."
+
+        return False, None
+
+    def check(self, text: str) -> Tuple[bool, Optional[str]]:
+        """
+        Main entry point - check text for all Unicode attack types.
+
+        Args:
+            text: The text to check
+
+        Returns:
+            Tuple of (is_attack, details) - details contains type and location
+        """
+        if not self.enabled:
+            return False, None
+
+        if not text:
+            return False, None
+
+        # Check each attack type (early exit on first detection)
+        is_attack, details = self.detect_zero_width(text)
+        if is_attack:
+            return True, f"Zero-width attack: {details}"
+
+        is_attack, details = self.detect_bidi_override(text)
+        if is_attack:
+            return True, f"Bidi override attack: {details}"
+
+        is_attack, details = self.detect_tag_chars(text)
+        if is_attack:
+            return True, f"Tag character attack: {details}"
+
+        is_attack, details = self.detect_homoglyphs(text)
+        if is_attack:
+            return True, f"Homoglyph attack: {details}"
+
+        return False, None
 
 
 class PromptInjectionDetector:
@@ -160,6 +548,13 @@ class PromptInjectionDetector:
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
             for pattern in self.custom_patterns
         ]
+
+        # Initialize Unicode attack detector
+        unicode_config = self.config.get("unicode_detection", {})
+        # If unicode_detection is not explicitly configured, enable by default
+        if "enabled" not in unicode_config:
+            unicode_config["enabled"] = True
+        self.unicode_detector = UnicodeAttackDetector(unicode_config)
 
     def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
         """
@@ -531,6 +926,53 @@ class PromptInjectionDetector:
             if self._check_allowlist(content_to_check):
                 logger.debug("Content matches allowlist pattern, skipping detection")
                 return False, None, False
+
+            # Check for Unicode-based attacks (use original content, not stripped)
+            # Unicode attacks can be anywhere in the text
+            is_unicode_attack, unicode_details = self.unicode_detector.check(content)
+            if is_unicode_attack:
+                # Format source information for logging
+                if file_path:
+                    source_info = f"file='{file_path}'"
+                elif tool_name:
+                    source_info = f"tool='{tool_name}'"
+                else:
+                    source_info = "source='user_prompt'"
+
+                # Check action
+                if self.action == "warn":
+                    logger.warning(f"Unicode attack detected (warn mode): {source_info}, details='{unicode_details}' - execution allowed")
+                    warn_msg = f"⚠️  Unicode attack detected (warn mode): {unicode_details} - execution allowed"
+                    return False, warn_msg, True  # Allow execution, warning message, detected
+                elif self.action == "log-only":
+                    logger.warning(f"Unicode attack detected (log-only mode): {source_info}, details='{unicode_details}' - execution allowed (silent)")
+                    return False, None, True  # Allow execution, no warning, detected
+                else:
+                    # Block execution
+                    logger.error(f"Unicode attack detected: {source_info}, details='{unicode_details}'")
+                    error_msg = (
+                        f"\n{'='*70}\n"
+                        f"🚨 BLOCKED BY POLICY\n"
+                        f"🚨 UNICODE ATTACK DETECTED\n"
+                        f"{'='*70}\n\n"
+                        "AI Guardian has detected a Unicode-based attack attempt.\n"
+                        "This operation has been blocked for security.\n\n"
+                        "DO NOT attempt to bypass this protection - it prevents character-level attacks.\n\n"
+                        f"Detection details:\n"
+                        f"  • Attack type: {unicode_details}\n\n"
+                        "Common Unicode attacks:\n"
+                        "  • Zero-width characters (invisible characters)\n"
+                        "  • Bidirectional text override (visual deception)\n"
+                        "  • Unicode tag characters (hidden data)\n"
+                        "  • Homoglyphs (look-alike character substitution)\n\n"
+                        "If this is a false positive, you can:\n"
+                        "  1. Configure unicode_detection in ~/.config/ai-guardian/ai-guardian.json\n"
+                        "  2. Disable specific checks (e.g., 'detect_homoglyphs': false)\n"
+                        "  3. Allow legitimate use cases ('allow_emoji': true, 'allow_rtl_languages': true)\n"
+                        "  4. Temporarily disable: \"unicode_detection\": {\"enabled\": false}\n\n"
+                        f"{'='*70}\n"
+                    )
+                    return True, error_msg, True  # Block, error message, detected
 
             # Perform detection based on configured detector type (use stripped content)
             if self.detector_type == "heuristic":

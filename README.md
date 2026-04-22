@@ -380,6 +380,11 @@ cd ~/project/secrets && touch .ai-read-deny
 - Role manipulation
 - Encoding/delimiter attacks
 - Many-shot injection patterns
+- **Unicode-based attacks (NEW in Phase 2):**
+  - Zero-width characters (9 types) - Invisible characters that break pattern matching
+  - Bidirectional text override - Visual deception via text direction manipulation
+  - Unicode tag characters - Hidden data encoding
+  - Homoglyphs (80+ pairs) - Look-alike character substitution (e.g., Cyrillic 'е' vs Latin 'e')
 
 > ⚠️ **Why we don't provide specific examples:**
 > 
@@ -407,10 +412,32 @@ cd ~/project/secrets && touch .ai-read-deny
     "ignore_files": [
       "**/.claude/skills/*/SKILL.md",
       "**/.claude/projects/**/tool-results/**"
-    ]
+    ],
+    "unicode_detection": {
+      "enabled": true,
+      "detect_zero_width": true,
+      "detect_bidi_override": true,
+      "detect_tag_chars": true,
+      "detect_homoglyphs": true,
+      "allow_rtl_languages": true,
+      "allow_emoji": true
+    }
   }
 }
 ```
+
+**Unicode Attack Detection** (NEW in Phase 2):
+- Detects Unicode-based attacks that bypass pattern matching
+- **Zero-width characters**: Invisible characters (U+200B, U+200C, U+200D, etc.) that break pattern matching
+- **Bidirectional override**: Text direction manipulation (U+202E RTL, U+202D LTR) for visual deception
+- **Tag characters**: Deprecated Unicode tags (U+E0000-U+E007F) for hidden data
+- **Homoglyphs**: Look-alike substitutions (80+ pairs) - e.g., Cyrillic 'е' (U+0435) vs Latin 'e' (U+0065)
+- **Smart false positive prevention**:
+  - Allows emoji with zero-width joiners (👨‍👩‍👧‍👦 family emoji)
+  - Allows RTL languages (Arabic, Hebrew) with legitimate bidi marks
+  - Allows accented characters in international names
+- **Performance**: <5ms overhead per prompt with early exit on detection
+- Enabled by default, configurable per attack type
 
 **NEW in v1.4.0:**
 - `ignore_tools` - Skip detection for specific tools (e.g., `"Skill:code-review"`, `"mcp__*"`)

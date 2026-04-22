@@ -832,7 +832,16 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "allowlist_patterns": [],
             "custom_patterns": [],
             "ignore_tools": [],
-            "ignore_files": []
+            "ignore_files": [],
+            "unicode_detection": {
+                "enabled": True,
+                "detect_zero_width": True,
+                "detect_bidi_override": True,
+                "detect_tag_chars": True,
+                "detect_homoglyphs": True,
+                "allow_rtl_languages": True,
+                "allow_emoji": True
+            }
         },
 
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",

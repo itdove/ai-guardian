@@ -270,6 +270,52 @@ ai-guardian/
 
 ---
 
+## Configuration Schema Changes
+
+**CRITICAL**: When adding new configuration options to the JSON schema, you MUST update `setup.py` to include them in the default configuration template.
+
+### Files to Update
+
+When modifying the configuration schema:
+
+1. **JSON Schema** (`src/ai_guardian/schemas/ai-guardian-config.schema.json`)
+   - Add new properties with descriptions
+   - Define types, defaults, and validation rules
+   - Update documentation strings
+
+2. **Setup.py** (`src/ai_guardian/setup.py`)
+   - Update the `_create_default_config()` function
+   - Add new configuration options with appropriate defaults
+   - Include comment fields (`_comment_*`) for documentation
+   - **CRITICAL**: This ensures `ai-guardian setup --create-config` includes new options
+
+3. **Code Implementation**
+   - Update the relevant detector/module to read new config options
+   - Add tests for new configuration options
+   - Ensure backward compatibility (provide sensible defaults)
+
+4. **Documentation**
+   - Update README.md with configuration examples
+   - Update CHANGELOG.md under `[Unreleased]` section
+   - Add examples to `ai-guardian-example.json` if applicable
+
+### Example: Adding Unicode Detection
+
+When Unicode detection was added (Issue #195):
+
+1. ✅ **Schema** - Added `unicode_detection` section under `prompt_injection`
+2. ✅ **Setup.py** - Added `unicode_detection` dict to `prompt_injection` config
+3. ✅ **Implementation** - `UnicodeAttackDetector` class reads config
+4. ✅ **Documentation** - README.md and CHANGELOG.md updated
+
+**Why This Matters:**
+- Users running `ai-guardian setup --create-config` get complete configuration files
+- New features are discoverable in the generated config
+- Consistency between schema, setup, and implementation
+- Prevents missing configuration options in fresh installations
+
+---
+
 ## Common Tasks
 
 ### Adding a New Feature
