@@ -904,6 +904,14 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
         "remote_configs": {
             "urls": []
+        },
+
+        "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
+        "violation_logging": {
+            "enabled": True,
+            "max_entries": 1000,
+            "retention_days": 30,
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
         }
     }
 

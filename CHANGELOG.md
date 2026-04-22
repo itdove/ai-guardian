@@ -226,6 +226,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **Setup command now generates complete configuration with violation_logging section** (Issue #214)
+  - Fixed missing `violation_logging` section in `ai-guardian setup --create-config` output
+  - Added `violation_logging` property to JSON schema with proper validation
+  - Users can now discover and configure violation logging from generated config files
+  - Includes all log types: tool_permission, directory_blocking, secret_detected, secret_redaction, prompt_injection
+  - Improves discoverability of violation logging feature (available since v1.1.0)
 - **Overly aggressive self-protection heuristic no longer blocks legitimate content** (Issue #188)
   - Fixed false positives where commands mentioning "ai-guardian" in content were blocked
   - Self-protection patterns are now path-specific, only blocking when targeting actual protected files:
