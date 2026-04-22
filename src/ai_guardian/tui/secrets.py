@@ -228,8 +228,15 @@ class SecretsContent(Container):
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
 
-        # Pattern server status
-        pattern_server = config.get("pattern_server", {})
+        # Pattern server status - read from secret_scanning.pattern_server (new location)
+        # with fallback to root-level pattern_server (deprecated) for backward compatibility
+        secret_scanning = config.get("secret_scanning", {})
+        pattern_server = secret_scanning.get("pattern_server", {})
+
+        # Fallback to deprecated root-level location if not found in secret_scanning
+        if not pattern_server:
+            pattern_server = config.get("pattern_server", {})
+
         enabled_value = pattern_server.get("enabled", False)
         server_url = pattern_server.get("url", pattern_server.get("server_url", ""))
         patterns_endpoint = pattern_server.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
@@ -427,10 +434,16 @@ class SecretsContent(Container):
             else:
                 config = {}
 
-            if "pattern_server" not in config:
-                config["pattern_server"] = {}
+            # Ensure secret_scanning section exists
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
 
-            config["pattern_server"]["enabled"] = value
+            # Ensure pattern_server section exists under secret_scanning
+            if "pattern_server" not in config["secret_scanning"]:
+                config["secret_scanning"]["pattern_server"] = {}
+
+            # Save to secret_scanning.pattern_server (new location)
+            config["secret_scanning"]["pattern_server"]["enabled"] = value
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
@@ -466,10 +479,16 @@ class SecretsContent(Container):
             else:
                 config = {}
 
-            if "pattern_server" not in config:
-                config["pattern_server"] = {}
+            # Ensure secret_scanning section exists
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
 
-            config["pattern_server"][field] = value
+            # Ensure pattern_server section exists under secret_scanning
+            if "pattern_server" not in config["secret_scanning"]:
+                config["secret_scanning"]["pattern_server"] = {}
+
+            # Save to secret_scanning.pattern_server (new location)
+            config["secret_scanning"]["pattern_server"][field] = value
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
@@ -491,12 +510,20 @@ class SecretsContent(Container):
             else:
                 config = {}
 
-            if "pattern_server" not in config:
-                config["pattern_server"] = {}
-            if "auth" not in config["pattern_server"]:
-                config["pattern_server"]["auth"] = {}
+            # Ensure secret_scanning section exists
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
 
-            config["pattern_server"]["auth"][field] = value
+            # Ensure pattern_server section exists under secret_scanning
+            if "pattern_server" not in config["secret_scanning"]:
+                config["secret_scanning"]["pattern_server"] = {}
+
+            # Ensure auth section exists under pattern_server
+            if "auth" not in config["secret_scanning"]["pattern_server"]:
+                config["secret_scanning"]["pattern_server"]["auth"] = {}
+
+            # Save to secret_scanning.pattern_server.auth (new location)
+            config["secret_scanning"]["pattern_server"]["auth"][field] = value
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
@@ -518,12 +545,20 @@ class SecretsContent(Container):
             else:
                 config = {}
 
-            if "pattern_server" not in config:
-                config["pattern_server"] = {}
-            if "cache" not in config["pattern_server"]:
-                config["pattern_server"]["cache"] = {}
+            # Ensure secret_scanning section exists
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
 
-            config["pattern_server"]["cache"][field] = value
+            # Ensure pattern_server section exists under secret_scanning
+            if "pattern_server" not in config["secret_scanning"]:
+                config["secret_scanning"]["pattern_server"] = {}
+
+            # Ensure cache section exists under pattern_server
+            if "cache" not in config["secret_scanning"]["pattern_server"]:
+                config["secret_scanning"]["pattern_server"]["cache"] = {}
+
+            # Save to secret_scanning.pattern_server.cache (new location)
+            config["secret_scanning"]["pattern_server"]["cache"][field] = value
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
