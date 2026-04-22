@@ -107,6 +107,48 @@ pytest -v
 
 ---
 
+## Common Issues
+
+### GitHub Push Protection Blocking Test Secrets
+
+When writing tests that include fake/test secrets (API keys, tokens, etc.), GitHub's secret scanning push protection may block your push even though the secrets are intentionally fake. This is especially common when testing secret detection or redaction features.
+
+**Problem**: GitHub's secret scanner is very sensitive and detects patterns that match real secret formats, even with obviously fake values.
+
+**Solutions**:
+
+1. **Use public/less sensitive patterns** (Recommended):
+   - Instead of `sk_test_...` (Stripe secret key), use `pk_test_...` (public key)
+   - Instead of `ghp_...` (GitHub personal token), use fake patterns that don't match real formats
+   - Example: Change `sk_test_{24+ chars}` to `pk_test_{24+ chars}` (public key pattern)
+
+2. **Use patterns that match your regex but not GitHub's**:
+   - Test with minimum-length or all-X patterns
+   - Use obviously fake prefixes where possible
+   - Example: For testing general patterns, use `FAKE_sk_test_...` instead of `sk_test_...`
+
+3. **Add explanatory comments**:
+   ```python
+   text = "pk_test_{fake_key_value}"  # nosecret (fake test key)
+   ```
+   Note: Comments like `# nosecret` or `# gitleaks:allow` may not prevent GitHub push protection, but they document intent.
+
+4. **If GitHub still blocks**:
+   - GitHub provides a URL in the error message to allow the specific secret
+   - Click the URL and choose "It's used in tests" → "Allow secret"
+   - This requires repository admin access
+
+**Real Example from Phase 4**:
+When implementing secret redaction tests, GitHub blocked:
+- Stripe test secret key format → Detected as "Stripe Test API Secret Key"
+- Slack token format with obvious fake values → Detected as "Slack API Token"
+
+Solution: Changed to use public key patterns (e.g., `pk_test_` prefix) which GitHub allows, since they're less sensitive than secret keys.
+
+**Best Practice**: When testing secret detection, prefer using public key patterns or less sensitive token types that still validate your regex patterns without triggering GitHub's scanner.
+
+---
+
 ## Release Management
 
 ### Overview

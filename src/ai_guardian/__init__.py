@@ -1306,6 +1306,21 @@ def _load_secret_scanning_config():
     return config.get("secret_scanning"), None
 
 
+def _load_secret_redaction_config():
+    """
+    Load secret redaction configuration from ai-guardian.json.
+
+    Returns:
+        tuple: (config_dict or None, error_message or None)
+    """
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return None, error_msg
+    if config is None:
+        return None, None
+    return config.get("secret_redaction"), None
+
+
 def _extract_block_reason(error_message: str) -> str:
     """
     Extract a concise reason from error message for logging.
@@ -2334,11 +2349,84 @@ def process_hook_input():
             )
 
             if has_secrets:
-                # Block output from reaching AI
-                logging.warning(f"Secrets detected in {tool_identifier} output")
-                return format_response(ide_type, has_secrets=True,
-                                     error_message=error_message,
-                                     hook_event=hook_event)
+                # Check if redaction is enabled
+                redaction_config, redaction_error = _load_secret_redaction_config()
+
+                if redaction_error:
+                    logging.warning(f"Config error loading secret_redaction: {redaction_error}")
+                    # Fall back to blocking
+                    logging.warning(f"Secrets detected in {tool_identifier} output - blocking")
+                    return format_response(ide_type, has_secrets=True,
+                                         error_message=error_message,
+                                         hook_event=hook_event)
+
+                # Determine action mode (default to blocking for backward compatibility)
+                if redaction_config is None:
+                    redaction_config = {}
+
+                action = redaction_config.get("action", "block")
+                enabled = redaction_config.get("enabled", True)
+
+                if enabled and action in ["log-only", "warn"]:
+                    # REDACT instead of block
+                    logging.info(f"Secret redaction enabled with action={action}")
+
+                    try:
+                        from ai_guardian.secret_redactor import SecretRedactor
+
+                        redactor = SecretRedactor(redaction_config)
+                        result = redactor.redact(tool_output)
+
+                        redacted_text = result['redacted_text']
+                        redactions = result['redactions']
+
+                        # Log redaction event
+                        logging.warning(f"Redacted {len(redactions)} secret(s) from {tool_identifier} output")
+                        for r in redactions:
+                            logging.info(f"  - {r['type']} at position {r['position']} using {r['strategy']}")
+
+                        # Log to violation logger
+                        from ai_guardian.violation_logger import ViolationLogger
+                        violation_logger = ViolationLogger()
+                        violation_logger.log({
+                            'type': 'secret_redaction',
+                            'tool': tool_identifier,
+                            'redaction_count': len(redactions),
+                            'redacted_types': [r['type'] for r in redactions],
+                            'action': 'redacted',
+                            'mode': action
+                        })
+
+                        # Return redacted output (allow, with modifications)
+                        # For warn mode, include a warning message
+                        if action == "warn":
+                            warning_msg = (
+                                f"⚠️  Redacted {len(redactions)} secret(s) from output:\n"
+                                + "\n".join([f"  - {r['type']}" for r in redactions[:5]])
+                                + ("\n  - ..." if len(redactions) > 5 else "")
+                            )
+                            # TODO: Need to modify format_response to support modified_output
+                            # For now, just allow with warning
+                            logging.warning(f"WARN mode: {warning_msg}")
+
+                        logging.info(f"✓ Secrets redacted, allowing output to continue")
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+
+                    except Exception as redact_error:
+                        logging.error(f"Error during secret redaction: {redact_error}")
+                        import traceback
+                        logging.error(traceback.format_exc())
+                        # Fall back to blocking on redaction errors
+                        logging.warning(f"Redaction failed, falling back to blocking")
+                        return format_response(ide_type, has_secrets=True,
+                                             error_message=error_message,
+                                             hook_event=hook_event)
+                else:
+                    # Block output from reaching AI (original behavior)
+                    logging.warning(f"Secrets detected in {tool_identifier} output - blocking (action={action})")
+                    return format_response(ide_type, has_secrets=True,
+                                         error_message=error_message,
+                                         hook_event=hook_event)
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
 

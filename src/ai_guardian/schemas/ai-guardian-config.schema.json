@@ -233,6 +233,64 @@
       },
       "additionalProperties": true
     },
+    "secret_redaction": {
+      "type": "object",
+      "description": "Secret redaction configuration (NEW in v1.5.0). Redacts secrets from tool outputs instead of blocking them entirely, providing defense-in-depth while allowing work to continue. Part of Phase 4: Hermes Security Patterns integration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable secret redaction for tool outputs",
+          "default": true
+        },
+        "action": {
+          "type": "string",
+          "enum": ["log-only", "warn", "block"],
+          "description": "Action to take when secrets are detected: 'log-only' (redact silently), 'warn' (redact with user warning), 'block' (original blocking behavior)",
+          "default": "log-only"
+        },
+        "preserve_format": {
+          "type": "boolean",
+          "description": "Preserve format when redacting (e.g., 'sk-proj...901vwx' instead of '[REDACTED]')",
+          "default": true
+        },
+        "log_redactions": {
+          "type": "boolean",
+          "description": "Log redaction events to violation logger",
+          "default": true
+        },
+        "additional_patterns": {
+          "type": "array",
+          "description": "Custom secret patterns to redact in addition to built-in patterns",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Regex pattern to match (case-insensitive)"
+              },
+              "strategy": {
+                "type": "string",
+                "enum": ["preserve_prefix_suffix", "full_redact", "env_assignment", "json_field", "connection_string"],
+                "description": "Masking strategy to apply",
+                "default": "preserve_prefix_suffix"
+              },
+              "type": {
+                "type": "string",
+                "description": "Human-readable name for this secret type"
+              }
+            },
+            "required": ["pattern", "type"]
+          },
+          "default": []
+        },
+        "immutable": {
+          "type": "boolean",
+          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "default": false
+        }
+      },
+      "additionalProperties": true
+    },
     "pattern_server": {
       "type": "object",
       "description": "DEPRECATED: Move to secret_scanning.pattern_server (v1.7.0+). This root-level location is supported for backward compatibility but will be removed in v2.0.0.",
