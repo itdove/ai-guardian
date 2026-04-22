@@ -331,7 +331,7 @@ class ViolationLogger:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "prompt_injection"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
         }
 
     def _is_logging_enabled(self) -> bool:
