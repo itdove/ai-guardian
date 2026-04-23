@@ -46,7 +46,7 @@ class TestSecretRedactor:
     def test_github_token_redaction(self):
         """Test redaction of GitHub tokens."""
         redactor = SecretRedactor()
-        text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # nosecret
+        text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
         result = redactor.redact(text)
 
         assert "ghp_12...wxyz" in result['redacted_text']
@@ -119,7 +119,7 @@ class TestSecretRedactor:
         GitHub: ghp_1234567890abcdefghijklmnopqrstuvwxyz
         OpenAI: sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx
         AWS: AKIAIOSFODNN7EXAMPLE
-        """  # nosecret
+        """  # notsecret
         result = redactor.redact(text)
 
         # All secret values should be completely gone
@@ -147,7 +147,7 @@ class TestSecretRedactor:
     def test_overlapping_patterns(self):
         """Test that overlapping patterns don't cause issues."""
         redactor = SecretRedactor()
-        text = "GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # nosecret
+        text = "GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
         result = redactor.redact(text)
 
         # Should redact either as env var or as GitHub token, but not duplicate
@@ -179,7 +179,7 @@ class TestSecretRedactor:
         redactor = SecretRedactor()
         text = """-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
------END RSA PRIVATE KEY-----"""  # nosecret
+-----END RSA PRIVATE KEY-----"""  # notsecret
         result = redactor.redact(text)
 
         # Private key content should be completely gone
@@ -200,7 +200,7 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         """Test Slack token redaction."""
         redactor = SecretRedactor()
         # Using intentionally fake token format that still matches our pattern
-        text = "Slack: xoxb-TEST1234567-TEST1234567890-EXAMPLEEXAMPLEEX"  # nosecret
+        text = "Slack: xoxb-TEST1234567-TEST1234567890-EXAMPLEEXAMPLEEX"  # notsecret
         result = redactor.redact(text)
 
         assert "xoxb-" in result['redacted_text']
@@ -210,7 +210,7 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         """Test Stripe API key redaction."""
         redactor = SecretRedactor()
         # Using public key to avoid GitHub's secret scanner (tests same redaction logic)
-        text = "pk_test_XXXXXXXXXXXXXXXXXXXXXXXX"  # nosecret (fake public key)
+        text = "pk_test_XXXXXXXXXXXXXXXXXXXXXXXX"  # notsecret (fake public key)
         result = redactor.redact(text)
 
         # Should redact the secret part - middle X's should be gone
@@ -220,7 +220,7 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
     def test_redaction_metadata(self):
         """Test that redaction metadata is complete."""
         redactor = SecretRedactor()
-        text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"
+        text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz" # notsecret
         result = redactor.redact(text)
 
         assert 'redacted_text' in result
@@ -243,8 +243,8 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         redactor = SecretRedactor()
         # Create 10KB of text with some secrets
         text = ("Hello world. " * 100 +
-                "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz\n" +
-                "Some more text. " * 100) * 10
+                "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz\n" + # notsecret
+                "Some more text. " * 100) * 10 
 
         start = time.time()
         result = redactor.redact(text)
@@ -343,7 +343,7 @@ class TestSecretRedactionIntegration:
         redactor = SecretRedactor()
         # Simulate a large log file with one secret
         log_lines = ["[INFO] Application started"] * 100
-        log_lines[50] = "[DEBUG] API_KEY=sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"  # nosecret
+        log_lines[50] = "[DEBUG] API_KEY=sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"  # notsecret
         log_lines += ["[INFO] Processing request"] * 100
 
         text = "\n".join(log_lines)

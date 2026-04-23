@@ -1363,7 +1363,7 @@ echo '{"prompt": "Hello world"}' | ai-guardian
 # Output: ✓ No secrets detected
 
 # Test with a GitHub token (should block)
-echo '{"prompt": "token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"}' | ai-guardian  #notsecret
+echo '{"prompt": "token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"}' | ai-guardian  # notsecret
 # Output: 🔒 SECRET DETECTED (exit code 2)
 ```
 

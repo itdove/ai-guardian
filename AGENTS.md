@@ -129,9 +129,9 @@ When writing tests that include fake/test secrets (API keys, tokens, etc.), GitH
 
 3. **Add explanatory comments**:
    ```python
-   text = "pk_test_{fake_key_value}"  # nosecret (fake test key)
+   text = "pk_test_{fake_key_value}"  # notsecret (fake test key)
    ```
-   Note: Comments like `# nosecret` or `# gitleaks:allow` may not prevent GitHub push protection, but they document intent.
+   Note: Comments like `# notsecret` or `# gitleaks:allow` may not prevent GitHub push protection, but they document intent.
 
 4. **If GitHub still blocks**:
    - GitHub provides a URL in the error message to allow the specific secret

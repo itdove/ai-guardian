@@ -1,6 +1,7 @@
-# Gitleaks ignore file
-# https://github.com/gitleaks/gitleaks#gitleaksignore
-
 # Test files for secret redaction - contain intentional fake secrets for testing
-tests/test_secret_redaction.py
-tests/test_pattern_server_integration.py
+
+[allowlist]
+    pathss = [
+        tests/test_secret_redaction.py,
+        tests/test_pattern_server_integration.py
+    ]
