@@ -12,13 +12,15 @@ Design Philosophy:
 - Fail-open: Allow operation on scanning errors
 
 Inspired by Hermes Security Framework patterns.
-NEW in v1.8.0: Optional pattern server support for additional exfiltration patterns.
+NEW in v1.5.0: Optional pattern server support for additional exfiltration patterns.
 """
 
 import logging
 import re
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
+
+from ai_guardian.config_utils import validate_regex_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +143,7 @@ class ConfigFileScanner:
                 - additional_files: list of additional config file patterns to scan
                 - ignore_files: list of glob patterns for files to skip
                 - additional_patterns: list of additional regex patterns to detect
-                - pattern_server: Dict - pattern server configuration (NEW in v1.8.0)
+                - pattern_server: Dict - pattern server configuration (NEW in v1.5.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
@@ -158,7 +160,6 @@ class ConfigFileScanner:
         else:
             # Use hardcoded core patterns + local additional patterns
             self.all_patterns = self.CORE_EXFIL_PATTERNS.copy()
-            # Add local additional patterns
             # Add local additional patterns
             for idx, pattern in enumerate(self.config.get("additional_patterns", [])):
                 if isinstance(pattern, str):
@@ -177,7 +178,14 @@ class ConfigFileScanner:
         self._compiled_patterns = []
         for pattern_def in self.all_patterns:
             try:
-                compiled = re.compile(pattern_def["pattern"], re.IGNORECASE | re.MULTILINE)
+                pattern = pattern_def["pattern"]
+
+                # Validate pattern before compilation (protects against ReDoS from pattern server)
+                if not validate_regex_pattern(pattern):
+                    logger.error(f"Pattern validation failed for '{pattern_def.get('name', 'unknown')}' (potential ReDoS or invalid syntax) - skipping")
+                    continue
+
+                compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
                 self._compiled_patterns.append({
                     "name": pattern_def["name"],
                     "regex": compiled,

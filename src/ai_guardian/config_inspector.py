@@ -7,7 +7,7 @@ Provides transparency into AI Guardian's three-tier pattern system:
 - Tier 2: SERVER/DEFAULT (pattern server or hardcoded defaults)
 - Tier 3: LOCAL_CONFIG (user additions)
 
-NEW in v1.8.0: Part of pattern server support for enterprise pattern management.
+NEW in v1.5.0: Part of pattern server support for enterprise pattern management.
 """
 
 import json

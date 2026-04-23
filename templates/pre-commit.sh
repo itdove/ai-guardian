@@ -43,7 +43,7 @@ fi
 
 # Create temporary directory for staged files
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf "$TEMP_DIR"' EXIT
 
 # Copy staged files to temp directory (preserving structure)
 echo "$STAGED_FILES" | while read -r file; do

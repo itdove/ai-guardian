@@ -862,7 +862,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "allow_localhost": False
         },
 
-        "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.8.0)",
+        "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",
         "config_file_scanning": {
             "enabled": True,
             "action": "block",

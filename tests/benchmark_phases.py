@@ -15,6 +15,13 @@ Run with: pytest tests/benchmark_phases.py -v
 import time
 import pytest
 
+# Import gc for memory test
+try:
+    import gc
+    HAS_GC = True
+except ImportError:
+    HAS_GC = False
+
 # Import Phase 1-4 modules
 try:
     from ai_guardian.ssrf_protector import SSRFProtector
@@ -329,7 +336,7 @@ class TestTotalOverhead:
         import sys
 
         # Get initial memory usage
-        initial_objects = len(gc.get_objects()) if 'gc' in dir() else 0
+        initial_objects = len(gc.get_objects()) if HAS_GC else 0
 
         # Initialize all scanners
         ssrf_protector = SSRFProtector()
@@ -337,7 +344,7 @@ class TestTotalOverhead:
         secret_redactor = SecretRedactor()
 
         # Rough memory estimate
-        final_objects = len(gc.get_objects()) if 'gc' in dir() else 0
+        final_objects = len(gc.get_objects()) if HAS_GC else 0
         objects_created = final_objects - initial_objects
 
         print(f"\n✓ Objects created: {objects_created}")
@@ -347,13 +354,6 @@ class TestTotalOverhead:
         assert ssrf_protector is not None
         assert unicode_detector is not None
         assert secret_redactor is not None
-
-
-# Import gc for memory test
-try:
-    import gc
-except ImportError:
-    pass
 
 
 if __name__ == "__main__":

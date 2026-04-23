@@ -179,7 +179,7 @@ def detect_ide_type(hook_data):
     return IDEType.CLAUDE_CODE
 
 
-def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None):
+def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None, modified_output=None):
     """
     Format the response based on IDE type and hook event.
 
@@ -193,6 +193,9 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         warning_message: Optional warning message for log mode (allows execution but shows warning)
             - Only displayed when NOT blocking (has_secrets=False)
             - Uses systemMessage field for Claude Code to display warning to user
+        modified_output: Optional modified tool output (for PostToolUse redaction)
+            - Only used for PostToolUse hook when has_secrets=False
+            - Contains redacted version of tool output to replace original
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
@@ -291,11 +294,14 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     }
                 }
             else:
-                # Allow - return empty JSON or include systemMessage for warnings
+                # Allow - return empty JSON or include systemMessage for warnings and/or modified output
                 response = {}
                 if warning_message:
                     # Log mode: display warning but allow execution
                     response["systemMessage"] = warning_message
+                if modified_output is not None:
+                    # Secret redaction: replace tool output with redacted version
+                    response["output"] = modified_output
 
             return {
                 "output": json.dumps(response),
@@ -2403,18 +2409,18 @@ def process_hook_input():
 
                         # Return redacted output (allow, with modifications)
                         # For warn mode, include a warning message
+                        warning_msg = None
                         if action == "warn":
                             warning_msg = (
                                 f"⚠️  Redacted {len(redactions)} secret(s) from output:\n"
                                 + "\n".join([f"  - {r['type']}" for r in redactions[:5]])
                                 + ("\n  - ..." if len(redactions) > 5 else "")
                             )
-                            # TODO: Need to modify format_response to support modified_output
-                            # For now, just allow with warning
                             logging.warning(f"WARN mode: {warning_msg}")
 
                         logging.info(f"✓ Secrets redacted, allowing output to continue")
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                             warning_message=warning_msg, modified_output=redacted_text)
 
                     except Exception as redact_error:
                         logging.error(f"Error during secret redaction: {redact_error}")
@@ -2941,7 +2947,7 @@ def main():
             help="Enable verbose output"
         )
 
-        # Show-config subcommand (NEW in v1.8.0)
+        # Show-config subcommand (NEW in v1.5.0)
         show_config_parser = subparsers.add_parser(
             "show-config",
             help="Display effective configuration with source attribution"
@@ -3025,7 +3031,7 @@ def main():
                 traceback.print_exc()
                 return 1
 
-        # Handle show-config command (NEW in v1.8.0)
+        # Handle show-config command (NEW in v1.5.0)
         if args.command == "show-config":
             try:
                 from ai_guardian.config_inspector import ConfigInspector

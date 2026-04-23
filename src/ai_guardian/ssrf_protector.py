@@ -14,7 +14,7 @@ Design Philosophy:
 - Fail-closed: Block on parsing errors
 
 Inspired by Hermes Security Framework patterns.
-NEW in v1.8.0: Optional pattern server support for enterprise SSRF pattern management.
+NEW in v1.5.0: Optional pattern server support for enterprise SSRF pattern management.
 """
 
 import ipaddress
@@ -80,8 +80,9 @@ class SSRFProtector:
     # URL extraction patterns for Bash commands
     # Matches: http://, https://, curl, wget, etc.
     URL_PATTERNS = [
-        # IPv6 URLs with brackets: http://[::1]/ or http://[fd00:ec2::254]/
-        r'(?:https?|ftp|ftps|file|gopher)://\[[0-9a-fA-F:]+\][^\s\'"<>{}|\\^`]*',
+        # IPv6 URLs with brackets: http://[::1]/ or http://[fd00:ec2::254]/ or http://[::ffff:169.254.169.254]/
+        # Note: Includes dots to support IPv6-mapped IPv4 addresses (::ffff:x.x.x.x)
+        r'(?:https?|ftp|ftps|file|gopher)://\[[0-9a-fA-F:.]+\][^\s\'"<>{}|\\^`]*',
 
         # Standard URLs (non-IPv6)
         r'(?:https?|ftp|ftps|file|gopher)://[^\s\'"<>{}|\\^`\[\]]+',
@@ -95,8 +96,8 @@ class SSRFProtector:
         # curl/wget with URL argument
         r'(?:curl|wget)\s+(?:-[^\s]+\s+)*(["\']?)(?:https?|ftp)://[^\s\'"<>{}|\\^`\[\]]+\1',
 
-        # URLs in quotes (including IPv6)
-        r'["\'](?:https?|ftp|file|gopher|data|dict|ldap|ldaps)://?\[[0-9a-fA-F:]+\][^"\']*["\']',
+        # URLs in quotes (including IPv6 and IPv6-mapped IPv4)
+        r'["\'](?:https?|ftp|file|gopher|data|dict|ldap|ldaps)://?\[[0-9a-fA-F:.]+\][^"\']*["\']',
         r'["\'](?:https?|ftp|file|gopher|dict|ldap|ldaps)://[^"\']+["\']',
         r'["\']data:[^"\']+["\']',
 
@@ -115,7 +116,7 @@ class SSRFProtector:
                 - additional_blocked_ips: list of IP addresses/ranges to block
                 - additional_blocked_domains: list of domain names to block
                 - allow_localhost: bool (default False) - allow localhost access
-                - pattern_server: Dict - pattern server configuration (NEW in v1.8.0)
+                - pattern_server: Dict - pattern server configuration (NEW in v1.5.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
@@ -308,6 +309,15 @@ class SSRFProtector:
                 if ip_addr in network:
                     logger.debug(f"IP {ip_str} is in blocked range {network}")
                     return True
+
+            # Check for IPv6-mapped IPv4 addresses (e.g., ::ffff:169.254.169.254)
+            # These bypass IPv4 range checks because they're treated as IPv6
+            if isinstance(ip_addr, ipaddress.IPv6Address) and ip_addr.ipv4_mapped:
+                mapped_ipv4 = ip_addr.ipv4_mapped
+                for network in self._blocked_ip_networks:
+                    if isinstance(network, ipaddress.IPv4Network) and mapped_ipv4 in network:
+                        logger.debug(f"IPv6-mapped IPv4 {ip_str} (mapped to {mapped_ipv4}) is in blocked range {network}")
+                        return True
 
             return False
         except ValueError:
