@@ -224,6 +224,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```
 
 ### Changed
+- **Clarified zero-configuration installation in README** (Issue #216)
+  - Quick Start section now emphasizes that ai-guardian works immediately after installing gitleaks with zero configuration required
+  - Added "Default Behavior (No Configuration File)" section showing which features are enabled by default
+  - Added minimal configuration example showing that only specific restrictions need to be configured
+  - Reorganized Quick Start to clearly separate zero-config installation from optional advanced configuration
+  - Makes it clearer that configuration is only needed for tool/skill restrictions, directory rules, custom patterns, or log-only mode
+  - All core protections (secret scanning, prompt injection, SSRF, config file scanning, immutable file protection) work out-of-the-box
 
 ### Fixed
 - **Setup command now generates complete configuration with violation_logging section** (Issue #214)

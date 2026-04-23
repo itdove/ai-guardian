@@ -35,6 +35,8 @@ Combine with:
 
 ## Quick Start
 
+### Zero-Config Installation (Recommended)
+
 ```bash
 # 1. Install a secret scanner (macOS)
 brew install gitleaks           # Standard (recommended)
@@ -48,18 +50,57 @@ pip install ai-guardian
 
 # 3. Setup IDE hooks (auto-detects Claude Code, Cursor, or GitHub Copilot)
 ai-guardian setup
+```
 
-# 4. (Optional) Setup with remote configuration
-ai-guardian setup --remote-config-url https://example.com/ai-guardian-policy.json
+**You're done!** ai-guardian now provides:
+- ✅ Secret scanning (API keys, tokens, passwords)
+- ✅ Prompt injection detection
+- ✅ SSRF protection
+- ✅ Config file exfiltration prevention
+- ✅ Immutable file protection
 
-# 5. (Optional) Create a config file
+### Optional: Advanced Configuration
+
+Create `~/.config/ai-guardian/ai-guardian.json` only if you need:
+- Tool/Skill allow/deny lists
+- Directory access rules
+- Custom secret patterns
+- Log-only mode
+
+```bash
+# Create a config file (optional)
 ai-guardian setup --create-config              # Secure: Skills/MCP blocked by default
 # OR
 ai-guardian setup --create-config --permissive  # Permissive: All tools allowed
 
 # Preview config before creating (dry run)
 ai-guardian setup --create-config --dry-run
+
+# Setup with remote configuration (enterprise)
+ai-guardian setup --remote-config-url https://example.com/ai-guardian-policy.json
 ```
+
+## Default Behavior (No Configuration File)
+
+ai-guardian provides comprehensive protection **immediately** with zero configuration:
+
+| Feature | Default (No Config) | Notes |
+|---------|-------------------|-------|
+| Secret scanning | ✅ Enabled | Requires gitleaks/scanner installed |
+| Prompt injection detection | ✅ Enabled | Heuristic detector |
+| Config file scanning | ✅ Enabled | Detects exfiltration patterns |
+| SSRF protection | ✅ Enabled | Blocks private IPs, metadata endpoints |
+| Immutable file protection | ✅ Enabled | Cannot be disabled |
+| `.ai-read-deny` markers | ✅ Enabled | Always respected |
+| Violation logging | ✅ Enabled | Logs to `~/.config/ai-guardian/violations.jsonl` |
+| Tool/Skill permissions | ⚠️ Allow all | Configure `permissions.rules` to restrict |
+| Directory rules | ⚠️ Allow all | Configure `directory_rules` to restrict |
+
+**When to add configuration:**
+- Lock down which tools/skills can run
+- Restrict file/directory access beyond `.ai-read-deny` markers
+- Use custom secret patterns via pattern server
+- Switch to log-only/warn mode instead of blocking
 
 ## Setup Command
 
@@ -968,6 +1009,26 @@ vi ~/.config/ai-guardian/ai-guardian.json
 ```
 
 #### Step 3: Configure Permissions
+
+**Minimal Configuration Example**
+
+If you only need tool restrictions:
+
+```json
+{
+  "permissions": [
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["approved-skill-1", "approved-skill-2"]
+    }
+  ]
+}
+```
+
+All other protections (secrets, prompt injection, SSRF) continue working with their defaults.
+
+---
 
 **Basic Configuration (Skills and Optional MCP Restrictions):**
 
