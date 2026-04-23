@@ -77,7 +77,8 @@ def test_directory_blocking():
         # Test 2: File in denied directory should be blocked
         is_denied, denied_path, _, _ = check_directory_denied(blocked_file, test_config)
         assert is_denied, f"FAIL: Denied file was not blocked"
-        assert denied_path == denied_dir, f"FAIL: Wrong denied directory reported"
+        # Use realpath for comparison since check_directory_denied now uses realpath
+        assert denied_path == os.path.realpath(denied_dir), f"FAIL: Wrong denied directory reported"
         print(f"✓ Test 2 PASSED: File in denied directory is blocked")
         print(f"  File: {blocked_file}")
         print(f"  Blocked: {is_denied}")
@@ -86,7 +87,8 @@ def test_directory_blocking():
         # Test 3: File in subdirectory of denied directory should be blocked
         is_denied, denied_path, _, _ = check_directory_denied(deeply_blocked_file, test_config)
         assert is_denied, f"FAIL: Nested file in denied directory was not blocked"
-        assert denied_path == denied_dir, f"FAIL: Wrong denied directory reported for nested file"
+        # Use realpath for comparison since check_directory_denied now uses realpath
+        assert denied_path == os.path.realpath(denied_dir), f"FAIL: Wrong denied directory reported for nested file"
         print(f"✓ Test 3 PASSED: Nested file in denied directory is blocked")
         print(f"  File: {deeply_blocked_file}")
         print(f"  Blocked: {is_denied}")

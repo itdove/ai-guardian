@@ -2413,6 +2413,43 @@ class ToolPolicyChecker:
 
                 # Fetch config
                 config = fetcher.fetch_config(url, headers=headers)
+
+                if not config:
+                    return None
+
+                # Validate remote config against JSON schema
+                if not self._validate_config(config, f"remote ({url})", Path(url)):
+                    logger.error(f"Remote config validation failed: {url}")
+                    return None
+
+                # Security check: prevent remote configs from disabling security features
+                # Remote configs MUST NOT be able to disable critical security enforcement
+                security_critical_keys = [
+                    ("secret_scanning", "enabled"),
+                    ("prompt_injection", "enabled"),
+                    ("permissions", "enabled"),
+                ]
+
+                for key_path in security_critical_keys:
+                    # Navigate nested dict
+                    current = config
+                    for key in key_path[:-1]:
+                        if key in current:
+                            current = current[key]
+                        else:
+                            current = None
+                            break
+
+                    # Check if final key attempts to disable feature
+                    if current is not None and key_path[-1] in current:
+                        if current[key_path[-1]] is False:
+                            logger.error(
+                                f"Remote config {url} attempts to disable security feature: "
+                                f"{'.'.join(key_path)}. This is not allowed. Skipping remote config."
+                            )
+                            return None
+
+                logger.info(f"Remote config validated and passed security checks: {url}")
                 return config
             else:
                 # Local file path
