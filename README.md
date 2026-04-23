@@ -2120,6 +2120,7 @@ Apache 2.0 - see [LICENSE](LICENSE) file for details.
 - [Gitleaks](https://github.com/gitleaks/gitleaks) - Secret detection engine
 - [Claude Code](https://claude.ai/code) - AI-powered IDE
 - [Cursor](https://cursor.sh) - AI code editor
+- [Hermes Security Patterns](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) - Experimental security research that informed some implementation patterns
 
 ## FAQ
 
