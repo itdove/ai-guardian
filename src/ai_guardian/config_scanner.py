@@ -161,7 +161,6 @@ class ConfigFileScanner:
             # Use hardcoded core patterns + local additional patterns
             self.all_patterns = self.CORE_EXFIL_PATTERNS.copy()
             # Add local additional patterns
-            # Add local additional patterns
             for idx, pattern in enumerate(self.config.get("additional_patterns", [])):
                 if isinstance(pattern, str):
                     # Convert string pattern to dict format

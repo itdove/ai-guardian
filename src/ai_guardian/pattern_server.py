@@ -21,6 +21,7 @@ import logging
 import os
 import sys
 import time
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
@@ -286,6 +287,13 @@ class PatternServerClient:
                 return False
             elif response.status_code != 200:
                 logger.error(f"Pattern server returned error: {response.status_code}")
+                return False
+
+            # Validate TOML before caching (prevents caching HTML error pages or invalid content)
+            try:
+                tomllib.loads(response.text)
+            except tomllib.TOMLDecodeError as e:
+                logger.error(f"Pattern server returned invalid TOML: {e}")
                 return False
 
             # Save patterns to cache
