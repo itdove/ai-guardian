@@ -400,6 +400,75 @@ The skill automates steps 2-6 below and provides guidance for step 7.
 
 ---
 
+## Security Research & Innovation
+
+### Monitoring Security Patterns
+
+**IMPORTANT**: Periodically check external security research for new patterns and techniques to enhance AI Guardian's protection capabilities.
+
+#### Hermes Security Patterns
+
+Check the [Hermes Security Patterns](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) repository periodically for:
+
+- New attack vectors and detection patterns
+- Novel prompt injection techniques
+- Secret detection improvements
+- SSRF bypass methods
+- Unicode attack variations
+- Config file exfiltration patterns
+
+**Recommended Frequency**: Monthly review or when planning new features
+
+**How to Integrate New Patterns:**
+
+1. **Review** new patterns/research from Hermes experiments
+2. **Evaluate** applicability to AI Guardian's security model
+3. **Test** patterns against current detection capabilities
+4. **Implement** relevant improvements:
+   - Update detection regex patterns
+   - Add new test cases
+   - Enhance existing detectors
+   - Document new attack vectors
+5. **Update** CHANGELOG.md with security improvements
+6. **Credit** research sources in commit messages
+
+**Example Integration Workflow:**
+
+```bash
+# 1. Review Hermes patterns
+open https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns
+
+# 2. Create feature branch
+git checkout -b security/hermes-pattern-update
+
+# 3. Implement improvements (e.g., update prompt_injection.py patterns)
+# 4. Add test cases in tests/
+# 5. Run full test suite
+pytest
+
+# 6. Commit with attribution
+git commit -m "security: enhance prompt injection detection based on Hermes research
+
+Implemented new detection patterns from Hermes security experiments:
+- [Pattern description]
+
+Reference: https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns"
+
+# 7. Create PR
+gh pr create
+```
+
+#### Other Security Research Sources
+
+Consider monitoring:
+- OWASP LLM Top 10
+- Academic papers on AI security
+- CVE databases for AI/LLM vulnerabilities
+- Security researcher blogs and presentations
+- AI security conference proceedings
+
+---
+
 ## Questions?
 
 For questions about:

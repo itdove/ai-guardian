@@ -264,10 +264,15 @@ class PatternServerClient:
             else:
                 logger.debug("No authentication token - attempting unauthenticated request")
 
+            # Security: Enforce HTTPS for pattern server (reject http://)
+            if url.startswith("http://"):
+                logger.error(f"HTTP URLs not allowed for pattern server (use HTTPS): {url}")
+                return False
+
             logger.info(f"Fetching {self.pattern_type} patterns from pattern server: {self.base_url}")
 
-            # Fetch patterns
-            response = requests.get(url, headers=headers, timeout=10)
+            # Fetch patterns with TLS verification enabled
+            response = requests.get(url, headers=headers, timeout=10, verify=True)
 
             if response.status_code == 401:
                 if token:

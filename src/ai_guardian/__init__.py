@@ -454,8 +454,8 @@ def _is_path_excluded(file_path, config):
             logging.debug("No directory exclusion paths configured")
             return False
 
-        # Convert file path to absolute path
-        abs_file_path = os.path.abspath(os.path.expanduser(file_path))
+        # Convert file path to absolute path and resolve symlinks
+        abs_file_path = os.path.realpath(os.path.expanduser(file_path))
 
         # Check each exclusion path
         for exclusion_path in exclusion_paths:
@@ -464,8 +464,8 @@ def _is_path_excluded(file_path, config):
                 continue
 
             try:
-                # Expand tilde and convert to absolute path
-                expanded_path = os.path.abspath(os.path.expanduser(exclusion_path))
+                # Expand tilde and convert to absolute path, resolving symlinks
+                expanded_path = os.path.realpath(os.path.expanduser(exclusion_path))
 
                 # Check for wildcards
                 if "**" in expanded_path:
@@ -591,7 +591,7 @@ def _check_directory_rules(file_path, config):
     """
     try:
         if not config:
-            return None, None
+            return None, None, None
 
         # Get directory_rules - supports both array (deprecated) and object format
         directory_rules_config = config.get("directory_rules", [])
@@ -626,8 +626,8 @@ def _check_directory_rules(file_path, config):
             # No rules, but global_action still applies to .ai-read-deny markers
             return None, global_action, None
 
-        # Convert file path to absolute path
-        abs_file_path = os.path.abspath(os.path.expanduser(file_path))
+        # Convert file path to absolute path and resolve symlinks
+        abs_file_path = os.path.realpath(os.path.expanduser(file_path))
 
         # Evaluate rules in order, last match wins
         final_decision = None
@@ -667,7 +667,7 @@ def _check_directory_rules(file_path, config):
                     else:
                         # For non-leading-** patterns, use the original implementation
                         # This handles absolute paths, tilde expansion, and wildcards correctly
-                        expanded_pattern = os.path.abspath(os.path.expanduser(pattern))
+                        expanded_pattern = os.path.realpath(os.path.expanduser(pattern))
 
                         # Check for wildcards
                         if "**" in expanded_pattern:
@@ -774,8 +774,8 @@ def check_directory_denied(file_path, config=None):
                 logging.debug(f"Could not load config for directory rules: {e}")
                 config = {}
 
-        # Convert to absolute path
-        abs_path = os.path.abspath(file_path)
+        # Convert to absolute path and resolve symlinks
+        abs_path = os.path.realpath(file_path)
 
         # PRIORITY 1: Check directory_rules
         rule_decision, rule_action, matched_pattern = _check_directory_rules(abs_path, config) if config else (None, None, None)
@@ -850,8 +850,10 @@ def check_directory_denied(file_path, config=None):
 
     except Exception as e:
         logging.error(f"Error checking directory access: {e}")
-        # Fail-open: allow access if check fails
-        return False, None, None, None
+        import traceback
+        logging.debug(traceback.format_exc())
+        # Fail-closed: block access if check fails (security-critical path)
+        return True, None, f"Directory access check error: {e}", None
 
 
 def extract_tool_result(hook_data):
@@ -1390,19 +1392,30 @@ def _is_ai_guardian_test_file(file_path):
 
     import os
 
-    # Get the absolute path
-    abs_path = os.path.abspath(file_path)
+    # Get the absolute path and resolve symlinks
+    abs_path = os.path.realpath(file_path)
 
     # Check if file is in ai-guardian's tests directory
-    # Look for ai-guardian package directory in the path
+    # More strict check: must be in ai-guardian project root followed by tests/
+    # Prevents false positives in unrelated projects containing "ai-guardian" + "tests"
     path_parts = abs_path.split(os.sep)
 
-    # Check if path contains "ai-guardian" or "ai_guardian" AND "tests"
-    has_ai_guardian = any('ai-guardian' in part or 'ai_guardian' in part for part in path_parts)
-    has_tests = 'tests' in path_parts
+    # Find ai-guardian or ai_guardian directory in path
+    ai_guardian_index = -1
+    for i, part in enumerate(path_parts):
+        if part in ('ai-guardian', 'ai_guardian'):
+            ai_guardian_index = i
+            break
 
-    # Only skip if BOTH conditions are met (ai-guardian project + tests directory)
-    return has_ai_guardian and has_tests
+    if ai_guardian_index == -1:
+        return False
+
+    # Check if 'tests' appears IMMEDIATELY after ai-guardian directory
+    # This ensures it's the ai-guardian project's tests/, not some other tests/
+    if ai_guardian_index + 1 < len(path_parts) and path_parts[ai_guardian_index + 1] == 'tests':
+        return True
+
+    return False
 
 
 def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False):
@@ -1678,29 +1691,6 @@ def _count_gitleaks_patterns(config_path):
         return 0
 
 
-def _is_gitleaks_config_content(content):
-    """
-    Detect if content looks like a gitleaks configuration file.
-
-    Args:
-        content: Text content to check
-
-    Returns:
-        bool: True if content appears to be a gitleaks config
-    """
-    # Check for common gitleaks config patterns
-    indicators = [
-        '[[rules]]',
-        '[allowlist]',
-        'title = "Gitleaks',
-        'regex = \'\'\'',
-        'secretGroup =',
-        'entropy =',
-    ]
-
-    # If content has multiple indicators, it's likely a config file
-    matches = sum(1 for indicator in indicators if indicator in content)
-    return matches >= 3
 
 
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
@@ -1776,10 +1766,11 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         elif not isinstance(content, str):
             content = str(content)
 
-        # Skip scanning if content appears to be a gitleaks config file
+        # Skip scanning if file is a gitleaks config file (path-based check)
         # This prevents false positives when viewing pattern files
-        if _is_gitleaks_config_content(content):
-            logging.debug("Skipping scan - content appears to be a gitleaks config file")
+        # Use path-based detection instead of content-based to prevent bypass
+        if file_path and file_path.endswith('.gitleaks.toml'):
+            logging.debug(f"Skipping scan - file is a gitleaks config: {file_path}")
             return False, None
 
         # Use in-memory filesystem on Linux for better performance
@@ -2337,10 +2328,18 @@ def process_hook_input():
             # Load secret scanning config for ignore lists
             secret_config, config_error = _load_secret_scanning_config()
 
-            # If config has errors, display warning but continue with defaults
+            # If config has errors, log warning and continue with defaults
+            # (ignore lists default to [] when secret_config is None)
             if config_error:
-                logging.warning("Config error in PostToolUse, displaying warning")
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=config_error)
+                logging.warning(f"Config error in PostToolUse: {config_error}")
+
+            # Check if secret scanning is enabled (respect disabled_until)
+            if secret_config and not is_feature_enabled(
+                secret_config.get("enabled", True),
+                secret_config.get("disabled_until")
+            ):
+                logging.info("Secret scanning is disabled - skipping PostToolUse scan")
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []

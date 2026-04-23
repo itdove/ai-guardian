@@ -321,8 +321,9 @@ def _strip_bash_heredoc_content(command: str) -> str:
 
     # Pattern to match heredoc start
     # Groups: (1) optional dash, (2) quote if quoted, (3) delimiter if quoted, (4) delimiter if unquoted
+    # Updated to support hyphenated delimiters (e.g., END-OF-FILE, MY-DELIMITER)
     heredoc_start_pattern = re.compile(
-        r"<<(-)?(?:(['\"])(\w+)\2|(\w+))",
+        r"<<(-)?(?:(['\"])([\w-]+)\2|([\w-]+))",
         re.MULTILINE
     )
 
@@ -495,8 +496,8 @@ class ToolPolicyChecker:
             tool_name, tool_input = self._extract_tool_info(hook_data)
             if not tool_name:
                 logger.warning("Could not extract tool name from hook data")
-                # Fail-open: allow if we can't determine the tool
-                return True, None, None
+                # Fail-closed: block if we can't determine the tool (security-critical path)
+                return False, "Policy check error: unable to determine tool name", None
 
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
 
@@ -767,8 +768,8 @@ class ToolPolicyChecker:
             logger.error(f"Error checking tool policy: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            # Fail-open: allow on errors
-            return True, None, None
+            # Fail-closed: block on errors (security-critical path)
+            return False, f"Policy check error: {e}", None
 
     def _extract_tool_info(self, hook_data: Dict) -> Tuple[Optional[str], Dict]:
         """
@@ -1771,7 +1772,9 @@ class ToolPolicyChecker:
                 cache_data["repositories"] = {}
 
             cache_data["version"] = 1
-            cache_data["ttl_hours"] = int(os.environ.get("AI_GUARDIAN_MAINTAINER_CACHE_TTL_HOURS", "24"))
+            # Get TTL from env var with upper bound (max 168 hours = 7 days)
+            ttl_hours = int(os.environ.get("AI_GUARDIAN_MAINTAINER_CACHE_TTL_HOURS", "24"))
+            cache_data["ttl_hours"] = min(ttl_hours, 168)  # Cap at 7 days
             cache_data["repositories"][repo_key] = {
                 "username": username,
                 "is_maintainer": is_maintainer,
@@ -2413,6 +2416,43 @@ class ToolPolicyChecker:
 
                 # Fetch config
                 config = fetcher.fetch_config(url, headers=headers)
+
+                if not config:
+                    return None
+
+                # Validate remote config against JSON schema
+                if not self._validate_config(config, f"remote ({url})", Path(url)):
+                    logger.error(f"Remote config validation failed: {url}")
+                    return None
+
+                # Security check: prevent remote configs from disabling security features
+                # Remote configs MUST NOT be able to disable critical security enforcement
+                security_critical_keys = [
+                    ("secret_scanning", "enabled"),
+                    ("prompt_injection", "enabled"),
+                    ("permissions", "enabled"),
+                ]
+
+                for key_path in security_critical_keys:
+                    # Navigate nested dict
+                    current = config
+                    for key in key_path[:-1]:
+                        if key in current:
+                            current = current[key]
+                        else:
+                            current = None
+                            break
+
+                    # Check if final key attempts to disable feature
+                    if current is not None and key_path[-1] in current:
+                        if current[key_path[-1]] is False:
+                            logger.error(
+                                f"Remote config {url} attempts to disable security feature: "
+                                f"{'.'.join(key_path)}. This is not allowed. Skipping remote config."
+                            )
+                            return None
+
+                logger.info(f"Remote config validated and passed security checks: {url}")
                 return config
             else:
                 # Local file path

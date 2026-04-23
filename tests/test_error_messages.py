@@ -399,7 +399,8 @@ class DirectoryRuleErrorMessageTest(TestCase):
             )
 
             self.assertTrue(is_denied, "File with .ai-read-deny marker should be blocked")
-            self.assertEqual(denied_dir, tmpdir, "Should identify the directory with marker")
+            # Use realpath for comparison since check_directory_denied now uses realpath
+            self.assertEqual(denied_dir, os.path.realpath(tmpdir), "Should identify the directory with marker")
             # matched_pattern should be None for marker-based blocks (not rule-based)
             self.assertIsNone(matched_pattern, "Marker-based blocks don't have a rule pattern")
 

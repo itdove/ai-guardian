@@ -180,9 +180,14 @@ class RemoteFetcher:
                     headers["PRIVATE-TOKEN"] = gitlab_token
                     logger.debug("Using GITLAB_TOKEN for authentication")
 
-            # Fetch with timeout
+            # Security: Enforce HTTPS for remote configs (reject http://)
+            if url.startswith("http://"):
+                logger.error(f"HTTP URLs not allowed for remote configs (use HTTPS): {url}")
+                return None
+
+            # Fetch with timeout and TLS verification enabled
             logger.debug(f"Fetching {url}...")
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10, verify=True)
 
             # Check HTTP status
             if response.status_code == 401:
