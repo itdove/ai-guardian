@@ -1772,7 +1772,9 @@ class ToolPolicyChecker:
                 cache_data["repositories"] = {}
 
             cache_data["version"] = 1
-            cache_data["ttl_hours"] = int(os.environ.get("AI_GUARDIAN_MAINTAINER_CACHE_TTL_HOURS", "24"))
+            # Get TTL from env var with upper bound (max 168 hours = 7 days)
+            ttl_hours = int(os.environ.get("AI_GUARDIAN_MAINTAINER_CACHE_TTL_HOURS", "24"))
+            cache_data["ttl_hours"] = min(ttl_hours, 168)  # Cap at 7 days
             cache_data["repositories"][repo_key] = {
                 "username": username,
                 "is_maintainer": is_maintainer,

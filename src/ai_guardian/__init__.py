@@ -850,8 +850,10 @@ def check_directory_denied(file_path, config=None):
 
     except Exception as e:
         logging.error(f"Error checking directory access: {e}")
-        # Fail-open: allow access if check fails
-        return False, None, None, None
+        import traceback
+        logging.debug(traceback.format_exc())
+        # Fail-closed: block access if check fails (security-critical path)
+        return True, None, f"Directory access check error: {e}", None
 
 
 def extract_tool_result(hook_data):
@@ -1394,15 +1396,26 @@ def _is_ai_guardian_test_file(file_path):
     abs_path = os.path.realpath(file_path)
 
     # Check if file is in ai-guardian's tests directory
-    # Look for ai-guardian package directory in the path
+    # More strict check: must be in ai-guardian project root followed by tests/
+    # Prevents false positives in unrelated projects containing "ai-guardian" + "tests"
     path_parts = abs_path.split(os.sep)
 
-    # Check if path contains "ai-guardian" or "ai_guardian" AND "tests"
-    has_ai_guardian = any('ai-guardian' in part or 'ai_guardian' in part for part in path_parts)
-    has_tests = 'tests' in path_parts
+    # Find ai-guardian or ai_guardian directory in path
+    ai_guardian_index = -1
+    for i, part in enumerate(path_parts):
+        if part in ('ai-guardian', 'ai_guardian'):
+            ai_guardian_index = i
+            break
 
-    # Only skip if BOTH conditions are met (ai-guardian project + tests directory)
-    return has_ai_guardian and has_tests
+    if ai_guardian_index == -1:
+        return False
+
+    # Check if 'tests' appears IMMEDIATELY after ai-guardian directory
+    # This ensures it's the ai-guardian project's tests/, not some other tests/
+    if ai_guardian_index + 1 < len(path_parts) and path_parts[ai_guardian_index + 1] == 'tests':
+        return True
+
+    return False
 
 
 def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False):

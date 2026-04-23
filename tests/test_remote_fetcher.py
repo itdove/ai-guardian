@@ -48,14 +48,14 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         mock_response.text = '{"test": "data"}'
 
         with patch('requests.get', return_value=mock_response):
-            config = self.fetcher.fetch_config("http://example.com/config.json")
+            config = self.fetcher.fetch_config("https://example.com/config.json")
 
             # Verify config was fetched
             self.assertIsNotNone(config)
             self.assertEqual(config, {"test": "data"})
 
             # Create a stale cache (13 hours old) to test refresh_interval default (12h)
-            cache_file = self.fetcher._get_cache_path("http://example.com/config.json")
+            cache_file = self.fetcher._get_cache_path("https://example.com/config.json")
             with open(cache_file, 'r') as f:
                 cache_data = json.load(f)
 
@@ -66,7 +66,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
             # Next fetch should try to refresh (because > 12h default)
             with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response) as mock_get:
-                config = self.fetcher.fetch_config("http://example.com/config.json")
+                config = self.fetcher.fetch_config("https://example.com/config.json")
                 # Should have tried to refresh
                 self.assertTrue(mock_get.called)
 
@@ -81,11 +81,11 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
         # Initial fetch
         with patch('requests.get', return_value=mock_response):
-            config = self.fetcher.fetch_config("http://example.com/config.json")
+            config = self.fetcher.fetch_config("https://example.com/config.json")
             self.assertIsNotNone(config)
 
             # Create cache that's 7 hours old (should be stale with 6h interval)
-            cache_file = self.fetcher._get_cache_path("http://example.com/config.json")
+            cache_file = self.fetcher._get_cache_path("https://example.com/config.json")
             with open(cache_file, 'r') as f:
                 cache_data = json.load(f)
             cache_data['cached_at'] = time.time() - (7 * 3600)
@@ -94,7 +94,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
             # Next fetch should try to refresh (because > 6h)
             with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response) as mock_get:
-                config = self.fetcher.fetch_config("http://example.com/config.json")
+                config = self.fetcher.fetch_config("https://example.com/config.json")
                 # Should have tried to refresh because 7h > 6h
                 self.assertTrue(mock_get.called)
 
@@ -109,11 +109,11 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
         # Initial fetch
         with patch('requests.get', return_value=mock_response):
-            config = self.fetcher.fetch_config("http://example.com/config.json")
+            config = self.fetcher.fetch_config("https://example.com/config.json")
             self.assertIsNotNone(config)
 
             # Create expired cache (25 hours old, > 24h expiration)
-            cache_file = self.fetcher._get_cache_path("http://example.com/config.json")
+            cache_file = self.fetcher._get_cache_path("https://example.com/config.json")
             with open(cache_file, 'r') as f:
                 cache_data = json.load(f)
             cache_data['cached_at'] = time.time() - (25 * 3600)
@@ -125,7 +125,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
             mock_failed_response.status_code = 500
 
             with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_failed_response):
-                config = self.fetcher.fetch_config("http://example.com/config.json")
+                config = self.fetcher.fetch_config("https://example.com/config.json")
                 # Should return None because cache is expired (25h > 24h) and refresh failed
                 self.assertIsNone(config)
 
@@ -141,11 +141,11 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
         # Initial fetch
         with patch('requests.get', return_value=mock_response):
-            config = self.fetcher.fetch_config("http://example.com/config.json")
+            config = self.fetcher.fetch_config("https://example.com/config.json")
             self.assertIsNotNone(config)
 
             # Create cache that's 5 hours old (stale but not expired: 5h > 3h but < 12h)
-            cache_file = self.fetcher._get_cache_path("http://example.com/config.json")
+            cache_file = self.fetcher._get_cache_path("https://example.com/config.json")
             with open(cache_file, 'r') as f:
                 cache_data = json.load(f)
             cache_data['cached_at'] = time.time() - (5 * 3600)
@@ -157,7 +157,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
             mock_failed_response.status_code = 500
 
             with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_failed_response):
-                config = self.fetcher.fetch_config("http://example.com/config.json")
+                config = self.fetcher.fetch_config("https://example.com/config.json")
                 # Should return cached data because it's not expired yet (5h < 12h)
                 self.assertIsNotNone(config)
                 self.assertEqual(config, {"test": "data"})
@@ -174,11 +174,11 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
         # Initial fetch
         with patch('requests.get', return_value=mock_response):
-            config = self.fetcher.fetch_config("http://example.com/config.json")
+            config = self.fetcher.fetch_config("https://example.com/config.json")
             self.assertIsNotNone(config)
 
             # Create cache that's 7 hours old
-            cache_file = self.fetcher._get_cache_path("http://example.com/config.json")
+            cache_file = self.fetcher._get_cache_path("https://example.com/config.json")
             with open(cache_file, 'r') as f:
                 cache_data = json.load(f)
             cache_data['cached_at'] = time.time() - (7 * 3600)
@@ -189,7 +189,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
             # 7h < 10h, so cache should be fresh
             with patch('ai_guardian.remote_fetcher.requests.get', return_value=mock_response) as mock_get:
                 config = self.fetcher.fetch_config(
-                    "http://example.com/config.json",
+                    "https://example.com/config.json",
                     refresh_interval_hours=10
                 )
                 # Should NOT have tried to refresh because 7h < 10h
@@ -207,7 +207,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
         # Should raise ValueError when trying to convert "invalid" to int
         with patch('requests.get', return_value=mock_response):
             with self.assertRaises(ValueError):
-                self.fetcher.fetch_config("http://example.com/config.json")
+                self.fetcher.fetch_config("https://example.com/config.json")
 
 
 if __name__ == '__main__':

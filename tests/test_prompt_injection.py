@@ -376,7 +376,9 @@ class PromptInjectionDetectorTest(unittest.TestCase):
             is_injection, error_msg, _ = detector.detect("test prompt")
             # Should fail open (not detect injection)
             self.assertFalse(is_injection)
-            self.assertIsNone(error_msg)
+            # Should return a warning message about the error
+            self.assertIsNotNone(error_msg)
+            self.assertIn("detection error", error_msg)
 
     # ========================================================================
     # Test: Time-based expiration for allowlist patterns (Issue #34)

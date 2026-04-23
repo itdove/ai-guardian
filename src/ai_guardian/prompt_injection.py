@@ -1172,10 +1172,15 @@ class PromptInjectionDetector:
             return False, None, False  # No injection detected
 
         except Exception as e:
-            # Fail-open: allow operation on errors
+            # Fail-open: allow operation on errors (for usability)
+            # But log the error with traceback for debugging
             logger.error(f"Error during prompt injection detection: {e}")
-            logger.debug("Failing open - allowing operation")
-            return False, None, False
+            import traceback
+            logger.error(traceback.format_exc())
+            logger.info("Failing open - allowing operation due to detection error")
+            # Return warning message to alert user of the error
+            warn_msg = f"⚠️  Prompt injection detection error - operation allowed: {str(e)[:100]}"
+            return False, warn_msg, False
 
 
 def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None, source_type: str = "user_prompt") -> Tuple[bool, Optional[str], bool]:
