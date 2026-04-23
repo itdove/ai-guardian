@@ -893,11 +893,14 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         response = json.loads(result['output'])
         self.assertNotIn('decision', response)
 
+    @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_posttooluse_bash_with_secret(self, mock_pattern_config):
+    def test_posttooluse_bash_with_secret(self, mock_pattern_config, mock_redaction_config):
         """Test PostToolUse blocks Bash output containing secrets"""
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
+        # Use default blocking behavior (no redaction config)
+        mock_redaction_config.return_value = (None, None)
 
         hook_json = json.dumps({
             "hook_event_name": "PostToolUse",

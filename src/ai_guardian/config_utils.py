@@ -7,6 +7,7 @@ Shared utilities for configuration directory resolution and timestamp handling.
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -222,3 +223,71 @@ def is_feature_enabled(feature_config, current_time: Optional[datetime] = None, 
     # Unknown format - fail-safe to default
     logger.warning(f"Unknown feature config format: {type(feature_config)}, using default: {default}")
     return default
+
+
+def validate_regex_pattern(pattern: str, max_length: int = 500) -> bool:
+    """
+    Validate a regex pattern for safety before compilation.
+
+    Prevents ReDoS (Regular Expression Denial of Service) attacks from
+    untrusted pattern sources (e.g., network-sourced pattern servers).
+
+    Args:
+        pattern: Regex pattern string to validate
+        max_length: Maximum allowed pattern length (default: 500)
+
+    Returns:
+        True if pattern is safe to compile, False if dangerous
+
+    Security checks:
+        - Length limit to prevent extremely complex patterns
+        - Nested quantifiers detection (e.g., (a+)+, (a*)*) - common ReDoS vector
+        - Valid regex syntax
+
+    Examples:
+        >>> validate_regex_pattern(r"[a-z]+@[a-z]+\\.com")
+        True
+
+        >>> validate_regex_pattern(r"(a+)+b")  # Nested quantifiers - ReDoS vector
+        False
+
+        >>> validate_regex_pattern("a" * 1000)  # Too long
+        False
+
+        >>> validate_regex_pattern(r"[invalid")  # Invalid syntax
+        False
+    """
+    if not pattern or not isinstance(pattern, str):
+        logger.warning("Invalid pattern type or empty pattern")
+        return False
+
+    # Check length limit
+    if len(pattern) > max_length:
+        logger.warning(f"Pattern too long: {len(pattern)} > {max_length}")
+        return False
+
+    # Detect nested quantifiers - common ReDoS pattern
+    # Matches patterns like: (a+)+, (a*)*, (a?)+, [a-z]+*, etc.
+    # These have a quantified expression inside a quantified group/class
+    # We need to be careful NOT to match safe patterns like [a-z]+? (non-greedy after char class)
+    # or [\s\S]+? (non-greedy match-all)
+    # Pattern: closing paren/bracket ) or ] followed by quantifier then another quantifier
+    # BUT: allow non-greedy quantifiers which end in ? (those are safe)
+    nested_quantifier_patterns = [
+        r'\)[+*][+*]',    # Consecutive quantifiers after closing paren like )++ or )+* (not greedy)
+        r'\][+*][+*]',    # Consecutive quantifiers after closing bracket like ]++ or ]+* (not greedy)
+        r'[+*?]\)[+*]',   # Quantifier before ) then non-greedy after, like +)+
+    ]
+
+    for nested_pattern in nested_quantifier_patterns:
+        if re.search(nested_pattern, pattern):
+            logger.warning(f"Nested quantifiers detected in pattern (potential ReDoS): {pattern[:100]}")
+            return False
+
+    # Validate regex syntax by attempting to compile
+    try:
+        re.compile(pattern)
+        return True
+    except re.error as e:
+        logger.warning(f"Invalid regex syntax: {e}, pattern: {pattern[:100]}")
+        return False

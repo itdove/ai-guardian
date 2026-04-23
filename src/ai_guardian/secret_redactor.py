@@ -6,12 +6,14 @@ to continue while protecting credentials. Instead of blocking operations entirel
 secrets are detected, the redactor sanitizes outputs by masking sensitive data.
 
 Part of Phase 4: Hermes Security Patterns Integration (Issue #197)
-NEW in v1.8.0: Optional pattern server support for enterprise secret pattern management.
+NEW in v1.5.0: Optional pattern server support for enterprise secret pattern management.
 """
 
 import re
 import logging
 from typing import List, Dict, Tuple, Optional
+
+from ai_guardian.config_utils import validate_regex_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +58,8 @@ class SecretRedactor:
         (r'(ya29\.[A-Za-z0-9\-_]+)', 'preserve_prefix_suffix', 'Google OAuth Token'),
         (r'(AIza[A-Za-z0-9\-_]{35})', 'preserve_prefix_suffix', 'Google API Key'),
 
-        # Azure Client Secrets
-        (r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', 'preserve_prefix_suffix', 'Azure Client Secret'),
+        # Azure Client Secrets (requires context to avoid matching all UUIDs)
+        (r'(?:client.?secret|AZURE_CLIENT_SECRET)\s*[=:]\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', 'preserve_prefix_suffix', 'Azure Client Secret'),
 
         # npm Tokens
         (r'(npm_[A-Za-z0-9]{36})', 'preserve_prefix_suffix', 'npm Token'),
@@ -110,10 +112,14 @@ class SecretRedactor:
         (r'(redis://[^:]*:)([^@]+)(@[^\s]+)', 'connection_string', 'Redis Connection'),
 
         # Generic long hex strings (potential secrets)
-        (r'\b([a-f0-9]{40,})\b', 'preserve_prefix_suffix', 'Hex Secret'),
+        # Requires context (secret/key/token/password) OR very long (100+ chars to avoid git SHAs)
+        (r'((?:secret|key|token|password|credential)[\s"\'=:]+)([a-f0-9]{40,})\b', 'context_secret', 'Hex Secret'),
+        (r'\b([a-f0-9]{100,})\b', 'preserve_prefix_suffix', 'Very Long Hex Secret'),
 
         # Base64 encoded secrets (long strings)
-        (r'\b([A-Za-z0-9+/]{40,}={0,2})\b', 'preserve_prefix_suffix', 'Base64 Secret'),
+        # Requires context (secret/key/token/password) OR very long (100+ chars)
+        (r'((?:secret|key|token|password|credential)[\s"\'=:]+)([A-Za-z0-9+/]{40,}={0,2})\b', 'context_secret', 'Base64 Secret'),
+        (r'\b([A-Za-z0-9+/]{100,}={0,2})\b', 'preserve_prefix_suffix', 'Very Long Base64 Secret'),
     ]
 
     def __init__(self, config: Optional[Dict] = None):
@@ -127,7 +133,7 @@ class SecretRedactor:
                 - preserve_format: bool - whether to preserve format in redactions (default: True)
                 - additional_patterns: List[Dict] - custom patterns to add
                 - log_redactions: bool - whether to log redaction events (default: True)
-                - pattern_server: Dict - pattern server configuration (NEW in v1.8.0)
+                - pattern_server: Dict - pattern server configuration (NEW in v1.5.0)
         """
         self.config = config or {}
         self.enabled = self.config.get('enabled', True)
@@ -156,6 +162,11 @@ class SecretRedactor:
                     strategy = pattern_info.get('strategy', 'preserve_prefix_suffix')
                     secret_type = pattern_info.get('secret_type', 'Unknown Secret')
 
+                # Validate pattern before compilation (protects against ReDoS from pattern server)
+                if not validate_regex_pattern(pattern):
+                    logger.error(f"Pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping")
+                    continue
+
                 compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
                 self.compiled_patterns.append((compiled, strategy, secret_type))
             except (re.error, KeyError, TypeError) as e:
@@ -168,6 +179,12 @@ class SecretRedactor:
                 pattern = custom.get('pattern') or custom.get('regex')
                 strategy = custom.get('strategy', 'preserve_prefix_suffix')
                 secret_type = custom.get('type') or custom.get('secret_type', 'Custom Secret')
+
+                # Validate pattern before compilation (protects against ReDoS)
+                if not validate_regex_pattern(pattern):
+                    logger.error(f"Custom pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping")
+                    continue
+
                 compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
                 self.compiled_patterns.append((compiled, strategy, secret_type))
                 logger.debug(f"Added custom pattern: {secret_type}")
@@ -261,14 +278,17 @@ class SecretRedactor:
 
                 # Track redacted region (adjust for length change)
                 length_diff = len(redacted) - len(original)
-                redacted_regions.append((start, start + len(redacted)))
+                new_region = (start, start + len(redacted))
 
-                # Adjust future regions for length change
+                # Adjust future regions for length change (BEFORE adding new region)
                 redacted_regions = [
                     (s + length_diff if s > start else s,
                      e + length_diff if e > start else e)
                     for s, e in redacted_regions
                 ]
+
+                # Now append the new region (after adjustment to avoid self-corruption)
+                redacted_regions.append(new_region)
 
                 # Record redaction
                 redactions.append({
@@ -322,6 +342,8 @@ class SecretRedactor:
             return self._redact_aws_secret(match)
         elif strategy == 'yaml_password':
             return self._redact_yaml_password(match)
+        elif strategy == 'context_secret':
+            return self._redact_context_secret(match)
         else:
             # Default to preserve_prefix_suffix
             return self._preserve_prefix_suffix(match)
@@ -459,3 +481,32 @@ class SecretRedactor:
         redacted = f"{prefix}[HIDDEN]"
 
         return (redacted, {'method': 'yaml_password'})
+
+    def _redact_context_secret(self, match: re.Match) -> Tuple[str, Dict]:
+        """
+        Redact secret with context keyword prefix.
+
+        Preserves the context keyword (secret, key, token, etc.) and separator,
+        but redacts the secret value using prefix/suffix preservation.
+
+        Example: api_secret: abcdef1234567890abcdef1234567890abcdef123456
+                 -> api_secret: abcdef...123456
+        """
+        context_prefix = match.group(1)  # "secret: ", "key=", etc.
+        secret = match.group(2)  # The actual secret value
+
+        # Redact the secret part using prefix/suffix preservation
+        if len(secret) <= 18:
+            # Too short to preserve format meaningfully
+            redacted_secret = '***'
+        else:
+            # Preserve prefix and suffix for debugging while hiding the secret
+            prefix_len = min(6, len(secret) // 3)
+            suffix_len = min(4, len(secret) // 4)
+            prefix = secret[:prefix_len]
+            suffix = secret[-suffix_len:]
+            redacted_secret = f"{prefix}...{suffix}"
+
+        redacted = f"{context_prefix}{redacted_secret}"
+
+        return (redacted, {'method': 'context_secret', 'context': context_prefix.strip()})

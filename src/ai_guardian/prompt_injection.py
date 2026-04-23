@@ -13,7 +13,7 @@ Design Philosophy:
 - Fast: <1ms for heuristic detection
 - Fail-open: Allow operation on detection errors
 
-NEW in v1.8.0: Optional pattern server support for homoglyph patterns.
+NEW in v1.5.0: Optional pattern server support for homoglyph patterns.
 """
 
 import fnmatch
@@ -201,7 +201,7 @@ class UnicodeAttackDetector:
                 - detect_homoglyphs: bool (default True)
                 - allow_rtl_languages: bool (default True)
                 - allow_emoji: bool (default True)
-                - pattern_server: Dict - pattern server configuration for homoglyphs (NEW in v1.8.0)
+                - pattern_server: Dict - pattern server configuration for homoglyphs (NEW in v1.5.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)

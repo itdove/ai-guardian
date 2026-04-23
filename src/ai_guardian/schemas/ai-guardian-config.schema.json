@@ -290,7 +290,7 @@
         },
         "pattern_server": {
           "type": ["object", "null"],
-          "description": "OPTIONAL/ADVANCED: Secret redaction patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise secret patterns that can be updated as new secret formats emerge. Supports override modes: 'replace' (use only server patterns) or 'extend' (add to defaults).",
+          "description": "OPTIONAL/ADVANCED: Secret redaction patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise secret patterns that can be updated as new secret formats emerge. Supports override modes: 'replace' (use only server patterns) or 'extend' (add to defaults).",
           "additionalProperties": true,
           "properties": {
             "url": {
@@ -534,7 +534,7 @@
             },
             "pattern_server": {
               "type": ["object", "null"],
-              "description": "OPTIONAL/ADVANCED: Homoglyph patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise homoglyph patterns that can be updated as new scripts emerge. Immutable patterns (zero-width chars, bidi overrides) cannot be overridden.",
+              "description": "OPTIONAL/ADVANCED: Homoglyph patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise homoglyph patterns that can be updated as new scripts emerge. Immutable patterns (zero-width chars, bidi overrides) cannot be overridden.",
               "additionalProperties": true,
               "properties": {
                 "url": {
@@ -612,7 +612,7 @@
         },
         "pattern_server": {
           "type": ["object", "null"],
-          "description": "OPTIONAL/ADVANCED: SSRF protection patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise patterns instead of hardcoded defaults. Supports three-tier system: immutable core (metadata endpoints, dangerous schemes) + pattern server/defaults (RFC 1918 ranges) + local config additions.",
+          "description": "OPTIONAL/ADVANCED: SSRF protection patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise patterns instead of hardcoded defaults. Supports three-tier system: immutable core (metadata endpoints, dangerous schemes) + pattern server/defaults (RFC 1918 ranges) + local config additions.",
           "additionalProperties": true,
           "properties": {
             "url": {
@@ -646,7 +646,7 @@
     },
     "config_file_scanning": {
       "type": "object",
-      "description": "Config file scanning configuration (NEW in v1.8.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
+      "description": "Config file scanning configuration (NEW in v1.5.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
       "additionalProperties": true,
       "properties": {
         "enabled": {
@@ -698,7 +698,7 @@
         },
         "pattern_server": {
           "type": ["object", "null"],
-          "description": "OPTIONAL/ADVANCED: Config exfiltration patterns from a pattern server (NEW in v1.8.0). Configure to use enterprise patterns for detecting credential exfiltration in AI config files. Immutable core patterns cannot be overridden.",
+          "description": "OPTIONAL/ADVANCED: Config exfiltration patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise patterns for detecting credential exfiltration in AI config files. Immutable core patterns cannot be overridden.",
           "additionalProperties": true,
           "properties": {
             "url": {

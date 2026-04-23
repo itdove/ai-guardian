@@ -285,24 +285,27 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         assert len(result['redactions']) == 0
 
     def test_hex_secret_redaction(self):
-        """Test long hex string redaction."""
+        """Test long hex string redaction with context."""
         redactor = SecretRedactor()
-        text = "Hex: abcdef1234567890abcdef1234567890abcdef1234567890"
+        # Hex patterns now require context keywords (secret, key, token, password)
+        # or be very long (100+ chars) to avoid false positives with git SHAs
+        text = "api_secret: abcdef1234567890abcdef1234567890abcdef1234567890"
         result = redactor.redact(text)
 
-        # Long hex strings should be redacted - middle part gone
-        assert "Hex:" in result['redacted_text']
+        # Long hex strings with context should be redacted - middle part gone
+        assert "api_secret:" in result['redacted_text']
         # Should have some redaction
         assert len(result['redacted_text']) < len(text)
 
     def test_base64_secret_redaction(self):
-        """Test base64 encoded secret redaction."""
+        """Test base64 encoded secret redaction with context."""
         redactor = SecretRedactor()
-        text = "Base64: dGhpc2lzYWxvbmdzdHJpbmd0aGF0bG9va3NsaWtlYWJhc2U2NGVuY29kZWRzZWNyZXQ="
+        # Base64 patterns now require context keywords or be very long (100+ chars)
+        text = "token: dGhpc2lzYWxvbmdzdHJpbmd0aGF0bG9va3NsaWtlYWJhc2U2NGVuY29kZWRzZWNyZXQ="
         result = redactor.redact(text)
 
-        # Long base64 strings should be redacted
-        assert "dGhpc2...ZXQ=" in result['redacted_text'] or "Base64" in result['redacted_text']
+        # Long base64 strings with context should be redacted
+        assert "dGhpc2...ZXQ=" in result['redacted_text'] or "token:" in result['redacted_text']
 
 
 class TestSecretRedactionIntegration:

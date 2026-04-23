@@ -9,7 +9,7 @@ Supports three-tier pattern system:
 
 Implements fallback chain: pattern server → cache → hardcoded defaults
 
-NEW in v1.8.0: Pattern server support for SSRF, Unicode, Config Scanner, and Secret Redaction.
+NEW in v1.5.0: Pattern server support for SSRF, Unicode, Config Scanner, and Secret Redaction.
 """
 
 import logging

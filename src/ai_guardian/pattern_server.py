@@ -7,10 +7,10 @@ Fetches and caches pattern configurations from a configured server.
 
 Supports multiple pattern types:
 - Gitleaks secret detection patterns (original)
-- SSRF protection patterns (NEW in v1.8.0)
-- Unicode attack detection patterns (NEW in v1.8.0)
-- Config file scanner patterns (NEW in v1.8.0)
-- Secret redaction patterns (NEW in v1.8.0)
+- SSRF protection patterns (NEW in v1.5.0)
+- Unicode attack detection patterns (NEW in v1.5.0)
+- Config file scanner patterns (NEW in v1.5.0)
+- Secret redaction patterns (NEW in v1.5.0)
 
 This is a generic implementation that can work with any pattern server
 implementing a compatible API.
@@ -59,7 +59,7 @@ class PatternServerClient:
     - Fail-safe fallback to cached patterns
     - Multiple pattern types (gitleaks, ssrf, unicode, config-exfil, secrets)
 
-    NEW in v1.8.0: Support for multiple pattern types beyond Gitleaks.
+    NEW in v1.5.0: Support for multiple pattern types beyond Gitleaks.
     """
 
     # Default endpoints for different pattern types
@@ -89,7 +89,7 @@ class PatternServerClient:
             pattern_type: Type of patterns to fetch (gitleaks, ssrf, unicode, config-exfil, secrets)
 
         NEW in v1.7.0: 'enabled' field is deprecated. Presence of config = enabled.
-        NEW in v1.8.0: 'pattern_type' parameter for multi-pattern support.
+        NEW in v1.5.0: 'pattern_type' parameter for multi-pattern support.
         Still supports 'enabled' field for backward compatibility (with warning).
         """
         self.pattern_type = pattern_type
@@ -170,7 +170,7 @@ class PatternServerClient:
         Returns:
             Parsed TOML patterns as dict, or None if unavailable
 
-        NEW in v1.8.0: Returns parsed patterns for use in Python code.
+        NEW in v1.5.0: Returns parsed patterns for use in Python code.
         Implements fallback chain: server → cache → None
         """
         # Get path to patterns file (handles fetching/caching)

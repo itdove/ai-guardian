@@ -129,6 +129,24 @@ class TestPrivateIPRanges:
 
         assert should_block, f"Failed to block {description}"
 
+    @pytest.mark.parametrize("ipv6_mapped,expected_ipv4,description", [
+        ("::ffff:169.254.169.254", "169.254.169.254", "AWS metadata via IPv6-mapped"),
+        ("::ffff:127.0.0.1", "127.0.0.1", "Loopback via IPv6-mapped"),
+        ("::ffff:10.0.0.1", "10.0.0.1", "Private 10.x via IPv6-mapped"),
+        ("::ffff:172.16.0.1", "172.16.0.1", "Private 172.16.x via IPv6-mapped"),
+        ("::ffff:192.168.1.1", "192.168.1.1", "Private 192.168.x via IPv6-mapped"),
+    ])
+    def test_ipv6_mapped_ipv4_blocked(self, ipv6_mapped, expected_ipv4, description):
+        """Test that IPv6-mapped IPv4 addresses are blocked (CVE-level bypass fix)."""
+        protector = SSRFProtector()
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": f"curl http://[{ipv6_mapped}]/test"}
+        )
+
+        assert should_block, f"Failed to block {description} (maps to {expected_ipv4})"
+        assert "SSRF" in msg or "blocked" in msg.lower()
+
 
 class TestCloudMetadataEndpoints:
     """Test blocking of cloud provider metadata endpoints."""
@@ -524,6 +542,21 @@ class TestIPValidation:
         # Invalid IPs should return False (not treated as blocked IPs)
         assert not protector._is_ip_blocked("not-an-ip")
         assert not protector._is_ip_blocked("999.999.999.999")
+
+    def test_is_ip_blocked_ipv6_mapped_ipv4(self):
+        """Test that IPv6-mapped IPv4 addresses are properly blocked."""
+        protector = SSRFProtector()
+
+        # Critical bypass vulnerability: IPv6-mapped IPv4 addresses
+        # These should be blocked when their IPv4 equivalent is blocked
+        assert protector._is_ip_blocked("::ffff:169.254.169.254"), "AWS metadata bypass via IPv6-mapped"
+        assert protector._is_ip_blocked("::ffff:127.0.0.1"), "Loopback bypass via IPv6-mapped"
+        assert protector._is_ip_blocked("::ffff:10.0.0.1"), "Private 10.x bypass via IPv6-mapped"
+        assert protector._is_ip_blocked("::ffff:172.16.0.1"), "Private 172.16.x bypass via IPv6-mapped"
+        assert protector._is_ip_blocked("::ffff:192.168.1.1"), "Private 192.168.x bypass via IPv6-mapped"
+
+        # Public IPs should still not be blocked even when IPv6-mapped
+        assert not protector._is_ip_blocked("::ffff:8.8.8.8"), "Public IP via IPv6-mapped should be allowed"
 
 
 class TestDomainValidation:

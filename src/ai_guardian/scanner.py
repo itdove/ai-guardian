@@ -84,9 +84,9 @@ class FileScanner:
         self.verbose = verbose
         self.findings: List[Dict[str, Any]] = []
 
-        # Initialize scanners
-        self.ssrf_protector = SSRFProtector(config) if HAS_SSRF else None
-        self.unicode_detector = UnicodeAttackDetector(config) if HAS_UNICODE else None
+        # Initialize scanners with feature-specific sub-configs
+        self.ssrf_protector = SSRFProtector(config.get("ssrf_protection", {})) if HAS_SSRF else None
+        self.unicode_detector = UnicodeAttackDetector(config.get("prompt_injection", {})) if HAS_UNICODE else None
 
     def scan_directory(
         self,
@@ -381,7 +381,7 @@ class FileScanner:
             if is_attack:
                 finding = create_unicode_finding(
                     attack_type="zero-width characters",
-                    details=f"{len(details)} zero-width characters detected",
+                    details=f"Zero-width characters detected: {details}",
                     file_path=file_path
                 )
                 self.findings.append(finding)
@@ -405,12 +405,24 @@ class FileScanner:
             if is_attack:
                 finding = create_unicode_finding(
                     attack_type="homoglyphs",
-                    details=f"Homoglyph characters detected: {details.get('chars', [])}",
+                    details=f"Homoglyph characters detected: {details}",
                     file_path=file_path
                 )
                 self.findings.append(finding)
                 if self.verbose:
                     print(f"  [UNICODE] Homoglyphs detected")
+
+            # Check tag characters
+            is_attack, details = self.unicode_detector.detect_tag_chars(content)
+            if is_attack:
+                finding = create_unicode_finding(
+                    attack_type="tag characters",
+                    details=f"Tag characters detected: {details}",
+                    file_path=file_path
+                )
+                self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [UNICODE] Tag characters detected")
 
         except Exception as e:
             logger.debug(f"Error checking Unicode attacks: {e}")
