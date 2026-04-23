@@ -487,7 +487,7 @@ class IDESetup:
                 merged_config = existing_config.copy()
                 merged_config["userPromptSubmitted"] = ide_config["hooks"]["userPromptSubmitted"]
                 merged_config["preToolUse"] = ide_config["hooks"]["preToolUse"]
-                return merged_config
+                # Fall through to common config-write path (don't return early)
 
             if dry_run:
                 # Show what would be changed

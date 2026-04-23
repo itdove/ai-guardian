@@ -495,8 +495,8 @@ class ToolPolicyChecker:
             tool_name, tool_input = self._extract_tool_info(hook_data)
             if not tool_name:
                 logger.warning("Could not extract tool name from hook data")
-                # Fail-open: allow if we can't determine the tool
-                return True, None, None
+                # Fail-closed: block if we can't determine the tool (security-critical path)
+                return False, "Policy check error: unable to determine tool name", None
 
             logger.info(f"Checking if tool '{tool_name}' is allowed...")
 
@@ -767,8 +767,8 @@ class ToolPolicyChecker:
             logger.error(f"Error checking tool policy: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            # Fail-open: allow on errors
-            return True, None, None
+            # Fail-closed: block on errors (security-critical path)
+            return False, f"Policy check error: {e}", None
 
     def _extract_tool_info(self, hook_data: Dict) -> Tuple[Optional[str], Dict]:
         """

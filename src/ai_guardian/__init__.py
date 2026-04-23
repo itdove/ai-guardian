@@ -1678,29 +1678,6 @@ def _count_gitleaks_patterns(config_path):
         return 0
 
 
-def _is_gitleaks_config_content(content):
-    """
-    Detect if content looks like a gitleaks configuration file.
-
-    Args:
-        content: Text content to check
-
-    Returns:
-        bool: True if content appears to be a gitleaks config
-    """
-    # Check for common gitleaks config patterns
-    indicators = [
-        '[[rules]]',
-        '[allowlist]',
-        'title = "Gitleaks',
-        'regex = \'\'\'',
-        'secretGroup =',
-        'entropy =',
-    ]
-
-    # If content has multiple indicators, it's likely a config file
-    matches = sum(1 for indicator in indicators if indicator in content)
-    return matches >= 3
 
 
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
@@ -1776,10 +1753,11 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         elif not isinstance(content, str):
             content = str(content)
 
-        # Skip scanning if content appears to be a gitleaks config file
+        # Skip scanning if file is a gitleaks config file (path-based check)
         # This prevents false positives when viewing pattern files
-        if _is_gitleaks_config_content(content):
-            logging.debug("Skipping scan - content appears to be a gitleaks config file")
+        # Use path-based detection instead of content-based to prevent bypass
+        if file_path and file_path.endswith('.gitleaks.toml'):
+            logging.debug(f"Skipping scan - file is a gitleaks config: {file_path}")
             return False, None
 
         # Use in-memory filesystem on Linux for better performance
