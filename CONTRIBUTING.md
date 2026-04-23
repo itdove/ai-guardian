@@ -246,15 +246,78 @@ git commit -m "docs: update installation instructions"
 **Before pushing, ensure all tests pass:**
 
 ```bash
-# Run all tests
+# Run all tests (1,066 tests including integration tests)
 pytest
 
-# Run with coverage
+# Run with coverage (excludes TUI modules automatically)
 pytest --cov=ai_guardian --cov-report=term-missing
 
 # Run specific test file
 pytest tests/test_specific.py -v
 ```
+
+**Integration Tests:**
+
+AI Guardian includes comprehensive integration tests for MCP security:
+
+```bash
+# Run all integration tests (74 tests, ~1 second)
+pytest tests/test_integration_mcp.py \
+       tests/test_posttooluse_mcp.py \
+       tests/test_use_cases.py \
+       tests/test_hook_processing.py \
+       tests/test_tool_policy_advanced.py \
+       tests/test_e2e_workflow.py -v
+
+# Run specific integration test suites
+pytest tests/test_integration_mcp.py -v         # MCP tool protections (24 tests)
+pytest tests/test_posttooluse_mcp.py -v         # Output scanning (13 tests)
+pytest tests/test_use_cases.py -v               # Attack/defense scenarios (13 tests)
+pytest tests/test_hook_processing.py -v         # Hook processing (8 tests)
+pytest tests/test_tool_policy_advanced.py -v    # Advanced policies (11 tests)
+pytest tests/test_e2e_workflow.py -v            # End-to-end workflows (5 tests)
+
+# Run specific test class
+pytest tests/test_integration_mcp.py::MCPSecretScanningTests -v
+```
+
+**What Integration Tests Cover:**
+- ✅ All 9 protection layers with MCP tools
+- ✅ Realistic attack scenarios (prompt injection chains, data exfiltration, SSRF)
+- ✅ Legitimate workflows (ensures no false positives)
+- ✅ Defense-in-depth validation
+- ✅ Enterprise policy enforcement
+
+**Adding New Integration Tests:**
+
+When adding features that interact with MCP tools or hooks:
+
+1. **Add attack constants** to `tests/fixtures/attack_constants.py`:
+   ```python
+   # Mark fake test credentials clearly
+   SECRET_NEW_PATTERN = "fake-token-XXXXXXXXXXXX"  # notsecret - FAKE TEST CREDENTIAL
+   ```
+
+2. **Use the mock MCP server** in `tests/fixtures/mock_mcp_server.py`:
+   ```python
+   from tests.fixtures.mock_mcp_server import create_hook_data
+   
+   hook_data = create_hook_data(
+       tool_name="mcp__notebooklm-mcp__notebook_create",
+       tool_input={"title": "Test Notebook"}
+   )
+   ```
+
+3. **Write tests with isolation** (automatic via `conftest.py`):
+   ```python
+   @patch('ai_guardian._load_secret_redaction_config')
+   @patch('ai_guardian._load_pattern_server_config')
+   def test_your_scenario(self, mock_pattern_config, mock_redaction_config):
+       # Tests run in isolated temporary directories
+       mock_pattern_config.return_value = None
+       mock_redaction_config.return_value = (None, None)
+       # ... your test code
+   ```
 
 **Optional linting:**
 

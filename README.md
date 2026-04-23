@@ -2189,6 +2189,75 @@ For testing AI Guardian, use generic `test:` prefixed strings rather than actual
 
 **Recommendation:** Most users should use `remote_configs` for centralized policy management instead of `permissions_directories`.
 
+## Testing
+
+AI Guardian includes a comprehensive test suite with **1,071 tests** covering all protection layers.
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage (70% of core protection modules)
+pytest --cov=ai_guardian --cov-report=term
+
+# Run integration tests only (74 tests, ~1 second)
+pytest tests/test_integration_mcp.py \
+       tests/test_posttooluse_mcp.py \
+       tests/test_use_cases.py \
+       tests/test_hook_processing.py \
+       tests/test_tool_policy_advanced.py \
+       tests/test_e2e_workflow.py -v
+```
+
+### Integration Test Suites
+
+**MCP Security Integration Tests** validate all 9 protection layers work correctly with MCP tools like NotebookLM:
+
+| Test Suite | Tests | Coverage |
+|------------|-------|----------|
+| **Integration Tests** (`test_integration_mcp.py`) | 24 | MCP permissions, secrets, prompt injection, SSRF, config exfiltration |
+| **PostToolUse Tests** (`test_posttooluse_mcp.py`) | 13 | Output scanning for secrets, tool response handling |
+| **Use-Case Tests** (`test_use_cases.py`) | 13 | Realistic attack scenarios and legitimate workflows |
+| **Hook Processing** (`test_hook_processing.py`) | 8 | Core hook processing logic |
+| **Advanced Policy** (`test_tool_policy_advanced.py`) | 11 | Complex rule matching, edge cases |
+| **E2E Workflow Tests** (`test_e2e_workflow.py`) | 5 | Complete hook flow (UserPromptSubmit → PreToolUse → PostToolUse) |
+
+**What's Tested:**
+- ✅ **Attack Scenarios**: Prompt injection chains, data exfiltration, SSRF attacks, config file exfiltration
+- ✅ **Defense-in-Depth**: Multiple protection layers working together
+- ✅ **Legitimate Workflows**: Ensures no false positives for normal usage
+- ✅ **Enterprise Policies**: Allowlists, denylists, wildcards, custom MCP servers
+- ✅ **Tool Response Scanning**: PostToolUse hook scanning Bash/Read outputs for secrets
+
+### Test Infrastructure
+
+Tests use:
+- **Mock MCP Server**: No external dependencies required
+- **Test Isolation**: Each test runs in isolated temporary directories
+- **Attack Constants**: Clearly marked fake credentials for testing
+- **Coverage Config**: Automatically excludes TUI modules from coverage reports
+
+### CI/CD
+
+All tests run automatically on every pull request:
+- ✅ **test.yml**: Runs all 1,066 tests on Python 3.9-3.12
+- ✅ **integration-tests.yml**: Specialized monitoring with test isolation and performance checks
+- ✅ **lint.yml**: Code quality checks
+
+### Coverage
+
+**Core Protection Modules: 70% coverage** (TUI/setup modules excluded)
+
+| Module | Coverage | Focus |
+|--------|----------|-------|
+| `config_scanner.py` | 91% | Config file exfiltration detection |
+| `prompt_injection.py` | 90% | Prompt injection detection |
+| `ssrf_protector.py` | 84% | SSRF attack prevention |
+| `tool_policy.py` | 64% | Permission enforcement |
+| `__init__.py` | 63% | Hook processing logic |
+
 ## Contributing
 
 We welcome contributions! This project uses a **fork-based workflow**.

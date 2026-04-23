@@ -9,6 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Integration and Use-Case Tests with Mock MCP Server** (Issue #220)
+  - **Comprehensive test infrastructure** for MCP tool security testing
+  - **Test Fixtures**:
+    - `tests/fixtures/mock_mcp_server.py`: Simulates NotebookLM and other MCP tools with controllable responses
+    - `tests/fixtures/attack_constants.py`: Comprehensive attack patterns (SSRF, secrets, prompt injection, exfiltration)
+    - `tests/conftest.py`: Pytest fixtures for test isolation using `AI_GUARDIAN_CONFIG_DIR`
+  - **Integration Tests** (`tests/test_integration_mcp.py`): 24 passing tests
+    - MCP Tool Permission Tests (6 tests): Allowlists, blocklists, wildcards, custom servers
+    - Secret Scanning Tests (4 tests): Secrets in notebook titles/sources, multiple secret types, false positives
+    - Prompt Injection Tests (4 tests): Injection in parameters, role-switching, delimiter escapes
+    - SSRF Protection Tests (5 tests): AWS/GCP metadata, private IPs, public URLs, Bash-specific behavior
+    - Config Exfiltration Tests (3 tests): Curl exfiltration, credential theft in CLAUDE.md/AGENTS.md
+    - Combined Protection Tests (2 tests): Multiple protections working together, defense in depth
+  - **PostToolUse Tests** (`tests/test_posttooluse_mcp.py`): 13 passing tests
+    - Secret Scanning (5 tests): Bash/Read output with secrets, Write/Edit skipped, clean outputs
+    - Content Scanning (3 tests): Documents that PostToolUse only scans secrets, not prompt injection
+    - MCP Tool Tests (3 tests): MCP responses, notebook lists, current scanning behavior
+    - Redaction Tests (1 test): Secret redaction mode behavior
+    - Combined Tests (1 test): Multiple threats in output
+  - **Use-Case Tests** (`tests/test_use_cases.py`): 13 passing tests covering realistic scenarios
+    - Data Exfiltration Attack (3 tests): Multi-stage attack attempts via Bash, NotebookLM, SSRF
+    - Prompt Injection Chain (2 tests): Attempts to disable protections, privilege escalation prevention
+    - Legitimate Workflow (2 tests): Normal NotebookLM usage, security code discussion
+    - Enterprise Policy (2 tests): Approved MCP servers only, paranoid mode (all MCP blocked)
+    - Multi-Stage Attack (2 tests): Combined injection + exfiltration, privilege escalation
+    - Real-World Scenarios (2 tests): Developer workflows, documentation discussions
+  - **Test Isolation**: All tests run in isolated temporary directories via `isolated_config_dir` fixture
+  - **Benefits**:
+    - ✅ Validates protections work with real MCP tool calls
+    - ✅ Catches integration issues between protection layers
+    - ✅ Serves as usage examples for MCP security
+    - ✅ Prevents regression in multi-protection scenarios
+    - ✅ Documents actual implementation behavior (SSRF only on Bash, PostToolUse only scans secrets)
+    - ✅ Tests realistic attack chains and defense-in-depth
+    - ✅ Validates enterprise policy enforcement
+    - ✅ Ensures legitimate workflows work without false positives
+  - **Hook Processing Tests** (`tests/test_hook_processing.py`): 8 passing tests
+    - Hook Input Parsing (4 tests): Valid JSON, UserPromptSubmit, PreToolUse, PostToolUse
+    - Tool Response Extraction (4 tests): Bash output, Read content, MCP tools, Write/Edit skipped
+  - **Advanced Tool Policy Tests** (`tests/test_tool_policy_advanced.py`): 11 passing tests
+    - Rule Matching (2 tests): Wildcard patterns, case sensitivity
+    - Rule Ordering (2 tests): First-match wins, default behavior
+    - Config Variations (4 tests): Disabled permissions, empty rules, no config, invalid rules
+    - Edge Cases (3 tests): Empty tool name, null tool name, missing field
+  - **End-to-End Workflow Tests** (`tests/test_e2e_workflow.py`): 5 passing tests
+    - Legitimate Workflows (3 tests): NotebookLM, Bash, Read→Write workflows
+    - Secret Detection (1 test): Secret caught at PostToolUse stage
+    - Multi-Tool Sequence (1 test): Multiple tools in realistic workflow
+  - **74 new integration and use-case tests** covering all 9 protection layers with MCP tools
+  - **Test Coverage**: Core protection modules at 70% (excluding TUI/setup: 4,500 statements, 1,359 missing)
+  - Part of ongoing MCP security validation effort
+
 - **Pattern Server Support for Security Features** (Issue #206, Epic #186)
   - **OPTIONAL/ADVANCED**: Enterprise pattern server integration for centralized pattern management
   - **Three-tier pattern system**: Immutable core + Pattern server/defaults + Local config additions
