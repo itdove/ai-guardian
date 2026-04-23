@@ -36,3 +36,4 @@ htmlcov/
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/release/
+coverage.json
