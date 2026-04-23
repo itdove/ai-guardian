@@ -261,12 +261,13 @@ pytest tests/test_specific.py -v
 AI Guardian includes comprehensive integration tests for MCP security:
 
 ```bash
-# Run all integration tests (69 tests, ~1 second)
+# Run all integration tests (74 tests, ~1 second)
 pytest tests/test_integration_mcp.py \
        tests/test_posttooluse_mcp.py \
        tests/test_use_cases.py \
        tests/test_hook_processing.py \
-       tests/test_tool_policy_advanced.py -v
+       tests/test_tool_policy_advanced.py \
+       tests/test_e2e_workflow.py -v
 
 # Run specific integration test suites
 pytest tests/test_integration_mcp.py -v         # MCP tool protections (24 tests)
@@ -274,6 +275,7 @@ pytest tests/test_posttooluse_mcp.py -v         # Output scanning (13 tests)
 pytest tests/test_use_cases.py -v               # Attack/defense scenarios (13 tests)
 pytest tests/test_hook_processing.py -v         # Hook processing (8 tests)
 pytest tests/test_tool_policy_advanced.py -v    # Advanced policies (11 tests)
+pytest tests/test_e2e_workflow.py -v            # End-to-end workflows (5 tests)
 
 # Run specific test class
 pytest tests/test_integration_mcp.py::MCPSecretScanningTests -v

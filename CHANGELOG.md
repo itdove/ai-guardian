@@ -53,7 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Rule Ordering (2 tests): First-match wins, default behavior
     - Config Variations (4 tests): Disabled permissions, empty rules, no config, invalid rules
     - Edge Cases (3 tests): Empty tool name, null tool name, missing field
-  - **69 new integration and use-case tests** covering all 9 protection layers with MCP tools
+  - **End-to-End Workflow Tests** (`tests/test_e2e_workflow.py`): 5 passing tests
+    - Legitimate Workflows (3 tests): NotebookLM, Bash, Read→Write workflows
+    - Secret Detection (1 test): Secret caught at PostToolUse stage
+    - Multi-Tool Sequence (1 test): Multiple tools in realistic workflow
+  - **74 new integration and use-case tests** covering all 9 protection layers with MCP tools
   - **Test Coverage**: Core protection modules at 70% (excluding TUI/setup: 4,500 statements, 1,359 missing)
   - Part of ongoing MCP security validation effort
 

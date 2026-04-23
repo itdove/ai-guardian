@@ -2191,7 +2191,7 @@ For testing AI Guardian, use generic `test:` prefixed strings rather than actual
 
 ## Testing
 
-AI Guardian includes a comprehensive test suite with **1,066 tests** covering all protection layers.
+AI Guardian includes a comprehensive test suite with **1,071 tests** covering all protection layers.
 
 ### Running Tests
 
@@ -2202,12 +2202,13 @@ pytest
 # Run with coverage (70% of core protection modules)
 pytest --cov=ai_guardian --cov-report=term
 
-# Run integration tests only (69 tests, ~1 second)
+# Run integration tests only (74 tests, ~1 second)
 pytest tests/test_integration_mcp.py \
        tests/test_posttooluse_mcp.py \
        tests/test_use_cases.py \
        tests/test_hook_processing.py \
-       tests/test_tool_policy_advanced.py -v
+       tests/test_tool_policy_advanced.py \
+       tests/test_e2e_workflow.py -v
 ```
 
 ### Integration Test Suites
@@ -2221,6 +2222,7 @@ pytest tests/test_integration_mcp.py \
 | **Use-Case Tests** (`test_use_cases.py`) | 13 | Realistic attack scenarios and legitimate workflows |
 | **Hook Processing** (`test_hook_processing.py`) | 8 | Core hook processing logic |
 | **Advanced Policy** (`test_tool_policy_advanced.py`) | 11 | Complex rule matching, edge cases |
+| **E2E Workflow Tests** (`test_e2e_workflow.py`) | 5 | Complete hook flow (UserPromptSubmit → PreToolUse → PostToolUse) |
 
 **What's Tested:**
 - ✅ **Attack Scenarios**: Prompt injection chains, data exfiltration, SSRF attacks, config file exfiltration
