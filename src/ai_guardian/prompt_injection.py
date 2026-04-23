@@ -568,7 +568,11 @@ class PromptInjectionDetector:
         self.enabled = self.config.get("enabled", True)
         self.sensitivity = self.config.get("sensitivity", "medium")
         self.detector_type = self.config.get("detector", "heuristic")
-        self.allowlist_patterns = self.config.get("allowlist_patterns", [])
+        # Load and validate allowlist patterns (prevent dangerous patterns like .*)
+        raw_allowlist = self.config.get("allowlist_patterns", [])
+        self.allowlist_patterns = self._validate_allowlist_patterns(raw_allowlist)
+
+        # Load custom patterns
         self.custom_patterns = self.config.get("custom_patterns", [])
         self.max_score_threshold = self.config.get("max_score_threshold", 0.75)
         self.ignore_files = self.config.get("ignore_files", [])
@@ -712,6 +716,54 @@ class PromptInjectionDetector:
             sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
 
         return sanitized
+
+    def _validate_allowlist_patterns(self, patterns: List[Union[str, Dict]]) -> List[Union[str, Dict]]:
+        """
+        Validate allowlist patterns to prevent dangerous patterns that disable all detection.
+
+        Dangerous patterns:
+        - .* (matches everything)
+        - .+ (matches everything with at least one char)
+        - Other overly broad patterns
+
+        Args:
+            patterns: List of pattern entries (strings or dicts)
+
+        Returns:
+            list: Filtered list with only safe patterns
+        """
+        from ai_guardian.config_utils import validate_regex_pattern
+
+        safe_patterns = []
+        for pattern_entry in patterns:
+            pattern_str = self._extract_pattern_string(pattern_entry)
+
+            # Block dangerous catch-all patterns
+            dangerous_patterns = [
+                r'.*',      # Matches everything
+                r'.+',      # Matches everything with at least one char
+                r'[\s\S]*', # Matches everything including newlines
+                r'[\s\S]+', # Matches everything with at least one char
+            ]
+
+            if pattern_str in dangerous_patterns:
+                logger.error(
+                    f"Blocked dangerous allowlist pattern '{pattern_str}' - "
+                    f"this would disable all prompt injection detection"
+                )
+                continue
+
+            # Validate pattern for ReDoS
+            if not validate_regex_pattern(pattern_str):
+                logger.error(
+                    f"Blocked invalid/dangerous allowlist pattern '{pattern_str}' - "
+                    f"failed ReDoS validation"
+                )
+                continue
+
+            safe_patterns.append(pattern_entry)
+
+        return safe_patterns
 
     def _filter_valid_patterns(self, patterns: List[Union[str, Dict]], current_time: Optional[datetime] = None) -> List[Union[str, Dict]]:
         """

@@ -321,8 +321,9 @@ def _strip_bash_heredoc_content(command: str) -> str:
 
     # Pattern to match heredoc start
     # Groups: (1) optional dash, (2) quote if quoted, (3) delimiter if quoted, (4) delimiter if unquoted
+    # Updated to support hyphenated delimiters (e.g., END-OF-FILE, MY-DELIMITER)
     heredoc_start_pattern = re.compile(
-        r"<<(-)?(?:(['\"])(\w+)\2|(\w+))",
+        r"<<(-)?(?:(['\"])([\w-]+)\2|([\w-]+))",
         re.MULTILINE
     )
 

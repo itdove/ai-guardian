@@ -591,7 +591,7 @@ def _check_directory_rules(file_path, config):
     """
     try:
         if not config:
-            return None, None
+            return None, None, None
 
         # Get directory_rules - supports both array (deprecated) and object format
         directory_rules_config = config.get("directory_rules", [])
@@ -2319,6 +2319,14 @@ def process_hook_input():
             # (ignore lists default to [] when secret_config is None)
             if config_error:
                 logging.warning(f"Config error in PostToolUse: {config_error}")
+
+            # Check if secret scanning is enabled (respect disabled_until)
+            if secret_config and not is_feature_enabled(
+                secret_config.get("enabled", True),
+                secret_config.get("disabled_until")
+            ):
+                logging.info("Secret scanning is disabled - skipping PostToolUse scan")
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
