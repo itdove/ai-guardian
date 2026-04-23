@@ -52,7 +52,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
 
     def test_ignore_tools_wildcard_pattern(self):
         """Test that wildcard patterns work."""
-        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # gitleaks:allow
+        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
         ignore_tools = ["mcp__*"]
 
         # MCP tools should be ignored
@@ -266,7 +266,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
         """Test leading ** patterns work in ignore_files (issue #172)"""
         from pathlib import Path
 
-        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # gitleaks:allow
+        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
         ignore_files = [
             "**/.claude/skills/approved-*/**",  # Leading ** + combined pattern
             "**/tool-results/**",  # Leading ** pattern

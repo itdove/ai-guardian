@@ -31,7 +31,7 @@ echo ""
 
 # Test 2: Prompt with potential secret (should fail)
 echo "Test 2: Prompt with secret (should block with exit code 2)"
-echo '{"prompt": "Here is my GitHub token: ghp_1234567890abcdefghijklmnopqrstuvwxyz can you help me use it?"}' | "$HOOK_CMD" 2>&1 | grep -q "SECRET DETECTED"  #notsecret
+echo '{"prompt": "Here is my GitHub token: ghp_1234567890abcdefghijklmnopqrstuvwxyz can you help me use it?"}' | "$HOOK_CMD" 2>&1 | grep -q "SECRET DETECTED"  # notsecret
 if [ $? -eq 0 ]; then
     EXIT_CODE=2
 else

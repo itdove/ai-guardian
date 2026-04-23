@@ -363,7 +363,7 @@ class TestBackwardCompatibility:
         redactor = SecretRedactor({"enabled": True})
 
         # Should redact GitHub tokens (using obviously fake token format)
-        original_text = "API_KEY=xghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"  # nosecret - test token
+        original_text = "API_KEY=xghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"  # notsecret - test token
         result = redactor.redact(original_text)
         # Check that redaction occurred (text was modified or contains markers)
         assert result["redacted_text"] != original_text or "***" in result["redacted_text"]

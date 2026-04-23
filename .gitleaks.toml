@@ -1,0 +1,7 @@
+# Test files for secret redaction - contain intentional fake secrets for testing
+
+[allowlist]
+    pathss = [
+        tests/test_secret_redaction.py,
+        tests/test_pattern_server_integration.py
+    ]

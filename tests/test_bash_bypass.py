@@ -201,7 +201,7 @@ class TestBashRealWorldScenarios(unittest.TestCase):
         hook_data = {
             "tool_name": "Bash",
             "tool_response": {
-                "stdout": "GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz\nAPI_TOKEN=sk-proj-abc123\n",  # gitleaks:allow
+                "stdout": "GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz\nAPI_TOKEN=sk-proj-abc123\n",  # notsecret
                 "stderr": "",
                 "exit_code": 0
             }
