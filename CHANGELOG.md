@@ -38,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Ignore Files Patterns with Leading `**/` Don't Work** (Issue #232)
-  - **Problem**: `ignore_files` configuration with leading `**/` glob patterns (e.g., `**/development/documentations/**`) didn't work correctly in unicode detection and config file scanner, causing false positives when scanning files that should be ignored
   - **Root Cause**: Three different implementations of `ignore_files` pattern matching existed with inconsistent behavior:
     - Secret Scanning (`__init__.py`) - ✅ WORKED - Used custom `_match_leading_doublestar_pattern()` helper
     - Prompt Injection (`prompt_injection.py`) - ❌ BROKEN - Only used `Path.match()` which doesn't properly handle leading `**/`
