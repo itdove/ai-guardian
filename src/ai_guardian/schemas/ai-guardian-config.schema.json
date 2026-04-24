@@ -970,6 +970,51 @@
         }
       },
       "additionalProperties": false
+    },
+    "pattern_server_auth": {
+      "type": "object",
+      "description": "Authentication configuration for pattern server",
+      "additionalProperties": true,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["bearer", "token"],
+          "description": "Authentication method",
+          "default": "bearer"
+        },
+        "token_env": {
+          "type": "string",
+          "description": "Environment variable name containing auth token"
+        },
+        "token_file": {
+          "type": "string",
+          "description": "Path to file containing auth token (supports ~ expansion)"
+        }
+      }
+    },
+    "pattern_server_cache": {
+      "type": "object",
+      "description": "Pattern cache configuration",
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Cache file path (supports ~ expansion)",
+          "default": "~/.cache/ai-guardian/patterns.toml"
+        },
+        "refresh_interval_hours": {
+          "type": "number",
+          "description": "Hours between automatic pattern refresh",
+          "default": 12,
+          "minimum": 1
+        },
+        "expire_after_hours": {
+          "type": "number",
+          "description": "Hours until cached patterns expire",
+          "default": 168,
+          "minimum": 1
+        }
+      }
     }
   }
 }
