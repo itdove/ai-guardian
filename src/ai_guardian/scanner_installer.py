@@ -61,10 +61,24 @@ class ScannerInstaller:
         Initialize scanner installer.
 
         Args:
-            install_dir: Directory to install scanners (default: ~/.local/bin)
+            install_dir: Directory to install scanners (default: /usr/local/bin)
         """
-        self.install_dir = install_dir or Path.home() / ".local" / "bin"
-        self.install_dir.mkdir(parents=True, exist_ok=True)
+        if install_dir:
+            # Custom path provided - use it directly
+            self.install_dir = install_dir
+            self.install_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # Try /usr/local/bin first, fall back to ~/.local/bin if permission denied
+            self.install_dir = Path("/usr/local/bin")
+            try:
+                self.install_dir.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                logger.warning(
+                    "No permission to write to /usr/local/bin, using ~/.local/bin instead"
+                )
+                self.install_dir = Path.home() / ".local" / "bin"
+                self.install_dir.mkdir(parents=True, exist_ok=True)
+
         self.scanner_config = self._load_scanner_config()
 
     def _load_scanner_config(self) -> Dict[str, Any]:

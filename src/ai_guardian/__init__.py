@@ -2950,6 +2950,11 @@ def main():
             action="store_true",
             help="Use version from pyproject.toml (tested with this ai-guardian release)"
         )
+        scanner_install_parser.add_argument(
+            "--path",
+            type=Path,
+            help="Custom installation directory (default: /usr/local/bin, fallback: ~/.local/bin)"
+        )
 
         # scanner info
         scanner_info_parser = scanner_sub.add_parser("info", help="Show scanner details")
@@ -3091,7 +3096,9 @@ def main():
                     return 0
 
                 elif args.scanner_command == "install":
-                    installer = ScannerInstaller()
+                    # Create installer with custom path if provided
+                    install_dir = args.path if hasattr(args, 'path') and args.path else None
+                    installer = ScannerInstaller(install_dir=install_dir)
 
                     print(f"Installing {args.name}...")
                     success = installer.install(

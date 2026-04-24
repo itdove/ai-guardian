@@ -245,18 +245,26 @@ AI Guardian provides automated installation and management of scanner engines (g
 ### Install a Scanner
 
 ```bash
-# Install gitleaks (default)
+# Install gitleaks (default path: /usr/local/bin)
 ai-guardian scanner install gitleaks
 
 # Install betterleaks (20-40% faster than gitleaks)
 ai-guardian scanner install betterleaks
 
+# Install to custom directory
+ai-guardian scanner install gitleaks --path /opt/bin
+
 # Install specific version
 ai-guardian scanner install gitleaks --version 8.30.1
 
-# Use pinned version from ai-guardian release
+# Use pinned version from ai-guardian release (offline support)
 ai-guardian scanner install gitleaks --use-pinned
 ```
+
+**Installation Paths:**
+- **Default**: `/usr/local/bin` (already in PATH on most systems)
+- **Fallback**: `~/.local/bin` (if no permission to write to `/usr/local/bin`)
+- **Custom**: Use `--path` to specify a different directory
 
 ### List Installed Scanners
 

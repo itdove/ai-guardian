@@ -76,8 +76,8 @@ If no package manager is available, ai-guardian downloads the binary directly fr
 
 1. Detects your platform and architecture (e.g., darwin_arm64, linux_x64)
 2. Downloads the appropriate binary from GitHub releases
-3. Extracts and installs to `~/.local/bin`
-4. Makes the binary executable (Unix-like systems)
+3. Extracts and installs to `/usr/local/bin` (or `~/.local/bin` if permission denied)
+4. Makes the binary executable (chmod +x on Unix-like systems)
 
 ### 3. From File (Air-Gapped)
 
@@ -134,6 +134,22 @@ ai-guardian scanner install gitleaks --use-pinned
 ```
 
 This uses the pinned version from `pyproject.toml` without checking GitHub.
+
+### Custom Installation Path
+
+Specify a custom installation directory:
+
+```bash
+# Install to /opt/bin
+ai-guardian scanner install gitleaks --path /opt/bin
+
+# Install to user's bin directory
+ai-guardian scanner install gitleaks --path ~/bin
+```
+
+**Default Paths:**
+- **Primary**: `/usr/local/bin` (system-wide, requires write permission)
+- **Fallback**: `~/.local/bin` (user-only, no sudo needed)
 
 ## Managing Scanners
 
@@ -209,19 +225,23 @@ AI Guardian supports the following platforms and architectures:
 
 If `gitleaks version` fails after installation:
 
-1. Check if `~/.local/bin` is in your PATH:
+1. Check which path was used:
    ```bash
-   echo $PATH | grep ".local/bin"
+   ai-guardian scanner info gitleaks
    ```
 
-2. If not, add it:
+2. If installed to `~/.local/bin`, add it to your PATH:
    ```bash
+   # Add to ~/.bashrc or ~/.zshrc
    export PATH="$HOME/.local/bin:$PATH"
+   
+   # Reload your shell
+   source ~/.bashrc  # or ~/.zshrc
    ```
 
-3. Reload your shell:
+3. If installed to `/usr/local/bin`, it should already be in your PATH. Verify:
    ```bash
-   source ~/.bashrc  # or ~/.zshrc
+   echo $PATH | grep "/usr/local/bin"
    ```
 
 ### Download Failures
