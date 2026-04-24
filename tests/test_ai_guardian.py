@@ -8,7 +8,7 @@ import tempfile
 from io import StringIO
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 
 import ai_guardian
 
@@ -694,6 +694,63 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             self.assertEqual(call_args[0], "clean content")
         finally:
             os.unlink(temp_path)
+
+    @patch('ai_guardian.ToolPolicyChecker')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_pretooluse_hook_with_tool_use_input_format(self, mock_check_secrets, mock_load_config, mock_policy_checker):
+        """Regression test for Issue #228: Config File Scanner fails to extract file path from PreToolUse hook
+        
+        Bug: extract_file_content_from_tool() only checked tool_use.parameters.file_path
+        but Claude Code actually sends tool_use.input.file_path, causing file path
+        extraction to fail and malicious config files to pass through unscanned.
+        
+        Fix: Added check for tool_use.input.file_path format
+        """
+        mock_load_config.return_value = (None, None)
+        mock_check_secrets.return_value = (False, None)
+        
+        # Configure mock policy checker
+        mock_policy_instance = Mock()
+        mock_policy_instance.check_tool.return_value = (True, None, "log")  # allowed
+        mock_policy_checker.return_value = mock_policy_instance
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("Test content with no secrets\n")
+            temp_path = f.name
+
+        try:
+            # Claude Code format: tool_use.input.file_path (not tool_use.parameters.file_path)
+            hook_input = json.dumps({
+                "hook_event_name": "PreToolUse",
+                "tool_use": {
+                    "name": "Read",
+                    "input": {
+                        "file_path": temp_path
+                    }
+                }
+            })
+
+            with patch('sys.stdin', StringIO(hook_input)):
+                response = ai_guardian.process_hook_input()
+
+            self.assertEqual(response["exit_code"], 0)
+            self.assertIsNotNone(response["output"])
+
+            output = json.loads(response["output"])
+            # Should be empty response (allowing operation)
+            self.assertEqual(output, {})
+
+            # CRITICAL: File should have been scanned
+            mock_check_secrets.assert_called_once()
+            # Verify it scanned the actual file path (not "unknown_file")
+            call_args = mock_check_secrets.call_args
+            scanned_content = call_args[0][0]
+            self.assertIn("Test content with no secrets", scanned_content)
+
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
