@@ -16,7 +16,7 @@ class TestSecretRedactor:
         """Test that SecretRedactor initializes correctly."""
         redactor = SecretRedactor()
         assert redactor.enabled is True
-        assert redactor.action == "log-only"
+        assert redactor.action == "warn"
         assert redactor.preserve_format is True
         assert redactor.log_redactions is True
         assert len(redactor.compiled_patterns) > 30  # Should have 35+ patterns
@@ -264,9 +264,6 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         redactor_warn = SecretRedactor({"action": "warn"})
         assert redactor_warn.action == "warn"
 
-        # block mode
-        redactor_block = SecretRedactor({"action": "block"})
-        assert redactor_block.action == "block"
 
     def test_empty_text(self):
         """Test redaction of empty text."""

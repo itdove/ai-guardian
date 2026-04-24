@@ -244,9 +244,9 @@
         },
         "action": {
           "type": "string",
-          "enum": ["log-only", "warn", "block"],
-          "description": "Action to take when secrets are detected: 'log-only' (redact silently), 'warn' (redact with user warning), 'block' (original blocking behavior)",
-          "default": "log-only"
+          "enum": ["log-only", "warn"],
+          "description": "Action to take when secrets are detected: 'log-only' (redact silently), 'warn' (redact with user warning and notification)",
+          "default": "warn"
         },
         "preserve_format": {
           "type": "boolean",

@@ -228,18 +228,19 @@ class E2ELegitimateWorkflowTests(TestCase):
     @patch('ai_guardian._load_pattern_server_config')
     def test_e2e_secret_detected_in_output(self, mock_pattern_config, mock_redaction_config):
         """
-        End-to-end test: Secret in tool output blocked at PostToolUse.
+        End-to-end test: Secret in tool output redacted at PostToolUse.
 
         Flow:
         1. UserPromptSubmit: Clean prompt → ALLOWED
         2. PreToolUse: Clean tool input → ALLOWED
         3. [Tool executes - returns secret in output]
-        4. PostToolUse: Tool output with secret → BLOCKED HERE
+        4. PostToolUse: Tool output with secret → REDACTED HERE
 
-        Expected: Allowed through PreToolUse, blocked at PostToolUse
+        Expected: Allowed through PreToolUse, redacted at PostToolUse
         """
         mock_pattern_config.return_value = None
-        mock_redaction_config.return_value = (None, None)
+        # Enable redaction with warn mode (default)
+        mock_redaction_config.return_value = ({"enabled": True, "action": "warn"}, None)
 
         # Step 1: UserPromptSubmit - clean prompt
         prompt_data = {
@@ -276,10 +277,15 @@ class E2ELegitimateWorkflowTests(TestCase):
         with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        # BLOCKED at PostToolUse
+        # REDACTED at PostToolUse (not blocked)
         assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result['output'])
-        assert response.get('decision') == 'block', "Secret in output should be blocked at PostToolUse"
+        # When redacting, decision field is not set (passes through with warning)
+        assert response.get('systemMessage') is not None, "Should have warning about redacted secrets"
+        assert 'Redacted' in response.get('systemMessage', ''), "Warning should mention redaction"
+        # Verify the secret was actually redacted in the output
+        output_text = response.get('modified_output', response.get('output', ''))
+        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted from output"
 
     @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')

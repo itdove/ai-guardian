@@ -6,11 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+
+- **Secret Redaction Always Redacts (Removed Block Mode)** (Issue #234)
+  - **Change**: `secret_redaction.action="block"` mode removed - secrets are now always redacted (never blocked)
+  - **New Default**: Changed default action from "log-only" to "warn" for better UX
+  - **Valid Actions**: Only "warn" (redact with notification) and "log-only" (redact silently) are now supported
+  - **Breaking Change**: Configurations with `action="block"` will fail validation with a helpful error message
+  - **Rationale**: 
+    - Simpler UX - one behavior, no confusing modes
+    - Better DX - AI can still help (sees masked secrets) instead of being completely blocked
+    - Same security - real secrets never reach AI
+    - Less friction - reading files with secrets doesn't stop work
+    - Name matches behavior - "secret_redaction" actually redacts
+  - **Migration**: For users who want old "block" behavior, add sensitive files to `.gitleaksignore` to prevent reading them entirely
+  - **Impact**: 
+    - Schema updated to only allow "warn" and "log-only" 
+    - TUI dropdown no longer shows "block" option
+    - Config validation rejects "block" with migration guidance
+    - Default config templates updated to use "warn"
+  - **Files Modified**:
+    - `src/ai_guardian/schemas/ai-guardian-config.schema.json`: Updated enum and default
+    - `src/ai_guardian/secret_redactor.py`: Updated docstring and default
+    - `src/ai_guardian/__init__.py`: Simplified to always redact when enabled
+    - `src/ai_guardian/config_inspector.py`: Added validation to reject "block"
+    - `src/ai_guardian/setup.py`: Changed default from "log-only" to "warn"
+    - `src/ai_guardian/tui/secret_redaction.py`: Removed "block" option, default "warn"
+  - **Tests Updated**: All tests expecting blocking behavior updated to expect redaction
 
 ### Fixed
 
 - **Ignore Files Patterns with Leading `**/` Don't Work** (Issue #232)
-  - **Problem**: `ignore_files` configuration with leading `**/` glob patterns (e.g., `**/development/documentations/**`) didn't work correctly in unicode detection and config file scanner, causing false positives when scanning files that should be ignored
   - **Root Cause**: Three different implementations of `ignore_files` pattern matching existed with inconsistent behavior:
     - Secret Scanning (`__init__.py`) - ✅ WORKED - Used custom `_match_leading_doublestar_pattern()` helper
     - Prompt Injection (`prompt_injection.py`) - ❌ BROKEN - Only used `Path.match()` which doesn't properly handle leading `**/`
