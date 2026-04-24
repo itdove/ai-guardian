@@ -652,7 +652,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_pretooluse_hook_with_clean_file(self, mock_check_secrets, mock_load_config):
-        """Test PreToolUse hook with clean file"""
+        """Test PreToolUse hook with clean file
+
+        FIXED: PreToolUse should NOT return permissionDecision when no secrets detected.
+        This allows Claude Code's normal permission system to prompt the user.
+        """
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
         mock_check_secrets.return_value = (False, None)
 
@@ -673,12 +677,16 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             with patch('sys.stdin', StringIO(hook_input)):
                 response = ai_guardian.process_hook_input()
 
-            # PreToolUse now uses JSON format with hookSpecificOutput
+            # PreToolUse should NOT auto-approve when clean
             self.assertEqual(response["exit_code"], 0)
             self.assertIsNotNone(response["output"])
 
             output = json.loads(response["output"])
-            self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+            # Should NOT contain permissionDecision when clean (no auto-approve)
+            if "hookSpecificOutput" in output:
+                self.assertNotIn("permissionDecision", output["hookSpecificOutput"])
+            # Should be empty response
+            self.assertEqual(output, {})
 
             mock_check_secrets.assert_called_once()
             # Verify it scanned the file content
@@ -970,7 +978,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             self.assertEqual(ide_type, ai_guardian.IDEType.GITHUB_COPILOT)
 
     def test_format_response_copilot_pretooluse_allow(self):
-        """Test GitHub Copilot preToolUse response format (allow)"""
+        """Test GitHub Copilot preToolUse response format (allow)
+
+        FIXED: PreToolUse should NOT return permissionDecision when no secrets detected.
+        This allows Claude Code's normal permission system to prompt the user.
+        """
         response = ai_guardian.format_response(
             ai_guardian.IDEType.GITHUB_COPILOT,
             has_secrets=False,
@@ -980,8 +992,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(response["exit_code"], 0)
 
         output_data = json.loads(response["output"])
-        self.assertEqual(output_data["permissionDecision"], "allow")
+        # Should NOT contain permissionDecision when clean (no auto-approve)
+        self.assertNotIn("permissionDecision", output_data)
         self.assertNotIn("permissionDecisionReason", output_data)
+        # Should be empty response
+        self.assertEqual(output_data, {})
 
     def test_format_response_copilot_pretooluse_deny(self):
         """Test GitHub Copilot preToolUse response format (deny)"""
@@ -1043,7 +1058,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_copilot_pretooluse_hook_clean(self, mock_check_secrets):
-        """Test GitHub Copilot preToolUse hook with clean file"""
+        """Test GitHub Copilot preToolUse hook with clean file
+
+        FIXED: PreToolUse should NOT return permissionDecision when no secrets detected.
+        This allows Claude Code's normal permission system to prompt the user.
+        """
         mock_check_secrets.return_value = (False, None)
 
         import tempfile
@@ -1066,7 +1085,10 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             self.assertIsNotNone(response["output"])
 
             output_data = json.loads(response["output"])
-            self.assertEqual(output_data["permissionDecision"], "allow")
+            # Should NOT contain permissionDecision when clean (no auto-approve)
+            self.assertNotIn("permissionDecision", output_data)
+            # Should be empty response
+            self.assertEqual(output_data, {})
         finally:
             os.unlink(temp_path)
 
