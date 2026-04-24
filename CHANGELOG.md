@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Setup.py Missing permissions_directories in Default Config Template** (Issue #240)
+  - **Fix**: Added `permissions_directories` field to `_get_default_config_template()` function in setup.py
+  - **Problem**: Users running `ai-guardian setup --create-config` got incomplete configuration files missing the `permissions_directories` option
+  - **Root Cause**: When `permissions_directories` was added to the schema, setup.py wasn't updated (violating AGENTS.md configuration consistency guidelines)
+  - **Impact**: Generated configs now include `permissions_directories` with comprehensive comments and examples:
+    - Local directory scanning example (`~/.claude/skills`)
+    - GitHub repository scanning example with token_env
+    - Documentation explaining it's OPTIONAL/ADVANCED and most users should prefer remote_configs
+  - **Location**: Added to setup.py after permissions section (line 893), before directory_rules
+  - **Verification**: Tested via `_get_default_config_template()` and confirmed field appears in generated config
+
 - **JSON Schema Missing Definitions** (Issue #239)
   - **Fix**: Added missing `pattern_server_auth` and `pattern_server_cache` definitions to schema
   - **Problem**: Schema referenced definitions that didn't exist, causing validation failures for pattern_server configurations
