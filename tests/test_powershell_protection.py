@@ -390,10 +390,8 @@ class PowerShellProtectionTest(TestCase):
         self.assertFalse(is_allowed, "PowerShell Set-Content on site-packages/ai_guardian should still be blocked")
         self.assertIn("CRITICAL FILE PROTECTED", error_msg)
 
-    @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_powershell_still_blocks_source_repo(self, mock_is_maintainer):
-        """PowerShell cannot modify ai-guardian/src/ai_guardian/ (verify protection for non-maintainers)"""
-        mock_is_maintainer.return_value = False
+    def test_powershell_still_blocks_source_repo(self):
+        """PowerShell cannot modify ai-guardian/src/ai_guardian/ (command tools always blocked)"""
 
         hook_data = {
             "hook_event_name": "PreToolUse",

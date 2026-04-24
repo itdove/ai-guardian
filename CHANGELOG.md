@@ -18,6 +18,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Removed Unused Maintainer Detection Code** (Issue #231)
+  - **Change**: Removed ~450 lines of unused GitHub maintainer detection code from `tool_policy.py`
+  - **Removed Methods**: 
+    - `_get_git_repo_info()` - Extract GitHub repo info from git remote
+    - `_get_authenticated_github_user()` - Get GitHub username from gh CLI
+    - `_check_github_collaborator()` - Check if user has write access via GitHub API
+    - `_get_maintainer_cache()` - Read maintainer status from cache
+    - `_cache_maintainer_status()` - Write maintainer status to cache
+    - `_is_github_maintainer_cached()` - Main maintainer check with caching
+    - `_diagnose_maintainer_bypass()` - Diagnostic helper for bypass issues
+  - **Rationale**: 
+    - These methods were no longer called in production code since commit `0f6e456` (April 19, 2026)
+    - The `_should_skip_immutable_protection()` bypass logic was simplified to allow ALL contributors to edit development source (fork + PR workflow)
+    - Maintainer check was removed to enable standard open-source contribution workflow
+    - Security relies on PR review process, not role-based permissions
+  - **Impact**:
+    - Reduced codebase complexity (~450 lines removed)
+    - Removed dependency on `gh` CLI for permission checking
+    - Eliminated cache file management (`~/.cache/ai-guardian/maintainer-status.json`)
+    - Faster hook execution (no GitHub API calls)
+  - **Tests Updated**:
+    - Renamed `test_maintainer_bypass.py` → `test_development_source_bypass.py`
+    - Removed tests for unused GitHub API methods (~400 lines)
+    - Kept tests for core bypass logic (`_should_skip_immutable_protection`)
+    - Removed `@patch('_is_github_maintainer_cached')` mocks from other test files
+  - **No Breaking Changes**: The permission model remains unchanged - all contributors can edit development source, config/hooks/cache remain always protected
+
 - **Secret Redaction Always Redacts (Removed Block Mode)** (Issue #234)
   - **Change**: `secret_redaction.action="block"` mode removed - secrets are now always redacted (never blocked)
   - **New Default**: Changed default action from "log-only" to "warn" for better UX

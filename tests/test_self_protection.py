@@ -154,10 +154,8 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed, "Write to package source should be blocked")
         self.assertIn("package source code", error_msg)
 
-    @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_write_allows_development_source_for_contributors(self, mock_is_maintainer):
+    def test_write_allows_development_source_for_contributors(self):
         """Contributors can write to development src/ai_guardian/ (fork + PR workflow)"""
-        mock_is_maintainer.return_value = False
 
         hook_data = {
             "hook_event_name": "PreToolUse",
@@ -636,10 +634,8 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed, "Write to site-packages/ai_guardian should still be blocked")
         self.assertIn("CRITICAL FILE PROTECTED", error_msg)
 
-    @patch.object(ToolPolicyChecker, '_is_github_maintainer_cached')
-    def test_write_allows_development_source_for_contributors_init(self, mock_is_maintainer):
+    def test_write_allows_development_source_for_contributors_init(self):
         """Contributors can write to ai-guardian/src/ai_guardian/ (fork + PR workflow)"""
-        mock_is_maintainer.return_value = False
 
         hook_data = {
             "hook_event_name": "PreToolUse",

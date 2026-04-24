@@ -20,19 +20,7 @@ class ContributorWorkflowTest(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
-        # Mock as non-maintainer (external contributor)
-        self.maintainer_patcher = patch.object(
-            ToolPolicyChecker,
-            '_is_github_maintainer_cached',
-            return_value=False
-        )
-        self.maintainer_patcher.start()
-
         self.policy_checker = ToolPolicyChecker(config={"permissions": []})
-
-    def tearDown(self):
-        """Clean up mocks"""
-        self.maintainer_patcher.stop()
 
     # ========================================================================
     # Test: Contributors CAN edit development source code
