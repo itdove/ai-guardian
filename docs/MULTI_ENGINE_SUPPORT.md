@@ -1,16 +1,16 @@
 # Multi-Engine Support for Secret Scanning
 
 **GitHub Issue**: [#91](https://github.com/itdove/ai-guardian/issues/91)  
-**Status**: Planned for v2.0.0  
-**Priority**: Medium
+**Status**: ✅ **Implemented in v1.5.0**  
+**Priority**: High (Production Ready)
 
 ## Summary
 
-Add support for multiple secret scanning engines beyond Gitleaks, allowing users to choose or combine different secret detection tools based on their organization's requirements, compliance needs, and detection preferences.
+Multi-engine support for secret scanning is **fully implemented and production-ready** since v1.5.0. Users can choose or combine different secret detection tools based on their organization's requirements, compliance needs, and detection preferences.
 
 ## Background
 
-Currently, ai-guardian hardcodes Gitleaks as the only secret scanning engine (see `src/ai_guardian/__init__.py:1507-1516`). While Gitleaks is an excellent open-source tool with 100+ built-in patterns, different organizations have varying needs:
+AI Guardian supports multiple secret scanning engines since v1.5.0 (see `src/ai_guardian/scanners/engine_builder.py`). While Gitleaks is the default and an excellent open-source tool with 100+ built-in patterns, different organizations have varying needs:
 
 ### Why Multi-Engine Support?
 
@@ -38,37 +38,44 @@ Each scanner has unique capabilities:
 - Test new engines alongside existing ones before switching
 - No vendor lock-in - switch engines without changing infrastructure
 
-### Current Limitation
+### Currently Supported Engines
 
-```python
-# From src/ai_guardian/__init__.py:1507
-cmd = [
-    'gitleaks',  # ← Hardcoded - no configuration option
-    'detect',
-    # ...
-]
-```
+**Built-in Engine Presets** (see `src/ai_guardian/scanners/engine_builder.py`):
+- **gitleaks** - Industry standard, fast, 100+ patterns
+- **betterleaks** - Faster fork by original Gitleaks maintainers
+- **leaktk** - Automatic pattern management, simpler setup
+- **custom** - Define your own scanner engine
 
-The `secret_scanning.engines` field exists in the schema but is **not implemented** - Gitleaks is always used regardless of configuration.
+The implementation automatically tries engines in order and falls back to the first available engine.
 
-## Proposed Solution
+## Current Implementation
 
 ### Configuration Format
 
-Make the `engines` field functional with support for both simple and advanced configurations:
+The `engines` field is **fully functional** with support for both simple and advanced configurations:
 
-#### Simple Format (Single Engine)
+#### Simple Format (Preset Names) - ✅ Implemented
 ```json
 {
   "secret_scanning": {
     "enabled": true,
     "action": "block",
-    "engines": ["gitleaks"]  // Simple string array
+    "engines": ["gitleaks"]  // Single engine (default)
   }
 }
 ```
 
-#### Advanced Format (Multiple Engines with Options)
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "action": "block",
+    "engines": ["betterleaks", "gitleaks", "leaktk"]  // Try in order, use first available
+  }
+}
+```
+
+#### Advanced Format (Custom Engine Configuration) - ✅ Implemented
 ```json
 {
   "secret_scanning": {
@@ -76,83 +83,67 @@ Make the `engines` field functional with support for both simple and advanced co
     "action": "block",
     "engines": [
       {
-        "name": "gitleaks",
-        "enabled": true,
-        "priority": 1,
-        "config": {
-          "use_pattern_server": true,
-          "custom_config": "~/.gitleaks.toml"
-        }
+        "type": "gitleaks",
+        "binary": "/usr/local/bin/gitleaks",  // Custom path
+        "extra_flags": ["--verbose"]
       },
       {
-        "name": "trufflehog",
-        "enabled": true,
-        "priority": 2,
-        "config": {
-          "only_verified": true,
-          "include_detectors": ["AWS", "GitHub", "Slack"]
-        }
+        "type": "custom",
+        "binary": "my-scanner",
+        "command_template": [
+          "{binary}", "scan", "--json", "{report_file}", "{source_file}"
+        ],
+        "success_exit_code": 0,
+        "secrets_found_exit_code": 1,
+        "output_parser": "gitleaks"  // or "leaktk"
       }
-    ],
-    "execution_strategy": "any-match",  // Run all, block if any finds secrets
-    "pattern_server": {
-      "url": "https://patterns.company.com"
-    }
+    ]
   }
 }
 ```
 
-#### Real-World Examples
+#### Real-World Examples (✅ Working Now)
 
-**Example 1: Healthcare Compliance (Multiple Engines)**
+**Example 1: Use BetterLeaks for Speed**
 ```json
 {
   "secret_scanning": {
     "enabled": true,
     "action": "block",
-    "engines": ["gitleaks", "trufflehog"],
-    "execution_strategy": "any-match",  // Defense in depth - block if ANY finds secrets
-    "pattern_server": {
-      "url": "https://patterns.healthcare.company.com"  // HIPAA-specific patterns
-    }
+    "engines": ["betterleaks", "gitleaks"]  // Try betterleaks first, fallback to gitleaks
   }
 }
 ```
 
-**Example 2: Development Team (Reduce False Positives)**
+**Example 2: Use LeakTK for Auto-Pattern Management**
 ```json
 {
   "secret_scanning": {
     "enabled": true,
     "action": "block",
-    "engines": ["gitleaks", "trufflehog", "detect-secrets"],
-    "execution_strategy": "consensus",  // Block only if 2+ engines agree
-    "consensus_threshold": 2
+    "engines": ["leaktk", "gitleaks"]  // LeakTK manages patterns automatically
   }
 }
 ```
 
-**Example 3: Migration from TruffleHog to Gitleaks**
+**Example 3: Custom Scanner Integration**
 ```json
 {
   "secret_scanning": {
     "enabled": true,
     "engines": [
       {
-        "name": "trufflehog",
-        "enabled": true,
-        "priority": 1  // Primary scanner
+        "type": "custom",
+        "binary": "my-company-scanner",
+        "command_template": [
+          "{binary}", "detect", "--format", "json", "--output", "{report_file}", "{source_file}"
+        ],
+        "success_exit_code": 0,
+        "secrets_found_exit_code": 42,
+        "output_parser": "gitleaks"
       },
-      {
-        "name": "gitleaks",
-        "enabled": true,
-        "priority": 2,
-        "config": {
-          "action": "log"  // Test Gitleaks in log-only mode
-        }
-      }
-    ],
-    "execution_strategy": "first-match"  // Use TruffleHog, Gitleaks only if it fails
+      "gitleaks"  // Fallback to gitleaks if custom scanner not installed
+    ]
   }
 }
 ```
@@ -369,18 +360,25 @@ class ConsensusStrategy(ExecutionStrategy):
 
 ### Engine Comparison
 
-| Engine | Type | Speed | Pattern Count | Entropy Analysis | Verification | License | Installation |
-|--------|------|-------|---------------|------------------|--------------|---------|--------------|
-| **Gitleaks** | Binary | ⚡ Fast | 100+ | ❌ | ❌ | MIT | `brew install gitleaks` |
-| **TruffleHog** | Binary | ⚡ Fast | 700+ | ✅ | ✅ (API calls) | AGPL | `brew install trufflesecurity/trufflehog/trufflehog` |
-| **detect-secrets** | Python | 🐢 Medium | 10+ plugins | ✅ | ❌ | Apache 2.0 | `pip install detect-secrets` |
-| **Secretlint** | Node.js | 🐢 Medium | Pluggable | ❌ | ❌ | MIT | `npm install -g secretlint` |
+| Engine | Status | Type | Speed | Pattern Count | License | Installation |
+|--------|--------|------|-------|---------------|---------|--------------|
+| **Gitleaks** | ✅ Supported | Binary | ⚡ Fast | 100+ | MIT | `brew install gitleaks` |
+| **BetterLeaks** | ✅ Supported | Binary | ⚡⚡ Faster | Same as Gitleaks | MIT | `brew install betterleaks` |
+| **LeakTK** | ✅ Supported | Binary | ⚡ Fast | Auto-managed | MIT | `go install github.com/immunefi-team/leaktk@latest` |
+| **Custom** | ✅ Supported | Any | Varies | User-defined | Any | User provides |
+| **TruffleHog** | ⏳ Planned (v2.0) | Binary | ⚡ Fast | 700+ | AGPL | `brew install trufflesecurity/trufflehog/trufflehog` |
+| **detect-secrets** | ⏳ Planned (v2.0) | Python | 🐢 Medium | 10+ plugins | Apache 2.0 | `pip install detect-secrets` |
+
+**Currently Supported (v1.5.0+):**
+- **Gitleaks** - Industry standard, fast, 100+ built-in patterns, works with pattern server
+- **BetterLeaks** - Fork by original Gitleaks maintainers, faster performance, same output format
+- **LeakTK** - Automatic pattern management, simpler configuration, no config file needed
+- **Custom** - Bring your own scanner, define command template and output parser
 
 **Key Differences:**
-- **Gitleaks**: Best for known patterns (AWS keys, GitHub tokens), fast, no external API calls
-- **TruffleHog**: Best for unknown secrets via entropy, can verify secrets are active
-- **detect-secrets**: Best for baseline/allowlist workflow, prevents new secrets
-- **Secretlint**: Best for custom rules, integrates with ESLint-like plugins
+- **Gitleaks**: Best for known patterns (AWS keys, GitHub tokens), pattern server support
+- **BetterLeaks**: Same as Gitleaks but faster execution time
+- **LeakTK**: Best when you don't want to manage pattern files manually
 
 ## Implementation Plan
 

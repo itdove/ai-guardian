@@ -104,13 +104,64 @@
     },
     "secret_scanning": {
       "type": "object",
-      "description": "Secret scanning with Gitleaks control (NEW in v1.4.0). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats. NOTE: Currently hardcoded to Gitleaks only - multi-engine support (engines field) planned for v2.0.0.",
+      "description": "Secret scanning with multi-engine support (v1.4.0+). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats. Multi-engine support added in v1.5.0 - configure multiple engines with automatic fallback.",
       "properties": {
         "engines": {
           "type": "array",
-          "description": "RESERVED/FUTURE: List of secret scanning engines to use (planned for v2.0.0). Currently not implemented - Gitleaks is always used regardless of this setting. Future engines: gitleaks, trufflehog, detect-secrets, secretlint.",
+          "description": "List of secret scanning engines to use. Tries engines in order, using first available. Supported: 'gitleaks' (default, industry standard), 'betterleaks' (faster, by original Gitleaks maintainers), 'leaktk' (auto-pattern management), or custom engine config objects. See docs/MULTI_ENGINE_SUPPORT.md for examples.",
           "items": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Built-in engine name: 'gitleaks', 'betterleaks', or 'leaktk'"
+              },
+              {
+                "type": "object",
+                "description": "Custom engine configuration or preset override",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "Engine type: 'gitleaks', 'betterleaks', 'leaktk', or 'custom'"
+                  },
+                  "binary": {
+                    "type": "string",
+                    "description": "Binary name or path"
+                  },
+                  "command_template": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Command template with placeholders (required for custom type)"
+                  },
+                  "config_flag": {
+                    "type": ["array", "null"],
+                    "items": {"type": "string"},
+                    "description": "Flags for specifying config file"
+                  },
+                  "extra_flags": {
+                    "type": ["array", "null"],
+                    "items": {"type": "string"},
+                    "description": "Additional command-line flags"
+                  },
+                  "success_exit_code": {
+                    "type": "integer",
+                    "description": "Exit code indicating no secrets found",
+                    "default": 0
+                  },
+                  "secrets_found_exit_code": {
+                    "type": "integer",
+                    "description": "Exit code indicating secrets detected",
+                    "default": 1
+                  },
+                  "output_parser": {
+                    "type": "string",
+                    "description": "Parser type: 'gitleaks' or 'leaktk'",
+                    "enum": ["gitleaks", "leaktk"],
+                    "default": "gitleaks"
+                  }
+                },
+                "required": ["type", "binary"]
+              }
+            ]
           },
           "default": ["gitleaks"]
         },
