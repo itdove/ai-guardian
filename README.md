@@ -38,18 +38,9 @@ Combine with:
 ### Zero-Config Installation (Recommended)
 
 ```bash
-# 1. Install a secret scanner (macOS)
-brew install gitleaks           # Standard (recommended)
-# OR
-brew install betterleaks        # Faster alternative (20-40% faster)
-# OR
-brew install leaktk/tap/leaktk  # Auto-pattern management
-
-# 2. Install AI Guardian from PyPI
+# Install AI Guardian from PyPI with automated scanner setup
 pip install ai-guardian
-
-# 3. Setup IDE hooks (auto-detects Claude Code, Cursor, or GitHub Copilot)
-ai-guardian setup
+ai-guardian setup --install-scanner --ide claude
 ```
 
 **You're done!** ai-guardian now provides:
@@ -58,6 +49,25 @@ ai-guardian setup
 - ✅ SSRF protection
 - ✅ Config file exfiltration prevention
 - ✅ Immutable file protection
+
+The `--install-scanner` flag automatically installs gitleaks (or you can specify `--install-scanner betterleaks` for 20-40% faster scanning).
+
+### Manual Scanner Installation (Alternative)
+
+If you prefer to install the scanner manually:
+
+```bash
+# macOS
+brew install gitleaks           # Standard (recommended)
+# OR
+brew install betterleaks        # Faster alternative (20-40% faster)
+# OR
+brew install leaktk/tap/leaktk  # Auto-pattern management
+
+# Then setup AI Guardian
+pip install ai-guardian
+ai-guardian setup
+```
 
 ### Optional: Advanced Configuration
 
@@ -227,6 +237,55 @@ ai-guardian setup --ide claude
 **Cursor:**
 - Default: `~/.cursor/hooks.json`
 - No environment variable support currently (will add if Cursor implements one)
+
+## Scanner Management
+
+AI Guardian provides automated installation and management of scanner engines (gitleaks, betterleaks, leaktk).
+
+### Install a Scanner
+
+```bash
+# Install gitleaks (default)
+ai-guardian scanner install gitleaks
+
+# Install betterleaks (20-40% faster than gitleaks)
+ai-guardian scanner install betterleaks
+
+# Install specific version
+ai-guardian scanner install gitleaks --version 8.30.1
+
+# Use pinned version from ai-guardian release
+ai-guardian scanner install gitleaks --use-pinned
+```
+
+### List Installed Scanners
+
+```bash
+# Show all installed scanners
+ai-guardian scanner list
+
+# Show with installation paths
+ai-guardian scanner list --verbose
+```
+
+### Scanner Information
+
+```bash
+# Show detailed info about a scanner
+ai-guardian scanner info gitleaks
+```
+
+### Version Management
+
+AI Guardian uses a hybrid version management approach:
+
+1. **Latest from GitHub (default)**: Automatically fetches the latest version
+2. **Pinned versions (fallback)**: Uses tested versions from ai-guardian release when GitHub unavailable
+3. **Explicit version (override)**: Use `--version` to install a specific version
+
+**Offline Support**: Use `--use-pinned` to install the pinned version without internet access.
+
+See [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) for detailed installation guide.
 
 ## Interactive TUI
 

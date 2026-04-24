@@ -2795,6 +2795,13 @@ def main():
             action="store_true",
             help="Remove AI Guardian pre-commit hooks"
         )
+        setup_parser.add_argument(
+            "--install-scanner",
+            nargs="?",
+            const="gitleaks",
+            choices=["gitleaks", "betterleaks", "leaktk"],
+            help="Install scanner engine (default: gitleaks)"
+        )
 
         # Violations subcommand
         violations_parser = subparsers.add_parser(
@@ -2911,6 +2918,47 @@ def main():
             help="Path to ai-guardian.json config file (default: auto-detect)"
         )
 
+        # Scanner subcommand (NEW in v1.6.0)
+        scanner_parser = subparsers.add_parser(
+            "scanner",
+            help="Manage scanner engines (install, list, info)"
+        )
+        scanner_sub = scanner_parser.add_subparsers(dest="scanner_command", help="Scanner commands")
+
+        # scanner list
+        scanner_list_parser = scanner_sub.add_parser("list", help="List installed scanners")
+        scanner_list_parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Show installation paths"
+        )
+
+        # scanner install
+        scanner_install_parser = scanner_sub.add_parser("install", help="Install a scanner")
+        scanner_install_parser.add_argument(
+            "name",
+            choices=["gitleaks", "betterleaks", "leaktk"],
+            help="Scanner to install"
+        )
+        scanner_install_parser.add_argument(
+            "--version",
+            help="Install specific version (e.g., 8.30.1)"
+        )
+        scanner_install_parser.add_argument(
+            "--use-pinned",
+            action="store_true",
+            help="Use version from pyproject.toml (tested with this ai-guardian release)"
+        )
+
+        # scanner info
+        scanner_info_parser = scanner_sub.add_parser("info", help="Show scanner details")
+        scanner_info_parser.add_argument(
+            "name",
+            choices=["gitleaks", "betterleaks", "leaktk"],
+            help="Scanner to show info for"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -2927,7 +2975,8 @@ def main():
                 permissive=args.permissive,
                 pre_commit=args.pre_commit,
                 auto_install_hooks=args.auto_install_hooks,
-                uninstall_hooks=args.uninstall_hooks
+                uninstall_hooks=args.uninstall_hooks,
+                install_scanner=args.install_scanner
             )
             return 0 if success else 1
 
@@ -3026,6 +3075,66 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error displaying configuration: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle scanner command (NEW in v1.6.0)
+        if args.command == "scanner":
+            try:
+                from ai_guardian.scanner_installer import ScannerInstaller
+                from ai_guardian.scanner_manager import ScannerManager
+
+                if args.scanner_command == "list":
+                    manager = ScannerManager()
+                    manager.print_scanner_list(verbose=args.verbose)
+                    return 0
+
+                elif args.scanner_command == "install":
+                    installer = ScannerInstaller()
+
+                    print(f"Installing {args.name}...")
+                    success = installer.install(
+                        args.name,
+                        version=args.version,
+                        use_pinned=args.use_pinned
+                    )
+
+                    if success:
+                        # Verify installation
+                        if installer.verify_installation(args.name):
+                            print(f"\n✓ {args.name} is ready to use")
+
+                            # Show suggestion to update config
+                            print(f"\nRecommended: Update your configuration to use {args.name}")
+                            print(f"\nAdd to ~/.config/ai-guardian/ai-guardian.json:")
+                            print('{')
+                            print('  "secret_scanning": {')
+                            print('    "enabled": true,')
+                            print(f'    "engines": ["{args.name}"]')
+                            print('  }')
+                            print('}')
+                        else:
+                            print(f"\n⚠ Installation completed but {args.name} verification failed")
+                            print(f"Make sure ~/.local/bin is in your PATH")
+                            return 1
+                        return 0
+                    else:
+                        print(f"\n✗ Failed to install {args.name}")
+                        return 1
+
+                elif args.scanner_command == "info":
+                    manager = ScannerManager()
+                    manager.print_scanner_info(args.name)
+                    return 0
+
+                else:
+                    # No scanner subcommand provided
+                    scanner_parser.print_help()
+                    return 1
+
+            except Exception as e:
+                print(f"Error managing scanner: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1

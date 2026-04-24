@@ -1303,7 +1303,8 @@ def setup_hooks(
     permissive: bool = False,
     pre_commit: bool = False,
     auto_install_hooks: bool = False,
-    uninstall_hooks: bool = False
+    uninstall_hooks: bool = False,
+    install_scanner: Optional[str] = None
 ) -> bool:
     """
     Setup IDE hooks with optional remote config and default config creation.
@@ -1320,11 +1321,50 @@ def setup_hooks(
         pre_commit: If True, install pre-commit hooks for git
         auto_install_hooks: If True, allow automatic hook installation (default: False for safety)
         uninstall_hooks: If True, remove AI Guardian pre-commit hooks
+        install_scanner: Optional scanner name to install (gitleaks, betterleaks, or leaktk)
 
     Returns:
         bool: True if successful, False otherwise
     """
     setup = IDESetup()
+
+    # Handle scanner installation if requested (NEW in v1.6.0)
+    if install_scanner:
+        if dry_run:
+            print(f"[DRY RUN] Would install scanner: {install_scanner}")
+        else:
+            try:
+                from ai_guardian.scanner_installer import ScannerInstaller
+
+                print(f"\n🛡️  Installing {install_scanner} scanner...\n")
+                installer = ScannerInstaller()
+
+                success = installer.install(install_scanner)
+
+                if success:
+                    # Verify installation
+                    if installer.verify_installation(install_scanner):
+                        print(f"\n✓ {install_scanner} is ready to use\n")
+                    else:
+                        print(f"\n⚠  Installation completed but {install_scanner} verification failed")
+                        print("Make sure ~/.local/bin is in your PATH\n")
+                        if interactive:
+                            response = input("Continue with IDE setup anyway? (y/n): ")
+                            if response.lower() != 'y':
+                                return False
+                else:
+                    print(f"\n✗ Failed to install {install_scanner}\n")
+                    if interactive:
+                        response = input("Continue with IDE setup anyway? (y/n): ")
+                        if response.lower() != 'y':
+                            return False
+
+            except Exception as e:
+                print(f"Error installing scanner: {e}")
+                if interactive:
+                    response = input("Continue with IDE setup anyway? (y/n): ")
+                    if response.lower() != 'y':
+                        return False
 
     # Handle pre-commit hook uninstallation if requested
     if pre_commit and uninstall_hooks:
