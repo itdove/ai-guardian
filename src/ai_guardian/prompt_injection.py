@@ -26,6 +26,7 @@ from typing import Tuple, Optional, Dict, Any, Union, List
 
 from ai_guardian.config_utils import is_expired
 from ai_guardian.tool_policy import _strip_bash_heredoc_content
+from ai_guardian.utils.path_matching import match_ignore_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -836,15 +837,14 @@ class PromptInjectionDetector:
             return False
 
         # Expand ~ in file_path for proper matching
-        file_path_obj = Path(file_path).expanduser()
+        file_path_expanded = str(Path(file_path).expanduser())
 
         for pattern in self.ignore_files:
             # Expand ~ in pattern
             expanded_pattern = str(Path(pattern).expanduser())
 
-            # Use Path.match() which supports ** glob patterns
-            # fnmatch doesn't support ** so we need pathlib
-            if file_path_obj.match(expanded_pattern):
+            # Use match_ignore_pattern which properly handles leading **/ patterns
+            if match_ignore_pattern(file_path_expanded, expanded_pattern):
                 logger.debug(f"File '{file_path}' matches ignore pattern '{pattern}'")
                 return True
 

@@ -395,5 +395,77 @@ class PromptInjectionUnicodeIntegrationTest(unittest.TestCase):
         self.assertIn("UNICODE ATTACK", error_msg)
 
 
+class UnicodeDetectorIgnoreFilesTest(unittest.TestCase):
+    """Test suite for ignore_files functionality in unicode detection (issue #232)"""
+
+    def test_ignore_files_leading_double_star_patterns(self):
+        """Test leading ** patterns work in unicode detection ignore_files"""
+        from pathlib import Path
+
+        # Text with unicode attack
+        text_with_unicode = "malicious​command"  # Contains zero-width space
+
+        # Create detector with leading ** ignore patterns
+        config = {
+            "ignore_files": [
+                "**/development/documentations/**",  # Leading ** pattern (issue #232)
+                "**/.claude/skills/**",  # Another leading ** pattern
+            ],
+            "unicode_detection": {
+                "enabled": True,
+            }
+        }
+        detector = PromptInjectionDetector(config)
+
+        # Should ignore file in development/documentations
+        should_block, msg, detected = detector.detect(
+            text_with_unicode,
+            file_path="/Users/username/development/documentations/ai-guardian/file.md"
+        )
+        self.assertFalse(detected, "Should ignore files in **/development/documentations/**")
+
+        # Should ignore file in .claude/skills
+        should_block, msg, detected = detector.detect(
+            text_with_unicode,
+            file_path="/home/user/.claude/skills/code-review/SKILL.md"
+        )
+        self.assertFalse(detected, "Should ignore files in **/.claude/skills/**")
+
+        # Should NOT ignore file in different location
+        should_block, msg, detected = detector.detect(
+            text_with_unicode,
+            file_path="/home/user/project/src/main.py"
+        )
+        self.assertTrue(detected, "Should detect unicode in non-ignored files")
+
+    def test_ignore_files_nested_leading_double_star(self):
+        """Test deeply nested paths with leading ** patterns"""
+        from pathlib import Path
+
+        text_with_unicode = "test‌text"  # Contains zero-width non-joiner
+
+        config = {
+            "ignore_files": ["**/docs/**"],
+            "unicode_detection": {
+                "enabled": True,
+            }
+        }
+        detector = PromptInjectionDetector(config)
+
+        # Should match docs anywhere in path
+        should_block, msg, detected = detector.detect(
+            text_with_unicode,
+            file_path="/project/deep/nested/path/docs/guide.md"
+        )
+        self.assertFalse(detected, "**/docs/** should match deeply nested docs")
+
+        # Should match docs in home directory
+        should_block, msg, detected = detector.detect(
+            text_with_unicode,
+            file_path=f"{Path.home()}/projects/myapp/docs/README.md"
+        )
+        self.assertFalse(detected, "**/docs/** should match docs in home")
+
+
 if __name__ == "__main__":
     unittest.main()

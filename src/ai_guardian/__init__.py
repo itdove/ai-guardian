@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from ai_guardian.config_utils import get_config_dir, is_feature_enabled
+from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
 # Import tool policy checker for MCP/Skill permissions
 try:
@@ -500,70 +501,6 @@ def _is_path_excluded(file_path, config):
         return False
 
 
-def _match_leading_doublestar_pattern(file_path, pattern):
-    """
-    Match a pattern starting with **/ against a file path.
-
-    Patterns like **/.claude/skills/** should match paths containing
-    .claude/skills/ anywhere in the filesystem.
-
-    Args:
-        file_path: Absolute file path to check
-        pattern: Pattern starting with **/
-
-    Returns:
-        bool: True if pattern matches the path
-    """
-    # Remove leading **/
-    pattern_suffix = pattern[3:] if pattern.startswith("**/") else pattern[2:]
-
-    # Split the pattern into parts
-    # e.g., ".claude/skills/**" -> [".claude", "skills", "**"]
-    pattern_parts = pattern_suffix.split("/")
-
-    # Convert file path to parts
-    file_parts = Path(file_path).parts
-
-    # Try to find the pattern sequence in the file path
-    pattern_without_trailing_star = []
-    has_trailing_star = False
-
-    for part in pattern_parts:
-        if part == "**":
-            has_trailing_star = True
-            break
-        pattern_without_trailing_star.append(part)
-
-    if not pattern_without_trailing_star:
-        # Pattern is just **/**, matches everything
-        return True
-
-    # Look for the pattern sequence in the file path
-    pattern_len = len(pattern_without_trailing_star)
-
-    for i in range(len(file_parts) - pattern_len + 1):
-        # Check if pattern matches at this position
-        match = True
-        for j, pattern_part in enumerate(pattern_without_trailing_star):
-            file_part = file_parts[i + j]
-            # Use fnmatch for wildcard matching within parts
-            if not fnmatch.fnmatch(file_part, pattern_part):
-                match = False
-                break
-
-        if match:
-            # Found the pattern sequence
-            # If there's a trailing **, check if there are more parts after
-            if has_trailing_star:
-                # **/ at the end matches if there's at least one more part
-                return i + pattern_len < len(file_parts)
-            else:
-                # No trailing **, must be exact match
-                return i + pattern_len == len(file_parts)
-
-    return False
-
-
 def _check_directory_rules(file_path, config):
     """
     Check directory rules (allow/deny) in order.
@@ -653,7 +590,7 @@ def _check_directory_rules(file_path, config):
                     if pattern.startswith("**/"):
                         # Use custom matching function for leading ** patterns
                         # This provides consistent glob support with ignore_files
-                        if _match_leading_doublestar_pattern(abs_file_path, pattern):
+                        if match_leading_doublestar_pattern(abs_file_path, pattern):
                             final_decision = mode
                             matched_pattern = pattern
                             logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
@@ -1749,7 +1686,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                 # Handle leading ** patterns (e.g., **/.claude/skills/**)
                 if pattern.startswith("**/"):
-                    matched = _match_leading_doublestar_pattern(abs_file_path, pattern)
+                    matched = match_leading_doublestar_pattern(abs_file_path, pattern)
                 else:
                     # For non-leading-** patterns, use Path.match()
                     file_path_obj = Path(abs_file_path)
