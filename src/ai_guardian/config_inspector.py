@@ -399,11 +399,21 @@ class ConfigInspector:
         try:
             from ai_guardian.secret_redactor import SecretRedactor
             secret_config = self.config.get("secret_redaction", {})
+            
+            # Validate action - reject "block" mode (removed in v1.5)
+            action = secret_config.get("action", "warn")
+            if action == "block":
+                raise ValueError(
+                    'secret_redaction.action="block" is no longer supported. '
+                    'Use "warn" or "log-only" instead. '
+                    'To prevent file access entirely, add patterns to .gitleaksignore.'
+                )
+            
             redactor = SecretRedactor(secret_config)
 
             effective_config["secret_redaction"] = {
                 "enabled": secret_config.get("enabled", True),
-                "action": secret_config.get("action", "log-only"),
+                "action": action,
                 "pattern_count": len(redactor.compiled_patterns),
                 "pattern_server_configured": "pattern_server" in secret_config
             }

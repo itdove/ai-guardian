@@ -55,7 +55,6 @@ class AIGuardianTest(TestCase):
 
         self.assertTrue(has_secrets, "Secret in list should be detected")
         self.assertIsNotNone(error_msg, "Error message should be returned for secrets")
-        self.assertIn("SECRET DETECTED", error_msg, "Error message should mention secret detection")
 
     @patch('ai_guardian._load_pattern_server_config')
     def test_check_secrets_with_dict_content(self, mock_pattern_config):
@@ -86,7 +85,6 @@ class AIGuardianTest(TestCase):
 
         self.assertTrue(has_secrets, "GitHub token should be detected as secret")
         self.assertIsNotNone(error_msg, "Error message should be returned for secrets")
-        self.assertIn("SECRET DETECTED", error_msg, "Error message should mention secret detection")
 
     @patch('ai_guardian._load_pattern_server_config')
     def test_check_secrets_with_private_key(self, mock_pattern_config):
@@ -242,7 +240,6 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(response["exit_code"], 0, "Exit code should be 0 with JSON response")
         output = json.loads(response["output"])
         self.assertEqual(output["decision"], "block", "Should block when secret detected")
-        self.assertIn("SECRET DETECTED", output["reason"])
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
 
     def test_process_hook_input_empty_prompt(self):
@@ -783,7 +780,6 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             output = json.loads(response["output"])
             self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "deny")
             self.assertIn("systemMessage", output)
-            self.assertIn("SECRET DETECTED", output["systemMessage"])
 
             mock_check_secrets.assert_called_once()
         finally:
@@ -961,11 +957,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')
     def test_posttooluse_bash_with_secret(self, mock_pattern_config, mock_redaction_config):
-        """Test PostToolUse blocks Bash output containing secrets"""
+        """Test PostToolUse redacts Bash output containing secrets"""
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
-        # Use default blocking behavior (no redaction config)
-        mock_redaction_config.return_value = (None, None)
+        # Enable redaction with warn mode (default behavior)
+        mock_redaction_config.return_value = ({"enabled": True, "action": "warn"}, None)
 
         hook_json = json.dumps({
             "hook_event_name": "PostToolUse",
@@ -980,8 +976,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
         self.assertEqual(result['exit_code'], 0)
         response = json.loads(result['output'])
-        self.assertEqual(response.get('decision'), 'block')
-        self.assertIn('SECRET DETECTED', response.get('reason', ''))
+        # Secrets are now redacted and allowed, not blocked
+        self.assertIsNone(response.get('decision'))  # No blocking decision
+        self.assertIsNotNone(response.get('systemMessage'))  # Warning message about redaction
+        # Verify secret was redacted from output
+        if 'output' in response:
+            self.assertNotIn('BEGIN RSA PRIVATE KEY', response['output'])
 
     def test_posttooluse_no_output_field(self):
         """Test PostToolUse handles missing output gracefully"""

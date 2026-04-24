@@ -129,7 +129,7 @@ class SecretRedactor:
         Args:
             config: Optional configuration dict with:
                 - enabled: bool - whether redaction is enabled (default: True)
-                - action: str - "log-only", "warn", or "block" (default: "log-only")
+                - action: str - "log-only" or "warn" (default: "warn")
                 - preserve_format: bool - whether to preserve format in redactions (default: True)
                 - additional_patterns: List[Dict] - custom patterns to add
                 - log_redactions: bool - whether to log redaction events (default: True)
@@ -137,7 +137,7 @@ class SecretRedactor:
         """
         self.config = config or {}
         self.enabled = self.config.get('enabled', True)
-        self.action = self.config.get('action', 'log-only')
+        self.action = self.config.get('action', 'warn')
         self.preserve_format = self.config.get('preserve_format', True)
         self.log_redactions = self.config.get('log_redactions', True)
 

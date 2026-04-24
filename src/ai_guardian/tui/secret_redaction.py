@@ -151,8 +151,7 @@ class SecretRedactionContent(Container):
                     "  • JSON/YAML passwords\n"
                     "  • HTTP Authorization headers[/dim]",
                     id="default-patterns"
-                )
-
+)
             # Action mode section
             with Container(classes="section"):
                 yield Static("[bold]Action on Secret Detection[/bold]", classes="section-title")
@@ -163,20 +162,17 @@ class SecretRedactionContent(Container):
                         [
                             ("Log Only (redact silently)", "log-only"),
                             ("Warn (redact and notify)", "warn"),
-                            ("Block (prevent operation)", "block")
                         ],
-                        value="log-only",
+                        value="warn",
                         id="action-select"
                     )
                     yield Static("[dim](Press 's' to save)[/dim]")
 
                 yield Static(
-                    "[dim]  • Log Only: Redacts secrets silently, logs to violation log (default)\n"
-                    "  • Warn: Redacts secrets and shows warning notification\n"
-                    "  • Block: Prevents tool execution entirely (like secret detection)[/dim]",
+                    "[dim]  • Log Only: Redacts secrets silently, logs to violation log\n"
+                    "  • Warn: Redacts secrets and shows warning notification (default)[/dim]",
                     classes="setting-row"
-                )
-
+)
             # Redaction options section
             with Container(classes="section"):
                 yield Static("[bold]Redaction Options[/bold]", classes="section-title")
@@ -229,7 +225,7 @@ class SecretRedactionContent(Container):
         # Secret redaction settings
         redaction_config = config.get("secret_redaction", {})
         enabled_value = redaction_config.get("enabled", True)
-        action = redaction_config.get("action", "log-only")
+        action = redaction_config.get("action", "warn")
         preserve_format = redaction_config.get("preserve_format", True)
         log_redactions = redaction_config.get("log_redactions", True)
         additional_patterns = redaction_config.get("additional_patterns", [])

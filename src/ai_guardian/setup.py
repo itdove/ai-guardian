@@ -847,7 +847,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
         "secret_redaction": {
             "enabled": True,
-            "action": "log-only",
+            "action": "warn",
             "preserve_format": True,
             "log_redactions": True,
             "additional_patterns": []
