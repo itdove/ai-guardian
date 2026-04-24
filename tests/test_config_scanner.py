@@ -77,6 +77,43 @@ class TestConfigFileScanner:
         assert scanner._should_ignore_file("/path/to/docs/CLAUDE.md")
         assert not scanner._should_ignore_file("CLAUDE.md")
 
+    def test_ignore_files_leading_double_star_patterns(self):
+        """Test leading ** patterns work in config scanner ignore_files (issue #232)"""
+        from pathlib import Path
+
+        scanner = ConfigFileScanner(config={
+            "ignore_files": [
+                "**/development/documentations/**",  # Leading ** pattern (issue #232)
+                "**/.claude/skills/**",  # Another leading ** pattern
+                "**/test-configs/**",  # Test config directory
+            ]
+        })
+
+        # Should ignore file in development/documentations
+        assert scanner._should_ignore_file(
+            "/Users/username/development/documentations/ai-guardian/file.md"
+        ), "Should ignore files in **/development/documentations/**"
+
+        # Should ignore file in .claude/skills
+        assert scanner._should_ignore_file(
+            "/home/user/.claude/skills/code-review/SKILL.md"
+        ), "Should ignore files in **/.claude/skills/**"
+
+        # Should ignore deeply nested test-configs
+        assert scanner._should_ignore_file(
+            "/project/deep/nested/path/test-configs/example.md"
+        ), "**/test-configs/** should match deeply nested directories"
+
+        # Should NOT ignore file in different location
+        assert not scanner._should_ignore_file(
+            "/home/user/project/src/main.py"
+        ), "Should not ignore files outside ignore patterns"
+
+        # Should NOT ignore file with similar but not matching path
+        assert not scanner._should_ignore_file(
+            "/home/user/project/documentation/README.md"
+        ), "Should not match partial directory names"
+
     # Test Pattern 1: curl with environment variables
     def test_pattern_curl_with_env_vars(self):
         """Test detection of curl with environment variables."""

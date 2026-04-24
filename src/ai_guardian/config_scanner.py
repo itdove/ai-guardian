@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
 
 from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian.utils.path_matching import match_ignore_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -271,25 +272,17 @@ class ConfigFileScanner:
         if not file_path or not self.ignore_files:
             return False
 
-        import fnmatch
-
-        path = Path(file_path)
+        # Expand ~ in file_path for proper matching
+        file_path_expanded = str(Path(file_path).expanduser())
 
         for pattern in self.ignore_files:
-            # Check if pattern matches
-            if fnmatch.fnmatch(str(path), pattern):
+            # Expand ~ in pattern
+            expanded_pattern = str(Path(pattern).expanduser())
+
+            # Use match_ignore_pattern which properly handles leading **/ patterns
+            if match_ignore_pattern(file_path_expanded, expanded_pattern):
                 logger.debug(f"File {file_path} matches ignore pattern: {pattern}")
                 return True
-
-            # Check if any parent directory matches
-            if "**" in pattern:
-                # Recursive pattern - check all parent paths
-                pattern_parts = pattern.split("**")
-                for part in pattern_parts:
-                    part = part.strip("/").strip("\\")
-                    if part and part in str(path):
-                        logger.debug(f"File {file_path} matches recursive ignore pattern: {pattern}")
-                        return True
 
         return False
 

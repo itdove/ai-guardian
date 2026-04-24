@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Ignore Files Patterns with Leading `**/` Don't Work** (Issue #232)
+  - **Problem**: `ignore_files` configuration with leading `**/` glob patterns (e.g., `**/development/documentations/**`) didn't work correctly in unicode detection and config file scanner, causing false positives when scanning files that should be ignored
+  - **Root Cause**: Three different implementations of `ignore_files` pattern matching existed with inconsistent behavior:
+    - Secret Scanning (`__init__.py`) - ✅ WORKED - Used custom `_match_leading_doublestar_pattern()` helper
+    - Prompt Injection (`prompt_injection.py`) - ❌ BROKEN - Only used `Path.match()` which doesn't properly handle leading `**/`
+    - Config Scanner (`config_scanner.py`) - ❌ BROKEN - Used `fnmatch.fnmatch()` which doesn't support `**/`
+  - **Fix**: Extracted `_match_leading_doublestar_pattern()` to `src/ai_guardian/utils/path_matching.py` module and updated all three implementations to use it consistently
+  - **Impact**: All detectors now properly support leading `**/` patterns for ignoring files in subdirectories
+  - **Files Modified**:
+    - `src/ai_guardian/utils/path_matching.py`: Created new utility module with `match_leading_doublestar_pattern()` and `match_ignore_pattern()` functions
+    - `src/ai_guardian/__init__.py`: Updated to import and use utility function
+    - `src/ai_guardian/prompt_injection.py`: Updated `_is_file_ignored()` to use utility function
+    - `src/ai_guardian/config_scanner.py`: Updated `_should_ignore_file()` to use utility function
+  - **Tests Added**: 
+    - `tests/test_unicode_attacks.py::UnicodeDetectorIgnoreFilesTest` - 2 tests for unicode detection ignore patterns
+    - `tests/test_config_scanner.py::TestConfigFileScanner::test_ignore_files_leading_double_star_patterns` - 1 test for config scanner
+
 - **Config File Scanner File Path Extraction Bug** (Issue #228)
   - **Problem**: Config File Scanner failed to extract file path from PreToolUse hook data when using the Read tool, allowing malicious config files (CLAUDE.md, AGENTS.md, etc.) to pass through unscanned and potentially exfiltrate credentials
   - **Root Cause**: `extract_file_content_from_tool()` function only checked `tool_use.parameters.file_path` format, but Claude Code actually sends `tool_use.input.file_path`, causing file path extraction to fail with "Could not extract file path from hook data" error
