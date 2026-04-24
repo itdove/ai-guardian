@@ -212,16 +212,17 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
     if ide_type == IDEType.GITHUB_COPILOT:
         # GitHub Copilot uses JSON response format
         if hook_event == "pretooluse":
-            # preToolUse expects {"permissionDecision": "allow"|"deny", "permissionDecisionReason": "..."}
-            response = {
-                "permissionDecision": "deny" if has_secrets else "allow"
-            }
-            if has_secrets and error_message:
-                # Prepend warning messages if present (e.g., JSON config errors)
-                final_error = error_message
-                if warning_message:
-                    final_error = f"{warning_message}\n\n{error_message}"
-                response["permissionDecisionReason"] = final_error
+            # preToolUse: Only return permissionDecision when denying
+            # If no secrets: omit permissionDecision to allow Claude Code's normal permission system
+            response = {}
+            if has_secrets:
+                response["permissionDecision"] = "deny"
+                if error_message:
+                    # Prepend warning messages if present (e.g., JSON config errors)
+                    final_error = error_message
+                    if warning_message:
+                        final_error = f"{warning_message}\n\n{error_message}"
+                    response["permissionDecisionReason"] = final_error
 
             return {
                 "output": json.dumps(response),
@@ -335,7 +336,8 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 "exit_code": 0  # UserPromptSubmit uses JSON response, not exit codes
             }
         else:
-            # PreToolUse: Uses JSON response format with hookSpecificOutput
+            # PreToolUse: Only return permissionDecision when denying
+            # If no secrets: omit permissionDecision to allow Claude Code's normal permission system
             # https://github.com/anthropics/claude-code/blob/main/plugins/plugin-dev/skills/hook-development/SKILL.md
             if has_secrets and error_message:
                 # Block with proper PreToolUse format
@@ -351,22 +353,14 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     "systemMessage": final_error
                 }
             elif warning_message:
-                # Log mode: display warning but allow execution
+                # Log mode: display warning but don't override permission decision
                 response = {
-                    "hookSpecificOutput": {
-                        "permissionDecision": "allow",
-                        "hookEventName": "PreToolUse"
-                    },
                     "systemMessage": warning_message
                 }
             else:
-                # Allow with no message
-                response = {
-                    "hookSpecificOutput": {
-                        "permissionDecision": "allow",
-                        "hookEventName": "PreToolUse"
-                    }
-                }
+                # No secrets, no warnings: return empty response
+                # Claude Code will use its normal permission system
+                response = {}
 
             return {
                 "output": json.dumps(response),

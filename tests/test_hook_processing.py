@@ -177,3 +177,153 @@ class HookToolResponseExtractionTests(TestCase):
 
         # Write tool output shouldn't be scanned
         assert result['exit_code'] == 0
+
+
+class PreToolUsePermissionTests(TestCase):
+    """Test PreToolUse hook permission decision behavior
+
+    Note: Edit/Write tools don't scan content for secrets in PreToolUse
+    (they return early with has_secrets=False). This tests that they
+    don't get auto-approved when clean.
+    """
+
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_pretooluse_no_permission_override_for_edit_claude_code(self, mock_pattern_config, mock_redaction_config):
+        """Verify PreToolUse does NOT auto-approve Edit operations (Claude Code)"""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        # Edit tool with clean content
+        # Edit tools don't scan for secrets in PreToolUse - they return has_secrets=False
+        hook_data = create_hook_data(
+            tool_name="Edit",
+            tool_input={
+                "file_path": "/tmp/config.py",
+                "old_string": "old code",
+                "new_string": "print('Hello, World!')"
+            },
+            hook_event="PreToolUse"
+        )
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        # Should allow (exit_code 0)
+        assert result['exit_code'] == 0
+
+        # Parse JSON response
+        response = json.loads(result['output'])
+
+        # CRITICAL: Should NOT contain permissionDecision when no threat detected
+        # This allows Claude Code's normal permission system to prompt user
+        if 'hookSpecificOutput' in response:
+            assert 'permissionDecision' not in response['hookSpecificOutput'], \
+                "permissionDecision should be omitted to allow normal permission prompt"
+        # Also check that response is empty (no auto-approve)
+        assert response == {} or 'systemMessage' in response, \
+            "Response should be empty or only contain systemMessage (warnings)"
+
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.detect_ide_type')
+    def test_pretooluse_no_permission_override_for_edit_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
+        """Verify PreToolUse does NOT auto-approve Edit operations (GitHub Copilot)"""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+        mock_ide_type.return_value = ai_guardian.IDEType.GITHUB_COPILOT
+
+        # GitHub Copilot format: toolName and toolArgs (JSON string)
+        hook_data = {
+            "hookEventName": "preToolUse",
+            "toolName": "Edit",
+            "toolArgs": json.dumps({
+                "file_path": "/tmp/config.py",
+                "old_string": "old code",
+                "new_string": "print('Hello, World!')"
+            })
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        # Should allow
+        assert result['exit_code'] == 0
+
+        # Parse JSON response
+        response = json.loads(result['output'])
+
+        # CRITICAL: Should NOT contain permissionDecision when no threat detected
+        # Empty response allows Claude Code's normal permission system
+        assert 'permissionDecision' not in response, \
+            "permissionDecision should be omitted to allow normal permission prompt"
+        # Also check that response is empty (no auto-approve)
+        assert response == {}, f"Response should be empty but got: {response}"
+
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_pretooluse_no_permission_override_for_write_claude_code(self, mock_pattern_config, mock_redaction_config):
+        """Verify PreToolUse does NOT auto-approve Write operations (Claude Code)"""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        # Write tool with clean content
+        hook_data = create_hook_data(
+            tool_name="Write",
+            tool_input={
+                "file_path": "/tmp/output.txt",
+                "content": "Hello, World!"
+            },
+            hook_event="PreToolUse"
+        )
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        # Should allow (exit_code 0)
+        assert result['exit_code'] == 0
+
+        # Parse JSON response
+        response = json.loads(result['output'])
+
+        # CRITICAL: Should NOT contain permissionDecision when no threat detected
+        if 'hookSpecificOutput' in response:
+            assert 'permissionDecision' not in response['hookSpecificOutput'], \
+                "permissionDecision should be omitted to allow normal permission prompt"
+        # Also check that response is empty or only has warnings
+        assert response == {} or 'systemMessage' in response, \
+            "Response should be empty or only contain systemMessage (warnings)"
+
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.detect_ide_type')
+    def test_pretooluse_no_permission_override_for_write_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
+        """Verify PreToolUse does NOT auto-approve Write operations (GitHub Copilot)"""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+        mock_ide_type.return_value = ai_guardian.IDEType.GITHUB_COPILOT
+
+        # GitHub Copilot format: toolName and toolArgs (JSON string)
+        hook_data = {
+            "hookEventName": "preToolUse",
+            "toolName": "Write",
+            "toolArgs": json.dumps({
+                "file_path": "/tmp/output.txt",
+                "content": "Hello, World!"
+            })
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        # Should allow
+        assert result['exit_code'] == 0
+
+        # Parse JSON response
+        response = json.loads(result['output'])
+
+        # CRITICAL: Should NOT contain permissionDecision when no threat detected
+        assert 'permissionDecision' not in response, \
+            "permissionDecision should be omitted to allow normal permission prompt"
+        # Also check that response is empty
+        assert response == {}, f"Response should be empty but got: {response}"
