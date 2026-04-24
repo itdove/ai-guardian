@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+
+- **Permissions Comparison Documentation** (Issue #235)
+  - Added comprehensive `docs/PERMISSIONS_COMPARISON.md` comparing ai-guardian.json vs settings.json permission systems
+  - Covers: architecture diagrams, capabilities comparison, enforcement differences, when to use each
+  - Explains Skills are only controllable via ai-guardian.json (not in settings.json)
+  - Documents defense-in-depth best practices using both permission systems
+  - Includes example configurations for different scenarios (user preferences, enterprise enforcement, defense-in-depth)
+  - Cross-referenced from README.md "When to Use" section
+
 ### Changed
 
 - **Secret Redaction Always Redacts (Removed Block Mode)** (Issue #234)
