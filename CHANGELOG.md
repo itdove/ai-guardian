@@ -16,11 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Users now properly see permission prompts for Edit/Write operations, maintaining informed consent for file modifications
   - **Affected Versions**: v1.3.0, v1.4.0, v1.4.1 (bug introduced with GitHub Copilot integration in v1.3.0)
   - **Tests Added**: 
-    - 4 new PreToolUse permission tests covering Edit/Write operations for both Claude Code and GitHub Copilot IDE types
+    - **Unit Tests**: 4 new PreToolUse permission tests covering Edit/Write operations for both Claude Code and GitHub Copilot IDE types (`tests/test_hook_processing.py`)
+    - **Integration Tests**: 6 new end-to-end tests verifying no auto-approve behavior (`tests/test_pretooluse_no_auto_approve.py`):
+      - Edit operations (Claude Code and GitHub Copilot)
+      - Write operations (Claude Code and GitHub Copilot)
+      - Verification that secrets still trigger deny (no regression)
+      - End-to-end workflow showing user sees permission prompts
+    - **User Experience Contract Tests**: 5 new tests documenting expected UX (`tests/test_user_experience_contract.py`):
+      - Read with secret → Immediate denial (no prompt shown)
+      - Edit without secret → Permission prompt shown
+      - Comparison test showing different UX for secret vs clean operations
+      - Documentation test describing expected behavior for users
+      - Manual verification guide for testing in actual Claude Code IDE
     - Updated 3 existing tests to expect correct behavior (no auto-approve)
   - **Files Modified**:
     - `src/ai_guardian/__init__.py`: Updated `format_response()` for both GITHUB_COPILOT and CLAUDE_CODE paths
-    - `tests/test_hook_processing.py`: Added `PreToolUsePermissionTests` class with 4 new tests
+    - `tests/test_hook_processing.py`: Added `PreToolUsePermissionTests` class with 4 unit tests
+    - `tests/test_pretooluse_no_auto_approve.py`: Added 6 integration tests (NEW FILE)
     - `tests/test_ai_guardian.py`: Updated 3 tests to expect correct behavior
 
 ### Added
