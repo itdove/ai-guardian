@@ -1304,6 +1304,42 @@ With this remote config:
 - ✅ Works for all tool types - not just Skills
 - ✅ Better for production/enterprise
 
+**Local File Paths (New in v1.6.0):**
+
+`remote_configs` now supports local file paths in addition to HTTPS URLs:
+
+```json
+{
+  "remote_configs": {
+    "urls": [
+      {"url": "https://example.com/policy.json", "enabled": true},
+      {"url": "file:///etc/ai-guardian/shared.toml", "enabled": true},
+      {"url": "/mnt/company/policy.json", "enabled": true},
+      {"url": "~/team-configs/allowed-tools.toml", "enabled": true}
+    ]
+  }
+}
+```
+
+**Supported path formats:**
+- **HTTPS URLs**: Cached with TTL (default: 12h refresh, 168h expiration)
+- **file:// URLs**: `file:///etc/config.toml` (always fresh, no caching)
+- **Absolute paths**: `/etc/ai-guardian/config.toml` (always fresh)
+- **Tilde paths**: `~/team-configs/config.toml` (expands to home directory)
+
+**Use cases for local files:**
+- 🛠️ **Development/Testing**: Test config changes without HTTPS server
+- 🔒 **Air-Gapped Environments**: Offline systems without internet access
+- 🏢 **Corporate Networks**: Shared network drives (NFS, SMB mounted locally)
+- 🚀 **CI/CD Pipelines**: Build environments with local config files
+- 👥 **Team Configuration**: Shared configs in team member home directories
+
+**Security features:**
+- Path traversal prevention with `Path.resolve(strict=True)`
+- File type validation (regular files only, not directories)
+- Permission checks before reading
+- Symlinks followed safely with warnings logged
+
 **Use `permissions_directories` (Advanced/Local Dev):**
 ```json
 {
