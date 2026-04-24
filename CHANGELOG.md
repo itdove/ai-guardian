@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed
+
+- **JSON Schema Missing Definitions** (Issue #239)
+  - **Fix**: Added missing `pattern_server_auth` and `pattern_server_cache` definitions to schema
+  - **Problem**: Schema referenced definitions that didn't exist, causing validation failures for pattern_server configurations
+  - **Root Cause**: When pattern_server was refactored from root-level to nested under each feature in v1.7.0, the auth/cache structures were not extracted into reusable definitions
+  - **Impact**: Schema validation now succeeds for configs using pattern_server with auth/cache in:
+    - `secret_redaction.pattern_server`
+    - `prompt_injection.unicode_detection.pattern_server`
+    - `ssrf_protection.pattern_server`
+    - `config_file_scanning.pattern_server`
+  - **Tests**: Added comprehensive test suite (`test_pattern_server_definitions.py`) validating all pattern_server references
+
 ### Added
 
 - **Permissions Comparison Documentation** (Issue #235)
