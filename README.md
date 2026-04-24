@@ -517,6 +517,26 @@ AI Guardian supports three enforcement levels:
 - Violations include timestamp, type, details, and suggested fixes
 - Perfect for compliance auditing and security monitoring
 
+**Log files:**
+- **Location**: `~/.config/ai-guardian/ai-guardian.log`
+- **Rotation**: Automatic rotation at 5MB, keeps 3 backup files
+- **Format**: All log entries include version information for easier debugging
+
+**Example log format** (new in v1.5.0):
+```
+2026-04-21 18:49:20 - v1.5.0 - root - INFO - AI Guardian v1.5.0 initialized
+2026-04-21 18:49:20 - v1.5.0 - root - INFO - Python 3.12.11
+2026-04-21 18:49:20 - v1.5.0 - root - INFO - Platform: Darwin-25.4.0-arm64
+2026-04-21 18:49:20 - v1.5.0 - root - INFO - Detected IDE type: claude_code
+2026-04-21 18:49:20 - v1.5.0 - root - INFO - Processing prompt submission hook...
+2026-04-21 18:49:21 - v1.5.0 - ai_guardian.pattern_server - ERROR - Pattern server authentication token not found
+```
+
+The version prefix (e.g., `v1.5.0`) helps identify which version produced the logs, making it easier to:
+- Correlate bugs with specific releases
+- Verify if issues are already fixed in newer versions
+- Provide version information when reporting issues
+
 ### 🎛️ MCP Server & Skill Permissions
 Control which MCP servers and skills Claude Code can use with fine-grained allow/deny lists:
 

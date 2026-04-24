@@ -10,7 +10,7 @@ AI Guardian provides multi-layered protection for AI IDE interactions:
 Automatically detects IDE type and uses appropriate response format.
 """
 
-__version__ = "1.4.0"
+__version__ = "1.4.2"
 
 import argparse
 import fnmatch
@@ -70,6 +70,17 @@ except ImportError:
     logging.debug("scanner engine modules not available - using legacy gitleaks only")
 
 # Configure logging - will be disabled for Cursor hooks
+# Custom log record factory to add version to all log records
+_old_factory = logging.getLogRecordFactory()
+
+def _record_factory(*args, **kwargs):
+    """Custom log record factory that injects version into all log records."""
+    record = _old_factory(*args, **kwargs)
+    record.version = __version__
+    return record
+
+logging.setLogRecordFactory(_record_factory)
+
 # Set up file handler with rotation
 _log_file = get_config_dir() / "ai-guardian.log"
 _log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -81,7 +92,7 @@ _file_handler = RotatingFileHandler(
     encoding='utf-8'
 )
 _file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    '%(asctime)s - v%(version)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 ))
 
@@ -97,6 +108,12 @@ logging.basicConfig(
 
 # Global logger instance
 logger = logging.getLogger(__name__)
+
+# Log version at startup
+logger.info(f"AI Guardian v{__version__} initialized")
+logger.info(f"Python {sys.version.split()[0]}")
+import platform
+logger.info(f"Platform: {platform.platform()}")
 
 
 class IDEType(Enum):
@@ -184,16 +201,17 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
     if ide_type == IDEType.GITHUB_COPILOT:
         # GitHub Copilot uses JSON response format
         if hook_event == "pretooluse":
-            # preToolUse expects {"permissionDecision": "allow"|"deny", "permissionDecisionReason": "..."}
-            response = {
-                "permissionDecision": "deny" if has_secrets else "allow"
-            }
-            if has_secrets and error_message:
-                # Prepend warning messages if present (e.g., JSON config errors)
-                final_error = error_message
-                if warning_message:
-                    final_error = f"{warning_message}\n\n{error_message}"
-                response["permissionDecisionReason"] = final_error
+            # preToolUse: Only return permissionDecision when denying
+            # If no secrets: omit permissionDecision to allow Claude Code's normal permission system
+            response = {}
+            if has_secrets:
+                response["permissionDecision"] = "deny"
+                if error_message:
+                    # Prepend warning messages if present (e.g., JSON config errors)
+                    final_error = error_message
+                    if warning_message:
+                        final_error = f"{warning_message}\n\n{error_message}"
+                    response["permissionDecisionReason"] = final_error
 
             return {
                 "output": json.dumps(response),
@@ -304,7 +322,8 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 "exit_code": 0  # UserPromptSubmit uses JSON response, not exit codes
             }
         else:
-            # PreToolUse: Uses JSON response format with hookSpecificOutput
+            # PreToolUse: Only return permissionDecision when denying
+            # If no secrets: omit permissionDecision to allow Claude Code's normal permission system
             # https://github.com/anthropics/claude-code/blob/main/plugins/plugin-dev/skills/hook-development/SKILL.md
             if has_secrets and error_message:
                 # Block with proper PreToolUse format
@@ -320,22 +339,14 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     "systemMessage": final_error
                 }
             elif warning_message:
-                # Log mode: display warning but allow execution
+                # Log mode: display warning but don't override permission decision
                 response = {
-                    "hookSpecificOutput": {
-                        "permissionDecision": "allow",
-                        "hookEventName": "PreToolUse"
-                    },
                     "systemMessage": warning_message
                 }
             else:
-                # Allow with no message
-                response = {
-                    "hookSpecificOutput": {
-                        "permissionDecision": "allow",
-                        "hookEventName": "PreToolUse"
-                    }
-                }
+                # No secrets, no warnings: return empty response
+                # Claude Code will use its normal permission system
+                response = {}
 
             return {
                 "output": json.dumps(response),
@@ -1708,11 +1719,19 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     logging.info(f"Skipping secret scanning for ignored file: {file_path}")
                     return False, None
 
+        # Convert content to string if it's not already
+        # Agent tool outputs can be lists, dicts, or other types
+        if isinstance(content, list):
+            content = '\n'.join(str(item) for item in content)
+        elif not isinstance(content, str):
+            content = str(content)
+
         # Skip scanning if content appears to be a gitleaks config file
         # This prevents false positives when viewing pattern files
         if _is_gitleaks_config_content(content):
             logging.debug("Skipping scan - content appears to be a gitleaks config file")
             return False, None
+
         # Use in-memory filesystem on Linux for better performance
         tmp_base_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
 
