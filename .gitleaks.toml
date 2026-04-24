@@ -1,9 +1,0 @@
-# Test files for secret redaction - contain intentional fake secrets for testing
-
-[allowlist]
-    paths = [
-        "tests/test_secret_redaction.py",
-        "tests/test_pattern_server_integration.py",
-        "tests/fixtures/attack_constants.py",
-        "tests/test_integration_mcp.py"
-    ]
