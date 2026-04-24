@@ -997,6 +997,13 @@ def extract_file_content_from_tool(hook_data):
                 params = tool_use["parameters"]
                 file_path = params.get("file_path") or params.get("path")
 
+        # Claude Code format alternative: tool_use.input.file_path
+        if not file_path and "tool_use" in hook_data:
+            tool_use = hook_data["tool_use"]
+            if isinstance(tool_use, dict) and "input" in tool_use:
+                input_params = tool_use["input"]
+                file_path = input_params.get("file_path") or input_params.get("path")
+
         # Alternative: direct parameters field
         if not file_path and "parameters" in hook_data:
             params = hook_data["parameters"]

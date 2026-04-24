@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Config File Scanner File Path Extraction Bug** (Issue #228)
+  - **Problem**: Config File Scanner failed to extract file path from PreToolUse hook data when using the Read tool, allowing malicious config files (CLAUDE.md, AGENTS.md, etc.) to pass through unscanned and potentially exfiltrate credentials
+  - **Root Cause**: `extract_file_content_from_tool()` function only checked `tool_use.parameters.file_path` format, but Claude Code actually sends `tool_use.input.file_path`, causing file path extraction to fail with "Could not extract file path from hook data" error
+  - **Fix**: Added support for `tool_use.input.file_path` format in file path extraction logic to match Claude Code's actual hook data structure
+  - **Impact**: Config File Scanner now properly scans config files for exfiltration patterns (`env | curl`, AWS S3 uploads, etc.) when read via PreToolUse hooks, protecting against persistent credential theft attacks
+  - **Affected Versions**: v1.3.0, v1.4.0, v1.4.1, v1.5.0-dev (bug present since Config File Scanner was added in v1.3.0)
+  - **Test Added**: 1 new regression test verifying file path extraction from `tool_use.input` format (`tests/test_ai_guardian.py::test_pretooluse_hook_with_tool_use_input_format`)
+  - **Files Modified**:
+    - `src/ai_guardian/__init__.py`: Added `tool_use.input.file_path` check in `extract_file_content_from_tool()`
+    - `tests/test_ai_guardian.py`: Added regression test with actual Claude Code hook format
+
 - **PreToolUse Hook Auto-Approve Bug** (Issue #224)
   - **Problem**: PreToolUse hook was auto-approving all Edit and Write operations when no secrets were detected, bypassing Claude Code's normal permission prompts and removing user control over file modifications
   - **Root Cause**: `format_response()` function returned `permissionDecision: allow` for clean files, which instructed Claude Code to auto-approve the operation
