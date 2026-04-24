@@ -37,6 +37,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+
+### Added
+
+- **Local File Path Support in Remote Configurations** (Issue #223)
+  - **Feature**: `remote_configs` now supports local file paths in addition to HTTPS URLs
+  - **Supported Formats**:
+    - `file://` URLs: `file:///etc/ai-guardian/config.toml`
+    - Absolute paths: `/etc/ai-guardian/config.toml`
+    - Tilde expansion: `~/team-configs/allowed-tools.toml`
+  - **Caching Behavior**:
+    - HTTPS URLs: Cached with TTL (default: 12h refresh, 168h expiration)
+    - Local files: Always read fresh (bypass cache for immediate updates)
+  - **Use Cases**:
+    - Development/Testing: Test configs locally without HTTPS server
+    - Air-Gapped Environments: Offline systems without internet access
+    - Corporate Networks: Shared network drives (NFS, SMB)
+    - CI/CD Pipelines: Build environments with local config files
+    - Team Configuration: Shared configs in home directories
+  - **Security**:
+    - Path traversal prevention with `Path.resolve(strict=True)`
+    - File type validation (regular files only)
+    - Permission checks before reading
+    - Symlinks followed safely with warnings
+  - **Implementation**:
+    - New `RemoteFetcher._fetch_from_local_file()` method
+    - Updated `fetch_config()` to bypass caching for local paths
+    - Both JSON and TOML formats supported
+  - **Tests Added**:
+    - **Unit Tests** (`tests/test_remote_fetcher_local.py`): 27 passing tests
+      - file:// URLs, absolute paths, tilde expansion
+      - JSON/TOML format support
+      - Error handling (missing files, permission denied, invalid format)
+      - Symlink following and broken symlinks
+      - No-caching behavior verification
+      - Edge cases (spaces in paths, special characters, UTF-8)
+    - **Integration Tests** (`tests/test_integration_local_remote_configs.py`): 10 passing tests
+      - Multiple local sources, cache isolation
+      - Mixed local and HTTPS URLs
+      - File updates reflected immediately
+      - Concurrent updates, error recovery
+  - **Documentation**:
+    - README.md updated with local file path examples and use cases
+    - Security features documented
+  - **Files Modified**:
+    - `src/ai_guardian/remote_fetcher.py`: Added local file path support
+    - `README.md`: Added "Local File Paths" section under "Remote Configs vs Directory Discovery"
+
+
 - **Integration and Use-Case Tests with Mock MCP Server** (Issue #220)
   - **Comprehensive test infrastructure** for MCP tool security testing
   - **Test Fixtures**:

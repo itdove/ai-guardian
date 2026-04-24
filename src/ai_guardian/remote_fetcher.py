@@ -76,8 +76,11 @@ class RemoteFetcher:
         """
         Fetch remote configuration with caching.
 
+        Local file paths bypass caching (always read fresh).
+        HTTPS URLs use cache with TTL logic.
+
         Args:
-            url: URL to fetch
+            url: URL or local file path to fetch
             refresh_interval_hours: How often to check for updates (staleness threshold).
                                    If None, reads from AI_GUARDIAN_REFRESH_INTERVAL_HOURS env var (default: 12)
             expire_after_hours: How long to use stale cache if refresh fails (expiration threshold).
@@ -87,6 +90,11 @@ class RemoteFetcher:
         Returns:
             dict or None: Parsed configuration or None if failed
         """
+        # Local files: no caching, always read fresh
+        if url.startswith("file://") or url.startswith("/") or url.startswith("~"):
+            logger.debug(f"Local file detected, bypassing cache: {url}")
+            return self._fetch_from_local_file(url)
+
         if not HAS_REQUESTS:
             logger.warning(f"Cannot fetch {url}: requests library not installed")
             return None
@@ -147,17 +155,105 @@ class RemoteFetcher:
 
         return config
 
-    def _fetch_from_url(self, url: str, custom_headers: Optional[Dict] = None) -> Optional[Dict]:
+    def _fetch_from_local_file(self, path: str) -> Optional[Dict]:
         """
-        Fetch configuration from HTTP/HTTPS URL.
+        Fetch configuration from local file path.
+
+        Supports:
+        - file:// URLs (e.g., file:///etc/ai-guardian/config.toml)
+        - Absolute paths (e.g., /etc/ai-guardian/config.toml)
+        - Tilde expansion (e.g., ~/config.toml, ~user/config.toml)
 
         Args:
-            url: URL to fetch
+            path: Local file path (file://, absolute, or tilde)
+
+        Returns:
+            dict or None: Parsed configuration or None if failed
+        """
+        try:
+            # Normalize path
+            if path.startswith("file://"):
+                # file:///etc/config.toml -> /etc/config.toml
+                actual_path = path[7:]  # Remove "file://"
+            else:
+                actual_path = path
+
+            # Expand tilde (~/ or ~user/)
+            actual_path = os.path.expanduser(actual_path)
+
+            # Convert to Path object
+            file_path = Path(actual_path)
+
+            # Security: Resolve to absolute path and check it exists
+            try:
+                file_path = file_path.resolve(strict=True)
+            except (FileNotFoundError, RuntimeError) as e:
+                logger.error(f"Local config file not found: {path} -> {actual_path}")
+                return None
+
+            # Security: Check file is readable
+            if not file_path.is_file():
+                logger.error(f"Path is not a regular file: {file_path}")
+                return None
+
+            if not os.access(file_path, os.R_OK):
+                logger.error(f"Cannot read file (permission denied): {file_path}")
+                return None
+
+            # Log warning for symlinks (but still follow them)
+            original_path = Path(actual_path)
+            if original_path.is_symlink():
+                logger.warning(f"Following symlink: {path} -> {file_path}")
+
+            # Read and parse file
+            logger.debug(f"Reading local config: {file_path}")
+            content = file_path.read_text(encoding='utf-8')
+
+            # Try JSON first, then TOML
+            config = None
+            try:
+                config = json.loads(content)
+                logger.debug(f"Successfully parsed as JSON: {file_path}")
+            except json.JSONDecodeError:
+                if HAS_TOML:
+                    try:
+                        config = toml.loads(content)
+                        logger.debug(f"Successfully parsed as TOML: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Invalid JSON and TOML in {file_path}: {e}")
+                        return None
+                else:
+                    logger.error(f"Content is not JSON and TOML library not available: {file_path}")
+                    return None
+
+            logger.info(f"Successfully loaded local config: {file_path}")
+            return config
+
+        except Exception as e:
+            logger.error(f"Error reading local config {path}: {e}")
+            return None
+
+    def _fetch_from_url(self, url: str, custom_headers: Optional[Dict] = None) -> Optional[Dict]:
+        """
+        Fetch configuration from HTTP/HTTPS URL or local file path.
+
+        Supports:
+        - HTTPS URLs: https://example.com/config.toml
+        - file:// URLs: file:///etc/ai-guardian/config.toml
+        - Absolute paths: /etc/ai-guardian/config.toml
+        - Tilde paths: ~/team-configs/config.toml
+
+        Args:
+            url: URL or local file path to fetch
             custom_headers: Optional custom headers (e.g., for authentication)
 
         Returns:
             dict or None: Parsed configuration or None if failed
         """
+        # Detect local file paths
+        if url.startswith("file://") or url.startswith("/") or url.startswith("~"):
+            return self._fetch_from_local_file(url)
+
         try:
             # Prepare headers with authentication
             headers = {}
