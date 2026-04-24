@@ -405,8 +405,8 @@ class ConfigInspector:
             if action == "block":
                 raise ValueError(
                     'secret_redaction.action="block" is no longer supported. '
-                    'Use "warn" or "log-only" instead. '
-                    'To prevent file access entirely, add patterns to .gitleaksignore.'
+                    'Valid values are: "warn", "log-only". '
+                    'See documentation for migration options.'
                 )
             
             redactor = SecretRedactor(secret_config)

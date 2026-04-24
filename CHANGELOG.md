@@ -35,7 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests Updated**: All tests expecting blocking behavior updated to expect redaction
 
 ### Fixed
-### Fixed
 
 - **Ignore Files Patterns with Leading `**/` Don't Work** (Issue #232)
   - **Root Cause**: Three different implementations of `ignore_files` pattern matching existed with inconsistent behavior:

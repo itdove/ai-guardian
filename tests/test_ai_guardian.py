@@ -979,9 +979,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Secrets are now redacted and allowed, not blocked
         self.assertIsNone(response.get('decision'))  # No blocking decision
         self.assertIsNotNone(response.get('systemMessage'))  # Warning message about redaction
-        # Verify secret was redacted from output
-        if 'output' in response:
-            self.assertNotIn('BEGIN RSA PRIVATE KEY', response['output'])
+        # Verify systemMessage mentions the redaction
+        self.assertIn('Redacted', response.get('systemMessage', ''), "Warning should mention redaction")
+        # Verify secret was redacted from output (check both fields)
+        output_text = response.get('modified_output', response.get('output', ''))
+        self.assertNotIn('BEGIN RSA PRIVATE KEY', output_text, "Secret should be redacted from output")
 
     def test_posttooluse_no_output_field(self):
         """Test PostToolUse handles missing output gracefully"""

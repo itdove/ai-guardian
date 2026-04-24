@@ -150,8 +150,7 @@ class SecretRedactionContent(Container):
                     "  • Environment Variables\n"
                     "  • JSON/YAML passwords\n"
                     "  • HTTP Authorization headers[/dim]",
-                    id="default-patterns"
-)
+                    id="default-patterns")
             # Action mode section
             with Container(classes="section"):
                 yield Static("[bold]Action on Secret Detection[/bold]", classes="section-title")
@@ -171,8 +170,7 @@ class SecretRedactionContent(Container):
                 yield Static(
                     "[dim]  • Log Only: Redacts secrets silently, logs to violation log\n"
                     "  • Warn: Redacts secrets and shows warning notification (default)[/dim]",
-                    classes="setting-row"
-)
+                    classes="setting-row")
             # Redaction options section
             with Container(classes="section"):
                 yield Static("[bold]Redaction Options[/bold]", classes="section-title")

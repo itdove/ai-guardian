@@ -280,11 +280,12 @@ class E2ELegitimateWorkflowTests(TestCase):
         # REDACTED at PostToolUse (not blocked)
         assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result['output'])
-        # When redacting, decision field is not set (passes through with warning), "Secret should be redacted and allowed, not blocked"
+        # When redacting, decision field is not set (passes through with warning)
         assert response.get('systemMessage') is not None, "Should have warning about redacted secrets"
+        assert 'Redacted' in response.get('systemMessage', ''), "Warning should mention redaction"
         # Verify the secret was actually redacted in the output
-        if 'modified_output' in response:
-            assert attack_constants.SECRET_SLACK_TOKEN not in response['modified_output'], "Secret should be redacted from output"
+        output_text = response.get('modified_output', response.get('output', ''))
+        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted from output"
 
     @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')

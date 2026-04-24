@@ -46,14 +46,14 @@ class PostToolUseSecretScanningTests(TestCase):
         with patch('sys.stdin', StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
-        # Expected: Exit 0 with decision='block' in response
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
-        response = json.loads(result['output'])
         # Expected: Exit 0 with warning message (redacted, not blocked)
         assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result["output"])
         assert response.get("systemMessage") is not None, "Should have warning about redacted secrets"
-        assert attack_constants.SECRET_SLACK_TOKEN not in response.get("output", ""), "Secret should be redacted"
+        assert "Redacted" in response.get("systemMessage", ""), "Warning should mention redaction"
+        # Verify secret was redacted from output
+        output_text = response.get("modified_output", response.get("output", ""))
+        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
     @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')
     def test_read_output_with_secret_blocked(self, mock_pattern_config, mock_redaction_config):
@@ -86,6 +86,10 @@ class PostToolUseSecretScanningTests(TestCase):
         assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result["output"])
         assert response.get("systemMessage") is not None, "Should have warning about redacted secrets"
+        assert "Redacted" in response.get("systemMessage", ""), "Warning should mention redaction"
+        # Verify secret was redacted from output
+        output_text = response.get("modified_output", response.get("content", ""))
+        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
 
     @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')
@@ -460,11 +464,14 @@ class PostToolUseCombinedTests(TestCase):
         with patch('sys.stdin', StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
-        # Expected: decision='block' in response
         # Expected: warning message (redacted, not blocked)
         assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result["output"])
         assert response.get("systemMessage") is not None, "Should have warning about redacted secrets"
+        assert "Redacted" in response.get("systemMessage", ""), "Warning should mention redaction"
+        # Verify secrets were redacted from output
+        output_text = response.get("modified_output", response.get("output", ""))
+        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
 
     def test_json_output_with_nested_secret(self):
         """

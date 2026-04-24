@@ -2368,6 +2368,12 @@ def process_hook_input():
                         return format_response(ide_type, has_secrets=True,
                                              error_message=error_message,
                                              hook_event=hook_event)
+                else:
+                    # Emergency bypass - allow secrets through when redaction disabled
+                    logging.warning(
+                        f"Secrets detected but redaction disabled (emergency bypass) - allowing through"
+                    )
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
 
