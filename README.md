@@ -814,6 +814,8 @@ This installs the optional `requests` library for fetching remote skill director
 
 ## When to Use ai-guardian vs settings.json
 
+> 📚 **For detailed comparison:** See [docs/PERMISSIONS_COMPARISON.md](docs/PERMISSIONS_COMPARISON.md) for comprehensive documentation on both permission systems, including architecture diagrams, example configurations, and best practices.
+
 | Scenario | Use settings.json | Use ai-guardian | Why |
 |----------|-------------------|-----------------|-----|
 | **Control Skills** | ❌ Not supported | ✅ Required | Skills not available in settings.json |
