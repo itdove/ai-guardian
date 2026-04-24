@@ -890,6 +890,23 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             ]
         },
 
+        "_comment_permissions_directories": "OPTIONAL/ADVANCED: Auto-discover tool permissions from directories/GitHub repos. Scans for permission files and merges discovered rules into permissions.rules. Most users should use remote_configs instead.",
+        "_permissions_directories_example": [
+            {
+                "_comment": "Example: scan local skills directory to auto-allow discovered skills",
+                "matcher": "Skill",
+                "mode": "allow",
+                "url": "~/.claude/skills"
+            },
+            {
+                "_comment": "Example: scan GitHub repository for skills",
+                "matcher": "Skill",
+                "mode": "allow",
+                "url": "https://github.com/your-org/skills/tree/main/skills",
+                "token_env": "GITHUB_TOKEN"
+            }
+        ],
+
         "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). See ai-guardian-example.json for examples.",
         "_directory_rules_example": {
             "action": "block",
