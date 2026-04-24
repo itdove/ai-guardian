@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-04-24
+
+### Fixed
+
+- **PreToolUse Hook Auto-Approve Bug** (Issue #224, PR #225)
+  - **Problem**: PreToolUse hook was auto-approving all Edit and Write operations when no secrets were detected, bypassing Claude Code's normal permission prompts and removing user control over file modifications
+  - **Root Cause**: `format_response()` function returned `permissionDecision: allow` for clean files, which instructed Claude Code to auto-approve the operation
+  - **Fix**: PreToolUse now only returns `permissionDecision` when denying operations (secrets/threats detected). For clean operations, returns empty response to allow Claude Code's normal permission system to prompt the user
+  - **Impact**: Users now properly see permission prompts for Edit/Write operations, maintaining informed consent for file modifications
+  - **Affected Versions**: v1.3.0, v1.4.0, v1.4.1 (bug introduced with GitHub Copilot integration in v1.3.0)
+  - **Tests Added**: 
+    - 15+ new tests including integration tests and UX contract tests
+    - 4 new PreToolUse permission tests covering Edit/Write operations for both Claude Code and GitHub Copilot IDE types
+    - Updated 3 existing tests to expect correct behavior (no auto-approve)
+  - **Files Modified**:
+    - `src/ai_guardian/__init__.py`: Updated `format_response()` for both GITHUB_COPILOT and CLAUDE_CODE paths
+    - `tests/test_hook_processing.py`: Added `PreToolUsePermissionTests` class with 4 new tests
+    - `tests/test_ai_guardian.py`: Updated 3 tests to expect correct behavior
+    - `tests/test_pretooluse_no_auto_approve.py`: Integration tests
+    - `tests/test_user_experience_contract.py`: UX contract tests
+
 ## [1.4.1] - 2026-04-21
 
 ### Added
