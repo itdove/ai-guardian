@@ -138,7 +138,27 @@
         "_explanation": "Enterprise pattern server - local configs cannot disable or override"
       },
       "url": null,
-      "_url_comment": "Set to your pattern server URL to enable. Example: 'https://patterns.security.redhat.com'",
+      "_url_comment": "Set to your pattern server URL to enable",
+      "_url_examples": {
+        "_leaktk": "https://raw.githubusercontent.com (free, community-maintained patterns)",
+        "_enterprise": "https://patterns.security.redhat.com (enterprise custom patterns)"
+      },
+      "_leaktk_example_config": {
+        "_comment": "RECOMMENDED: Use LeakTK community patterns (free, no auth required)",
+        "url": "https://raw.githubusercontent.com",
+        "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
+        "cache": {
+          "refresh_interval_hours": 12,
+          "expire_after_hours": 168
+        },
+        "_benefits": [
+          "Free and public (no authentication required)",
+          "Regularly updated by the community",
+          "104+ detection rules",
+          "Compatible with gitleaks"
+        ],
+        "_reference": "https://github.com/leaktk/patterns"
+      },
       "patterns_endpoint": "/patterns/gitleaks/8.18.1",
       "warn_on_failure": true,
       "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",

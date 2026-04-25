@@ -293,11 +293,249 @@ This operation has been blocked for security.
 
 ---
 
+## Pattern Sources
+
+AI Guardian supports multiple pattern sources for secret detection:
+
+### 1. LeakTK Pattern Server (Recommended)
+
+**What is LeakTK?**
+
+[LeakTK](https://github.com/leaktk/patterns) is a community-maintained, open-source collection of secret detection patterns. It provides regularly updated gitleaks patterns for detecting API keys, tokens, passwords, and other credentials.
+
+**Why use LeakTK?**
+
+| Feature | LeakTK Patterns | Gitleaks Defaults |
+|---------|----------------|-------------------|
+| Rules | 104+ rules | 100+ rules |
+| Updates | Community-maintained | Gitleaks releases |
+| Cost | Free, no auth | Free |
+| Customization | Fork and customize | Requires local file |
+| Pattern Quality | Peer-reviewed | Official |
+
+**Configuration:**
+
+```json
+{
+  "secret_scanning": {
+    "pattern_server": {
+      "url": "https://raw.githubusercontent.com",
+      "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
+      "cache": {
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168
+      }
+    }
+  }
+}
+```
+
+**Options:**
+
+- `url`: GitHub raw content URL (no authentication needed)
+- `patterns_endpoint`: Path to gitleaks pattern file
+  - Use `main` branch for latest patterns
+  - Or pin to specific version: `/leaktk/patterns/v1.0.0/target/patterns/gitleaks/8.27.0`
+- `cache.refresh_interval_hours`: How often to check for updates (default: 12)
+- `cache.expire_after_hours`: When to consider cache stale (default: 168 = 7 days)
+
+**Cache Location:**
+
+Patterns are cached at: `~/.cache/ai-guardian/leaktk-patterns.toml`
+
+**Troubleshooting:**
+
+Check logs for pattern server activity:
+```bash
+tail -50 ~/.config/ai-guardian/ai-guardian.log | grep -i "pattern"
+```
+
+Expected log entries:
+```
+INFO: Using pattern server config: ~/.cache/ai-guardian/leaktk-patterns.toml
+INFO: Pattern server cache is fresh (last updated: 2026-04-20 10:30:00)
+```
+
+If you see warnings:
+```
+WARNING: Pattern server configured at https://raw.githubusercontent.com but patterns unavailable
+```
+
+**Possible causes:**
+- Network connectivity issues
+- GitHub raw content temporarily unavailable
+- Invalid patterns_endpoint path
+
+**Fallback behavior:** AI Guardian automatically falls back to gitleaks defaults if pattern server is unavailable.
+
+### 2. Project-Specific .gitleaks.toml
+
+Create a `.gitleaks.toml` in your project root for custom patterns:
+
+```toml
+title = "Custom Project Patterns"
+
+[[rules]]
+id = "custom-api-key"
+description = "Custom API Key"
+regex = '''my-api-key-[a-z0-9]{32}'''
+```
+
+**Priority:** If both pattern server and `.gitleaks.toml` exist, pattern server takes priority.
+
+### 3. Gitleaks Defaults (Fallback)
+
+If no pattern server or project config, AI Guardian uses gitleaks built-in patterns (100+ rules).
+
+**Priority order:**
+1. Pattern server (if configured and reachable)
+2. Project `.gitleaks.toml` (if exists)
+3. Gitleaks defaults (always available)
+
+## LeakTK Pattern Versions
+
+LeakTK provides patterns for different gitleaks versions:
+
+| Gitleaks Version | Endpoint Path |
+|------------------|---------------|
+| 8.27.0 | `/leaktk/patterns/main/target/patterns/gitleaks/8.27.0` |
+| 8.26.0 | `/leaktk/patterns/main/target/patterns/gitleaks/8.26.0` |
+| 8.25.0 | `/leaktk/patterns/main/target/patterns/gitleaks/8.25.0` |
+
+**Check your gitleaks version:**
+```bash
+gitleaks version
+```
+
+**Use matching LeakTK pattern version** for best compatibility.
+
+## Advanced: Custom Pattern Server
+
+You can host your own pattern server:
+
+```json
+{
+  "secret_scanning": {
+    "pattern_server": {
+      "url": "https://patterns.mycompany.com",
+      "patterns_endpoint": "/patterns/gitleaks/latest.toml",
+      "auth": {
+        "method": "bearer",
+        "token_file": "~/.config/ai-guardian/pattern-server-token"
+      }
+    }
+  }
+}
+```
+
+**Requirements:**
+- Serve gitleaks-compatible `.toml` patterns
+- HTTPS endpoint
+- Optional: Token-based authentication
+
+## Example Workflow
+
+**1. Start with LeakTK patterns:**
+```json
+{
+  "secret_scanning": {
+    "pattern_server": {
+      "url": "https://raw.githubusercontent.com",
+      "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0"
+    }
+  }
+}
+```
+
+**2. Add project-specific allowlists:**
+
+Create `.gitleaks.toml` in your project:
+```toml
+# Use LeakTK patterns via pattern server
+# This file only adds allowlists
+
+[allowlist]
+description = "Allow test fixtures"
+paths = [
+    '''tests/fixtures/.*''',
+    '''examples/.*'''
+]
+```
+
+**Note:** Project `.gitleaks.toml` is ignored when pattern server is configured. To use both:
+- Download LeakTK patterns manually
+- Add to project `.gitleaks.toml`
+- Remove pattern server config
+
+**3. Verify configuration:**
+```bash
+# Test detection
+echo '{"prompt": "github_pat=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}' | ai-guardian
+
+# Check which patterns are active
+tail ~/.config/ai-guardian/ai-guardian.log | grep "pattern"
+```
+
+## FAQ
+
+**Q: Can I use LeakTK patterns without internet access?**
+
+A: Yes. Download patterns once, then AI Guardian uses the cache:
+```bash
+# First run (requires internet)
+echo '{"prompt": "test"}' | ai-guardian
+
+# Subsequent runs use cache (works offline for 7 days)
+echo '{"prompt": "test"}' | ai-guardian
+```
+
+**Q: How do I update to the latest LeakTK patterns?**
+
+A: Either:
+1. Wait for auto-refresh (default: 12 hours)
+2. Delete cache to force immediate refresh:
+   ```bash
+   rm ~/.cache/ai-guardian/leaktk-patterns.toml
+   ```
+
+**Q: Can I use LeakTK patterns AND project .gitleaks.toml?**
+
+A: Pattern server takes priority. If you need both:
+1. Download LeakTK patterns: `curl -o .gitleaks.toml https://raw.githubusercontent.com/leaktk/patterns/main/target/patterns/gitleaks/8.27.0`
+2. Add your custom rules to `.gitleaks.toml`
+3. Remove pattern server config
+
+**Q: What if GitHub raw content is blocked by my firewall?**
+
+A: Host patterns yourself:
+1. Download LeakTK patterns
+2. Host on internal server
+3. Update config:
+   ```json
+   {
+     "pattern_server": {
+       "url": "https://internal-patterns.company.com",
+       "patterns_endpoint": "/gitleaks/8.27.0.toml"
+     }
+   }
+   ```
+
+**Q: How do I know if LeakTK patterns are being used?**
+
+A: Check error messages (Issue #153):
+```
+Detection Source:
+  Scanner: gitleaks
+  Patterns: LeakTK Pattern Server
+  URL: https://raw.githubusercontent.com
+  Endpoint: /leaktk/patterns/main/target/patterns/gitleaks/8.27.0
+```
+
 ## Pattern Server Integration
 
 ### Overview
 
-**Purpose:** Fetch custom secret detection patterns from an enterprise pattern server instead of using Gitleaks default patterns.
+**Purpose:** Fetch custom secret detection patterns from an enterprise pattern server instead of using Gitleaks default patterns or LeakTK.
 
 **Location:** `~/.config/ai-guardian/ai-guardian.json`
 

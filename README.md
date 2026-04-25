@@ -1701,9 +1701,65 @@ If you get too many false positives, lower the sensitivity:
 - `"medium"`: Balanced (default, recommended)
 - `"low"`: Permissive, only catches obvious attacks (fewer false positives)
 
+### Using LeakTK Patterns (Recommended)
+
+[LeakTK](https://github.com/leaktk/patterns) is a community-maintained collection of gitleaks secret detection patterns. It provides regularly updated patterns for detecting API keys, tokens, and credentials.
+
+**Benefits:**
+- 🆓 Free and public (no authentication required)
+- 🔄 Regularly updated by the community
+- 📊 104+ detection rules
+- ✅ Compatible with gitleaks
+
+**Configuration:**
+
+Add to your `~/.config/ai-guardian/ai-guardian.json`:
+
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "action": "block",
+    "pattern_server": {
+      "url": "https://raw.githubusercontent.com",
+      "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
+      "cache": {
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168
+      }
+    }
+  }
+}
+```
+
+**How it works:**
+1. AI Guardian downloads patterns from LeakTK GitHub repository
+2. Patterns are cached locally at `~/.cache/ai-guardian/leaktk-patterns.toml`
+3. Cache refreshes every 12 hours to get latest pattern updates
+4. Gitleaks uses these patterns to scan your prompts and files
+
+**Verify it's working:**
+
+```bash
+# Check the logs
+tail -20 ~/.config/ai-guardian/ai-guardian.log | grep -i pattern
+
+# Test with a known secret (will be blocked)
+echo '{"prompt": "aws_key=AKIAIOSFODNN7EXAMPLE"}' | ai-guardian
+```
+
+You should see:
+```
+Detection Source:
+  Scanner: gitleaks
+  Patterns: LeakTK Pattern Server
+  URL: https://raw.githubusercontent.com
+  Endpoint: /leaktk/patterns/main/target/patterns/gitleaks/8.27.0
+```
+
 ### Pattern Server (Advanced)
 
-**Optional enterprise feature** for fetching custom secret detection patterns from a centralized server instead of using Gitleaks' built-in patterns.
+**Optional enterprise feature** for fetching custom secret detection patterns from a centralized server instead of using Gitleaks' built-in patterns or LeakTK.
 
 **Purpose:** Organizations can maintain custom pattern definitions for:
 - Organization-specific secret formats

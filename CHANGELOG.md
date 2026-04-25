@@ -33,6 +33,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **LeakTK Pattern Server Documentation** (Issue #156)
+  - Added comprehensive documentation for using LeakTK patterns as a pattern server
+  - **README.md**: Added "Using LeakTK Patterns (Recommended)" section with quick start guide
+    - Benefits: Free, community-maintained, 104+ rules, no authentication required
+    - Configuration example using GitHub raw content URL
+    - Verification steps and expected log output
+  - **docs/SECRET_SCANNING.md**: Added complete LeakTK integration guide
+    - Pattern sources comparison table (LeakTK vs Gitleaks defaults)
+    - Configuration options and cache settings
+    - Pattern version compatibility table (8.25.0, 8.26.0, 8.27.0)
+    - Troubleshooting guide and common issues
+    - FAQ section covering offline usage, updates, firewall workarounds
+    - Example workflows for combining LeakTK with project-specific patterns
+  - **ai-guardian-example.json**: Added LeakTK example configuration
+    - Documented free, community-maintained pattern source
+    - Reference to LeakTK GitHub repository
+  - Feature already implemented and tested - documentation completes the feature
+  - LeakTK repository: https://github.com/leaktk/patterns
+
 - **Permissions Comparison Documentation** (Issue #235)
   - Added comprehensive `docs/PERMISSIONS_COMPARISON.md` comparing ai-guardian.json vs settings.json permission systems
   - Covers: architecture diagrams, capabilities comparison, enforcement differences, when to use each
