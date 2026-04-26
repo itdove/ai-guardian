@@ -275,10 +275,21 @@
 
     "additional_blocked_domains": [
       "internal.example.com",
-      "*.corp.company.com"
+      "*.corp.company.com",
+      "*.internal.com",
+      "admin.*",
+      "metadata.*"
     ],
-    "_additional_blocked_domains_comment": "Block internal domains - only works if explicitly in command/parameter",
+    "_additional_blocked_domains_comment": "Block internal domains - supports exact domains, subdomain matching, and wildcard patterns (NEW in v1.5.0)",
     "_additional_blocked_domains_note": "Cannot detect if MCP server internally resolves these domains",
+    "_additional_blocked_domains_wildcard_support": "NEW in v1.5.0 (Issue #253): Wildcard patterns using * and ? wildcards",
+    "_additional_blocked_domains_wildcard_examples": {
+      "_exact_domain": "internal.example.com - Blocks internal.example.com and api.internal.example.com",
+      "_wildcard_suffix": "*.internal.com - Blocks all .internal.com domains (api.internal.com, db.internal.com)",
+      "_wildcard_prefix": "admin.* - Blocks admin.* with any suffix (admin.example.com, admin.local)",
+      "_wildcard_middle": "*.corp.* - Blocks all .corp. domains (api.corp.internal, db.corp.example.com)",
+      "_single_char": "test?.example.com - Blocks test1, test2, testa, etc. (? matches one character)"
+    },
 
     "allowed_domains": [
       "api.corp.internal",

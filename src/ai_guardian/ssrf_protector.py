@@ -64,6 +64,7 @@ Inspired by Hermes Security Framework patterns.
 See docs/SSRF_PROTECTION.md for detailed documentation.
 """
 
+import fnmatch
 import ipaddress
 import logging
 import re
@@ -218,7 +219,10 @@ class SSRFProtector:
                 logger.warning(f"Invalid IP range in SSRF config: {ip_range} - {e}")
 
         # Build complete blocked domains list
+        # Separate exact domains from wildcard patterns for performance
         self._blocked_domains = set()
+        self._blocked_domain_patterns = []  # Wildcard patterns (*, ?, **)
+
         for domain_entry in domains_to_use:
             # Handle both dict format (pattern server) and string format (legacy)
             if isinstance(domain_entry, dict):
@@ -227,7 +231,16 @@ class SSRFProtector:
                 domain = domain_entry
 
             if domain:
-                self._blocked_domains.add(domain)
+                # Check if this is a wildcard pattern
+                if '*' in domain or '?' in domain:
+                    # Validate pattern syntax
+                    if self._is_valid_domain_pattern(domain):
+                        self._blocked_domain_patterns.append(domain)
+                    else:
+                        logger.warning(f"Invalid domain pattern in SSRF config, skipping: {domain}")
+                else:
+                    # Exact domain or subdomain match
+                    self._blocked_domains.add(domain)
 
         # Remove localhost from blocked list if allow_localhost is True
         if self.allow_localhost:
@@ -238,7 +251,11 @@ class SSRFProtector:
                 if str(net) not in ["127.0.0.0/8", "::1/128"]
             ]
 
-        logger.info(f"SSRF Protection: Loaded {len(self._blocked_ip_networks)} IP ranges and {len(self._blocked_domains)} domains")
+        logger.info(
+            f"SSRF Protection: Loaded {len(self._blocked_ip_networks)} IP ranges, "
+            f"{len(self._blocked_domains)} exact domains, and "
+            f"{len(self._blocked_domain_patterns)} wildcard patterns"
+        )
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
         """
@@ -378,9 +395,45 @@ class SSRFProtector:
             # Not a valid IP address
             return False
 
+    def _is_valid_domain_pattern(self, pattern: str) -> bool:
+        """
+        Validate a wildcard domain pattern.
+
+        Args:
+            pattern: Domain pattern to validate (e.g., "*.internal.com", "admin.*")
+
+        Returns:
+            True if pattern is valid, False otherwise
+        """
+        if not pattern or not pattern.strip():
+            return False
+
+        # Basic validation: pattern should look like a domain
+        # Allow: *.domain.com, admin.*, *.corp.*, etc.
+        # Disallow: **, ***, empty parts, etc.
+
+        # Replace wildcards with valid characters for validation
+        test_domain = pattern.replace('*', 'a').replace('?', 'b')
+
+        # Basic domain format check (very lenient)
+        # Domain should have at least one dot or be a valid TLD pattern
+        if '.' not in test_domain and pattern not in ['*', 'localhost']:
+            return False
+
+        # Check for invalid consecutive wildcards (*** is invalid, but ** is valid)
+        if '***' in pattern:
+            return False
+
+        return True
+
     def _is_domain_blocked(self, domain: str) -> bool:
         """
         Check if a domain is in the blocked list.
+
+        Supports:
+        - Exact match: 'metadata.google.internal'
+        - Subdomain match: 'api.metadata.google.internal' matches 'metadata.google.internal'
+        - Wildcard patterns: '*.internal.com', 'admin.*', '*.corp.*'
 
         Args:
             domain: Domain name to check
@@ -404,6 +457,13 @@ class SSRFProtector:
         # Check subdomain matching (e.g., foo.metadata.google.internal)
         for blocked in self._blocked_domains:
             if domain_lower.endswith('.' + blocked):
+                return True
+
+        # Check wildcard patterns (e.g., *.internal.com, admin.*, *.corp.*)
+        for pattern in self._blocked_domain_patterns:
+            pattern_lower = pattern.lower()
+            if fnmatch.fnmatch(domain_lower, pattern_lower):
+                logger.debug(f"Domain '{domain}' matches wildcard pattern '{pattern}'")
                 return True
 
         return False

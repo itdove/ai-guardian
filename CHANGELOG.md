@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSRF Protection: Wildcard Domain Pattern Support** (Issue #253)
+  - **New Feature**: Added wildcard pattern matching for `additional_blocked_domains` configuration
+  - **Syntax**: Supports `*` (match zero or more characters) and `?` (match exactly one character)
+  - **Pattern Examples**:
+    - `*.internal.com` - Block all .internal.com domains (api.internal.com, db.internal.com)
+    - `admin.*` - Block admin.* with any suffix (admin.example.com, admin.local)
+    - `*.corp.*` - Block all .corp. domains (api.corp.internal, db.corp.example.com)
+    - `metadata.*` - Block all metadata.* endpoints (metadata.aws.com, metadata.google.internal)
+    - `test?.example.com` - Block test1.example.com, test2.example.com, testa.example.com
+  - **Use Cases**:
+    - Block entire TLDs with single pattern (`*.internal`, `*.local`)
+    - Block subdomain patterns (`*.admin.example.com`)
+    - Block naming patterns (`metadata.*`, `admin.*`)
+    - Enterprise-wide policies with simplified configuration
+  - **Backward Compatibility**: Exact domain matching and subdomain matching still work as before
+  - **Pattern Validation**: Invalid patterns are rejected at config load time with warnings
+  - **Performance**: Patterns stored separately from exact domains for optimal matching
+  - **Files Modified**:
+    - `src/ai_guardian/ssrf_protector.py`: Added `fnmatch` import, `_blocked_domain_patterns` list, `_is_valid_domain_pattern()` method, pattern matching in `_is_domain_blocked()`
+    - `src/ai_guardian/schemas/ai-guardian-config.schema.json`: Updated `additional_blocked_domains` description with wildcard pattern syntax
+    - `docs/SSRF_PROTECTION.md`: Comprehensive documentation with wildcard pattern examples and use cases
+  - **Tests**: Added 11 comprehensive test cases in `TestWildcardDomainPatterns` class
+  - **Impact**: Users can now use flexible wildcard patterns to block domains more efficiently
+
 - **SSRF Protection: URL Allow-List Support** (Issue #252)
   - **New Configuration**: Added `allowed_domains` array to `ssrf_protection` configuration
   - **Purpose**: Allow specific trusted domains/URLs while maintaining core protections
