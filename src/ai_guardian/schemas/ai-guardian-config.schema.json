@@ -649,10 +649,10 @@
         },
         "additional_blocked_domains": {
           "type": "array",
-          "description": "Additional domain names to block (beyond core protections). Core protections (metadata.google.internal, etc.) cannot be disabled.",
+          "description": "Additional domain names to block (beyond core protections). Core protections (metadata.google.internal, etc.) cannot be disabled. Supports exact domains, subdomain matching, and wildcard patterns (* and ? wildcards).",
           "items": {
             "type": "string",
-            "description": "Domain name to block"
+            "description": "Domain name or wildcard pattern to block. Examples: 'exact.example.com' (exact + subdomains), '*.internal.com' (all .internal.com), 'admin.*' (admin with any suffix), '*.corp.*' (any .corp. domain), 'test?.example.com' (test1, test2, etc.)"
           },
           "default": []
         },

@@ -261,10 +261,80 @@ Additional IP addresses or CIDR ranges to block beyond core protections.
 Additional domain names to block beyond core protections.
 
 **Supports:**
-- Exact domain: `"internal.example.com"`
-- Subdomain matching: Blocks `api.internal.example.com` if `internal.example.com` is blocked
+- **Exact domain**: `"internal.example.com"` - Blocks `internal.example.com` exactly
+- **Subdomain matching**: `"internal.example.com"` - Also blocks `api.internal.example.com`, `db.internal.example.com`
+- **Wildcard patterns** (NEW in v1.5.0): Use `*` and `?` for flexible pattern matching
 
-**Example:**
+**Wildcard Pattern Syntax:**
+- `*` - Match zero or more characters (within a domain component)
+- `?` - Match exactly one character
+- Case-insensitive matching
+
+**Wildcard Pattern Examples:**
+
+```json
+{
+  "ssrf_protection": {
+    "additional_blocked_domains": [
+      // Exact domain + subdomain matching (traditional)
+      "internal.example.com",
+      
+      // Wildcard patterns (NEW in v1.5.0)
+      "*.internal.com",      // Block all .internal.com domains (api.internal.com, db.internal.com)
+      "admin.*",             // Block admin.* with any suffix (admin.example.com, admin.local)
+      "*.corp.*",            // Block all .corp. domains (api.corp.internal, db.corp.example.com)
+      "metadata.*",          // Block all metadata.* endpoints (metadata.aws.com, metadata.google.internal)
+      "*.local",             // Block all .local domains (test.local, dev.local)
+      "test?.example.com"    // Block test1.example.com, test2.example.com, testa.example.com
+    ]
+  }
+}
+```
+
+**Use Cases for Wildcard Patterns:**
+
+1. **Block entire TLDs**: `*.internal`, `*.local`, `*.corp`
+   ```json
+   "additional_blocked_domains": ["*.internal", "*.local"]
+   ```
+
+2. **Block subdomains**: `*.admin.example.com`, `*.staging.*`
+   ```json
+   "additional_blocked_domains": ["*.admin.example.com"]
+   ```
+
+3. **Block naming patterns**: `metadata.*`, `admin.*`, `internal.*`
+   ```json
+   "additional_blocked_domains": ["metadata.*", "admin.*"]
+   ```
+
+4. **Enterprise policies**: Block all internal domains with single pattern
+   ```json
+   "additional_blocked_domains": ["*.corp.internal"]
+   ```
+
+**Pattern Matching Behavior:**
+
+- `*.internal.com` matches:
+  - ✅ `api.internal.com`
+  - ✅ `db.internal.com`
+  - ✅ `cache.internal.com`
+  - ❌ `example.com`
+  - ❌ `internal.com` (no prefix)
+
+- `admin.*` matches:
+  - ✅ `admin.example.com`
+  - ✅ `admin.corp.internal`
+  - ✅ `admin.local`
+  - ❌ `api.example.com`
+
+- `*.corp.*` matches:
+  - ✅ `api.corp.internal`
+  - ✅ `db.corp.example.com`
+  - ❌ `corp.internal` (no prefix)
+  - ❌ `api.example.com`
+
+**Traditional Example (exact + subdomain matching):**
 ```json
 {
   "ssrf_protection": {

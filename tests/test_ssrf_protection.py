@@ -821,5 +821,223 @@ class TestErrorHandling:
         assert msg is None
 
 
+class TestWildcardDomainPatterns:
+    """Test wildcard domain pattern matching for SSRF protection."""
+
+    def test_wildcard_suffix_pattern(self):
+        """Test *.internal.com pattern blocks all .internal.com domains."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.internal.com"]
+        })
+
+        # Should block any subdomain of .internal.com
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.internal.com"})
+        assert should_block
+        assert "api.internal.com" in msg
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://db.internal.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://cache.internal.com"})
+        assert should_block
+
+        # Should NOT block different domains
+        should_block, msg = protector.check("Bash", {"command": "curl http://example.com"})
+        assert not should_block
+
+    def test_wildcard_prefix_pattern(self):
+        """Test admin.* pattern blocks all admin.* domains."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["admin.*"]
+        })
+
+        # Should block admin with any suffix
+        should_block, msg = protector.check("Bash", {"command": "curl http://admin.example.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://admin.corp.internal"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://admin.local"})
+        assert should_block
+
+        # Should NOT block different subdomains
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.example.com"})
+        assert not should_block
+
+    def test_wildcard_middle_pattern(self):
+        """Test *.corp.* pattern blocks all .corp. domains."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.corp.*"]
+        })
+
+        # Should block any domain with .corp. in the middle
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.corp.internal"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://db.corp.example.com"})
+        assert should_block
+
+        # Should NOT block domains without .corp.
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.example.com"})
+        assert not should_block
+
+    def test_single_character_wildcard(self):
+        """Test ? wildcard matches exactly one character."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["test?.example.com"]
+        })
+
+        # Should block test1, test2, testa, etc.
+        should_block, msg = protector.check("Bash", {"command": "curl http://test1.example.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://testa.example.com"})
+        assert should_block
+
+        # Should NOT block test10 (two characters) or test.example.com
+        should_block, msg = protector.check("Bash", {"command": "curl http://test10.example.com"})
+        assert not should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://test.example.com"})
+        assert not should_block
+
+    def test_multiple_wildcard_patterns(self):
+        """Test multiple wildcard patterns can coexist."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": [
+                "*.internal.com",
+                "admin.*",
+                "metadata.*"
+            ]
+        })
+
+        # Should block all patterns
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.internal.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://admin.example.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.aws.com"})
+        assert should_block
+
+        # Should NOT block unmatched domains
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.example.com"})
+        assert not should_block
+
+    def test_wildcard_with_exact_domains(self):
+        """Test wildcard patterns work alongside exact domain matches."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": [
+                "exact.example.com",  # Exact match
+                "*.internal.com"      # Wildcard pattern
+            ]
+        })
+
+        # Should block exact match
+        should_block, msg = protector.check("Bash", {"command": "curl http://exact.example.com"})
+        assert should_block
+
+        # Should block subdomain of exact match (default subdomain matching)
+        should_block, msg = protector.check("Bash", {"command": "curl http://sub.exact.example.com"})
+        assert should_block
+
+        # Should block wildcard pattern
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.internal.com"})
+        assert should_block
+
+        # Should NOT block unmatched
+        should_block, msg = protector.check("Bash", {"command": "curl http://other.example.com"})
+        assert not should_block
+
+    def test_case_insensitive_wildcard_matching(self):
+        """Test wildcard patterns are case-insensitive."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.Internal.COM"]
+        })
+
+        # Should block regardless of case
+        should_block, msg = protector.check("Bash", {"command": "curl http://API.internal.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.INTERNAL.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.Internal.Com"})
+        assert should_block
+
+    def test_invalid_wildcard_patterns_rejected(self):
+        """Test that invalid wildcard patterns are rejected with warnings."""
+        # This should not crash, invalid patterns should be skipped
+        protector = SSRFProtector({
+            "additional_blocked_domains": [
+                "***",           # Invalid: too many wildcards
+                "",              # Invalid: empty
+                "*.valid.com"    # Valid: should work
+            ]
+        })
+
+        # Valid pattern should still work
+        should_block, msg = protector.check("Bash", {"command": "curl http://test.valid.com"})
+        assert should_block
+
+        # Invalid patterns should be ignored (not crash)
+        should_block, msg = protector.check("Bash", {"command": "curl http://example.com"})
+        assert not should_block
+
+    def test_wildcard_with_allow_list(self):
+        """Test wildcard patterns respect allow-list overrides."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.corp.internal"],
+            "allowed_domains": ["dev.corp.internal"]
+        })
+
+        # Should block by wildcard
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.corp.internal"})
+        assert should_block
+
+        # Should allow by allow-list (overrides wildcard)
+        should_block, msg = protector.check("Bash", {"command": "curl http://dev.corp.internal"})
+        assert not should_block
+
+    def test_metadata_wildcard_pattern(self):
+        """Test blocking all metadata endpoints with wildcard."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["metadata.*"]
+        })
+
+        # Should block all metadata.* domains
+        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.google.internal"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.aws.com"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.azure.com"})
+        assert should_block
+
+        # Should NOT block non-metadata domains
+        should_block, msg = protector.check("Bash", {"command": "curl http://api.google.com"})
+        assert not should_block
+
+    def test_wildcard_all_subdomains_of_tld(self):
+        """Test *.local blocks all .local domains."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.local"]
+        })
+
+        # Should block all .local domains
+        should_block, msg = protector.check("Bash", {"command": "curl http://anything.local"})
+        assert should_block
+
+        should_block, msg = protector.check("Bash", {"command": "curl http://test.local"})
+        assert should_block
+
+        # Should NOT block .localhost or other TLDs
+        should_block, msg = protector.check("Bash", {"command": "curl http://example.com"})
+        assert not should_block
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
