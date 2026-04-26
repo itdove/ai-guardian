@@ -860,7 +860,9 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_blocked_ips": [],
             "additional_blocked_domains": [],
             "allow_localhost": False,
-            "allowed_domains": []
+            "allowed_domains": [],
+            "_comment_path_based_rules": "Path-based filtering for granular access control (NEW in v1.6.0) - Allow/block specific URL paths on domains",
+            "path_based_rules": []
         },
 
         "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",

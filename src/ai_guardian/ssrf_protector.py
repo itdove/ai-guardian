@@ -235,12 +235,12 @@ class SSRFProtector:
                 if '*' in domain or '?' in domain:
                     # Validate pattern syntax
                     if self._is_valid_domain_pattern(domain):
-                        self._blocked_domain_patterns.append(domain)
+                        self._blocked_domain_patterns.append(domain.lower())
                     else:
                         logger.warning(f"Invalid domain pattern in SSRF config, skipping: {domain}")
                 else:
-                    # Exact domain or subdomain match
-                    self._blocked_domains.add(domain)
+                    # Exact domain or subdomain match (lowercase for case-insensitive matching)
+                    self._blocked_domains.add(domain.lower())
 
         # Remove localhost from blocked list if allow_localhost is True
         if self.allow_localhost:
@@ -251,10 +251,21 @@ class SSRFProtector:
                 if str(net) not in ["127.0.0.0/8", "::1/128"]
             ]
 
+        # Load path-based rules (NEW in v1.6.0)
+        self._path_based_rules = {}  # Map domain -> {allowed_paths: [...], blocked_paths: [...]}
+        for rule in self.config.get("path_based_rules", []):
+            domain = rule.get("domain", "").lower()
+            if domain:
+                self._path_based_rules[domain] = {
+                    "allowed_paths": rule.get("allowed_paths", []),
+                    "blocked_paths": rule.get("blocked_paths", [])
+                }
+
         logger.info(
             f"SSRF Protection: Loaded {len(self._blocked_ip_networks)} IP ranges, "
-            f"{len(self._blocked_domains)} exact domains, and "
-            f"{len(self._blocked_domain_patterns)} wildcard patterns"
+            f"{len(self._blocked_domains)} exact domains, "
+            f"{len(self._blocked_domain_patterns)} wildcard patterns, and "
+            f"{len(self._path_based_rules)} path-based rules"
         )
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
@@ -344,24 +355,30 @@ class SSRFProtector:
 
         return unique_urls
 
-    def _parse_url(self, url: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    def _parse_url(self, url: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
         """
-        Parse a URL into scheme, hostname, and full URL.
+        Parse a URL into scheme, hostname, path, and full URL.
 
         Args:
             url: URL string to parse
 
         Returns:
-            Tuple of (scheme, hostname, full_url) or (None, None, None) on error
+            Tuple of (scheme, hostname, path, full_url) or (None, None, None, None) on error
         """
         try:
             parsed = urllib.parse.urlparse(url)
             scheme = parsed.scheme.lower() if parsed.scheme else None
             hostname = parsed.hostname  # Already handles IPv6 brackets
-            return scheme, hostname, url
+
+            # Include query parameters in path for path-based matching
+            path = parsed.path if parsed.path else "/"
+            if parsed.query:
+                path = f"{path}?{parsed.query}"
+
+            return scheme, hostname, path, url
         except Exception as e:
             logger.debug(f"Failed to parse URL '{url}': {e}")
-            return None, None, None
+            return None, None, None, None
 
     def _is_ip_blocked(self, ip_str: str) -> bool:
         """
@@ -498,6 +515,57 @@ class SSRFProtector:
 
         return False
 
+    def _match_path_pattern(self, path: str, pattern: str) -> bool:
+        """
+        Check if a URL path matches a glob pattern.
+
+        Handles:
+        - * (matches any chars except /)
+        - ** (matches any chars including /)
+        - ? (matches single char)
+        - Query parameters (included in match)
+        - Trailing slashes (normalized)
+        - URL encoding (paths are used as-is, not decoded)
+
+        Args:
+            path: URL path to check (e.g., "/api/v1/users?page=1")
+            pattern: Glob pattern (e.g., "/api/*", "/admin/**", "/health")
+
+        Returns:
+            True if path matches pattern, False otherwise
+        """
+        if not path or not pattern:
+            return False
+
+        # Normalize trailing slashes for consistent matching
+        # "/admin/" should match "/admin" pattern
+        path_normalized = path.rstrip('/') if path != '/' else '/'
+        pattern_normalized = pattern.rstrip('/') if pattern != '/' else '/'
+
+        # Convert glob pattern to regex
+        # Need to escape special regex chars, then handle our wildcards
+        import re as regex_module
+
+        # Escape all regex special chars
+        pattern_escaped = regex_module.escape(pattern_normalized)
+
+        # Replace escaped wildcards with regex equivalents
+        # ** matches any chars including /
+        pattern_escaped = pattern_escaped.replace(r'\*\*', '.*')
+        # * matches any chars except /
+        pattern_escaped = pattern_escaped.replace(r'\*', '[^/]*')
+        # ? matches single char
+        pattern_escaped = pattern_escaped.replace(r'\?', '.')
+
+        regex_pattern = '^' + pattern_escaped + '$'
+
+        try:
+            return bool(regex_module.match(regex_pattern, path_normalized))
+        except regex_module.error:
+            # Invalid pattern - fail closed
+            logger.warning(f"Invalid path pattern: {pattern}")
+            return False
+
     def _check_url(self, url: str) -> Tuple[bool, str]:
         """
         Check if a URL is an SSRF attack.
@@ -506,6 +574,7 @@ class SSRFProtector:
         1. Check immutable core protections (dangerous schemes, metadata endpoints, private IPs)
         2. Check deny-list (additional_blocked_domains only)
         3. Check allow-list (allowed_domains) - can override step 2, NOT step 1
+        4. Check path-based rules (can provide granular control on allowed/blocked domains)
 
         Args:
             url: URL to check
@@ -513,7 +582,7 @@ class SSRFProtector:
         Returns:
             Tuple of (is_ssrf, reason)
         """
-        scheme, hostname, _ = self._parse_url(url)
+        scheme, hostname, path, _ = self._parse_url(url)
 
         if not scheme:
             # Failed to parse - fail closed
@@ -547,16 +616,39 @@ class SSRFProtector:
             return True, f"private IP address '{hostname}'"
 
         # Check deny-list (additional_blocked_domains only)
-        # This can be overridden by allow-list
-        if self._is_domain_blocked(hostname):
-            # Check allow-list - can override additional_blocked_domains
-            if self._is_domain_allowed(hostname):
-                # Domain is in allow-list, override the deny-list block
-                logger.debug(f"Domain {hostname} blocked by deny-list but allowed by allow-list")
-                return False, ""
+        # This can be overridden by allow-list or path-based rules
+        domain_blocked = self._is_domain_blocked(hostname)
+        domain_allowed = self._is_domain_allowed(hostname)
 
-            # Blocked and not in allow-list
+        # Check path-based rules for this domain (if any exist)
+        path_rules = self._path_based_rules.get(hostname_lower)
+
+        if domain_blocked and not domain_allowed:
+            # Domain is blocked - check if path-based rules allow this specific path
+            if path_rules and path_rules.get("allowed_paths"):
+                # Check if this path is in the allowed list
+                for allowed_pattern in path_rules["allowed_paths"]:
+                    if self._match_path_pattern(path, allowed_pattern):
+                        logger.debug(f"Domain {hostname} blocked but path {path} allowed by path rule")
+                        # Path is allowed - continue to check if it's also in blocked_paths
+                        if path_rules.get("blocked_paths"):
+                            for blocked_pattern in path_rules["blocked_paths"]:
+                                if self._match_path_pattern(path, blocked_pattern):
+                                    logger.debug(f"Path {path} in both allowed and blocked lists - blocked wins")
+                                    return True, f"blocked path '{path}' on domain '{hostname}'"
+                        return False, ""
+
+            # Domain blocked and path not in allowed list
             return True, f"blocked domain '{hostname}'"
+
+        # Domain is allowed (either not in block list or in allow list) or neutral
+        # Check if path-based rules block this specific path
+        if path_rules and path_rules.get("blocked_paths"):
+            # Check if this path is in the blocked list
+            for blocked_pattern in path_rules["blocked_paths"]:
+                if self._match_path_pattern(path, blocked_pattern):
+                    logger.debug(f"Path {path} blocked by path rule on domain {hostname}")
+                    return True, f"blocked path '{path}' on domain '{hostname}'"
 
         # Try to resolve hostname to IP (if it looks like a domain name)
         # NOTE: We deliberately DO NOT do DNS resolution here to avoid:

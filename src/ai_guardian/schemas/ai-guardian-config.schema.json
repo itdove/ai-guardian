@@ -670,6 +670,38 @@
           },
           "default": []
         },
+        "path_based_rules": {
+          "type": "array",
+          "description": "Path-based filtering rules for granular access control (NEW in v1.6.0). Allows blocking/allowing specific URL paths on domains. Useful for allowing public API endpoints while blocking admin pages on the same domain. Evaluation order: 1) Domain-level checks (blocked_domains/allowed_domains), 2) Path rules (if domain has path rules defined). Supports glob patterns: * (any chars except /), ** (any chars including /), ? (single char).",
+          "items": {
+            "type": "object",
+            "required": ["domain"],
+            "properties": {
+              "domain": {
+                "type": "string",
+                "description": "Domain to apply path rules to (e.g., 'api.example.com', 'internal.corp.local')"
+              },
+              "allowed_paths": {
+                "type": "array",
+                "description": "URL paths to allow on this domain. If domain is blocked, these paths override the block. Glob patterns supported: /api/* (API endpoints), /public/** (recursive), /health (exact), /v?/users (version wildcard). Query parameters are included in matching.",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "blocked_paths": {
+                "type": "array",
+                "description": "URL paths to block on this domain. If domain is allowed, these paths override the allow. Glob patterns supported: /admin/* (admin pages), /internal/** (recursive), /*.php (file extension), /*secret* (contains). Query parameters are included in matching.",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            },
+            "additionalProperties": false
+          },
+          "default": []
+        },
         "pattern_server": {
           "type": ["object", "null"],
           "description": "OPTIONAL/ADVANCED: SSRF protection patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise patterns instead of hardcoded defaults. Supports three-tier system: immutable core (metadata endpoints, dangerous schemes) + pattern server/defaults (RFC 1918 ranges) + local config additions.",
