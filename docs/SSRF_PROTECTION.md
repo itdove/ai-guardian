@@ -163,6 +163,10 @@ Default configuration (`~/.config/ai-guardian/ai-guardian.json`):
       "admin.local",
       "*.corp.internal"
     ],
+    "allowed_domains": [
+      "api.corp.internal",
+      "public.staging.example.com"
+    ],
     "allow_localhost": false
   }
 }
@@ -272,6 +276,76 @@ Additional domain names to block beyond core protections.
   }
 }
 ```
+
+#### `allowed_domains` (array, default: []) - NEW in v1.5.0
+
+**Issue #252**: Domain allow-list to override `additional_blocked_domains` blocks while maintaining core protections.
+
+**Evaluation order (deny-first approach)**:
+1. ✅ Check immutable core protections (metadata endpoints, dangerous schemes, private IPs)
+2. ❌ Check deny-list (`additional_blocked_domains`)
+3. ✅ Check allow-list (`allowed_domains`) - can override step 2, **NOT step 1**
+
+**Supports:**
+- Exact domain: `"api.corp.internal"`
+- Subdomain matching: Allows `v1.api.corp.internal` if `api.corp.internal` is allowed
+
+**Use cases:**
+1. **Internal APIs**: Allow specific internal APIs while blocking other internal domains
+2. **Development servers**: Allow specific dev/staging servers without allowing all localhost
+3. **Partner services**: Allow specific partner domains on restricted networks
+4. **Granular control**: Override broad domain blocks with specific exceptions
+
+**Example:**
+```json
+{
+  "ssrf_protection": {
+    "additional_blocked_domains": [
+      "api.corp.internal",
+      "admin.corp.internal",
+      "secret.corp.internal"
+    ],
+    "allowed_domains": [
+      "api.corp.internal",
+      "public.corp.internal"
+    ]
+  }
+}
+```
+
+**Result:**
+- ✅ `http://api.corp.internal` - ALLOWED (in allow-list, overrides deny-list)
+- ✅ `http://public.corp.internal` - ALLOWED (in allow-list)
+- ✅ `http://v1.api.corp.internal` - ALLOWED (subdomain of allowed domain)
+- ❌ `http://admin.corp.internal` - BLOCKED (in deny-list, not in allow-list)
+- ❌ `http://secret.corp.internal` - BLOCKED (in deny-list, not in allow-list)
+
+**⚠️ CRITICAL LIMITATION - Cannot Override Immutable Protections:**
+
+The allow-list **CANNOT** override these immutable core protections:
+- ❌ **Cloud metadata endpoints**: `169.254.169.254`, `metadata.google.internal`, `metadata.goog`, `fd00:ec2::254`
+- ❌ **Private IP ranges**: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16`
+- ❌ **IPv6 private**: `::1`, `fc00::/7`, `fe80::/10`
+- ❌ **Dangerous schemes**: `file://`, `gopher://`, `ftp://`, `data://`, `dict://`, `ldap://`
+
+**Example - Immutable protections cannot be overridden:**
+```json
+{
+  "ssrf_protection": {
+    "allowed_domains": [
+      "metadata.google.internal",  // ❌ Will NOT work - still blocked
+      "169.254.169.254"              // ❌ Will NOT work - still blocked
+    ]
+  }
+}
+```
+
+**Security best practices:**
+- Use allow-lists sparingly and only for known-safe domains
+- Document the business reason for each allowed domain
+- Review allow-lists regularly and remove unused entries
+- Prefer network-level controls for critical infrastructure
+- Test in staging before deploying to production
 
 #### `allow_localhost` (boolean, default: false)
 

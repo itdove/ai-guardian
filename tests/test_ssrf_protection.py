@@ -452,6 +452,214 @@ class TestConfigurationOverrides:
         assert should_block
 
 
+class TestAllowedDomains:
+    """Test allowed_domains allow-list functionality (Issue #252)."""
+
+    def test_allowed_domain_overrides_additional_blocked_domain(self):
+        """Test that allowed_domains can override additional_blocked_domains."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["api.corp.internal", "public.corp.internal", "other.corp.internal"],
+            "allowed_domains": ["api.corp.internal", "public.corp.internal"]
+        })
+
+        # api.corp.internal should be allowed (in allow-list)
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://api.corp.internal/data"}
+        )
+        assert not should_block, "allowed_domains should override additional_blocked_domains"
+
+        # public.corp.internal should be allowed
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://public.corp.internal/info"}
+        )
+        assert not should_block
+
+        # other.corp.internal should be blocked (not in allow-list)
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://other.corp.internal/secret"}
+        )
+        assert should_block, "Domains not in allow-list should remain blocked"
+
+    def test_allowed_domain_subdomain_matching(self):
+        """Test that allowed_domains supports subdomain matching."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["api.corp.internal", "v1.api.corp.internal", "admin.corp.internal"],
+            "allowed_domains": ["api.corp.internal"]
+        })
+
+        # Exact match
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://api.corp.internal"}
+        )
+        assert not should_block
+
+        # Subdomain of allowed domain
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://v1.api.corp.internal/endpoint"}
+        )
+        assert not should_block, "Subdomains of allowed domains should be allowed"
+
+        # Different subdomain not in allow-list
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://admin.corp.internal"}
+        )
+        assert should_block
+
+    def test_allowed_domain_cannot_override_core_metadata_endpoints(self):
+        """Test that allowed_domains CANNOT override immutable core protections."""
+        protector = SSRFProtector({
+            "allowed_domains": [
+                "metadata.google.internal",
+                "169.254.169.254",
+                "fd00:ec2::254"
+            ]
+        })
+
+        # Core metadata endpoints should ALWAYS be blocked
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://metadata.google.internal"}
+        )
+        assert should_block, "Core metadata endpoints cannot be overridden by allow-list"
+
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://169.254.169.254/latest/meta-data"}
+        )
+        assert should_block, "AWS metadata endpoint cannot be overridden"
+
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://[fd00:ec2::254]/"}
+        )
+        assert should_block, "AWS IPv6 metadata cannot be overridden"
+
+    def test_allowed_domain_cannot_override_dangerous_schemes(self):
+        """Test that allowed_domains cannot override dangerous URL schemes."""
+        protector = SSRFProtector({
+            "allowed_domains": ["example.com"]
+        })
+
+        # Dangerous schemes should always be blocked
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "file://example.com/etc/passwd"}
+        )
+        assert should_block, "Dangerous schemes cannot be overridden"
+
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "gopher://example.com"}
+        )
+        assert should_block
+
+    def test_allowed_domain_with_localhost(self):
+        """Test allowed_domains interaction with allow_localhost."""
+        # With allow_localhost=False, localhost is blocked
+        protector = SSRFProtector({
+            "allow_localhost": False,
+            "allowed_domains": ["localhost"]
+        })
+
+        # localhost domain should still be blocked (it's in CORE_BLOCKED_DOMAINS)
+        # Note: localhost is treated specially and removed from blocked list when allow_localhost=True
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://localhost:8080"}
+        )
+        # This should NOT be blocked because allowed_domains can override the localhost block
+        # when allow_localhost=False (localhost is in additional blocked list, not immutable core)
+        assert not should_block, "allowed_domains should allow localhost when in allow-list"
+
+    def test_allowed_domain_empty_list(self):
+        """Test that empty allowed_domains list works correctly."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["internal.example.com"],
+            "allowed_domains": []
+        })
+
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://internal.example.com"}
+        )
+        assert should_block, "Empty allow-list should not affect blocking"
+
+    def test_allowed_domain_case_insensitive(self):
+        """Test that domain matching is case-insensitive."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["Api.Corp.Internal"],
+            "allowed_domains": ["API.Corp.Internal"]
+        })
+
+        # Lowercase variant
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://api.corp.internal"}
+        )
+        assert not should_block
+
+        # Uppercase variant
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://API.CORP.INTERNAL"}
+        )
+        assert not should_block
+
+        # Mixed case
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://Api.Corp.Internal"}
+        )
+        assert not should_block
+
+    def test_allowed_domain_with_multiple_urls(self):
+        """Test allowed_domains with commands containing multiple URLs."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["api.internal", "admin.internal"],
+            "allowed_domains": ["api.internal"]
+        })
+
+        # One allowed, one blocked
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://api.internal && curl http://admin.internal"}
+        )
+        assert should_block, "Should block if any URL is blocked"
+        assert "admin.internal" in msg
+
+        # Both allowed
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://api.internal && curl http://v2.api.internal"}
+        )
+        assert not should_block, "Should allow if all URLs are allowed"
+
+    def test_allowed_domain_does_not_affect_private_ips(self):
+        """Test that allowed_domains only affects domain blocking, not IP blocking."""
+        protector = SSRFProtector({
+            "allowed_domains": ["10.0.0.1", "192.168.1.1"]
+        })
+
+        # Private IPs should still be blocked (immutable core protection)
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://10.0.0.1"}
+        )
+        assert should_block, "Private IPs are immutable protection, cannot be overridden"
+
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://192.168.1.1"}
+        )
+        assert should_block
+
+
 class TestConvenienceFunction:
     """Test the convenience function check_ssrf()."""
 

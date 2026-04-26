@@ -661,6 +661,15 @@
           "description": "Allow localhost access (127.0.0.1, ::1). Default: false. Enable for local development scenarios.",
           "default": false
         },
+        "allowed_domains": {
+          "type": "array",
+          "description": "Domain allow-list to override deny-list blocks (evaluated AFTER deny-list). Allows specific trusted domains while maintaining core protections. Core protections (metadata endpoints, dangerous schemes) cannot be overridden. Supports exact and subdomain matching.",
+          "items": {
+            "type": "string",
+            "description": "Domain name to allow (e.g., 'api.corp.internal', 'dev.example.com')"
+          },
+          "default": []
+        },
         "pattern_server": {
           "type": ["object", "null"],
           "description": "OPTIONAL/ADVANCED: SSRF protection patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise patterns instead of hardcoded defaults. Supports three-tier system: immutable core (metadata endpoints, dangerous schemes) + pattern server/defaults (RFC 1918 ranges) + local config additions.",

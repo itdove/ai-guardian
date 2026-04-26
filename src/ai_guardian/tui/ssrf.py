@@ -70,7 +70,7 @@ class SSRFContent(Container):
         margin: 0 0 0 1;
     }
 
-    #blocked-ips-list, #blocked-domains-list {
+    #blocked-ips-list, #blocked-domains-list, #allowed-domains-list {
         margin: 1 0;
         padding: 1;
         background: $surface;
@@ -195,6 +195,21 @@ class SSRFContent(Container):
                 yield Input(placeholder="Enter domain to block (e.g., internal.example.com)", id="new-blocked-domain-input")
                 yield Static("[dim]Press 'd' to add domain[/dim]", classes="setting-row")
 
+            # Allowed domains section (NEW in v1.5.0 - Issue #252)
+            with Container(classes="section"):
+                yield Static("[bold]Allowed Domains (Override Deny-List)[/bold]", classes="section-title")
+                yield Static(
+                    "Domains that override additional_blocked_domains (deny-first approach):",
+                    classes="setting-row"
+                )
+                yield Static(
+                    "[dim]⚠️  Cannot override immutable protections (metadata endpoints, private IPs, dangerous schemes)[/dim]",
+                    classes="setting-row"
+                )
+                yield Static("", id="allowed-domains-list")
+                yield Input(placeholder="Enter domain to allow (e.g., api.corp.internal)", id="new-allowed-domain-input")
+                yield Static("[dim]Press 'a' to add allowed domain[/dim]", classes="setting-row")
+
             # Statistics section
             with Container(classes="section"):
                 yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
@@ -229,6 +244,7 @@ class SSRFContent(Container):
         allow_localhost = ssrf_config.get("allow_localhost", False)
         blocked_ips = ssrf_config.get("additional_blocked_ips", [])
         blocked_domains = ssrf_config.get("additional_blocked_domains", [])
+        allowed_domains = ssrf_config.get("allowed_domains", [])
 
         # Update widgets
         try:
@@ -253,6 +269,13 @@ class SSRFContent(Container):
         else:
             domains_text = "[dim]No additional domains blocked[/dim]"
         self.query_one("#blocked-domains-list", Static).update(domains_text)
+
+        # Update allowed domains list
+        if allowed_domains:
+            allowed_text = "\n".join([f"  • {domain}" for domain in allowed_domains])
+        else:
+            allowed_text = "[dim]No domains in allow-list[/dim]"
+        self.query_one("#allowed-domains-list", Static).update(allowed_text)
 
         # Load statistics (if available)
         self._load_statistics()
@@ -379,6 +402,8 @@ class SSRFContent(Container):
             self.add_blocked_ip()
         elif input_id == "new-blocked-domain-input":
             self.add_blocked_domain()
+        elif input_id == "new-allowed-domain-input":
+            self.add_allowed_domain()
 
     def action_add_ip(self) -> None:
         """Add blocked IP (triggered by 'i' key)."""
@@ -387,6 +412,10 @@ class SSRFContent(Container):
     def action_add_domain(self) -> None:
         """Add blocked domain (triggered by 'd' key)."""
         self.add_blocked_domain()
+
+    def action_add_allowed_domain(self) -> None:
+        """Add allowed domain (triggered by 'a' key)."""
+        self.add_allowed_domain()
 
     def action_save_setting(self) -> None:
         """Save settings (triggered by 's' key)."""
@@ -499,3 +528,54 @@ class SSRFContent(Container):
 
         except Exception as e:
             self.app.notify(f"Error adding domain: {e}", severity="error")
+
+    def add_allowed_domain(self) -> None:
+        """Add a domain to the allowed list (overrides deny-list)."""
+        domain_input = self.query_one("#new-allowed-domain-input", Input)
+        domain_value = domain_input.value.strip()
+
+        if not domain_value:
+            self.app.notify("Please enter a domain name", severity="error")
+            return
+
+        # Basic validation - check if it looks like a domain
+        import re
+        domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+        if not re.match(domain_pattern, domain_value):
+            self.app.notify("Invalid domain format", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "ssrf_protection" not in config:
+                config["ssrf_protection"] = {}
+
+            if "allowed_domains" not in config["ssrf_protection"]:
+                config["ssrf_protection"]["allowed_domains"] = []
+
+            # Check if domain already exists
+            if domain_value in config["ssrf_protection"]["allowed_domains"]:
+                self.app.notify("Domain already in allow-list", severity="warning")
+                return
+
+            config["ssrf_protection"]["allowed_domains"].append(domain_value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            # Clear input
+            domain_input.value = ""
+
+            self.load_config()
+            self.app.notify(f"✓ Added {domain_value} to allowed domains (overrides deny-list)", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding allowed domain: {e}", severity="error")

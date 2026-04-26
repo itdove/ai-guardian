@@ -859,7 +859,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "action": "block",
             "additional_blocked_ips": [],
             "additional_blocked_domains": [],
-            "allow_localhost": False
+            "allow_localhost": False,
+            "allowed_domains": []
         },
 
         "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",
@@ -907,15 +908,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             }
         ],
 
-        "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). See ai-guardian-example.json for examples.",
-        "_directory_rules_example": {
+        "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). Last-match-wins evaluation order. See ai-guardian-example.json for examples.",
+        "directory_rules": {
             "action": "block",
-            "rules": [
-                {
-                    "mode": "deny",
-                    "paths": ["~/.ssh/**", "~/.aws/**"]
-                }
-            ]
+            "rules": []
         },
 
         "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",

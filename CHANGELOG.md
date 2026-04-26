@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **SSRF Protection: URL Allow-List Support** (Issue #252)
+  - **New Configuration**: Added `allowed_domains` array to `ssrf_protection` configuration
+  - **Purpose**: Allow specific trusted domains/URLs while maintaining core protections
+  - **Evaluation Order (Deny-First)**: 
+    1. Check immutable core protections (metadata endpoints, dangerous schemes, private IPs)
+    2. Check deny-list (`additional_blocked_domains`)
+    3. Check allow-list (`allowed_domains`) - can override step 2, NOT step 1
+  - **Use Cases**:
+    - Allow specific internal APIs while blocking other internal domains
+    - Allow development/staging servers without allowing all localhost
+    - Allow specific partner domains on restricted networks
+    - Provide granular control to override broad domain blocks
+  - **Domain Matching**: Supports exact match and subdomain matching
+    - `"api.corp.internal"` allows `api.corp.internal` and `v1.api.corp.internal`
+  - **Security**: Cannot override immutable core protections
+    - Metadata endpoints (169.254.169.254, metadata.google.internal) remain blocked
+    - Private IP ranges (RFC 1918) remain blocked
+    - Dangerous schemes (file://, gopher://) remain blocked
+  - **Files Modified**:
+    - `src/ai_guardian/schemas/ai-guardian-config.schema.json`: Added `allowed_domains` property
+    - `src/ai_guardian/ssrf_protector.py`: Implemented allow-list logic in `_check_url()`
+    - `src/ai_guardian/setup.py`: Added `allowed_domains: []` to default config
+    - `ai-guardian-example.json`: Added examples and security warnings
+    - `docs/SSRF_PROTECTION.md`: Comprehensive documentation with examples
+    - `AGENTS.md`: Enhanced schema change checklist
+  - **Tests**: Added 9 comprehensive test cases in `tests/test_ssrf_protection.py`
+  - **Impact**: Users can now create exceptions for specific domains while maintaining strong security boundaries
+
 ### Security
 
 - **Cascading Priority for Remote Config URLs to Prevent Immutability Bypass** (Issue #255)

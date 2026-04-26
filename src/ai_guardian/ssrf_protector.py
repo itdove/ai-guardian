@@ -163,12 +163,19 @@ class SSRFProtector:
                 - additional_blocked_ips: list of IP addresses/ranges to block
                 - additional_blocked_domains: list of domain names to block
                 - allow_localhost: bool (default False) - allow localhost access
+                - allowed_domains: list of domains to allow (overrides deny-list, not immutable protections)
                 - pattern_server: Dict - pattern server configuration (NEW in v1.5.0)
         """
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
         self.action = self.config.get("action", "block")
         self.allow_localhost = self.config.get("allow_localhost", False)
+
+        # Parse allowed domains (for allow-list functionality)
+        self._allowed_domains = set()
+        for domain in self.config.get("allowed_domains", []):
+            if domain:
+                self._allowed_domains.add(domain.lower())
 
         # Compile URL extraction patterns
         self._compiled_url_patterns = [
@@ -401,9 +408,44 @@ class SSRFProtector:
 
         return False
 
+    def _is_domain_allowed(self, domain: str) -> bool:
+        """
+        Check if a domain is in the allowed list.
+
+        Uses same matching logic as blocked domains:
+        - Exact match: 'api.corp.internal' matches 'api.corp.internal'
+        - Subdomain match: 'foo.api.corp.internal' matches if 'api.corp.internal' is allowed
+
+        Args:
+            domain: Domain name to check
+
+        Returns:
+            True if domain is in allow-list, False otherwise
+        """
+        if not domain or not self._allowed_domains:
+            return False
+
+        domain_lower = domain.lower()
+
+        # Check exact match
+        if domain_lower in self._allowed_domains:
+            return True
+
+        # Check subdomain matching (e.g., foo.api.corp.internal matches api.corp.internal)
+        for allowed in self._allowed_domains:
+            if domain_lower.endswith('.' + allowed):
+                return True
+
+        return False
+
     def _check_url(self, url: str) -> Tuple[bool, str]:
         """
         Check if a URL is an SSRF attack.
+
+        Evaluation order (deny-first approach):
+        1. Check immutable core protections (dangerous schemes, metadata endpoints, private IPs)
+        2. Check deny-list (additional_blocked_domains only)
+        3. Check allow-list (allowed_domains) - can override step 2, NOT step 1
 
         Args:
             url: URL to check
@@ -417,7 +459,7 @@ class SSRFProtector:
             # Failed to parse - fail closed
             return True, "failed to parse URL"
 
-        # Check dangerous schemes
+        # IMMUTABLE: Check dangerous schemes (cannot be overridden by allow-list)
         if scheme in self.DANGEROUS_SCHEMES:
             return True, f"dangerous URL scheme '{scheme}://'"
 
@@ -426,13 +468,35 @@ class SSRFProtector:
             # Already blocked by scheme check above
             return False, ""
 
-        # Check if domain is blocked
-        if self._is_domain_blocked(hostname):
+        # IMMUTABLE: Check core metadata endpoints (cannot be overridden by allow-list)
+        # These are critical security protections that must always be blocked
+        hostname_lower = hostname.lower()
+
+        # AWS/GCP metadata endpoints - immutable protection
+        if hostname_lower in ["metadata.google.internal", "metadata.goog", "169.254.169.254", "fd00:ec2::254", "instance-data"]:
             return True, f"blocked domain '{hostname}'"
 
-        # Check if hostname is an IP in blocked range
+        # Check if it's a subdomain of metadata endpoints
+        for core_metadata in ["metadata.google.internal", "metadata.goog"]:
+            if hostname_lower.endswith('.' + core_metadata):
+                return True, f"blocked domain '{hostname}'"
+
+        # IMMUTABLE: Check if hostname is a private IP (cannot be overridden by allow-list)
+        # This includes all RFC 1918 ranges, loopback, link-local
         if self._is_ip_blocked(hostname):
             return True, f"private IP address '{hostname}'"
+
+        # Check deny-list (additional_blocked_domains only)
+        # This can be overridden by allow-list
+        if self._is_domain_blocked(hostname):
+            # Check allow-list - can override additional_blocked_domains
+            if self._is_domain_allowed(hostname):
+                # Domain is in allow-list, override the deny-list block
+                logger.debug(f"Domain {hostname} blocked by deny-list but allowed by allow-list")
+                return False, ""
+
+            # Blocked and not in allow-list
+            return True, f"blocked domain '{hostname}'"
 
         # Try to resolve hostname to IP (if it looks like a domain name)
         # NOTE: We deliberately DO NOT do DNS resolution here to avoid:

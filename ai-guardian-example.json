@@ -280,9 +280,96 @@
     "_additional_blocked_domains_comment": "Block internal domains - only works if explicitly in command/parameter",
     "_additional_blocked_domains_note": "Cannot detect if MCP server internally resolves these domains",
 
+    "allowed_domains": [
+      "api.corp.internal",
+      "public.staging.company.com"
+    ],
+    "_allowed_domains_comment": "NEW in v1.5.0 (Issue #252): Allow-list to override additional_blocked_domains",
+    "_allowed_domains_note": "Evaluated AFTER deny-list. Cannot override immutable protections (metadata endpoints, dangerous schemes, private IPs)",
+    "_allowed_domains_examples": {
+      "_use_case_1": "Allow specific internal APIs while blocking other internal domains",
+      "_use_case_2": "Allow dev/staging servers without allowing all localhost",
+      "_use_case_3": "Allow specific partner domains on restricted networks"
+    },
+    "_allowed_domains_security_warning": "⚠️ CRITICAL: Cannot override immutable core protections",
+    "_allowed_domains_immutable_list": [
+      "Cloud metadata endpoints (169.254.169.254, metadata.google.internal, etc.)",
+      "Private IP ranges (RFC 1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)",
+      "Loopback addresses (127.0.0.0/8, ::1)",
+      "Link-local addresses (169.254.0.0/16, fe80::/10)",
+      "Dangerous URL schemes (file://, gopher://, ftp://, data://)"
+    ],
+
     "allow_localhost": false,
     "_allow_localhost_comment": "Set to true for local development (NEVER in production)",
     "_allow_localhost_security_warning": "Only enable in development environments"
+  },
+
+  "directory_rules": {
+    "_comment": "NEW in v1.6.0: Order-based directory access control",
+    "_comment2": "Filesystem path access control - Controls which PATHS can be accessed/read",
+    "_comment3": "⚠️ COMPLETELY SEPARATE from permissions_directories (different purpose):",
+    "_comment4": "  - permissions_directories: Auto-discovers TOOL permission rules (config sources)",
+    "_comment5": "  - directory_rules: Blocks/allows AI access to specific PATHS (e.g., ~/.ssh, sensitive data)",
+    "_comment6": "Rules are evaluated sequentially - LAST matching rule wins",
+    "_comment7": "Default behavior: all paths allowed unless explicitly denied",
+
+    "action": "block",
+    "_action_comment": "Action on violation: 'block' (default), 'warn', 'log-only'",
+
+    "rules": [],
+    "_rules_examples": [
+      {
+        "_use_case": "Block sensitive directories",
+        "mode": "deny",
+        "paths": [
+          "~/.ssh/**",
+          "~/.aws/**",
+          "~/.gnupg/**",
+          "/etc/passwd",
+          "/etc/shadow"
+        ]
+      },
+      {
+        "_use_case": "Block all home directory, then allow specific workspace",
+        "mode": "deny",
+        "paths": ["~/**"]
+      },
+      {
+        "_use_case": "Allow workspace after denying all (last match wins)",
+        "mode": "allow",
+        "paths": ["~/development/workspace/**"]
+      },
+      {
+        "_use_case": "Enterprise skill allowlist pattern",
+        "mode": "deny",
+        "paths": ["~/.claude/skills/**"]
+      },
+      {
+        "_use_case": "Allow only approved skill directory",
+        "mode": "allow",
+        "paths": ["~/.claude/skills/approved/**"]
+      }
+    ],
+    "_path_patterns": {
+      "~": "Expands to user home directory",
+      "**": "Matches all subdirectories recursively",
+      "*": "Matches single directory level",
+      "absolute": "Use absolute paths for system directories",
+      "relative": "Relative paths resolved from current working directory"
+    },
+    "_evaluation_order": {
+      "1": "Rules evaluated sequentially from first to last",
+      "2": "LAST matching rule determines access (allow or deny)",
+      "3": "If no rules match → ALLOW (default permissive)",
+      "4": "Pattern: deny broad → allow specific (see examples)"
+    },
+    "_security_notes": [
+      "Symlinks are NOT followed for security (prevents bypass)",
+      "Paths are normalized to prevent traversal attacks",
+      "Recommended: Start with deny-all, then allow specific paths",
+      "Test rules carefully - incorrect order can expose sensitive data"
+    ]
   },
 
   "directory_exclusions": {
