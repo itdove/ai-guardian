@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Documentation: Clarify SSRF Protection Limitations and Scope** (Issue #256)
+  - **Updated docs/SSRF_PROTECTION.md**: Added "Important Limitations" section at the top
+    - Clearly explains what SSRF protection CAN and CANNOT protect against
+    - Documents pattern-based filtering vs comprehensive network security
+    - Added OpenShell integration guide for comprehensive SSRF protection
+    - Explains hook-based architecture and why limitations exist
+  - **Updated README.md**: SSRF section now includes limitation disclaimers
+    - Examples of what CAN be blocked (explicit URLs in Bash/tool parameters)
+    - Examples of what CANNOT be blocked (MCP server internal calls)
+    - Recommendations for network-level controls and MCP sandboxing
+  - **Updated ai-guardian-example.json**: Added comprehensive limitation comments
+    - Explains pattern-based filtering cannot replace network security
+    - Documents that it cannot detect MCP internal network calls
+    - Notes about HTTP redirects and dynamic URL construction
+  - **Updated src/ai_guardian/ssrf_protector.py**: Enhanced module docstring
+    - Clear architecture explanation (hook-based, not proxy)
+    - Defense in depth strategy documentation
+    - Usage guidance and limitations
+  - **Updated error messages**: SSRF block/warn messages now mention limitations
+    - Changed "SSRF ATTACK DETECTED" to "SSRF PATTERN DETECTED"
+    - Added note about pattern-based detection
+    - Recommends firewall rules and network controls
+    - References docs/SSRF_PROTECTION.md
+  - **Impact**: Users now have realistic expectations about SSRF protection scope
+  - **Key Message**: ai-guardian catches obvious SSRF attempts in command strings but cannot replace network-level security
+
 ### Fixed
 
 - **Setup.py Missing permissions_directories in Default Config Template** (Issue #240)

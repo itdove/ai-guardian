@@ -233,6 +233,37 @@
     }
   },
 
+  "ssrf_protection": {
+    "_comment": "⚠️ IMPORTANT: Pattern-based filtering only - cannot replace network-level security",
+    "_limitation_1": "Can only inspect command strings and tool parameters",
+    "_limitation_2": "Cannot detect MCP server internal network calls",
+    "_limitation_3": "Cannot block HTTP redirects or dynamic URL construction",
+    "_recommendation": "For comprehensive SSRF protection, use firewall rules and MCP sandboxing",
+    "_learn_more": "See docs/SSRF_PROTECTION.md for detailed limitations and recommendations",
+
+    "enabled": true,
+    "action": "block",
+    "_action_options": ["block", "warn", "log-only"],
+    "_action_note": "block = prevent execution, warn = show warning but allow, log-only = silent logging",
+
+    "additional_blocked_ips": [
+      "203.0.113.0/24"
+    ],
+    "_additional_blocked_ips_comment": "Block additional private IP ranges beyond RFC 1918",
+    "_additional_blocked_ips_note": "Only works if explicitly in command/parameter string",
+
+    "additional_blocked_domains": [
+      "internal.example.com",
+      "*.corp.company.com"
+    ],
+    "_additional_blocked_domains_comment": "Block internal domains - only works if explicitly in command/parameter",
+    "_additional_blocked_domains_note": "Cannot detect if MCP server internally resolves these domains",
+
+    "allow_localhost": false,
+    "_allow_localhost_comment": "Set to true for local development (NEVER in production)",
+    "_allow_localhost_security_warning": "Only enable in development environments"
+  },
+
   "directory_exclusions": {
     "_comment": "DEPRECATED: Use directory_rules instead (v1.6.0+). Automatically converted internally.",
     "_comment2": "Filesystem path access control - Controls which PATHS can be accessed/read",

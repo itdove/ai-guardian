@@ -2,6 +2,81 @@
 
 Server-Side Request Forgery (SSRF) protection prevents AI agents from accessing private networks, cloud metadata endpoints, and dangerous URL schemes.
 
+## ⚠️ Important Limitations
+
+ai-guardian's SSRF protection is **pattern-based filtering**, not comprehensive network security.
+
+### What It CAN Protect Against
+
+✅ **Bash commands with explicit URLs**:
+```bash
+curl http://169.254.169.254/metadata  # ❌ BLOCKED
+wget http://192.168.1.1/admin         # ❌ BLOCKED
+```
+
+✅ **Tool parameters containing private IPs**:
+```python
+WebFetch(url="http://169.254.169.254")      # ❌ BLOCKED
+mcp__custom__fetch(url="http://internal")  # ❌ BLOCKED
+```
+
+### What It CANNOT Protect Against
+
+❌ **MCP server internal calls**:
+```python
+# ai-guardian sees: source="web"
+# But MCP server internally calls: http://169.254.169.254
+mcp__notebooklm__research_start(source="web")  # ✅ ALLOWED (can't see internal call)
+```
+
+❌ **Other undetectable scenarios**:
+- Dynamic URL construction inside tools
+- HTTP redirects after tool execution starts
+- IDE's own network requests
+- Binary protocol inspection
+
+### Why These Limitations Exist
+
+ai-guardian is **hook-based**, not a network proxy:
+- Hooks fire **before** tool execution (PreToolUse)
+- We see command strings and tool parameters
+- We do NOT see runtime network traffic
+- MCP servers execute **after** the hook approves them
+
+**Architecture**: ai-guardian cannot intercept network calls - it can only inspect text strings.
+
+### For Comprehensive SSRF Protection
+
+ai-guardian provides **pattern-based filtering only**. For complete protection:
+
+**1. Network-level controls** (REQUIRED):
+```bash
+# Firewall rules blocking metadata endpoints
+sudo iptables -A OUTPUT -d 169.254.169.254 -j REJECT
+sudo iptables -A OUTPUT -d 10.0.0.0/8 -j REJECT
+
+# Cloud provider network policies
+# AWS: VPC egress rules
+# GCP: Firewall rules
+# Azure: Network Security Groups
+```
+
+**2. MCP server sandboxing** (RECOMMENDED):
+- Run MCP servers in Docker containers with network policies
+- Use VMs with restricted network access
+- Only install MCP servers from trusted sources
+
+**3. Supply chain verification** (PLANNED):
+- Verify MCP server signatures
+- Code review before installation
+- Allowlist trusted publishers only
+
+### Bottom Line
+
+> ai-guardian catches obvious SSRF attempts in command strings but cannot replace network-level security. Think of it as a "basic syntax check" that prevents copy-paste mistakes, not comprehensive network protection.
+
+---
+
 ## Overview
 
 SSRF attacks allow attackers to make the AI agent send requests to unintended locations:
@@ -10,9 +85,11 @@ SSRF attacks allow attackers to make the AI agent send requests to unintended lo
 - **Local file access**: Read local files via file:// URLs
 - **Firewall bypass**: Access internal services from outside the network
 
-AI Guardian's SSRF protection blocks these attacks by checking all Bash commands for dangerous URLs before execution.
+AI Guardian's SSRF protection blocks these attacks by checking all Bash commands and tool parameters for dangerous URLs before execution.
 
-## Core Protections (Immutable)
+**Note**: This is pattern-based filtering. See [Important Limitations](#️-important-limitations) above for what it can and cannot protect against.
+
+## Core Protections (Immutable - Pattern Matching)
 
 These protections **CANNOT be disabled** via configuration:
 
@@ -363,6 +440,114 @@ curl http://169.254.169.254/latest/user-data
 - Metadata endpoints use private IP address (169.254.169.254) for instance-local access only
 - Legitimate AWS usage never requires accessing 169.254.169.254 from Bash commands
 
+## Comprehensive SSRF Protection with OpenShell
+
+For production deployments, ai-guardian's pattern-based SSRF detection should be complemented with **runtime sandboxing** using [OpenShell](https://github.com/NVIDIA/OpenShell).
+
+### Why OpenShell?
+
+OpenShell provides **real network isolation** via policy-driven sandboxing:
+- Intercepts ALL outbound network calls (not just command strings)
+- Policy engine operates from application layer to kernel
+- Hot-reloadable policies without container restarts
+- Works with Claude Code, GitHub Copilot, and other AI agents
+
+### Architecture Comparison
+
+**ai-guardian** (Hook-Based):
+```
+User → PreToolUse Hook → Pattern Match → Block if dangerous URL
+       ↓
+       Tool Executes → ❌ Cannot see internal network calls
+```
+
+**OpenShell** (Runtime Sandbox):
+```
+User → Tool Executes → Network Call → Policy Engine → Block if violates policy
+                                      ↑
+                                      Intercepts at kernel level
+```
+
+### Example Policy
+
+OpenShell uses declarative YAML for network policies:
+
+```yaml
+# openshell-policy.yaml
+network:
+  outbound:
+    # Block metadata endpoints
+    - action: deny
+      destination: "169.254.169.254"
+    
+    # Block private IPs
+    - action: deny
+      destination: "10.0.0.0/8"
+    - action: deny
+      destination: "172.16.0.0/12"
+    - action: deny
+      destination: "192.168.0.0/16"
+    
+    # Allow specific public APIs
+    - action: allow
+      destination: "api.github.com"
+      methods: [GET, POST]
+    - action: allow
+      destination: "*.googleapis.com"
+    
+    # Default deny
+    - action: deny
+      destination: "*"
+```
+
+### Setup
+
+```bash
+# Install OpenShell
+docker pull ghcr.io/nvidia/openshell:latest
+
+# Run agent in OpenShell sandbox
+openshell run --policy openshell-policy.yaml -- claude-code
+```
+
+### Defense in Depth Strategy
+
+**Layer 1: ai-guardian** (IDE hooks)
+- Catches obvious mistakes in Bash commands
+- Fast, lightweight pattern matching
+- Educational value
+
+**Layer 2: OpenShell** (Runtime sandbox)
+- Comprehensive network isolation
+- Policy-driven enforcement
+- Catches everything ai-guardian misses
+
+**Layer 3: Infrastructure** (Network controls)
+- Firewall egress rules
+- VPC/subnet isolation
+- Cloud provider network policies
+
+### When to Use OpenShell
+
+**Required for**:
+- ✅ Production agent deployments
+- ✅ Zero-trust environments
+- ✅ Compliance requirements (SOC 2, HIPAA)
+- ✅ Multi-tenant systems
+
+**Optional for**:
+- ⚠️ Local development (overhead acceptable)
+- ⚠️ High-security development teams
+- ⚠️ Testing untrusted MCP servers
+
+### Learn More
+
+- [OpenShell GitHub](https://github.com/NVIDIA/OpenShell)
+- [OpenShell Documentation](https://nvidia.github.io/OpenShell/)
+- Compatible with: Claude Code, GitHub Copilot, OpenCode
+
+---
+
 ## Edge Cases and FAQs
 
 ### Q: Can I disable SSRF protection for specific commands?
@@ -434,10 +619,19 @@ SSRF protection inspired by:
 - ✅ Principle of least privilege
 - ✅ Code review
 
-**Limitations**:
+**Pattern-Based Filtering Limitations**:
+- Hook-based: Only inspects command strings and tool parameters
+- Cannot see MCP server internal network calls
+- Cannot intercept runtime network traffic
 - Does not perform DNS resolution (by design)
-- Cannot detect URL redirects
+- Cannot detect URL redirects during execution
 - Cannot detect DNS rebinding attacks
+- Cannot detect dynamic URL construction inside tools
+
+**What This Means**:
+- ai-guardian catches obvious SSRF attempts in command strings
+- It does NOT provide comprehensive network security
+- For production deployments, use network-level controls and runtime sandboxing (see OpenShell above)
 
 **Fail-Closed**: SSRF protection fails closed on errors - if URL parsing fails, the command is blocked.
 
