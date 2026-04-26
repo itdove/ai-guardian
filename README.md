@@ -554,30 +554,44 @@ cd ~/project/secrets && touch .ai-read-deny
 - See [False Positives](#prompt-injection-false-positives) for detailed usage
 
 ### 🌐 SSRF Protection
-**NEW in v1.5.0**: Prevents Server-Side Request Forgery attacks by blocking access to:
-- **Private IP ranges**: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16 (RFC 1918 + loopback + link-local)
-- **Cloud metadata endpoints**: 169.254.169.254 (AWS/Azure), metadata.google.internal (GCP), fd00:ec2::254 (AWS IPv6)
-- **Dangerous URL schemes**: file://, gopher://, ftp://, data://, dict://, ldap://
-- **IPv6 support**: Full IPv6 address validation and blocking
 
-**Key features**:
-- **Immutable core protections**: Cannot be disabled via configuration
-- **Fast performance**: <1ms overhead per Bash command
-- **No false positives**: Public AWS services (s3.amazonaws.com) are NOT blocked
-- **Configurable additions**: Add custom blocked IPs/domains
-- **Action modes**: block (default), warn, or log-only
+**NEW in v1.5.0**: Prevents basic Server-Side Request Forgery attempts by blocking access to:
+- **Private IP ranges**: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, etc.
+- **Cloud metadata endpoints**: 169.254.169.254, metadata.google.internal
+- **Dangerous URL schemes**: file://, gopher://, data://
 
-**SSRF attack example**:
+⚠️ **IMPORTANT: Pattern-Based Filtering Only**
+
+ai-guardian's SSRF protection works by inspecting command strings and tool parameters. It **CANNOT** protect against:
+- MCP server internal network calls
+- HTTP redirects inside tool execution
+- Dynamic URL construction
+- IDE's own network requests
+
+**What it CAN block**:
 ```bash
-# ❌ BLOCKED: AWS metadata endpoint (credential theft)
-curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
-
-# ❌ BLOCKED: Private network access
+# ❌ BLOCKED: Explicit URLs in Bash commands
+curl http://169.254.169.254/latest/meta-data/
 curl http://192.168.1.1/admin
 
-# ✅ ALLOWED: Public AWS service
-curl https://s3.amazonaws.com/my-bucket/file.txt
+# ❌ BLOCKED: URLs in tool parameters
+WebFetch(url="http://169.254.169.254")
 ```
+
+**What it CANNOT block**:
+```python
+# ✅ ALLOWED: MCP server makes internal call
+mcp__notebooklm__research_start(source="web")
+# → ai-guardian only sees source="web"
+# → Cannot see if MCP internally calls metadata endpoint
+```
+
+**For comprehensive SSRF protection**, use network-level controls:
+- Firewall egress rules blocking 169.254.169.254
+- Network segmentation (VPC/subnet isolation)
+- MCP server sandboxing (Docker, VMs)
+- Only install trusted MCP servers
+- Consider [OpenShell](https://github.com/NVIDIA/OpenShell) for runtime network isolation
 
 **Configuration example** (`~/.config/ai-guardian/ai-guardian.json`):
 ```json
@@ -592,9 +606,9 @@ curl https://s3.amazonaws.com/my-bucket/file.txt
 }
 ```
 
-**Inspired by**: [Hermes Security Framework](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) - Validated against real-world SSRF attack patterns.
+**Note**: This is pattern-based filtering, not comprehensive network security.
 
-**Learn more**: See [docs/SSRF_PROTECTION.md](docs/SSRF_PROTECTION.md) for detailed configuration and use cases.
+**Learn more**: See [docs/SSRF_PROTECTION.md](docs/SSRF_PROTECTION.md) for detailed configuration, limitations, and comprehensive protection strategies.
 
 ### 🔒 Secret Scanning
 Multi-layered secret detection before AI interactions:

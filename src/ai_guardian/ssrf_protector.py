@@ -1,11 +1,58 @@
 #!/usr/bin/env python3
 """
-SSRF (Server-Side Request Forgery) Protection Module
+SSRF Protection Module - Pattern-Based Command Filtering
 
-Prevents AI agents from accessing:
-- Private network ranges (RFC 1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
-- Cloud metadata endpoints (169.254.169.254, metadata.google.internal)
-- Dangerous URL schemes (file://, gopher://, ftp://, data://)
+Provides pattern-based detection of Server-Side Request Forgery (SSRF) attempts
+in tool parameters and Bash commands.
+
+IMPORTANT LIMITATIONS:
+--------------------
+This module provides PATTERN-BASED FILTERING, not comprehensive SSRF protection.
+
+✅ CAN DETECT:
+  - Explicit URLs in Bash commands: curl http://169.254.169.254
+  - Private IPs in tool parameters: WebFetch(url="http://10.0.0.1")
+  - Metadata endpoints in command strings
+
+❌ CANNOT DETECT:
+  - Network calls inside MCP server implementations (after hook)
+  - HTTP redirects that happen during tool execution
+  - Dynamic URL construction inside tools
+  - IDE's own network requests (no hook visibility)
+
+ARCHITECTURE:
+------------
+- Hook-based: Runs at PreToolUse (before tool execution)
+- Pattern matching: Analyzes command strings and parameters
+- NOT a proxy: Cannot intercept actual network traffic
+- NOT a firewall: Cannot block runtime connections
+
+DEFENSE IN DEPTH:
+-----------------
+This is ONE LAYER in a multi-layer security strategy. For comprehensive
+SSRF protection, ALSO implement:
+
+1. Network-level controls (REQUIRED):
+   - Firewall egress rules blocking 169.254.169.254
+   - VPC/subnet isolation
+   - Cloud provider network policies
+
+2. MCP server sandboxing (RECOMMENDED):
+   - Docker containers with --network restrictions
+   - VMs with firewall rules
+   - Only install MCP servers from trusted sources
+
+3. Supply chain verification (FUTURE):
+   - Verify MCP server signatures
+   - Code review before installation
+
+USAGE:
+------
+This module is designed to catch obvious mistakes and low-hanging fruit.
+It does NOT provide comprehensive network security.
+
+Think of it as: "Does this command STRING contain a dangerous IP?"
+Not: "Can this tool make a dangerous network call?"
 
 Design Philosophy:
 - Immutable core protections: Cannot be disabled via config
@@ -14,7 +61,7 @@ Design Philosophy:
 - Fail-closed: Block on parsing errors
 
 Inspired by Hermes Security Framework patterns.
-NEW in v1.5.0: Optional pattern server support for enterprise SSRF pattern management.
+See docs/SSRF_PROTECTION.md for detailed documentation.
 """
 
 import ipaddress
@@ -446,7 +493,11 @@ class SSRFProtector:
                         warn_msg = (
                             f"⚠️  SSRF Protection Warning: {reason}\n"
                             f"   URL: {url}\n"
-                            f"   Execution allowed (warn mode)"
+                            f"   Execution allowed (warn mode)\n\n"
+                            f"   ⚠️  NOTE: Pattern-based detection only\n"
+                            f"   ai-guardian blocks explicit URLs in command strings.\n"
+                            f"   It CANNOT detect network calls inside MCP servers.\n"
+                            f"   See: docs/SSRF_PROTECTION.md for details"
                         )
                         logger.warning(f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed")
                         return False, warn_msg
@@ -459,7 +510,7 @@ class SSRFProtector:
                         error_msg = (
                             f"\n{'='*70}\n"
                             f"🚨 BLOCKED BY POLICY\n"
-                            f"🚨 SSRF ATTACK DETECTED\n"
+                            f"🚨 SSRF PATTERN DETECTED\n"
                             f"{'='*70}\n\n"
                             "AI Guardian has detected a Server-Side Request Forgery (SSRF) attempt.\n"
                             "This operation has been blocked for security.\n\n"
@@ -477,11 +528,19 @@ class SSRFProtector:
                             "  • Cloud metadata endpoints (169.254.169.254, metadata.google.internal)\n"
                             "  • Dangerous schemes (file://, gopher://, ftp://, data://)\n"
                             "  • Localhost (127.0.0.1, ::1)\n\n"
+                            "⚠️  NOTE: Pattern-based detection only\n"
+                            "    ai-guardian blocks explicit URLs in command strings and parameters.\n"
+                            "    It CANNOT detect network calls inside MCP server implementations.\n\n"
+                            "For comprehensive SSRF protection, configure:\n"
+                            "  • Firewall egress rules (block 169.254.169.254)\n"
+                            "  • Network segmentation (VPC/subnet isolation)\n"
+                            "  • MCP server sandboxing (Docker with network policies)\n\n"
                             "If this is legitimate (e.g., local development):\n"
                             "  1. Set action to 'warn' in ~/.config/ai-guardian/ai-guardian.json\n"
                             "  2. Enable allow_localhost for local testing\n"
                             "  3. Temporarily disable: \"ssrf_protection\": {\"enabled\": false}\n\n"
                             "Public AWS services (s3.amazonaws.com, etc.) are NOT blocked.\n\n"
+                            "See: docs/SSRF_PROTECTION.md for details\n"
                             f"{'='*70}\n"
                         )
 
