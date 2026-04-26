@@ -908,15 +908,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             }
         ],
 
-        "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). See ai-guardian-example.json for examples.",
-        "_directory_rules_example": {
+        "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). Last-match-wins evaluation order. See ai-guardian-example.json for examples.",
+        "directory_rules": {
             "action": "block",
-            "rules": [
-                {
-                    "mode": "deny",
-                    "paths": ["~/.ssh/**", "~/.aws/**"]
-                }
-            ]
+            "rules": []
         },
 
         "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
