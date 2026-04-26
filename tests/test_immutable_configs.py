@@ -6,6 +6,7 @@ preventing local configs from overriding them.
 """
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -560,3 +561,170 @@ class ImmutableConfigTest(TestCase):
         # Enterprise settings should be enforced
         assert result["prompt_injection"]["enabled"] is True
         assert result["prompt_injection"]["sensitivity"] == "high"
+
+    # ========================================================================
+    # Test: Cascading Priority for Remote Config URLs (Issue #255)
+    # ========================================================================
+
+    def test_system_config_blocks_user_remote_urls(self):
+        """System config prevents users from adding their own remote URLs"""
+        import tempfile
+        from unittest.mock import patch
+
+        # Create temporary system config
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            system_config = {
+                "urls": ["https://enterprise.com/policy.json"]
+            }
+            json.dump(system_config, f)
+            system_config_path = f.name
+
+        try:
+            # User tries to add their own remote URL
+            user_config = {
+                "remote_configs": {
+                    "urls": ["https://user.com/bypass.json"]
+                }
+            }
+
+            checker = ToolPolicyChecker()
+
+            # Mock remote fetching to track which URLs are fetched
+            fetched_urls = []
+            original_load = checker._load_remote_config
+
+            def mock_load(url, base_path, token_env):
+                fetched_urls.append(url)
+                return None  # Return None to avoid actual fetching
+
+            # Mock the system config path
+            with patch.object(ToolPolicyChecker, '_get_system_config_path', return_value=Path(system_config_path)):
+                with patch.object(checker, '_load_remote_config', side_effect=mock_load):
+                    checker._load_remote_configs({}, None, user_config, None)
+
+            # Only enterprise URL should be fetched
+            assert "https://enterprise.com/policy.json" in fetched_urls
+            assert "https://user.com/bypass.json" not in fetched_urls
+        finally:
+            Path(system_config_path).unlink()
+
+    def test_cascading_priority_env_var_over_user_config(self):
+        """Environment variable takes priority over user config"""
+        from unittest.mock import patch
+
+        # Set environment variable
+        os.environ["AI_GUARDIAN_REMOTE_CONFIG_URLS"] = "https://env.com/policy.json"
+
+        try:
+            user_config = {
+                "remote_configs": {
+                    "urls": ["https://user.com/config.json"]
+                }
+            }
+
+            checker = ToolPolicyChecker()
+
+            # Mock to track URLs
+            fetched_urls = []
+
+            def mock_load(url, base_path, token_env):
+                fetched_urls.append(url)
+                return None
+
+            with patch.object(checker, '_load_remote_config', side_effect=mock_load):
+                # Mock no system config
+                with patch.object(checker, '_get_system_config_path', return_value=None):
+                    checker._load_remote_configs({}, None, user_config, None)
+
+            # Only env var URL should be fetched
+            assert "https://env.com/policy.json" in fetched_urls
+            assert "https://user.com/config.json" not in fetched_urls
+        finally:
+            del os.environ["AI_GUARDIAN_REMOTE_CONFIG_URLS"]
+
+    def test_user_remote_urls_work_without_system_config(self):
+        """User remote URLs work when no system config exists"""
+        from unittest.mock import patch
+
+        user_config = {
+            "remote_configs": {
+                "urls": ["https://user.com/patterns.json"]
+            }
+        }
+
+        checker = ToolPolicyChecker()
+
+        # Mock to track URLs
+        fetched_urls = []
+
+        def mock_load(url, base_path, token_env):
+            fetched_urls.append(url)
+            return None
+
+        with patch.object(checker, '_load_remote_config', side_effect=mock_load):
+            # Mock no system config and no env var
+            with patch.object(checker, '_get_system_config_path', return_value=None):
+                checker._load_remote_configs({}, None, user_config, None)
+
+        # User URL should be fetched
+        assert "https://user.com/patterns.json" in fetched_urls
+
+    def test_local_config_lowest_priority(self):
+        """Local config has lowest priority - overridden by user config"""
+        from unittest.mock import patch
+
+        user_config = {
+            "remote_configs": {
+                "urls": ["https://user.com/user-config.json"]
+            }
+        }
+
+        local_config = {
+            "remote_configs": {
+                "urls": ["https://local.com/local-config.json"]
+            }
+        }
+
+        checker = ToolPolicyChecker()
+
+        # Mock to track URLs
+        fetched_urls = []
+
+        def mock_load(url, base_path, token_env):
+            fetched_urls.append(url)
+            return None
+
+        with patch.object(checker, '_load_remote_config', side_effect=mock_load):
+            # Mock no system config and no env var
+            with patch.object(checker, '_get_system_config_path', return_value=None):
+                checker._load_remote_configs(local_config, None, user_config, None)
+
+        # Only user config URL should be fetched
+        assert "https://user.com/user-config.json" in fetched_urls
+        assert "https://local.com/local-config.json" not in fetched_urls
+
+    def test_legacy_format_still_works(self):
+        """Old format (direct list) still works with cascading priority"""
+        from unittest.mock import patch
+
+        # Old format: direct list instead of dict with "urls" key
+        user_config = {
+            "remote_configs": ["https://user.com/old-format.json"]
+        }
+
+        checker = ToolPolicyChecker()
+
+        # Mock to track URLs
+        fetched_urls = []
+
+        def mock_load(url, base_path, token_env):
+            fetched_urls.append(url)
+            return None
+
+        with patch.object(checker, '_load_remote_config', side_effect=mock_load):
+            # Mock no system config and no env var
+            with patch.object(checker, '_get_system_config_path', return_value=None):
+                checker._load_remote_configs({}, None, user_config, None)
+
+        # Old format URL should be fetched
+        assert "https://user.com/old-format.json" in fetched_urls
