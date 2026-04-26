@@ -15,6 +15,7 @@ import fnmatch
 import json
 import logging
 import os
+import platform
 import re
 import subprocess
 import time
@@ -1878,62 +1879,84 @@ class ToolPolicyChecker:
         user_config: Optional[Dict],
         user_config_path: Optional[Path]
     ) -> List[Dict]:
-        """Load remote configurations from URLs."""
-        remote_configs = []
+        """
+        Load remote configurations from URLs.
 
-        # Collect remote URLs from both configs
+        Uses cascading priority - first source found wins:
+        1. System config (/etc/ai-guardian/remote-configs.json)
+        2. Environment variable (AI_GUARDIAN_REMOTE_CONFIG_URLS)
+        3. User config (~/.config/ai-guardian/ai-guardian.json)
+        4. Local config (~/.ai-guardian.json)
+
+        If a higher priority source is found, lower priority sources are ignored.
+        This prevents users from bypassing enterprise policies by adding their own
+        remote URLs when an enterprise system config is deployed.
+        """
         remote_entries = []
 
-        if local_config and "remote_configs" in local_config:
-            # Handle both formats: dict with urls key (new) or direct list (old)
-            remote_config_data = local_config["remote_configs"]
-            if isinstance(remote_config_data, dict):
-                # New format: {"urls": [...], "refresh_interval_hours": 12, ...}
-                urls = remote_config_data.get("urls", [])
-                for entry in urls:
-                    remote_entries.append((entry, local_config_path))
-            else:
-                # Old format: direct list
-                for entry in remote_config_data:
-                    remote_entries.append((entry, local_config_path))
+        # Priority 1: System-wide config (enterprise deployment)
+        system_config_path = self._get_system_config_path()
+        if system_config_path and system_config_path.exists():
+            try:
+                with open(system_config_path) as f:
+                    system_config = json.load(f)
+                    urls = system_config.get("urls", [])
+                    if urls:
+                        logger.info(f"Using {len(urls)} enterprise remote URLs (system config)")
+                        for url in urls:
+                            remote_entries.append((url, system_config_path))
+                        # STOP HERE - ignore user/local configs
+                        return self._fetch_remote_configs(remote_entries)
+            except Exception as e:
+                logger.error(f"Failed to load system config from {system_config_path}: {e}")
 
+        # Priority 2: Environment variable
+        env_urls = os.environ.get("AI_GUARDIAN_REMOTE_CONFIG_URLS", "")
+        if env_urls:
+            logger.info("Using remote URLs from environment variable")
+            for url in env_urls.split(","):
+                url = url.strip()
+                if url:
+                    remote_entries.append((url, None))
+            if remote_entries:
+                # STOP HERE - ignore user/local configs
+                return self._fetch_remote_configs(remote_entries)
+
+        # Priority 3: User config
         if user_config and "remote_configs" in user_config:
-            # Handle both formats: dict with urls key (new) or direct list (old)
             remote_config_data = user_config["remote_configs"]
             if isinstance(remote_config_data, dict):
                 # New format: {"urls": [...], "refresh_interval_hours": 12, ...}
                 urls = remote_config_data.get("urls", [])
-                for entry in urls:
-                    remote_entries.append((entry, user_config_path))
+                if urls:
+                    logger.info(f"Using {len(urls)} remote URLs from user config")
+                    for entry in urls:
+                        remote_entries.append((entry, user_config_path))
+                    # STOP HERE - ignore local config
+                    return self._fetch_remote_configs(remote_entries)
             else:
                 # Old format: direct list
                 for entry in remote_config_data:
                     remote_entries.append((entry, user_config_path))
+                if remote_entries:
+                    return self._fetch_remote_configs(remote_entries)
 
-        # Load each remote config
-        for entry, base_path in remote_entries:
-            try:
-                # Parse entry (string or dict with token_env)
-                if isinstance(entry, str):
-                    url = entry
-                    token_env = None
-                elif isinstance(entry, dict):
-                    url = entry.get("url")
-                    token_env = entry.get("token_env")
-                else:
-                    logger.warning(f"Invalid remote_configs entry: {entry}")
-                    continue
+        # Priority 4: Local config (lowest priority)
+        if local_config and "remote_configs" in local_config:
+            remote_config_data = local_config["remote_configs"]
+            if isinstance(remote_config_data, dict):
+                # New format: {"urls": [...], "refresh_interval_hours": 12, ...}
+                urls = remote_config_data.get("urls", [])
+                if urls:
+                    logger.info(f"Using {len(urls)} remote URLs from local config")
+                    for entry in urls:
+                        remote_entries.append((entry, local_config_path))
+            else:
+                # Old format: direct list
+                for entry in remote_config_data:
+                    remote_entries.append((entry, local_config_path))
 
-                if not url:
-                    continue
-
-                config = self._load_remote_config(url, base_path, token_env)
-                if config:
-                    remote_configs.append(config)
-            except Exception as e:
-                logger.warning(f"Failed to load remote config: {e}")
-
-        return remote_configs
+        return self._fetch_remote_configs(remote_entries)
 
     def _load_remote_config(self, url: str, base_config_path: Optional[Path], token_env: Optional[str]) -> Optional[Dict]:
         """
@@ -2015,6 +2038,60 @@ class ToolPolicyChecker:
         except Exception as e:
             logger.warning(f"Error loading remote config from {url}: {e}")
             return None
+
+    def _get_system_config_path(self) -> Optional[Path]:
+        """
+        Get platform-specific system config path for enterprise deployment.
+
+        Returns:
+            Path to system config file or None if platform not supported
+        """
+        system_platform = platform.system()
+
+        if system_platform == "Windows":
+            return Path("C:/ProgramData/ai-guardian/remote-configs.json")
+        elif system_platform in ("Linux", "Darwin"):
+            # Linux and macOS use /etc
+            return Path("/etc/ai-guardian/remote-configs.json")
+        else:
+            logger.warning(f"Unsupported platform for system config: {system_platform}")
+            return None
+
+    def _fetch_remote_configs(self, remote_entries: List[Tuple]) -> List[Dict]:
+        """
+        Fetch configs from remote URLs.
+
+        Args:
+            remote_entries: List of (url, base_path) tuples
+
+        Returns:
+            List of successfully loaded config dicts
+        """
+        remote_configs = []
+
+        for entry, base_path in remote_entries:
+            try:
+                # Parse entry (string or dict with token_env)
+                if isinstance(entry, str):
+                    url = entry
+                    token_env = None
+                elif isinstance(entry, dict):
+                    url = entry.get("url")
+                    token_env = entry.get("token_env")
+                else:
+                    logger.warning(f"Invalid remote_configs entry: {entry}")
+                    continue
+
+                if not url:
+                    continue
+
+                config = self._load_remote_config(url, base_path, token_env)
+                if config:
+                    remote_configs.append(config)
+            except Exception as e:
+                logger.warning(f"Failed to load remote config: {e}")
+
+        return remote_configs
 
     def _discover_from_directories(self, config: Dict) -> None:
         """

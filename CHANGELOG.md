@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Cascading Priority for Remote Config URLs to Prevent Immutability Bypass** (Issue #255)
+  - **Fix**: Implemented first-match-wins cascading for remote config URL sources
+  - **Vulnerability**: Users could bypass `immutable: true` enterprise policies by adding their own remote config URLs in local/user configs
+  - **Attack Scenario**: Enterprise deploys system config with `immutable: true` SSRF protection, user adds attacker-controlled remote URL that disables it
+  - **Solution**: Remote config URLs now follow strict priority hierarchy (system config → env var → user config → local config)
+    - **System config** (`/etc/ai-guardian/remote-configs.json`): Highest priority, requires root/admin, blocks all lower sources
+    - **Environment variable** (`AI_GUARDIAN_REMOTE_CONFIG_URLS`): Second priority, blocks user/local sources
+    - **User config** (`~/.config/ai-guardian/ai-guardian.json`): Third priority, blocks local config
+    - **Local config** (`~/.ai-guardian.json`): Lowest priority fallback
+  - **Implementation**:
+    - Added `_get_system_config_path()`: Returns platform-specific system config path (Linux/macOS: `/etc/ai-guardian/remote-configs.json`, Windows: `C:\ProgramData\ai-guardian\remote-configs.json`)
+    - Refactored `_load_remote_configs()`: Implements cascading with early return on first match
+    - Added `_fetch_remote_configs()`: Helper to reduce code duplication
+  - **Testing**: Added 5 new test cases in `test_immutable_configs.py`:
+    - System config blocks user remote URLs
+    - Environment variable takes priority over user config
+    - User remote URLs work without system config
+    - Local config has lowest priority
+    - Legacy format (direct list) still works
+  - **Backward Compatibility**: ✅ Existing users with remote_configs in user/local files continue working unchanged
+  - **Enterprise Deployment**: Enterprises can now deploy one system config file to enforce policies across all users
+  - **Impact**: Critical security fix - prevents users from bypassing all enterprise security policies
+
 ### Changed
 
 - **Documentation: Clarify SSRF Protection Limitations and Scope** (Issue #256)
