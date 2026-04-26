@@ -217,6 +217,24 @@ The `--remote-config-url` flag adds a remote configuration URL to `~/.config/ai-
 }
 ```
 
+#### Cascading Priority (Enterprise Security)
+
+Remote config URLs use **cascading priority** to prevent users from bypassing enterprise policies:
+
+1. **System Config** (highest priority, requires root):
+   - Linux/macOS: `/etc/ai-guardian/remote-configs.json`
+   - Windows: `C:\ProgramData\ai-guardian\remote-configs.json`
+   
+2. **Environment Variable**: `AI_GUARDIAN_REMOTE_CONFIG_URLS`
+
+3. **User Config**: `~/.config/ai-guardian/ai-guardian.json`
+
+4. **Local Config** (lowest): `~/.ai-guardian.json`
+
+**Important**: When a higher-priority source exists, all lower-priority sources are ignored. This ensures enterprises can enforce security policies that users cannot bypass.
+
+**For complete documentation**, see [Configuration Guide](docs/CONFIGURATION.md).
+
 ### Environment Variables
 
 The setup command respects IDE-specific environment variables for custom config locations:
