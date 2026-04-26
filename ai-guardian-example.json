@@ -311,6 +311,76 @@
       "Dangerous URL schemes (file://, gopher://, ftp://, data://)"
     ],
 
+    "path_based_rules": [
+      {
+        "domain": "internal.api.com",
+        "allowed_paths": ["/public/*", "/health", "/metrics"],
+        "blocked_paths": []
+      },
+      {
+        "domain": "services.internal.corp",
+        "allowed_paths": ["/health", "/status"],
+        "blocked_paths": []
+      }
+    ],
+    "_path_based_rules_comment": "NEW in v1.6.0 (Issue #254): Path-based filtering for granular access control",
+    "_path_based_rules_note": "Allows blocking/allowing specific URL paths on domains",
+    "_path_based_rules_use_cases": {
+      "_use_case_1": "Allow public API endpoints while blocking admin pages on same domain",
+      "_use_case_2": "Allow health checks on internal services while blocking everything else",
+      "_use_case_3": "Block old/deprecated API versions while allowing new ones"
+    },
+    "_path_based_rules_evaluation": {
+      "_step_1": "Domain-level checks (blocked_domains/allowed_domains) run first",
+      "_step_2": "If domain blocked AND path in allowed_paths → ALLOW",
+      "_step_3": "If domain allowed AND path in blocked_paths → BLOCK",
+      "_step_4": "Falls back to domain-level decision if no path rules match"
+    },
+    "_path_based_rules_glob_patterns": {
+      "_single_star": "* matches any chars except / (e.g., /api/* matches /api/users but not /api/v1/users)",
+      "_double_star": "** matches any chars including / (e.g., /admin/** matches /admin/users and /admin/v1/users)",
+      "_question": "? matches single char (e.g., /v?/api matches /v1/api, /v2/api)",
+      "_exact": "No wildcards = exact match (e.g., /health matches only /health)",
+      "_query_params": "Query parameters included in match (e.g., /debug* matches /debug?verbose=true)"
+    },
+    "_path_based_rules_examples": [
+      {
+        "_example_1": "Allow public endpoints on blocked domain",
+        "domain": "internal.api.com",
+        "allowed_paths": ["/public/*", "/api/v1/*"],
+        "blocked_paths": [],
+        "_note": "Blocks internal.api.com everywhere except /public/* and /api/v1/*"
+      },
+      {
+        "_example_2": "Block admin paths on allowed domain",
+        "domain": "example.com",
+        "allowed_paths": [],
+        "blocked_paths": ["/admin/*", "/internal/**"],
+        "_note": "Allows example.com everywhere except /admin/* and /internal/**"
+      },
+      {
+        "_example_3": "Health checks on blocked internal services",
+        "domain": "services.internal.corp",
+        "allowed_paths": ["/health", "/metrics", "/status"],
+        "blocked_paths": [],
+        "_note": "Blocks all of services.internal.corp except health/metrics/status endpoints"
+      },
+      {
+        "_example_4": "Gradual API migration",
+        "domain": "api.example.com",
+        "allowed_paths": [],
+        "blocked_paths": ["/v1/**", "/deprecated/**"],
+        "_note": "Allows api.example.com but blocks old API versions"
+      }
+    ],
+    "_path_based_rules_security_notes": [
+      "Path rules CANNOT override immutable protections (metadata endpoints, private IPs, dangerous schemes)",
+      "Trailing slashes are normalized (/admin matches /admin/ and vice versa)",
+      "Case-insensitive domain matching (Internal.API.com matches internal.api.com)",
+      "Query parameters included in path matching",
+      "Use specific patterns over broad wildcards for better security"
+    ],
+
     "allow_localhost": false,
     "_allow_localhost_comment": "Set to true for local development (NEVER in production)",
     "_allow_localhost_security_warning": "Only enable in development environments"
