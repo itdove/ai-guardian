@@ -417,6 +417,49 @@ class ScannerInstaller:
             target_version = self.get_latest_version(scanner_name)
             logger.info(f"Installing {scanner_name} {target_version}")
 
+        # Check if already installed
+        installed_version = self._get_installed_version(scanner_name)
+
+        if installed_version:
+            comparison = self._compare_versions(installed_version, target_version)
+
+            if comparison == 0 and not version:
+                # Already up-to-date, skip installation
+                binary_path = shutil.which(scanner_name)
+                if not binary_path:
+                    binary_path = self.install_dir / scanner_name
+                print(f"✓ {scanner_name} {installed_version} is already installed (up-to-date)")
+                print(f"  Path: {binary_path}")
+                print()
+                print("No action needed.")
+                return True
+            elif comparison < 0:
+                # Installed version is older, upgrade available
+                print(f"Current version: {installed_version}")
+                print(f"Latest version:  {target_version}")
+                print()
+                print(f"Upgrading {scanner_name} from {installed_version} to {target_version}...")
+            elif comparison > 0 and not version:
+                # Installed version is newer, don't auto-downgrade
+                binary_path = shutil.which(scanner_name)
+                if not binary_path:
+                    binary_path = self.install_dir / scanner_name
+                print(f"✓ {scanner_name} {installed_version} is already installed")
+                print(f"  Path: {binary_path}")
+                print()
+                print(f"Latest version available: {target_version}")
+                print(f"To downgrade, use: ai-guardian scanner install {scanner_name} --version {target_version}")
+                return True
+            else:
+                # Explicit version specified: allow downgrade/reinstall
+                if comparison == 0:
+                    action = "Reinstalling"
+                elif comparison > 0:
+                    action = "Downgrading"
+                else:
+                    action = "Upgrading"
+                print(f"{action} {scanner_name} to {target_version}...")
+
         # Try package manager first (unless method specified)
         if method is None or method == InstallMethod.PACKAGE_MANAGER:
             if self.install_via_package_manager(scanner_name):
@@ -433,6 +476,88 @@ class ScannerInstaller:
                 return False
 
         return False
+
+    def _get_installed_version(self, scanner_name: str) -> Optional[str]:
+        """
+        Get the currently installed version of a scanner.
+
+        Args:
+            scanner_name: Scanner to check
+
+        Returns:
+            Version string (without 'v' prefix) if installed, None otherwise
+        """
+        binary_path = shutil.which(scanner_name)
+        if not binary_path:
+            # Check in install_dir
+            binary_path = self.install_dir / scanner_name
+            if not binary_path.exists():
+                return None
+            binary_path = str(binary_path)
+
+        # Try to get version
+        try:
+            result = subprocess.run(
+                [binary_path, "version"],
+                capture_output=True,
+                timeout=5,
+                text=True,
+            )
+            if result.returncode == 0:
+                # Parse version from output
+                # Expected formats:
+                # - "gitleaks version 8.30.1"
+                # - "8.30.1"
+                # - "v8.30.1"
+                output = result.stdout.strip()
+
+                # Extract version number
+                import re
+                # Match semantic version pattern
+                match = re.search(r'v?(\d+\.\d+\.\d+)', output)
+                if match:
+                    return match.group(1)
+
+                logger.debug(f"Could not parse version from output: {output}")
+                return None
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+            logger.debug(f"Failed to get version for {scanner_name}: {e}")
+            return None
+
+        return None
+
+    def _compare_versions(self, version1: str, version2: str) -> int:
+        """
+        Compare two semantic versions.
+
+        Args:
+            version1: First version string (e.g., "8.30.1")
+            version2: Second version string (e.g., "8.31.0")
+
+        Returns:
+            -1 if version1 < version2
+             0 if version1 == version2
+             1 if version1 > version2
+        """
+        # Parse version strings
+        def parse_version(v: str) -> tuple:
+            parts = v.strip().lstrip('v').split('.')
+            return tuple(int(p) for p in parts)
+
+        try:
+            v1_parts = parse_version(version1)
+            v2_parts = parse_version(version2)
+
+            if v1_parts < v2_parts:
+                return -1
+            elif v1_parts > v2_parts:
+                return 1
+            else:
+                return 0
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"Failed to compare versions {version1} and {version2}: {e}")
+            # If parsing fails, treat as equal (no upgrade/downgrade)
+            return 0
 
     def verify_installation(self, scanner_name: str) -> bool:
         """

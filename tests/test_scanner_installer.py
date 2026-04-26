@@ -131,17 +131,19 @@ class TestScannerInstaller:
         with pytest.raises(ValueError, match="Unsupported scanner"):
             installer.install("invalid_scanner")
 
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
         "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_with_explicit_version(
-        self, mock_pkg_mgr, mock_download, mock_get_latest
+        self, mock_pkg_mgr, mock_download, mock_get_latest, mock_get_installed
     ):
         """Test installation with explicit version flag."""
         mock_pkg_mgr.return_value = False  # Package manager fails
         mock_download.return_value = Path("/fake/path/gitleaks")
+        mock_get_installed.return_value = None  # Not installed
 
         installer = ScannerInstaller()
         success = installer.install("gitleaks", version="8.30.1")
@@ -151,6 +153,7 @@ class TestScannerInstaller:
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
         assert success
 
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_pinned_version")
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
@@ -158,12 +161,13 @@ class TestScannerInstaller:
         "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_with_use_pinned(
-        self, mock_pkg_mgr, mock_download, mock_get_pinned, mock_get_latest
+        self, mock_pkg_mgr, mock_download, mock_get_pinned, mock_get_latest, mock_get_installed
     ):
         """Test installation with use_pinned flag."""
         mock_pkg_mgr.return_value = False  # Package manager fails
         mock_download.return_value = Path("/fake/path/gitleaks")
         mock_get_pinned.return_value = "8.29.0"
+        mock_get_installed.return_value = None  # Not installed
 
         installer = ScannerInstaller()
         success = installer.install("gitleaks", use_pinned=True)
@@ -283,3 +287,196 @@ class TestPlatformDetection:
 
         installer = ScannerInstaller()
         assert installer.detect_platform() == "linux_arm64"
+
+
+class TestVersionChecking:
+    """Tests for version checking and smart installation."""
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_get_installed_version(self, mock_run, mock_which):
+        """Test getting installed version of a scanner."""
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+        mock_run.return_value = mock.Mock(
+            returncode=0,
+            stdout="gitleaks version 8.30.1\n"
+        )
+
+        installer = ScannerInstaller()
+        version = installer._get_installed_version("gitleaks")
+
+        assert version == "8.30.1"
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_get_installed_version_with_v_prefix(self, mock_run, mock_which):
+        """Test parsing version with 'v' prefix."""
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+        mock_run.return_value = mock.Mock(
+            returncode=0,
+            stdout="v8.30.1\n"
+        )
+
+        installer = ScannerInstaller()
+        version = installer._get_installed_version("gitleaks")
+
+        assert version == "8.30.1"
+
+    @mock.patch("shutil.which")
+    def test_get_installed_version_not_installed(self, mock_which):
+        """Test getting version when scanner not installed."""
+        mock_which.return_value = None
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+            version = installer._get_installed_version("gitleaks")
+
+            assert version is None
+
+    def test_compare_versions_less_than(self):
+        """Test version comparison: v1 < v2."""
+        installer = ScannerInstaller()
+
+        assert installer._compare_versions("8.30.1", "8.31.0") == -1
+        assert installer._compare_versions("8.30.1", "9.0.0") == -1
+        assert installer._compare_versions("8.30.0", "8.30.1") == -1
+
+    def test_compare_versions_equal(self):
+        """Test version comparison: v1 == v2."""
+        installer = ScannerInstaller()
+
+        assert installer._compare_versions("8.30.1", "8.30.1") == 0
+        assert installer._compare_versions("v8.30.1", "8.30.1") == 0
+
+    def test_compare_versions_greater_than(self):
+        """Test version comparison: v1 > v2."""
+        installer = ScannerInstaller()
+
+        assert installer._compare_versions("8.31.0", "8.30.1") == 1
+        assert installer._compare_versions("9.0.0", "8.30.1") == 1
+        assert installer._compare_versions("8.30.1", "8.30.0") == 1
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
+    @mock.patch("shutil.which")
+    def test_install_skip_when_up_to_date(
+        self, mock_which, mock_get_latest, mock_get_installed
+    ):
+        """Test that installation is skipped when already up-to-date."""
+        mock_get_installed.return_value = "8.30.1"
+        mock_get_latest.return_value = "8.30.1"
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks")
+
+        # Should skip installation
+        assert success
+        mock_get_installed.assert_called_once_with("gitleaks")
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+    )
+    @mock.patch("shutil.which")
+    def test_install_upgrade_when_newer_available(
+        self, mock_which, mock_pkg_mgr, mock_download, mock_get_latest, mock_get_installed
+    ):
+        """Test that installation proceeds when upgrade is available."""
+        mock_get_installed.return_value = "8.30.1"
+        mock_get_latest.return_value = "8.31.0"
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+        mock_pkg_mgr.return_value = False
+        mock_download.return_value = Path("/fake/path/gitleaks")
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks")
+
+        # Should proceed with upgrade
+        assert success
+        mock_download.assert_called_once_with("gitleaks", "8.31.0")
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
+    @mock.patch("shutil.which")
+    def test_install_no_auto_downgrade(
+        self, mock_which, mock_get_latest, mock_get_installed
+    ):
+        """Test that auto-downgrade is prevented without explicit version."""
+        mock_get_installed.return_value = "8.31.0"
+        mock_get_latest.return_value = "8.30.1"
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks")
+
+        # Should skip downgrade and return True
+        assert success
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+    )
+    @mock.patch("shutil.which")
+    def test_install_explicit_downgrade_allowed(
+        self, mock_which, mock_pkg_mgr, mock_download, mock_get_installed
+    ):
+        """Test that explicit version allows downgrade."""
+        mock_get_installed.return_value = "8.31.0"
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+        mock_pkg_mgr.return_value = False
+        mock_download.return_value = Path("/fake/path/gitleaks")
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks", version="8.30.1")
+
+        # Should proceed with downgrade
+        assert success
+        mock_download.assert_called_once_with("gitleaks", "8.30.1")
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+    )
+    @mock.patch("shutil.which")
+    def test_install_explicit_reinstall_allowed(
+        self, mock_which, mock_pkg_mgr, mock_download, mock_get_installed
+    ):
+        """Test that explicit version allows reinstalling same version."""
+        mock_get_installed.return_value = "8.30.1"
+        mock_which.return_value = "/usr/local/bin/gitleaks"
+        mock_pkg_mgr.return_value = False
+        mock_download.return_value = Path("/fake/path/gitleaks")
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks", version="8.30.1")
+
+        # Should proceed with reinstall
+        assert success
+        mock_download.assert_called_once_with("gitleaks", "8.30.1")
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+    )
+    def test_install_when_not_installed(
+        self, mock_pkg_mgr, mock_download, mock_get_latest, mock_get_installed
+    ):
+        """Test normal installation when scanner not already installed."""
+        mock_get_installed.return_value = None
+        mock_get_latest.return_value = "8.30.1"
+        mock_pkg_mgr.return_value = False
+        mock_download.return_value = Path("/fake/path/gitleaks")
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks")
+
+        # Should proceed with installation
+        assert success
+        mock_download.assert_called_once_with("gitleaks", "8.30.1")
