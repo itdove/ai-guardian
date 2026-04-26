@@ -859,7 +859,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "action": "block",
             "additional_blocked_ips": [],
             "additional_blocked_domains": [],
-            "allow_localhost": False
+            "allow_localhost": False,
+            "allowed_domains": []
         },
 
         "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",

@@ -314,7 +314,7 @@ ai-guardian/
 
 ## Configuration Schema Changes
 
-**CRITICAL**: When adding new configuration options to the JSON schema, you MUST update `setup.py` to include them in the default configuration template.
+**CRITICAL**: When adding new configuration options to the JSON schema, you MUST update multiple files to ensure consistency across the codebase.
 
 ### Files to Update
 
@@ -331,15 +331,37 @@ When modifying the configuration schema:
    - Include comment fields (`_comment_*`) for documentation
    - **CRITICAL**: This ensures `ai-guardian setup --create-config` includes new options
 
-3. **Code Implementation**
+3. **Example Config** (`ai-guardian-example.json`)
+   - Add the new configuration option with example values
+   - Include detailed comments explaining usage
+   - Provide security warnings and use cases where appropriate
+   - **CRITICAL**: This file serves as the primary reference for users
+
+4. **TUI (Terminal User Interface)** (if applicable)
+   - Check if the TUI auto-generates from schema or needs manual updates
+   - Most TUI components auto-generate from schema, but verify
+   - Update TUI tests if configuration affects UI
+
+5. **Code Implementation**
    - Update the relevant detector/module to read new config options
    - Add tests for new configuration options
    - Ensure backward compatibility (provide sensible defaults)
 
-4. **Documentation**
+6. **Documentation**
    - Update README.md with configuration examples
    - Update CHANGELOG.md under `[Unreleased]` section
-   - Add examples to `ai-guardian-example.json` if applicable
+   - Update relevant docs/* files with detailed explanations
+   - Add examples and security warnings
+
+**Checklist for Schema Changes:**
+- [ ] Update JSON schema with new property
+- [ ] Update setup.py default config
+- [ ] Update ai-guardian-example.json with examples
+- [ ] Verify TUI compatibility (usually auto-generates)
+- [ ] Implement code to read new config
+- [ ] Add comprehensive tests
+- [ ] Update documentation (README, CHANGELOG, docs/*)
+- [ ] Test `ai-guardian setup --create-config` output
 
 ### Example: Adding Unicode Detection
 
