@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scanner Installer: Skip Installation if Already Up-to-Date** (Issue #271)
+  - **Smart Version Checking**: `ai-guardian scanner install` now checks if scanner is already installed before downloading
+  - **Skip When Up-to-Date**: Automatically skips installation if the latest version is already installed
+  - **Upgrade Detection**: Automatically upgrades when a newer version is available
+  - **Downgrade Protection**: Does not auto-downgrade without explicit `--version` flag
+  - **Explicit Control**: `--version` flag allows downgrade or reinstall of specific versions
+  - **Clear Messaging**: Shows current version, target version, and action taken
+  - **Version Comparison**: Proper semantic version comparison (e.g., 8.30.1 < 8.31.0)
+  - **Performance**: Saves bandwidth and time by skipping unnecessary downloads
+  - **Implementation**:
+    - Added `_get_installed_version()` method to detect currently installed version
+    - Added `_compare_versions()` method for semantic version comparison
+    - Updated `install()` method with version checking logic
+  - **Test Coverage**: Added 10 comprehensive test cases for version checking scenarios
+  - **Benefits**: Faster installation, bandwidth-friendly, safe (no auto-downgrades), clear user feedback
+
 - **SSRF Protection: Wildcard Domain Pattern Support** (Issue #253)
   - **New Feature**: Added wildcard pattern matching for `additional_blocked_domains` configuration
   - **Syntax**: Supports `*` (match zero or more characters) and `?` (match exactly one character)
