@@ -8,8 +8,11 @@ Handles automated installation and upgrade of scanner engines:
 - LeakTK
 """
 
+import hashlib
 import logging
+import os
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -261,6 +264,120 @@ class ScannerInstaller:
         logger.debug(f"No package manager available for {system}")
         return False
 
+    def _download_checksums(
+        self, scanner_name: str, version: str, repo: str
+    ) -> Optional[str]:
+        """
+        Download checksums file from GitHub releases.
+
+        Args:
+            scanner_name: Scanner name (gitleaks, betterleaks, leaktk)
+            version: Version to download checksums for
+            repo: GitHub repository (owner/repo)
+
+        Returns:
+            Contents of checksums file as string, or None if download fails
+        """
+        if not HAS_REQUESTS:
+            logger.warning("requests library not available, skipping checksum verification")
+            return None
+
+        # Different scanners have different checksums file naming conventions
+        # gitleaks: gitleaks_8.30.1_checksums.txt
+        # betterleaks: checksums.txt (no version!)
+        # leaktk: leaktk_0.2.10_checksums.txt
+        if scanner_name == "betterleaks":
+            checksums_filename = "checksums.txt"
+        else:
+            checksums_filename = f"{scanner_name}_{version}_checksums.txt"
+
+        checksums_url = (
+            f"https://github.com/{repo}/releases/download/v{version}/{checksums_filename}"
+        )
+
+        try:
+            logger.info(f"Downloading checksums from {checksums_url}")
+            response = requests.get(checksums_url, timeout=30)
+            response.raise_for_status()
+
+            # Validate content is not empty or malformed
+            content = response.text.strip()
+            if not content or len(content) < 64:  # SHA-256 is 64 chars minimum
+                logger.warning("Invalid or empty checksums file received")
+                return None
+
+            return content
+        except Exception as e:
+            logger.warning(f"Failed to download checksums file: {e}")
+            logger.warning("Checksum verification will be skipped")
+            return None
+
+    def _verify_checksum(
+        self, file_path: Path, checksums_content: str, filename: str
+    ) -> None:
+        """
+        Verify SHA-256 checksum of downloaded file.
+
+        Args:
+            file_path: Path to file to verify
+            checksums_content: Contents of checksums file
+            filename: Name of file being verified (for lookup in checksums)
+
+        Raises:
+            RuntimeError: If checksum verification fails
+        """
+        # Compute SHA-256 hash of downloaded file
+        sha256_hash = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            # Read file in chunks to handle large files efficiently
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+
+        computed_hash = sha256_hash.hexdigest()
+        logger.info(f"Computed SHA-256: {computed_hash}")
+
+        # Parse checksums file and look for our hash
+        # Format is typically: "<hash>  <filename>" or "<hash> <filename>"
+        checksums_lines = checksums_content.strip().split('\n')
+        found = False
+
+        for line in checksums_lines:
+            # Skip empty lines
+            if not line.strip():
+                continue
+
+            # Split on whitespace (handles both single and double space)
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+
+            file_hash = parts[0].lower()
+            file_name_part = parts[-1]  # Take last part as filename
+            # Handle binary mode indicator (*filename) from sha256sum
+            if file_name_part.startswith('*'):
+                file_name = file_name_part[1:]  # Strip asterisk
+            else:
+                file_name = file_name_part
+            # Sanitize: ensure no path traversal
+            file_name = os.path.basename(file_name)
+
+            # Check if this line matches our file
+            if file_name == filename and file_hash == computed_hash.lower():
+                found = True
+                logger.info(f"✓ Checksum verification passed for {filename}")
+                break
+
+        if not found:
+            raise RuntimeError(
+                f"Checksum verification failed for {filename}\n"
+                f"Computed hash: {computed_hash}\n"
+                f"Hash not found in checksums file. This may indicate:\n"
+                f"  - A compromised download (MITM attack)\n"
+                f"  - Corrupted download\n"
+                f"  - Mismatch between binary and checksums file versions\n"
+                f"For security reasons, installation has been aborted."
+            )
+
     def install_from_download(
         self, scanner_name: str, version: Optional[str] = None
     ) -> Path:
@@ -286,6 +403,10 @@ class ScannerInstaller:
         # Determine version to install
         version = version or self.get_latest_version(scanner_name)
 
+        # Validate version format before using in URLs
+        if not re.match(r'^\d+\.\d+\.\d+$', version):
+            raise ValueError(f"Invalid version format: {version}")
+
         # Detect platform
         platform_arch = self.detect_platform()
         logger.info(f"Detected platform: {platform_arch}")
@@ -293,17 +414,28 @@ class ScannerInstaller:
         # Build download URL
         repo = self.get_github_repo(scanner_name)
         system = platform_arch.split("_")[0]
+        arch = platform_arch.split("_")[1]
 
         # Determine file extension and binary name
         if system == "windows":
             ext = "zip"
             binary_name = f"{scanner_name}.exe"
         else:
-            ext = "tar.gz"
             binary_name = scanner_name
+            # leaktk uses .tar.xz, others use .tar.gz
+            ext = "tar.xz" if scanner_name == "leaktk" else "tar.gz"
 
         # Build filename - different scanners have different naming conventions
-        filename = f"{scanner_name}_{version}_{platform_arch}.{ext}"
+        # gitleaks/betterleaks: scanner_version_platform_arch.ext (e.g., gitleaks_8.30.1_darwin_arm64.tar.gz)
+        # leaktk: scanner-version-platform-arch.ext (e.g., leaktk-0.2.10-darwin-arm64.tar.xz) with x86_64 instead of x64
+        if scanner_name == "leaktk":
+            # leaktk uses hyphens and x86_64 instead of x64
+            leaktk_arch = "x86_64" if arch == "x64" else arch
+            filename = f"{scanner_name}-{version}-{system}-{leaktk_arch}.{ext}"
+        else:
+            # gitleaks and betterleaks use underscores
+            filename = f"{scanner_name}_{version}_{platform_arch}.{ext}"
+
         download_url = (
             f"https://github.com/{repo}/releases/download/v{version}/{filename}"
         )
@@ -324,6 +456,17 @@ class ScannerInstaller:
 
                 logger.info(f"Downloaded {archive_path.stat().st_size} bytes")
 
+                # Download and verify checksums
+                checksums_content = self._download_checksums(scanner_name, version, repo)
+                if checksums_content:
+                    self._verify_checksum(archive_path, checksums_content, filename)
+                    print(f"✓ Checksum verification passed for {scanner_name} {version}")
+                else:
+                    print(f"⚠ Checksum verification skipped - checksums file not available")
+                    logger.warning(
+                        "Checksum verification skipped - checksums file not available"
+                    )
+
                 # Extract archive
                 extract_dir = temp_path / "extract"
                 extract_dir.mkdir()
@@ -331,9 +474,14 @@ class ScannerInstaller:
                 if ext == "zip":
                     with zipfile.ZipFile(archive_path, "r") as zip_ref:
                         zip_ref.extractall(extract_dir)
-                else:
+                elif ext == "tar.xz":
+                    with tarfile.open(archive_path, "r:xz") as tar_ref:
+                        tar_ref.extractall(extract_dir)
+                elif ext == "tar.gz":
                     with tarfile.open(archive_path, "r:gz") as tar_ref:
                         tar_ref.extractall(extract_dir)
+                else:
+                    raise RuntimeError(f"Unsupported archive format: {ext}")
 
                 # Find the binary in extracted files
                 binary_path = None
