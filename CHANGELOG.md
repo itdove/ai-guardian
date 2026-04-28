@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-04-28
+
+### Security
+
+- **Scanner Installer: SHA-256 Checksum Verification** (Issue #278)
+  - **Supply Chain Security**: All scanner binaries are now verified using SHA-256 checksums from GitHub releases
+  - **MITM Protection**: Prevents man-in-the-middle attacks during download by validating binary integrity
+  - **Automatic Verification**: Downloads checksums file and verifies hash matches before installation
+  - **Graceful Degradation**: Installation continues with warning if checksums unavailable (older releases)
+  - **Multi-Scanner Support**: Handles scanner-specific naming conventions:
+    - gitleaks: `gitleaks_8.30.1_checksums.txt`
+    - betterleaks: `checksums.txt`
+    - leaktk: `leaktk_0.2.10_checksums.txt`
+  - **Security Hardening**:
+    - Path traversal protection using `os.path.basename()` sanitization
+    - Version format validation (regex `^\d+\.\d+\.\d+$`) prevents URL manipulation
+    - Content validation ensures checksum files are not empty or malformed
+    - Binary mode indicator support (`*filename` format in checksums)
+  - **User Feedback**: Console messages show verification status:
+    - `✓ Checksum verification passed for {scanner} {version}` (success)
+    - `⚠ Checksum verification skipped - checksums file not available` (graceful degradation)
+  - **Implementation**:
+    - Added `_download_checksums()` method with HTTP error handling
+    - Added `_verify_checksum()` method with SHA-256 computation and validation
+    - Added version format validation in `install_from_download()`
+    - Added explicit archive format validation (tar.gz, tar.xz, zip)
+  - **Test Coverage**: Added 17 comprehensive test cases covering:
+    - Scanner-specific checksums file naming conventions
+    - Network failures and HTTP errors
+    - Empty and malformed checksums files
+    - Hash verification (success, mismatch, missing files)
+    - Multi-file checksums parsing
+    - Case-insensitive hash comparison
+    - Binary mode indicator handling (`*filename`)
+    - Path traversal sanitization
+    - Version format validation (valid/invalid formats)
+  - **Total Test Suite**: 49 scanner installer tests, 1,222 full suite tests (all passing)
+
 ## [1.5.0] - 2026-04-27
 
 ### Added
