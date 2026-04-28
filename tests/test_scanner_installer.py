@@ -480,3 +480,344 @@ class TestVersionChecking:
         # Should proceed with installation
         assert success
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
+
+
+class TestChecksumVerification:
+    """Tests for SHA-256 checksum verification."""
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_gitleaks(self, mock_requests):
+        """Test downloading checksums file for gitleaks."""
+        mock_response = mock.Mock()
+        mock_response.raise_for_status = mock.Mock()
+        # Use realistic SHA-256 hash (64 hex characters)
+        mock_response.text = "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5  gitleaks_8.30.1_darwin_arm64.tar.gz\n"
+        mock_requests.get.return_value = mock_response
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("gitleaks", "8.30.1", "gitleaks/gitleaks")
+
+        assert content == "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5  gitleaks_8.30.1_darwin_arm64.tar.gz"
+        # Verify URL format: scanner_version_checksums.txt
+        call_args = mock_requests.get.call_args
+        assert "gitleaks_8.30.1_checksums.txt" in call_args[0][0]
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_betterleaks(self, mock_requests):
+        """Test downloading checksums file for betterleaks (special naming)."""
+        mock_response = mock.Mock()
+        mock_response.raise_for_status = mock.Mock()
+        # Use realistic SHA-256 hash (64 hex characters)
+        mock_response.text = "19cc2298463d7abf0aee9a03208a49834ab2e6f8411781c4cf1360827b3ded36  betterleaks_1.1.2_darwin_arm64.tar.gz\n"
+        mock_requests.get.return_value = mock_response
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("betterleaks", "1.1.2", "betterleaks/betterleaks")
+
+        assert content == "19cc2298463d7abf0aee9a03208a49834ab2e6f8411781c4cf1360827b3ded36  betterleaks_1.1.2_darwin_arm64.tar.gz"
+        # betterleaks uses simple "checksums.txt" without version
+        call_args = mock_requests.get.call_args
+        assert "checksums.txt" in call_args[0][0]
+        assert "betterleaks_1.1.2_checksums.txt" not in call_args[0][0]
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_leaktk(self, mock_requests):
+        """Test downloading checksums file for leaktk."""
+        mock_response = mock.Mock()
+        mock_response.raise_for_status = mock.Mock()
+        # Use realistic SHA-256 hash (64 hex characters)
+        mock_response.text = "6e1922156209aa60a998b9b62b3e6f194614e8525f79e88098ac81482417f0ed  leaktk-0.2.10-darwin-arm64.tar.xz\n"
+        mock_requests.get.return_value = mock_response
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("leaktk", "0.2.10", "leaktk/leaktk")
+
+        assert content == "6e1922156209aa60a998b9b62b3e6f194614e8525f79e88098ac81482417f0ed  leaktk-0.2.10-darwin-arm64.tar.xz"
+        # Verify URL format: scanner_version_checksums.txt
+        call_args = mock_requests.get.call_args
+        assert "leaktk_0.2.10_checksums.txt" in call_args[0][0]
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_network_failure(self, mock_requests):
+        """Test graceful handling when checksums file download fails."""
+        mock_requests.get.side_effect = Exception("Network error")
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("gitleaks", "8.30.1", "gitleaks/gitleaks")
+
+        # Should return None on failure, not raise
+        assert content is None
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_http_404(self, mock_requests):
+        """Test handling of 404 response for checksums file."""
+        mock_response = mock.Mock()
+        mock_response.raise_for_status.side_effect = Exception("404 Not Found")
+        mock_requests.get.return_value = mock_response
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("gitleaks", "8.30.1", "gitleaks/gitleaks")
+
+        # Should return None on HTTP error
+        assert content is None
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_empty_content(self, mock_requests):
+        """Test handling of empty checksums file."""
+        mock_response = mock.Mock()
+        mock_response.raise_for_status = mock.Mock()
+        mock_response.text = ""
+        mock_requests.get.return_value = mock_response
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("gitleaks", "8.30.1", "gitleaks/gitleaks")
+
+        # Should return None for empty content
+        assert content is None
+
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_download_checksums_malformed_content(self, mock_requests):
+        """Test handling of malformed checksums file (too short)."""
+        mock_response = mock.Mock()
+        mock_response.raise_for_status = mock.Mock()
+        mock_response.text = "abc123"  # Too short to be valid SHA-256
+        mock_requests.get.return_value = mock_response
+
+        installer = ScannerInstaller()
+        content = installer._download_checksums("gitleaks", "8.30.1", "gitleaks/gitleaks")
+
+        # Should return None for malformed content
+        assert content is None
+
+    def test_verify_checksum_success(self):
+        """Test successful checksum verification."""
+        # Create a temporary file with known content
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            # Compute actual hash
+            import hashlib
+            actual_hash = hashlib.sha256(b"test content").hexdigest()
+
+            # Create checksums content with the hash
+            checksums_content = f"{actual_hash}  test_file.tar.gz\n"
+
+            installer = ScannerInstaller()
+            # Should not raise
+            installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+    def test_verify_checksum_mismatch(self):
+        """Test checksum verification failure when hash doesn't match."""
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            # Use a different hash (wrong content)
+            wrong_hash = "0" * 64
+            checksums_content = f"{wrong_hash}  test_file.tar.gz\n"
+
+            installer = ScannerInstaller()
+            with pytest.raises(RuntimeError, match="Checksum verification failed"):
+                installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+    def test_verify_checksum_file_not_in_checksums(self):
+        """Test checksum verification failure when file not found in checksums."""
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            # Checksums for different file
+            checksums_content = "abc123  different_file.tar.gz\n"
+
+            installer = ScannerInstaller()
+            with pytest.raises(RuntimeError, match="Checksum verification failed"):
+                installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+    def test_verify_checksum_with_multiple_files(self):
+        """Test checksum verification with multiple files in checksums."""
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            import hashlib
+            actual_hash = hashlib.sha256(b"test content").hexdigest()
+
+            # Checksums content with multiple files
+            checksums_content = f"""
+abc123  file1.tar.gz
+{actual_hash}  test_file.tar.gz
+def456  file2.tar.gz
+            """.strip()
+
+            installer = ScannerInstaller()
+            # Should find the correct hash in the middle
+            installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+    def test_verify_checksum_case_insensitive(self):
+        """Test that checksum verification is case-insensitive for hash."""
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            import hashlib
+            actual_hash = hashlib.sha256(b"test content").hexdigest()
+
+            # Use uppercase hash in checksums
+            checksums_content = f"{actual_hash.upper()}  test_file.tar.gz\n"
+
+            installer = ScannerInstaller()
+            # Should match regardless of case
+            installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+    def test_verify_checksum_with_binary_mode_indicator(self):
+        """Test checksum verification with binary mode indicator (*filename)."""
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            import hashlib
+            actual_hash = hashlib.sha256(b"test content").hexdigest()
+
+            # Binary mode indicator format: hash *filename
+            checksums_content = f"{actual_hash} *test_file.tar.gz\n"
+
+            installer = ScannerInstaller()
+            # Should handle binary mode indicator correctly
+            installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+    def test_verify_checksum_sanitizes_path_traversal(self):
+        """Test that path traversal in checksum filename is sanitized."""
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+            f.write(b"test content")
+            temp_file = Path(f.name)
+
+        try:
+            import hashlib
+            actual_hash = hashlib.sha256(b"test content").hexdigest()
+
+            # Checksums file contains path traversal attempt
+            checksums_content = f"{actual_hash}  ../../tmp/test_file.tar.gz\n"
+
+            installer = ScannerInstaller()
+            # Should sanitize to just filename and match successfully
+            installer._verify_checksum(temp_file, checksums_content, "test_file.tar.gz")
+        finally:
+            temp_file.unlink()
+
+
+class TestVersionValidation:
+    """Tests for version format validation."""
+
+    def test_install_from_download_invalid_version_format(self):
+        """Test that invalid version format raises ValueError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+
+            # Test various invalid version formats
+            invalid_versions = [
+                "8.30.1; rm -rf /",  # Command injection attempt
+                "8.30",               # Missing patch version
+                "v8.30.1",            # Has 'v' prefix
+                "../8.30.1",          # Path traversal
+                "8.30.1-beta",        # Has suffix
+            ]
+
+            for invalid_version in invalid_versions:
+                with pytest.raises(ValueError, match="Invalid version format"):
+                    installer.install_from_download("gitleaks", invalid_version)
+
+    def test_install_from_download_valid_version_format(self):
+        """Test that valid version format is accepted."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+
+            # Mock requests to avoid actual download
+            with mock.patch("ai_guardian.scanner_installer.requests"):
+                try:
+                    # This will fail on actual download but should pass version validation
+                    installer.install_from_download("gitleaks", "8.30.1")
+                except Exception as e:
+                    # Should not be a ValueError about version format
+                    assert "Invalid version format" not in str(e)
+
+
+class TestLeaktkNamingConventions:
+    """Tests for leaktk's different naming conventions."""
+
+    @mock.patch("platform.system")
+    @mock.patch("platform.machine")
+    @mock.patch("ai_guardian.scanner_installer.requests")
+    def test_leaktk_filename_format(self, mock_requests, mock_machine, mock_system):
+        """Test that leaktk uses hyphens and x86_64 instead of underscores and x64."""
+        mock_system.return_value = "Darwin"
+        mock_machine.return_value = "x86_64"
+
+        # Mock successful download and checksum
+        mock_response = mock.Mock()
+        mock_response.raise_for_status = mock.Mock()
+        mock_response.content = b"fake binary content"
+
+        def requests_get_side_effect(url, *args, **kwargs):
+            response = mock.Mock()
+            response.raise_for_status = mock.Mock()
+            if "checksums" in url:
+                # Return checksums file
+                import hashlib
+                file_hash = hashlib.sha256(b"fake binary content").hexdigest()
+                response.text = f"{file_hash}  leaktk-0.2.10-darwin-x86_64.tar.xz\n"
+            else:
+                # Return binary file
+                response.content = b"fake binary content"
+            return response
+
+        mock_requests.get.side_effect = requests_get_side_effect
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+
+            # Mock tarfile extraction
+            with mock.patch("tarfile.open"):
+                with mock.patch.object(Path, "rglob") as mock_rglob:
+                    # Mock finding the binary in extracted files
+                    fake_binary = Path(temp_dir) / "extract" / "leaktk"
+                    fake_binary.parent.mkdir(parents=True, exist_ok=True)
+                    fake_binary.write_text("fake binary")
+                    mock_rglob.return_value = [fake_binary]
+
+                    try:
+                        installer.install_from_download("leaktk", "0.2.10")
+                    except Exception:
+                        # May fail on extraction, but we just need to check the URL
+                        pass
+
+            # Check that the download URL used hyphens and x86_64
+            calls = [call[0][0] for call in mock_requests.get.call_args_list if "checksums" not in call[0][0]]
+            if calls:
+                download_url = calls[0]
+                assert "leaktk-0.2.10-darwin-x86_64.tar.xz" in download_url
+                assert "leaktk_0.2.10" not in download_url  # Should NOT use underscores
