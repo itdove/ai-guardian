@@ -375,6 +375,50 @@ ai-guardian/
    - Runs on: version tags (v*)
    - Actions: Build, publish to PyPI, create GitHub Release
 
+4. **Integration Tests** (`.github/workflows/integration-tests.yml`)
+   - Runs on: schedule (daily 2 AM UTC), workflow_dispatch, pull requests
+   - Jobs:
+     - **version-check**: Verifies scanner versions exist (runs on all triggers)
+     - **version-health-check**: Checks for version updates (schedule/manual only)
+       - Monitors scanner versions for updates
+       - Checks LeakTK pattern server for new pattern versions
+       - Creates/updates GitHub issues when versions outdated
+       - Duplicate prevention and daily status updates
+     - **integration-tests**: Runs MCP integration tests
+     - **test-isolation**: Verifies no state leakage between test runs
+     - **performance-check**: Ensures tests complete within time limits
+
+### Scanner Version Health Monitoring
+
+The daily integration test workflow includes automated dependency health monitoring:
+
+**What is checked:**
+- Scanner versions (gitleaks, betterleaks, leaktk) from `pyproject.toml`
+- LeakTK pattern server version from `ai-guardian-example.json`
+- Age of pinned versions (warns if >30 days old)
+- Availability of newer versions
+
+**When issues are created:**
+- Scanner version is >30 days old
+- Newer scanner version is available
+- LeakTK pattern server has newer patterns available
+
+**Issue management:**
+- Label: `scanner-version-update`
+- Smart duplicate prevention
+- Daily updates via comments
+- Auto-closes when versions updated
+
+**Manual checks:**
+```bash
+# Check if versions exist (original behavior)
+python scripts/check_scanner_versions.py
+
+# Check for updates and age
+python scripts/check_scanner_versions.py --check-updates --output versions.json
+cat versions.json | jq
+```
+
 ---
 
 ## Configuration Schema Changes
