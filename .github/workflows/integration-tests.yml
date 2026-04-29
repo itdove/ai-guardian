@@ -42,35 +42,35 @@ jobs:
       - name: Run MCP Integration Tests
         run: |
           echo "Running MCP tool integration tests..."
-          pytest tests/test_integration_mcp.py -v --tb=short --durations=10
+          pytest tests/integration/test_integration_mcp.py -v --tb=short --durations=10
 
       - name: Run PostToolUse Tests
         run: |
           echo "Running PostToolUse hook tests..."
-          pytest tests/test_posttooluse_mcp.py -v --tb=short
+          pytest tests/unit/test_posttooluse_mcp.py -v --tb=short
 
       - name: Run Use-Case Scenario Tests
         run: |
           echo "Running realistic attack/defense scenario tests..."
-          pytest tests/test_use_cases.py -v --tb=short
+          pytest tests/unit/test_use_cases.py -v --tb=short
 
       - name: Run Hook Processing Tests
         run: |
           echo "Running hook processing logic tests..."
-          pytest tests/test_hook_processing.py -v --tb=short
+          pytest tests/unit/test_hook_processing.py -v --tb=short
 
       - name: Run Advanced Policy Tests
         run: |
           echo "Running advanced tool policy tests..."
-          pytest tests/test_tool_policy_advanced.py -v --tb=short
+          pytest tests/unit/test_tool_policy_advanced.py -v --tb=short
 
       - name: Generate Coverage Report
         run: |
-          pytest tests/test_integration_mcp.py \
-                 tests/test_posttooluse_mcp.py \
-                 tests/test_use_cases.py \
-                 tests/test_hook_processing.py \
-                 tests/test_tool_policy_advanced.py \
+          pytest tests/integration/test_integration_mcp.py \
+                 tests/unit/test_posttooluse_mcp.py \
+                 tests/unit/test_use_cases.py \
+                 tests/unit/test_hook_processing.py \
+                 tests/unit/test_tool_policy_advanced.py \
                  --cov=ai_guardian \
                  --cov-report=html \
                  --cov-report=term-missing
@@ -84,14 +84,14 @@ jobs:
       - name: Create test summary badge
         run: |
           # Extract test count
-          TOTAL_TESTS=$(pytest tests/test_integration_mcp.py tests/test_posttooluse_mcp.py tests/test_use_cases.py tests/test_hook_processing.py tests/test_tool_policy_advanced.py --collect-only -q | tail -1 | awk '{print $1}')
+          TOTAL_TESTS=$(pytest tests/integration/test_integration_mcp.py tests/unit/test_posttooluse_mcp.py tests/unit/test_use_cases.py tests/unit/test_hook_processing.py tests/unit/test_tool_policy_advanced.py --collect-only -q | tail -1 | awk '{print $1}')
           echo "Total integration tests: $TOTAL_TESTS"
           echo "TOTAL_TESTS=$TOTAL_TESTS" >> $GITHUB_ENV
 
       - name: Check for failures
         id: test-result
         run: |
-          if pytest tests/test_integration_mcp.py tests/test_posttooluse_mcp.py tests/test_use_cases.py tests/test_hook_processing.py tests/test_tool_policy_advanced.py -q; then
+          if pytest tests/integration/test_integration_mcp.py tests/unit/test_posttooluse_mcp.py tests/unit/test_use_cases.py tests/unit/test_hook_processing.py tests/unit/test_tool_policy_advanced.py -q; then
             echo "status=passing" >> $GITHUB_OUTPUT
           else
             echo "status=failing" >> $GITHUB_OUTPUT
@@ -129,13 +129,13 @@ jobs:
         run: |
           # Run tests multiple times to ensure no state leakage
           echo "Run 1..."
-          pytest tests/test_integration_mcp.py::MCPToolPermissionTests -v
+          pytest tests/integration/test_integration_mcp.py::MCPToolPermissionTests -v
 
           echo "Run 2..."
-          pytest tests/test_integration_mcp.py::MCPToolPermissionTests -v
+          pytest tests/integration/test_integration_mcp.py::MCPToolPermissionTests -v
 
           echo "Run 3..."
-          pytest tests/test_integration_mcp.py::MCPToolPermissionTests -v
+          pytest tests/integration/test_integration_mcp.py::MCPToolPermissionTests -v
 
           echo "✅ Test isolation verified - no state leakage between runs"
 
@@ -171,11 +171,11 @@ jobs:
           # Integration tests should complete in under 10 seconds
           START_TIME=$(date +%s)
 
-          pytest tests/test_integration_mcp.py \
-                 tests/test_posttooluse_mcp.py \
-                 tests/test_use_cases.py \
-                 tests/test_hook_processing.py \
-                 tests/test_tool_policy_advanced.py \
+          pytest tests/integration/test_integration_mcp.py \
+                 tests/unit/test_posttooluse_mcp.py \
+                 tests/unit/test_use_cases.py \
+                 tests/unit/test_hook_processing.py \
+                 tests/unit/test_tool_policy_advanced.py \
                  -v --tb=no
 
           END_TIME=$(date +%s)
