@@ -45,7 +45,7 @@ jobs:
           echo "Verifying scanner installations:"
           gitleaks version
           betterleaks --version
-          leaktk --version
+          leaktk version
 
       - name: Run MCP Integration Tests
         run: |
@@ -151,7 +151,7 @@ jobs:
           echo "Verifying scanner installations:"
           gitleaks version
           betterleaks --version
-          leaktk --version
+          leaktk version
 
       - name: Install dependencies
         run: |
@@ -218,7 +218,7 @@ jobs:
           echo "Verifying scanner installations:"
           gitleaks version
           betterleaks --version
-          leaktk --version
+          leaktk version
 
       - name: Install dependencies
         run: |

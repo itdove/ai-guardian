@@ -53,7 +53,7 @@ jobs:
           echo "Verifying scanner installations:"
           gitleaks version
           betterleaks --version
-          leaktk --version
+          leaktk version
 
       - name: Run tests with coverage
         env:
