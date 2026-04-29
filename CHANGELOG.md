@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-## [Unreleased]
+
 ### Added
 
 - **Auto-Generate Directory Rules from Skill Permissions** (Issue #144)
@@ -54,6 +54,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Environment variable handling (CLAUDE_CONFIG_DIR, CURSOR_PROJECT_PATH, VSCODE_CWD)
     - Configuration display with source labeling
     - Immutable rule visibility (critical UX requirement)
+
+### Fixed
+
+- **GitHub Workflows: Sync all scanner versions with pyproject.toml** (Issue #289)
+  - **Problem**: GitHub workflows were using hardcoded gitleaks v8.18.2 while pyproject.toml pinned v8.30.1
+  - **Impact**: Tests ran against different scanner version (12 patch versions behind) than users received via `ai-guardian scanner install --use-pinned`
+  - **Solution**: Workflows now dynamically extract ALL scanner versions (gitleaks, betterleaks, leaktk) from pyproject.toml
+  - **Comprehensive Testing**: CI now installs and verifies all three scanners:
+    - gitleaks v8.30.1 (previously hardcoded v8.18.2)
+    - betterleaks v1.1.2 (newly added to CI)
+    - leaktk v0.2.10 (newly added to CI)
+  - **Single Source of Truth**: pyproject.toml `[tool.ai-guardian.scanners]` is now the authoritative version source for all scanners
+  - **Files Updated**:
+    - `.github/workflows/test.yml` - Updated to install all 3 scanners dynamically
+    - `.github/workflows/integration-tests.yml` - Updated 3 jobs (integration-tests, test-isolation, performance-check)
+  - **Benefits**: 
+    - Tests always match user experience across all scanners
+    - No manual workflow updates needed when pinned versions change
+    - Comprehensive scanner testing in CI ensures all scanners work correctly
 
 ## [1.5.1] - 2026-04-28
 
