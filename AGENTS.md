@@ -105,6 +105,71 @@ pytest -v
 - Run coverage reports before submitting PRs
 - Add tests for new features and bug fixes
 
+### User Experience Contract Tests
+
+**IMPORTANT**: When adding or modifying security features that affect what users see in Claude Code, create UX contract tests in `tests/ux/`.
+
+**When to create UX contract tests:**
+
+1. **New security protections** - Any feature that blocks/allows operations based on threats
+2. **Modified blocking behavior** - Changes to how/when operations are denied
+3. **New user-facing messages** - Error messages, warnings, or permission prompts
+4. **Hook behavior changes** - Modifications to PreToolUse/PostToolUse responses
+
+**What UX contract tests should document:**
+
+- ✅ **Expected user experience** - What users SHOULD see in the IDE
+- ✅ **Security behavior** - When operations are blocked vs allowed
+- ✅ **Error messages** - Exact messages users see for different threats
+- ✅ **Permission flow** - Whether prompts are shown or bypassed
+- ✅ **Manual verification** - Step-by-step guide for testing in actual Claude Code
+
+**Examples:**
+
+- `tests/ux/test_user_experience_contract.py` - PreToolUse hook behavior (issue #224)
+- `tests/ux/test_user_experience_contract_mcp.py` - MCP security features (issue #226)
+
+**Test isolation requirements:**
+
+- ⚠️ **CRITICAL**: UX tests MUST NOT use the user's `~/.config/ai-guardian/ai-guardian.json`
+- ✅ Mock all `_load_*_config()` functions using `@patch` decorators
+- ✅ Use explicit configuration dicts in tests (e.g., `ToolPolicyChecker(config={...})`)
+- ✅ Ensure tests pass in CI/CD without any system configuration
+
+**Template for UX contract tests:**
+
+```python
+@patch('ai_guardian._load_secret_scanning_config')
+@patch('ai_guardian._load_pattern_server_config')
+def test_user_experience_feature_name(self, mock_pattern_config, mock_scan_config):
+    """
+    USER EXPERIENCE: [Brief description] → [Expected outcome]
+
+    Scenario:
+    1. User asks Claude: "[Example user request]"
+    2. Claude tries to [action]
+    3. ai-guardian [hook] runs
+    4. [Threat/condition detected]
+
+    Expected User Experience:
+    ❌/✅ [What happens]
+    🛡️ User sees: "[Exact message]"
+    ⚠️ [Additional context]
+    """
+    # Configure mocks (avoid loading user's config)
+    mock_pattern_config.return_value = None
+    mock_scan_config.return_value = ({"enabled": True}, None)
+    
+    # Test implementation...
+```
+
+**Benefits of UX contract tests:**
+
+- 📖 Living documentation of expected behavior
+- 🧪 Verification that protections work as designed
+- 👥 Manual testing guide for QA
+- 🔒 Ensures security messages are clear and actionable
+
 ---
 
 ## Common Issues
