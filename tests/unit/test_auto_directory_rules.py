@@ -149,8 +149,28 @@ class TestDirectoryRuleGenerator:
         assert "gh-cli" in matching
         assert "other-skill" not in matching
 
-    def test_created_rules_structure(self):
+    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
+    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    def test_created_rules_structure(self, mock_iterdir, mock_is_dir, mock_exists):
         """Generated rules should have correct structure."""
+        # Mock skill directory exists
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        # Mock skills in ~/.claude/skills directory
+        mock_skill1 = MagicMock()
+        mock_skill1.name = "daf-git"
+        mock_skill1.is_dir.return_value = True
+        mock_skill1.is_symlink.return_value = False
+
+        mock_skill2 = MagicMock()
+        mock_skill2.name = "daf-jira"
+        mock_skill2.is_dir.return_value = True
+        mock_skill2.is_symlink.return_value = False
+
+        mock_iterdir.return_value = [mock_skill1, mock_skill2]
+
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
