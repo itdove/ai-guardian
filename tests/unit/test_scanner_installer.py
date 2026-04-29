@@ -481,6 +481,92 @@ class TestVersionChecking:
         assert success
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+    )
+    def test_install_package_manager_wrong_version_with_explicit_version(
+        self, mock_pkg_mgr, mock_download, mock_get_installed
+    ):
+        """
+        Test that explicit version flag is respected when package manager installs wrong version.
+
+        Regression test for issue #295:
+        Package manager succeeds but installs v8.18.2 when v8.30.1 was explicitly requested.
+        Should fall back to direct download to get the correct version.
+        """
+        # Scenario: User requests v8.30.1 explicitly
+        # Package manager succeeds but installs v8.18.2
+        # Should fall back to direct download for correct version
+
+        mock_pkg_mgr.return_value = True  # Package manager succeeds
+        mock_get_installed.return_value = "8.18.2"  # Wrong version installed
+        mock_download.return_value = Path("/fake/path/gitleaks")
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks", version="8.30.1")
+
+        # Should detect version mismatch and fall back to direct download
+        assert success
+        mock_pkg_mgr.assert_called_once()
+        mock_download.assert_called_once_with("gitleaks", "8.30.1")
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_pinned_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+    )
+    def test_install_package_manager_wrong_version_with_use_pinned(
+        self, mock_pkg_mgr, mock_download, mock_get_pinned, mock_get_installed
+    ):
+        """
+        Test that --use-pinned flag is respected when package manager installs wrong version.
+
+        Regression test for issue #295:
+        Package manager succeeds but installs v8.18.2 when v8.30.1 was pinned.
+        Should fall back to direct download to get the pinned version.
+        """
+        # Scenario: pyproject.toml pins v8.30.1, user runs with --use-pinned
+        # Package manager succeeds but installs v8.18.2
+        # Should fall back to direct download for pinned version
+
+        mock_pkg_mgr.return_value = True  # Package manager succeeds
+        mock_get_installed.return_value = "8.18.2"  # Wrong version installed
+        mock_get_pinned.return_value = "8.30.1"  # Pinned version
+        mock_download.return_value = Path("/fake/path/gitleaks")
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks", use_pinned=True)
+
+        # Should detect version mismatch and fall back to direct download
+        assert success
+        mock_pkg_mgr.assert_called_once()
+        mock_get_pinned.assert_called_once()
+        mock_download.assert_called_once_with("gitleaks", "8.30.1")
+
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager")
+    def test_install_package_manager_correct_version_no_fallback(
+        self, mock_pkg_mgr, mock_get_installed
+    ):
+        """
+        Test that direct download is NOT called when package manager installs correct version.
+
+        When package manager installs the requested version, should return success
+        without attempting direct download.
+        """
+        mock_pkg_mgr.return_value = True  # Package manager succeeds
+        mock_get_installed.return_value = "8.30.1"  # Correct version installed
+
+        installer = ScannerInstaller()
+        success = installer.install("gitleaks", version="8.30.1")
+
+        # Should succeed with package manager, no direct download attempted
+        assert success
+        mock_pkg_mgr.assert_called_once()
+
 
 class TestChecksumVerification:
     """Tests for SHA-256 checksum verification."""

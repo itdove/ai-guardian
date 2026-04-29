@@ -34,45 +34,19 @@ jobs:
       - name: Display Python version
         run: python --version
 
-      - name: Install scanners from pyproject.toml versions
-        run: |
-          # Extract pinned versions from pyproject.toml (single source of truth)
-          # Use grep -A/-B to only match lines in [tool.ai-guardian.scanners] section, not [scanners.repos]
-          GITLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^gitleaks' | cut -d'"' -f2)
-          BETTERLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^betterleaks' | cut -d'"' -f2)
-          LEAKTK_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^leaktk' | cut -d'"' -f2)
-
-          echo "Installing scanners from pyproject.toml pinned versions:"
-          echo "  - gitleaks v${GITLEAKS_VERSION}"
-          echo "  - betterleaks v${BETTERLEAKS_VERSION}"
-          echo "  - leaktk v${LEAKTK_VERSION}"
-
-          # Install gitleaks
-          wget -q https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz
-          tar -xzf gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz
-          sudo mv gitleaks /usr/local/bin/
-
-          # Install betterleaks
-          wget -q https://github.com/betterleaks/betterleaks/releases/download/v${BETTERLEAKS_VERSION}/betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz
-          tar -xzf betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz
-          sudo mv betterleaks /usr/local/bin/
-
-          # Install leaktk
-          wget -q https://github.com/leaktk/leaktk/releases/download/v${LEAKTK_VERSION}/leaktk-${LEAKTK_VERSION}-linux-x86_64.tar.xz
-          tar -xJf leaktk-${LEAKTK_VERSION}-linux-x86_64.tar.xz
-          sudo mv leaktk /usr/local/bin/
-
-          # Verify installations
-          echo "Verifying scanner installations:"
-          gitleaks version
-          betterleaks --version
-          leaktk version
-
-      - name: Install dependencies
+      - name: Install dependencies and scanners
         run: |
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest pytest-cov pytest-mock
+
+      - name: Install scanners from pyproject.toml
+        run: |
+          # Use scanner installer with --use-pinned to install exact versions from pyproject.toml
+          # This ensures CI uses the same versions as users and maintains single source of truth
+          ai-guardian scanner install gitleaks --use-pinned
+          ai-guardian scanner install betterleaks --use-pinned
+          ai-guardian scanner install leaktk --use-pinned
 
       - name: Run tests with coverage
         env:
