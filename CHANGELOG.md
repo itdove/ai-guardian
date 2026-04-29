@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```
   - **Guarantees**: `--version` and `--use-pinned` flags now guarantee exact scanner versions in CI/CD
   - **Test Coverage**: Added 3 regression tests for explicit version, pinned version, and correct version scenarios
+  - **CI/CD Improvement**: Updated GitHub workflows to use scanner installer instead of manual wget/tar
+    - Simplifies workflow maintenance (single source of truth in pyproject.toml)
+    - Removes manual version extraction and download logic
+    - Ensures workflows use same installation method as users
+    - Updated workflows: `test.yml`, `integration-tests.yml` (3 jobs)
 
 ### Added
 
