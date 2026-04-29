@@ -23,10 +23,10 @@ except ImportError:
 
 
 # Get project root directory
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 SCHEMA_PATH = PROJECT_ROOT / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "ai-guardian-example.json"
-VALID_CONFIG_PATH = Path(__file__).parent / "fixtures" / "valid-config.json"
+VALID_CONFIG_PATH = Path(__file__).parent.parent / "fixtures" / "valid-config.json"
 
 
 @pytest.fixture
