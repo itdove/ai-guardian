@@ -36,7 +36,9 @@ jobs:
         run: |
           # Use scanner installer with --use-pinned to install exact versions from pyproject.toml
           # This ensures CI uses the same versions as users and maintains single source of truth
-          ai-guardian scanner install gitleaks betterleaks leaktk --use-pinned
+          ai-guardian scanner install gitleaks --use-pinned
+          ai-guardian scanner install betterleaks --use-pinned
+          ai-guardian scanner install leaktk --use-pinned
 
       - name: Run MCP Integration Tests
         run: |
@@ -121,7 +123,9 @@ jobs:
         run: |
           # Use scanner installer with --use-pinned to install exact versions from pyproject.toml
           # This ensures CI uses the same versions as users and maintains single source of truth
-          ai-guardian scanner install gitleaks betterleaks leaktk --use-pinned
+          ai-guardian scanner install gitleaks --use-pinned
+          ai-guardian scanner install betterleaks --use-pinned
+          ai-guardian scanner install leaktk --use-pinned
 
       - name: Verify test isolation
         run: |
@@ -161,7 +165,9 @@ jobs:
         run: |
           # Use scanner installer with --use-pinned to install exact versions from pyproject.toml
           # This ensures CI uses the same versions as users and maintains single source of truth
-          ai-guardian scanner install gitleaks betterleaks leaktk --use-pinned
+          ai-guardian scanner install gitleaks --use-pinned
+          ai-guardian scanner install betterleaks --use-pinned
+          ai-guardian scanner install leaktk --use-pinned
 
       - name: Check test execution time
         run: |
