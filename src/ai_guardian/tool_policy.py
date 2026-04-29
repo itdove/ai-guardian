@@ -1810,6 +1810,10 @@ class ToolPolicyChecker:
                     if "immutable" in value:
                         merged_permissions["immutable"] = value["immutable"]
 
+                    # Merge auto_directory_rules field (NEW in v1.8.0, Issue #144)
+                    if "auto_directory_rules" in value:
+                        merged_permissions["auto_directory_rules"] = value["auto_directory_rules"]
+
                     # Merge rules array with matcher-level immutability filtering
                     if "rules" in value:
                         override_rules = value["rules"]
