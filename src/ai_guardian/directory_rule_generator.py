@@ -115,6 +115,43 @@ class DirectoryRuleGenerator:
         logger.debug(f"Found {len(patterns)} skill permission patterns: {patterns}")
         return patterns
 
+    def _validate_env_path(self, env_var_name: str, path_str: str) -> Optional[Path]:
+        """
+        Validate environment variable path for security.
+
+        Prevents path traversal attacks by rejecting paths with suspicious patterns.
+        Allows absolute paths for flexibility in testing and deployment.
+
+        Args:
+            env_var_name: Name of environment variable (for logging)
+            path_str: Path string from environment variable
+
+        Returns:
+            Validated Path object or None if validation fails
+        """
+        try:
+            # Check for path traversal patterns before resolution
+            if ".." in path_str:
+                logger.warning(
+                    f"Rejecting {env_var_name}={path_str}: "
+                    f"Path contains traversal sequence '..'"
+                )
+                return None
+
+            path = Path(path_str).resolve()
+
+            # Ensure path is absolute after resolution
+            if not path.is_absolute():
+                logger.warning(
+                    f"Rejecting {env_var_name}={path_str}: Path must be absolute"
+                )
+                return None
+
+            return path
+        except Exception as e:
+            logger.warning(f"Invalid path from {env_var_name}={path_str}: {e}")
+            return None
+
     def _get_skill_directories(self, auto_config: Dict) -> List[Path]:
         """
         Get list of skill directories to scan.
@@ -153,17 +190,23 @@ class DirectoryRuleGenerator:
             # Claude Code
             claude_config = os.environ.get("CLAUDE_CONFIG_DIR")
             if claude_config:
-                candidate_dirs.append(Path(claude_config) / "skills")
+                validated = self._validate_env_path("CLAUDE_CONFIG_DIR", claude_config)
+                if validated:
+                    candidate_dirs.append(validated / "skills")
 
             # Cursor (uses CURSOR_PROJECT_PATH for project root)
             cursor_project = os.environ.get("CURSOR_PROJECT_PATH")
             if cursor_project:
-                candidate_dirs.append(Path(cursor_project) / ".cursor" / "skills")
+                validated = self._validate_env_path("CURSOR_PROJECT_PATH", cursor_project)
+                if validated:
+                    candidate_dirs.append(validated / ".cursor" / "skills")
 
             # VSCode/Copilot
             vscode_cwd = os.environ.get("VSCODE_CWD")
             if vscode_cwd:
-                candidate_dirs.append(Path(vscode_cwd) / ".vscode" / "skills")
+                validated = self._validate_env_path("VSCODE_CWD", vscode_cwd)
+                if validated:
+                    candidate_dirs.append(validated / ".vscode" / "skills")
         elif isinstance(skill_dirs_config, list):
             candidate_dirs = [Path(d) for d in skill_dirs_config]
         else:
@@ -193,6 +236,11 @@ class DirectoryRuleGenerator:
             try:
                 # List all subdirectories (each is a potential skill)
                 for item in skill_dir.iterdir():
+                    # Skip symlinks for security (prevent following links outside skill dirs)
+                    if item.is_symlink():
+                        logger.warning(f"Skipping symlink in skill directory: {item}")
+                        continue
+
                     if item.is_dir():
                         skill_name = item.name
 

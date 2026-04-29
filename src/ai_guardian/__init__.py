@@ -3114,6 +3114,10 @@ def main():
             try:
                 from ai_guardian.config_display import ConfigDisplay
 
+                if args.config_command is None:
+                    config_parser.print_help()
+                    return 1
+
                 if args.config_command == "show":
                     display = ConfigDisplay()
                     output = display.show(

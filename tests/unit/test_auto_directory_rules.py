@@ -60,10 +60,12 @@ class TestDirectoryRuleGenerator:
         mock_skill1 = MagicMock()
         mock_skill1.name = "daf-git"
         mock_skill1.is_dir.return_value = True
+        mock_skill1.is_symlink.return_value = False
 
         mock_skill2 = MagicMock()
         mock_skill2.name = "daf-jira"
         mock_skill2.is_dir.return_value = True
+        mock_skill2.is_symlink.return_value = False
 
         mock_iterdir.return_value = [mock_skill1, mock_skill2]
 
