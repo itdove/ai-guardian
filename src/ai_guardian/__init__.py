@@ -2918,6 +2918,31 @@ def main():
             help="Path to ai-guardian.json config file (default: auto-detect)"
         )
 
+        # Config subcommand (NEW in v1.8.0, Issue #144)
+        config_parser = subparsers.add_parser(
+            "config",
+            help="Configuration management (show merged config, preview auto-rules)"
+        )
+        config_sub = config_parser.add_subparsers(dest="config_command", help="Config commands")
+
+        # config show
+        config_show_parser = config_sub.add_parser("show", help="Display merged configuration")
+        config_show_parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Include auto-generated rules marked [GENERATED]"
+        )
+        config_show_parser.add_argument(
+            "--section",
+            metavar="NAME",
+            help="Show specific section only (e.g., permissions, directory_rules)"
+        )
+        config_show_parser.add_argument(
+            "--preview-auto-rules",
+            action="store_true",
+            help="Preview what auto-generation would create (without enabling)"
+        )
+
         # Scanner subcommand (NEW in v1.6.0)
         scanner_parser = subparsers.add_parser(
             "scanner",
@@ -3077,6 +3102,33 @@ def main():
                 return 0
             except ImportError as e:
                 print(f"Error: Config inspector module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error displaying configuration: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle config command (NEW in v1.8.0, Issue #144)
+        if args.command == "config":
+            try:
+                from ai_guardian.config_display import ConfigDisplay
+
+                if args.config_command == "show":
+                    display = ConfigDisplay()
+                    output = display.show(
+                        show_all=args.all,
+                        section=args.section,
+                        preview_auto_rules=args.preview_auto_rules
+                    )
+                    print(output)
+                    return 0
+                else:
+                    print(f"Unknown config command: {args.config_command}", file=sys.stderr)
+                    return 1
+
+            except ImportError as e:
+                print(f"Error: Config display module not available: {e}", file=sys.stderr)
                 return 1
             except Exception as e:
                 print(f"Error displaying configuration: {e}", file=sys.stderr)

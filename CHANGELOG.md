@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [Unreleased]
+### Added
+
+- **Auto-Generate Directory Rules from Skill Permissions** (Issue #144)
+  - **Eliminates Duplication**: Auto-generate directory access rules from skill permissions, eliminating the need to configure skills in two places
+  - **Multi-IDE Support**: Scans standard skill locations for Claude Code, Cursor, VSCode/Copilot, and Windsurf
+    - Claude Code: `./.claude/skills`, `~/.claude/skills`, `$CLAUDE_CONFIG_DIR/skills`
+    - Cursor: `./.cursor/skills`, `~/.cursor/skills`, `$CURSOR_PROJECT_PATH/.cursor/skills`
+    - VSCode/Copilot: `./.vscode/skills`, `~/.vscode/skills`, `$VSCODE_CWD/.vscode/skills`
+    - Windsurf: `./.windsurf/skills`, `~/.windsurf/skills`
+  - **Opt-In Feature**: Requires explicit `auto_directory_rules.enabled: true` in config
+  - **User Control Maintained**: Generated rules inserted at BEGINNING of directory_rules array (user rules can override)
+  - **Rule Order** (last-match-wins): Generated → User → Immutable
+  - **Transparency**: All rules visible with clear labels `[USER]`, `[GENERATED]`, `[IMMUTABLE]`
+  - **Configuration**:
+    ```json
+    {
+      "permissions": {
+        "auto_directory_rules": {
+          "enabled": true,
+          "skill_directories": "auto"
+        }
+      }
+    }
+    ```
+  - **New CLI Command**: `ai-guardian config show`
+    - `ai-guardian config show` - Display user-defined configuration
+    - `ai-guardian config show --all` - Include auto-generated rules with `[GENERATED]` labels
+    - `ai-guardian config show --section <name>` - Show specific section only
+    - `ai-guardian config show --preview-auto-rules` - Preview what auto-generation would create
+  - **Implementation**:
+    - Added `DirectoryRuleGenerator` class for auto-generation logic
+    - Added `ConfigDisplay` class for displaying merged configuration
+    - Updated JSON schema with `auto_directory_rules` section
+    - Integrated into `ToolPolicyChecker._load_config()` after remote config merge
+  - **Critical Design Decision**: Investigation (INVESTIGATION_ISSUE_144.md) identified that original proposal had rule order BACKWARDS
+    - Original: User → Generated → Immutable (Generated wins, breaks user control)
+    - Implemented: Generated → User → Immutable (User can override, maintains control)
+  - **Visibility**: Investigation identified "invisible immutable rules" as breaking user trust
+    - All rules (user, generated, immutable) are visible with clear source attribution
+    - `config show --all` displays complete merged configuration with labels
+  - **Test Coverage**: Added 39 comprehensive test cases:
+    - Rule generation from skill permissions patterns
+    - Rule insertion order (Generated first, User second)
+    - Multi-IDE support (Claude, Cursor, VSCode, Windsurf)
+    - Environment variable handling (CLAUDE_CONFIG_DIR, CURSOR_PROJECT_PATH, VSCODE_CWD)
+    - Configuration display with source labeling
+    - Immutable rule visibility (critical UX requirement)
 
 ## [1.5.1] - 2026-04-28
 

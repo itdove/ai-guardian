@@ -27,6 +27,36 @@
           "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
           "default": false
         },
+        "auto_directory_rules": {
+          "type": "object",
+          "description": "Auto-generate directory rules from skill permissions (NEW in v1.8.0, Issue #144). Eliminates duplication by automatically creating directory access rules for allowed skills. When enabled, scans standard skill locations and generates 'allow' directory rules for skills matching permission patterns. Generated rules are inserted FIRST (weakest) so user rules can override. Rule evaluation order: Generated → User → Immutable (last-match-wins). Opt-in feature - requires explicit enable.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable auto-generation of directory rules from skill permissions. Default: false (opt-in). When true, generates directory rules for allowed skills and inserts them at the beginning of directory_rules.rules array (before user rules). On first enable, shows interactive confirmation with preview.",
+              "default": false
+            },
+            "skill_directories": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": ["auto"],
+                  "description": "Auto-discover skill directories from standard locations"
+                },
+                {
+                  "type": "array",
+                  "description": "Explicit list of skill directory paths to scan",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "description": "Skill directories to scan for auto-generation. Default: 'auto' scans standard locations (./.claude/skills, ~/.claude/skills, $CLAUDE_CONFIG_DIR/skills). Can also provide explicit array of paths.",
+              "default": "auto"
+            }
+          },
+          "additionalProperties": false
+        },
         "rules": {
           "type": "array",
           "description": "Permission rules for tools (Skills, MCP servers, built-in tools like Bash/Write/Read). Default: Built-in tools ALLOW, Skills and MCP servers BLOCK unless explicitly allowed.",
