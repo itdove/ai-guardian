@@ -1544,6 +1544,9 @@ class ToolPolicyChecker:
         # Discover and add patterns from permissions_directories
         self._discover_from_directories(config)
 
+        # Auto-generate directory rules from skill permissions (if enabled)
+        self._auto_generate_directory_rules(config)
+
         return config
 
     def _get_immutable_matchers(self, remote_configs: List[Dict]) -> Set[str]:
@@ -2228,3 +2231,51 @@ class ToolPolicyChecker:
             "patterns": items
         }
         rules.append(new_rule)
+
+    def _auto_generate_directory_rules(self, config: Dict) -> None:
+        """
+        Auto-generate directory rules from skill permissions.
+
+        If auto_directory_rules.enabled is true, generates directory rules
+        for allowed skills and inserts them at the BEGINNING of directory_rules.rules
+        (before user rules, so user can override).
+
+        Rule order (last-match-wins):
+          Position 0-N: Generated rules (weakest - user can override)
+          Position N+1+: User rules (override generated)
+          Final positions: Immutable rules (strongest - override all)
+
+        Args:
+            config: Configuration dict (modified in-place)
+        """
+        try:
+            # Check if auto-generation is enabled
+            permissions = config.get("permissions", {})
+            auto_config = permissions.get("auto_directory_rules", {})
+
+            if not auto_config.get("enabled", False):
+                logger.debug("Auto-generation of directory rules is disabled")
+                return
+
+            # Generate directory rules
+            from ai_guardian.directory_rule_generator import (
+                DirectoryRuleGenerator,
+                insert_generated_rules
+            )
+
+            generator = DirectoryRuleGenerator(config)
+            generated_rules = generator.generate_directory_rules()
+
+            if generated_rules:
+                # Insert at BEGINNING of directory_rules.rules
+                insert_generated_rules(config, generated_rules)
+                logger.info(f"Auto-generated {len(generated_rules)} directory rules from skill permissions")
+            else:
+                logger.debug("No directory rules generated (no matching skills found)")
+
+        except ImportError:
+            logger.debug("Directory rule generator not available")
+        except Exception as e:
+            logger.error(f"Error auto-generating directory rules: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
