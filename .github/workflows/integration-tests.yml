@@ -164,6 +164,173 @@ jobs:
 
           echo "✅ Test isolation verified - no state leakage between runs"
 
+  version-health-check:
+    name: Scanner Version Health Check
+    runs-on: ubuntu-latest
+    # Only run on schedule, not on PR
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Check for version updates
+        id: check-versions
+        continue-on-error: true
+        run: |
+          python scripts/check_scanner_versions.py --check-updates --output versions.json
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Check for existing version update issue
+        id: check-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'scanner-version-update',
+              state: 'open'
+            });
+
+            if (issues.length > 0) {
+              console.log(`Found existing issue #${issues[0].number}`);
+              core.setOutput('exists', 'true');
+              core.setOutput('issue_number', issues[0].number);
+            } else {
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Comment on existing issue
+        if: steps.check-versions.outputs.exit_code != '0' && steps.check-issue.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const versions = JSON.parse(fs.readFileSync('versions.json', 'utf8'));
+
+            let updates = [];
+            for (const [scanner, info] of Object.entries(versions)) {
+              if (info.status !== 'OK') {
+                const ageInfo = info.age_days ? ` (${info.age_days} days old)` : '';
+                updates.push(`- **${scanner}**: v${info.pinned_version} → v${info.latest_version}${ageInfo}`);
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.check-issue.outputs.issue_number }},
+              body: `⏰ **Daily Version Check**
+
+            Scanner versions still outdated:
+
+            ${updates.join('\n')}
+
+            Last checked: ${new Date().toISOString().split('T')[0]}`
+            });
+
+      - name: Create new version update issue
+        if: steps.check-versions.outputs.exit_code != '0' && steps.check-issue.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const versions = JSON.parse(fs.readFileSync('versions.json', 'utf8'));
+
+            let outdated = [];
+            let warnings = [];
+            let leaktkSection = '';
+
+            for (const [scanner, info] of Object.entries(versions)) {
+              const ageInfo = info.age_days ? ` (${info.age_days} days old)` : '';
+              const line = `- **${scanner}**: v${info.pinned_version} → v${info.latest_version}${ageInfo}`;
+
+              if (scanner === 'leaktk_patterns') {
+                // Special handling for LeakTK patterns
+                if (info.is_outdated) {
+                  leaktkSection = `### 🔄 LeakTK Pattern Server Update Available
+
+            ${line}
+
+            **Update Required:**
+            1. Update \`ai-guardian-example.json\`:
+               - Location: \`secret_scanning.pattern_server._leaktk_example_config.patterns_endpoint\`
+               - Change: \`/leaktk/patterns/main/target/patterns/gitleaks/${info.pinned_version}\`
+               - To: \`/leaktk/patterns/main/target/patterns/gitleaks/${info.latest_version}\`
+
+            2. Add to \`pyproject.toml\` (if not already present):
+               \`\`\`toml
+               [tool.ai-guardian.scanners.pattern_server]
+               leaktk = { url = "https://raw.githubusercontent.com", patterns_endpoint = "/leaktk/patterns/main/target/patterns/gitleaks/${info.latest_version}" }
+               \`\`\`
+
+            `;
+                }
+              } else if (info.is_outdated) {
+                outdated.push(line);
+              } else if (info.status === 'WARNING') {
+                warnings.push(line);
+              }
+            }
+
+            const issueBody = `## Scanner Version Health Check
+
+            Automated daily check found outdated scanner versions:
+
+            ${outdated.length > 0 ? `### 🔄 Scanner Updates Available\n\n${outdated.join('\n')}\n\n` : ''}${warnings.length > 0 ? `### ⚠️ Outdated Scanners (>30 days)\n\n${warnings.join('\n')}\n\n` : ''}${leaktkSection}
+
+            ## Action Required
+
+            1. Review the versions above
+            2. Test with new versions locally:
+               \`\`\`bash
+               ai-guardian scanner install gitleaks --version NEW_VERSION
+               pytest tests/
+               \`\`\`
+            3. Update \`pyproject.toml\`:
+               \`\`\`toml
+               [tool.ai-guardian.scanners]
+               gitleaks = "NEW_VERSION"
+               betterleaks = "NEW_VERSION"
+               leaktk = "NEW_VERSION"
+               \`\`\`
+            4. Update CHANGELOG.md under \`[Unreleased]\`
+            5. Close this issue
+
+            ## Version Details
+
+            \`\`\`json
+            ${JSON.stringify(versions, null, 2)}
+            \`\`\`
+
+            ## Automation
+
+            This issue was created by the daily integration tests workflow.
+
+            **Triggered**: ${new Date().toISOString()}
+            **Workflow Run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+
+            This issue will be updated daily until versions are current.
+            `;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '📦 Scanner versions outdated - update recommended',
+              labels: ['scanner-version-update', 'dependencies', 'maintenance'],
+              body: issueBody
+            });
+
   performance-check:
     name: Performance Check
     runs-on: ubuntu-latest

@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Daily Scanner Version Health Monitoring** (Issue #291)
+  - **Enhanced Version Check Script**: `scripts/check_scanner_versions.py --check-updates`
+    - Checks for scanner version updates via GitHub releases API
+    - Calculates age of pinned versions (alerts when >30 days old)
+    - Compares pinned versions against latest available versions
+    - Checks LeakTK pattern server version updates
+      - Monitors `ai-guardian-example.json` pattern endpoint version
+      - Compares against latest pattern directory in leaktk/patterns repo
+    - Outputs JSON results for workflow automation (`versions.json`)
+    - Exit codes: 0 = up to date, 1 = outdated versions found
+  - **CI/CD Automation**: Daily health check workflow
+    - `.github/workflows/integration-tests.yml`: New `version-health-check` job
+    - Runs daily at 2 AM UTC (schedule) and manual trigger (workflow_dispatch)
+    - Only runs on schedule/manual, skips on PRs to avoid noise
+    - Smart issue management:
+      - Duplicate prevention: Checks for existing open issues before creating
+      - Daily updates: Comments on existing issue instead of creating duplicates
+      - Auto-closes: Issue closes when versions are updated
+    - Creates GitHub issue when versions outdated (>30 days) or updates available
+      - Label: `scanner-version-update`, `dependencies`, `maintenance`
+      - Includes: Version comparison, age tracking, update instructions
+      - Special handling: LeakTK pattern updates include both ai-guardian-example.json and pyproject.toml update instructions
+  - **Benefits**:
+    - ✅ Proactive alerts: Know when scanner updates available
+    - ✅ Security awareness: Track age of dependencies
+    - ✅ Zero maintenance: Fully automated daily checks
+    - ✅ No duplicates: Smart issue management
+    - ✅ Audit trail: GitHub issues document all updates
+    - ✅ Pattern monitoring: Track LeakTK pattern version updates
+  - **Related**: Issue #290 - Version existence check, Issue #289 - Version mismatch fix
+
 - **Scanner Version Existence Check** (Issue #290)
   - **Pre-flight Check Script**: `scripts/check_scanner_versions.py`
     - Verifies pinned scanner versions in `pyproject.toml` exist on GitHub releases
