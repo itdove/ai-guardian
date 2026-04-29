@@ -29,9 +29,10 @@ jobs:
       - name: Install scanners from pyproject.toml versions
         run: |
           # Extract pinned versions from pyproject.toml (single source of truth)
-          GITLEAKS_VERSION=$(grep '^gitleaks = ' pyproject.toml | cut -d'"' -f2)
-          BETTERLEAKS_VERSION=$(grep '^betterleaks = ' pyproject.toml | cut -d'"' -f2)
-          LEAKTK_VERSION=$(grep '^leaktk = ' pyproject.toml | cut -d'"' -f2)
+          # Use grep -A/-B to only match lines in [tool.ai-guardian.scanners] section, not [scanners.repos]
+          GITLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^gitleaks' | cut -d'"' -f2)
+          BETTERLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^betterleaks' | cut -d'"' -f2)
+          LEAKTK_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^leaktk' | cut -d'"' -f2)
 
           echo "Installing scanners from pyproject.toml pinned versions:"
           echo "  - gitleaks v${GITLEAKS_VERSION}"
