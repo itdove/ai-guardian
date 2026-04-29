@@ -57,22 +57,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **GitHub Workflows: Sync all scanner versions with pyproject.toml** (Issue #289)
+- **GitHub Workflows: Use ai-guardian scanner install for comprehensive testing** (Issue #289)
   - **Problem**: GitHub workflows were using hardcoded gitleaks v8.18.2 while pyproject.toml pinned v8.30.1
   - **Impact**: Tests ran against different scanner version (12 patch versions behind) than users received via `ai-guardian scanner install --use-pinned`
-  - **Solution**: Workflows now dynamically extract ALL scanner versions (gitleaks, betterleaks, leaktk) from pyproject.toml
+  - **Solution**: Workflows now use `ai-guardian scanner install --use-pinned` to install ALL scanners from pyproject.toml
+  - **Tests Real Code Path**: CI now uses the same installation method users do, providing better test coverage
   - **Comprehensive Testing**: CI now installs and verifies all three scanners:
     - gitleaks v8.30.1 (previously hardcoded v8.18.2)
     - betterleaks v1.1.2 (newly added to CI)
     - leaktk v0.2.10 (newly added to CI)
-  - **Single Source of Truth**: pyproject.toml `[tool.ai-guardian.scanners]` is now the authoritative version source for all scanners
+  - **Additional Benefits**:
+    - ✅ Tests scanner installation feature itself (validates Issue #278 SHA-256 verification)
+    - ✅ Simpler workflow (one command vs manual wget/tar/mv per scanner)
+    - ✅ More maintainable (installer improvements automatically tested)
+    - ✅ Single source of truth: pyproject.toml `[tool.ai-guardian.scanners]`
   - **Files Updated**:
-    - `.github/workflows/test.yml` - Updated to install all 3 scanners dynamically
+    - `.github/workflows/test.yml` - Use `ai-guardian scanner install --use-pinned` for all 3 scanners
     - `.github/workflows/integration-tests.yml` - Updated 3 jobs (integration-tests, test-isolation, performance-check)
   - **Benefits**: 
-    - Tests always match user experience across all scanners
+    - Tests exactly match user experience
     - No manual workflow updates needed when pinned versions change
-    - Comprehensive scanner testing in CI ensures all scanners work correctly
+    - Scanner installer feature validated in CI
 
 ## [1.5.1] - 2026-04-28
 
