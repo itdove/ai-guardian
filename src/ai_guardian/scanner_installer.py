@@ -611,8 +611,19 @@ class ScannerInstaller:
         # Try package manager first (unless method specified)
         if method is None or method == InstallMethod.PACKAGE_MANAGER:
             if self.install_via_package_manager(scanner_name):
-                print(f"✓ Installed {scanner_name} via package manager")
-                return True
+                # Verify installed version matches request
+                installed_version = self._get_installed_version(scanner_name)
+                if installed_version and self._compare_versions(installed_version, target_version) == 0:
+                    print(f"✓ Installed {scanner_name} via package manager")
+                    return True
+                else:
+                    # Version mismatch - package manager installed wrong version
+                    if installed_version:
+                        print(f"⚠️  Package manager installed {scanner_name} {installed_version}, but {target_version} was requested")
+                    else:
+                        print(f"⚠️  Package manager installation succeeded but version verification failed")
+                    print(f"Falling back to direct download for {scanner_name} {target_version}...")
+                    # Fall through to direct download
 
         # Fallback to direct download with determined version
         if method is None or method == InstallMethod.DIRECT_DOWNLOAD:

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scanner installer ignores --use-pinned and --version flags when package manager succeeds** (Issue #295)
+  - **Root Cause**: Package manager installation returned success without verifying installed version matched requested version
+  - **Impact**: Users requesting specific versions (e.g., `--version 8.30.1` or `--use-pinned`) got different versions when package manager succeeded (e.g., apt-get installing v8.18.2)
+  - **Fix**: After package manager installation, verify installed version matches target version:
+    - If versions match: Return success
+    - If versions differ: Print warning and fall back to direct download from GitHub releases
+  - **Fallback Behavior**:
+    ```
+    ⚠️  Package manager installed gitleaks 8.18.2, but 8.30.1 was requested
+    Falling back to direct download for gitleaks 8.30.1...
+    ```
+  - **Guarantees**: `--version` and `--use-pinned` flags now guarantee exact scanner versions in CI/CD
+  - **Test Coverage**: Added 3 regression tests for explicit version, pinned version, and correct version scenarios
+
 ### Added
 
 - **Auto-Generate Directory Rules from Skill Permissions** (Issue #144)
