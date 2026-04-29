@@ -42,7 +42,8 @@ class ConfigDisplay:
         self,
         show_all: bool = False,
         section: Optional[str] = None,
-        preview_auto_rules: bool = False
+        preview_auto_rules: bool = False,
+        output_json: bool = False
     ) -> str:
         """
         Generate formatted configuration display.
@@ -51,12 +52,17 @@ class ConfigDisplay:
             show_all: Include auto-generated rules marked with [GENERATED]
             section: Filter to specific section name
             preview_auto_rules: Show preview of what would be auto-generated
+            output_json: Output configuration as JSON instead of formatted text
 
         Returns:
-            Formatted configuration string
+            Formatted configuration string or JSON string
         """
         if preview_auto_rules:
             return self._preview_auto_generated_rules()
+
+        # JSON output mode
+        if output_json:
+            return self._output_json(show_all, section)
 
         output = []
         output.append("=" * 70)
@@ -82,6 +88,67 @@ class ConfigDisplay:
             output.append("")
 
         return "\n".join(output)
+
+    def _output_json(self, show_all: bool, section: Optional[str]) -> str:
+        """
+        Output configuration as JSON.
+
+        Args:
+            show_all: Include auto-generated rules
+            section: Filter to specific section name
+
+        Returns:
+            JSON string
+        """
+        # Deep copy config to avoid modifying original
+        import copy
+        output_config = copy.deepcopy(self.config)
+
+        # Filter auto-generated rules if not showing all
+        if not show_all:
+            output_config = self._filter_generated_rules(output_config)
+
+        # Filter to specific section if requested
+        if section:
+            if section in output_config:
+                output_config = {section: output_config[section]}
+            else:
+                output_config = {}
+
+        return json.dumps(output_config, indent=2)
+
+    def _filter_generated_rules(self, config: Dict) -> Dict:
+        """
+        Remove auto-generated rules from configuration.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            Configuration with generated rules filtered out
+        """
+        if "permissions" in config:
+            perms = config["permissions"]
+            if isinstance(perms, dict) and "rules" in perms:
+                perms["rules"] = [
+                    rule for rule in perms["rules"]
+                    if not rule.get("_generated", False)
+                ]
+
+        if "directory_rules" in config:
+            dir_rules = config["directory_rules"]
+            if isinstance(dir_rules, dict) and "rules" in dir_rules:
+                dir_rules["rules"] = [
+                    rule for rule in dir_rules["rules"]
+                    if not rule.get("_generated", False)
+                ]
+            elif isinstance(dir_rules, list):
+                config["directory_rules"] = [
+                    rule for rule in dir_rules
+                    if not rule.get("_generated", False)
+                ]
+
+        return config
 
     def _add_all_sections(self, output: List[str], show_all: bool):
         """Add all configuration sections to output."""
