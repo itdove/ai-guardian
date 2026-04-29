@@ -2942,6 +2942,11 @@ def main():
             action="store_true",
             help="Preview what auto-generation would create (without enabling)"
         )
+        config_show_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output configuration as JSON"
+        )
 
         # Scanner subcommand (NEW in v1.6.0)
         scanner_parser = subparsers.add_parser(
@@ -3123,7 +3128,8 @@ def main():
                     output = display.show(
                         show_all=args.all,
                         section=args.section,
-                        preview_auto_rules=args.preview_auto_rules
+                        preview_auto_rules=args.preview_auto_rules,
+                        output_json=args.json
                     )
                     print(output)
                     return 0
