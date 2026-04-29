@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dependabot Configuration** (Issue #292)
+  - **Automated Dependency Updates**: `.github/dependabot.yml`
+    - GitHub Actions monitoring: Monthly checks for action version updates
+      - Monitors: actions/checkout, actions/setup-python, codecov/codecov-action, etc.
+      - Labels: `ci-cd`, `dependabot`
+      - Commit prefix: `ci:`
+      - PR limit: 5 concurrent
+    - Python package monitoring: Monthly checks for pip dependencies
+      - Monitors: textual, jsonschema, requests, pyyaml, tomli, pytest, etc.
+      - Labels: `enhancement`, `dependabot`
+      - Commit prefix: `deps:`
+      - PR limit: 10 concurrent
+      - Grouping: Minor and patch updates grouped into single PRs
+      - Major updates: Separate PRs for careful review
+  - **Security Benefits**:
+    - ✅ Automated CVE alerts: Immediate PRs for security vulnerabilities (regardless of schedule)
+    - ✅ Zero-effort monitoring: Dependabot checks automatically
+    - ✅ CI validation: All PRs run full test suite before merge
+  - **Complements Scanner Checking** (#291):
+    - Dependabot: Standard dependencies (GitHub Actions, Python packages)
+    - Scanner checking: Custom scanners (gitleaks, betterleaks, leaktk)
+  - **Documentation**: Added Dependabot section to AGENTS.md
+
 - **Daily Scanner Version Health Monitoring** (Issue #291)
   - **Enhanced Version Check Script**: `scripts/check_scanner_versions.py --check-updates`
     - Checks for scanner version updates via GitHub releases API
