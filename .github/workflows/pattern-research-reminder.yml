@@ -137,4 +137,4 @@ jobs:
               `
             });
 
-            console.log(\`Created reminder issue #\${issue.data.number}\`);
+            console.log(`Created reminder issue #${issue.data.number}`);
