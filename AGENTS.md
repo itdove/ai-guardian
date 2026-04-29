@@ -419,6 +419,48 @@ python scripts/check_scanner_versions.py --check-updates --output versions.json
 cat versions.json | jq
 ```
 
+### Dependabot Dependency Updates
+
+Dependabot automatically monitors and creates pull requests for dependency updates.
+
+**What Dependabot monitors:**
+
+1. **GitHub Actions** (`.github/dependabot.yml`)
+   - Monthly checks for action version updates
+   - Covers: actions/checkout, actions/setup-python, codecov/codecov-action, etc.
+   - Labels: `ci-cd`, `dependabot`
+   - Commit prefix: `ci:`
+   - PR limit: 5 concurrent PRs
+
+2. **Python Packages** (from `pyproject.toml`)
+   - Monthly checks for package updates
+   - Covers: textual, jsonschema, requests, pyyaml, tomli, pytest, etc.
+   - Labels: `enhancement`, `dependabot`
+   - Commit prefix: `deps:`
+   - PR limit: 10 concurrent PRs
+   - **Grouping**: Minor and patch updates are grouped into single PRs to reduce noise
+   - **Major updates**: Separate PRs for careful review
+
+**Dependabot vs Scanner Version Checking:**
+
+| Feature | Dependabot | Scanner Checking (#291) |
+|---------|-----------|------------------------|
+| GitHub Actions | ✅ Automated PRs | ❌ Not applicable |
+| Python packages | ✅ Automated PRs | ❌ Not applicable |
+| Scanner versions | ❌ Not standard packages | ✅ Custom checking |
+| Security alerts | ✅ Built-in CVE database | ⚠️ Manual review needed |
+| Update frequency | Monthly | Daily |
+| Delivery | Pull requests | GitHub issues |
+
+**Handling Dependabot PRs:**
+
+1. **Review the PR**: Check changelog and breaking changes
+2. **Verify CI passes**: All tests must pass
+3. **Merge**: Use "Squash and merge" for clean history
+4. **Security PRs**: Prioritize and merge quickly
+
+**Configuration file**: `.github/dependabot.yml`
+
 ---
 
 ## Configuration Schema Changes
