@@ -142,9 +142,10 @@ jobs:
       - name: Install scanners (gitleaks, betterleaks, leaktk)
         run: |
           # Extract pinned versions from pyproject.toml (single source of truth)
-          GITLEAKS_VERSION=$(grep 'gitleaks = ' pyproject.toml | head -1 | cut -d'"' -f2)
-          BETTERLEAKS_VERSION=$(grep 'betterleaks = ' pyproject.toml | head -1 | cut -d'"' -f2)
-          LEAKTK_VERSION=$(grep 'leaktk = ' pyproject.toml | head -1 | cut -d'"' -f2)
+          # Use grep -A/-B to only match lines in [tool.ai-guardian.scanners] section, not [scanners.repos]
+          GITLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^gitleaks' | cut -d'"' -f2)
+          BETTERLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^betterleaks' | cut -d'"' -f2)
+          LEAKTK_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^leaktk' | cut -d'"' -f2)
 
           echo "Installing scanners from pyproject.toml pinned versions:"
           echo "  - gitleaks v${GITLEAKS_VERSION}"
@@ -162,8 +163,8 @@ jobs:
           sudo mv betterleaks /usr/local/bin/
 
           # Install leaktk
-          wget https://github.com/leaktk/leaktk/releases/download/v${LEAKTK_VERSION}/leaktk_${LEAKTK_VERSION}_linux_x64.tar.gz
-          tar -xzf leaktk_${LEAKTK_VERSION}_linux_x64.tar.gz
+          wget https://github.com/leaktk/leaktk/releases/download/v${LEAKTK_VERSION}/leaktk-${LEAKTK_VERSION}-linux-x86_64.tar.xz
+          tar -xJf leaktk-${LEAKTK_VERSION}-linux-x86_64.tar.xz
           sudo mv leaktk /usr/local/bin/
 
           # Verify installations
@@ -209,9 +210,10 @@ jobs:
       - name: Install scanners (gitleaks, betterleaks, leaktk)
         run: |
           # Extract pinned versions from pyproject.toml (single source of truth)
-          GITLEAKS_VERSION=$(grep 'gitleaks = ' pyproject.toml | head -1 | cut -d'"' -f2)
-          BETTERLEAKS_VERSION=$(grep 'betterleaks = ' pyproject.toml | head -1 | cut -d'"' -f2)
-          LEAKTK_VERSION=$(grep 'leaktk = ' pyproject.toml | head -1 | cut -d'"' -f2)
+          # Use grep -A/-B to only match lines in [tool.ai-guardian.scanners] section, not [scanners.repos]
+          GITLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^gitleaks' | cut -d'"' -f2)
+          BETTERLEAKS_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^betterleaks' | cut -d'"' -f2)
+          LEAKTK_VERSION=$(grep -A 10 '^\[tool.ai-guardian.scanners\]' pyproject.toml | grep -B 10 '^\[tool.ai-guardian.scanners.repos\]' | grep '^leaktk' | cut -d'"' -f2)
 
           echo "Installing scanners from pyproject.toml pinned versions:"
           echo "  - gitleaks v${GITLEAKS_VERSION}"
@@ -229,8 +231,8 @@ jobs:
           sudo mv betterleaks /usr/local/bin/
 
           # Install leaktk
-          wget https://github.com/leaktk/leaktk/releases/download/v${LEAKTK_VERSION}/leaktk_${LEAKTK_VERSION}_linux_x64.tar.gz
-          tar -xzf leaktk_${LEAKTK_VERSION}_linux_x64.tar.gz
+          wget https://github.com/leaktk/leaktk/releases/download/v${LEAKTK_VERSION}/leaktk-${LEAKTK_VERSION}-linux-x86_64.tar.xz
+          tar -xJf leaktk-${LEAKTK_VERSION}-linux-x86_64.tar.xz
           sudo mv leaktk /usr/local/bin/
 
           # Verify installations
