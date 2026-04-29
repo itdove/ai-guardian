@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scanner Version Existence Check** (Issue #290)
+  - **Pre-flight Check Script**: `scripts/check_scanner_versions.py`
+    - Verifies pinned scanner versions in `pyproject.toml` exist on GitHub releases
+    - Checks download URLs are accessible via GitHub Releases API
+    - Prevents CI failures from yanked versions, deleted repos, or missing assets
+    - Reports file sizes and download URLs for each scanner
+    - Exits with code 1 if any version is missing (fails workflow fast)
+    - Supports different asset naming conventions:
+      - gitleaks/betterleaks: `scanner_version_platform.tar.gz`
+      - leaktk: `scanner-version-platform.tar.xz` with hyphens and x86_64
+  - **CI/CD Integration**: Added to workflows
+    - `.github/workflows/integration-tests.yml`: New `version-check` job runs before all test jobs
+    - `.github/workflows/test.yml`: New `version-check` job prevents wasted test runs
+    - All test jobs depend on version-check passing (`needs: version-check`)
+  - **Error Messages**: Clear, actionable error reporting
+    - "Release vX.Y.Z not found in owner/repo"
+    - "Asset filename not found in release vX.Y.Z"
+    - "🚨 CRITICAL: One or more pinned scanner versions do not exist!"
+  - **Benefits**:
+    - ✅ Fail fast: Detect missing versions before attempting download
+    - ✅ Clear errors: Actionable error messages instead of cryptic wget failures
+    - ✅ Prevents CI waste: Don't run tests if scanner install will fail
+    - ✅ Automation-ready: Can be used in version update workflows
+  - **Related**: Parent issue #289 - Version mismatch fix
+
 - **Automated Monthly Prompt Injection Pattern Research Workflow** (Issue #288)
   - **GitHub Actions Workflow**: Monthly automated reminder issues (1st of month, 9am UTC)
     - File: `.github/workflows/pattern-research-reminder.yml`
