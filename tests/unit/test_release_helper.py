@@ -22,7 +22,7 @@ import pytest
 # Try to import release_helper from project skills directory
 try:
     # Get project root (parent of tests directory)
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent.parent.parent
     skills_path = project_root / ".claude" / "skills" / "release"
 
     sys.path.insert(0, str(skills_path))

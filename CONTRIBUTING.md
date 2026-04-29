@@ -246,14 +246,38 @@ git commit -m "docs: update installation instructions"
 **Before pushing, ensure all tests pass:**
 
 ```bash
-# Run all tests (1,066 tests including integration tests)
+# Run all tests (1,222+ tests)
 pytest
 
 # Run with coverage (excludes TUI modules automatically)
 pytest --cov=ai_guardian --cov-report=term-missing
 
 # Run specific test file
-pytest tests/test_specific.py -v
+pytest tests/unit/test_specific.py -v
+```
+
+**Test Organization:**
+
+Tests are organized into three categories:
+
+- **Unit tests** (`tests/unit/`) - Fast, isolated tests (~1,141 tests)
+- **Integration tests** (`tests/integration/`) - Cross-component tests (~82 tests)
+- **UX tests** (`tests/ux/`) - User experience contract tests (~5 tests)
+
+**Run tests by category:**
+
+```bash
+# Run only fast unit tests (recommended during development)
+pytest tests/unit/
+
+# Run integration tests (slower, verify cross-component behavior)
+pytest tests/integration/
+
+# Run UX contract tests (user-facing behavior validation)
+pytest tests/ux/
+
+# Run all tests
+pytest tests/
 ```
 
 **Integration Tests:**
@@ -261,24 +285,18 @@ pytest tests/test_specific.py -v
 AI Guardian includes comprehensive integration tests for MCP security:
 
 ```bash
-# Run all integration tests (74 tests, ~1 second)
-pytest tests/test_integration_mcp.py \
-       tests/test_posttooluse_mcp.py \
-       tests/test_use_cases.py \
-       tests/test_hook_processing.py \
-       tests/test_tool_policy_advanced.py \
-       tests/test_e2e_workflow.py -v
+# Run all integration tests (~82 tests)
+pytest tests/integration/ -v
 
-# Run specific integration test suites
-pytest tests/test_integration_mcp.py -v         # MCP tool protections (24 tests)
-pytest tests/test_posttooluse_mcp.py -v         # Output scanning (13 tests)
-pytest tests/test_use_cases.py -v               # Attack/defense scenarios (13 tests)
-pytest tests/test_hook_processing.py -v         # Hook processing (8 tests)
-pytest tests/test_tool_policy_advanced.py -v    # Advanced policies (11 tests)
-pytest tests/test_e2e_workflow.py -v            # End-to-end workflows (5 tests)
+# Run specific integration test files
+pytest tests/integration/test_integration_mcp.py -v           # MCP tool protections (24 tests)
+pytest tests/integration/test_e2e_workflow.py -v             # End-to-end workflows (5 tests)
+pytest tests/integration/test_pattern_server_integration.py -v  # Pattern server integration
+pytest tests/integration/test_scanner_engine_integration.py -v  # Scanner engine integration
+pytest tests/integration/test_contributor_workflow.py -v     # Contributor workflow tests
 
 # Run specific test class
-pytest tests/test_integration_mcp.py::MCPSecretScanningTests -v
+pytest tests/integration/test_integration_mcp.py::MCPSecretScanningTests -v
 ```
 
 **What Integration Tests Cover:**
@@ -288,9 +306,26 @@ pytest tests/test_integration_mcp.py::MCPSecretScanningTests -v
 - ✅ Defense-in-depth validation
 - ✅ Enterprise policy enforcement
 
-**Adding New Integration Tests:**
+**Adding New Tests:**
 
-When adding features that interact with MCP tools or hooks:
+When adding new tests, place them in the appropriate category:
+
+1. **Unit tests** (`tests/unit/`) - For testing single components in isolation:
+   - Fast tests (<1s per file typically)
+   - Mock external dependencies
+   - No file I/O, network calls, or subprocess execution
+
+2. **Integration tests** (`tests/integration/`) - For testing multiple components together:
+   - May be slower (>1s per file)
+   - Can use real files, subprocess, or external tools
+   - Test end-to-end workflows
+
+3. **UX tests** (`tests/ux/`) - For testing user-facing behavior:
+   - Validate CLI output and error messages
+   - Ensure backward compatibility
+   - User flow validation
+
+**Adding Integration Tests for MCP Tools:**
 
 1. **Add attack constants** to `tests/fixtures/attack_constants.py`:
    ```python
@@ -308,8 +343,9 @@ When adding features that interact with MCP tools or hooks:
    )
    ```
 
-3. **Write tests with isolation** (automatic via `conftest.py`):
+3. **Create test file in** `tests/integration/`:
    ```python
+   # tests/integration/test_your_feature_integration.py
    @patch('ai_guardian._load_secret_redaction_config')
    @patch('ai_guardian._load_pattern_server_config')
    def test_your_scenario(self, mock_pattern_config, mock_redaction_config):
