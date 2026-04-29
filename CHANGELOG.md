@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Automated Monthly Prompt Injection Pattern Research Workflow** (Issue #288)
+  - **GitHub Actions Workflow**: Monthly automated reminder issues (1st of month, 9am UTC)
+    - File: `.github/workflows/pattern-research-reminder.yml`
+    - Duplicate prevention: Checks for existing open reminders before creating new ones
+    - Manual trigger option: `workflow_dispatch` for on-demand execution
+    - Pre-populated research checklist: Links to Hermes, OWASP, academic sources
+    - Smart commenting: Adds reminder to existing issues instead of creating duplicates
+  - **Issue Template**: Standardized pattern enhancement submissions
+    - File: `.github/ISSUE_TEMPLATE/pattern-enhancement.md`
+    - YAML form template with required fields (source, URL, date, patterns)
+    - Evaluation checklist: Applies to AI IDEs, not duplicate, low false positives, reproducible
+    - Pattern structure: Regex, attack examples, safe examples, rationale, category
+    - Implementation recommendations: Severity, category placement, test requirements
+  - **Documentation**: Comprehensive maintenance process in AGENTS.md
+    - Section: "Security Research & Innovation" → "Periodic Pattern Maintenance"
+    - Monthly research process: Step-by-step workflow from discovery to implementation
+    - Priority-ranked source list: Hermes, OWASP, academic papers, CVEs, blogs, conferences
+    - Evaluation criteria: Decision matrix for apply vs reject (4 criteria: applies to AI IDEs, not duplicate, low FP, reproducible)
+    - Pattern addition workflow: Issue creation → Implementation → Testing → Documentation → PR
+    - Last review date tracking: Maintains history of last 3 months of reviews
+    - Example pattern addition: Complete walkthrough with code samples
+  - **Benefits**:
+    - ✅ Never forget monthly pattern reviews (automated reminders)
+    - ✅ No duplicate reminder issues (smart duplicate prevention)
+    - ✅ Standardized pattern submissions (issue template)
+    - ✅ Clear evaluation criteria (decision matrix)
+    - ✅ Audit trail of all pattern reviews (GitHub issue history)
+    - ✅ Low maintenance overhead (runs automatically)
+  - **Related**: Parent issue #147 - Research open source prompt injection detection libraries
+
 ### Fixed
 
 - **Scanner installer ignores --use-pinned and --version flags when package manager succeeds** (Issue #295)

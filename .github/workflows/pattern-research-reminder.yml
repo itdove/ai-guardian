@@ -1,0 +1,140 @@
+name: Prompt Injection Pattern Research Reminder
+
+on:
+  schedule:
+    # Run on 1st of every month at 9am UTC
+    - cron: '0 9 1 * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  create-reminder:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for existing reminder issue
+        id: check-existing
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'pattern-research-reminder',
+              state: 'open'
+            });
+
+            if (issues.length > 0) {
+              console.log(`Found existing reminder issue #${issues[0].number}`);
+              core.setOutput('exists', 'true');
+              core.setOutput('issue_number', issues[0].number);
+            } else {
+              console.log('No existing reminder issue found');
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Comment on existing issue
+        if: steps.check-existing.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.check-existing.outputs.issue_number }},
+              body: `⏰ **Monthly Reminder**
+
+              This pattern research review is still open. Please complete the review or close this issue if already done.
+
+              - Auto-reminder triggered: ${new Date().toISOString().split('T')[0]}`
+            });
+
+            console.log('Commented on existing issue instead of creating new one');
+
+      - name: Create new reminder issue
+        if: steps.check-existing.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Monthly: Review prompt injection pattern sources for updates`,
+              labels: ['pattern-research-reminder', 'research', 'security', 'maintenance'],
+              body: `## 🔍 Scheduled Pattern Research Review
+
+              Time to check security research sources for new prompt injection patterns.
+
+              **Auto-reminder created**: ${new Date().toISOString().split('T')[0]}
+
+              ---
+
+              ## 📋 Research Checklist
+
+              Review the following sources for new patterns (see [AGENTS.md](AGENTS.md#periodic-pattern-maintenance) for full process):
+
+              ### Priority Sources (Check All)
+
+              - [ ] **Hermes Security Patterns** - https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns
+                - Last reviewed: _[update date after review]_
+                - New patterns found: _[yes/no]_
+
+              - [ ] **OWASP LLM Top 10** - https://owasp.org/www-project-top-10-for-large-language-model-applications/
+                - Last reviewed: _[update date after review]_
+                - New patterns found: _[yes/no]_
+
+              - [ ] **AI Security Research Papers** - Search arXiv, Google Scholar for recent publications
+                - Last reviewed: _[update date after review]_
+                - Relevant papers: _[list any found]_
+
+              ### Optional Sources (Review if Time Permits)
+
+              - [ ] **CVE Database** - Search for AI/LLM vulnerabilities
+              - [ ] **Security Researcher Blogs** - Check known AI security experts
+              - [ ] **Security Conference Proceedings** - Recent talks on AI security
+
+              ---
+
+              ## ✅ Pattern Evaluation
+
+              For each new pattern discovered, evaluate using criteria from [AGENTS.md](AGENTS.md#periodic-pattern-maintenance):
+
+              1. **Applies to AI IDEs** - Does this pattern affect tools like Claude Code?
+              2. **Not Duplicate** - Is this pattern already covered in our detection?
+              3. **Low False Positives** - Can we detect without blocking legitimate use?
+
+              ---
+
+              ## 📝 Next Steps
+
+              ### If New Patterns Found
+
+              1. Create pattern enhancement issue using the [pattern enhancement template](.github/ISSUE_TEMPLATE/pattern-enhancement.md)
+              2. Link the new issue to this reminder
+              3. Update last review dates above
+              4. Close this reminder issue
+
+              ### If No New Patterns Found
+
+              1. Update last review dates above
+              2. Add comment: "No new patterns found - sources reviewed [date]"
+              3. Close this reminder issue
+
+              ---
+
+              ## 🔗 Related
+
+              - [AGENTS.md - Periodic Pattern Maintenance](AGENTS.md#periodic-pattern-maintenance)
+              - [Pattern Enhancement Template](.github/ISSUE_TEMPLATE/pattern-enhancement.md)
+              - Parent Issue: #147 - Research open source prompt injection detection libraries
+
+              ---
+
+              **⏰ Next Reminder**: Approximately ${new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]} (1st of next month)
+              `
+            });
+
+            console.log(\`Created reminder issue #\${issue.data.number}\`);
