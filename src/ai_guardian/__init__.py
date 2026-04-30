@@ -2446,7 +2446,10 @@ def process_hook_input():
                     try:
                         from ai_guardian.secret_redactor import SecretRedactor
 
-                        redactor = SecretRedactor(redaction_config)
+                        # Also load PII config so secrets+PII are handled in one pass
+                        pii_config_for_redactor, _ = _load_pii_config()
+                        pii_cfg = pii_config_for_redactor if pii_config_for_redactor and pii_config_for_redactor.get('enabled', True) else None
+                        redactor = SecretRedactor(redaction_config, pii_config=pii_cfg)
                         result = redactor.redact(tool_output)
 
                         redacted_text = result['redacted_text']
