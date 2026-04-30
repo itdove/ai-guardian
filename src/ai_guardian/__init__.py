@@ -202,6 +202,11 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         modified_output: Optional modified tool output (for PostToolUse redaction)
             - Only used for PostToolUse hook when has_secrets=False
             - Contains redacted version of tool output to replace original
+            - LIMITATION: Claude Code PostToolUse hooks CANNOT modify tool output.
+              The tool has already executed and its output already reached the model.
+              The "output" field in the response JSON is ignored by Claude Code.
+              Only systemMessage (warnings) are displayed. See:
+              https://code.claude.com/docs/en/hooks
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
@@ -307,7 +312,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     # Log mode: display warning but allow execution
                     response["systemMessage"] = warning_message
                 if modified_output is not None:
-                    # Secret redaction: replace tool output with redacted version
+                    # NOTE: Claude Code ignores this field. PostToolUse hooks
+                    # cannot modify tool output — the tool already executed and
+                    # its output already reached the model. Kept for forward
+                    # compatibility in case Claude Code adds support in the future.
                     response["output"] = modified_output
 
             return {
@@ -2487,6 +2495,9 @@ def process_hook_input():
                             )
                             logging.warning(f"WARN mode: {warning_msg}")
 
+                        # NOTE: modified_output is passed but Claude Code ignores
+                        # it — PostToolUse hooks cannot replace tool output.
+                        # The warning_msg (systemMessage) IS displayed to the user.
                         logging.info(f"✓ Secrets redacted, allowing output to continue")
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=warning_msg, modified_output=redacted_text)
@@ -2535,16 +2546,15 @@ def process_hook_input():
                         context={'action': pii_action, 'hook_event': 'posttooluse'}
                     )
 
-                    if pii_action == 'redact':
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=pii_warning, modified_output=redacted_text)
-                    elif pii_action == 'block':
-                        return format_response(ide_type, has_secrets=True,
-                                             error_message=pii_warning, hook_event=hook_event)
-                    # log-only: fall through to allow
-                    elif pii_action == 'log-only':
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=pii_warning)
+                    # PostToolUse LIMITATION: Claude Code hooks cannot modify
+                    # tool output after execution. The tool already ran and its
+                    # output already reached the model. We can only warn via
+                    # systemMessage. "redact" and "log-only" both warn;
+                    # "block" also warns (PostToolUse cannot truly block).
+                    # Effective protection happens in PreToolUse (blocks reads)
+                    # and UserPromptSubmit (blocks prompts containing PII).
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                         warning_message=pii_warning)
 
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
