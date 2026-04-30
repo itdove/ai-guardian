@@ -431,6 +431,7 @@ Dependabot automatically monitors and creates pull requests for dependency updat
    - Labels: `ci-cd`, `dependabot`
    - Commit prefix: `ci:`
    - PR limit: 5 concurrent PRs
+   - **Grouping**: All updates (minor, patch, and major) are grouped into single PRs to reduce noise
 
 2. **Python Packages** (from `pyproject.toml`)
    - Monthly checks for package updates
@@ -438,8 +439,7 @@ Dependabot automatically monitors and creates pull requests for dependency updat
    - Labels: `enhancement`, `dependabot`
    - Commit prefix: `deps:`
    - PR limit: 10 concurrent PRs
-   - **Grouping**: Minor and patch updates are grouped into single PRs to reduce noise
-   - **Major updates**: Separate PRs for careful review
+   - **Grouping**: All updates (minor, patch, and major) are grouped into single PRs to reduce noise
 
 **Dependabot vs Scanner Version Checking:**
 

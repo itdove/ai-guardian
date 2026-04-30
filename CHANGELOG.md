@@ -9,20 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Dependabot Configuration** (Issue #292)
+- **Dependabot Configuration** (Issue #292, #309)
   - **Automated Dependency Updates**: `.github/dependabot.yml`
     - GitHub Actions monitoring: Monthly checks for action version updates
       - Monitors: actions/checkout, actions/setup-python, codecov/codecov-action, etc.
       - Labels: `ci-cd`, `dependabot`
       - Commit prefix: `ci:`
       - PR limit: 5 concurrent
+      - Grouping: All updates (minor, patch, and major) grouped into single PRs
     - Python package monitoring: Monthly checks for pip dependencies
       - Monitors: textual, jsonschema, requests, pyyaml, tomli, pytest, etc.
       - Labels: `enhancement`, `dependabot`
       - Commit prefix: `deps:`
       - PR limit: 10 concurrent
-      - Grouping: Minor and patch updates grouped into single PRs
-      - Major updates: Separate PRs for careful review
+      - Grouping: All updates (minor, patch, and major) grouped into single PRs
   - **Security Benefits**:
     - ✅ Automated CVE alerts: Immediate PRs for security vulnerabilities (regardless of schedule)
     - ✅ Zero-effort monitoring: Dependabot checks automatically
