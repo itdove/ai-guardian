@@ -105,6 +105,11 @@ jobs:
               1. **Applies to AI IDEs** - Does this pattern affect tools like Claude Code?
               2. **Not Duplicate** - Is this pattern already covered in our detection?
               3. **Low False Positives** - Can we detect without blocking legitimate use?
+              4. **License Compatible** - Verify source license allows use in ai-guardian (MIT/Apache-2.0/BSD/CC0/Public Domain)
+                 - For GitHub repos: \`curl -s https://api.github.com/repos/OWNER/REPO | jq -r '.license.spdx_id'\`
+                 - For academic papers: Fair use (cite properly in CHANGELOG.md)
+                 - **Acceptable licenses**: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, Public Domain
+                 - **Unacceptable licenses**: GPL*, AGPL*, proprietary, "All Rights Reserved"
 
               ---
 
