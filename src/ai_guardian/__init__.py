@@ -202,11 +202,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         modified_output: Optional modified tool output (for PostToolUse redaction)
             - Only used for PostToolUse hook when has_secrets=False
             - Contains redacted version of tool output to replace original
-            - LIMITATION: Claude Code PostToolUse hooks CANNOT modify tool output.
-              The tool has already executed and its output already reached the model.
-              The "output" field in the response JSON is ignored by Claude Code.
-              Only systemMessage (warnings) are displayed. See:
-              https://code.claude.com/docs/en/hooks
+            - Uses hookSpecificOutput.updatedToolOutput per Claude Code v2.1.121
+            - BUG: Not honored for Bash/Read/Grep tools yet
+              (anthropics/claude-code#54196). Will work once fixed upstream.
+            - See: https://code.claude.com/docs/en/hooks
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
@@ -312,11 +311,13 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     # Log mode: display warning but allow execution
                     response["systemMessage"] = warning_message
                 if modified_output is not None:
-                    # NOTE: Claude Code ignores this field. PostToolUse hooks
-                    # cannot modify tool output — the tool already executed and
-                    # its output already reached the model. Kept for forward
-                    # compatibility in case Claude Code adds support in the future.
-                    response["output"] = modified_output
+                    # Use hookSpecificOutput.updatedToolOutput per Claude Code
+                    # v2.1.121 changelog. BUG: not honored for Bash/Read/Grep
+                    # tools yet (anthropics/claude-code#54196). Kept so it
+                    # works automatically once the bug is fixed.
+                    if "hookSpecificOutput" not in response:
+                        response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
+                    response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
 
             return {
                 "output": json.dumps(response),
