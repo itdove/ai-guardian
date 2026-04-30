@@ -262,7 +262,7 @@ class MCPSecretScanningTests(TestCase):
 
         Scenario: Secret in notebook title
         Action: Create notebook with title containing Slack token
-        Expected: BLOCKED with "SECRET DETECTED"
+        Expected: BLOCKED with "Secret Detected"
         """
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
@@ -274,10 +274,10 @@ class MCPSecretScanningTests(TestCase):
             title_with_secret, "notebook_title"
         )
 
-        # Expected: BLOCKED with "SECRET DETECTED"
+        # Expected: BLOCKED with "Secret Detected"
         assert has_secrets, "Secret in notebook title should be detected"
         assert error_msg is not None, "Should have error message"
-        assert "SECRET DETECTED" in error_msg, \
+        assert "Secret Detected" in error_msg, \
             f"Error should mention secret detection: {error_msg}"
 
     @patch('ai_guardian._load_pattern_server_config')
@@ -287,7 +287,7 @@ class MCPSecretScanningTests(TestCase):
 
         Scenario: Secret in source text content
         Action: Add source with text containing Slack token
-        Expected: BLOCKED with "SECRET DETECTED"
+        Expected: BLOCKED with "Secret Detected"
         """
         # Disable pattern server
         mock_pattern_config.return_value = None
@@ -306,7 +306,7 @@ class MCPSecretScanningTests(TestCase):
 
         # Expected: BLOCKED
         assert has_secrets, "Secret in source text should be detected"
-        assert "SECRET DETECTED" in error_msg, \
+        assert "Secret Detected" in error_msg, \
             f"Error should mention secret: {error_msg}"
 
     @patch('ai_guardian._load_pattern_server_config')
@@ -335,7 +335,7 @@ class MCPSecretScanningTests(TestCase):
 
         # Expected: BLOCKED (at least one secret detected)
         assert has_secrets, "Multiple secrets should be detected"
-        assert "SECRET DETECTED" in error_msg, "Error should mention secrets"
+        assert "Secret Detected" in error_msg, "Error should mention secrets"
 
     @patch('ai_guardian._load_pattern_server_config')
     def test_legitimate_content_not_blocked(self, mock_pattern_config):
@@ -376,7 +376,7 @@ class MCPPromptInjectionTests(TestCase):
 
         Scenario: Prompt injection in notebook title
         Action: Create notebook with title containing injection attempt
-        Expected: BLOCKED with "PROMPT INJECTION DETECTED"
+        Expected: BLOCKED with "Prompt Injection Detected"
         """
         from ai_guardian.prompt_injection import check_prompt_injection
 

@@ -889,37 +889,54 @@ def extract_file_content_from_tool(hook_data):
             # Check if directory is denied
             is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
             if is_denied:
-                error_msg = (
-                    f"\n{'='*70}\n"
-                    f"🚨 BLOCKED BY POLICY\n"
-                    f"🚫 DIRECTORY ACCESS DENIED\n"
-                    f"{'='*70}\n\n"
-                    f"File: {file_path}\n"
-                )
-                if denied_dir:
-                    error_msg += f"Protected Directory: {denied_dir}\n"
+                # Format error message with new structure
+                error_msg = "🛡️ Directory Access Denied\n\n"
+
                 if matched_pattern:
-                    error_msg += f"Triggered Pattern: {matched_pattern}\n"
-                    error_msg += f"\nProtection Type: Directory rule\n\n"
-                    error_msg += (
-                        f"This file is blocked by a directory access rule.\n\n"
-                        f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                        f"To allow access:\n"
-                        f"  1. Update directory_rules in ai-guardian.json\n"
-                        f"  2. Move this file to an accessible location\n"
-                    )
+                    error_msg += "Protection: Directory Rule\n"
                 else:
-                    error_msg += f"\nProtection Type: .ai-read-deny marker\n\n"
-                    error_msg += (
-                        f"This directory contains a .ai-read-deny marker file.\n"
-                        f"All subdirectories are blocked from AI access.\n\n"
-                        f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                        f"To allow access:\n"
-                        f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
-                        f"  2. Move this file to an accessible location\n"
-                        f"  3. Add an allow rule in directory_rules config\n"
-                    )
-                error_msg += f"\n{'='*70}\n"
+                    error_msg += "Protection: .ai-read-deny Marker\n"
+
+                # Truncate very long paths
+                display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
+                error_msg += f"File: {display_path}\n"
+
+                if denied_dir:
+                    display_dir = denied_dir if len(denied_dir) <= 100 else "..." + denied_dir[-97:]
+                    error_msg += f"Protected Directory: {display_dir}\n"
+
+                if matched_pattern:
+                    display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
+                    error_msg += f"Pattern: {display_pattern}\n"
+
+                # Why blocked section
+                error_msg += "\nWhy blocked: "
+                if matched_pattern:
+                    error_msg += "This file is blocked by a directory access rule.\n"
+                    error_msg += "Directory rules prevent AI access to specific paths.\n"
+                else:
+                    error_msg += "This directory contains a .ai-read-deny marker file.\n"
+                    error_msg += "All subdirectories are blocked from AI access.\n"
+
+                # Security warnings
+                error_msg += "\nThis operation has been blocked for security.\n"
+                error_msg += "DO NOT attempt to bypass this protection - it prevents unauthorized directory access.\n"
+
+                # Recommendations
+                error_msg += "\nRecommendation:\n"
+                if matched_pattern:
+                    error_msg += "- Update directory_rules in ai-guardian.json to allow this path\n"
+                    error_msg += "- Move this file to an accessible location\n"
+                    error_msg += "- Verify this file should be accessible to AI agents\n"
+                else:
+                    error_msg += f"- Remove the .ai-read-deny file from {denied_dir} (manually)\n"
+                    error_msg += "- Move this file to an accessible location\n"
+                    error_msg += "- Add an allow rule in directory_rules config to override marker\n"
+
+                # Config path
+                error_msg += "\nConfig: ~/.config/ai-guardian/ai-guardian.json\n"
+                error_msg += "Section: directory_rules\n"
+
                 return None, os.path.basename(file_path), file_path, True, error_msg, None
 
             return content, os.path.basename(file_path), file_path, False, None, dir_warning
@@ -978,37 +995,54 @@ def extract_file_content_from_tool(hook_data):
         # Check if directory is denied BEFORE reading the file
         is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
         if is_denied:
-            error_msg = (
-                f"\n{'='*70}\n"
-                f"🚨 BLOCKED BY POLICY\n"
-                f"🚫 DIRECTORY ACCESS DENIED\n"
-                f"{'='*70}\n\n"
-                f"File: {file_path}\n"
-            )
-            if denied_dir:
-                error_msg += f"Protected Directory: {denied_dir}\n"
+            # Format error message with new structure
+            error_msg = "🛡️ Directory Access Denied\n\n"
+
             if matched_pattern:
-                error_msg += f"Triggered Pattern: {matched_pattern}\n"
-                error_msg += f"\nProtection Type: Directory rule\n\n"
-                error_msg += (
-                    f"This file is blocked by a directory access rule.\n\n"
-                    f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                    f"To allow access:\n"
-                    f"  1. Update directory_rules in ai-guardian.json\n"
-                    f"  2. Move this file to an accessible location\n"
-                )
+                error_msg += "Protection: Directory Rule\n"
             else:
-                error_msg += f"\nProtection Type: .ai-read-deny marker\n\n"
-                error_msg += (
-                    f"This directory contains a .ai-read-deny marker file.\n"
-                    f"All subdirectories are blocked from AI access.\n\n"
-                    f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                    f"To allow access:\n"
-                    f"  1. Remove the .ai-read-deny file from {denied_dir}\n"
-                    f"  2. Move this file to an accessible location\n"
-                    f"  3. Add an allow rule in directory_rules config\n"
-                )
-            error_msg += f"\n{'='*70}\n"
+                error_msg += "Protection: .ai-read-deny Marker\n"
+
+            # Truncate very long paths
+            display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
+            error_msg += f"File: {display_path}\n"
+
+            if denied_dir:
+                display_dir = denied_dir if len(denied_dir) <= 100 else "..." + denied_dir[-97:]
+                error_msg += f"Protected Directory: {display_dir}\n"
+
+            if matched_pattern:
+                display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
+                error_msg += f"Pattern: {display_pattern}\n"
+
+            # Why blocked section
+            error_msg += "\nWhy blocked: "
+            if matched_pattern:
+                error_msg += "This file is blocked by a directory access rule.\n"
+                error_msg += "Directory rules prevent AI access to specific paths.\n"
+            else:
+                error_msg += "This directory contains a .ai-read-deny marker file.\n"
+                error_msg += "All subdirectories are blocked from AI access.\n"
+
+            # Security warnings
+            error_msg += "\nThis operation has been blocked for security.\n"
+            error_msg += "DO NOT attempt to bypass this protection - it prevents unauthorized directory access.\n"
+
+            # Recommendations
+            error_msg += "\nRecommendation:\n"
+            if matched_pattern:
+                error_msg += "- Update directory_rules in ai-guardian.json to allow this path\n"
+                error_msg += "- Move this file to an accessible location\n"
+                error_msg += "- Verify this file should be accessible to AI agents\n"
+            else:
+                error_msg += f"- Remove the .ai-read-deny file from {denied_dir} (manually)\n"
+                error_msg += "- Move this file to an accessible location\n"
+                error_msg += "- Add an allow rule in directory_rules config to override marker\n"
+
+            # Config path
+            error_msg += "\nConfig: ~/.config/ai-guardian/ai-guardian.json\n"
+            error_msg += "Section: directory_rules\n"
+
             return None, os.path.basename(file_path), file_path, True, error_msg, None
 
         # Read the file content
@@ -1952,47 +1986,50 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
                 error_msg = (
                     f"\n{'='*70}\n"
-                    f"🚨 BLOCKED BY POLICY\n"
-                    f"🔒 SECRET DETECTED\n"
+                    f"🛡️ Secret Detected\n"
                     f"{'='*70}\n\n"
-                    f"{scanner_name.capitalize()} has detected sensitive information in your prompt/file.\n"
+                    f"Protection: Secret Scanning\n"
                 )
 
                 # Include specific details if we have them
                 if secret_details:
-                    error_msg += "\n"
                     error_msg += f"Secret Type: {secret_details['rule_id']}\n"
                     if secret_details.get('line_number'):
-                        error_msg += f"Location: {secret_details['file']}, line {secret_details['line_number']}\n"
+                        error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
                     else:
-                        error_msg += f"File: {secret_details['file']}\n"
-                    if secret_details.get('total_findings'):
-                        error_msg += f"Total findings: {secret_details['total_findings']}\n"
+                        error_msg += f"Location: {secret_details['file']}\n"
+                else:
+                    error_msg += "Secret Type: (multiple or unknown)\n"
 
-                # Add detection source information (Issue #153)
-                error_msg += "\nDetection Source:\n"
-                error_msg += f"  Scanner: {scanner_name}\n"
+                # Add scanner information
+                error_msg += f"Scanner: {scanner_name}\n"
 
                 if config_source == "pattern server" and pattern_config:
-                    error_msg += "  Patterns: LeakTK Pattern Server\n"
-                    error_msg += f"  URL: {pattern_config.get('url', 'N/A')}\n"
-                    error_msg += f"  Endpoint: {pattern_config.get('patterns_endpoint', 'N/A')}\n"
+                    error_msg += f"Patterns: LeakTK Pattern Server ({pattern_config.get('url', 'N/A')})\n"
                 elif config_source == "project config" and gitleaks_config_path:
-                    error_msg += "  Patterns: Project Configuration\n"
-                    error_msg += f"  Config: {gitleaks_config_path}\n"
+                    error_msg += f"Patterns: {gitleaks_config_path}\n"
                 elif config_source == "gitleaks defaults":
-                    error_msg += "  Patterns: Built-in Defaults (100+ rules)\n"
+                    error_msg += "Patterns: Built-in Defaults (100+ rules)\n"
 
                 error_msg += (
-                    "\nThis operation has been blocked for security.\n"
-                    "Please remove the sensitive information and try again.\n\n"
-                    "DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+                    f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
+                    f"and be accessed by unauthorized users.\n\n"
+                    f"This operation has been blocked for security.\n"
+                    f"Please remove the sensitive information and try again.\n\n"
+                    f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+                    f"Recommendation:\n"
+                    f"  • Move secrets to environment variables\n"
+                    f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
+                    f"  • Add to .gitignore if in config file\n"
+                    f"  • Never commit secrets to git\n"
+                    f"  • If false positive: add '# gitleaks:allow' comment to the line\n\n"
+                    f"⚠️  Secret value NOT shown in this message for security\n\n"
                 )
 
                 # Only show generic list if we don't have specific details
                 if not secret_details:
                     error_msg += (
-                        "Common secrets detected:\n"
+                        "Common secret types:\n"
                         "  • API keys and tokens\n"
                         "  • Private keys (SSH, RSA, PGP)\n"
                         "  • Database credentials\n"
@@ -2000,8 +2037,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     )
 
                 error_msg += (
-                    "If this is a false positive, add '# gitleaks:allow' to the line\n"
-                    "or see: https://github.com/gitleaks/gitleaks#configuration\n"
+                    f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+                    f"Section: secret_scanning.enabled\n"
                     f"{'='*70}\n"
                 )
 

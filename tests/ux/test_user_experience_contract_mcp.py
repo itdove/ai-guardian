@@ -224,7 +224,7 @@ class MCPUserExperienceContractTests(TestCase):
         Expected User Experience:
         ❌ Claude Code does NOT show permission prompt
         ❌ Operation is BLOCKED immediately
-        🛡️ User sees error: "PROMPT INJECTION DETECTED"
+        🛡️ User sees error: "Prompt Injection Detected"
 
         This is CORRECT behavior - prompt injection attempts should be blocked
         to prevent manipulation of AI behavior or context poisoning.
@@ -443,7 +443,7 @@ class MCPUserExperienceContractTests(TestCase):
 
         2. PROMPT INJECTION IN MCP INPUT:
            ❌ BLOCKED immediately (PreToolUse)
-           🛡️ Error shown: "PROMPT INJECTION DETECTED"
+           🛡️ Error shown: "Prompt Injection Detected"
            ⚠️ No permission prompt (security override)
 
         3. SECRET IN MCP OUTPUT:

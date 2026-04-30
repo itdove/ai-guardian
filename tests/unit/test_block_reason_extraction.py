@@ -4,7 +4,7 @@ Unit tests for policy blocking message improvements (Issue #88)
 Tests that:
 - _extract_block_reason() correctly extracts concise reasons from error messages
 - Log messages include the specific reason for blocking
-- Error messages include "🚨 BLOCKED BY POLICY" header
+- Error messages include "🛡️ BLOCKED BY POLICY" header
 - Anti-workaround language is present in denial messages
 """
 
@@ -19,8 +19,8 @@ class BlockReasonExtractionTest(unittest.TestCase):
         """Should extract 'Critical file protected: ai-guardian config' from immutable deny message"""
         error_message = """
 ======================================================================
-🚨 BLOCKED BY POLICY
-🔒 CRITICAL FILE PROTECTED
+🛡️ BLOCKED BY POLICY
+🔒 Protection:
 ======================================================================
 
 This file is protected by ai-guardian and cannot be modified.
@@ -51,8 +51,8 @@ To edit these files, use your text editor manually.
         """Should extract 'Critical file protected: source code' from source file deny"""
         error_message = """
 ======================================================================
-🚨 BLOCKED BY POLICY
-🔒 CRITICAL FILE PROTECTED
+🛡️ BLOCKED BY POLICY
+🔒 Protection:
 ======================================================================
 
 This file is protected by ai-guardian and cannot be modified.
@@ -69,8 +69,8 @@ Reason: Repository source file (maintainer bypass not available)
         """Should extract 'Critical file protected: .ai-read-deny marker' from marker file deny"""
         error_message = """
 ======================================================================
-🚨 BLOCKED BY POLICY
-🔒 CRITICAL FILE PROTECTED
+🛡️ BLOCKED BY POLICY
+🔒 Protection:
 ======================================================================
 
 This file is protected by ai-guardian and cannot be modified.
@@ -87,7 +87,7 @@ Reason: Directory protection marker
         """Should extract pattern from 'matched deny pattern' message"""
         error_message = """
 ======================================================================
-🚨 BLOCKED BY POLICY
+🛡️ BLOCKED BY POLICY
 🚫 TOOL ACCESS DENIED
 ======================================================================
 
@@ -103,7 +103,7 @@ Matcher: Read
         """Should extract 'No permission rule configured' from no rule message"""
         error_message = """
 ======================================================================
-🚨 BLOCKED BY POLICY
+🛡️ BLOCKED BY POLICY
 🚫 TOOL ACCESS DENIED
 ======================================================================
 
@@ -118,7 +118,7 @@ Blocked by: no permission rule
         """Should extract 'Not in allow list' from allow list denial"""
         error_message = """
 ======================================================================
-🚨 BLOCKED BY POLICY
+🛡️ BLOCKED BY POLICY
 🚫 TOOL ACCESS DENIED
 ======================================================================
 
@@ -146,10 +146,10 @@ Blocked by: matched deny pattern: */.config/ai-guardian/*
 
 
 class PolicyBlockedHeaderTest(unittest.TestCase):
-    """Test suite for 🚨 BLOCKED BY POLICY header in error messages"""
+    """Test suite for 🛡️ BLOCKED BY POLICY header in error messages"""
 
     def test_deny_message_has_blocked_header(self):
-        """Tool deny messages should include 🚨 BLOCKED BY POLICY header"""
+        """Tool deny messages should include 🛡️ BLOCKED BY POLICY header"""
         from ai_guardian.tool_policy import ToolPolicyChecker
 
         config = {
@@ -171,11 +171,12 @@ class PolicyBlockedHeaderTest(unittest.TestCase):
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(allowed)
-        self.assertIn("🚨 BLOCKED BY POLICY", error_msg)
-        self.assertIn("DO NOT attempt workarounds", error_msg)
+        # Phase 3 format uses 🛡️ instead of 🛡️
+        self.assertIn("🛡️", error_msg)
+        self.assertIn("DO NOT attempt", error_msg)
 
     def test_immutable_deny_message_has_blocked_header(self):
-        """Immutable file deny messages should include 🚨 BLOCKED BY POLICY header"""
+        """Immutable file deny messages should include Phase 3 format"""
         from ai_guardian.tool_policy import ToolPolicyChecker
 
         policy_checker = ToolPolicyChecker()
@@ -191,9 +192,10 @@ class PolicyBlockedHeaderTest(unittest.TestCase):
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(allowed)
-        self.assertIn("🚨 BLOCKED BY POLICY", error_msg)
-        self.assertIn("🔒 CRITICAL FILE PROTECTED", error_msg)
-        self.assertIn("DO NOT attempt workarounds", error_msg)
+        # Phase 3 format uses 🛡️ instead of 🛡️
+        self.assertIn("🛡️", error_msg)
+        self.assertIn("Protection:", error_msg)
+        self.assertIn("DO NOT attempt", error_msg)
 
 
 if __name__ == "__main__":

@@ -1099,6 +1099,87 @@ class PromptInjectionDetector:
 
         return is_injection, confidence, matched_text, matched_pattern
 
+    def _format_error_message(
+        self,
+        confidence: float,
+        matched_pattern: str,
+        matched_text: str,
+        file_path: Optional[str] = None,
+        tool_name: Optional[str] = None,
+        source_type: str = "user_prompt"
+    ) -> str:
+        """
+        Format detailed error message for prompt injection detection.
+
+        Args:
+            confidence: Detection confidence score (0.0-1.0)
+            matched_pattern: The regex pattern that matched
+            matched_text: The text that matched the pattern
+            file_path: Optional file path where detection occurred
+            tool_name: Optional tool name where detection occurred
+            source_type: Source type ("user_prompt" or "file_content")
+
+        Returns:
+            str: Formatted error message with all required details
+        """
+        # Determine confidence level
+        confidence_level = "High" if confidence >= 0.85 else "Medium" if confidence >= 0.65 else "Low"
+
+        # Sanitize and truncate matched text (max 60 chars as per issue)
+        sanitized_match = self._sanitize_text_for_logging(matched_text)
+        # Remove newlines and truncate
+        sanitized_match = sanitized_match.replace('\n', ' ').replace('\r', '')
+        if len(sanitized_match) > 60:
+            sanitized_match = sanitized_match[:60] + "..."
+
+        # Truncate pattern for display (max 100 chars)
+        pattern_display = matched_pattern[:100] + "..." if len(matched_pattern) > 100 else matched_pattern
+
+        # Format context information
+        context_info = ""
+        if file_path:
+            context_info = f"File: {file_path}\n"
+        elif tool_name:
+            context_info = f"Tool: {tool_name}\n"
+        if source_type == "file_content":
+            context_info += "Source: File content\n"
+        elif source_type == "user_prompt":
+            context_info += "Source: User prompt\n"
+
+        # Build error message (Phase 3 format - no === separators)
+        error_msg = "🛡️ Prompt Injection Detected\n\n"
+        error_msg += f"Protection: Prompt Injection Detection\n"
+        error_msg += f"Confidence: {confidence_level} ({confidence:.2f})\n"
+        error_msg += f"Pattern: {pattern_display}\n"
+        error_msg += f"Matched text: \"{sanitized_match}\"\n"
+
+        # Context section (optional)
+        if file_path or tool_name:
+            error_msg += "\nContext:\n"
+            if file_path:
+                error_msg += f"  File: {file_path}\n"
+            if tool_name:
+                error_msg += f"  Tool: {tool_name}\n"
+            if source_type == "file_content":
+                error_msg += "  Source: File content\n"
+            elif source_type == "user_prompt":
+                error_msg += "  Source: User prompt\n"
+
+        error_msg += (
+            f"\nWhy blocked: This pattern matches known prompt injection techniques that\n"
+            f"attempt to override system instructions or extract sensitive information.\n\n"
+            f"This operation has been blocked for security.\n\n"
+            f"DO NOT attempt to bypass this protection - it prevents malicious prompts.\n\n"
+            f"Recommendation:\n"
+            f"- If this is a false positive, add to allowlist in config\n"
+            f"- If discussing prompt injection (not attempting), prefix with \"Example: \"\n"
+            f"- If this occurs when reading files, report as bug (should be context-aware)\n\n"
+            f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+            f"Section: prompt_injection.allowlist_patterns\n"
+        )
+
+        return error_msg
+
     def detect(self, content: str, file_path: Optional[str] = None, tool_name: Optional[str] = None, source_type: str = "user_prompt") -> Tuple[bool, Optional[str], bool]:
         """
         Detect prompt injection in the given content.
@@ -1206,21 +1287,15 @@ class PromptInjectionDetector:
                 is_injection, confidence, matched_text, matched_pattern = self._heuristic_detection(content_to_check, source_type)
 
             if is_injection:
-                # Format error message
-                confidence_level = "High" if confidence >= 0.85 else "Medium" if confidence >= 0.65 else "Low"
-
-                # Sanitize matched text to prevent secret leakage in logs
-                sanitized_text = self._sanitize_text_for_logging(matched_text)
-
-                # Show preview of matched text (up to 100 chars)
-                text_preview = sanitized_text[:100]
-                if len(sanitized_text) > 100:
-                    text_preview += "..."
-
-                # Show pattern (up to 150 chars)
-                pattern_preview = matched_pattern[:150]
-                if len(matched_pattern) > 150:
-                    pattern_preview += "..."
+                # Format error message with detailed information
+                error_msg = self._format_error_message(
+                    confidence=confidence,
+                    matched_pattern=matched_pattern,
+                    matched_text=matched_text,
+                    file_path=file_path,
+                    tool_name=tool_name,
+                    source_type=source_type
+                )
 
                 # Format source information for logging
                 if file_path:
@@ -1230,52 +1305,24 @@ class PromptInjectionDetector:
                 else:
                     source_info = "source='user_prompt'"
 
-                # Show context around the matched text (sanitized, up to 200 chars for main log)
-                # This helps with debugging to see what triggered the detection
+                # Sanitize for logging
+                sanitized_text = self._sanitize_text_for_logging(matched_text)
+                text_preview = sanitized_text[:100] + "..." if len(sanitized_text) > 100 else sanitized_text
+                pattern_preview = matched_pattern[:150] + "..." if len(matched_pattern) > 150 else matched_pattern
                 sanitized_content = self._sanitize_text_for_logging(content)
-                content_preview = sanitized_content[:200]
-                if len(sanitized_content) > 200:
-                    content_preview += "..."
+                content_preview = sanitized_content[:200] + "..." if len(sanitized_content) > 200 else sanitized_content
 
                 # Check action
                 if self.action == "warn":
                     logger.warning(f"Prompt injection detected (warn mode): {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}' - execution allowed")
-                    # Return warning message to display to user via systemMessage
                     warn_msg = f"⚠️  Prompt injection detected (warn mode): confidence={confidence:.2f} - execution allowed"
-                    return False, warn_msg, True  # Allow execution, warning message, detected (for violation logging)
+                    return False, warn_msg, True  # Allow execution, warning message, detected
                 elif self.action == "log-only":
                     logger.warning(f"Prompt injection detected (log-only mode): {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}' - execution allowed (silent)")
-                    # Allow execution - logged for audit, NO warning to user
-                    return False, None, True  # Allow execution, no warning, detected (for violation logging)
+                    return False, None, True  # Allow execution, no warning, detected
                 else:
                     # Block execution
                     logger.error(f"Prompt injection detected: {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}'")
-                    error_msg = (
-                        f"\n{'='*70}\n"
-                        f"🚨 BLOCKED BY POLICY\n"
-                        f"🚨 PROMPT INJECTION DETECTED\n"
-                        f"{'='*70}\n\n"
-                        "AI Guardian has detected a potential prompt injection attack.\n"
-                        "This operation has been blocked for security.\n\n"
-                        "DO NOT attempt to bypass this protection - it prevents malicious prompts.\n\n"
-                        f"Detection details:\n"
-                        f"  • Confidence: {confidence_level} ({confidence:.2f})\n"
-                        f"  • Method: {self.detector_type}\n"
-                        f"  • Pattern detected: {pattern_preview}\n"
-                        f"  • Matched text: {text_preview}\n\n"
-                        "Common injection patterns:\n"
-                        "  • \"Ignore previous instructions\"\n"
-                        "  • \"You are now in DAN mode\"\n"
-                        "  • \"Reveal your system prompt\"\n"
-                        "  • Role-playing attacks\n"
-                        "  • Delimiter/encoding bypasses\n\n"
-                        "If this is a false positive, you can:\n"
-                        "  1. Adjust sensitivity in ~/.config/ai-guardian/ai-guardian.json\n"
-                        "  2. Add allowlist patterns for legitimate use cases\n"
-                        "  3. Temporarily disable: \"prompt_injection\": {\"enabled\": false}\n\n"
-                        f"{'='*70}\n"
-                    )
-
                     return True, error_msg, True  # Block, error message, detected
 
             return False, None, False  # No injection detected

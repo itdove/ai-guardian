@@ -52,7 +52,7 @@ class Issue105LogBypassTest(unittest.TestCase):
         self.assertFalse(is_allowed,
             "Self-protection MUST block config file edits, even with action=log")
         self.assertIsNotNone(error_msg, "Should provide error message")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg,
+        self.assertIn("Protection:", error_msg,
             "Error message should indicate critical file protection")
 
         # Verify it's not a log-mode warning
@@ -104,7 +104,7 @@ class Issue105LogBypassTest(unittest.TestCase):
         self.assertFalse(is_allowed,
             "Immutable deny patterns MUST override user permission rules")
         self.assertIsNotNone(error_msg)
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertNotIn("log mode", error_msg.lower())
 
     def test_write_ai_guardian_config_always_blocked(self):

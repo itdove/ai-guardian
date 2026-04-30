@@ -168,7 +168,7 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Config should be blocked for contributors")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_contributor_cannot_edit_ide_hooks(self):
         """Contributors CANNOT edit IDE hook files (always protected)"""
@@ -188,7 +188,7 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "IDE hooks should be blocked for contributors")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_contributor_cannot_write_cache(self):
         """Contributors CANNOT write cache files (prevents poisoning)"""
@@ -206,7 +206,7 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Cache should be blocked for contributors")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_contributor_can_write_source(self):
         """Contributors can write to source code (fork + PR workflow)"""
@@ -254,7 +254,7 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Malicious prompt should be blocked from disabling security")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_malicious_prompt_cannot_poison_cache(self):
         """
@@ -276,7 +276,7 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Cache poisoning should be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_bash_cache_poisoning_blocked(self):
         """Bash command trying to poison cache is blocked"""
@@ -294,5 +294,5 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Bash cache poisoning should be blocked")
-        # Bug #94 fix: Bash errors now show "CRITICAL COMMAND BLOCKED" not "FILE PROTECTED"
-        self.assertIn("CRITICAL COMMAND BLOCKED", error_msg)
+        # Bug #94 fix: Bash errors now show "Protection:" not "FILE PROTECTED"
+        self.assertIn("Protection:", error_msg)

@@ -194,13 +194,29 @@ When you use GitHub Copilot:
 ```
 User prompt: "Deploy using API key: sk_live_abc123..."
 
-🔒 SECRET DETECTED
-======================================================================
-Gitleaks has detected sensitive information in your prompt.
-This operation has been blocked for security.
+🛡️ Secret Detected
 
-Please remove the sensitive information and try again.
-======================================================================
+Protection: Secret Scanning
+Secret Type: stripe-api-key
+Location: prompt:line 1
+Scanner: Gitleaks
+Pattern source: Default Gitleaks rules
+
+Why blocked: Hard-coded secrets in prompts create security risks.
+Secrets should never be included in AI prompts or source code.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents credential leaks.
+
+Recommendation:
+- Store secrets in environment variables or secret managers
+- Use placeholder values in examples (e.g., "sk_test_example_key")
+- Never paste real API keys, tokens, or passwords
+
+⚠️ Secret value NOT shown in this message for security
+
+Config: ~/.config/ai-guardian/ai-guardian.json
+Section: secret_scanning.enabled
 ```
 
 ### Example: Allowed Request

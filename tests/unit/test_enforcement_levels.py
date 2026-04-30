@@ -79,7 +79,7 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
         # Should be blocked
         self.assertFalse(is_allowed, "Block mode should deny execution")
         self.assertIsNotNone(error_msg, "Should return error message")
-        self.assertIn("🚨 BLOCKED BY POLICY", error_msg)
+        self.assertIn("🛡️", error_msg)
         self.assertIn("not in allow list", error_msg)
 
     def test_skill_log_mode_deny_pattern(self):
@@ -149,7 +149,7 @@ class SecretScanningEnforcementTest(unittest.TestCase):
             # Should always be blocked
             self.assertTrue(has_secrets, "Secrets should always block")
             self.assertIsNotNone(error_msg)
-            self.assertIn("🚨 BLOCKED BY POLICY", error_msg)
+            self.assertIn("🛡️", error_msg)
         finally:
             if os.path.exists(report_file):
                 os.unlink(report_file)
@@ -189,8 +189,8 @@ class PromptInjectionEnforcementTest(unittest.TestCase):
         # Should be blocked
         self.assertTrue(is_injection, "Block mode should return True (injection detected)")
         self.assertIsNotNone(error_msg)
-        self.assertIn("🚨 BLOCKED BY POLICY", error_msg)
-        self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+        self.assertIn("🛡️", error_msg)
+        self.assertIn("Prompt Injection Detected", error_msg)
 
 
 class DirectoryRulesEnforcementTest(unittest.TestCase):
