@@ -14,6 +14,9 @@ assignees: ''
 
 **Date Accessed**: <!-- YYYY-MM-DD -->
 
+**Source License**: <!-- e.g., MIT, Apache-2.0, Academic Fair Use, Public Domain -->
+<!-- For GitHub repos: curl -s https://api.github.com/repos/OWNER/REPO | jq -r '.license.spdx_id' -->
+
 **Pattern Category**: <!-- e.g., Jailbreak, Obfuscation, Context Manipulation, Unicode Attack -->
 
 ---
@@ -26,6 +29,9 @@ Before proposing this pattern, verify:
 - [ ] **Not Duplicate** - Checked existing patterns in `src/ai_guardian/prompt_injection.py` - this is genuinely new
 - [ ] **Low False Positives** - Detection regex/logic won't block legitimate code or documentation
 - [ ] **Reproducible** - I can provide concrete examples that demonstrate the attack
+- [ ] **License Compatible** - Source uses permissive open source license (MIT/Apache-2.0/BSD/CC0/ISC) or academic fair use applies
+  - ✅ Acceptable: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, Unlicense, Public Domain, Academic Papers (cite properly)
+  - ❌ Unacceptable: GPL-2.0, GPL-3.0, AGPL-3.0, proprietary, "All Rights Reserved", unclear licensing
 
 ---
 

@@ -705,14 +705,23 @@ For each discovered pattern, evaluate against these criteria:
 - ✅ YES: Can create concrete examples that demonstrate the attack
 - ❌ NO: Theoretical attack without practical demonstration
 
+**5. License Compatible**
+- ✅ YES: Source uses permissive open source license (MIT, Apache-2.0, BSD, CC0) or academic fair use
+- ❌ NO: Source uses copyleft (GPL/AGPL), proprietary license, or unclear licensing
+- **Verification**: For GitHub repos, run `curl -s https://api.github.com/repos/OWNER/REPO | jq -r '.license.spdx_id'`
+- **Acceptable licenses**: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, Unlicense, Public Domain
+- **Unacceptable licenses**: GPL-2.0, GPL-3.0, AGPL-3.0, proprietary, "All Rights Reserved"
+- **Academic papers**: Fair use applies (must cite in CHANGELOG.md and code comments)
+
 #### Decision Matrix: Apply vs Reject
 
 | Criteria Met | Decision | Action |
 |--------------|----------|--------|
-| All 4 (Applies + Not Duplicate + Low FP + Reproducible) | **Apply** | Create pattern enhancement issue using template |
-| 3/4 (Missing "Low FP") | **Consider with Caution** | Discuss trade-offs, consider opt-in detection |
-| 3/4 (Missing "Reproducible") | **Research Further** | Attempt to create proof-of-concept first |
-| 2/4 or fewer | **Reject** | Document decision, revisit if new evidence emerges |
+| All 5 (Applies + Not Duplicate + Low FP + Reproducible + Licensed) | **Apply** | Create pattern enhancement issue using template |
+| 4/5 (Missing "Low FP") | **Consider with Caution** | Discuss trade-offs, consider opt-in detection |
+| 4/5 (Missing "Reproducible") | **Research Further** | Attempt to create proof-of-concept first |
+| 4/5 (Missing "Licensed") | **Reject - Legal Risk** | Cannot use without license compatibility |
+| 3/5 or fewer | **Reject** | Document decision, revisit if new evidence emerges |
 
 #### Pattern Addition Workflow
 
