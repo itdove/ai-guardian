@@ -1364,7 +1364,7 @@ def _scan_for_pii(text, pii_config):
                 f"Found {len(redactions)} PII item(s):\n"
                 + "\n".join([f"  - {r['type']}" for r in redactions[:10]])
                 + ("\n  - ..." if len(redactions) > 10 else "")
-                + f"\n\nAction: {pii_config.get('action', 'redact')}\n"
+                + f"\n\nAction: {pii_config.get('action', 'block')}\n"
                 f"{'='*70}\n"
             )
             return True, result['redacted_text'], redactions, warning
@@ -2528,7 +2528,7 @@ def process_hook_input():
                 logging.info("Scanning tool output for PII...")
                 has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
                 if has_pii:
-                    pii_action = pii_config.get('action', 'redact')
+                    pii_action = pii_config.get('action', 'block')
                     pii_types = list(set(r['type'] for r in pii_redactions))
                     logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
 
@@ -2919,7 +2919,7 @@ def process_hook_input():
                     logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
                     has_pii, _, pii_redactions, pii_warning = _scan_for_pii(content_to_scan, pii_config)
                     if has_pii:
-                        pii_action = pii_config.get('action', 'redact')
+                        pii_action = pii_config.get('action', 'block')
                         pii_types = list(set(r['type'] for r in pii_redactions))
                         logging.warning(f"PII detected: {pii_types}")
 
@@ -2945,15 +2945,8 @@ def process_hook_input():
                                 final_error = f"{combined_warning}\n\n{pii_warning}"
                             return format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event)
-                        elif pii_action == 'redact':
-                            # UserPromptSubmit and PreToolUse cannot modify content,
-                            # so redact mode falls back to blocking with an explanation.
-                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                            final_error = pii_warning
-                            if combined_warning:
-                                final_error = f"{combined_warning}\n\n{pii_warning}"
-                            return format_response(ide_type, has_secrets=True,
-                                                 error_message=final_error, hook_event=hook_event)
+                        elif pii_action == 'warn':
+                            warning_messages.append(pii_warning)
                         elif pii_action == 'log-only':
                             warning_messages.append(pii_warning)
 

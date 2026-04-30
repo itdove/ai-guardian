@@ -231,29 +231,25 @@ class PIIPreToolUseTests(TestCase):
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
     @patch('ai_guardian._load_secret_scanning_config')
-    def test_pretooluse_redact_blocks_read(self, mock_ss, mock_gitleaks, mock_pii):
+    def test_pretooluse_warn_allows_read_with_warning(self, mock_ss, mock_gitleaks, mock_pii):
         """
-        USER EXPERIENCE: File read with PII + action=redact -> BLOCKED
+        USER EXPERIENCE: File read with PII + action=warn -> ALLOWED with warning
 
         Scenario:
         1. Claude tries to Read a file containing SSN
         2. ai-guardian PreToolUse hook scans file
-        3. PII detected, action is "redact"
+        3. PII detected, action is "warn"
 
         Expected User Experience:
-        ❌ Read operation is BLOCKED (PreToolUse cannot modify content,
-           so redact mode falls back to blocking)
-        🛡️ User sees: "PII DETECTED"
-
-        Note: PostToolUse CAN redact tool output. PreToolUse/UserPromptSubmit
-        cannot modify content, so both redact and block modes deny the operation.
+        ✅ Read operation is ALLOWED
+        ⚠️ User sees PII warning in systemMessage
         """
         mock_ss.return_value = (None, None)
         mock_gitleaks.return_value = (False, None)
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['ssn'],
-            'action': 'block',
+            'action': 'warn',
             'ignore_files': []
         }, None)
 
@@ -275,10 +271,12 @@ class PIIPreToolUseTests(TestCase):
                 result = ai_guardian.process_hook_input()
 
             output = json.loads(result['output'])
-            # Should block — PreToolUse can't modify content, redact falls back to block
-            assert 'permissionDecision' in output.get('hookSpecificOutput', {}) or \
-                   'PII' in output.get('systemMessage', ''), \
-                   f"Expected PII block: {output}"
+            # Should NOT block — warn mode allows with warning
+            has_deny = output.get('hookSpecificOutput', {}).get('permissionDecision') == 'deny'
+            assert not has_deny, f"warn mode should allow read: {output}"
+            # Should have PII warning
+            assert 'PII' in output.get('systemMessage', ''), \
+                   f"Expected PII warning: {output}"
         finally:
             os.unlink(tmp_path)
 
