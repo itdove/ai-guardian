@@ -2,6 +2,7 @@
 Tests for scanner_manager module.
 """
 
+import json
 import shutil
 from unittest import mock
 
@@ -262,3 +263,149 @@ class TestScannerManager:
         output = "\n".join(print_calls)
         assert "not installed" in output.lower()
         assert "ai-guardian scanner install" in output
+
+
+class TestScannerManagerJson:
+    """Tests for JSON output methods."""
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_get_scanner_list_json_with_scanners(self, mock_run, mock_which):
+        """Test JSON output for scanner list with installed scanners."""
+        mock_which.side_effect = lambda name: (
+            "/usr/local/bin/gitleaks" if name == "gitleaks" else None
+        )
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout="8.30.1", stderr=""
+        )
+
+        manager = ScannerManager()
+        result = json.loads(manager.get_scanner_list_json())
+
+        assert "scanners" in result
+        assert len(result["scanners"]) == 1
+        assert result["scanners"][0]["name"] == "gitleaks"
+        assert result["scanners"][0]["version"] == "8.30.1"
+        assert result["scanners"][0]["path"] == "/usr/local/bin/gitleaks"
+        assert "is_default" in result["scanners"][0]
+
+    @mock.patch("shutil.which")
+    def test_get_scanner_list_json_empty(self, mock_which):
+        """Test JSON output when no scanners installed."""
+        mock_which.return_value = None
+
+        manager = ScannerManager()
+        result = json.loads(manager.get_scanner_list_json())
+
+        assert "scanners" in result
+        assert result["scanners"] == []
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_get_scanner_info_json_found(self, mock_run, mock_which):
+        """Test JSON output for scanner info when found."""
+        mock_which.side_effect = lambda name: (
+            "/usr/local/bin/gitleaks" if name == "gitleaks" else None
+        )
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout="8.30.1", stderr=""
+        )
+
+        manager = ScannerManager()
+        result = json.loads(manager.get_scanner_info_json("gitleaks"))
+
+        assert result["name"] == "gitleaks"
+        assert result["version"] == "8.30.1"
+        assert result["path"] == "/usr/local/bin/gitleaks"
+        assert "is_default" in result
+        assert "github" in result
+        assert "github.com" in result["github"]
+
+    @mock.patch("shutil.which")
+    def test_get_scanner_info_json_not_found(self, mock_which):
+        """Test JSON output for scanner info when not installed."""
+        mock_which.return_value = None
+
+        manager = ScannerManager()
+        result = json.loads(manager.get_scanner_info_json("gitleaks"))
+
+        assert "error" in result
+        assert "not installed" in result["error"]
+
+
+class TestScannerSupported:
+    """Tests for supported scanners discovery."""
+
+    def test_get_supported_scanners_json(self):
+        """Test JSON output for supported scanners."""
+        manager = ScannerManager()
+        result = json.loads(manager.get_supported_scanners_json())
+
+        assert "scanners" in result
+        scanners = result["scanners"]
+
+        assert "gitleaks" in scanners
+        assert "betterleaks" in scanners
+        assert "leaktk" in scanners
+
+        assert "version" in scanners["gitleaks"]
+        assert "repo" in scanners["gitleaks"]
+        assert "license" in scanners["gitleaks"]
+        assert scanners["gitleaks"]["repo"] == "gitleaks/gitleaks"
+
+    @mock.patch("builtins.print")
+    def test_print_supported_scanners(self, mock_print):
+        """Test human-readable output for supported scanners."""
+        manager = ScannerManager()
+        manager.print_supported_scanners()
+
+        print_calls = [str(call) for call in mock_print.call_args_list]
+        output = "\n".join(print_calls)
+        assert "gitleaks" in output
+        assert "betterleaks" in output
+        assert "leaktk" in output
+        assert "Version:" in output
+        assert "Repo:" in output
+        assert "License:" in output
+
+
+class TestPatternServers:
+    """Tests for pattern server discovery."""
+
+    def test_get_pattern_servers_json(self):
+        """Test JSON output for pattern servers."""
+        manager = ScannerManager()
+        result = json.loads(manager.get_pattern_servers_json())
+
+        assert "pattern_servers" in result
+        servers = result["pattern_servers"]
+
+        assert "leaktk" in servers
+        assert "url" in servers["leaktk"]
+        assert "patterns_endpoint" in servers["leaktk"]
+
+    @mock.patch("builtins.print")
+    def test_print_pattern_servers(self, mock_print):
+        """Test human-readable output for pattern servers."""
+        manager = ScannerManager()
+        manager.print_pattern_servers()
+
+        print_calls = [str(call) for call in mock_print.call_args_list]
+        output = "\n".join(print_calls)
+        assert "leaktk" in output
+        assert "URL:" in output
+        assert "Endpoint:" in output
+
+    @mock.patch("builtins.print")
+    def test_print_pattern_servers_empty(self, mock_print):
+        """Test human-readable output when no pattern servers configured."""
+        with mock.patch(
+            "ai_guardian.scanner_installer.ScannerInstaller.get_pattern_servers",
+            return_value={},
+        ):
+            manager = ScannerManager()
+            manager.print_pattern_servers()
+
+        print_calls = [str(call) for call in mock_print.call_args_list]
+        output = "\n".join(print_calls)
+        assert "No pattern servers configured" in output

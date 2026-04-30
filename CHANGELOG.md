@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scanner/Pattern-Server Discovery Commands** (Issue #320)
+  - `ai-guardian scanner supported` — lists all supported scanners with versions, repos, and licenses
+  - `ai-guardian pattern-servers supported` — lists all configured pattern servers with URLs and endpoints
+  - `--json` flag for `scanner list`, `scanner info`, `scanner supported`, and `pattern-servers supported`
+  - Bundled `pyproject.toml` in wheel via `force-include` so scanner config is available in non-editable installs
+  - Updated `_load_scanner_config()` to try bundled path first, then fall back to development path
+  - Added `get_pattern_servers()` method to `ScannerInstaller`
+
 - **Multi-Engine Scanner Support - Phase 2** (Issue #249, v1.6.0)
   - **TruffleHog Scanner Support**:
     - Added `TruffleHogOutputParser` for parsing TruffleHog newline-delimited JSON output

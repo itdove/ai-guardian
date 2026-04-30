@@ -49,6 +49,7 @@ packages = ["src/ai_guardian"]
 [tool.hatch.build.targets.wheel.force-include]
 "images" = "ai_guardian/images"
 "README.md" = "ai_guardian/README.md"
+"pyproject.toml" = "ai_guardian/pyproject.toml"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -108,4 +109,4 @@ trufflehog = "trufflesecurity/trufflehog"
 detect-secrets = "Yelp/detect-secrets"
 
 [tool.ai-guardian.scanners.pattern_servers]
-leaktk = { url = "https://raw.githubusercontent.com", patterns_endpoint = "/leaktk/patterns/main/target/patterns/gitleaks/${info.latest_version}" }
+leaktk = { url = "https://raw.githubusercontent.com", patterns_endpoint = "/leaktk/patterns/main/target/patterns/gitleaks/3.18.1" }

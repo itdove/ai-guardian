@@ -5,13 +5,14 @@ Scanner Manager for ai-guardian.
 Manages and lists installed scanner engines.
 """
 
+import json
 import logging
 import shutil
 import subprocess
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -208,3 +209,115 @@ class ScannerManager:
         installer = ScannerInstaller()
         repo = installer.get_github_repo(scanner_name)
         print(f"GitHub:  https://github.com/{repo}")
+
+    def get_scanner_list_json(self) -> str:
+        """Return installed scanners as JSON string."""
+        scanners = self.list_installed()
+        data = {
+            "scanners": [
+                {
+                    "name": s.name,
+                    "version": s.version,
+                    "path": s.path,
+                    "is_default": s.is_default,
+                }
+                for s in scanners
+            ]
+        }
+        return json.dumps(data, indent=2)
+
+    def get_scanner_info_json(self, scanner_name: str) -> str:
+        """Return scanner info as JSON string."""
+        scanner = self.get_scanner_info(scanner_name)
+
+        if not scanner:
+            data = {"error": f"{scanner_name} is not installed"}
+            return json.dumps(data, indent=2)
+
+        from ai_guardian.scanner_installer import ScannerInstaller
+
+        installer = ScannerInstaller()
+        repo = installer.get_github_repo(scanner_name)
+
+        data = {
+            "name": scanner.name,
+            "version": scanner.version,
+            "path": scanner.path,
+            "is_default": scanner.is_default,
+            "github": f"https://github.com/{repo}",
+        }
+        return json.dumps(data, indent=2)
+
+    def print_supported_scanners(self):
+        """Print all supported scanners with versions and repos."""
+        from ai_guardian.scanner_installer import ScannerInstaller
+
+        installer = ScannerInstaller()
+        repos = installer.scanner_config.get("repos", {})
+
+        print("\nSupported scanners:\n")
+        for name in installer.SUPPORTED_SCANNERS:
+            version = installer.get_pinned_version(name)
+            repo = repos.get(name, "N/A")
+            license_info = installer.SCANNER_LICENSES.get(name, "Unknown")
+            print(f"  {name}")
+            print(f"    Version: {version}")
+            print(f"    Repo:    {repo}")
+            print(f"    License: {license_info}")
+            print()
+
+    def get_supported_scanners_json(self) -> str:
+        """Return all supported scanners as JSON string."""
+        from ai_guardian.scanner_installer import ScannerInstaller
+
+        installer = ScannerInstaller()
+        repos = installer.scanner_config.get("repos", {})
+
+        scanners: Dict[str, Any] = {}
+        for name in installer.SUPPORTED_SCANNERS:
+            version = installer.get_pinned_version(name)
+            repo = repos.get(name, None)
+            scanners[name] = {
+                "version": version,
+                "repo": repo,
+                "license": installer.SCANNER_LICENSES.get(name, "Unknown"),
+            }
+
+        return json.dumps({"scanners": scanners}, indent=2)
+
+    def get_pattern_servers_json(self) -> str:
+        """Return pattern server configuration as JSON string."""
+        from ai_guardian.scanner_installer import ScannerInstaller
+
+        installer = ScannerInstaller()
+        servers = installer.get_pattern_servers()
+
+        result: Dict[str, Any] = {}
+        for name, config in servers.items():
+            if isinstance(config, dict):
+                result[name] = config
+            else:
+                result[name] = str(config)
+
+        return json.dumps({"pattern_servers": result}, indent=2)
+
+    def print_pattern_servers(self):
+        """Print all supported pattern servers."""
+        from ai_guardian.scanner_installer import ScannerInstaller
+
+        installer = ScannerInstaller()
+        servers = installer.get_pattern_servers()
+
+        if not servers:
+            print("\nNo pattern servers configured.\n")
+            return
+
+        print("\nSupported pattern servers:\n")
+        for name, config in servers.items():
+            print(f"  {name}")
+            if isinstance(config, dict):
+                url = config.get("url", "N/A")
+                endpoint = config.get("patterns_endpoint", "N/A")
+                print(f"    URL:      {url}")
+                print(f"    Endpoint: {endpoint}")
+            print()
