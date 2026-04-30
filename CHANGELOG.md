@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Enhanced Prompt Injection Detection** (Issue #285, Phase 1)
+  - **24 New Patterns from 2026 Security Research**:
+    - CRITICAL patterns (15): Fake completion attacks, HTML comment injection, chain-of-thought exploitation, Python attribute chain exploitation, recursive self-prompting, XSS payload generation, SQL injection prompting, newline context switching, conditional safety bypass, CSS-hidden HTML content, maintenance mode activation, auto-approval manipulation, instruction replacement (new/update/instead)
+    - DOCUMENTATION patterns (8): Output format manipulation, workflow chaining, role reversal declarations, chat template delimiters, Base64 command encoding, delimiter injection ([SYSTEM]/template variables), context manipulation (conversation reset/session restart)
+    - SUSPICIOUS patterns (1): Identity spoofing
+  - **Research Sources**:
+    - PayloadsAllTheThings (GitHub) - instruction override, role manipulation, constraint bypass patterns
+    - Hermes Security Patterns (fullsend-ai experiments) - delimiter attacks, chat template injection, context manipulation
+    - Open-Prompt-Injection dataset (Liu et al., USENIX Security 2024) - fake completion, multi-vector attacks
+    - "Prompt Injection Attacks on Agentic Coding Assistants" (arXiv 2601.17548, Jan 2026) - AI IDE-specific attacks
+  - **Attack Coverage**:
+    - Instruction replacement attacks ("new instructions:", "instead follow", "update your rules")
+    - Multi-vector combined attacks (escape chars + fake completion + context ignoring)
+    - AI IDE-specific attacks (skill poisoning, GitHub issue/PR comment injection, MCP tool description poisoning)
+    - Obfuscation bypasses (Base64 encoding, chat template injection, delimiter attacks)
+    - Workflow manipulation (chaining, conditional triggers, auto-approval claims)
+    - Context manipulation (conversation reset, session restart with malicious intent)
+  - **Performance**: All patterns maintain <1ms detection target
+  - **Testing**: 42 new tests added (positive/negative cases for each pattern)
+  - **Documentation**: Research analysis in `docs/research/open-prompt-injection-analysis.md`
+
 - **Dependabot Configuration** (Issue #292, #309)
   - **Automated Dependency Updates**: `.github/dependabot.yml`
     - GitHub Actions monitoring: Monthly checks for action version updates
