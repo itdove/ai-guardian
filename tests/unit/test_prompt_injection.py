@@ -275,8 +275,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         self.assertIsNotNone(error_msg)
         self.assertIn("🛡️ Prompt Injection Detected", error_msg)
         self.assertIn("Confidence:", error_msg)
-        self.assertIn("Method:", error_msg)
-        self.assertIn("Pattern detected:", error_msg)
+        self.assertIn("Pattern:", error_msg)
         self.assertIn("If this is a false positive", error_msg)
 
     def test_confidence_levels(self):

@@ -145,7 +145,7 @@ class DemonstrationIssue105(unittest.TestCase):
 
         # CRITICAL: Must be blocked!
         self.assertFalse(is_allowed, "❌ VULNERABILITY: Bash rm was allowed!")
-        self.assertIn("CRITICAL", error_msg.upper())
+        self.assertIn("IMMUTABLE PROTECTION", error_msg.upper())
         self.assertNotIn("log mode", error_msg.lower(), "Must be hard blocked, not log mode")
 
         print("\n✅ SECURE: Bash rm was BLOCKED (self-protection active)")
@@ -189,7 +189,7 @@ class DemonstrationIssue105(unittest.TestCase):
         # CRITICAL: Must be blocked!
         self.assertFalse(is_allowed, "❌ VULNERABILITY: .ai-read-deny marker was allowed!")
         self.assertIn("Protection:", error_msg)
-        self.assertIn("Directory protection marker", error_msg)
+        self.assertIn("Directory Protection Marker", error_msg)
         self.assertNotIn("log mode", error_msg.lower(), "Must be hard blocked, not log mode")
 
         print("\n✅ SECURE: Write was BLOCKED (directory markers protected)")

@@ -106,3 +106,6 @@ betterleaks = "betterleaks/betterleaks"
 leaktk = "leaktk/leaktk"
 trufflehog = "trufflesecurity/trufflehog"
 detect-secrets = "Yelp/detect-secrets"
+
+[tool.ai-guardian.scanners.pattern_servers]
+leaktk = { url = "https://raw.githubusercontent.com", patterns_endpoint = "/leaktk/patterns/main/target/patterns/gitleaks/${info.latest_version}" }

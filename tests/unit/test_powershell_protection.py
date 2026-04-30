@@ -426,7 +426,7 @@ class PowerShellProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "PowerShell Remove-Item on .ai-read-deny should be blocked")
-        self.assertIn("Directory protection marker", error_msg)
+        self.assertIn("Directory Protection Marker", error_msg)
 
     def test_powershell_blocks_move_item_ai_read_deny(self):
         """PowerShell Move-Item blocked for .ai-read-deny"""
