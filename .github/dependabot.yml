@@ -4,6 +4,7 @@
 version: 2
 updates:
   # GitHub Actions - Check for action version updates
+  # Grouped to consolidate all action updates into a single PR
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -17,6 +18,16 @@ updates:
     open-pull-requests-limit: 5
     reviewers:
       - "itdove"
+    # Group all GitHub Actions updates together (minor, patch, and major)
+    # This reduces PR noise by consolidating all action updates into one PR
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+          - "major"
 
   # Python packages - Check for pip dependency updates
   - package-ecosystem: "pip"
@@ -32,7 +43,9 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - "itdove"
-    # Group minor and patch updates together
+    # Group all Python package updates together (minor, patch, and major)
+    # This reduces PR noise by consolidating all package updates into one PR
+    # Major version updates are included to minimize total number of PRs
     groups:
       python-packages:
         patterns:
@@ -40,6 +53,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
+          - "major"
     # Allow both direct and indirect dependencies
     allow:
       - dependency-type: "all"
