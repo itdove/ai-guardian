@@ -725,7 +725,7 @@ class SelfProtectionTest(TestCase):
         self.assertIsNotNone(error_msg, "Error message should be provided")
         self.assertIn("Protection:", error_msg)
         self.assertIn(".ai-read-deny", error_msg)
-        self.assertIn("Directory protection marker", error_msg)
+        self.assertIn("Directory Protection Marker", error_msg)
 
     def test_write_blocks_ai_read_deny_absolute_path(self):
         """AI cannot write to .ai-read-deny with absolute path"""
@@ -742,7 +742,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Write to .ai-read-deny (absolute) should be blocked")
-        self.assertIn("Directory protection marker", error_msg)
+        self.assertIn("Directory Protection Marker", error_msg)
 
     def test_write_blocks_ai_read_deny_nested_path(self):
         """AI cannot write to .ai-read-deny in nested directories"""
@@ -782,7 +782,7 @@ class SelfProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "Edit of .ai-read-deny should be blocked")
         self.assertIn("Protection:", error_msg)
-        self.assertIn("Directory protection marker", error_msg)
+        self.assertIn("Directory Protection Marker", error_msg)
 
     # ========================================================================
     # Test: AI cannot bypass via Bash rm
@@ -1045,7 +1045,7 @@ class SelfProtectionTest(TestCase):
         self.assertIn("package source code", error_msg)
         self.assertIn(".ai-read-deny marker files", error_msg)
         self.assertIn("cannot be disabled via configuration", error_msg)
-        self.assertIn("use your text editor manually", error_msg)
+        self.assertIn("Use your text editor to modify these files", error_msg)
 
     def test_error_message_marker_file_format(self):
         """Error message for .ai-read-deny should mention directory protection"""
@@ -1065,9 +1065,9 @@ class SelfProtectionTest(TestCase):
         self.assertIn("Protection:", error_msg)
         self.assertIn("/home/user/secrets/.ai-read-deny", error_msg)
         self.assertIn("Write", error_msg)
-        self.assertIn("Directory protection marker", error_msg)
-        self.assertIn(".ai-read-deny marker files (directory protection)", error_msg)
-        self.assertIn("directory protection cannot be bypassed", error_msg)
+        self.assertIn("Directory Protection Marker", error_msg)
+        self.assertIn(".ai-read-deny markers enforce directory protection", error_msg)
+        self.assertIn("bypass directory protection", error_msg)
         self.assertIn("delete .ai-read-deny manually", error_msg)
 
     # ========================================================================
@@ -1092,7 +1092,7 @@ class SelfProtectionTest(TestCase):
         self.assertIn("💡 TIP", error_msg)
         self.assertIn("ai - guardian", error_msg)
         self.assertIn("with spaces", error_msg)
-        self.assertIn("trying to write ABOUT the tool", error_msg)
+        self.assertIn("Writing ABOUT the tool", error_msg)
 
     def test_error_message_for_pip_installed_readme(self):
         """Error message for pip-installed README explains it's production code"""
@@ -1113,7 +1113,7 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed)
         # Should explain this is pip-installed production code
         self.assertIn("Pip-installed", error_msg)
-        self.assertIn("production deployment", error_msg)
+        self.assertIn("security controls in production", error_msg)
         # Should provide guidance on how to develop
         self.assertIn("git clone", error_msg)
         self.assertIn("Development source files CAN be edited", error_msg)
@@ -1355,7 +1355,7 @@ class SelfProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "Redirect to actual config file should still be blocked")
         self.assertIsNotNone(error_msg)
-        self.assertIn("CRITICAL", error_msg)
+        self.assertIn("IMMUTABLE PROTECTION", error_msg.upper())
 
     def test_bash_still_blocks_sed_on_actual_config_file_issue_188(self):
         """Issue #188: Verify fix doesn't break protection - still blocks sed on actual config"""
