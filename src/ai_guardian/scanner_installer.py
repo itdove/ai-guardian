@@ -235,14 +235,25 @@ class ScannerInstaller:
 
         try:
             # detect-secrets is a Python package - use pip
-            if scanner_name == "detect-secrets" and shutil.which("pip"):
-                logger.info(f"Installing {scanner_name} via pip...")
-                result = subprocess.run(
-                    ["pip", "install", scanner_name],
-                    capture_output=True,
-                    timeout=300,
-                )
-                return result.returncode == 0
+            if scanner_name == "detect-secrets":
+                # Try pip3 first, then pip
+                pip_cmd = None
+                if shutil.which("pip3"):
+                    pip_cmd = "pip3"
+                elif shutil.which("pip"):
+                    pip_cmd = "pip"
+
+                if pip_cmd:
+                    logger.info(f"Installing {scanner_name} via {pip_cmd}...")
+                    result = subprocess.run(
+                        [pip_cmd, "install", scanner_name],
+                        capture_output=True,
+                        timeout=300,
+                    )
+                    return result.returncode == 0
+                else:
+                    logger.warning("pip/pip3 not found, cannot install detect-secrets")
+                    return False
             # TruffleHog on macOS - use Homebrew with tap
             elif scanner_name == "trufflehog" and system == "darwin" and shutil.which("brew"):
                 logger.info(f"Installing {scanner_name} via Homebrew...")
@@ -733,34 +744,48 @@ class ScannerInstaller:
                 return None
             binary_path = str(binary_path)
 
+        # Different scanners have different version commands
+        # gitleaks, betterleaks, leaktk, trufflehog: <binary> version
+        # detect-secrets: <binary> --version
+        version_commands = [
+            [binary_path, "version"],      # Try subcommand first
+            [binary_path, "--version"],    # Fallback to flag
+        ]
+
         # Try to get version
-        try:
-            result = subprocess.run(
-                [binary_path, "version"],
-                capture_output=True,
-                timeout=5,
-                text=True,
-            )
-            if result.returncode == 0:
-                # Parse version from output
-                # Expected formats:
-                # - "gitleaks version 8.30.1"
-                # - "8.30.1"
-                # - "v8.30.1"
-                output = result.stdout.strip()
+        for cmd in version_commands:
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    timeout=5,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    # Parse version from output
+                    # Expected formats:
+                    # - "gitleaks version 8.30.1"
+                    # - "detect-secrets 1.5.0"
+                    # - "8.30.1"
+                    # - "v8.30.1"
+                    output = result.stdout.strip()
 
-                # Extract version number
-                import re
-                # Match semantic version pattern
-                match = re.search(r'v?(\d+\.\d+\.\d+)', output)
-                if match:
-                    return match.group(1)
+                    # Extract version number
+                    import re
+                    # Match semantic version pattern
+                    match = re.search(r'v?(\d+\.\d+\.\d+)', output)
+                    if match:
+                        return match.group(1)
 
-                logger.debug(f"Could not parse version from output: {output}")
-                return None
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
-            logger.debug(f"Failed to get version for {scanner_name}: {e}")
-            return None
+                    logger.debug(f"Could not parse version from output: {output}")
+                    # Try next command
+                    continue
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+                logger.debug(f"Failed to run {cmd}: {e}")
+                continue
+
+        logger.debug(f"Failed to get version for {scanner_name}")
+        return None
 
         return None
 
@@ -807,30 +832,30 @@ class ScannerInstaller:
         Returns:
             True if scanner is installed and working
         """
-        if not shutil.which(scanner_name):
+        binary_path = shutil.which(scanner_name)
+        if not binary_path:
             # Check in install_dir
             binary_path = self.install_dir / scanner_name
             if not binary_path.exists():
                 return False
+            binary_path = str(binary_path)
 
-            # Try to run version command
+        # Try both version command formats
+        version_commands = [
+            [binary_path, "version"],      # Try subcommand first
+            [binary_path, "--version"],    # Fallback to flag
+        ]
+
+        for cmd in version_commands:
             try:
                 result = subprocess.run(
-                    [str(binary_path), "version"],
+                    cmd,
                     capture_output=True,
                     timeout=5,
                 )
-                return result.returncode == 0
+                if result.returncode == 0:
+                    return True
             except (subprocess.TimeoutExpired, FileNotFoundError):
-                return False
-        else:
-            # Binary in PATH, verify it works
-            try:
-                result = subprocess.run(
-                    [scanner_name, "version"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                return result.returncode == 0
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                return False
+                continue
+
+        return False
