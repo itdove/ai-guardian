@@ -7,6 +7,7 @@ secrets are detected, the redactor sanitizes outputs by masking sensitive data.
 
 Part of Phase 4: Hermes Security Patterns Integration (Issue #197)
 NEW in v1.5.0: Optional pattern server support for enterprise secret pattern management.
+NEW in v1.6.0: PII detection for GDPR/CCPA compliance (Issue #262).
 """
 
 import re
@@ -122,7 +123,50 @@ class SecretRedactor:
         (r'\b([A-Za-z0-9+/]{100,}={0,2})\b', 'preserve_prefix_suffix', 'Very Long Base64 Secret'),
     ]
 
-    def __init__(self, config: Optional[Dict] = None):
+    # PII pattern definitions keyed by type for selective loading (Issue #262)
+    PII_PATTERNS = {
+        'ssn': (r'\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b', 'full_redact', 'SSN'),
+        'credit_card': (r'\b(?:\d{4}[- ]?){3}\d{4}\b', 'credit_card', 'Credit Card Number'),
+        'phone': (r'(?<!\d)(?:\+1[- ]?)?\(?\d{3}\)?[- .]\d{3}[- .]\d{4}(?!\d)', 'full_redact', 'US Phone Number'),
+        'email': (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', 'pii_email', 'Email Address'),
+        'us_passport': (r'\b[A-Z]\d{8}\b', 'full_redact', 'US Passport Number'),
+        'iban': (r'\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b', 'iban', 'IBAN'),
+        'intl_phone': (r'\+\d{7,15}\b', 'full_redact', 'International Phone Number'),
+    }
+
+    @staticmethod
+    def _luhn_check(number_str: str) -> bool:
+        """Validate a number string using the Luhn algorithm."""
+        digits = [int(d) for d in number_str if d.isdigit()]
+        if len(digits) < 13 or len(digits) > 19:
+            return False
+        checksum = 0
+        for i, digit in enumerate(reversed(digits)):
+            if i % 2 == 1:
+                digit *= 2
+                if digit > 9:
+                    digit -= 9
+            checksum += digit
+        return checksum % 10 == 0
+
+    @staticmethod
+    def _iban_check(iban_str: str) -> bool:
+        """Validate an IBAN using the mod-97 algorithm."""
+        iban = iban_str.replace(' ', '').upper()
+        if len(iban) < 15 or len(iban) > 34:
+            return False
+        rearranged = iban[4:] + iban[:4]
+        numeric = ''
+        for ch in rearranged:
+            if ch.isdigit():
+                numeric += ch
+            elif ch.isalpha():
+                numeric += str(ord(ch) - ord('A') + 10)
+            else:
+                return False
+        return int(numeric) % 97 == 1
+
+    def __init__(self, config: Optional[Dict] = None, pii_config: Optional[Dict] = None, pii_only: bool = False):
         """
         Initialize the SecretRedactor.
 
@@ -134,16 +178,26 @@ class SecretRedactor:
                 - additional_patterns: List[Dict] - custom patterns to add
                 - log_redactions: bool - whether to log redaction events (default: True)
                 - pattern_server: Dict - pattern server configuration (NEW in v1.5.0)
+            pii_config: Optional PII scanning configuration dict with:
+                - enabled: bool - whether PII detection is enabled (default: True)
+                - pii_types: List[str] - PII types to detect (default: all)
+                - action: str - "redact", "log-only", or "block" (default: "redact")
         """
         self.config = config or {}
+        self.pii_config = pii_config or {}
         self.enabled = self.config.get('enabled', True)
         self.action = self.config.get('action', 'warn')
         self.preserve_format = self.config.get('preserve_format', True)
         self.log_redactions = self.config.get('log_redactions', True)
 
+        self.pii_only = pii_only
+
         # Load patterns using pattern loader if pattern_server configured
         pattern_server_config = self.config.get('pattern_server')
-        if pattern_server_config:
+        if pii_only:
+            # Skip all secret patterns, only PII patterns will be loaded below
+            patterns_to_use = []
+        elif pattern_server_config:
             logger.info("Secret Redaction: Loading patterns via pattern server")
             patterns_to_use = self._load_patterns_via_server(pattern_server_config)
         else:
@@ -172,8 +226,8 @@ class SecretRedactor:
             except (re.error, KeyError, TypeError) as e:
                 logger.warning(f"Failed to compile pattern for {secret_type if isinstance(pattern_info, tuple) else pattern_info.get('secret_type', 'unknown')}: {e}")
 
-        # Add custom patterns from local config (always additive)
-        additional = self.config.get('additional_patterns', [])
+        # Add custom patterns from local config (always additive, skip in pii_only mode)
+        additional = [] if pii_only else self.config.get('additional_patterns', [])
         for custom in additional:
             try:
                 pattern = custom.get('pattern') or custom.get('regex')
@@ -190,6 +244,24 @@ class SecretRedactor:
                 logger.debug(f"Added custom pattern: {secret_type}")
             except (re.error, KeyError, TypeError) as e:
                 logger.warning(f"Failed to compile custom pattern: {e}")
+
+        # Load PII patterns if enabled (Issue #262)
+        if self.pii_config.get('enabled', False):
+            pii_types = self.pii_config.get('pii_types',
+                ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'])
+            for pii_type in pii_types:
+                if pii_type in self.PII_PATTERNS:
+                    pattern, strategy, label = self.PII_PATTERNS[pii_type]
+                    try:
+                        if not validate_regex_pattern(pattern):
+                            logger.error(f"PII pattern validation failed for {label} - skipping")
+                            continue
+                        compiled = re.compile(pattern)
+                        self.compiled_patterns.append((compiled, strategy, label))
+                        logger.debug(f"Added PII pattern: {label}")
+                    except re.error as e:
+                        logger.warning(f"Failed to compile PII pattern for {label}: {e}")
+            logger.info(f"PII Detection: Loaded patterns for {pii_types}")
 
         logger.info(f"Secret Redaction: Loaded {len(self.compiled_patterns)} patterns")
 
@@ -273,6 +345,10 @@ class SecretRedactor:
                 original = match.group(0)
                 redacted, metadata = self._apply_strategy(match, strategy, secret_type)
 
+                # Skip if strategy returned None (e.g., failed Luhn/IBAN validation)
+                if redacted is None:
+                    continue
+
                 # Replace in text
                 redacted_text = redacted_text[:start] + redacted + redacted_text[end:]
 
@@ -344,6 +420,12 @@ class SecretRedactor:
             return self._redact_yaml_password(match)
         elif strategy == 'context_secret':
             return self._redact_context_secret(match)
+        elif strategy == 'credit_card':
+            return self._redact_credit_card(match)
+        elif strategy == 'pii_email':
+            return self._redact_pii_email(match)
+        elif strategy == 'iban':
+            return self._redact_iban(match)
         else:
             # Default to preserve_prefix_suffix
             return self._preserve_prefix_suffix(match)
@@ -510,3 +592,40 @@ class SecretRedactor:
         redacted = f"{context_prefix}{redacted_secret}"
 
         return (redacted, {'method': 'context_secret', 'context': context_prefix.strip()})
+
+    def _redact_credit_card(self, match: re.Match) -> Tuple[str, Dict]:
+        """
+        Redact credit card number after Luhn validation.
+
+        Returns (None, None) if the number fails Luhn check (not a real CC).
+        """
+        number = match.group(0)
+        digits_only = re.sub(r'[- ]', '', number)
+        if not self._luhn_check(digits_only):
+            return (None, None)
+        last_four = digits_only[-4:]
+        return (f"[HIDDEN CREDIT CARD ****{last_four}]", {'method': 'credit_card', 'last_four': last_four})
+
+    def _redact_pii_email(self, match: re.Match) -> Tuple[str, Dict]:
+        """
+        Redact email address, preserving the domain.
+
+        Example: john.doe@example.com -> [HIDDEN]@example.com
+        """
+        email = match.group(0)
+        at_idx = email.rfind('@')
+        domain = email[at_idx + 1:]
+        return (f"[HIDDEN]@{domain}", {'method': 'pii_email', 'domain': domain})
+
+    def _redact_iban(self, match: re.Match) -> Tuple[str, Dict]:
+        """
+        Redact IBAN after mod-97 validation.
+
+        Returns (None, None) if the string fails IBAN check.
+        """
+        iban = match.group(0)
+        if not self._iban_check(iban):
+            return (None, None)
+        country = iban[:2]
+        last_four = iban[-4:]
+        return (f"[HIDDEN IBAN {country}****{last_four}]", {'method': 'iban', 'country': country})

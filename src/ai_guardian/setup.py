@@ -862,6 +862,14 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_patterns": []
         },
 
+        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for SSN, credit card, phone, email, passport, IBAN, international phone.",
+        "scan_pii": {
+            "enabled": True,
+            "pii_types": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"],
+            "action": "block",
+            "ignore_files": []
+        },
+
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
         "ssrf_protection": {
             "enabled": True,
@@ -939,7 +947,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"]
         }
     }
 

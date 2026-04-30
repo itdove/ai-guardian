@@ -202,6 +202,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         modified_output: Optional modified tool output (for PostToolUse redaction)
             - Only used for PostToolUse hook when has_secrets=False
             - Contains redacted version of tool output to replace original
+            - Uses hookSpecificOutput.updatedToolOutput per Claude Code v2.1.121
+            - BUG: Not honored for Bash/Read/Grep tools yet
+              (anthropics/claude-code#54196). Will work once fixed upstream.
+            - See: https://code.claude.com/docs/en/hooks
 
     Returns:
         dict with 'output' (str to print) and 'exit_code' (int)
@@ -307,8 +311,15 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     # Log mode: display warning but allow execution
                     response["systemMessage"] = warning_message
                 if modified_output is not None:
-                    # Secret redaction: replace tool output with redacted version
-                    response["output"] = modified_output
+                    if "hookSpecificOutput" not in response:
+                        response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
+                    # updatedToolOutput: per v2.1.121 changelog, replaces output
+                    # for all tools. BUG: silently dropped for all tool types
+                    # (anthropics/claude-code#54196). Kept for forward compat.
+                    response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
+                    # updatedMCPToolOutput: legacy field, works for MCP tools
+                    # only on current versions (confirmed in #54196 comments).
+                    response["hookSpecificOutput"]["updatedMCPToolOutput"] = modified_output
 
             return {
                 "output": json.dumps(response),
@@ -1304,6 +1315,66 @@ def _load_secret_redaction_config():
     if config is None:
         return None, None
     return config.get("secret_redaction"), None
+
+
+def _load_pii_config():
+    """
+    Load PII scanning configuration from ai-guardian.json.
+
+    Returns defaults (enabled=True) when the scan_pii section is absent,
+    so PII protection is on by default.
+
+    Returns:
+        tuple: (config_dict, error_message or None)
+    """
+    _PII_DEFAULTS = {
+        'enabled': True,
+        'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
+        'action': 'block',
+        'ignore_files': []
+    }
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return _PII_DEFAULTS, error_msg
+    if config is None:
+        return _PII_DEFAULTS, None
+    return config.get("scan_pii", _PII_DEFAULTS), None
+
+
+def _scan_for_pii(text, pii_config):
+    """
+    Scan text for PII using SecretRedactor with PII patterns.
+
+    Args:
+        text: Text to scan
+        pii_config: PII config dict with enabled, pii_types, action
+
+    Returns:
+        tuple: (has_pii, redacted_text, redactions, warning_message)
+    """
+    try:
+        from ai_guardian.secret_redactor import SecretRedactor
+        # pii_only=True skips loading secret patterns, only loads PII patterns
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=pii_config, pii_only=True)
+        result = redactor.redact(text)
+        redactions = result.get('redactions', [])
+        if redactions:
+            pii_types = list(set(r['type'] for r in redactions))
+            warning = (
+                f"\n{'='*70}\n"
+                f"🔒 PII DETECTED\n"
+                f"{'='*70}\n"
+                f"Found {len(redactions)} PII item(s):\n"
+                + "\n".join([f"  - {r['type']}" for r in redactions[:10]])
+                + ("\n  - ..." if len(redactions) > 10 else "")
+                + f"\n\nAction: {pii_config.get('action', 'block')}\n"
+                f"{'='*70}\n"
+            )
+            return True, result['redacted_text'], redactions, warning
+        return False, text, [], None
+    except Exception as e:
+        logging.error(f"PII scan error: {e}")
+        return False, text, [], None
 
 
 def _extract_block_reason(error_message: str) -> str:
@@ -2386,7 +2457,10 @@ def process_hook_input():
                     try:
                         from ai_guardian.secret_redactor import SecretRedactor
 
-                        redactor = SecretRedactor(redaction_config)
+                        # Also load PII config so secrets+PII are handled in one pass
+                        pii_config_for_redactor, _ = _load_pii_config()
+                        pii_cfg = pii_config_for_redactor if pii_config_for_redactor and pii_config_for_redactor.get('enabled', True) else None
+                        redactor = SecretRedactor(redaction_config, pii_config=pii_cfg)
                         result = redactor.redact(tool_output)
 
                         redacted_text = result['redacted_text']
@@ -2424,6 +2498,9 @@ def process_hook_input():
                             )
                             logging.warning(f"WARN mode: {warning_msg}")
 
+                        # NOTE: modified_output is passed but Claude Code ignores
+                        # it — PostToolUse hooks cannot replace tool output.
+                        # The warning_msg (systemMessage) IS displayed to the user.
                         logging.info(f"✓ Secrets redacted, allowing output to continue")
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=warning_msg, modified_output=redacted_text)
@@ -2445,6 +2522,42 @@ def process_hook_input():
                     return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
+
+            # PII scanning in PostToolUse (Issue #262)
+            pii_config, pii_error = _load_pii_config()
+            if pii_error:
+                logging.warning(f"PII config error: {pii_error}")
+            if pii_config and pii_config.get('enabled', True):
+                logging.info("Scanning tool output for PII...")
+                has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
+                if has_pii:
+                    pii_action = pii_config.get('action', 'block')
+                    pii_types = list(set(r['type'] for r in pii_redactions))
+                    logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
+
+                    # Log violation
+                    from ai_guardian.violation_logger import ViolationLogger
+                    violation_logger = ViolationLogger()
+                    violation_logger.log_violation(
+                        violation_type='pii_detected',
+                        blocked={
+                            'tool': tool_identifier,
+                            'hook': 'PostToolUse',
+                            'pii_count': len(pii_redactions),
+                            'pii_types': pii_types
+                        },
+                        context={'action': pii_action, 'hook_event': 'posttooluse'}
+                    )
+
+                    # PostToolUse LIMITATION: Claude Code hooks cannot modify
+                    # tool output after execution. The tool already ran and its
+                    # output already reached the model. We can only warn via
+                    # systemMessage. "redact" and "log-only" both warn;
+                    # "block" also warns (PostToolUse cannot truly block).
+                    # Effective protection happens in PreToolUse (blocks reads)
+                    # and UserPromptSubmit (blocks prompts containing PII).
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                         warning_message=pii_warning)
 
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
@@ -2787,6 +2900,58 @@ def process_hook_input():
         elif secret_config and ide_type != IDEType.CURSOR:
             # Secret scanning is temporarily disabled
             logging.info("⚠️  Secret scanning temporarily disabled")
+
+        # PII scanning for UserPromptSubmit and PreToolUse (Issue #262)
+        if content_to_scan:
+            pii_config, pii_error = _load_pii_config()
+            if pii_error:
+                logging.warning(f"PII config error: {pii_error}")
+            if pii_config and pii_config.get('enabled', True):
+                # Check ignore_files for PreToolUse
+                pii_ignore_files = pii_config.get('ignore_files', [])
+                should_scan_pii = True
+                if file_path and pii_ignore_files:
+                    import fnmatch
+                    for pattern in pii_ignore_files:
+                        if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(filename, pattern):
+                            logging.info(f"Skipping PII scan for {filename} (matched ignore pattern: {pattern})")
+                            should_scan_pii = False
+                            break
+
+                if should_scan_pii:
+                    logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
+                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(content_to_scan, pii_config)
+                    if has_pii:
+                        pii_action = pii_config.get('action', 'block')
+                        pii_types = list(set(r['type'] for r in pii_redactions))
+                        logging.warning(f"PII detected: {pii_types}")
+
+                        # Log violation
+                        from ai_guardian.violation_logger import ViolationLogger
+                        violation_logger = ViolationLogger()
+                        hook_name = 'UserPromptSubmit' if hook_event == 'prompt' else 'PreToolUse'
+                        violation_logger.log_violation(
+                            violation_type='pii_detected',
+                            blocked={
+                                'tool': tool_identifier or filename,
+                                'hook': hook_name,
+                                'pii_count': len(pii_redactions),
+                                'pii_types': pii_types
+                            },
+                            context={'action': pii_action, 'hook_event': hook_event}
+                        )
+
+                        if pii_action == 'block':
+                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            final_error = pii_warning
+                            if combined_warning:
+                                final_error = f"{combined_warning}\n\n{pii_warning}"
+                            return format_response(ide_type, has_secrets=True,
+                                                 error_message=final_error, hook_event=hook_event)
+                        elif pii_action == 'warn':
+                            warning_messages.append(pii_warning)
+                        elif pii_action == 'log-only':
+                            warning_messages.append(pii_warning)
 
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None

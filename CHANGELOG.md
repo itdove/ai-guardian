@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PII Detection in Tool Outputs** (Issue #262)
+  - GDPR/CCPA compliance: detect and redact personally identifiable information across all three hooks (UserPromptSubmit, PreToolUse, PostToolUse)
+  - 7 PII types supported: SSN (with invalid format exclusions), Credit Card (Luhn validation), US Phone, Email (preserves domain), US Passport, IBAN (mod-97 validation), International Phone (E.164)
+  - Top-level `scan_pii` config section with `enabled`, `pii_types`, `action`, and `ignore_files`
+  - Enabled by default; `action: "redact"` masks PII in PostToolUse output, blocks in UserPromptSubmit/PreToolUse
+  - `ignore_files` glob patterns for skipping files with example PII data (e.g., test fixtures)
+  - Extends existing `SecretRedactor` infrastructure with PII patterns and three new masking strategies (`credit_card`, `pii_email`, `iban`)
+  - Added `pii_detected` violation logging type with TUI checkbox and violations filter tab
+  - 36 unit tests covering all PII types, false positive avoidance, Luhn/IBAN validation, type filtering, and performance
+  - 7 UX contract tests covering all three hooks, ignore_files, and disabled state
+
 - **`ssrf_blocked` and `config_file_exfil` violation logging types** (Issue #322)
   - SSRF detections were misclassified as `tool_permission`, making it impossible to filter or configure SSRF logging independently
   - Config file exfiltration threats produced no audit trail at all — the most dangerous attack vector (persistence multiplier) was completely invisible in violation logs, TUI, and audit exports
