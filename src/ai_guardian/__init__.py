@@ -311,13 +311,15 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     # Log mode: display warning but allow execution
                     response["systemMessage"] = warning_message
                 if modified_output is not None:
-                    # Use hookSpecificOutput.updatedToolOutput per Claude Code
-                    # v2.1.121 changelog. BUG: not honored for Bash/Read/Grep
-                    # tools yet (anthropics/claude-code#54196). Kept so it
-                    # works automatically once the bug is fixed.
                     if "hookSpecificOutput" not in response:
                         response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
+                    # updatedToolOutput: per v2.1.121 changelog, replaces output
+                    # for all tools. BUG: silently dropped for all tool types
+                    # (anthropics/claude-code#54196). Kept for forward compat.
                     response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
+                    # updatedMCPToolOutput: legacy field, works for MCP tools
+                    # only on current versions (confirmed in #54196 comments).
+                    response["hookSpecificOutput"]["updatedMCPToolOutput"] = modified_output
 
             return {
                 "output": json.dumps(response),
