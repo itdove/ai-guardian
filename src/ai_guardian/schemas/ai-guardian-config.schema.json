@@ -138,12 +138,12 @@
       "properties": {
         "engines": {
           "type": "array",
-          "description": "List of secret scanning engines to use. Tries engines in order, using first available. Supported: 'gitleaks' (default, industry standard), 'betterleaks' (faster, by original Gitleaks maintainers), 'leaktk' (auto-pattern management), or custom engine config objects. See docs/MULTI_ENGINE_SUPPORT.md for examples.",
+          "description": "List of secret scanning engines to use. Tries engines in order, using first available. Supported: 'gitleaks' (default, industry standard), 'betterleaks' (faster fork), 'leaktk' (auto-pattern management), 'trufflehog' (700+ detectors with verification), 'detect-secrets' (baseline workflow), or custom engine config objects. See docs/MULTI_ENGINE_SUPPORT.md for examples.",
           "items": {
             "oneOf": [
               {
                 "type": "string",
-                "description": "Built-in engine name: 'gitleaks', 'betterleaks', or 'leaktk'"
+                "description": "Built-in engine name: 'gitleaks', 'betterleaks', 'leaktk', 'trufflehog', or 'detect-secrets'"
               },
               {
                 "type": "object",
@@ -184,8 +184,8 @@
                   },
                   "output_parser": {
                     "type": "string",
-                    "description": "Parser type: 'gitleaks' or 'leaktk'",
-                    "enum": ["gitleaks", "leaktk"],
+                    "description": "Parser type: 'gitleaks', 'leaktk', 'trufflehog', or 'detect-secrets'",
+                    "enum": ["gitleaks", "leaktk", "trufflehog", "detect-secrets"],
                     "default": "gitleaks"
                   }
                 },
@@ -194,6 +194,18 @@
             ]
           },
           "default": ["gitleaks"]
+        },
+        "execution_strategy": {
+          "type": "string",
+          "description": "Strategy for executing multiple scanner engines (v1.6.0+). 'first-match' uses first available engine (default, backward compatible). 'any-match' runs all engines and blocks if ANY finds secrets (maximum security, defense-in-depth). 'consensus' blocks only if N engines agree (reduces false positives, configurable via consensus_threshold). See docs/MULTI_ENGINE_SUPPORT.md for use cases and examples.",
+          "enum": ["first-match", "any-match", "consensus"],
+          "default": "first-match"
+        },
+        "consensus_threshold": {
+          "type": "integer",
+          "description": "Minimum number of engines that must agree before blocking when using 'consensus' execution strategy (v1.6.0+). For example, threshold=2 means at least 2 engines must find the same secret at the same location before blocking. Higher values reduce false positives but may miss some secrets. Only used when execution_strategy='consensus'.",
+          "minimum": 1,
+          "default": 2
         },
         "enabled": {
           "oneOf": [

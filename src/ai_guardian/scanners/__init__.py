@@ -4,6 +4,7 @@ Scanner engine modules for flexible secret detection.
 This package provides:
 - engine_builder: Configuration and command building for different scanner engines
 - output_parsers: Parsers for different scanner output formats
+- strategies: Execution strategies for running multiple scanners
 """
 
 from ai_guardian.scanners.engine_builder import (
@@ -17,6 +18,16 @@ from ai_guardian.scanners.output_parsers import (
     get_parser,
     OUTPUT_PARSERS
 )
+from ai_guardian.scanners.strategies import (
+    ExecutionStrategy,
+    FirstMatchStrategy,
+    AnyMatchStrategy,
+    ConsensusStrategy,
+    SecretMatch,
+    ScanResult,
+    EXECUTION_STRATEGIES,
+    get_strategy
+)
 
 __all__ = [
     'EngineConfig',
@@ -25,5 +36,13 @@ __all__ = [
     'build_scanner_command',
     'ScannerOutputParser',
     'get_parser',
-    'OUTPUT_PARSERS'
+    'OUTPUT_PARSERS',
+    'ExecutionStrategy',
+    'FirstMatchStrategy',
+    'AnyMatchStrategy',
+    'ConsensusStrategy',
+    'SecretMatch',
+    'ScanResult',
+    'EXECUTION_STRATEGIES',
+    'get_strategy'
 ]
