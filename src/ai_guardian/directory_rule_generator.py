@@ -84,6 +84,12 @@ class DirectoryRuleGenerator:
         logger.info(f"Generated {len(generated_rules)} directory rules from skill permissions")
         return generated_rules
 
+    def _get_allow_symlinks(self) -> bool:
+        """Return whether symlinks should be followed during skill discovery."""
+        permissions = self.config.get("permissions", {})
+        auto_config = permissions.get("auto_directory_rules", {})
+        return auto_config.get("allow_symlinks", True)
+
     def _get_skill_patterns(self) -> List[str]:
         """
         Extract skill permission patterns from config.
@@ -158,6 +164,7 @@ class DirectoryRuleGenerator:
 
         Supports multiple IDE agents:
         - Claude Code: ./.claude/skills, ~/.claude/skills, $CLAUDE_CONFIG_DIR/skills
+        - Claude Code plugins: ~/.claude/plugins/cache/*/*/*/skills
         - Cursor: ./.cursor/skills, ~/.cursor/skills
         - VSCode/Copilot: ./.vscode/skills, ~/.vscode/skills
         - Windsurf: ./.windsurf/skills, ~/.windsurf/skills
@@ -185,6 +192,17 @@ class DirectoryRuleGenerator:
                 Path.home() / ".vscode" / "skills",
                 Path.home() / ".windsurf" / "skills",
             ]
+
+            # Plugin cache directories (skills installed via plugins)
+            # Structure: ~/.claude/plugins/cache/<marketplace>/<plugin>/<hash>/skills/
+            plugin_cache = Path.home() / ".claude" / "plugins" / "cache"
+            if plugin_cache.is_dir():
+                try:
+                    for skills_dir in plugin_cache.glob("*/*/*/skills"):
+                        if skills_dir.is_dir():
+                            candidate_dirs.append(skills_dir)
+                except Exception as e:
+                    logger.warning(f"Error scanning plugin cache {plugin_cache}: {e}")
 
             # Add IDE-specific config directories from environment
             # Claude Code
@@ -231,24 +249,25 @@ class DirectoryRuleGenerator:
             Example: {"daf-git": [Path("~/.claude/skills/daf-git")], ...}
         """
         skills = {}
+        allow_symlinks = self._get_allow_symlinks()
 
         for skill_dir in skill_dirs:
             try:
-                # List all subdirectories (each is a potential skill)
                 for item in skill_dir.iterdir():
-                    # Skip symlinks for security (prevent following links outside skill dirs)
                     if item.is_symlink():
-                        logger.warning(f"Skipping symlink in skill directory: {item}")
-                        continue
+                        if not allow_symlinks:
+                            logger.warning(f"Skipping symlink in skill directory: {item}")
+                            continue
+                        if not item.resolve().is_dir():
+                            logger.warning(f"Skipping broken symlink in skill directory: {item}")
+                            continue
 
                     if item.is_dir():
                         skill_name = item.name
 
-                        # Skip hidden directories and special directories
                         if skill_name.startswith(".") or skill_name.startswith("__"):
                             continue
 
-                        # Add to skills dict
                         if skill_name not in skills:
                             skills[skill_name] = []
                         skills[skill_name].append(item)
@@ -337,12 +356,17 @@ class DirectoryRuleGenerator:
         skill_dirs = self._get_skill_directories(auto_config)
 
         locations = {}
+        allow_symlinks = self._get_allow_symlinks()
 
         for skill_dir in skill_dirs:
             skills_in_dir = set()
 
             try:
                 for item in skill_dir.iterdir():
+                    if item.is_symlink() and not allow_symlinks:
+                        continue
+                    if item.is_symlink() and not item.resolve().is_dir():
+                        continue
                     if item.is_dir() and item.name in skill_names:
                         skills_in_dir.add(item.name)
             except Exception as e:

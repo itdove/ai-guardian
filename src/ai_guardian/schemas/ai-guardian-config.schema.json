@@ -53,6 +53,11 @@
               ],
               "description": "Skill directories to scan for auto-generation. Default: 'auto' scans standard locations (./.claude/skills, ~/.claude/skills, $CLAUDE_CONFIG_DIR/skills). Can also provide explicit array of paths.",
               "default": "auto"
+            },
+            "allow_symlinks": {
+              "type": "boolean",
+              "description": "Allow following symlinks when discovering skills. Default: true. In container environments (e.g., carbonite), skills are installed as symlinks. When true, symlinked skill directories that resolve to valid directories are followed. When false, all symlinks are skipped (original behavior). Broken symlinks are always skipped regardless of this setting.",
+              "default": true
             }
           },
           "additionalProperties": false
