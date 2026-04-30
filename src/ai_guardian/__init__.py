@@ -2968,7 +2968,7 @@ def main():
         scanner_install_parser = scanner_sub.add_parser("install", help="Install a scanner")
         scanner_install_parser.add_argument(
             "name",
-            choices=["gitleaks", "betterleaks", "leaktk"],
+            choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
             help="Scanner to install"
         )
         scanner_install_parser.add_argument(
@@ -2990,7 +2990,7 @@ def main():
         scanner_info_parser = scanner_sub.add_parser("info", help="Show scanner details")
         scanner_info_parser.add_argument(
             "name",
-            choices=["gitleaks", "betterleaks", "leaktk"],
+            choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
             help="Scanner to show info for"
         )
 
