@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+from importlib.resources import files
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -739,7 +740,8 @@ class IDESetup:
 
 def create_default_config(
     permissive: bool = False,
-    dry_run: bool = False
+    dry_run: bool = False,
+    json_output: bool = False
 ) -> Tuple[bool, str]:
     """
     Create default ai-guardian.json config file.
@@ -747,6 +749,7 @@ def create_default_config(
     Args:
         permissive: If True, use permissive config (permissions disabled)
         dry_run: If True, show what would be created without writing
+        json_output: If True, output only the raw JSON config
 
     Returns:
         tuple: (success: bool, message: str)
@@ -755,12 +758,15 @@ def create_default_config(
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
+        # Generate config based on mode
+        config = _get_default_config_template(permissive)
+
+        if json_output:
+            return True, json.dumps(config, indent=2)
+
         # Check if config already exists
         if config_path.exists() and not dry_run:
             return False, f"Config already exists: {config_path}"
-
-        # Generate config based on mode
-        config = _get_default_config_template(permissive)
 
         if dry_run:
             message = f"[DRY RUN] Would create {config_path}:\n\n"
@@ -805,8 +811,11 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
     Returns:
         dict: Default configuration
     """
+    schema_path = files("ai_guardian") / "schemas" / "ai-guardian-config.schema.json"
+    schema_uri = Path(str(schema_path)).as_uri()
+
     config = {
-        "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
+        "$schema": schema_uri,
 
         "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords) using Gitleaks patterns",
         "secret_scanning": {
@@ -1306,7 +1315,8 @@ def setup_hooks(
     pre_commit: bool = False,
     auto_install_hooks: bool = False,
     uninstall_hooks: bool = False,
-    install_scanner: Optional[str] = None
+    install_scanner: Optional[str] = None,
+    json_output: bool = False
 ) -> bool:
     """
     Setup IDE hooks with optional remote config and default config creation.
@@ -1324,6 +1334,7 @@ def setup_hooks(
         auto_install_hooks: If True, allow automatic hook installation (default: False for safety)
         uninstall_hooks: If True, remove AI Guardian pre-commit hooks
         install_scanner: Optional scanner name to install (gitleaks, betterleaks, or leaktk)
+        json_output: If True, output only raw JSON (for --create-config)
 
     Returns:
         bool: True if successful, False otherwise
@@ -1393,12 +1404,15 @@ def setup_hooks(
 
     # Handle default config creation if requested
     if create_config:
-        success, message = create_default_config(permissive=permissive, dry_run=dry_run)
+        success, message = create_default_config(
+            permissive=permissive, dry_run=dry_run, json_output=json_output
+        )
         print(message)
         if not success:
             return False
         # If only creating config (no IDE setup or remote config), return early
-        if ide_type is None and not remote_config_url and not migrate_pattern_server:
+        # --json implies early return (output only the config JSON)
+        if json_output or (ide_type is None and not remote_config_url and not migrate_pattern_server):
             return success
 
     # Handle pattern_server migration if requested

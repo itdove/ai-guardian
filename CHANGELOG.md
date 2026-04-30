@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--json` flag for `setup --create-config` and bundled schema path** (Issue #326)
+  - Added `--json` flag to `setup --create-config` that outputs only raw JSON, making it pipeable to `jq` and other tools
+  - Changed `$schema` field to use a `file://` URI pointing to the bundled schema instead of a GitHub URL, ensuring the schema always matches the installed version and works offline
+  - The `--json` flag skips the config-already-exists check and suppresses all non-JSON output
+
 - **allow_symlinks flag and plugin cache discovery for auto_directory_rules** (Issue #324)
   - Added `allow_symlinks` boolean property (default: `true`) to `auto_directory_rules` config
   - In container environments (e.g., carbonite), skills are installed as symlinks — previously all symlinks were unconditionally skipped, making auto-generated directory rules non-functional

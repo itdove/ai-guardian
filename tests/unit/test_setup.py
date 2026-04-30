@@ -1153,3 +1153,62 @@ class TestCreateDefaultConfig:
 
             assert '$schema' in config
             assert 'ai-guardian-config.schema.json' in config['$schema']
+
+    def test_schema_uses_bundled_file_uri(self):
+        """Test that $schema uses a file:// URI pointing to the bundled schema."""
+        from ai_guardian.setup import _get_default_config_template
+
+        config = _get_default_config_template(permissive=False)
+
+        assert config['$schema'].startswith('file://')
+        assert config['$schema'].endswith('ai-guardian-config.schema.json')
+        # Verify the file actually exists at the resolved path
+        from urllib.parse import urlparse, unquote
+        parsed = urlparse(config['$schema'])
+        schema_file = Path(unquote(parsed.path))
+        assert schema_file.is_file(), f"Schema file does not exist: {schema_file}"
+
+    def test_json_output_returns_valid_json(self, tmp_path):
+        """Test that --json flag outputs only valid JSON."""
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(
+                permissive=False, dry_run=False, json_output=True
+            )
+
+            assert success is True
+            # Message should be parseable as valid JSON
+            config = json.loads(message)
+            assert '$schema' in config
+            assert 'secret_scanning' in config
+            # Should not contain non-JSON text
+            assert '[DRY RUN]' not in message
+            assert '✓' not in message
+
+    def test_json_output_with_permissive(self):
+        """Test that --json with --permissive outputs permissive config."""
+        from ai_guardian.setup import create_default_config
+
+        success, message = create_default_config(
+            permissive=True, dry_run=False, json_output=True
+        )
+
+        assert success is True
+        config = json.loads(message)
+        assert config['permissions']['enabled'] is False
+
+    def test_json_output_skips_exists_check(self, tmp_path):
+        """Test that --json doesn't fail when config already exists."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{}')
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(
+                permissive=False, dry_run=False, json_output=True
+            )
+
+            assert success is True
+            config = json.loads(message)

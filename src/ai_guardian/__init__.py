@@ -2892,6 +2892,12 @@ def main():
             choices=["gitleaks", "betterleaks", "leaktk"],
             help="Install scanner engine (default: gitleaks)"
         )
+        setup_parser.add_argument(
+            "--json",
+            action="store_true",
+            dest="json_output",
+            help="Output only raw JSON config (use with --create-config)"
+        )
 
         # Violations subcommand
         violations_parser = subparsers.add_parser(
@@ -3143,7 +3149,8 @@ def main():
                 pre_commit=args.pre_commit,
                 auto_install_hooks=args.auto_install_hooks,
                 uninstall_hooks=args.uninstall_hooks,
-                install_scanner=args.install_scanner
+                install_scanner=args.install_scanner,
+                json_output=args.json_output
             )
             return 0 if success else 1
 
