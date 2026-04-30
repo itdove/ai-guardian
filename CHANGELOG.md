@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dependency Management Documentation** (Issue #293)
+  - New comprehensive "Dependency Management" section in AGENTS.md
+  - Covers all aspects of dependency management workflow:
+    - Dependabot automation (GitHub Actions and Python packages)
+    - Scanner version checking (daily automated monitoring)
+    - Manual update procedures for immediate changes
+  - Step-by-step workflows for responding to update alerts
+  - Best practices for version pinning and update strategies
+  - Troubleshooting guide for common dependency issues
+  - Monitoring commands and audit procedures
+  - Version update frequency reference table
+  - Consolidates and expands on related issues #289, #290, #291, #292
+
 - **Enhanced Prompt Injection Detection** (Issue #285, Phase 1)
   - **24 New Patterns from 2026 Security Research**:
     - CRITICAL patterns (15): Fake completion attacks, HTML comment injection, chain-of-thought exploitation, Python attribute chain exploitation, recursive self-prompting, XSS payload generation, SQL injection prompting, newline context switching, conditional safety bypass, CSS-hidden HTML content, maintenance mode activation, auto-approval manipulation, instruction replacement (new/update/instead)
