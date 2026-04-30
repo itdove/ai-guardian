@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ssrf_blocked` and `config_file_exfil` violation logging types** (Issue #322)
+  - SSRF detections were misclassified as `tool_permission`, making it impossible to filter or configure SSRF logging independently
+  - Config file exfiltration threats produced no audit trail at all — the most dangerous attack vector (persistence multiplier) was completely invisible in violation logs, TUI, and audit exports
+  - Added `ssrf_blocked` violation type: SSRF violations in `tool_policy.py` now log with their own dedicated type instead of `tool_permission`
+  - Added `config_file_exfil` violation type: Config file exfiltration detections in `__init__.py` now call `violation_logger.log_violation()` before returning blocked response
+  - Updated `log_types` enum in JSON schema to include both new types
+  - Updated defaults in `violation_logger.py`, `setup.py`, and TUI settings
+  - Added TUI checkboxes in secrets settings for new log types
+  - Added TUI violation panel tabs/filters for `ssrf_blocked` and `config_file_exfil`
+  - Backward compatible: existing configs with explicit 5-type `log_types` list silently skip new types until manually updated
+  - Added 18 tests covering defaults, filtering, schema validation, and logging behavior
+
 - **`--json` flag for `setup --create-config` and bundled schema path** (Issue #326)
   - Added `--json` flag to `setup --create-config` that outputs only raw JSON, making it pipeable to `jq` and other tools
   - Changed `$schema` field to use a `file://` URI pointing to the bundled schema instead of a GitHub URL, ensuring the schema always matches the installed version and works offline
@@ -269,6 +281,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Clear config paths enable quick self-service fixes
 
 ### Fixed
+
+- **Pattern server configuration section name misalignment** (PR #318)
+  - Corrected integration test workflow to use `pattern_servers` (plural) instead of incorrect singular form
+  - Added leaktk pattern server configuration to `pyproject.toml` with GitHub raw content endpoint
+  - Fixed test assertions to match Phase 3 error message format (#287): updated patterns for immutable protection labels, capitalized protection type names, and revised security message wording
+  - All 1357 tests passing after fixes
 
 - **Scanner installer ignores --use-pinned and --version flags when package manager succeeds** (Issue #295)
   - **Root Cause**: Package manager installation returned success without verifying installed version matched requested version
@@ -1250,7 +1268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/itdove/ai-guardian/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/itdove/ai-guardian/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/itdove/ai-guardian/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/itdove/ai-guardian/compare/v1.2.0...v1.3.0
