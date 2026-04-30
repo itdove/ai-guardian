@@ -48,7 +48,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
             is_injection, error_msg, _ = detector.detect(prompt)
             self.assertTrue(is_injection, f"Injection not detected: '{prompt}'")
             self.assertIsNotNone(error_msg, "Injection should have error message")
-            self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+            self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_developer_mode_pattern(self):
         """Test detection of developer/admin mode patterns"""
@@ -64,7 +64,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         for prompt in injection_prompts:
             is_injection, error_msg, _ = detector.detect(prompt)
             self.assertTrue(is_injection, f"Injection not detected: '{prompt}'")
-            self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+            self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_reveal_prompt_pattern(self):
         """Test detection of prompt exfiltration attempts"""
@@ -81,7 +81,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         for prompt in injection_prompts:
             is_injection, error_msg, _ = detector.detect(prompt)
             self.assertTrue(is_injection, f"Injection not detected: '{prompt}'")
-            self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+            self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_bypass_safety_pattern(self):
         """Test detection of safety bypass attempts"""
@@ -96,7 +96,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         for prompt in injection_prompts:
             is_injection, error_msg, _ = detector.detect(prompt)
             self.assertTrue(is_injection, f"Injection not detected: '{prompt}'")
-            self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+            self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_role_manipulation_pattern(self):
         """Test detection of role manipulation attacks"""
@@ -111,7 +111,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         for prompt in injection_prompts:
             is_injection, error_msg, _ = detector.detect(prompt)
             self.assertTrue(is_injection, f"Injection not detected: '{prompt}'")
-            self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+            self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_malicious_code_generation_pattern(self):
         """Test detection of malicious code generation requests"""
@@ -125,7 +125,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         for prompt in injection_prompts:
             is_injection, error_msg, _ = detector.detect(prompt)
             self.assertTrue(is_injection, f"Injection not detected: '{prompt}'")
-            self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+            self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_sensitivity_low(self):
         """Test low sensitivity setting (only very obvious attacks)"""
@@ -202,7 +202,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         detector_with_custom = PromptInjectionDetector(config)
         is_injection_custom, error_msg, _ = detector_with_custom.detect(prompt)
         self.assertTrue(is_injection_custom)
-        self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+        self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_disabled_detection(self):
         """Test that detection can be disabled"""
@@ -262,7 +262,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         detector = PromptInjectionDetector()
         is_injection, error_msg, _ = detector.detect(multiline_prompt)
         self.assertTrue(is_injection)
-        self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+        self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_error_message_format(self):
         """Test that error messages have correct format"""
@@ -273,7 +273,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
 
         self.assertTrue(is_injection)
         self.assertIsNotNone(error_msg)
-        self.assertIn("🚨 PROMPT INJECTION DETECTED", error_msg)
+        self.assertIn("🛡️ Prompt Injection Detected", error_msg)
         self.assertIn("Confidence:", error_msg)
         self.assertIn("Method:", error_msg)
         self.assertIn("Pattern detected:", error_msg)
@@ -333,7 +333,7 @@ class PromptInjectionDetectorTest(unittest.TestCase):
         detector = PromptInjectionDetector()
         is_injection, error_msg, _ = detector.detect(many_shot_prompt)
         self.assertTrue(is_injection)
-        self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+        self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_delimiter_attack_pattern(self):
         """Test detection of delimiter/encoding bypass attempts"""

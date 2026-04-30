@@ -151,7 +151,7 @@ EOF"""
 
         # This should be BLOCKED - actual redirect to ai-guardian file
         self.assertFalse(is_allowed, "Actual redirect to ai-guardian should be blocked")
-        self.assertIn("CRITICAL COMMAND BLOCKED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_heredoc_with_redirect_operator_allowed(self):
         """

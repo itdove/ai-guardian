@@ -42,7 +42,7 @@ class SelfProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "Write to ai-guardian config should be blocked")
         self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertIn("ai-guardian configuration", error_msg)
 
     def test_write_blocks_project_config_file(self):
@@ -60,7 +60,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Write to project config should be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_write_blocks_any_ai_guardian_json(self):
         """AI cannot write to any *ai-guardian.json file"""
@@ -194,7 +194,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Edit of ai-guardian config should be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_edit_blocks_claude_settings(self):
         """AI cannot edit ~/.claude/settings.json"""
@@ -632,7 +632,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Write to site-packages/ai_guardian should still be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_write_allows_development_source_for_contributors_init(self):
         """Contributors can write to ai-guardian/src/ai_guardian/ (fork + PR workflow)"""
@@ -723,7 +723,7 @@ class SelfProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "Write to .ai-read-deny should be blocked")
         self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertIn(".ai-read-deny", error_msg)
         self.assertIn("Directory protection marker", error_msg)
 
@@ -781,7 +781,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Edit of .ai-read-deny should be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertIn("Directory protection marker", error_msg)
 
     # ========================================================================
@@ -1037,7 +1037,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         # Check error message contains all required elements
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertIn("/home/user/.claude/settings.json", error_msg)
         self.assertIn("Edit", error_msg)
         self.assertIn("ai-guardian configuration", error_msg)
@@ -1062,7 +1062,7 @@ class SelfProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         # Check error message contains marker-file-specific elements
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertIn("/home/user/secrets/.ai-read-deny", error_msg)
         self.assertIn("Write", error_msg)
         self.assertIn("Directory protection marker", error_msg)

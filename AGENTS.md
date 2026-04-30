@@ -475,6 +475,106 @@ AI Guardian uses a multi-layered approach to dependency management:
 
 This approach ensures dependencies stay current while maintaining stability through testing.
 
+### License Compliance
+
+**CRITICAL**: Always check the license of any library or tool before importing or adding it as a dependency.
+
+**Why License Compliance Matters:**
+- AI Guardian is licensed under Apache-2.0 (permissive license)
+- Some licenses (e.g., GPL, AGPL) have copyleft requirements that may conflict
+- License violations can create legal liability for users
+- External tools used via subprocess have different requirements than embedded libraries
+
+**License Checking Workflow:**
+
+1. **Before adding any dependency** (Python package, scanner, tool, or library):
+   ```bash
+   # For Python packages
+   pip show <package-name> | grep License
+   
+   # For GitHub projects
+   # Check the LICENSE file in the repository
+   # Look for license badge in README.md
+   
+   # For scanners/tools
+   # Check the project's GitHub repository for LICENSE file
+   ```
+
+2. **Evaluate license compatibility**:
+   
+   **✅ Compatible Licenses** (safe to use):
+   - Apache-2.0 (same as AI Guardian)
+   - MIT (permissive)
+   - BSD (2-clause, 3-clause)
+   - ISC (permissive)
+   
+   **⚠️ Requires Review** (use with caution):
+   - LGPL (can be used if dynamically linked)
+   - MPL-2.0 (file-level copyleft, generally OK)
+   
+   **⚠️ External Tool Exception** (OK via subprocess):
+   - GPL-3.0 (when used as external tool via subprocess)
+   - AGPL-3.0 (when used as external tool via subprocess)
+   - **Important**: Document in MULTI_ENGINE_SUPPORT.md or similar
+   - **Important**: Add interactive license notice during installation
+   - **Example**: TruffleHog (AGPL-3.0) is OK because it's invoked via subprocess
+   
+   **❌ Incompatible** (do NOT use as embedded library):
+   - GPL-3.0 (strong copyleft when embedded)
+   - AGPL-3.0 (network copyleft when embedded)
+   - Proprietary/closed-source licenses
+   - "No license" or missing license information
+
+3. **Document license decisions**:
+   
+   **For standard Python packages** (MIT, Apache-2.0, BSD):
+   - Add to `pyproject.toml` dependencies
+   - No additional documentation needed
+   
+   **For tools with GPL/AGPL** (used via subprocess):
+   - Document in appropriate docs (e.g., `MULTI_ENGINE_SUPPORT.md`)
+   - Add interactive license notice in installer
+   - Explain subprocess vs embedded library distinction
+   - Provide alternative scanners for organizations with license concerns
+   
+   **Example documentation** (from TruffleHog implementation):
+   ```markdown
+   ### License Considerations
+   
+   - TruffleHog uses AGPL-3.0 license (copyleft)
+   - AI Guardian uses TruffleHog as external tool via subprocess
+   - No derivative work created, no AGPL obligations for AI Guardian
+   - Interactive license notice shown during installation
+   - Alternative scanners available (gitleaks, betterleaks, detect-secrets)
+   ```
+
+4. **Add to CHANGELOG.md**:
+   ```markdown
+   ### Added
+   - **New Dependency**: package-name (v1.0.0)
+     - License: MIT
+     - Purpose: [brief description]
+   ```
+
+**Common Scenarios:**
+
+- **Adding Python package**: Check with `pip show`, verify license is compatible
+- **Adding scanner tool**: Check LICENSE file in GitHub repo, document if GPL/AGPL
+- **Importing JavaScript library**: Check package.json or npm page for license
+- **Using external API/service**: Check terms of service and license
+
+**Red Flags:**
+- No LICENSE file in repository
+- "All rights reserved" or similar proprietary language
+- Unclear or custom licenses without OSI approval
+- Dual licensing where free tier has restrictive terms
+
+**When in Doubt:**
+- Prefer well-known permissive licenses (MIT, Apache-2.0, BSD)
+- For GPL/AGPL tools: Only use via subprocess, not as embedded library
+- Consult license compatibility matrix: https://en.wikipedia.org/wiki/License_compatibility
+- Ask in PR review before merging
+
 ### Automated Dependency Monitoring
 
 #### Dependabot (GitHub Actions & Python Packages)

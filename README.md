@@ -2152,28 +2152,32 @@ All paths resolve to the HOME directory, which is **always writable by the user*
 **What Happens When Protection Triggers:**
 
 ```
-======================================================================
-🔒 CRITICAL FILE PROTECTED
-======================================================================
+🛡️ Immutable Protection
 
-This file is protected by ai-guardian and cannot be modified.
-
-File: ~/.claude/settings.json
+Protection: Configuration File
 Tool: Edit
-Reason: Critical security configuration
+File Path: ~/.claude/settings.json
+Pattern: */.claude/settings.json
 
-Protected files:
-  • ai-guardian configuration files
-  • IDE hook configuration (Claude, Cursor)
-  • ai-guardian package source code
-  • .ai-read-deny marker files (directory protection)
+Why blocked: This is an ai-guardian or IDE hook configuration file.
+Modifying these files could disable security protections.
 
-This protection cannot be disabled via configuration.
-It ensures ai-guardian cannot be bypassed by AI agents.
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents security control tampering.
 
-To edit these files, use your text editor manually.
+Recommendation:
+- Configuration files must be edited manually (not by AI agents)
+- Use your text editor to modify these files
+- This prevents AI from disabling its own security controls
 
-======================================================================
+Protected categories:
+- ai-guardian configuration files
+- IDE hook configuration (Claude, Cursor)
+- ai-guardian package source code
+- .ai-read-deny marker files
+
+⚠️ This protection is immutable and cannot be disabled via configuration.
+It ensures ai-guardian security controls cannot be bypassed.
 ```
 
 **User Override:**

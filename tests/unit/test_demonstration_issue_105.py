@@ -53,7 +53,7 @@ class DemonstrationIssue105(unittest.TestCase):
 
         # CRITICAL: Must be blocked!
         self.assertFalse(is_allowed, "❌ VULNERABILITY: Config file was allowed to be edited!")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertNotIn("log mode", error_msg.lower(), "Must be hard blocked, not log mode")
 
         print("\n✅ SECURE: Edit was BLOCKED (not allowed with warning)")
@@ -103,7 +103,7 @@ class DemonstrationIssue105(unittest.TestCase):
 
         # CRITICAL: Must be blocked!
         self.assertFalse(is_allowed, "❌ VULNERABILITY: IDE hooks were allowed to be edited!")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertNotIn("log mode", error_msg.lower(), "Must be hard blocked, not log mode")
 
         print("\n✅ SECURE: Edit was BLOCKED (immutable patterns override user rules)")
@@ -188,7 +188,7 @@ class DemonstrationIssue105(unittest.TestCase):
 
         # CRITICAL: Must be blocked!
         self.assertFalse(is_allowed, "❌ VULNERABILITY: .ai-read-deny marker was allowed!")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         self.assertIn("Directory protection marker", error_msg)
         self.assertNotIn("log mode", error_msg.lower(), "Must be hard blocked, not log mode")
 

@@ -43,7 +43,7 @@ class PowerShellProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "PowerShell Remove-Item on config should be blocked")
         self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_powershell_blocks_set_content_config(self):
         """PowerShell Set-Content blocked for ai-guardian config"""
@@ -60,7 +60,7 @@ class PowerShellProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "PowerShell Set-Content on config should be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_powershell_blocks_clear_content_config(self):
         """PowerShell Clear-Content blocked for ai-guardian config"""
@@ -388,7 +388,7 @@ class PowerShellProtectionTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "PowerShell Set-Content on site-packages/ai_guardian should still be blocked")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_powershell_still_blocks_source_repo(self):
         """PowerShell cannot modify ai-guardian/src/ai_guardian/ (command tools always blocked)"""

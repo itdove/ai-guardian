@@ -1166,56 +1166,113 @@ class ToolPolicyChecker:
 
         config_path = "~/.config/ai-guardian/ai-guardian.json"
 
-        msg = (
-            f"\n{'='*70}\n"
-            f"🚨 BLOCKED BY POLICY\n"
-            f"🚫 TOOL ACCESS DENIED\n"
-            f"{'='*70}\n\n"
-            f"Tool: {tool_name}\n"
-        )
+        # Start with header
+        msg = "🛡️ Tool Access Denied\n\n"
+        msg += f"Protection: Tool Permission Policy\n"
+        msg += f"Tool: {tool_name}\n"
+
+        # Show matcher if available
+        if matcher:
+            msg += f"Matcher: {matcher}\n"
 
         # Show the specific value that was blocked (if available)
         if tool_value:
             # Determine the label based on tool type
             if tool_name == "Skill":
                 label = "Skill Name"
-            elif matcher == "Edit" or matcher == "Read" or matcher == "Write":
+            elif matcher in ["Edit", "Read", "Write"]:
                 label = "File Path"
+            elif tool_name == "Bash":
+                label = "Command"
             else:
                 label = "Value"
-            msg += f"{label}: {tool_value}\n"
+            # Truncate very long values
+            display_value = tool_value if len(tool_value) <= 100 else tool_value[:97] + "..."
+            msg += f"{label}: {display_value}\n"
 
-        msg += f"Blocked by: {reason}\n"
+        # Add blocked pattern
+        if reason:
+            # Truncate very long patterns
+            display_reason = reason if len(reason) <= 100 else reason[:97] + "..."
+            msg += f"Pattern: {display_reason}\n"
 
-        # Show matcher if available
-        if matcher:
-            msg += f"Matcher: {matcher}\n"
+        # Why blocked section
+        msg += f"\nWhy blocked: This {tool_name.lower()} operation matches a denied pattern in your tool policy.\n"
 
-        msg += f"\nTo allow this tool, add to {config_path}:\n\n"
+        # Add context-specific explanation
+        if tool_name == "Bash":
+            if "install" in (tool_value or "").lower() or "install" in (reason or "").lower():
+                msg += "Package installation requires explicit approval to prevent supply chain attacks.\n"
+            elif "rm" in (tool_value or "").lower() or "delete" in (tool_value or "").lower():
+                msg += "Destructive commands require explicit approval to prevent data loss.\n"
+            else:
+                msg += "This command requires explicit approval in your security policy.\n"
+        elif tool_name == "Skill":
+            msg += "Skill execution requires explicit approval in your security policy.\n"
+        elif matcher in ["Edit", "Write"]:
+            msg += "File modifications require explicit approval to prevent unauthorized changes.\n"
+        elif matcher == "Read":
+            msg += "File access requires explicit approval to prevent information disclosure.\n"
+        else:
+            msg += "This operation requires explicit approval in your security policy.\n"
 
-        # Show suggested configuration
-        msg += '  {\n'
-        msg += '    "permissions": [\n'
-        msg += '      {\n'
-        msg += f'        "matcher": "{suggested_matcher}",\n'
-        msg += '        "mode": "allow",\n'
-        msg += '        "patterns": [\n'
+        # Security warnings
+        msg += "\nThis operation has been blocked for security.\n"
+        msg += "DO NOT attempt to bypass this protection - it prevents unauthorized tool use.\n"
+
+        # Recommendations section
+        msg += "\nRecommendation:\n"
+
+        # Context-specific recommendations
+        if tool_name == "Bash" and "install" in (tool_value or "").lower():
+            # Extract package name if possible
+            if tool_value and "npm install" in tool_value:
+                parts = tool_value.split()
+                if len(parts) > 2:
+                    pkg_name = parts[2].strip()
+                    msg += f"- Review the package at https://npmjs.com/package/{pkg_name}\n"
+                    msg += "- Check package reputation and downloads\n"
+            msg += "- Add to allowed_patterns if trusted\n"
+            msg += "- Use package-lock.json for reproducible builds\n"
+        elif tool_name == "Skill":
+            msg += "- Review the skill documentation and source code\n"
+            msg += "- Verify the skill is from a trusted source\n"
+            msg += "- Add to allowed_patterns if safe\n"
+        elif matcher in ["Edit", "Write", "Read"]:
+            msg += "- Verify you need to access this file path\n"
+            msg += "- Check if the file contains sensitive information\n"
+            msg += "- Add to allowed_patterns if the path is safe\n"
+        else:
+            msg += "- Review what this operation does\n"
+            msg += "- Verify it's safe and necessary\n"
+            msg += "- Add to allowed_patterns if trusted\n"
+
+        msg += f"- Or ask your administrator to update the enterprise policy\n"
+
+        # Configuration help
+        msg += f"\nTo allow this, add to {config_path}:\n\n"
+        msg += '{\n'
+        msg += '  "permissions": [\n'
+        msg += '    {\n'
+        msg += f'      "matcher": "{suggested_matcher}",\n'
+        msg += '      "mode": "allow",\n'
+        msg += '      "patterns": [\n'
 
         # Show patterns with comments
         for i, pattern in enumerate(suggested_patterns):
             if i == 0:
-                msg += f'          "{pattern["pattern"]}"  # {pattern["comment"]}\n'
+                msg += f'        "{pattern["pattern"]}"  # {pattern["comment"]}\n'
             else:
-                msg += f'          # "{pattern["pattern"]}"  # {pattern["comment"]}\n'
+                msg += f'        # "{pattern["pattern"]}"  # {pattern["comment"]}\n'
 
-        msg += '        ]\n'
-        msg += '      }\n'
-        msg += '    ]\n'
-        msg += '  }\n\n'
-        msg += "Or ask your administrator to update the enterprise policy.\n\n"
-        msg += "This permission rule is configured to protect your system.\n"
-        msg += "DO NOT attempt workarounds - contact the system administrator if access is needed.\n"
-        msg += f"{'='*70}\n"
+        msg += '      ]\n'
+        msg += '    }\n'
+        msg += '  ]\n'
+        msg += '}\n'
+
+        # Config path
+        msg += f"\nConfig: {config_path}\n"
+        msg += f"Section: permissions[matcher={suggested_matcher}].deny_patterns\n"
 
         return msg
 
@@ -1243,7 +1300,7 @@ class ToolPolicyChecker:
             value_label = "MCP Tool"
             protection_context = "tool name"
         else:
-            value_label = "File"
+            value_label = "File Path"
             protection_context = "file path"
 
         # First, check if this is a config file (these are NEVER source files)
@@ -1291,91 +1348,97 @@ class ToolPolicyChecker:
             'README' in check_value.upper()
         )
 
-        # Format base message with appropriate label
-        if tool_name == "Bash":
-            base_message = (
-                f"\n{'='*70}\n"
-                f"🚨 BLOCKED BY POLICY\n"
-                f"🔒 CRITICAL COMMAND BLOCKED\n"
-                f"{'='*70}\n\n"
-                f"This command matches a protected pattern and cannot be executed.\n\n"
-                f"{value_label}: {check_value}\n"
-                f"Tool: {tool_name}\n"
-            )
-            if matched_pattern:
-                base_message += f"Triggered Pattern: {matched_pattern}\n"
-        else:
-            base_message = (
-                f"\n{'='*70}\n"
-                f"🚨 BLOCKED BY POLICY\n"
-                f"🔒 CRITICAL FILE PROTECTED\n"
-                f"{'='*70}\n\n"
-                f"This file is protected by ai-guardian and cannot be modified.\n\n"
-                f"{value_label}: {check_value}\n"
-                f"Tool: {tool_name}\n"
-            )
-            if matched_pattern:
-                base_message += f"Triggered Pattern: {matched_pattern}\n"
+        # Start with consistent header
+        msg = "🛡️ Immutable Protection\n\n"
 
-        # Add diagnostic information for source files
-        # Note: This should only be reached for pip-installed code (site-packages),
-        # since development repo source files are allowed via _should_skip_immutable_protection
+        # Determine protection type for header
         if is_source_file:
-            return base_message + (
-                f"\nProtection Type: Pip-installed package source code (production deployment)\n\n"
-                f"This file is part of the pip-installed ai-guardian package and cannot\n"
-                f"be modified to prevent bypassing security controls in production.\n\n"
-                f"If you're developing ai-guardian:\n"
-                f"  1. Clone the repository: git clone https://github.com/itdove/ai-guardian\n"
-                f"  2. Install in development mode: pip install -e .\n"
-                f"  3. Edit source files in the cloned repository\n\n"
-                f"Development source files CAN be edited - this protection only applies\n"
-                f"to pip-installed production code.\n"
-                f"{'='*70}\n"
-            )
+            msg += "Protection: Package Source Code (Pip-installed)\n"
+        elif is_marker_file:
+            msg += "Protection: Directory Protection Marker\n"
+        elif is_config_file:
+            msg += "Protection: Configuration File\n"
+        else:
+            msg += "Protection: Immutable File\n"
+
+        # Show tool and value
+        msg += f"Tool: {tool_name}\n"
+        # Truncate very long values
+        display_value = check_value if len(check_value) <= 100 else check_value[:97] + "..."
+        msg += f"{value_label}: {display_value}\n"
+
+        # Show pattern if available
+        if matched_pattern:
+            display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
+            msg += f"Pattern: {display_pattern}\n"
+
+        # Why blocked section - varies by type
+        msg += "\nWhy blocked: "
+
+        if is_source_file:
+            msg += "This file is part of the pip-installed ai-guardian package.\n"
+            msg += "Modifying package source code would bypass security controls in production.\n"
+        elif is_marker_file:
+            msg += "This is a directory protection marker file (.ai-read-deny).\n"
+            msg += "Modifying marker files would bypass directory protection.\n"
+        elif is_config_file:
+            msg += "This is an ai-guardian or IDE hook configuration file.\n"
+            msg += "Modifying these files could disable security protections.\n"
+        elif tool_name == "Bash":
+            msg += "This command matches a critical protection pattern.\n"
+            msg += "Executing it could compromise system security.\n"
+        else:
+            msg += "This file is protected by immutable file protection.\n"
+            msg += "Modifying it could bypass ai-guardian security controls.\n"
+
+        # Security warnings
+        msg += "\nThis operation has been blocked for security.\n"
+        msg += "DO NOT attempt to bypass this protection - it prevents security control tampering.\n"
+
+        # Recommendations section - varies by type
+        msg += "\nRecommendation:\n"
+
+        if is_source_file:
+            msg += "- This file is pip-installed and cannot be modified\n"
+            msg += "- If developing ai-guardian:\n"
+            msg += "  1. Clone: git clone https://github.com/itdove/ai-guardian\n"
+            msg += "  2. Install in dev mode: pip install -e .\n"
+            msg += "  3. Edit source files in cloned repository\n"
+            msg += "- Development source files CAN be edited (only pip-installed are protected)\n"
+        elif is_marker_file:
+            msg += "- .ai-read-deny markers enforce directory protection\n"
+            msg += "- To remove directory protection, delete .ai-read-deny manually\n"
+            msg += "- This cannot be done by AI agents (intentional security design)\n"
+        elif is_config_file:
+            msg += "- Configuration files must be edited manually (not by AI agents)\n"
+            msg += "- Use your text editor to modify these files\n"
+            msg += "- This prevents AI from disabling its own security controls\n"
+        else:
+            msg += "- This file must be edited manually (not by AI agents)\n"
+            msg += "- Use your text editor to make changes\n"
+            msg += "- This protection cannot be disabled via configuration\n"
 
         # Add workaround tip if this looks like documentation mentioning the tool
-        tip_message = ""
-        check_value_lower = check_value.lower()
-        mentions_tool = 'ai-guardian' in check_value_lower or 'ai_guardian' in check_value_lower
-        if is_likely_documentation and mentions_tool:
-            tip_message = (
-                f"\n💡 TIP: If you're trying to write ABOUT the tool (not modify it):\n"
-                f"   Use \"ai - guardian\" (with spaces) in your text to avoid triggering\n"
-                f"   protection patterns. Example: \"The ai - guardian tool protects...\"\n"
-                f"   \n"
-                f"   This works because protection patterns look for \"ai-guardian\"\n"
-                f"   (with hyphen, no spaces), not \"ai - guardian\" (with spaces).\n"
-            )
+        if is_likely_documentation:
+            check_value_lower = check_value.lower()
+            mentions_tool = 'ai-guardian' in check_value_lower or 'ai_guardian' in check_value_lower
+            if mentions_tool:
+                msg += "\n💡 TIP: Writing ABOUT the tool (not modifying it)?\n"
+                msg += "   Use \"ai - guardian\" (with spaces) to avoid triggering patterns.\n"
+                msg += "   Example: \"The ai - guardian tool protects...\"\n"
 
-        if is_marker_file:
-            return base_message + tip_message + (
-                f"\nProtection Type: Directory protection marker\n\n"
-                f"Protected files:\n"
-                f"  • ai-guardian configuration files\n"
-                f"  • IDE hook configuration (Claude, Cursor)\n"
-                f"  • ai-guardian package source code\n"
-                f"  • .ai-read-deny marker files (directory protection)\n\n"
-                f"This protection cannot be disabled via configuration.\n"
-                f"It ensures directory protection cannot be bypassed by AI agents.\n\n"
-                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                f"To remove directory protection, delete .ai-read-deny manually.\n"
-                f"\n{'='*70}\n"
-            )
-        else:
-            return base_message + tip_message + (
-                f"\nProtection Type: Immutable file protection\n\n"
-                f"Protected files:\n"
-                f"  • ai-guardian configuration files\n"
-                f"  • IDE hook configuration (Claude, Cursor)\n"
-                f"  • ai-guardian package source code\n"
-                f"  • .ai-read-deny marker files (directory protection)\n\n"
-                f"This protection cannot be disabled via configuration.\n"
-                f"It ensures ai-guardian cannot be bypassed by AI agents.\n\n"
-                f"DO NOT attempt workarounds - the protection is intentional.\n\n"
-                f"To edit these files, use your text editor manually.\n"
-                f"\n{'='*70}\n"
-            )
+        # Protected file categories
+        msg += "\nProtected categories:\n"
+        msg += "- ai-guardian configuration files\n"
+        msg += "- IDE hook configuration (Claude, Cursor)\n"
+        msg += "- ai-guardian package source code\n"
+        msg += "- .ai-read-deny marker files\n"
+
+        # Config note - immutable can't be changed
+        msg += "\n⚠️ This protection is immutable and cannot be disabled via configuration.\n"
+        msg += "It ensures ai-guardian security controls cannot be bypassed.\n"
+
+        return msg
 
     def _suggest_permission_rule(self, tool_name: str) -> Tuple[str, List[Dict]]:
         """

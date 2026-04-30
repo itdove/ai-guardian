@@ -158,7 +158,7 @@ class ContributorWorkflowTest(unittest.TestCase):
 
         self.assertFalse(is_allowed, "Config files must be protected from contributors")
         self.assertIsNotNone(error_msg)
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_contributor_cannot_edit_claude_settings(self):
         """Contributors CANNOT edit IDE hooks (always protected)"""
@@ -177,7 +177,7 @@ class ContributorWorkflowTest(unittest.TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "IDE hooks must be protected from contributors")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_contributor_cannot_edit_cache_file(self):
         """Contributors CANNOT edit cache files (prevents cache poisoning)"""
@@ -195,7 +195,7 @@ class ContributorWorkflowTest(unittest.TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Cache files must be protected from contributors")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     def test_contributor_cannot_edit_ai_read_deny_marker(self):
         """Contributors CANNOT edit .ai-read-deny markers"""
@@ -213,7 +213,7 @@ class ContributorWorkflowTest(unittest.TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "Directory markers must be protected from contributors")
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
 
     # ========================================================================
     # Test: Pip-installed code is ALWAYS protected (production deployment)
@@ -237,7 +237,7 @@ class ContributorWorkflowTest(unittest.TestCase):
 
         self.assertFalse(is_allowed, "Pip-installed code must be protected from contributors")
         self.assertIsNotNone(error_msg)
-        self.assertIn("CRITICAL FILE PROTECTED", error_msg)
+        self.assertIn("Protection:", error_msg)
         # Should provide helpful error message about pip-installed code
         self.assertIn("Pip-installed", error_msg)
 

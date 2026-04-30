@@ -186,7 +186,7 @@ class TestConfigErrorHandling(unittest.TestCase):
         from ai_guardian import format_response, IDEType
 
         warning_msg = "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
-        error_msg = "🚨 BLOCKED: Secret detected"
+        error_msg = "🛡️ BLOCKED: Secret detected"
 
         # Test Claude Code with prompt hook (blocking)
         result = format_response(

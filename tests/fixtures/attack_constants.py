@@ -106,8 +106,8 @@ MCP_TOOL_NOTEBOOKLM_QUERY = "mcp__notebooklm-mcp__notebook_query"
 MCP_TOOL_BLOCKED_CUSTOM = "mcp__custom-server__dangerous_action"
 
 # Expected block reasons
-BLOCK_REASON_SECRET = "SECRET DETECTED"
-BLOCK_REASON_PROMPT_INJECTION = "PROMPT INJECTION DETECTED"
+BLOCK_REASON_SECRET = "Secret Detected"
+BLOCK_REASON_PROMPT_INJECTION = "Prompt Injection Detected"
 BLOCK_REASON_SSRF = "SSRF PATTERN DETECTED"
 BLOCK_REASON_TOOL_DENIED = "TOOL ACCESS DENIED"
 BLOCK_REASON_EXFILTRATION = "Config file exfiltration pattern detected"

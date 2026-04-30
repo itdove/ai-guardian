@@ -192,6 +192,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - ✅ Low maintenance overhead (runs automatically)
   - **Related**: Parent issue #147 - Research open source prompt injection detection libraries
 
+### Changed
+
+- **Enhanced Error Messages - Phase 3** (Issue #287)
+  - **Detailed Error Messages Across All Protection Layers**:
+    - All security error messages now follow consistent Phase 3 format
+    - Changed from `🚨 BLOCKED BY POLICY` to `🛡️ [Protection Type]` format
+    - Removed `===` separator lines for cleaner presentation
+  - **Prompt Injection Detection** (`prompt_injection.py`):
+    - Shows exact regex pattern that triggered detection (not human-readable names)
+    - Displays confidence level (High/Medium/Low) with score
+    - Sanitized matched text (max 60 chars, newlines removed)
+    - Context information (file path or tool name when applicable)
+    - Prevents re-interpretation attacks by showing raw regex
+  - **Secret Scanning** (`__init__.py`):
+    - Shows secret type (from rule_id) and exact location (file:line)
+    - Scanner name (Gitleaks/BetterLeaks/LeakTK) and pattern source
+    - ⚠️ Secret value NEVER shown in error message for security
+    - Recommendations for secure alternatives (env vars, secret managers)
+  - **Tool Policy** (`tool_policy.py`):
+    - Shows tool name, matcher, and denied pattern
+    - Context-specific recommendations (e.g., npm package review for install commands)
+    - Truncates long commands/patterns to 100 chars with ellipsis
+  - **Immutable File Protection** (`tool_policy.py`):
+    - Differentiates protection types (pip-installed source, config files, .ai-read-deny markers)
+    - Shows development setup instructions for pip-installed packages
+    - Clarifies that protection is immutable and cannot be disabled
+  - **Directory Protection** (`__init__.py`):
+    - Distinguishes between directory rules and .ai-read-deny markers
+    - Shows protected directory and matched pattern (if rule-based)
+    - Different recommendations for rules vs markers
+  - **Consistent Format Across All Layers**:
+    - Protection type clearly identified
+    - Pattern/rule that triggered the block
+    - "Why blocked" explanation with security context
+    - "This operation has been blocked for security" notice
+    - **"DO NOT attempt to bypass this protection"** security warning (preserved from previous phases)
+    - Actionable recommendations specific to the violation
+    - Config path and section for user modifications
+  - **Testing**: 21 new comprehensive tests in `test_error_messages.py`
+    - Verifies Phase 3 format across all protection types
+    - Ensures no old format elements (🚨, ===, old headers)
+    - Validates security warnings preserved
+    - Tests regex pattern display, sanitization, truncation
+  - **Security Benefits**:
+    - ✅ Prevents re-interpretation attacks (shows regex, not attack strings)
+    - ✅ Never leaks secret values in error messages
+    - ✅ Maintains security warnings across all layers
+    - ✅ Provides actionable guidance without compromising security
+  - **User Experience**:
+    - Consistent format makes errors predictable and easier to parse
+    - Context-specific recommendations reduce support burden
+    - Clear config paths enable quick self-service fixes
+
 ### Fixed
 
 - **Scanner installer ignores --use-pinned and --version flags when package manager succeeds** (Issue #295)

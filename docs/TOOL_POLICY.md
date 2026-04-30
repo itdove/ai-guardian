@@ -309,13 +309,19 @@ rm -rf /var/log/*
 ```
 🛡️ **Protected:**
 ```
-🚨 BLOCKED BY POLICY
+🛡️ Tool Access Denied
 
+Protection: Tool Permission Policy
+Tool: Bash
+Matcher: Bash
 Command: rm -rf /var/log/*
-Reason: Destructive command pattern "rm -rf" blocked
-Policy Rule: deny ["rm -rf *"]
+Pattern: rm -rf *
 
-This command could delete critical system files.
+Why blocked: This bash operation matches a denied pattern in your tool policy.
+Destructive commands require explicit approval to prevent data loss.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents unauthorized tool use.
 ```
 
 ---
@@ -338,13 +344,19 @@ cat ~/.ssh/id_rsa
 ```
 🛡️ **Protected:**
 ```
-🚨 BLOCKED BY POLICY
+🛡️ Tool Access Denied
 
-File: ~/.ssh/id_rsa
-Reason: Access to private SSH keys is restricted
-Policy Rule: deny ["~/.ssh/id_rsa"]
+Protection: Tool Permission Policy
+Tool: Read
+Matcher: Read
+File Path: ~/.ssh/id_rsa
+Pattern: ~/.ssh/id_rsa
 
-Private keys should never be accessed or displayed.
+Why blocked: This file operation matches a denied pattern in your tool policy.
+File access requires explicit approval to prevent information disclosure.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents unauthorized tool use.
 ```
 
 ---
@@ -366,13 +378,19 @@ sudo apt install backdoor
 ```
 🛡️ **Protected:**
 ```
-🚨 BLOCKED BY POLICY
+🛡️ Tool Access Denied
 
+Protection: Tool Permission Policy
+Tool: Bash
+Matcher: Bash
 Command: sudo apt install backdoor
-Reason: Privilege escalation not permitted
-Policy Rule: deny ["sudo *"]
+Pattern: sudo *
 
-Commands requiring elevated privileges are blocked.
+Why blocked: This bash operation matches a denied pattern in your tool policy.
+This command requires explicit approval in your security policy.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents unauthorized tool use.
 ```
 
 ---

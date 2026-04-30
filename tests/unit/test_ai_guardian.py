@@ -226,7 +226,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_process_hook_input_with_secret(self, mock_check_secrets, mock_load_config):
         """Test processing prompt with secret"""
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
-        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+        mock_check_secrets.return_value = (True, "Secret Detected")
 
         hook_input = json.dumps({
             "prompt": "Token: ghp_16C0123456789abcdefghijklmTEST0000",
@@ -488,7 +488,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_cursor_format_with_secret(self, mock_check_secrets, mock_load_config):
         """Test Cursor format with secret"""
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
-        error_msg = "SECRET DETECTED"
+        error_msg = "Secret Detected"
         mock_check_secrets.return_value = (True, error_msg)
 
         hook_input = json.dumps({
@@ -754,7 +754,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_pretooluse_hook_with_secret_file(self, mock_check_secrets, mock_load_config):
         """Test PreToolUse hook with file containing secret"""
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
-        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+        mock_check_secrets.return_value = (True, "Secret Detected")
 
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
@@ -790,7 +790,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_cursor_pretooluse_hook(self, mock_check_secrets, mock_load_config):
         """Test Cursor preToolUse hook format"""
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
-        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+        mock_check_secrets.return_value = (True, "Secret Detected")
 
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
@@ -1156,7 +1156,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_copilot_pretooluse_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot preToolUse hook blocks file with secret"""
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
-        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+        mock_check_secrets.return_value = (True, "Secret Detected")
 
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
@@ -1206,7 +1206,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_copilot_prompt_hook_with_secret(self, mock_check_secrets, mock_load_config):
         """Test GitHub Copilot userPromptSubmitted blocks prompt with secret"""
         mock_load_config.return_value = (None, None)  # Use default (enabled), no config error
-        mock_check_secrets.return_value = (True, "SECRET DETECTED")
+        mock_check_secrets.return_value = (True, "Secret Detected")
 
         hook_input = json.dumps({
             "timestamp": 1704614400000,

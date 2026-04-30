@@ -56,7 +56,7 @@ EOF'''
         is_injection, error_msg, _ = detector.detect(cmd)
         self.assertTrue(is_injection, "Real injection should be blocked")
         self.assertIsNotNone(error_msg)
-        self.assertIn("PROMPT INJECTION DETECTED", error_msg)
+        self.assertIn("Prompt Injection Detected", error_msg)
 
     def test_heredoc_with_multiple_patterns(self):
         """Heredoc with multiple injection patterns should be allowed."""
