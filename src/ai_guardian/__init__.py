@@ -2933,17 +2933,14 @@ def process_hook_input():
                             return format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event)
                         elif pii_action == 'redact':
-                            if hook_event == 'prompt':
-                                # UserPromptSubmit: can't modify prompt, must block
-                                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                                final_error = pii_warning
-                                if combined_warning:
-                                    final_error = f"{combined_warning}\n\n{pii_warning}"
-                                return format_response(ide_type, has_secrets=True,
-                                                     error_message=final_error, hook_event=hook_event)
-                            else:
-                                # PreToolUse: allow read, PostToolUse will redact output
-                                warning_messages.append(pii_warning)
+                            # UserPromptSubmit and PreToolUse cannot modify content,
+                            # so redact mode falls back to blocking with an explanation.
+                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            final_error = pii_warning
+                            if combined_warning:
+                                final_error = f"{combined_warning}\n\n{pii_warning}"
+                            return format_response(ide_type, has_secrets=True,
+                                                 error_message=final_error, hook_event=hook_event)
                         elif pii_action == 'log-only':
                             warning_messages.append(pii_warning)
 
