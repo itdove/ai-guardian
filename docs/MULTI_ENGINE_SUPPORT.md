@@ -380,6 +380,28 @@ class ConsensusStrategy(ExecutionStrategy):
 - **BetterLeaks**: Same as Gitleaks but faster execution time
 - **LeakTK**: Best when you don't want to manage pattern files manually
 
+### License Considerations
+
+**TruffleHog AGPL-3.0 Notice:**
+
+TruffleHog is licensed under **AGPL-3.0** (GNU Affero General Public License), a copyleft license with strong requirements. However:
+
+✅ **AI Guardian uses TruffleHog as an EXTERNAL TOOL** (subprocess execution only)  
+✅ **This does NOT create a derivative work** (similar to Apache projects invoking Git)  
+✅ **AI Guardian itself remains Apache-2.0** - no license contamination  
+
+**What this means:**
+- Installing TruffleHog via `ai-guardian scanner install trufflehog` shows a license notice
+- Users acknowledge AGPL-3.0 terms before installation
+- TruffleHog binary runs as a separate process (not linked/imported)
+- No AGPL obligations apply to AI Guardian or your code
+
+**Other Scanners:**
+- **Gitleaks, BetterLeaks**: MIT (very permissive)
+- **LeakTK, detect-secrets**: Apache-2.0 (same as ai-guardian)
+
+For organizations with AGPL concerns, use gitleaks, betterleaks, leaktk, or detect-secrets instead.
+
 ## Implementation Plan
 
 ### Phase 1: Foundation & Refactoring (v1.8.0)

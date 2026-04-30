@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Maximum security: `{"engines": ["gitleaks", "trufflehog"], "execution_strategy": "any-match"}`
     - Reduced false positives: `{"engines": ["gitleaks", "trufflehog", "detect-secrets"], "execution_strategy": "consensus", "consensus_threshold": 2}`
     - Enterprise migration: `{"engines": ["trufflehog"]}` (use existing investment)
+  - **CI/CD Integration**:
+    - Added TruffleHog (v3.88.0) and detect-secrets (v1.5.0) to `pyproject.toml` scanner versions
+    - Added scanner repository mappings for trufflesecurity/trufflehog and Yelp/detect-secrets
+    - Updated `.github/workflows/integration-tests.yml` to install detect-secrets (TruffleHog skipped - tested via mocks)
+    - Scanner version health monitoring now tracks TruffleHog and detect-secrets updates
+  - **License Considerations**:
+    - TruffleHog uses AGPL-3.0 license (copyleft)
+    - AI Guardian uses TruffleHog as external tool via subprocess (no derivative work, no AGPL obligations)
+    - Interactive license notice shown during `ai-guardian scanner install trufflehog`
+    - Documentation added to `MULTI_ENGINE_SUPPORT.md` explaining AGPL-3.0 implications
+    - Alternative scanners available for organizations with AGPL concerns (gitleaks, betterleaks, leaktk, detect-secrets)
+    - detect-secrets uses Apache-2.0 (same as ai-guardian)
 
 - **Dependency Management Documentation** (Issue #293)
   - New comprehensive "Dependency Management" section in AGENTS.md

@@ -57,7 +57,16 @@ class ScannerInstaller:
     """Handles installation of scanner engines."""
 
     # Supported scanners
-    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk"]
+    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"]
+
+    # License information for scanners
+    SCANNER_LICENSES = {
+        "gitleaks": "MIT",
+        "betterleaks": "MIT",
+        "leaktk": "Apache-2.0",
+        "trufflehog": "AGPL-3.0",
+        "detect-secrets": "Apache-2.0",
+    }
 
     def __init__(self, install_dir: Optional[Path] = None):
         """
@@ -97,10 +106,14 @@ class ScannerInstaller:
                 "gitleaks": "8.30.1",
                 "betterleaks": "1.1.2",
                 "leaktk": "0.2.10",
+                "trufflehog": "3.88.0",
+                "detect-secrets": "1.5.0",
                 "repos": {
                     "gitleaks": "gitleaks/gitleaks",
                     "betterleaks": "betterleaks/betterleaks",
                     "leaktk": "leaktk/leaktk",
+                    "trufflehog": "trufflesecurity/trufflehog",
+                    "detect-secrets": "Yelp/detect-secrets",
                 },
             }
 
@@ -221,7 +234,25 @@ class ScannerInstaller:
         system = platform.system().lower()
 
         try:
-            if system == "darwin" and shutil.which("brew"):
+            # detect-secrets is a Python package - use pip
+            if scanner_name == "detect-secrets" and shutil.which("pip"):
+                logger.info(f"Installing {scanner_name} via pip...")
+                result = subprocess.run(
+                    ["pip", "install", scanner_name],
+                    capture_output=True,
+                    timeout=300,
+                )
+                return result.returncode == 0
+            # TruffleHog on macOS - use Homebrew with tap
+            elif scanner_name == "trufflehog" and system == "darwin" and shutil.which("brew"):
+                logger.info(f"Installing {scanner_name} via Homebrew...")
+                result = subprocess.run(
+                    ["brew", "install", "trufflesecurity/trufflehog/trufflehog"],
+                    capture_output=True,
+                    timeout=300,
+                )
+                return result.returncode == 0
+            elif system == "darwin" and shutil.which("brew"):
                 logger.info(f"Installing {scanner_name} via Homebrew...")
                 result = subprocess.run(
                     ["brew", "install", scanner_name],
@@ -394,6 +425,14 @@ class ScannerInstaller:
         Raises:
             RuntimeError: If installation fails
         """
+        # detect-secrets is pip-only, no binary releases
+        if scanner_name == "detect-secrets":
+            raise RuntimeError(
+                f"{scanner_name} is a Python package and must be installed via pip:\n"
+                f"  pip install detect-secrets\n"
+                f"Direct download is not available for this scanner."
+            )
+
         if not HAS_REQUESTS:
             raise RuntimeError(
                 "requests library required for downloading scanners. "
@@ -546,6 +585,41 @@ class ScannerInstaller:
                 f"Unsupported scanner: {scanner_name}. "
                 f"Supported: {', '.join(self.SUPPORTED_SCANNERS)}"
             )
+
+        # Show license notice for AGPL-3.0 scanners
+        if scanner_name == "trufflehog":
+            print()
+            print("=" * 70)
+            print("⚠️  LICENSE NOTICE: TruffleHog")
+            print("=" * 70)
+            print()
+            print("TruffleHog is licensed under AGPL-3.0 (GNU Affero General Public License).")
+            print()
+            print("AI Guardian uses TruffleHog as an EXTERNAL TOOL via subprocess execution,")
+            print("which does NOT create a derivative work or require AGPL compliance for")
+            print("AI Guardian itself (similar to how Apache projects can invoke Git).")
+            print()
+            print("However, you should be aware of TruffleHog's license terms:")
+            print("  - License: AGPL-3.0 (copyleft)")
+            print("  - Repository: https://github.com/trufflesecurity/trufflehog")
+            print("  - License text: https://github.com/trufflesecurity/trufflehog/blob/main/LICENSE")
+            print()
+            print("By proceeding with this installation, you acknowledge TruffleHog's")
+            print("AGPL-3.0 license and agree to its terms.")
+            print()
+            print("=" * 70)
+            print()
+
+            # Prompt for confirmation
+            try:
+                response = input("Continue with TruffleHog installation? (y/N): ").strip().lower()
+                if response not in ['y', 'yes']:
+                    print("Installation cancelled.")
+                    return False
+            except (EOFError, KeyboardInterrupt):
+                print("\nInstallation cancelled.")
+                return False
+            print()
 
         # Determine target version
         if version:

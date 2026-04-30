@@ -97,8 +97,12 @@ skip_covered = false
 gitleaks = "8.30.1"
 betterleaks = "1.1.2"
 leaktk = "0.2.10"
+trufflehog = "3.88.0"
+detect-secrets = "1.5.0"
 
 [tool.ai-guardian.scanners.repos]
 gitleaks = "gitleaks/gitleaks"
 betterleaks = "betterleaks/betterleaks"
 leaktk = "leaktk/leaktk"
+trufflehog = "trufflesecurity/trufflehog"
+detect-secrets = "Yelp/detect-secrets"
