@@ -463,6 +463,304 @@ Dependabot automatically monitors and creates pull requests for dependency updat
 
 ---
 
+## Dependency Management
+
+### Overview
+
+AI Guardian uses a multi-layered approach to dependency management:
+
+1. **Dependabot** - GitHub Actions and Python packages (monthly)
+2. **Scanner Version Checking** - Custom scanners (daily)
+3. **Manual Updates** - For major version changes requiring testing
+
+This approach ensures dependencies stay current while maintaining stability through testing.
+
+### Automated Dependency Monitoring
+
+#### Dependabot (GitHub Actions & Python Packages)
+
+**Configuration**: `.github/dependabot.yml`  
+**Frequency**: Monthly (1st of month)  
+**Delivery**: Pull requests
+
+**What it monitors**:
+- GitHub Actions (actions/checkout, actions/setup-python, codecov/codecov-action, etc.)
+- Python packages (textual, jsonschema, requests, pyyaml, tomli, pytest, etc.)
+
+**Workflow**:
+1. Dependabot scans dependencies monthly
+2. Creates PRs for available updates (grouped to reduce noise)
+3. CI tests run automatically on PRs
+4. Review and merge PRs
+
+**Handling Dependabot PRs**:
+```bash
+# View Dependabot PRs
+gh pr list --label dependabot
+
+# Review specific PR
+gh pr view <PR-NUMBER>
+
+# Minor/patch updates - quick review and merge
+gh pr merge <PR-NUMBER> --squash
+
+# Major updates - test locally first
+gh pr checkout <PR-NUMBER>
+pytest
+gh pr merge <PR-NUMBER> --squash
+```
+
+**Labels and organization**:
+- GitHub Actions updates: `ci-cd`, `dependabot` labels, `ci:` commit prefix
+- Python package updates: `enhancement`, `dependabot` labels, `deps:` commit prefix
+
+#### Scanner Version Checking (Gitleaks, BetterLeaks, LeakTK)
+
+**Workflow**: `.github/workflows/integration-tests.yml`  
+**Frequency**: Daily (2 AM UTC)  
+**Delivery**: GitHub issues with label `scanner-version-update`
+
+**What it monitors**:
+- gitleaks pinned version vs latest release
+- betterleaks pinned version vs latest release
+- leaktk pinned version vs latest release
+- LeakTK pattern server version
+- Version existence (prevents broken downloads)
+- Version age (alerts if >30 days old)
+
+**Workflow**:
+1. Daily check compares pinned vs latest versions
+2. Creates GitHub issue if version is outdated (>30 days old)
+3. Updates existing issue daily with current status
+4. Auto-closes when versions are updated in `pyproject.toml`
+5. Verifies pinned versions still exist on GitHub
+
+**Responding to version update issues**:
+
+1. **Review the issue**:
+   - Check which scanners need updating
+   - Review changelog for breaking changes at scanner's GitHub release page
+   - Note security fixes (prioritize these)
+
+2. **Test locally**:
+   ```bash
+   # Install new version
+   ai-guardian scanner install gitleaks --version <NEW_VERSION>
+   
+   # Run tests
+   pytest tests/
+   pytest tests/integration/
+   
+   # Verify scanner works
+   gitleaks version
+   ```
+
+3. **Update pinned version** (`pyproject.toml`):
+   ```toml
+   [tool.ai-guardian.scanners]
+   gitleaks = "<NEW_VERSION>"
+   betterleaks = "<NEW_VERSION>"
+   leaktk = "<NEW_VERSION>"
+   ```
+
+4. **Update CHANGELOG.md**:
+   ```markdown
+   ### Changed
+   - Updated scanner versions:
+     - gitleaks: 8.30.1 → 8.31.0
+     - betterleaks: 1.1.2 → 1.2.0
+   ```
+
+5. **Commit and push**:
+   ```bash
+   git add pyproject.toml CHANGELOG.md
+   git commit -m "deps: update scanner versions
+   
+   - gitleaks: 8.30.1 → 8.31.0
+   - betterleaks: 1.1.2 → 1.2.0
+   
+   Resolves #<ISSUE_NUMBER>"
+   git push
+   ```
+
+6. **Issue auto-closes** when commit is merged to main
+
+**Comparison: Dependabot vs Scanner Version Checking**
+
+| Feature | Dependabot | Scanner Checking (#291) |
+|---------|-----------|------------------------|
+| GitHub Actions | ✅ Automated PRs | ❌ Not applicable |
+| Python packages | ✅ Automated PRs | ❌ Not applicable |
+| Scanner versions | ❌ Not standard packages | ✅ Custom checking |
+| Security alerts | ✅ Built-in CVE database | ⚠️ Manual review needed |
+| Update frequency | Monthly | Daily |
+| Delivery | Pull requests | GitHub issues |
+
+### Manual Dependency Updates
+
+For dependencies not covered by automation or when you need to update immediately:
+
+**Check current versions**:
+```bash
+# Python package versions
+pip list | grep -E "textual|jsonschema|requests"
+
+# Scanner versions
+ai-guardian scanner list
+
+# GitHub Actions versions
+grep "uses:" .github/workflows/*.yml
+```
+
+**Update Python packages**:
+```bash
+# Test with new version
+pip install <package>==<NEW_VERSION>
+pytest
+
+# If tests pass, update pyproject.toml
+# Then update CHANGELOG.md and commit
+```
+
+**Update GitHub Actions**:
+```bash
+# Find current usage
+grep "actions/checkout@" .github/workflows/*.yml
+
+# Update manually in workflow files
+# Test via workflow_dispatch
+gh workflow run <workflow-name>
+```
+
+**Manual scanner version check**:
+```bash
+# Check if versions exist (quick check)
+python scripts/check_scanner_versions.py
+
+# Check for updates and age (detailed analysis)
+python scripts/check_scanner_versions.py --check-updates --output versions.json
+cat versions.json | jq
+```
+
+### Best Practices
+
+**Scanner Version Updates**:
+- ✅ Test new versions locally before updating `pyproject.toml`
+- ✅ Run full test suite (`pytest` + `pytest tests/integration/`)
+- ✅ Update CHANGELOG.md with version changes
+- ✅ Prioritize security fixes (update ASAP)
+- ✅ Review scanner changelog for breaking changes
+- ⚠️ Never update scanners without testing
+
+**Dependabot PRs**:
+- ✅ Minor/patch updates: Quick review, merge if CI passes
+- ✅ Major updates: Test locally, review changelog carefully
+- ✅ Security updates: Merge ASAP after quick validation
+- ✅ Check for grouped updates (multiple packages in one PR)
+- ⚠️ Don't ignore Dependabot PRs - they accumulate
+
+**Version Pinning Strategy**:
+- **Scanner versions**: Exact pinning (gitleaks = "8.30.1")
+  - Ensures reproducible builds
+  - Updated monthly or when security issues found
+  - Always tested before updating
+  
+- **Python packages**: Minimum versions (textual>=0.47.0)
+  - Allows automatic patch/minor updates
+  - Tested via CI on every commit
+  - Major versions require manual update and testing
+
+### Troubleshooting
+
+**Issue: Dependabot PR fails CI**
+```bash
+# Checkout PR locally
+gh pr checkout <PR-NUMBER>
+
+# Run tests to see failure
+pytest -v
+
+# Fix if needed, or close PR and create issue
+# If breaking change, may need code updates
+```
+
+**Issue: Scanner version doesn't exist**
+```bash
+# Check if version exists on GitHub
+curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/tags/v8.30.1
+
+# If 404, update to latest available version
+# Follow manual update workflow above
+```
+
+**Issue: Version checking workflow failed**
+```bash
+# Check workflow logs
+gh run view <RUN_ID>
+
+# Common causes:
+# - GitHub API rate limit (wait 1 hour)
+# - Network timeout (rerun workflow)
+# - Invalid pyproject.toml format (fix syntax)
+```
+
+**Issue: Grouped Dependabot PR too large**
+```bash
+# Dependabot groups all updates into fewer PRs
+# If grouped PR has issues:
+# 1. Close the grouped PR
+# 2. Disable grouping temporarily in .github/dependabot.yml
+# 3. Let Dependabot create individual PRs
+# 4. Merge individually after testing
+# 5. Re-enable grouping
+```
+
+### Monitoring
+
+**Check for pending updates**:
+```bash
+# Dependabot PRs
+gh pr list --label dependabot
+
+# Scanner version issues
+gh issue list --label scanner-version-update
+
+# Recent dependency changes
+git log --grep="deps:" --oneline
+```
+
+**Audit dependency health**:
+```bash
+# Check scanner versions locally
+python scripts/check_scanner_versions.py --check-updates
+
+# Check Python package vulnerabilities (optional)
+pip install safety
+safety check
+```
+
+**View automated check results**:
+```bash
+# View latest integration test run
+gh run list --workflow=integration-tests.yml --limit 1
+
+# View specific run details
+gh run view <RUN_ID>
+```
+
+### Version Update Frequency
+
+| Dependency Type | Check Frequency | Update Trigger | Delivery Method |
+|----------------|-----------------|----------------|-----------------|
+| Scanner versions | Daily (2 AM UTC) | >30 days old OR new version available | GitHub issue |
+| Python packages | Monthly (1st of month) | New version available | Dependabot PR |
+| GitHub Actions | Monthly (1st of month) | New version available | Dependabot PR |
+| Security fixes | Immediate | CVE/advisory published | Dependabot PR (security label) |
+
+**Related workflows**: See "Continuous Integration" section above for details on GitHub Actions workflows that support dependency management.
+
+---
+
 ## Configuration Schema Changes
 
 **CRITICAL**: When adding new configuration options to the JSON schema, you MUST update multiple files to ensure consistency across the codebase.
