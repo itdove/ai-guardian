@@ -967,9 +967,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"]
         }
       },
       "additionalProperties": false

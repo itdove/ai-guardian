@@ -926,7 +926,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"]
         }
     }
 

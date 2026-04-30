@@ -518,7 +518,8 @@ class ToolPolicyChecker:
                             check_value=tool_input.get("command", str(tool_input)),
                             reason="SSRF attack detected",
                             matcher=tool_name,
-                            hook_data=hook_data
+                            hook_data=hook_data,
+                            violation_type="ssrf_blocked"
                         )
                         return False, error_msg, tool_name
 
@@ -530,7 +531,8 @@ class ToolPolicyChecker:
                             check_value=tool_input.get("command", str(tool_input)),
                             reason="SSRF warning (allowed)",
                             matcher=tool_name,
-                            hook_data=hook_data
+                            hook_data=hook_data,
+                            violation_type="ssrf_blocked"
                         )
                         # Continue to other checks (warning is logged, execution allowed)
 
@@ -1480,7 +1482,8 @@ class ToolPolicyChecker:
         check_value: str,
         reason: str,
         matcher: str,
-        hook_data: Dict
+        hook_data: Dict,
+        violation_type: str = "tool_permission"
     ):
         """
         Log a tool permission violation.
@@ -1491,6 +1494,7 @@ class ToolPolicyChecker:
             reason: Reason for blocking
             matcher: Matcher pattern from the permission rule
             hook_data: Original hook data for context
+            violation_type: Type of violation to log
         """
         if not HAS_VIOLATION_LOGGER:
             return
@@ -1507,7 +1511,7 @@ class ToolPolicyChecker:
 
             # Log the violation
             violation_logger.log_violation(
-                violation_type="tool_permission",
+                violation_type=violation_type,
                 blocked={
                     "tool_name": tool_name,
                     "tool_value": check_value,

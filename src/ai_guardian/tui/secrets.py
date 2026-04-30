@@ -205,6 +205,8 @@ class SecretsContent(Container):
                     yield Checkbox("Secret Detected", id="log-type-secret", value=True)
                     yield Checkbox("Secret Redaction", id="log-type-redaction", value=True)
                     yield Checkbox("Prompt Injection", id="log-type-injection", value=True)
+                    yield Checkbox("SSRF Blocked", id="log-type-ssrf", value=True)
+                    yield Checkbox("Config File Exfil", id="log-type-config-exfil", value=True)
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -297,7 +299,7 @@ class SecretsContent(Container):
         log_enabled = violation_logging.get("enabled", True)
         max_entries = violation_logging.get("max_entries", 1000)
         retention_days = violation_logging.get("retention_days", 30)
-        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection"])
+        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"])
 
         try:
             self.query_one("#violation-logging-enabled", Checkbox).value = log_enabled
@@ -310,6 +312,8 @@ class SecretsContent(Container):
             self.query_one("#log-type-secret", Checkbox).value = "secret_detected" in log_types
             self.query_one("#log-type-redaction", Checkbox).value = "secret_redaction" in log_types
             self.query_one("#log-type-injection", Checkbox).value = "prompt_injection" in log_types
+            self.query_one("#log-type-ssrf", Checkbox).value = "ssrf_blocked" in log_types
+            self.query_one("#log-type-config-exfil", Checkbox).value = "config_file_exfil" in log_types
         except Exception:
             pass  # Widgets may not be mounted yet
 
@@ -646,6 +650,10 @@ class SecretsContent(Container):
                 log_types.append("secret_redaction")
             if self.query_one("#log-type-injection", Checkbox).value:
                 log_types.append("prompt_injection")
+            if self.query_one("#log-type-ssrf", Checkbox).value:
+                log_types.append("ssrf_blocked")
+            if self.query_one("#log-type-config-exfil", Checkbox).value:
+                log_types.append("config_file_exfil")
 
             config["violation_logging"]["log_types"] = log_types
 
