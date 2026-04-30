@@ -18,31 +18,17 @@ class BlockReasonExtractionTest(unittest.TestCase):
     def test_extract_critical_file_ai_guardian_config(self):
         """Should extract 'Critical file protected: ai-guardian config' from immutable deny message"""
         error_message = """
-======================================================================
-🛡️ BLOCKED BY POLICY
-🔒 Protection:
-======================================================================
+🛡️ Immutable Protection
 
-This file is protected by ai-guardian and cannot be modified.
-
-File: ~/.config/ai-guardian/ai-guardian.json
+Protection: Configuration File
 Tool: Edit
+File Path: ~/.config/ai-guardian/ai-guardian.json
 
-Reason: Critical security configuration
+Why blocked: This file is a critical ai-guardian configuration file.
+Modifying it could disable security protections or allow AI agents to bypass safeguards.
 
-Protected files:
-  • ai-guardian configuration files
-  • IDE hook configuration (Claude, Cursor)
-  • ai-guardian package source code
-  • .ai-read-deny marker files (directory protection)
-
-This protection cannot be disabled via configuration.
-It ensures ai-guardian cannot be bypassed by AI agents.
-
-DO NOT attempt workarounds - the protection is intentional.
-
-To edit these files, use your text editor manually.
-======================================================================
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents security policy tampering.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "Critical file protected: ai-guardian config")
@@ -50,17 +36,17 @@ To edit these files, use your text editor manually.
     def test_extract_critical_file_source_code(self):
         """Should extract 'Critical file protected: source code' from source file deny"""
         error_message = """
-======================================================================
-🛡️ BLOCKED BY POLICY
-🔒 Protection:
-======================================================================
+🛡️ Immutable Protection
 
-This file is protected by ai-guardian and cannot be modified.
-
-File: ~/ai-guardian/src/ai_guardian/__init__.py
+Protection: Package Source Code (Pip-installed)
 Tool: Edit
+File Path: ~/ai-guardian/src/ai_guardian/__init__.py
 
-Reason: Repository source file (maintainer bypass not available)
+Why blocked: This file is part of the pip-installed ai-guardian package.
+AI cannot modify its own source code to prevent self-tampering.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents security policy tampering.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "Critical file protected: source code")
@@ -68,17 +54,17 @@ Reason: Repository source file (maintainer bypass not available)
     def test_extract_critical_file_marker(self):
         """Should extract 'Critical file protected: .ai-read-deny marker' from marker file deny"""
         error_message = """
-======================================================================
-🛡️ BLOCKED BY POLICY
-🔒 Protection:
-======================================================================
+🛡️ Immutable Protection
 
-This file is protected by ai-guardian and cannot be modified.
-
-File: ~/secrets/.ai-read-deny
+Protection: Directory Protection Marker
 Tool: Edit
+File Path: ~/secrets/.ai-read-deny
 
-Reason: Directory protection marker
+Why blocked: This is a directory protection marker file.
+Deleting or modifying it would remove security restrictions on the directory.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents security policy tampering.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "Critical file protected: .ai-read-deny marker")
@@ -86,15 +72,19 @@ Reason: Directory protection marker
     def test_extract_matched_deny_pattern(self):
         """Should extract pattern from 'matched deny pattern' message"""
         error_message = """
-======================================================================
-🛡️ BLOCKED BY POLICY
-🚫 TOOL ACCESS DENIED
-======================================================================
+🛡️ Tool Access Denied
 
+Protection: Tool Permission Policy
 Tool: Read
-File Path: ~/secrets/production.env
-Blocked by: matched deny pattern: *.env
 Matcher: Read
+File Path: ~/secrets/production.env
+Pattern: *.env
+
+Why blocked: This file operation matches a denied pattern in your tool policy.
+File access requires explicit approval to prevent information disclosure.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents unauthorized tool use.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "Matched deny pattern: *.env")
@@ -102,14 +92,18 @@ Matcher: Read
     def test_extract_no_permission_rule(self):
         """Should extract 'No permission rule configured' from no rule message"""
         error_message = """
-======================================================================
-🛡️ BLOCKED BY POLICY
-🚫 TOOL ACCESS DENIED
-======================================================================
+🛡️ Tool Access Denied
 
+Protection: Tool Permission Policy
 Tool: Skill
 Skill Name: unknown-skill
-Blocked by: no permission rule
+Pattern: no permission rule
+
+Why blocked: This skill operation matches a denied pattern in your tool policy.
+Skill execution requires explicit approval in your security policy.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents unauthorized tool use.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "No permission rule configured")
@@ -117,15 +111,19 @@ Blocked by: no permission rule
     def test_extract_not_in_allow_list(self):
         """Should extract 'Not in allow list' from allow list denial"""
         error_message = """
-======================================================================
-🛡️ BLOCKED BY POLICY
-🚫 TOOL ACCESS DENIED
-======================================================================
+🛡️ Tool Access Denied
 
+Protection: Tool Permission Policy
 Tool: Skill
-Skill Name: daf-unknown
-Blocked by: not in allow list
 Matcher: Skill
+Skill Name: daf-unknown
+Pattern: not in allow list
+
+Why blocked: This skill operation matches a denied pattern in your tool policy.
+Skill execution requires explicit approval in your security policy.
+
+This operation has been blocked for security.
+DO NOT attempt to bypass this protection - it prevents unauthorized tool use.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "Not in allow list")
@@ -139,7 +137,12 @@ Matcher: Skill
     def test_extract_complex_deny_pattern(self):
         """Should extract complex patterns with special characters"""
         error_message = """
-Blocked by: matched deny pattern: */.config/ai-guardian/*
+🛡️ Tool Access Denied
+
+Protection: Tool Permission Policy
+Pattern: */.config/ai-guardian/*
+
+Why blocked: This operation matches a denied pattern in your tool policy.
 """
         reason = _extract_block_reason(error_message)
         self.assertEqual(reason, "Matched deny pattern: */.config/ai-guardian/*")

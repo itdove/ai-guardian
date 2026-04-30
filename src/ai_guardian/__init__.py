@@ -1318,7 +1318,34 @@ def _extract_block_reason(error_message: str) -> str:
     """
     import re
 
-    if "CRITICAL FILE PROTECTED" in error_message:
+    # Phase 3 format - Immutable Protection
+    if "🛡️ Immutable Protection" in error_message:
+        if "Protection: Configuration File" in error_message:
+            return "Critical file protected: ai-guardian config"
+        elif "Protection: Package Source Code" in error_message:
+            return "Critical file protected: source code"
+        elif "Protection: Directory Protection Marker" in error_message:
+            return "Critical file protected: .ai-read-deny marker"
+        else:
+            return "Critical file protected"
+
+    # Phase 3 format - Tool Access Denied
+    elif "🛡️ Tool Access Denied" in error_message:
+        # Check for special patterns first
+        if "Pattern: no permission rule" in error_message or "no permission rule" in error_message.lower():
+            return "No permission rule configured"
+        elif "Pattern: not in allow list" in error_message or "not in allow list" in error_message.lower():
+            return "Not in allow list"
+
+        # Try to extract pattern from "Pattern: <value>" line
+        match = re.search(r'Pattern:\s*([^\n]+)', error_message)
+        if match:
+            pattern = match.group(1).strip()
+            return f"Matched deny pattern: {pattern}"
+        return "Matched deny pattern"
+
+    # Old format fallbacks for backward compatibility
+    elif "CRITICAL FILE PROTECTED" in error_message:
         if "ai-guardian configuration" in error_message:
             return "Critical file protected: ai-guardian config"
         elif "Repository source file" in error_message:
