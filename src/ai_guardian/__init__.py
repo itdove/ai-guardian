@@ -105,12 +105,17 @@ _file_handler.setFormatter(logging.Formatter(
     datefmt='%Y-%m-%d %H:%M:%S'
 ))
 
+# Suppress stderr banner when --json is requested (keep file logging)
+_stderr_handler = logging.StreamHandler(sys.stderr)
+if "--json" in sys.argv:
+    _stderr_handler.setLevel(logging.WARNING)
+
 # Configure root logger with both stderr and file handlers
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",  # Simple format for stderr
     handlers=[
-        logging.StreamHandler(sys.stderr),  # Keep stderr output for IDE compatibility
+        _stderr_handler,  # Keep stderr output for IDE compatibility
         _file_handler  # Add file output
     ]
 )
@@ -3027,6 +3032,11 @@ def main():
             action="store_true",
             help="Show installation paths"
         )
+        scanner_list_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
 
         # scanner install
         scanner_install_parser = scanner_sub.add_parser("install", help="Install a scanner")
@@ -3056,6 +3066,43 @@ def main():
             "name",
             choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
             help="Scanner to show info for"
+        )
+        scanner_info_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # scanner supported
+        scanner_supported_parser = scanner_sub.add_parser(
+            "supported",
+            help="List all supported scanners with versions and repos"
+        )
+        scanner_supported_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # Pattern-servers subcommand
+        pattern_servers_parser = subparsers.add_parser(
+            "pattern-servers",
+            help="Pattern server management"
+        )
+        pattern_servers_sub = pattern_servers_parser.add_subparsers(
+            dest="pattern_servers_command",
+            help="Pattern server commands"
+        )
+
+        # pattern-servers supported
+        ps_supported_parser = pattern_servers_sub.add_parser(
+            "supported",
+            help="List all supported pattern servers"
+        )
+        ps_supported_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
         )
 
         args = parser.parse_args()
@@ -3218,7 +3265,10 @@ def main():
 
                 if args.scanner_command == "list":
                     manager = ScannerManager()
-                    manager.print_scanner_list(verbose=args.verbose)
+                    if args.json:
+                        print(manager.get_scanner_list_json())
+                    else:
+                        manager.print_scanner_list(verbose=args.verbose)
                     return 0
 
                 elif args.scanner_command == "install":
@@ -3258,7 +3308,18 @@ def main():
 
                 elif args.scanner_command == "info":
                     manager = ScannerManager()
-                    manager.print_scanner_info(args.name)
+                    if args.json:
+                        print(manager.get_scanner_info_json(args.name))
+                    else:
+                        manager.print_scanner_info(args.name)
+                    return 0
+
+                elif args.scanner_command == "supported":
+                    manager = ScannerManager()
+                    if args.json:
+                        print(manager.get_supported_scanners_json())
+                    else:
+                        manager.print_supported_scanners()
                     return 0
 
                 else:
@@ -3268,6 +3329,33 @@ def main():
 
             except Exception as e:
                 print(f"Error managing scanner: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle pattern-servers command
+        if args.command == "pattern-servers":
+            try:
+                from ai_guardian.scanner_manager import ScannerManager
+
+                if args.pattern_servers_command is None:
+                    pattern_servers_parser.print_help()
+                    return 1
+
+                if args.pattern_servers_command == "supported":
+                    manager = ScannerManager()
+                    if args.json:
+                        print(manager.get_pattern_servers_json())
+                    else:
+                        manager.print_pattern_servers()
+                    return 0
+
+                else:
+                    pattern_servers_parser.print_help()
+                    return 1
+
+            except Exception as e:
+                print(f"Error managing pattern servers: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1

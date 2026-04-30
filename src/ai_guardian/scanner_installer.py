@@ -117,22 +117,26 @@ class ScannerInstaller:
                 },
             }
 
-        try:
-            # Find pyproject.toml (relative to this module)
-            pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+        # Try bundled pyproject.toml first (installed via wheel),
+        # then fall back to development path (editable install)
+        candidates = [
+            Path(__file__).parent / "pyproject.toml",
+            Path(__file__).parent.parent.parent / "pyproject.toml",
+        ]
 
-            if not pyproject_path.exists():
-                logger.warning(f"pyproject.toml not found at {pyproject_path}")
-                return {}
+        for pyproject_path in candidates:
+            if pyproject_path.exists():
+                try:
+                    with open(pyproject_path, "rb") as f:
+                        data = tomllib.load(f)
+                    config = data.get("tool", {}).get("ai-guardian", {}).get("scanners", {})
+                    if config:
+                        return config
+                except Exception as e:
+                    logger.warning(f"Failed to load scanner config from {pyproject_path}: {e}")
 
-            with open(pyproject_path, "rb") as f:
-                data = tomllib.load(f)
-
-            config = data.get("tool", {}).get("ai-guardian", {}).get("scanners", {})
-            return config
-        except Exception as e:
-            logger.warning(f"Failed to load scanner config from pyproject.toml: {e}")
-            return {}
+        logger.warning("pyproject.toml not found in any expected location")
+        return {}
 
     def get_github_repo(self, scanner_name: str) -> str:
         """
@@ -146,6 +150,15 @@ class ScannerInstaller:
         """
         repos = self.scanner_config.get("repos", {})
         return repos.get(scanner_name, f"{scanner_name}/{scanner_name}")
+
+    def get_pattern_servers(self) -> Dict[str, Any]:
+        """
+        Get pattern server configuration from pyproject.toml.
+
+        Returns:
+            Dict of pattern server configs keyed by name
+        """
+        return self.scanner_config.get("pattern_servers", {})
 
     def get_pinned_version(self, scanner_name: str) -> str:
         """

@@ -13,6 +13,53 @@ import pytest
 from ai_guardian.scanner_installer import ScannerInstaller, InstallMethod
 
 
+class TestScannerConfigLoading:
+    """Tests for scanner config loading from bundled and development paths."""
+
+    def test_load_config_finds_pyproject(self):
+        """Test that config loading finds pyproject.toml in at least one location."""
+        installer = ScannerInstaller()
+        config = installer.scanner_config
+
+        assert config, "Scanner config should not be empty"
+        assert "gitleaks" in config or "repos" in config
+
+    def test_load_config_has_repos(self):
+        """Test that loaded config contains repos section."""
+        installer = ScannerInstaller()
+        repos = installer.scanner_config.get("repos", {})
+
+        assert "gitleaks" in repos
+        assert "betterleaks" in repos
+        assert "leaktk" in repos
+
+    def test_load_config_has_pattern_servers(self):
+        """Test that loaded config contains pattern_servers section."""
+        installer = ScannerInstaller()
+        servers = installer.scanner_config.get("pattern_servers", {})
+
+        assert "leaktk" in servers
+        assert "url" in servers["leaktk"]
+        assert "patterns_endpoint" in servers["leaktk"]
+
+    def test_get_pattern_servers(self):
+        """Test get_pattern_servers returns pattern server config."""
+        installer = ScannerInstaller()
+        servers = installer.get_pattern_servers()
+
+        assert isinstance(servers, dict)
+        assert "leaktk" in servers
+        assert servers["leaktk"]["url"] == "https://raw.githubusercontent.com"
+
+    def test_get_pattern_servers_empty_config(self):
+        """Test get_pattern_servers with empty scanner config."""
+        installer = ScannerInstaller()
+        installer.scanner_config = {}
+        servers = installer.get_pattern_servers()
+
+        assert servers == {}
+
+
 class TestScannerInstaller:
     """Tests for ScannerInstaller class."""
 
