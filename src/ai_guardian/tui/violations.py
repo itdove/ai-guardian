@@ -336,6 +336,10 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-directory")
             with TabPane("Prompt Injection", id="filter-injection"):
                 yield VerticalScroll(id="violations-list-injection")
+            with TabPane("SSRF Blocked", id="filter-ssrf"):
+                yield VerticalScroll(id="violations-list-ssrf")
+            with TabPane("Config Exfil", id="filter-config-exfil"):
+                yield VerticalScroll(id="violations-list-config-exfil")
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
@@ -380,6 +384,18 @@ class ViolationsContent(Container):
             limit=50, violation_type="prompt_injection", resolved=None
         )
         self._populate_list("#violations-list-injection", injection_violations)
+
+        # Load SSRF blocked violations
+        ssrf_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="ssrf_blocked", resolved=None
+        )
+        self._populate_list("#violations-list-ssrf", ssrf_violations)
+
+        # Load config file exfil violations
+        config_exfil_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="config_file_exfil", resolved=None
+        )
+        self._populate_list("#violations-list-config-exfil", config_exfil_violations)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""

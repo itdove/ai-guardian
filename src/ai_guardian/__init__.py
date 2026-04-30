@@ -2708,6 +2708,27 @@ def process_hook_input():
                         if ide_type != IDEType.CURSOR:
                             logging.info(f"Blocking operation for {file_path} due to config file threat")
 
+                        # Log config file exfiltration violation
+                        if HAS_VIOLATION_LOGGER:
+                            try:
+                                violation_logger = ViolationLogger()
+                                violation_logger.log_violation(
+                                    violation_type="config_file_exfil",
+                                    blocked={
+                                        "file_path": file_path,
+                                        "reason": config_error,
+                                        "details": config_details
+                                    },
+                                    context={
+                                        "ide_type": ide_type.value if hasattr(ide_type, 'value') else str(ide_type),
+                                        "hook_event": hook_event,
+                                        "project_path": os.getcwd()
+                                    },
+                                    severity="critical"
+                                )
+                            except Exception as e:
+                                logging.debug(f"Failed to log config file exfil violation: {e}")
+
                         # Include any config errors with the blocking message
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
                         return format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning)
