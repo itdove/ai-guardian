@@ -124,12 +124,35 @@ def check_scanner_exists(repo: str, version: str, scanner_name: str, platform: s
     Args:
         repo: GitHub repo (e.g., "gitleaks/gitleaks")
         version: Version to check (e.g., "8.30.1")
-        scanner_name: Name of scanner (gitleaks, betterleaks, leaktk)
+        scanner_name: Name of scanner (gitleaks, betterleaks, leaktk, trufflehog, detect-secrets)
         platform: Platform string (e.g., "linux_x64")
 
     Returns:
         dict with exists, download_url, error
     """
+    # detect-secrets is a Python package (pip install detect-secrets), no binary releases
+    if scanner_name == "detect-secrets":
+        # Check if PyPI package exists at this version
+        pypi_url = f"https://pypi.org/pypi/detect-secrets/{version}/json"
+        try:
+            response = requests.get(pypi_url, timeout=10)
+            if response.status_code == 200:
+                return {
+                    'exists': True,
+                    'download_url': f'https://pypi.org/project/detect-secrets/{version}/',
+                    'size_mb': 'N/A (Python package)'
+                }
+            else:
+                return {
+                    'exists': False,
+                    'error': f'PyPI package detect-secrets v{version} not found'
+                }
+        except requests.RequestException as e:
+            return {
+                'exists': False,
+                'error': f'Error checking PyPI: {e}'
+            }
+
     # Try release API first
     api_url = f"https://api.github.com/repos/{repo}/releases/tags/v{version}"
 
@@ -148,11 +171,17 @@ def check_scanner_exists(repo: str, version: str, scanner_name: str, platform: s
         # Build expected asset name based on scanner naming conventions
         # gitleaks/betterleaks: scanner_version_platform.tar.gz (e.g., gitleaks_8.30.1_linux_x64.tar.gz)
         # leaktk: scanner-version-system-arch.tar.xz with x86_64 instead of x64 (e.g., leaktk-0.2.10-linux-x86_64.tar.xz)
+        # trufflehog: scanner_version_system_arch.tar.gz with amd64 instead of x64 (e.g., trufflehog_3.88.0_linux_amd64.tar.gz)
         if scanner_name == "leaktk":
             # leaktk uses hyphens, separate system and arch, and x86_64 instead of x64
             system, arch = platform.split('_', 1)
             leaktk_arch = "x86_64" if arch == "x64" else arch
             asset_name = f"{scanner_name}-{version}-{system}-{leaktk_arch}.tar.xz"
+        elif scanner_name == "trufflehog":
+            # trufflehog uses amd64 instead of x64
+            system, arch = platform.split('_', 1)
+            trufflehog_arch = "amd64" if arch == "x64" else arch
+            asset_name = f"{scanner_name}_{version}_{system}_{trufflehog_arch}.tar.gz"
         else:
             # gitleaks and betterleaks use underscores
             asset_name = f"{scanner_name}_{version}_{platform}.tar.gz"

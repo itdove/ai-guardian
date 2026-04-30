@@ -467,10 +467,15 @@ class ScannerInstaller:
         # Build filename - different scanners have different naming conventions
         # gitleaks/betterleaks: scanner_version_platform_arch.ext (e.g., gitleaks_8.30.1_darwin_arm64.tar.gz)
         # leaktk: scanner-version-platform-arch.ext (e.g., leaktk-0.2.10-darwin-arm64.tar.xz) with x86_64 instead of x64
+        # trufflehog: scanner_version_system_arch.ext (e.g., trufflehog_3.88.0_linux_amd64.tar.gz) with amd64 instead of x64
         if scanner_name == "leaktk":
             # leaktk uses hyphens and x86_64 instead of x64
             leaktk_arch = "x86_64" if arch == "x64" else arch
             filename = f"{scanner_name}-{version}-{system}-{leaktk_arch}.{ext}"
+        elif scanner_name == "trufflehog":
+            # trufflehog uses amd64 instead of x64
+            trufflehog_arch = "amd64" if arch == "x64" else arch
+            filename = f"{scanner_name}_{version}_{system}_{trufflehog_arch}.{ext}"
         else:
             # gitleaks and betterleaks use underscores
             filename = f"{scanner_name}_{version}_{platform_arch}.{ext}"
