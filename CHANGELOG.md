@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-Engine Scanner Support - Phase 2** (Issue #249, v1.6.0)
+  - **TruffleHog Scanner Support**:
+    - Added `TruffleHogOutputParser` for parsing TruffleHog newline-delimited JSON output
+    - Added `trufflehog` engine preset in `ENGINE_PRESETS`
+    - Supports 700+ detectors with entropy analysis
+    - Handles verified secrets detection
+    - Configuration: `"engines": ["trufflehog"]`
+  - **detect-secrets Scanner Support**:
+    - Added `DetectSecretsOutputParser` for parsing detect-secrets baseline JSON
+    - Added `detect-secrets` engine preset in `ENGINE_PRESETS`
+    - Supports baseline workflow for CI/CD pipelines
+    - Plugin-based detection system
+    - Configuration: `"engines": ["detect-secrets"]`
+  - **Execution Strategies** (`src/ai_guardian/scanners/strategies.py`):
+    - `FirstMatchStrategy`: Use first available engine (default, backward compatible)
+    - `AnyMatchStrategy`: Run all engines, block if ANY finds secrets (maximum security)
+    - `ConsensusStrategy`: Block only if N engines agree (reduces false positives)
+    - Smart deduplication: Same secret found by multiple engines = single result
+    - Verified secret preference: Engines that verify secrets get priority
+  - **Testing**: 38 new unit tests added
+    - `test_trufflehog_parser.py`: 8 tests for TruffleHog output parsing
+    - `test_detect_secrets_parser.py`: 9 tests for detect-secrets output parsing
+    - `test_execution_strategies.py`: 21 tests for execution strategies and deduplication
+  - **Configuration Examples**:
+    - Maximum security: `{"engines": ["gitleaks", "trufflehog"], "execution_strategy": "any-match"}`
+    - Reduced false positives: `{"engines": ["gitleaks", "trufflehog", "detect-secrets"], "execution_strategy": "consensus", "consensus_threshold": 2}`
+    - Enterprise migration: `{"engines": ["trufflehog"]}` (use existing investment)
+  - **CI/CD Integration**:
+    - Added TruffleHog (v3.88.0) and detect-secrets (v1.5.0) to `pyproject.toml` scanner versions
+    - Added scanner repository mappings for trufflesecurity/trufflehog and Yelp/detect-secrets
+    - Updated `.github/workflows/integration-tests.yml` to install detect-secrets (TruffleHog skipped - tested via mocks)
+    - Scanner version health monitoring now tracks TruffleHog and detect-secrets updates
+  - **License Considerations**:
+    - TruffleHog uses AGPL-3.0 license (copyleft)
+    - AI Guardian uses TruffleHog as external tool via subprocess (no derivative work, no AGPL obligations)
+    - Interactive license notice shown during `ai-guardian scanner install trufflehog`
+    - Documentation added to `MULTI_ENGINE_SUPPORT.md` explaining AGPL-3.0 implications
+    - Alternative scanners available for organizations with AGPL concerns (gitleaks, betterleaks, leaktk, detect-secrets)
+    - detect-secrets uses Apache-2.0 (same as ai-guardian)
+
 - **Dependency Management Documentation** (Issue #293)
   - New comprehensive "Dependency Management" section in AGENTS.md
   - Covers all aspects of dependency management workflow:

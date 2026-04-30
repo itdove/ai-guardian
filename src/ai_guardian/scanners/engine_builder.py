@@ -85,6 +85,33 @@ ENGINE_PRESETS = {
         output_parser="leaktk",  # Different output format
         success_exit_code=0,
         secrets_found_exit_code=1
+    ),
+
+    "trufflehog": EngineConfig(
+        type="trufflehog",
+        binary="trufflehog",
+        command_template=[
+            "{binary}", "filesystem", "{source_file}",
+            "--json", "--no-verification",
+            "--no-update"
+        ],
+        config_flag=None,  # TruffleHog uses built-in detectors
+        output_parser="trufflehog",
+        success_exit_code=0,
+        secrets_found_exit_code=183  # TruffleHog exits with 183 when secrets found
+    ),
+
+    "detect-secrets": EngineConfig(
+        type="detect-secrets",
+        binary="detect-secrets",
+        command_template=[
+            "{binary}", "scan", "--string", "{source_file}",
+            "--baseline", "{report_file}"
+        ],
+        config_flag=None,  # detect-secrets uses plugin configuration
+        output_parser="detect-secrets",
+        success_exit_code=0,
+        secrets_found_exit_code=1
     )
 }
 

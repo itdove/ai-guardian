@@ -193,10 +193,174 @@ class LeakTKOutputParser(ScannerOutputParser):
             return None
 
 
+class TruffleHogOutputParser(ScannerOutputParser):
+    """
+    Parser for TruffleHog v3 output.
+
+    TruffleHog outputs newline-delimited JSON with format:
+    {"SourceMetadata":{"Data":{"Filesystem":{"file":"test.txt","line":5}}},"DetectorName":"AWS","DetectorType":2,"Verified":false}
+    {"SourceMetadata":{"Data":{"Filesystem":{"file":"test.txt","line":10}}},"DetectorName":"GitHub","DetectorType":13,"Verified":false}
+    """
+
+    def parse(self, output_file: str) -> Optional[Dict[str, Any]]:
+        """
+        Parse TruffleHog newline-delimited JSON output.
+
+        Args:
+            output_file: Path to TruffleHog output file (newline-delimited JSON)
+
+        Returns:
+            Standardized result dict or None on error
+        """
+        try:
+            output_path = Path(output_file)
+            if not output_path.exists():
+                logging.error(f"TruffleHog output file not found: {output_file}")
+                return None
+
+            standardized_findings = []
+
+            with open(output_file, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        finding = json.loads(line)
+
+                        # Extract file and line information from SourceMetadata
+                        source_meta = finding.get("SourceMetadata", {}).get("Data", {}).get("Filesystem", {})
+                        file_path = source_meta.get("file", "unknown")
+                        line_number = source_meta.get("line", 0)
+
+                        # Get detector information
+                        detector_name = finding.get("DetectorName", "unknown")
+                        verified = finding.get("Verified", False)
+
+                        # Build description
+                        description = f"{detector_name} secret detected"
+                        if verified:
+                            description += " (verified)"
+
+                        standardized_findings.append({
+                            "rule_id": detector_name.lower().replace(" ", "-"),
+                            "file": file_path,
+                            "line_number": line_number,
+                            "end_line": line_number,
+                            "description": description,
+                            "commit": "N/A",
+                            "verified": verified
+                        })
+
+                    except json.JSONDecodeError as e:
+                        logging.warning(f"Failed to parse TruffleHog line {line_num}: {e}")
+                        continue
+
+            # No findings means no secrets
+            if not standardized_findings:
+                return {
+                    "has_secrets": False,
+                    "findings": [],
+                    "total_findings": 0
+                }
+
+            return {
+                "has_secrets": True,
+                "findings": standardized_findings,
+                "total_findings": len(standardized_findings)
+            }
+
+        except Exception as e:
+            logging.error(f"Unexpected error parsing TruffleHog output: {e}")
+            return None
+
+
+class DetectSecretsOutputParser(ScannerOutputParser):
+    """
+    Parser for detect-secrets output.
+
+    detect-secrets outputs a baseline JSON file with format:
+    {
+        "results": {
+            "test.txt": [
+                {
+                    "type": "AWS Access Key",
+                    "line_number": 5,
+                    "hashed_secret": "abc123..."
+                }
+            ]
+        },
+        "version": "1.0.0"
+    }
+    """
+
+    def parse(self, output_file: str) -> Optional[Dict[str, Any]]:
+        """
+        Parse detect-secrets baseline JSON output.
+
+        Args:
+            output_file: Path to detect-secrets baseline file
+
+        Returns:
+            Standardized result dict or None on error
+        """
+        try:
+            output_path = Path(output_file)
+            if not output_path.exists():
+                logging.error(f"detect-secrets output file not found: {output_file}")
+                return None
+
+            with open(output_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Get results
+            results = data.get("results", {})
+
+            # No results means no secrets
+            if not results:
+                return {
+                    "has_secrets": False,
+                    "findings": [],
+                    "total_findings": 0
+                }
+
+            # Convert to standardized format
+            standardized_findings = []
+            for file_path, file_findings in results.items():
+                for finding in file_findings:
+                    secret_type = finding.get("type", "unknown")
+                    line_number = finding.get("line_number", 0)
+
+                    standardized_findings.append({
+                        "rule_id": secret_type.lower().replace(" ", "-"),
+                        "file": file_path,
+                        "line_number": line_number,
+                        "end_line": line_number,
+                        "description": f"{secret_type} detected",
+                        "commit": "N/A"
+                    })
+
+            return {
+                "has_secrets": True,
+                "findings": standardized_findings,
+                "total_findings": len(standardized_findings)
+            }
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse detect-secrets JSON output: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Unexpected error parsing detect-secrets output: {e}")
+            return None
+
+
 # Parser registry
 OUTPUT_PARSERS = {
     "gitleaks": GitleaksOutputParser(),
-    "leaktk": LeakTKOutputParser()
+    "leaktk": LeakTKOutputParser(),
+    "trufflehog": TruffleHogOutputParser(),
+    "detect-secrets": DetectSecretsOutputParser()
 }
 
 

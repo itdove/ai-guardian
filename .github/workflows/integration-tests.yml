@@ -61,6 +61,8 @@ jobs:
           ai-guardian scanner install gitleaks --use-pinned
           ai-guardian scanner install betterleaks --use-pinned
           ai-guardian scanner install leaktk --use-pinned
+          ai-guardian scanner install detect-secrets --use-pinned
+          # TruffleHog (AGPL-3.0) - skipped in CI, tested via mock data in unit tests
 
       - name: Run MCP Integration Tests
         run: |
@@ -149,6 +151,8 @@ jobs:
           ai-guardian scanner install gitleaks --use-pinned
           ai-guardian scanner install betterleaks --use-pinned
           ai-guardian scanner install leaktk --use-pinned
+          ai-guardian scanner install detect-secrets --use-pinned
+          # TruffleHog (AGPL-3.0) - skipped in CI, tested via mock data in unit tests
 
       - name: Verify test isolation
         run: |
@@ -359,6 +363,8 @@ jobs:
           ai-guardian scanner install gitleaks --use-pinned
           ai-guardian scanner install betterleaks --use-pinned
           ai-guardian scanner install leaktk --use-pinned
+          ai-guardian scanner install detect-secrets --use-pinned
+          # TruffleHog (AGPL-3.0) - skipped in CI, tested via mock data in unit tests
 
       - name: Check test execution time
         run: |

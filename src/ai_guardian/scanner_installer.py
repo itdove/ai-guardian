@@ -57,7 +57,16 @@ class ScannerInstaller:
     """Handles installation of scanner engines."""
 
     # Supported scanners
-    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk"]
+    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"]
+
+    # License information for scanners
+    SCANNER_LICENSES = {
+        "gitleaks": "MIT",
+        "betterleaks": "MIT",
+        "leaktk": "Apache-2.0",
+        "trufflehog": "AGPL-3.0",
+        "detect-secrets": "Apache-2.0",
+    }
 
     def __init__(self, install_dir: Optional[Path] = None):
         """
@@ -97,10 +106,14 @@ class ScannerInstaller:
                 "gitleaks": "8.30.1",
                 "betterleaks": "1.1.2",
                 "leaktk": "0.2.10",
+                "trufflehog": "3.88.0",
+                "detect-secrets": "1.5.0",
                 "repos": {
                     "gitleaks": "gitleaks/gitleaks",
                     "betterleaks": "betterleaks/betterleaks",
                     "leaktk": "leaktk/leaktk",
+                    "trufflehog": "trufflesecurity/trufflehog",
+                    "detect-secrets": "Yelp/detect-secrets",
                 },
             }
 
@@ -221,7 +234,36 @@ class ScannerInstaller:
         system = platform.system().lower()
 
         try:
-            if system == "darwin" and shutil.which("brew"):
+            # detect-secrets is a Python package - use pip
+            if scanner_name == "detect-secrets":
+                # Try pip3 first, then pip
+                pip_cmd = None
+                if shutil.which("pip3"):
+                    pip_cmd = "pip3"
+                elif shutil.which("pip"):
+                    pip_cmd = "pip"
+
+                if pip_cmd:
+                    logger.info(f"Installing {scanner_name} via {pip_cmd}...")
+                    result = subprocess.run(
+                        [pip_cmd, "install", scanner_name],
+                        capture_output=True,
+                        timeout=300,
+                    )
+                    return result.returncode == 0
+                else:
+                    logger.warning("pip/pip3 not found, cannot install detect-secrets")
+                    return False
+            # TruffleHog on macOS - use Homebrew with tap
+            elif scanner_name == "trufflehog" and system == "darwin" and shutil.which("brew"):
+                logger.info(f"Installing {scanner_name} via Homebrew...")
+                result = subprocess.run(
+                    ["brew", "install", "trufflesecurity/trufflehog/trufflehog"],
+                    capture_output=True,
+                    timeout=300,
+                )
+                return result.returncode == 0
+            elif system == "darwin" and shutil.which("brew"):
                 logger.info(f"Installing {scanner_name} via Homebrew...")
                 result = subprocess.run(
                     ["brew", "install", scanner_name],
@@ -394,6 +436,14 @@ class ScannerInstaller:
         Raises:
             RuntimeError: If installation fails
         """
+        # detect-secrets is pip-only, no binary releases
+        if scanner_name == "detect-secrets":
+            raise RuntimeError(
+                f"{scanner_name} is a Python package and must be installed via pip:\n"
+                f"  pip install detect-secrets\n"
+                f"Direct download is not available for this scanner."
+            )
+
         if not HAS_REQUESTS:
             raise RuntimeError(
                 "requests library required for downloading scanners. "
@@ -428,10 +478,15 @@ class ScannerInstaller:
         # Build filename - different scanners have different naming conventions
         # gitleaks/betterleaks: scanner_version_platform_arch.ext (e.g., gitleaks_8.30.1_darwin_arm64.tar.gz)
         # leaktk: scanner-version-platform-arch.ext (e.g., leaktk-0.2.10-darwin-arm64.tar.xz) with x86_64 instead of x64
+        # trufflehog: scanner_version_system_arch.ext (e.g., trufflehog_3.88.0_linux_amd64.tar.gz) with amd64 instead of x64
         if scanner_name == "leaktk":
             # leaktk uses hyphens and x86_64 instead of x64
             leaktk_arch = "x86_64" if arch == "x64" else arch
             filename = f"{scanner_name}-{version}-{system}-{leaktk_arch}.{ext}"
+        elif scanner_name == "trufflehog":
+            # trufflehog uses amd64 instead of x64
+            trufflehog_arch = "amd64" if arch == "x64" else arch
+            filename = f"{scanner_name}_{version}_{system}_{trufflehog_arch}.{ext}"
         else:
             # gitleaks and betterleaks use underscores
             filename = f"{scanner_name}_{version}_{platform_arch}.{ext}"
@@ -547,6 +602,41 @@ class ScannerInstaller:
                 f"Supported: {', '.join(self.SUPPORTED_SCANNERS)}"
             )
 
+        # Show license notice for AGPL-3.0 scanners
+        if scanner_name == "trufflehog":
+            print()
+            print("=" * 70)
+            print("⚠️  LICENSE NOTICE: TruffleHog")
+            print("=" * 70)
+            print()
+            print("TruffleHog is licensed under AGPL-3.0 (GNU Affero General Public License).")
+            print()
+            print("AI Guardian uses TruffleHog as an EXTERNAL TOOL via subprocess execution,")
+            print("which does NOT create a derivative work or require AGPL compliance for")
+            print("AI Guardian itself (similar to how Apache projects can invoke Git).")
+            print()
+            print("However, you should be aware of TruffleHog's license terms:")
+            print("  - License: AGPL-3.0 (copyleft)")
+            print("  - Repository: https://github.com/trufflesecurity/trufflehog")
+            print("  - License text: https://github.com/trufflesecurity/trufflehog/blob/main/LICENSE")
+            print()
+            print("By proceeding with this installation, you acknowledge TruffleHog's")
+            print("AGPL-3.0 license and agree to its terms.")
+            print()
+            print("=" * 70)
+            print()
+
+            # Prompt for confirmation
+            try:
+                response = input("Continue with TruffleHog installation? (y/N): ").strip().lower()
+                if response not in ['y', 'yes']:
+                    print("Installation cancelled.")
+                    return False
+            except (EOFError, KeyboardInterrupt):
+                print("\nInstallation cancelled.")
+                return False
+            print()
+
         # Determine target version
         if version:
             # Explicit version specified
@@ -654,34 +744,48 @@ class ScannerInstaller:
                 return None
             binary_path = str(binary_path)
 
+        # Different scanners have different version commands
+        # gitleaks, betterleaks, leaktk, trufflehog: <binary> version
+        # detect-secrets: <binary> --version
+        version_commands = [
+            [binary_path, "version"],      # Try subcommand first
+            [binary_path, "--version"],    # Fallback to flag
+        ]
+
         # Try to get version
-        try:
-            result = subprocess.run(
-                [binary_path, "version"],
-                capture_output=True,
-                timeout=5,
-                text=True,
-            )
-            if result.returncode == 0:
-                # Parse version from output
-                # Expected formats:
-                # - "gitleaks version 8.30.1"
-                # - "8.30.1"
-                # - "v8.30.1"
-                output = result.stdout.strip()
+        for cmd in version_commands:
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    timeout=5,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    # Parse version from output
+                    # Expected formats:
+                    # - "gitleaks version 8.30.1"
+                    # - "detect-secrets 1.5.0"
+                    # - "8.30.1"
+                    # - "v8.30.1"
+                    output = result.stdout.strip()
 
-                # Extract version number
-                import re
-                # Match semantic version pattern
-                match = re.search(r'v?(\d+\.\d+\.\d+)', output)
-                if match:
-                    return match.group(1)
+                    # Extract version number
+                    import re
+                    # Match semantic version pattern
+                    match = re.search(r'v?(\d+\.\d+\.\d+)', output)
+                    if match:
+                        return match.group(1)
 
-                logger.debug(f"Could not parse version from output: {output}")
-                return None
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
-            logger.debug(f"Failed to get version for {scanner_name}: {e}")
-            return None
+                    logger.debug(f"Could not parse version from output: {output}")
+                    # Try next command
+                    continue
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+                logger.debug(f"Failed to run {cmd}: {e}")
+                continue
+
+        logger.debug(f"Failed to get version for {scanner_name}")
+        return None
 
         return None
 
@@ -728,30 +832,30 @@ class ScannerInstaller:
         Returns:
             True if scanner is installed and working
         """
-        if not shutil.which(scanner_name):
+        binary_path = shutil.which(scanner_name)
+        if not binary_path:
             # Check in install_dir
             binary_path = self.install_dir / scanner_name
             if not binary_path.exists():
                 return False
+            binary_path = str(binary_path)
 
-            # Try to run version command
+        # Try both version command formats
+        version_commands = [
+            [binary_path, "version"],      # Try subcommand first
+            [binary_path, "--version"],    # Fallback to flag
+        ]
+
+        for cmd in version_commands:
             try:
                 result = subprocess.run(
-                    [str(binary_path), "version"],
+                    cmd,
                     capture_output=True,
                     timeout=5,
                 )
-                return result.returncode == 0
+                if result.returncode == 0:
+                    return True
             except (subprocess.TimeoutExpired, FileNotFoundError):
-                return False
-        else:
-            # Binary in PATH, verify it works
-            try:
-                result = subprocess.run(
-                    [scanner_name, "version"],
-                    capture_output=True,
-                    timeout=5,
-                )
-                return result.returncode == 0
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                return False
+                continue
+
+        return False
