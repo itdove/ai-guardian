@@ -166,7 +166,7 @@ class SecretRedactor:
                 return False
         return int(numeric) % 97 == 1
 
-    def __init__(self, config: Optional[Dict] = None, pii_config: Optional[Dict] = None):
+    def __init__(self, config: Optional[Dict] = None, pii_config: Optional[Dict] = None, pii_only: bool = False):
         """
         Initialize the SecretRedactor.
 
@@ -190,9 +190,14 @@ class SecretRedactor:
         self.preserve_format = self.config.get('preserve_format', True)
         self.log_redactions = self.config.get('log_redactions', True)
 
+        self.pii_only = pii_only
+
         # Load patterns using pattern loader if pattern_server configured
         pattern_server_config = self.config.get('pattern_server')
-        if pattern_server_config:
+        if pii_only:
+            # Skip all secret patterns, only PII patterns will be loaded below
+            patterns_to_use = []
+        elif pattern_server_config:
             logger.info("Secret Redaction: Loading patterns via pattern server")
             patterns_to_use = self._load_patterns_via_server(pattern_server_config)
         else:
@@ -221,8 +226,8 @@ class SecretRedactor:
             except (re.error, KeyError, TypeError) as e:
                 logger.warning(f"Failed to compile pattern for {secret_type if isinstance(pattern_info, tuple) else pattern_info.get('secret_type', 'unknown')}: {e}")
 
-        # Add custom patterns from local config (always additive)
-        additional = self.config.get('additional_patterns', [])
+        # Add custom patterns from local config (always additive, skip in pii_only mode)
+        additional = [] if pii_only else self.config.get('additional_patterns', [])
         for custom in additional:
             try:
                 pattern = custom.get('pattern') or custom.get('regex')

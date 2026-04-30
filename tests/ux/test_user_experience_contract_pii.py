@@ -231,18 +231,18 @@ class PIIPreToolUseTests(TestCase):
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
     @patch('ai_guardian._load_secret_scanning_config')
-    def test_pretooluse_blocks_file_with_pii(self, mock_ss, mock_gitleaks, mock_pii):
+    def test_pretooluse_redact_allows_read_with_warning(self, mock_ss, mock_gitleaks, mock_pii):
         """
-        USER EXPERIENCE: File read with PII -> BLOCKED
+        USER EXPERIENCE: File read with PII + action=redact -> ALLOWED with warning
 
         Scenario:
         1. Claude tries to Read a file containing SSN
         2. ai-guardian PreToolUse hook scans file
-        3. PII detected
+        3. PII detected, action is "redact"
 
         Expected User Experience:
-        ❌ Read operation is BLOCKED
-        🛡️ User sees: "PII DETECTED"
+        ✅ Read operation is ALLOWED (PostToolUse will redact the output)
+        ⚠️ User sees warning about PII in systemMessage
         """
         mock_ss.return_value = (None, None)
         mock_gitleaks.return_value = (False, None)
@@ -271,7 +271,59 @@ class PIIPreToolUseTests(TestCase):
                 result = ai_guardian.process_hook_input()
 
             output = json.loads(result['output'])
-            # Should block due to PII
+            # Should NOT block — action=redact lets read through
+            has_deny = output.get('hookSpecificOutput', {}).get('permissionDecision') == 'deny'
+            assert not has_deny, f"action=redact should allow read: {output}"
+            # Should have a warning
+            assert 'PII' in output.get('systemMessage', ''), \
+                   f"Expected PII warning in systemMessage: {output}"
+        finally:
+            os.unlink(tmp_path)
+
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_pretooluse_block_action_blocks_read(self, mock_ss, mock_gitleaks, mock_pii):
+        """
+        USER EXPERIENCE: File read with PII + action=block -> BLOCKED
+
+        Scenario:
+        1. Claude tries to Read a file containing SSN
+        2. ai-guardian PreToolUse hook scans file
+        3. PII detected, action is "block"
+
+        Expected User Experience:
+        ❌ Read operation is BLOCKED
+        🛡️ User sees: "PII DETECTED"
+        """
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'block',
+            'ignore_files': []
+        }, None)
+
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("Employee SSN: 123-45-6789\nName: John Doe")
+            tmp_path = f.name
+
+        try:
+            hook_data = {
+                "hook_event_name": "PreToolUse",
+                "tool_use": {
+                    "name": "Read",
+                    "parameters": {"file_path": tmp_path}
+                }
+            }
+
+            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                result = ai_guardian.process_hook_input()
+
+            output = json.loads(result['output'])
+            # Should block due to action=block
             assert 'permissionDecision' in output.get('hookSpecificOutput', {}) or \
                    'PII' in output.get('systemMessage', ''), \
                    f"Expected PII block: {output}"

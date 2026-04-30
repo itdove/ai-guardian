@@ -1343,7 +1343,8 @@ def _scan_for_pii(text, pii_config):
     """
     try:
         from ai_guardian.secret_redactor import SecretRedactor
-        redactor = SecretRedactor(config={'enabled': True}, pii_config=pii_config)
+        # pii_only=True skips loading secret patterns, only loads PII patterns
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=pii_config, pii_only=True)
         result = redactor.redact(text)
         redactions = result.get('redactions', [])
         if redactions:
@@ -2924,13 +2925,25 @@ def process_hook_input():
                             context={'action': pii_action, 'hook_event': hook_event}
                         )
 
-                        if pii_action in ['redact', 'block']:
+                        if pii_action == 'block':
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
                             final_error = pii_warning
                             if combined_warning:
                                 final_error = f"{combined_warning}\n\n{pii_warning}"
                             return format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event)
+                        elif pii_action == 'redact':
+                            if hook_event == 'prompt':
+                                # UserPromptSubmit: can't modify prompt, must block
+                                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                                final_error = pii_warning
+                                if combined_warning:
+                                    final_error = f"{combined_warning}\n\n{pii_warning}"
+                                return format_response(ide_type, has_secrets=True,
+                                                     error_message=final_error, hook_event=hook_event)
+                            else:
+                                # PreToolUse: allow read, PostToolUse will redact output
+                                warning_messages.append(pii_warning)
                         elif pii_action == 'log-only':
                             warning_messages.append(pii_warning)
 
