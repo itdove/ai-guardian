@@ -274,7 +274,7 @@ jobs:
 
             2. Add to \`pyproject.toml\` (if not already present):
                \`\`\`toml
-               [tool.ai-guardian.scanners.pattern_server]
+               [tool.ai-guardian.scanners.pattern_servers]
                leaktk = { url = "https://raw.githubusercontent.com", patterns_endpoint = "/leaktk/patterns/main/target/patterns/gitleaks/${info.latest_version}" }
                \`\`\`
 
