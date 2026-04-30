@@ -866,7 +866,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "scan_pii": {
             "enabled": True,
             "pii_types": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"],
-            "action": "redact",
+            "action": "block",
             "ignore_files": []
         },
 

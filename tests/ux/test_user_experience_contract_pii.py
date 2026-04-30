@@ -43,7 +43,7 @@ class PIIUserPromptSubmitTests(TestCase):
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['ssn', 'credit_card', 'phone', 'email'],
-            'action': 'redact',
+            'action': 'block',
             'ignore_files': []
         }, None)
 
@@ -81,7 +81,7 @@ class PIIUserPromptSubmitTests(TestCase):
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['ssn', 'credit_card', 'phone', 'email'],
-            'action': 'redact',
+            'action': 'block',
             'ignore_files': []
         }, None)
 
@@ -154,7 +154,7 @@ class PIIPostToolUseTests(TestCase):
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['credit_card'],
-            'action': 'redact',
+            'action': 'block',
             'ignore_files': []
         }, None)
 
@@ -253,7 +253,7 @@ class PIIPreToolUseTests(TestCase):
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['ssn'],
-            'action': 'redact',
+            'action': 'block',
             'ignore_files': []
         }, None)
 
@@ -352,7 +352,7 @@ class PIIPreToolUseTests(TestCase):
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['ssn'],
-            'action': 'redact',
+            'action': 'block',
             'ignore_files': ['*.test.txt']
         }, None)
 

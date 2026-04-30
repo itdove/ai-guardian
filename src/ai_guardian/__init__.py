@@ -1327,7 +1327,7 @@ def _load_pii_config():
     _PII_DEFAULTS = {
         'enabled': True,
         'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
-        'action': 'redact',
+        'action': 'block',
         'ignore_files': []
     }
     config, error_msg = _load_config_file()

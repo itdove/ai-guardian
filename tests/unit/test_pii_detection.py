@@ -13,7 +13,7 @@ from ai_guardian.secret_redactor import SecretRedactor
 PII_CONFIG = {
     'enabled': True,
     'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
-    'action': 'redact',
+    'action': 'block',
 }
 
 
@@ -214,7 +214,7 @@ class TestPIIDetection:
         config = {
             'enabled': True,
             'pii_types': ['ssn'],
-            'action': 'redact',
+            'action': 'block',
         }
         redactor = SecretRedactor(config={'enabled': True}, pii_config=config)
         text = "SSN: 123-45-6789, Email: user@example.com"

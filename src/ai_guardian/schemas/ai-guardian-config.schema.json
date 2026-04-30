@@ -432,8 +432,8 @@
         "action": {
           "type": "string",
           "enum": ["redact", "log-only", "block"],
-          "description": "Action when PII is detected: 'redact' (replace PII with masked values in PostToolUse, block in UserPromptSubmit/PreToolUse), 'log-only' (warn but allow), 'block' (block in all hooks)",
-          "default": "redact"
+          "description": "Action when PII is detected: 'block' (block in UserPromptSubmit/PreToolUse, warn in PostToolUse), 'redact' (same as block — content modification not supported by hook API), 'log-only' (warn but allow in all hooks)",
+          "default": "block"
         },
         "ignore_files": {
           "type": "array",
