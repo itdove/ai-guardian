@@ -25,6 +25,13 @@
     "_comment4": "Works with permissions_directories (auto-discovery feeds INTO this section)",
     "_comment5": "NEW unified structure in v1.4.0: combines enabled flag and rules in one object",
     "enabled": true,
+    "auto_directory_rules": {
+      "_comment": "Auto-generate directory rules from skill permissions (Issue #144)",
+      "_comment2": "allow_symlinks: In container environments (e.g., carbonite), skills are installed as symlinks.",
+      "_comment3": "Set to false to skip all symlinks (original behavior). Broken symlinks are always skipped.",
+      "enabled": false,
+      "allow_symlinks": true
+    },
     "rules": [
       {
         "_comment": "Skills - must be explicitly allowed",

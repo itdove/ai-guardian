@@ -877,6 +877,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",
         "permissions": {
             "enabled": not permissive,
+            "auto_directory_rules": {
+                "enabled": False,
+                "allow_symlinks": True
+            },
             "rules": [] if permissive else [
                 {
                     "_comment": "Skills - Blocked by default. Add allow rules via TUI.",

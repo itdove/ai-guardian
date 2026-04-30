@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **allow_symlinks flag and plugin cache discovery for auto_directory_rules** (Issue #324)
+  - Added `allow_symlinks` boolean property (default: `true`) to `auto_directory_rules` config
+  - In container environments (e.g., carbonite), skills are installed as symlinks — previously all symlinks were unconditionally skipped, making auto-generated directory rules non-functional
+  - When `true`, symlinked skill directories that resolve to valid directories are followed
+  - When `false`, all symlinks are skipped (original behavior)
+  - Broken symlinks are always skipped regardless of this setting
+  - Added plugin cache directory scanning: `~/.claude/plugins/cache/*/*/*/skills/` — skills installed via Claude Code plugins are now discovered automatically
+  - Updated schema, setup.py default config, and example config
+  - Added 11 test cases covering symlink handling, plugin cache discovery, and edge cases
+
 - **Scanner/Pattern-Server Discovery Commands** (Issue #320)
   - `ai-guardian scanner supported` — lists all supported scanners with versions, repos, and licenses
   - `ai-guardian pattern-servers supported` — lists all configured pattern servers with URLs and endpoints

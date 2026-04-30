@@ -445,3 +445,243 @@ class TestMultiIDESupport:
         assert len(dirs) == 2
         assert Path("/custom/path/skills") in dirs
         assert Path("/another/path/skills") in dirs
+
+
+class TestPluginCacheDiscovery:
+    """Test discovery of skills in plugin cache directories (Issue #324)."""
+
+    def test_plugin_cache_skills_discovered(self, tmp_path):
+        """Skills in plugin cache should be discovered automatically."""
+        # Create plugin cache structure:
+        # ~/.claude/plugins/cache/<marketplace>/<plugin>/<hash>/skills/<skill>/
+        cache_dir = tmp_path / ".claude" / "plugins" / "cache"
+        skills_dir = cache_dir / "marketplace" / "my-plugin" / "abc123" / "skills"
+        (skills_dir / "bugfix-workflow").mkdir(parents=True)
+        (skills_dir / "code-review").mkdir(parents=True)
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {"enabled": True},
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["bugfix-workflow", "code-review"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+
+        with patch('ai_guardian.directory_rule_generator.Path.home', return_value=tmp_path):
+            rules = generator.generate_directory_rules()
+
+        assert len(rules) > 0
+        assert any("bugfix-workflow" in str(rule) for rule in rules)
+        assert any("code-review" in str(rule) for rule in rules)
+
+    def test_plugin_cache_empty(self, tmp_path):
+        """Empty plugin cache should not cause errors."""
+        cache_dir = tmp_path / ".claude" / "plugins" / "cache"
+        cache_dir.mkdir(parents=True)
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {
+                    "enabled": True,
+                    "skill_directories": [str(cache_dir)]
+                },
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+        rules = generator.generate_directory_rules()
+
+        assert rules == []
+
+    def test_plugin_cache_missing(self, tmp_path):
+        """Missing plugin cache directory should not cause errors."""
+        missing_dir = tmp_path / "nonexistent" / "skills"
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {
+                    "enabled": True,
+                    "skill_directories": [str(missing_dir)]
+                },
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+        rules = generator.generate_directory_rules()
+
+        assert rules == []
+
+
+class TestSymlinkHandling:
+    """Test allow_symlinks flag for container environments (Issue #324)."""
+
+    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
+    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    def test_symlinks_allowed_by_default(self, mock_iterdir, mock_is_dir, mock_exists):
+        """Symlinked skills should be discovered when allow_symlinks is not set (default: true)."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        mock_symlink_skill = MagicMock()
+        mock_symlink_skill.name = "daf-git"
+        mock_symlink_skill.is_symlink.return_value = True
+        mock_symlink_skill.is_dir.return_value = True
+        mock_symlink_skill.resolve.return_value = MagicMock(is_dir=MagicMock(return_value=True))
+
+        mock_real_skill = MagicMock()
+        mock_real_skill.name = "gh-cli"
+        mock_real_skill.is_symlink.return_value = False
+        mock_real_skill.is_dir.return_value = True
+
+        mock_iterdir.return_value = [mock_symlink_skill, mock_real_skill]
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {"enabled": True},
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+        rules = generator.generate_directory_rules()
+
+        assert len(rules) > 0
+        assert any("daf-git" in str(rule) for rule in rules)
+        assert any("gh-cli" in str(rule) for rule in rules)
+
+    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
+    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    def test_symlinks_allowed_explicitly(self, mock_iterdir, mock_is_dir, mock_exists):
+        """Symlinked skills should be discovered when allow_symlinks is explicitly true."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        mock_symlink_skill = MagicMock()
+        mock_symlink_skill.name = "daf-jira"
+        mock_symlink_skill.is_symlink.return_value = True
+        mock_symlink_skill.is_dir.return_value = True
+        mock_symlink_skill.resolve.return_value = MagicMock(is_dir=MagicMock(return_value=True))
+
+        mock_iterdir.return_value = [mock_symlink_skill]
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {"enabled": True, "allow_symlinks": True},
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+        rules = generator.generate_directory_rules()
+
+        assert len(rules) > 0
+        assert any("daf-jira" in str(rule) for rule in rules)
+
+    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
+    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    def test_symlinks_rejected_when_disabled(self, mock_iterdir, mock_is_dir, mock_exists):
+        """Symlinked skills should be skipped when allow_symlinks is false."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        mock_symlink_skill = MagicMock()
+        mock_symlink_skill.name = "daf-git"
+        mock_symlink_skill.is_symlink.return_value = True
+        mock_symlink_skill.is_dir.return_value = True
+
+        mock_real_skill = MagicMock()
+        mock_real_skill.name = "gh-cli"
+        mock_real_skill.is_symlink.return_value = False
+        mock_real_skill.is_dir.return_value = True
+
+        mock_iterdir.return_value = [mock_symlink_skill, mock_real_skill]
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {"enabled": True, "allow_symlinks": False},
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+        rules = generator.generate_directory_rules()
+
+        assert len(rules) > 0
+        assert not any("daf-git" in str(rule) for rule in rules)
+        assert any("gh-cli" in str(rule) for rule in rules)
+
+    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
+    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    def test_broken_symlinks_always_skipped(self, mock_iterdir, mock_is_dir, mock_exists):
+        """Broken symlinks should always be skipped regardless of allow_symlinks."""
+        mock_exists.return_value = True
+        mock_is_dir.return_value = True
+
+        mock_broken_symlink = MagicMock()
+        mock_broken_symlink.name = "broken-skill"
+        mock_broken_symlink.is_symlink.return_value = True
+        mock_broken_symlink.is_dir.return_value = False
+        mock_broken_symlink.resolve.return_value = MagicMock(is_dir=MagicMock(return_value=False))
+
+        mock_real_skill = MagicMock()
+        mock_real_skill.name = "daf-git"
+        mock_real_skill.is_symlink.return_value = False
+        mock_real_skill.is_dir.return_value = True
+
+        mock_iterdir.return_value = [mock_broken_symlink, mock_real_skill]
+
+        config = {
+            "permissions": {
+                "auto_directory_rules": {"enabled": True, "allow_symlinks": True},
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
+                ]
+            }
+        }
+
+        generator = DirectoryRuleGenerator(config)
+        rules = generator.generate_directory_rules()
+
+        assert not any("broken-skill" in str(rule) for rule in rules)
+        assert any("daf-git" in str(rule) for rule in rules)
+
+    def test_get_allow_symlinks_default(self):
+        """_get_allow_symlinks should return True when not configured."""
+        generator = DirectoryRuleGenerator({"permissions": {"auto_directory_rules": {}}})
+        assert generator._get_allow_symlinks() is True
+
+    def test_get_allow_symlinks_explicit_true(self):
+        """_get_allow_symlinks should return True when explicitly set."""
+        config = {"permissions": {"auto_directory_rules": {"allow_symlinks": True}}}
+        generator = DirectoryRuleGenerator(config)
+        assert generator._get_allow_symlinks() is True
+
+    def test_get_allow_symlinks_explicit_false(self):
+        """_get_allow_symlinks should return False when explicitly set."""
+        config = {"permissions": {"auto_directory_rules": {"allow_symlinks": False}}}
+        generator = DirectoryRuleGenerator(config)
+        assert generator._get_allow_symlinks() is False
+
+    def test_get_allow_symlinks_missing_config(self):
+        """_get_allow_symlinks should return True when config sections are missing."""
+        generator = DirectoryRuleGenerator({})
+        assert generator._get_allow_symlinks() is True
