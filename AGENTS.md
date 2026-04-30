@@ -815,7 +815,7 @@ Update this section after each monthly research review:
 **Last Research Review**: _2026-04-29_ *(Update this date after completing monthly review)*
 
 **Review Summary** *(Keep last 3 months)*:
-- **2026-04-29**: No new patterns found. Reviewed Hermes, OWASP LLM Top 10. All sources current.
+- **2026-04-29**: No new patterns found. Reviewed Hermes Security Patterns (context injection, HTML obfuscation, base64 encoding) and OWASP LLM Top 10 2025. Evaluated 3 patterns - all rejected (duplicates or high false positives). Current coverage confirmed comprehensive. See issue #299.
 - **2026-03-01**: Added Unicode normalization patterns from academic research. Created issue #285.
 - **2026-02-01**: No new patterns found. Reviewed Hermes, OWASP. No significant updates.
 
