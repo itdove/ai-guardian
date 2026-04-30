@@ -411,6 +411,41 @@
       },
       "additionalProperties": true
     },
+    "scan_pii": {
+      "type": "object",
+      "description": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for personally identifiable information such as SSNs, credit card numbers, phone numbers, emails, passport numbers, and IBANs.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PII detection across all hooks (UserPromptSubmit, PreToolUse, PostToolUse)",
+          "default": true
+        },
+        "pii_types": {
+          "type": "array",
+          "description": "PII types to detect. Remove types from this list to disable detection for specific PII categories.",
+          "items": {
+            "type": "string",
+            "enum": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"]
+          },
+          "default": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"]
+        },
+        "action": {
+          "type": "string",
+          "enum": ["redact", "log-only", "block"],
+          "description": "Action when PII is detected: 'redact' (replace PII with masked values in PostToolUse, block in UserPromptSubmit/PreToolUse), 'log-only' (warn but allow), 'block' (block in all hooks)",
+          "default": "redact"
+        },
+        "ignore_files": {
+          "type": "array",
+          "description": "Glob patterns for files to skip during PII scanning (e.g., 'tests/**', '*.test.py'). Useful for test files containing example PII data.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": true
+    },
     "pattern_server": {
       "type": "object",
       "description": "DEPRECATED: Move to secret_scanning.pattern_server (v1.7.0+). This root-level location is supported for backward compatibility but will be removed in v2.0.0.",
@@ -972,9 +1007,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"]
         }
       },
       "additionalProperties": false

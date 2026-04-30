@@ -226,6 +226,17 @@ class ViolationCard(Vertical):
             if redacted_types:
                 yield Static(f"Types: {', '.join(redacted_types)}", classes="violation-detail")
 
+        elif vtype == "pii_detected":
+            tool = blocked.get("tool", "Unknown")
+            hook = blocked.get("hook", "Unknown")
+            pii_count = blocked.get("pii_count", 0)
+            pii_types = blocked.get("pii_types", [])
+            yield Static(f"Hook: {hook}", classes="violation-detail")
+            yield Static(f"Tool: {tool}", classes="violation-detail")
+            yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
+            if pii_types:
+                yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
+
         # Action buttons
         if not resolved:
             # Unresolved violations - show approve/deny buttons
@@ -340,6 +351,8 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-ssrf")
             with TabPane("Config Exfil", id="filter-config-exfil"):
                 yield VerticalScroll(id="violations-list-config-exfil")
+            with TabPane("PII Detected", id="filter-pii"):
+                yield VerticalScroll(id="violations-list-pii")
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
@@ -396,6 +409,12 @@ class ViolationsContent(Container):
             limit=50, violation_type="config_file_exfil", resolved=None
         )
         self._populate_list("#violations-list-config-exfil", config_exfil_violations)
+
+        # Load PII detected violations
+        pii_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="pii_detected", resolved=None
+        )
+        self._populate_list("#violations-list-pii", pii_violations)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""

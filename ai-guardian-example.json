@@ -261,6 +261,26 @@
     }
   },
 
+  "scan_pii": {
+    "_comment": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0)",
+    "_comment2": "Scans user prompts, file reads, and tool outputs for personally identifiable information",
+    "_comment3": "Enabled by default. Use ignore_files to skip test files with example PII data.",
+    "_comment4": "action: 'redact' = mask PII in PostToolUse, block in UserPromptSubmit/PreToolUse",
+    "_comment5": "action: 'log-only' = warn but allow | 'block' = block in all hooks",
+    "enabled": true,
+    "pii_types": [
+      "ssn",
+      "credit_card",
+      "phone",
+      "email",
+      "us_passport",
+      "iban",
+      "intl_phone"
+    ],
+    "action": "redact",
+    "ignore_files": []
+  },
+
   "ssrf_protection": {
     "_comment": "⚠️ IMPORTANT: Pattern-based filtering only - cannot replace network-level security",
     "_limitation_1": "Can only inspect command strings and tool parameters",

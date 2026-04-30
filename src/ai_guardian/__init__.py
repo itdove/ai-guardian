@@ -1306,6 +1306,65 @@ def _load_secret_redaction_config():
     return config.get("secret_redaction"), None
 
 
+def _load_pii_config():
+    """
+    Load PII scanning configuration from ai-guardian.json.
+
+    Returns defaults (enabled=True) when the scan_pii section is absent,
+    so PII protection is on by default.
+
+    Returns:
+        tuple: (config_dict, error_message or None)
+    """
+    _PII_DEFAULTS = {
+        'enabled': True,
+        'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
+        'action': 'redact',
+        'ignore_files': []
+    }
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return _PII_DEFAULTS, error_msg
+    if config is None:
+        return _PII_DEFAULTS, None
+    return config.get("scan_pii", _PII_DEFAULTS), None
+
+
+def _scan_for_pii(text, pii_config):
+    """
+    Scan text for PII using SecretRedactor with PII patterns.
+
+    Args:
+        text: Text to scan
+        pii_config: PII config dict with enabled, pii_types, action
+
+    Returns:
+        tuple: (has_pii, redacted_text, redactions, warning_message)
+    """
+    try:
+        from ai_guardian.secret_redactor import SecretRedactor
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=pii_config)
+        result = redactor.redact(text)
+        redactions = result.get('redactions', [])
+        if redactions:
+            pii_types = list(set(r['type'] for r in redactions))
+            warning = (
+                f"\n{'='*70}\n"
+                f"🔒 PII DETECTED\n"
+                f"{'='*70}\n"
+                f"Found {len(redactions)} PII item(s):\n"
+                + "\n".join([f"  - {r['type']}" for r in redactions[:10]])
+                + ("\n  - ..." if len(redactions) > 10 else "")
+                + f"\n\nAction: {pii_config.get('action', 'redact')}\n"
+                f"{'='*70}\n"
+            )
+            return True, result['redacted_text'], redactions, warning
+        return False, text, [], None
+    except Exception as e:
+        logging.error(f"PII scan error: {e}")
+        return False, text, [], None
+
+
 def _extract_block_reason(error_message: str) -> str:
     """
     Extract a concise reason from error message for logging.
@@ -2446,6 +2505,43 @@ def process_hook_input():
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
 
+            # PII scanning in PostToolUse (Issue #262)
+            pii_config, pii_error = _load_pii_config()
+            if pii_error:
+                logging.warning(f"PII config error: {pii_error}")
+            if pii_config and pii_config.get('enabled', True):
+                logging.info("Scanning tool output for PII...")
+                has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
+                if has_pii:
+                    pii_action = pii_config.get('action', 'redact')
+                    pii_types = list(set(r['type'] for r in pii_redactions))
+                    logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
+
+                    # Log violation
+                    from ai_guardian.violation_logger import ViolationLogger
+                    violation_logger = ViolationLogger()
+                    violation_logger.log_violation(
+                        violation_type='pii_detected',
+                        blocked={
+                            'tool': tool_identifier,
+                            'hook': 'PostToolUse',
+                            'pii_count': len(pii_redactions),
+                            'pii_types': pii_types
+                        },
+                        context={'action': pii_action, 'hook_event': 'posttooluse'}
+                    )
+
+                    if pii_action == 'redact':
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                             warning_message=pii_warning, modified_output=redacted_text)
+                    elif pii_action == 'block':
+                        return format_response(ide_type, has_secrets=True,
+                                             error_message=pii_warning, hook_event=hook_event)
+                    # log-only: fall through to allow
+                    elif pii_action == 'log-only':
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                             warning_message=pii_warning)
+
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
@@ -2787,6 +2883,56 @@ def process_hook_input():
         elif secret_config and ide_type != IDEType.CURSOR:
             # Secret scanning is temporarily disabled
             logging.info("⚠️  Secret scanning temporarily disabled")
+
+        # PII scanning for UserPromptSubmit and PreToolUse (Issue #262)
+        if content_to_scan:
+            pii_config, pii_error = _load_pii_config()
+            if pii_error:
+                logging.warning(f"PII config error: {pii_error}")
+            if pii_config and pii_config.get('enabled', True):
+                # Check ignore_files for PreToolUse
+                pii_ignore_files = pii_config.get('ignore_files', [])
+                should_scan_pii = True
+                if file_path and pii_ignore_files:
+                    import fnmatch
+                    for pattern in pii_ignore_files:
+                        if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(filename, pattern):
+                            logging.info(f"Skipping PII scan for {filename} (matched ignore pattern: {pattern})")
+                            should_scan_pii = False
+                            break
+
+                if should_scan_pii:
+                    logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
+                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(content_to_scan, pii_config)
+                    if has_pii:
+                        pii_action = pii_config.get('action', 'redact')
+                        pii_types = list(set(r['type'] for r in pii_redactions))
+                        logging.warning(f"PII detected: {pii_types}")
+
+                        # Log violation
+                        from ai_guardian.violation_logger import ViolationLogger
+                        violation_logger = ViolationLogger()
+                        hook_name = 'UserPromptSubmit' if hook_event == 'prompt' else 'PreToolUse'
+                        violation_logger.log_violation(
+                            violation_type='pii_detected',
+                            blocked={
+                                'tool': tool_identifier or filename,
+                                'hook': hook_name,
+                                'pii_count': len(pii_redactions),
+                                'pii_types': pii_types
+                            },
+                            context={'action': pii_action, 'hook_event': hook_event}
+                        )
+
+                        if pii_action in ['redact', 'block']:
+                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            final_error = pii_warning
+                            if combined_warning:
+                                final_error = f"{combined_warning}\n\n{pii_warning}"
+                            return format_response(ide_type, has_secrets=True,
+                                                 error_message=final_error, hook_event=hook_event)
+                        elif pii_action == 'log-only':
+                            warning_messages.append(pii_warning)
 
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None

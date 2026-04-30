@@ -10,7 +10,8 @@ import pytest
 
 ALL_LOG_TYPES = [
     "tool_permission", "directory_blocking", "secret_detected",
-    "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil"
+    "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil",
+    "pii_detected"
 ]
 
 
@@ -33,7 +34,7 @@ class TestViolationLoggerDefaults:
                 defaults = vl._get_default_config()
                 assert "config_file_exfil" in defaults["log_types"]
 
-    def test_default_config_has_all_seven_types(self):
+    def test_default_config_has_all_eight_types(self):
         from ai_guardian.violation_logger import ViolationLogger
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': tmp}):
@@ -137,7 +138,7 @@ class TestSchemaValidation:
         config = {"violation_logging": {"log_types": ["config_file_exfil"]}}
         jsonschema.validate(config, schema)
 
-    def test_schema_accepts_all_seven_types(self):
+    def test_schema_accepts_all_eight_types(self):
         import jsonschema
         schema_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
