@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Test isolation: prevent tests from writing to real violations.jsonl** (Issue #344)
+  - Added `autouse` fixture `_isolate_config_dir` that redirects `AI_GUARDIAN_CONFIG_DIR` to a temporary directory for every test
+  - Eliminates 211+ spurious violation entries written to the user's audit log per `pytest` run
+  - Fixed 5 setup tests that relied on `XDG_CONFIG_HOME` without clearing `AI_GUARDIAN_CONFIG_DIR`
+  - Fixed `test_startup_version_logging` to use the file handler's actual path instead of `get_config_dir()`
+
 ### Added
 
 - **Jailbreak Detection Patterns** (Issue #263)
