@@ -121,10 +121,10 @@ class GlobalSettingsContent(Container):
         try:
             permissions_toggle = self.query_one("#permissions_enabled_toggle", TimeBasedToggle)
             # Reconstruct the toggle with new value
-            self.mount_toggle(permissions_toggle, "permissions_enabled", permissions_value)
+            permissions_toggle.load_value(permissions_value)
 
             scanning_toggle = self.query_one("#secret_scanning_toggle", TimeBasedToggle)
-            self.mount_toggle(scanning_toggle, "secret_scanning", scanning_value)
+            scanning_toggle.load_value(scanning_value)
         except Exception:
             pass  # Widgets may not be mounted yet
 
@@ -154,7 +154,9 @@ class GlobalSettingsContent(Container):
             mode_select.value = toggle.current_mode
 
             disabled_until_input = toggle.query_one(f"#{config_key}_disabled_until")
-            disabled_until_input.value = toggle.disabled_until
+            from ai_guardian.tui.widgets import duration_from_timestamp
+            dur = duration_from_timestamp(toggle.disabled_until) if toggle.disabled_until else ""
+            disabled_until_input.value = dur if dur != "expired" else ""
 
             reason_input = toggle.query_one(f"#{config_key}_reason")
             reason_input.value = toggle.reason
@@ -184,11 +186,10 @@ class GlobalSettingsContent(Container):
             self.save_config(config_key, value)
 
     def on_select_changed(self, event) -> None:
-        """Handle mode selector change - save immediately."""
+        """Handle mode selector change - save for enabled/disabled, defer for temp_disabled."""
         select_id = event.select.id
 
         if select_id and ("permissions_enabled" in select_id or "secret_scanning" in select_id):
-            # Determine which config key this belongs to
             if "permissions_enabled" in select_id:
                 config_key = "permissions_enabled"
                 toggle = self.query_one("#permissions_enabled_toggle", TimeBasedToggle)
@@ -196,10 +197,10 @@ class GlobalSettingsContent(Container):
                 config_key = "secret_scanning"
                 toggle = self.query_one("#secret_scanning_toggle", TimeBasedToggle)
 
-            # Get the value from the toggle
-            value = toggle.get_value()
+            if toggle.current_mode == "temp_disabled":
+                return
 
-            # Save to config
+            value = toggle.get_value()
             self.save_config(config_key, value)
 
     def save_config(self, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:

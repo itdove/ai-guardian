@@ -186,7 +186,7 @@ class DirectoryProtectionContent(Container):
                     classes="section-title"
                 )
 
-                with Vertical(id="paths-list"):
+                with VerticalScroll(id="paths-list"):
                     yield Static("[dim]No exclusion paths configured[/dim]")
 
             # Add new path section
@@ -261,7 +261,7 @@ class DirectoryProtectionContent(Container):
     def update_paths_list(self, paths: List[str]) -> None:
         """Update the exclusion paths list display."""
         try:
-            list_container = self.query_one("#paths-list", Vertical)
+            list_container = self.query_one("#paths-list", VerticalScroll)
 
             # Remove all existing children
             list_container.remove_children()

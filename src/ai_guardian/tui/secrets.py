@@ -253,7 +253,7 @@ class SecretsContent(Container):
         # Update time-based toggle and inputs
         try:
             toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
-            self.mount_toggle(toggle, "pattern_server_enabled", enabled_value)
+            toggle.load_value(enabled_value)
 
             self.query_one("#pattern-server-url", Input).value = server_url
             self.query_one("#pattern-server-endpoint", Input).value = patterns_endpoint
@@ -347,7 +347,9 @@ class SecretsContent(Container):
             mode_select.value = toggle.current_mode
 
             disabled_until_input = toggle.query_one(f"#{config_key}_disabled_until")
-            disabled_until_input.value = toggle.disabled_until
+            from ai_guardian.tui.widgets import duration_from_timestamp
+            dur = duration_from_timestamp(toggle.disabled_until) if toggle.disabled_until else ""
+            disabled_until_input.value = dur if dur != "expired" else ""
 
             reason_input = toggle.query_one(f"#{config_key}_reason")
             reason_input.value = toggle.reason
@@ -372,6 +374,8 @@ class SecretsContent(Container):
 
         if select_id and "pattern_server_enabled" in select_id:
             toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
+            if toggle.current_mode == "temp_disabled":
+                return
             value = toggle.get_value()
             self.save_pattern_server_enabled_value(value)
 

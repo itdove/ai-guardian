@@ -8,7 +8,10 @@ Test reusable TUI widgets including TimeBasedToggle.
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from ai_guardian.tui.widgets import ISO8601Validator, TimeBasedToggle
+from ai_guardian.tui.widgets import (
+    ISO8601Validator, DurationValidator, TimeBasedToggle,
+    parse_duration, duration_from_timestamp,
+)
 
 
 class TestISO8601Validator(unittest.TestCase):
@@ -47,6 +50,81 @@ class TestISO8601Validator(unittest.TestCase):
         """Test whitespace-only is allowed (optional field)."""
         result = self.validator.validate("   ")
         self.assertTrue(result.is_valid)
+
+
+class TestParseDuration(unittest.TestCase):
+    """Test duration parsing."""
+
+    def test_minutes(self):
+        self.assertEqual(parse_duration("30m"), timedelta(minutes=30))
+
+    def test_hours(self):
+        self.assertEqual(parse_duration("2h"), timedelta(hours=2))
+
+    def test_days(self):
+        self.assertEqual(parse_duration("1d"), timedelta(days=1))
+
+    def test_combined_hours_minutes(self):
+        self.assertEqual(parse_duration("1h30m"), timedelta(hours=1, minutes=30))
+
+    def test_combined_days_hours(self):
+        self.assertEqual(parse_duration("2d12h"), timedelta(days=2, hours=12))
+
+    def test_combined_all(self):
+        self.assertEqual(parse_duration("1d2h30m"), timedelta(days=1, hours=2, minutes=30))
+
+    def test_uppercase(self):
+        self.assertEqual(parse_duration("2H"), timedelta(hours=2))
+
+    def test_empty(self):
+        self.assertIsNone(parse_duration(""))
+
+    def test_invalid(self):
+        self.assertIsNone(parse_duration("abc"))
+
+    def test_zero(self):
+        self.assertIsNone(parse_duration("0m"))
+
+
+class TestDurationFromTimestamp(unittest.TestCase):
+    """Test timestamp to duration conversion."""
+
+    def test_future_timestamp(self):
+        future = (datetime.now(timezone.utc) + timedelta(hours=2, minutes=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        result = duration_from_timestamp(future)
+        self.assertIn("h", result)
+
+    def test_expired_timestamp(self):
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.assertEqual(duration_from_timestamp(past), "expired")
+
+    def test_invalid_timestamp(self):
+        self.assertEqual(duration_from_timestamp("not-a-date"), "")
+
+
+class TestDurationValidator(unittest.TestCase):
+    """Test DurationValidator."""
+
+    def setUp(self):
+        self.validator = DurationValidator()
+
+    def test_valid_30m(self):
+        self.assertTrue(self.validator.validate("30m").is_valid)
+
+    def test_valid_2h(self):
+        self.assertTrue(self.validator.validate("2h").is_valid)
+
+    def test_valid_1d(self):
+        self.assertTrue(self.validator.validate("1d").is_valid)
+
+    def test_valid_combined(self):
+        self.assertTrue(self.validator.validate("1h30m").is_valid)
+
+    def test_invalid(self):
+        self.assertFalse(self.validator.validate("abc").is_valid)
+
+    def test_empty_allowed(self):
+        self.assertTrue(self.validator.validate("").is_valid)
 
 
 class TestTimeBasedToggle(unittest.TestCase):

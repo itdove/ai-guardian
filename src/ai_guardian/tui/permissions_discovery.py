@@ -202,7 +202,7 @@ class PermissionsDiscoveryContent(Container):
                     classes="section-title"
                 )
 
-                with Vertical(id="allow-list", classes="list-container"):
+                with VerticalScroll(id="allow-list", classes="list-container"):
                     yield Static("[dim]No allow directories configured[/dim]")
 
             # Deny directories section
@@ -213,7 +213,7 @@ class PermissionsDiscoveryContent(Container):
                     classes="section-title"
                 )
 
-                with Vertical(id="deny-list", classes="list-container"):
+                with VerticalScroll(id="deny-list", classes="list-container"):
                     yield Static("[dim]No deny directories configured[/dim]")
 
             # Add new entry section
@@ -291,7 +291,7 @@ class PermissionsDiscoveryContent(Container):
     def update_list(self, list_type: str, entries: List[Dict[str, Any]]) -> None:
         """Update a directory list display."""
         try:
-            list_container = self.query_one(f"#{list_type}-list", Vertical)
+            list_container = self.query_one(f"#{list_type}-list", VerticalScroll)
 
             # Remove all existing children
             list_container.remove_children()

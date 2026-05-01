@@ -219,7 +219,7 @@ class SkillsContent(Container):
                 yield Static("[bold][green]✓ Allow List[/green][/bold]", classes="section-title")
                 yield Static("Skills matching these patterns will be allowed.", classes="section-title")
                 yield Static("[dim]Add pattern: Press 'a' or Enter • Remove: Focus Remove button and press Enter[/dim]")
-                yield Container(id="patterns-allow-container")
+                yield VerticalScroll(id="patterns-allow-container")
                 yield Input(placeholder="Enter pattern (e.g., daf-*, hello)", id="new-allow-pattern")
 
             # Deny list section
@@ -227,7 +227,7 @@ class SkillsContent(Container):
                 yield Static("[bold][red]✗ Deny List[/red][/bold]", classes="section-title")
                 yield Static("Skills matching these patterns will be blocked.", classes="section-title")
                 yield Static("[dim]Add pattern: Press 'd' or Enter • Remove: Focus Remove button and press Enter[/dim]")
-                yield Container(id="patterns-deny-container")
+                yield VerticalScroll(id="patterns-deny-container")
                 yield Input(placeholder="Enter pattern (e.g., dangerous-*)", id="new-deny-pattern")
 
     def on_mount(self) -> None:
@@ -270,7 +270,7 @@ class SkillsContent(Container):
                 self.app.notify(f"Error loading permissions: {e}", severity="error")
 
         # Display allow patterns
-        allow_container = self.query_one("#patterns-allow-container", Container)
+        allow_container = self.query_one("#patterns-allow-container", VerticalScroll)
         allow_container.remove_children()
 
         if allow_patterns:
@@ -284,7 +284,7 @@ class SkillsContent(Container):
             ))
 
         # Display deny patterns
-        deny_container = self.query_one("#patterns-deny-container", Container)
+        deny_container = self.query_one("#patterns-deny-container", VerticalScroll)
         deny_container.remove_children()
 
         if deny_patterns:
@@ -348,29 +348,40 @@ class SkillsContent(Container):
             else:
                 config = {}
 
-            if "permissions" not in config:
-                config["permissions"] = []
+            permissions_obj = config.get("permissions", {})
+            if isinstance(permissions_obj, dict):
+                all_permissions = permissions_obj.get("rules", [])
+                is_dict_format = True
+            elif isinstance(permissions_obj, list):
+                all_permissions = permissions_obj
+                is_dict_format = False
+            else:
+                all_permissions = []
+                is_dict_format = False
 
             # Find existing Skill rule with this mode
             existing_rule = None
-            for perm in config["permissions"]:
+            for perm in all_permissions:
                 if perm.get("matcher") == "Skill" and perm.get("mode") == mode:
                     existing_rule = perm
                     break
 
             if existing_rule:
-                # Add to existing patterns
                 if pattern in existing_rule.get("patterns", []):
                     self.app.notify(f"Pattern already in {mode} list", severity="warning")
                     return
                 existing_rule.setdefault("patterns", []).append(pattern)
             else:
-                # Create new rule
-                config["permissions"].append({
+                all_permissions.append({
                     "matcher": "Skill",
                     "mode": mode,
                     "patterns": [pattern]
                 })
+
+            if is_dict_format:
+                config["permissions"]["rules"] = all_permissions
+            else:
+                config["permissions"] = all_permissions
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)

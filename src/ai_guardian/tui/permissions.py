@@ -402,10 +402,23 @@ class PermissionsScreen(Screen):
             else:
                 config = {}
 
-            if "permissions" not in config:
-                config["permissions"] = []
+            permissions_obj = config.get("permissions", {})
+            if isinstance(permissions_obj, dict):
+                all_permissions = permissions_obj.get("rules", [])
+                is_dict_format = True
+            elif isinstance(permissions_obj, list):
+                all_permissions = permissions_obj
+                is_dict_format = False
+            else:
+                all_permissions = []
+                is_dict_format = False
 
-            config["permissions"].append(rule)
+            all_permissions.append(rule)
+
+            if is_dict_format:
+                config["permissions"]["rules"] = all_permissions
+            else:
+                config["permissions"] = all_permissions
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
