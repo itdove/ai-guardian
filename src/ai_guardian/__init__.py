@@ -3294,6 +3294,37 @@ def main():
             help="Output as JSON"
         )
 
+        # Patterns subcommand (NEW in v1.9.0, Issue #337)
+        patterns_parser = subparsers.add_parser(
+            "patterns",
+            help="List detection patterns across the system"
+        )
+        patterns_sub = patterns_parser.add_subparsers(
+            dest="patterns_command",
+            help="Pattern commands"
+        )
+
+        # patterns list
+        patterns_list_parser = patterns_sub.add_parser(
+            "list",
+            help="List all detection pattern categories"
+        )
+        patterns_list_parser.add_argument(
+            "--verbose", "-v",
+            action="store_true",
+            help="Show individual pattern breakdowns"
+        )
+        patterns_list_parser.add_argument(
+            "--category",
+            metavar="NAME",
+            help="Filter by category name (e.g., prompt_injection, scan_pii, ssrf)"
+        )
+        patterns_list_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -3546,6 +3577,39 @@ def main():
 
             except Exception as e:
                 print(f"Error managing pattern servers: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle patterns command (NEW in v1.9.0, Issue #337)
+        if args.command == "patterns":
+            try:
+                from ai_guardian.pattern_lister import PatternLister
+
+                if args.patterns_command is None:
+                    patterns_parser.print_help()
+                    return 1
+
+                if args.patterns_command == "list":
+                    config, _ = _load_config_file()
+                    lister = PatternLister(config=config)
+                    if args.json:
+                        print(lister.get_pattern_list_json(
+                            category=args.category
+                        ))
+                    else:
+                        lister.print_pattern_list(
+                            verbose=args.verbose,
+                            category=args.category
+                        )
+                    return 0
+
+                else:
+                    patterns_parser.print_help()
+                    return 1
+
+            except Exception as e:
+                print(f"Error listing patterns: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1
