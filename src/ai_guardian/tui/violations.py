@@ -237,6 +237,16 @@ class ViolationCard(Vertical):
             if pii_types:
                 yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
 
+        elif vtype == "jailbreak_detected":
+            tool = blocked.get("tool", "Unknown")
+            matched_text = blocked.get("matched_text", "")
+            confidence = blocked.get("confidence", 0.0)
+            yield Static(f"Tool: {tool}", classes="violation-detail")
+            if matched_text:
+                yield Static(f"Matched: {matched_text[:60]}", classes="violation-detail")
+            if confidence:
+                yield Static(f"Confidence: {confidence:.2f}", classes="violation-detail")
+
         # Action buttons
         if not resolved:
             # Unresolved violations - show approve/deny buttons
@@ -246,6 +256,8 @@ class ViolationCard(Vertical):
             if vtype == "tool_permission" and suggestion.get("rule"):
                 can_approve = True
             elif vtype == "prompt_injection":
+                can_approve = True  # Can add to allowlist
+            elif vtype == "jailbreak_detected":
                 can_approve = True  # Can add to allowlist
             elif vtype == "secret_detected":
                 can_approve = True  # Can suggest gitleaks:allow comment
@@ -347,6 +359,8 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-directory")
             with TabPane("Prompt Injection", id="filter-injection"):
                 yield VerticalScroll(id="violations-list-injection")
+            with TabPane("Jailbreak", id="filter-jailbreak"):
+                yield VerticalScroll(id="violations-list-jailbreak")
             with TabPane("SSRF Blocked", id="filter-ssrf"):
                 yield VerticalScroll(id="violations-list-ssrf")
             with TabPane("Config Exfil", id="filter-config-exfil"):
@@ -397,6 +411,12 @@ class ViolationsContent(Container):
             limit=50, violation_type="prompt_injection", resolved=None
         )
         self._populate_list("#violations-list-injection", injection_violations)
+
+        # Load jailbreak detected violations
+        jailbreak_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="jailbreak_detected", resolved=None
+        )
+        self._populate_list("#violations-list-jailbreak", jailbreak_violations)
 
         # Load SSRF blocked violations
         ssrf_violations = self.violation_logger.get_recent_violations(
@@ -503,7 +523,8 @@ class ViolationsContent(Container):
                 "filter-secret": "#violations-list-secret",
                 "filter-redaction": "#violations-list-redaction",
                 "filter-directory": "#violations-list-directory",
-                "filter-injection": "#violations-list-injection"
+                "filter-injection": "#violations-list-injection",
+                "filter-jailbreak": "#violations-list-jailbreak"
             }
             list_id = list_id_map.get(active_tab)
             if not list_id:
@@ -670,8 +691,8 @@ class ViolationsContent(Container):
                     config["permissions"].append(suggested_rule)
                     action_msg = f"Added new {matcher} rule"
 
-            elif vtype == "prompt_injection":
-                # Add to prompt_injection allowlist_patterns
+            elif vtype in ("prompt_injection", "jailbreak_detected"):
+                # Both share the same prompt_injection allowlist_patterns
                 source = blocked.get("source", "unknown")
                 pattern = blocked.get("pattern", "")
 
@@ -689,7 +710,8 @@ class ViolationsContent(Container):
                     return
 
                 config["prompt_injection"]["allowlist_patterns"].append(pattern)
-                action_msg = f"Added '{pattern}' to prompt injection allowlist"
+                label = "jailbreak" if vtype == "jailbreak_detected" else "prompt injection"
+                action_msg = f"Added '{pattern}' to {label} allowlist"
 
             elif vtype == "secret_detected":
                 # Show instruction to add gitleaks:allow comment

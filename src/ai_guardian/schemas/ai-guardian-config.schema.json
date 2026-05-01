@@ -602,6 +602,14 @@
           },
           "default": []
         },
+        "jailbreak_patterns": {
+          "type": "array",
+          "description": "Additional jailbreak-specific detection patterns (NEW in v1.6.0, Issue #263). Extends built-in jailbreak patterns that detect role-play attacks (DAN mode, sudo mode), identity manipulation (pretend you are unrestricted), constraint removal (no rules now), and hypothetical framing (fictional scenario without rules). User-defined patterns are matched against user prompts only (not file content).",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
         "ignore_files": {
           "type": "array",
           "description": "Glob patterns for files to skip during prompt injection detection (NEW in v1.4.0). Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char), ~ (home directory). Example: '**/.claude/skills/*/SKILL.md' to ignore all skill documentation files.",
@@ -1007,9 +1015,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"]
         }
       },
       "additionalProperties": false

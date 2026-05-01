@@ -324,12 +324,16 @@ class SecurityDashboardContent(Container):
 
         if "ssrf" in reason_lower:
             return "SSRF Protection"
+        elif "jailbreak" in reason_lower:
+            return "Jailbreak Detection"
         elif "prompt injection" in reason_lower or "injection" in reason_lower:
             return "Prompt Injection"
         elif "unicode" in reason_lower or "zero-width" in reason_lower or "homoglyph" in reason_lower:
             return "Unicode Attack"
         elif "config" in reason_lower or "claude.md" in reason_lower or "agents.md" in reason_lower:
             return "Config File Scanner"
+        elif "pii" in reason_lower:
+            return "PII Detection"
         elif "secret" in reason_lower or "redact" in reason_lower:
             return "Secret Redaction"
         else:

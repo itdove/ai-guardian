@@ -205,6 +205,7 @@ class SecretsContent(Container):
                     yield Checkbox("Secret Detected", id="log-type-secret", value=True)
                     yield Checkbox("Secret Redaction", id="log-type-redaction", value=True)
                     yield Checkbox("Prompt Injection", id="log-type-injection", value=True)
+                    yield Checkbox("Jailbreak Detected", id="log-type-jailbreak", value=True)
                     yield Checkbox("SSRF Blocked", id="log-type-ssrf", value=True)
                     yield Checkbox("Config File Exfil", id="log-type-config-exfil", value=True)
                     yield Checkbox("PII Detected", id="log-type-pii", value=True)
@@ -300,7 +301,7 @@ class SecretsContent(Container):
         log_enabled = violation_logging.get("enabled", True)
         max_entries = violation_logging.get("max_entries", 1000)
         retention_days = violation_logging.get("retention_days", 30)
-        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"])
+        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"])
 
         try:
             self.query_one("#violation-logging-enabled", Checkbox).value = log_enabled
@@ -313,6 +314,7 @@ class SecretsContent(Container):
             self.query_one("#log-type-secret", Checkbox).value = "secret_detected" in log_types
             self.query_one("#log-type-redaction", Checkbox).value = "secret_redaction" in log_types
             self.query_one("#log-type-injection", Checkbox).value = "prompt_injection" in log_types
+            self.query_one("#log-type-jailbreak", Checkbox).value = "jailbreak_detected" in log_types
             self.query_one("#log-type-ssrf", Checkbox).value = "ssrf_blocked" in log_types
             self.query_one("#log-type-config-exfil", Checkbox).value = "config_file_exfil" in log_types
             self.query_one("#log-type-pii", Checkbox).value = "pii_detected" in log_types
@@ -652,6 +654,8 @@ class SecretsContent(Container):
                 log_types.append("secret_redaction")
             if self.query_one("#log-type-injection", Checkbox).value:
                 log_types.append("prompt_injection")
+            if self.query_one("#log-type-jailbreak", Checkbox).value:
+                log_types.append("jailbreak_detected")
             if self.query_one("#log-type-ssrf", Checkbox).value:
                 log_types.append("ssrf_blocked")
             if self.query_one("#log-type-config-exfil", Checkbox).value:

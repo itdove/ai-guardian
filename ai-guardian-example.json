@@ -246,6 +246,9 @@
     ],
     "custom_patterns": [],
     "_custom_patterns_note": "Add additional detection patterns here, e.g. [\"company_secret_.*\"]",
+    "jailbreak_patterns": [],
+    "_jailbreak_patterns_note": "Additional jailbreak-specific detection patterns (NEW in v1.6.0). Extends 13 built-in patterns covering role-play attacks (DAN/sudo/god mode), identity manipulation (pretend you are unrestricted), constraint removal (no rules now), and hypothetical framing (fictional scenario without rules). User-defined patterns are regex, checked against user prompts only.",
+    "_jailbreak_patterns_example": ["custom_jailbreak_\\w+", "my_company_bypass_attempt"],
     "_detection_patterns": {
       "_comment": "Built-in patterns detect common attack categories:",
       "_categories": [
@@ -255,7 +258,11 @@
         "Safety bypass attempts",
         "Role manipulation",
         "Many-shot injection patterns",
-        "Delimiter/encoding attacks"
+        "Delimiter/encoding attacks",
+        "Jailbreak: Role-play attacks (DAN, sudo, god mode)",
+        "Jailbreak: Identity manipulation (pretend/imagine unrestricted)",
+        "Jailbreak: Constraint removal (no rules, free from restrictions)",
+        "Jailbreak: Hypothetical framing (fictional scenario without rules)"
       ],
       "_security_note": "Specific examples are not provided to prevent misuse. See README FAQ for guidance on researching prompt injection patterns safely."
     }
