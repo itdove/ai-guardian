@@ -1219,12 +1219,12 @@ def test_legitimate_unicode_not_blocked():
 
 Update this section after each monthly research review:
 
-**Last Research Review**: _2026-04-29_ *(Update this date after completing monthly review)*
+**Last Research Review**: _2026-05-01_ *(Update this date after completing monthly review)*
 
 **Review Summary** *(Keep last 3 months)*:
+- **2026-05-01**: No new patterns found. Reviewed Hermes Security Patterns (Apache-2.0, no new commits since April repo move), OWASP LLM Top 10 2025 and new OWASP Top 10 for Agentic Applications 2026 (ASI01-ASI10), arXiv papers (2601.17548, 2603.21642), and "Comment and Control" attack disclosure. Evaluated 6 candidate patterns (MCP tool poisoning, memory poisoning, cross-context injection, process env snooping, rug pulls, agent goal hijacking) - all rejected (architectural/protocol-level attacks not suitable for regex detection, or duplicates of existing patterns). The 2026 threat landscape is shifting toward agentic/protocol attacks addressed by AI Guardian's MCP security features and hooks, not the pattern module. See issue #336.
 - **2026-04-29**: No new patterns found. Reviewed Hermes Security Patterns (context injection, HTML obfuscation, base64 encoding) and OWASP LLM Top 10 2025. Evaluated 3 patterns - all rejected (duplicates or high false positives). Current coverage confirmed comprehensive. See issue #299.
 - **2026-03-01**: Added Unicode normalization patterns from academic research. Created issue #285.
-- **2026-02-01**: No new patterns found. Reviewed Hermes, OWASP. No significant updates.
 
 ---
 
