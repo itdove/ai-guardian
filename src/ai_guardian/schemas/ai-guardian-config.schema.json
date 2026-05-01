@@ -431,8 +431,8 @@
         },
         "action": {
           "type": "string",
-          "enum": ["block", "warn", "log-only"],
-          "description": "Action when PII is detected: 'block' (block in UserPromptSubmit/PreToolUse, warn in PostToolUse), 'warn' (log violation and show warning but allow), 'log-only' (log violation silently)",
+          "enum": ["block", "redact", "warn", "log-only"],
+          "description": "Action when PII is detected: 'block' (block in all hooks), 'redact' (replace PII with masked text in PostToolUse, block in PreToolUse/UserPromptSubmit), 'warn' (log violation and show warning but allow), 'log-only' (log violation silently)",
           "default": "block"
         },
         "ignore_files": {

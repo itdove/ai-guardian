@@ -202,9 +202,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         modified_output: Optional modified tool output (for PostToolUse redaction)
             - Only used for PostToolUse hook when has_secrets=False
             - Contains redacted version of tool output to replace original
-            - Uses hookSpecificOutput.updatedToolOutput per Claude Code v2.1.121
-            - BUG: Not honored for Bash/Read/Grep tools yet
-              (anthropics/claude-code#54196). Will work once fixed upstream.
+            - Uses hookSpecificOutput.updatedToolOutput (works for all tools since v2.1.121)
             - See: https://code.claude.com/docs/en/hooks
 
     Returns:
@@ -313,12 +311,8 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 if modified_output is not None:
                     if "hookSpecificOutput" not in response:
                         response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
-                    # updatedToolOutput: per v2.1.121 changelog, replaces output
-                    # for all tools. BUG: silently dropped for all tool types
-                    # (anthropics/claude-code#54196). Kept for forward compat.
                     response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
-                    # updatedMCPToolOutput: legacy field, works for MCP tools
-                    # only on current versions (confirmed in #54196 comments).
+                    # Legacy field kept for backward compatibility with older Claude Code versions
                     response["hookSpecificOutput"]["updatedMCPToolOutput"] = modified_output
 
             return {
@@ -2498,9 +2492,6 @@ def process_hook_input():
                             )
                             logging.warning(f"WARN mode: {warning_msg}")
 
-                        # NOTE: modified_output is passed but Claude Code ignores
-                        # it — PostToolUse hooks cannot replace tool output.
-                        # The warning_msg (systemMessage) IS displayed to the user.
                         logging.info(f"✓ Secrets redacted, allowing output to continue")
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=warning_msg, modified_output=redacted_text)
@@ -2549,15 +2540,15 @@ def process_hook_input():
                         context={'action': pii_action, 'hook_event': 'posttooluse'}
                     )
 
-                    # PostToolUse LIMITATION: Claude Code hooks cannot modify
-                    # tool output after execution. The tool already ran and its
-                    # output already reached the model. We can only warn via
-                    # systemMessage. "redact" and "log-only" both warn;
-                    # "block" also warns (PostToolUse cannot truly block).
-                    # Effective protection happens in PreToolUse (blocks reads)
-                    # and UserPromptSubmit (blocks prompts containing PII).
-                    return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                         warning_message=pii_warning)
+                    if pii_action == 'block':
+                        return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                             error_message=pii_warning)
+                    elif pii_action in ('redact', 'warn'):
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                             warning_message=pii_warning, modified_output=redacted_text)
+                    else:
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                             warning_message=pii_warning)
 
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
@@ -2941,7 +2932,7 @@ def process_hook_input():
                             context={'action': pii_action, 'hook_event': hook_event}
                         )
 
-                        if pii_action == 'block':
+                        if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
                             final_error = pii_warning
                             if combined_warning:
