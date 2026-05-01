@@ -220,8 +220,8 @@ class TestDirectoryRuleGenerator:
 class TestRuleInsertion:
     """Test insertion of generated rules into config."""
 
-    def test_insert_at_beginning_new_format(self):
-        """Generated rules should be inserted at BEGINNING (new object format)."""
+    def test_insert_after_user_rules_new_format(self):
+        """Generated rules should be inserted AFTER user rules (new object format)."""
         config = {
             "directory_rules": {
                 "action": "block",
@@ -238,16 +238,16 @@ class TestRuleInsertion:
 
         result = insert_generated_rules(config, generated)
 
-        # Generated rule should be FIRST (position 0)
         rules = result["directory_rules"]["rules"]
-        assert rules[0]["_generated"] is True
-        assert rules[0]["paths"][0] == "~/.claude/skills/daf-git/**"
+        # User rules should come first (position 0, 1)
+        assert rules[0]["paths"][0] == "~/.ssh/**"
+        assert rules[1]["paths"][0] == "~/.claude/skills/user-skill/**"
 
-        # User rules should follow (position 1, 2, ...)
-        assert rules[1]["paths"][0] == "~/.ssh/**"
-        assert rules[2]["paths"][0] == "~/.claude/skills/user-skill/**"
+        # Generated rule should be LAST (position 2)
+        assert rules[2]["_generated"] is True
+        assert rules[2]["paths"][0] == "~/.claude/skills/daf-git/**"
 
-    def test_insert_at_beginning_legacy_format(self):
+    def test_insert_after_user_rules_legacy_format(self):
         """Should convert legacy array format to object format."""
         config = {
             "directory_rules": [
@@ -266,43 +266,97 @@ class TestRuleInsertion:
         assert "action" in result["directory_rules"]
         assert "rules" in result["directory_rules"]
 
-        # Generated rule should be first
         rules = result["directory_rules"]["rules"]
-        assert rules[0]["_generated"] is True
+        # User rule first, generated rule last
+        assert rules[0]["paths"][0] == "~/.ssh/**"
+        assert rules[1]["_generated"] is True
 
-    def test_rule_order_user_can_override(self):
+    def test_generated_rules_override_user_deny(self):
         """
-        CRITICAL: User rules must come AFTER generated rules.
+        CRITICAL: Generated allow rules must override broad user deny rules.
 
         Rule order (last-match-wins):
-          Position 0-N: Generated (weakest)
-          Position N+1+: User (override generated)
-          Final: Immutable (override all)
+          Position 0-N:     User rules (broadest scope)
+          Position N+1-M:   Generated rules (specific exceptions)
+          Final positions:  Immutable rules (strongest - override all)
         """
         config = {
             "directory_rules": {
                 "action": "block",
                 "rules": [
-                    # User wants to block ALL skills
+                    # User broadly denies all skills
                     {"mode": "deny", "paths": ["~/.claude/skills/**"]}
                 ]
             }
         }
 
         generated = [
-            # Generated suggests allowing specific skills
+            # Generated allows specific permitted skills
             {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
         ]
 
         result = insert_generated_rules(config, generated)
         rules = result["directory_rules"]["rules"]
 
-        # Order must be: Generated (pos 0), User (pos 1)
-        assert rules[0]["_generated"] is True  # Generated first
-        assert rules[1]["paths"][0] == "~/.claude/skills/**"  # User second
+        # Order must be: User (pos 0), Generated (pos 1)
+        assert rules[0]["paths"][0] == "~/.claude/skills/**"  # User first
+        assert rules[1]["_generated"] is True  # Generated second
 
-        # With last-match-wins, user rule (deny all) should win
-        # This is correct - user maintains control
+        # With last-match-wins, generated allow overrides user deny
+        # for specific paths - this is the correct behavior
+
+    def test_immutable_rules_still_win(self):
+        """Immutable rules must remain in final position and override all."""
+        config = {
+            "directory_rules": {
+                "action": "block",
+                "rules": [
+                    {"mode": "deny", "paths": ["~/.claude/skills/**"]},
+                    {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True}
+                ]
+            }
+        }
+
+        generated = [
+            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+        ]
+
+        result = insert_generated_rules(config, generated)
+        rules = result["directory_rules"]["rules"]
+
+        # Order: User deny (pos 0), Generated allow (pos 1), Immutable deny (pos 2)
+        assert rules[0]["paths"][0] == "~/.claude/skills/**"
+        assert rules[1]["_generated"] is True
+        assert rules[2].get("_immutable") is True
+
+        # Immutable rule stays at end, overriding everything
+
+    def test_immutable_rules_not_displaced_by_generated(self):
+        """Generated rules must be inserted before immutable, not after."""
+        config = {
+            "directory_rules": {
+                "action": "block",
+                "rules": [
+                    {"mode": "allow", "paths": ["~/projects/**"]},
+                    {"mode": "deny", "paths": ["~/.env/**"], "_immutable": True},
+                    {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True}
+                ]
+            }
+        }
+
+        generated = [
+            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+        ]
+
+        result = insert_generated_rules(config, generated)
+        rules = result["directory_rules"]["rules"]
+
+        # Order: User (pos 0), Generated (pos 1), Immutable (pos 2, 3)
+        assert len(rules) == 4
+        assert rules[0]["paths"][0] == "~/projects/**"
+        assert rules[1]["_generated"] is True
+        assert rules[2].get("_immutable") is True
+        assert rules[3].get("_immutable") is True
 
     def test_empty_generated_rules(self):
         """Should handle empty generated rules gracefully."""
@@ -325,6 +379,27 @@ class TestRuleInsertion:
         assert "directory_rules" in result
         assert isinstance(result["directory_rules"], dict)
         assert result["directory_rules"]["rules"][0]["_generated"] is True
+
+    def test_legacy_format_with_immutable_rules(self):
+        """Legacy array format with immutable rules should preserve ordering."""
+        config = {
+            "directory_rules": [
+                {"mode": "deny", "paths": ["~/.claude/skills/**"]},
+                {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True}
+            ]
+        }
+
+        generated = [
+            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+        ]
+
+        result = insert_generated_rules(config, generated)
+        rules = result["directory_rules"]["rules"]
+
+        # User first, generated second, immutable last
+        assert rules[0]["paths"][0] == "~/.claude/skills/**"
+        assert rules[1]["_generated"] is True
+        assert rules[2].get("_immutable") is True
 
 
 class TestMultiIDESupport:
