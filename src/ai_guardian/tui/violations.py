@@ -669,14 +669,22 @@ class ViolationsContent(Container):
                     self.app.notify("No suggested rule available", severity="error")
                     return
 
-                if "permissions" not in config:
-                    config["permissions"] = []
+                permissions_obj = config.get("permissions", {})
+                if isinstance(permissions_obj, dict):
+                    all_permissions = permissions_obj.get("rules", [])
+                    is_dict_format = True
+                elif isinstance(permissions_obj, list):
+                    all_permissions = permissions_obj
+                    is_dict_format = False
+                else:
+                    all_permissions = []
+                    is_dict_format = False
 
                 matcher = suggested_rule.get("matcher")
                 mode = suggested_rule.get("mode")
 
                 existing_rule = next(
-                    (r for r in config["permissions"]
+                    (r for r in all_permissions
                      if r.get("matcher") == matcher and r.get("mode") == mode),
                     None
                 )
@@ -688,8 +696,13 @@ class ViolationsContent(Container):
                     existing_rule["patterns"] = merged_patterns
                     action_msg = f"Merged patterns into existing {matcher} rule"
                 else:
-                    config["permissions"].append(suggested_rule)
+                    all_permissions.append(suggested_rule)
                     action_msg = f"Added new {matcher} rule"
+
+                if is_dict_format:
+                    config["permissions"]["rules"] = all_permissions
+                else:
+                    config["permissions"] = all_permissions
 
             elif vtype in ("prompt_injection", "jailbreak_detected"):
                 # Both share the same prompt_injection allowlist_patterns
@@ -714,27 +727,29 @@ class ViolationsContent(Container):
                 action_msg = f"Added '{pattern}' to {label} allowlist"
 
             elif vtype == "secret_detected":
-                # Show instruction to add gitleaks:allow comment
-                file_path = blocked.get("file_path")
-                line_number = blocked.get("line_number")
+                file_path = blocked.get("file_path", "")
+                line_number = blocked.get("line_number", "")
+                secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
 
-                if file_path and line_number:
-                    instruction = (
-                        f"To allow this secret, add this comment on the line before it:\n\n"
-                        f"  # gitleaks:allow\n\n"
-                        f"File: {file_path}:{line_number}\n\n"
-                        f"Alternatively, add to .gitleaks.toml allowlist."
-                    )
-                else:
-                    instruction = (
-                        "To allow secrets, add '# gitleaks:allow' comment before the line,\n"
-                        "or configure .gitleaks.toml allowlist."
-                    )
+                details = f"[bold]How to Allow This Secret[/bold]\n\n"
+                details += f"Secret type: {secret_type}\n"
+                if file_path:
+                    details += f"File: {file_path}"
+                    if line_number:
+                        details += f":{line_number}"
+                    details += "\n"
+                details += (
+                    "\n[bold]Option 1:[/bold] Add comment before the line:\n"
+                    "  # gitleaks:allow\n\n"
+                    "[bold]Option 2:[/bold] Add to .gitleaks.toml allowlist\n\n"
+                    "[dim]Note: Secret scanning cannot be bypassed via TUI config — "
+                    "the scanner engine controls allowlisting.[/dim]"
+                )
 
-                # Mark as resolved without config change
                 self.violation_logger.mark_resolved(timestamp, action="info_shown")
                 self.load_all_filters()
-                self.app.notify(instruction, severity="information", timeout=15)
+                from ai_guardian.tui.app import HelpModal
+                self.app.push_screen(HelpModal("Secret Allowlisting", details))
                 return
 
             elif vtype == "directory_blocking":
@@ -793,12 +808,81 @@ class ViolationsContent(Container):
             self.app.notify("Failed to mark violation as denied", severity="error")
 
     def undo_violation(self, timestamp: str) -> None:
-        """Undo resolution - mark violation as unresolved again."""
+        """Undo resolution - mark as unresolved and reverse config change."""
+        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
+        violation = next((v for v in violations if v.get("timestamp") == timestamp), None)
+
+        if not violation:
+            self.app.notify("Violation not found", severity="error")
+            return
+
+        vtype = violation.get("violation_type")
+        blocked = violation.get("blocked", {})
+        suggestion = violation.get("suggestion", {})
+        resolved_action = violation.get("resolved_action", "")
+
+        if resolved_action == "approved":
+            config_dir = get_config_dir()
+            config_path = config_dir / "ai-guardian.json"
+
+            try:
+                if config_path.exists():
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                else:
+                    config = {}
+
+                reversed_config = False
+
+                if vtype == "tool_permission":
+                    suggested_rule = suggestion.get("rule", {})
+                    matcher = suggested_rule.get("matcher")
+                    mode = suggested_rule.get("mode")
+                    patterns_to_remove = suggested_rule.get("patterns", [])
+
+                    permissions_obj = config.get("permissions", {})
+                    if isinstance(permissions_obj, dict):
+                        all_permissions = permissions_obj.get("rules", [])
+                    elif isinstance(permissions_obj, list):
+                        all_permissions = permissions_obj
+                    else:
+                        all_permissions = []
+
+                    for perm in all_permissions:
+                        if perm.get("matcher") == matcher and perm.get("mode") == mode:
+                            existing = perm.get("patterns", [])
+                            perm["patterns"] = [p for p in existing if p not in patterns_to_remove]
+                            if not perm["patterns"]:
+                                all_permissions.remove(perm)
+                            reversed_config = True
+                            break
+
+                    if isinstance(config.get("permissions"), dict):
+                        config["permissions"]["rules"] = all_permissions
+                    else:
+                        config["permissions"] = all_permissions
+
+                elif vtype in ("prompt_injection", "jailbreak_detected"):
+                    pattern = blocked.get("pattern", "")
+                    if pattern:
+                        allowlist = config.get("prompt_injection", {}).get("allowlist_patterns", [])
+                        if pattern in allowlist:
+                            allowlist.remove(pattern)
+                            reversed_config = True
+
+                if reversed_config:
+                    with open(config_path, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, indent=2)
+
+            except Exception as e:
+                self.app.notify(f"Error reversing config: {e}", severity="error")
+                return
+
         if self.violation_logger.mark_unresolved(timestamp):
             self.load_all_filters()
-            self.app.notify("✓ Violation resolution undone", severity="success")
+            self.app.notify("✓ Violation undone (config change reversed)", severity="success")
         else:
-            self.app.notify("Failed to undo violation resolution", severity="error")
+            self.app.notify("Failed to undo violation", severity="error")
 
     def show_violation_details(self, timestamp: str) -> None:
         """Show detailed information about a violation in a modal."""

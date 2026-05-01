@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from ai_guardian.tui.app import AIGuardianTUI
+from ai_guardian.tui.app import AIGuardianTUI, NAV_GROUPS, HELP_DOCS, HelpModal
 
 
 class TestTUIApp:
@@ -25,9 +25,121 @@ class TestTUIApp:
     def test_tui_has_screens(self):
         """Test that TUI has required screens."""
         app = AIGuardianTUI()
-        # Screens are initialized on mount, so we can't test them directly
-        # without running the app
         assert app is not None
+
+
+class TestNavGroups:
+    """Tests for navigation structure."""
+
+    def test_nav_groups_has_seven_categories(self):
+        """Test that NAV_GROUPS defines exactly 7 category groups."""
+        assert len(NAV_GROUPS) == 7
+
+    def test_nav_groups_has_twentyone_panels(self):
+        """Test that NAV_GROUPS defines exactly 21 leaf panels."""
+        total_leaves = sum(len(items) for _, items in NAV_GROUPS)
+        assert total_leaves == 21
+
+    def test_panel_ids_are_unique(self):
+        """Test that all panel IDs are unique."""
+        panel_ids = [pid for _, items in NAV_GROUPS for _, pid in items]
+        assert len(panel_ids) == len(set(panel_ids)), "Duplicate panel IDs found"
+
+    def test_panel_ids_have_panel_prefix(self):
+        """Test that all panel IDs start with 'panel-'."""
+        for _, items in NAV_GROUPS:
+            for _, panel_id in items:
+                assert panel_id.startswith("panel-"), f"{panel_id} missing 'panel-' prefix"
+
+    def test_category_labels_are_strings(self):
+        """Test that all category labels are non-empty strings."""
+        for label, _ in NAV_GROUPS:
+            assert isinstance(label, str)
+            assert len(label) > 0
+
+    def test_leaf_labels_are_strings(self):
+        """Test that all leaf labels are non-empty strings."""
+        for _, items in NAV_GROUPS:
+            for label, _ in items:
+                assert isinstance(label, str)
+                assert len(label) > 0
+
+    def test_check_action_panel_ids_exist_in_nav(self):
+        """Test that all panel IDs referenced in check_action exist in NAV_GROUPS."""
+        panel_ids = {pid for _, items in NAV_GROUPS for _, pid in items}
+        action_panel_ids = {
+            "panel-skills",
+            "panel-mcp",
+            "panel-pi-detection",
+            "panel-pi-patterns",
+            "panel-secrets",
+            "panel-ssrf",
+            "panel-config-scanner",
+            "panel-secret-redaction",
+        }
+        assert action_panel_ids.issubset(panel_ids), (
+            f"Missing panel IDs: {action_panel_ids - panel_ids}"
+        )
+
+    def test_expected_categories(self):
+        """Test that the expected category names are present."""
+        category_names = [name for name, _ in NAV_GROUPS]
+        assert "Security Overview" in category_names
+        assert "Permissions" in category_names
+        assert "Threat Detection" in category_names
+        assert "Prompt Injection" in category_names
+        assert "Secrets" in category_names
+        assert "Monitoring" in category_names
+        assert "Configuration" in category_names
+
+    def test_expected_panels_in_categories(self):
+        """Test that key panels are in the correct categories."""
+        nav_dict = {name: [pid for _, pid in items] for name, items in NAV_GROUPS}
+
+        assert "panel-security-dashboard" in nav_dict["Security Overview"]
+        assert "panel-skills" in nav_dict["Permissions"]
+        assert "panel-pi-detection" in nav_dict["Prompt Injection"]
+        assert "panel-pi-jailbreak" in nav_dict["Prompt Injection"]
+        assert "panel-pi-unicode" in nav_dict["Prompt Injection"]
+        assert "panel-scan-pii" in nav_dict["Threat Detection"]
+        assert "panel-secrets" in nav_dict["Secrets"]
+        assert "panel-violations" in nav_dict["Monitoring"]
+        assert "panel-violation-logging" in nav_dict["Monitoring"]
+        assert "panel-config-file" in nav_dict["Configuration"]
+        assert "panel-config-effective" in nav_dict["Configuration"]
+
+
+class TestHelpDocs:
+    """Tests for inline help documentation."""
+
+    def test_all_panels_have_help(self):
+        """Test that every panel has a help doc entry."""
+        panel_ids = [pid for _, items in NAV_GROUPS for _, pid in items]
+        for panel_id in panel_ids:
+            assert panel_id in HELP_DOCS, f"Missing help doc for {panel_id}"
+
+    def test_all_categories_have_help(self):
+        """Test that every category has a help doc entry."""
+        category_names = [name for name, _ in NAV_GROUPS]
+        for name in category_names:
+            assert name in HELP_DOCS, f"Missing help doc for category {name}"
+
+    def test_help_docs_are_non_empty_strings(self):
+        """Test that all help doc entries are non-empty strings."""
+        for key, doc in HELP_DOCS.items():
+            assert isinstance(doc, str), f"Help doc for {key} is not a string"
+            assert len(doc) > 0, f"Help doc for {key} is empty"
+
+    def test_help_docs_total_count(self):
+        """Test total help doc entries: 6 categories + 15 panels = 21."""
+        expected = len(NAV_GROUPS) + sum(len(items) for _, items in NAV_GROUPS)
+        assert len(HELP_DOCS) == expected
+
+    def test_help_modal_initialization(self):
+        """Test that HelpModal can be initialized."""
+        modal = HelpModal("Test Title", "Test body content")
+        assert modal._title == "Test Title"
+        assert modal._body == "Test body content"
 
 
 class TestViolationsApproval:
@@ -35,36 +147,29 @@ class TestViolationsApproval:
 
     def test_approve_violation_adds_rule(self):
         """Test that approving a violation adds the rule to config."""
-        # Create a temporary config directory
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
-            # Create initial config
             config = {
                 "permissions": []
             }
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Simulate adding a rule
             new_rule = {
                 "matcher": "Skill",
                 "mode": "allow",
                 "patterns": ["daf-jira"]
             }
 
-            # Load config
             with open(config_path, 'r') as f:
                 config = json.load(f)
 
-            # Add rule
             config["permissions"].append(new_rule)
 
-            # Save config
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Verify rule was added
             with open(config_path, 'r') as f:
                 updated_config = json.load(f)
 
@@ -76,7 +181,6 @@ class TestViolationsApproval:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
-            # Create initial config with existing rule
             config = {
                 "permissions": [
                     {
@@ -89,31 +193,25 @@ class TestViolationsApproval:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Simulate adding a new pattern to existing rule
             new_pattern = "release"
 
-            # Load config
             with open(config_path, 'r') as f:
                 config = json.load(f)
 
-            # Find existing rule
             existing_rule = next(
                 (r for r in config["permissions"]
                  if r.get("matcher") == "Skill" and r.get("mode") == "allow"),
                 None
             )
 
-            # Merge patterns
             if existing_rule:
                 existing_patterns = existing_rule.get("patterns", [])
                 merged_patterns = list(set(existing_patterns + [new_pattern]))
                 existing_rule["patterns"] = merged_patterns
 
-            # Save config
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Verify patterns were merged
             with open(config_path, 'r') as f:
                 updated_config = json.load(f)
 
@@ -130,12 +228,10 @@ class TestPermissionsEditor:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
-            # Create empty config
             config = {"permissions": []}
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Add new rule
             new_rule = {
                 "matcher": "mcp__notebooklm-mcp__*",
                 "mode": "allow",
@@ -150,7 +246,6 @@ class TestPermissionsEditor:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Verify
             with open(config_path, 'r') as f:
                 updated_config = json.load(f)
 
@@ -162,7 +257,6 @@ class TestPermissionsEditor:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
-            # Create config with two rules
             config = {
                 "permissions": [
                     {
@@ -180,7 +274,6 @@ class TestPermissionsEditor:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Delete first rule
             with open(config_path, 'r') as f:
                 config = json.load(f)
 
@@ -189,7 +282,6 @@ class TestPermissionsEditor:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Verify
             with open(config_path, 'r') as f:
                 updated_config = json.load(f)
 
@@ -201,7 +293,6 @@ class TestPermissionsEditor:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
-            # Create config with one rule
             config = {
                 "permissions": [
                     {
@@ -214,7 +305,6 @@ class TestPermissionsEditor:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Edit rule
             with open(config_path, 'r') as f:
                 config = json.load(f)
 
@@ -223,7 +313,6 @@ class TestPermissionsEditor:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Verify
             with open(config_path, 'r') as f:
                 updated_config = json.load(f)
 
@@ -239,7 +328,6 @@ class TestConfigViewer:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
-            # Create config
             config = {
                 "permissions": [
                     {
@@ -256,11 +344,9 @@ class TestConfigViewer:
             with open(config_path, 'w') as f:
                 json.dump(config, f)
 
-            # Load config
             with open(config_path, 'r') as f:
                 loaded_config = json.load(f)
 
-            # Verify
             assert "permissions" in loaded_config
             assert "violation_logging" in loaded_config
             assert loaded_config["violation_logging"]["enabled"] is True
@@ -271,7 +357,6 @@ class TestConfigViewer:
             user_config_path = Path(tmpdir) / "user.json"
             project_config_path = Path(tmpdir) / "project.json"
 
-            # Create user config
             user_config = {
                 "permissions": [
                     {
@@ -284,7 +369,6 @@ class TestConfigViewer:
             with open(user_config_path, 'w') as f:
                 json.dump(user_config, f)
 
-            # Create project config (overrides user)
             project_config = {
                 "permissions": [
                     {
@@ -297,7 +381,6 @@ class TestConfigViewer:
             with open(project_config_path, 'w') as f:
                 json.dump(project_config, f)
 
-            # Merge configs (project overrides user)
             merged_config = {}
 
             with open(user_config_path, 'r') as f:
@@ -306,7 +389,6 @@ class TestConfigViewer:
             with open(project_config_path, 'r') as f:
                 merged_config.update(json.load(f))
 
-            # Verify project config took precedence
             assert len(merged_config["permissions"]) == 1
             assert merged_config["permissions"][0]["matcher"] == "mcp__*"
 

@@ -193,7 +193,7 @@ class RemoteConfigsContent(Container):
                     classes="section-title"
                 )
 
-                with Vertical(id="urls-list"):
+                with VerticalScroll(id="urls-list"):
                     yield Static("[dim]No remote configs configured[/dim]")
 
             # Add new URL section
@@ -268,7 +268,7 @@ class RemoteConfigsContent(Container):
     def update_urls_list(self, urls: List[Any]) -> None:
         """Update the URLs list display."""
         try:
-            list_container = self.query_one("#urls-list", Vertical)
+            list_container = self.query_one("#urls-list", VerticalScroll)
 
             # Remove all existing children
             list_container.remove_children()

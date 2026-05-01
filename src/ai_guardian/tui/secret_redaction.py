@@ -231,7 +231,7 @@ class SecretRedactionContent(Container):
         # Update widgets
         try:
             toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
-            self.mount_toggle(toggle, "secret_redaction_enabled", enabled_value)
+            toggle.load_value(enabled_value)
 
             self.query_one("#action-select", Select).value = action
             self.query_one("#preserve-format-checkbox", Checkbox).value = preserve_format
@@ -362,10 +362,10 @@ class SecretRedactionContent(Container):
         if select_id == "action-select":
             self.save_config({"action": event.value})
         elif select_id and "secret_redaction_enabled" in select_id:
-            # Handle TimeBasedToggle select changes
             toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self.save_config({"enabled": value})
+            if toggle.current_mode == "temp_disabled":
+                return
+            self.save_config({"enabled": toggle.get_value()})
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""

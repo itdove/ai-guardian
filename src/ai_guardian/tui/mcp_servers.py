@@ -444,27 +444,38 @@ class MCPServersContent(Container):
             else:
                 config = {}
 
-            if "permissions" not in config:
-                config["permissions"] = []
+            permissions_obj = config.get("permissions", {})
+            if isinstance(permissions_obj, dict):
+                all_permissions = permissions_obj.get("rules", [])
+                is_dict_format = True
+            elif isinstance(permissions_obj, list):
+                all_permissions = permissions_obj
+                is_dict_format = False
+            else:
+                all_permissions = []
+                is_dict_format = False
 
             # Check if a rule with same matcher+mode already exists
             existing_rule = None
-            for perm in config["permissions"]:
+            for perm in all_permissions:
                 if perm.get("matcher") == rule.get("matcher") and perm.get("mode") == rule.get("mode"):
                     existing_rule = perm
                     break
 
             if existing_rule:
-                # Merge patterns (no duplicates)
                 new_patterns = rule.get("patterns", [])
                 existing_patterns = existing_rule.get("patterns", [])
                 merged_patterns = list(set(existing_patterns + new_patterns))
                 existing_rule["patterns"] = merged_patterns
                 message = "MCP server permission updated (patterns merged)"
             else:
-                # Add new rule
-                config["permissions"].append(rule)
+                all_permissions.append(rule)
                 message = "MCP server permission added"
+
+            if is_dict_format:
+                config["permissions"]["rules"] = all_permissions
+            else:
+                config["permissions"] = all_permissions
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)

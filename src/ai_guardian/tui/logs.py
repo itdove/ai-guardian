@@ -11,7 +11,7 @@ from typing import List, Tuple, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
-from textual.widgets import Button, Static, Select, Label
+from textual.widgets import Button, Static
 from textual.screen import ModalScreen
 
 from ai_guardian.config_utils import get_config_dir
@@ -102,61 +102,6 @@ class LogEntry(Static):
         super().__init__(log_line, *args, **kwargs)
 
 
-class LogLevelFilter(Container):
-    """A labeled select dropdown for log level filtering."""
-
-    DEFAULT_CSS = """
-    LogLevelFilter {
-        height: auto;
-        margin: 1 0;
-    }
-
-    LogLevelFilter > Label {
-        width: 100%;
-        padding: 0 0;
-    }
-
-    LogLevelFilter > Select {
-        width: 100%;
-        margin: 0 0 0 0;
-    }
-
-    LogLevelFilter > .help-text {
-        color: $text-muted;
-        width: 100%;
-        padding: 0 0;
-    }
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def compose(self) -> ComposeResult:
-        """Compose the select widget."""
-        yield Label("Filter by minimum log level:")
-        yield Select(
-            options=[
-                ("All (DEBUG and above)", "DEBUG"),
-                ("INFO and above", "INFO"),
-                ("WARNING and above", "WARNING"),
-                ("ERROR and above", "ERROR"),
-                ("CRITICAL only", "CRITICAL"),
-            ],
-            value="DEBUG",
-            allow_blank=False,
-            id="log-level-filter",
-        )
-        yield Label(
-            "[dim]Shows selected level and all higher severity levels[/dim]",
-            classes="help-text"
-        )
-
-    def get_value(self) -> str:
-        """Get current filter value."""
-        select = self.query_one("#log-level-filter", Select)
-        return select.value if select.value != Select.BLANK else "DEBUG"
-
-
 class LogsContent(Container):
     """Content widget for Logs tab."""
 
@@ -166,72 +111,28 @@ class LogsContent(Container):
     }
 
     #logs-header {
-        margin: 1 0;
+        margin: 0 0 1 0;
         padding: 1;
         background: $primary;
         color: $text;
-    }
-
-    #logs-controls {
-        margin: 1 0;
-        height: auto;
-    }
-
-    #logs-controls Button {
-        margin: 0 1 0 0;
-    }
-
-
-    #logs-display {
-        height: 100%;
-        border: solid $primary;
-        background: $surface;
-        padding: 1;
-    }
-
-    LogEntry {
-        height: auto;
-    }
-
-    #no-logs {
-        margin: 2;
-        padding: 2;
-        text-align: center;
-        color: $text-muted;
-    }
-
-    #log-error {
-        margin: 2;
-        padding: 2;
-        text-align: center;
-        color: $error;
     }
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log_file = get_config_dir() / "ai-guardian.log"
-        self.current_filter = "DEBUG"  # Start with DEBUG (show all)
+        self.current_filter = "DEBUG"
 
     def compose(self) -> ComposeResult:
         """Compose the logs tab content."""
-        yield Static("[bold]📝 Application Logs[/bold]", id="logs-header")
         yield Static(
-            "[dim]Debug and informational messages from ai-guardian. "
-            "Log file: ~/.config/ai-guardian/ai-guardian.log[/dim]"
+            "[bold]Application Logs[/bold]  "
+            "[dim]r=Refresh  x=Clear  o=Open  f=Filter[/dim]  "
+            "[bold green]ALL[/bold green]",
+            id="logs-header",
         )
-
-        # Action buttons
-        with Horizontal(id="logs-controls"):
-            yield Button("🔄 Refresh", id="refresh-logs", variant="primary")
-            yield Button("🗑️ Clear Log", id="clear-logs", variant="error")
-            yield Button("💾 Export", id="export-logs")
-
-        # Filter control
-        yield LogLevelFilter()
-
-        # Log display area
-        yield VerticalScroll(id="logs-display")
+        with VerticalScroll():
+            yield Static("", id="logs-display")
 
     def on_mount(self) -> None:
         """Load logs when mounted."""
@@ -254,12 +155,18 @@ class LogsContent(Container):
         Returns:
             Tuple of (timestamp, module, level, message) or None if parsing fails
         """
-        # Match the log format
-        pattern = r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - ([^ ]+) - ([A-Z]+) - (.+)$'
-        match = re.match(pattern, line)
-
+        # Format with version: timestamp - version - module - LEVEL - message
+        pattern_v = r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - [^ ]+ - ([^ ]+) - ([A-Z]+) - (.+)$'
+        match = re.match(pattern_v, line)
         if match:
             return match.groups()
+
+        # Legacy format without version: timestamp - module - LEVEL - message
+        pattern = r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - ([^ ]+) - ([A-Z]+) - (.+)$'
+        match = re.match(pattern, line)
+        if match:
+            return match.groups()
+
         return None
 
     def _should_show_log(self, level: str, min_level: str) -> bool:
@@ -301,72 +208,49 @@ class LogsContent(Container):
         else:
             self.current_filter = filter_level
 
-        logs_display = self.query_one("#logs-display", VerticalScroll)
-        logs_display.remove_children()
+        logs_display = self.query_one("#logs-display", Static)
 
-        # Check if log file exists
         if not self.log_file.exists():
-            logs_display.mount(
-                Static(
-                    "No log file found.\n\n"
-                    "[dim]The log file will be created when ai-guardian runs.[/dim]",
-                    id="no-logs"
-                )
-            )
+            logs_display.update("No log file found.\n[dim]The log file will be created when ai-guardian runs.[/dim]")
             return
 
         try:
-            # Read last 100 lines from the log file
-            lines = self._read_last_n_lines(self.log_file, 100)
+            lines = self._read_last_n_lines(self.log_file, 500)
 
             if not lines:
-                logs_display.mount(
-                    Static(
-                        "Log file is empty.\n\n"
-                        "[dim]Log entries will appear here when ai-guardian runs.[/dim]",
-                        id="no-logs"
-                    )
-                )
+                logs_display.update("Log file is empty.\n[dim]Log entries will appear here when ai-guardian runs.[/dim]")
                 return
 
-            # Parse and filter log lines
             log_entries = []
             for line in lines:
                 parsed = self.parse_log_line(line.strip())
                 if parsed:
                     timestamp, module, level, message = parsed
-
-                    # Apply filter - show logs at selected level and above
                     if not self._should_show_log(level, filter_level):
                         continue
-
                     log_entries.append((timestamp, module, level, message))
 
             if not log_entries:
-                logs_display.mount(
-                    Static(
-                        f"No log entries at {filter_level} level or above.\n\n"
-                        "[dim]Try selecting a lower severity level (e.g., DEBUG shows all).[/dim]",
-                        id="no-logs"
-                    )
-                )
+                logs_display.update(f"No log entries at {filter_level} level or above.\n[dim]Try a lower severity level.[/dim]")
                 return
 
-            # Display log entries
-            for timestamp, module, level, message in log_entries:
-                logs_display.mount(LogEntry(timestamp, module, level, message))
-
-            # Auto-scroll to bottom
-            logs_display.scroll_end(animate=False)
+            level_colors = {
+                "DEBUG": "dim",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red bold",
+            }
+            output_lines = []
+            for timestamp, module, level, message in reversed(log_entries):
+                lc = level_colors.get(level, "")
+                output_lines.append(
+                    f"[dim]{timestamp}[/dim] [{lc}]{level:8}[/{lc}] [cyan]{module}[/cyan] {message}"
+                )
+            logs_display.update("\n".join(output_lines))
 
         except Exception as e:
-            logs_display.mount(
-                Static(
-                    f"Error reading log file: {str(e)}\n\n"
-                    "[dim]The log file may be corrupted or in use.[/dim]",
-                    id="log-error"
-                )
-            )
+            logs_display.update(f"Error reading log file: {e}")
 
     def _read_last_n_lines(self, file_path: Path, n: int) -> List[str]:
         """
@@ -387,31 +271,42 @@ class LogsContent(Container):
         except Exception:
             return []
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        button_id = event.button.id
+    FILTER_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR"]
 
-        if button_id == "refresh-logs":
-            self.load_logs()
-            self.app.notify("Logs refreshed", severity="information")
+    BINDINGS = [
+        ("f", "cycle_filter", "Filter"),
+        ("x", "log_clear", "Clear"),
+        ("o", "log_open", "Open"),
+    ]
 
-        elif button_id == "clear-logs":
-            # Show confirmation modal
-            def handle_clear_result(confirmed: bool) -> None:
-                if confirmed:
-                    self.clear_log_file()
+    def action_cycle_filter(self) -> None:
+        idx = self.FILTER_LEVELS.index(self.current_filter) if self.current_filter in self.FILTER_LEVELS else 0
+        self.current_filter = self.FILTER_LEVELS[(idx + 1) % len(self.FILTER_LEVELS)]
+        self.load_logs(filter_level=self.current_filter)
+        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+"}
+        self.app.notify(f"Filter: {labels[self.current_filter]}", severity="information")
+        self._update_header()
 
-            self.app.push_screen(ConfirmClearModal(), handle_clear_result)
+    def action_log_clear(self) -> None:
+        def handle_clear(confirmed: bool) -> None:
+            if confirmed:
+                self.clear_log_file()
+        self.app.push_screen(ConfirmClearModal(), handle_clear)
 
-        elif button_id == "export-logs":
-            self.export_logs()
+    def action_log_open(self) -> None:
+        self.open_log_file()
 
-    def on_select_changed(self, event: Select.Changed) -> None:
-        """Handle filter selection change."""
-        if event.select.id == "log-level-filter":
-            min_level = event.value
-            self.load_logs(filter_level=min_level)
-
+    def _update_header(self) -> None:
+        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+"}
+        label = labels.get(self.current_filter, "ALL")
+        try:
+            self.query_one("#logs-header", Static).update(
+                f"[bold]Application Logs[/bold]  "
+                f"[dim]r=Refresh  x=Clear  o=Open  f=Filter[/dim]  "
+                f"[bold green]{label}[/bold green]"
+            )
+        except Exception:
+            pass
 
     def clear_log_file(self) -> None:
         """Clear the log file."""
@@ -428,26 +323,25 @@ class LogsContent(Container):
         except Exception as e:
             self.app.notify(f"Error clearing log file: {str(e)}", severity="error")
 
-    def export_logs(self) -> None:
-        """Export logs to a file."""
+    def open_log_file(self) -> None:
+        """Open log file in default application, or show path if unavailable."""
+        if not self.log_file.exists():
+            self.app.notify("No log file found", severity="warning")
+            return
+
+        import platform
+        import subprocess
+
         try:
-            if not self.log_file.exists():
-                self.app.notify("No log file to export", severity="warning")
-                return
-
-            # Export to a timestamped file in the same directory
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            export_file = self.log_file.parent / f"ai-guardian-export-{timestamp}.log"
-
-            # Copy the log file
-            import shutil
-            shutil.copy2(self.log_file, export_file)
-
-            self.app.notify(
-                f"Logs exported to: {export_file}",
-                severity="information",
-                timeout=5
-            )
-        except Exception as e:
-            self.app.notify(f"Error exporting logs: {str(e)}", severity="error")
+            system = platform.system()
+            if system == "Darwin":
+                subprocess.Popen(["open", str(self.log_file)])
+            elif system == "Linux":
+                subprocess.Popen(["xdg-open", str(self.log_file)])
+            elif system == "Windows":
+                subprocess.Popen(["start", "", str(self.log_file)], shell=True)
+            else:
+                raise OSError("Unknown platform")
+            self.app.notify(f"Opened: {self.log_file}", severity="information")
+        except Exception:
+            self.app.notify(f"Log file: {self.log_file}", severity="information", timeout=10)
