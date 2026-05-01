@@ -48,10 +48,10 @@ class VersionLoggingTest(TestCase):
 
     def test_startup_version_logging(self):
         """Test that version is logged at startup"""
-        # Read the log file to verify startup messages
-        # Note: This test verifies the logging was set up, not that it ran
-        # because the module is already imported
-        log_file = ai_guardian.get_config_dir() / "ai-guardian.log"
+        # The file handler path is fixed at import time (real config dir),
+        # so use the handler's actual path rather than get_config_dir()
+        # which may point to an isolated temp dir during tests.
+        log_file = Path(ai_guardian._file_handler.baseFilename)
 
         # The log file should exist after import
         self.assertTrue(log_file.exists(), "Log file should exist after module import")

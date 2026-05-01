@@ -13,6 +13,21 @@ from unittest import mock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_config_dir(tmp_path):
+    """
+    Automatically isolate every test from the real config directory.
+
+    Prevents tests from writing to the user's real violations.jsonl
+    or reading the user's ai-guardian.json. Every test gets its own
+    temporary config directory via the AI_GUARDIAN_CONFIG_DIR env var.
+    """
+    config_dir = tmp_path / "auto_config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
+        yield config_dir
+
+
 @pytest.fixture
 def isolated_config_dir(tmp_path):
     """

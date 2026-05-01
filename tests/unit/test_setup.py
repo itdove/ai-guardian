@@ -391,7 +391,7 @@ class TestIDESetup:
 
         config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
             success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
 
             assert success is True
@@ -418,7 +418,7 @@ class TestIDESetup:
         existing_config = {'permissions': []}
         config_file.write_text(json.dumps(existing_config))
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
             success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
 
             assert success is True
@@ -448,7 +448,7 @@ class TestIDESetup:
         }
         config_file.write_text(json.dumps(existing_config))
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
             success, message = setup.setup_remote_config('https://example.com/policy2.json', dry_run=False)
 
             assert success is True
@@ -478,7 +478,7 @@ class TestIDESetup:
         }
         config_file.write_text(json.dumps(existing_config))
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
             success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
 
             assert success is False
@@ -861,7 +861,7 @@ class TestSetupHooks:
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text('invalid json {')
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
             success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
 
             assert success is False
