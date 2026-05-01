@@ -47,7 +47,7 @@ except ImportError:
 
 # Import prompt injection detector
 try:
-    from ai_guardian.prompt_injection import check_prompt_injection
+    from ai_guardian.prompt_injection import check_prompt_injection, PromptInjectionDetector
     HAS_PROMPT_INJECTION = True
 except ImportError:
     HAS_PROMPT_INJECTION = False
@@ -1584,13 +1584,14 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         logger.debug(f"Failed to log secret detection violation: {e}")
 
 
-def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None):
+def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection"):
     """
-    Log a prompt injection violation.
+    Log a prompt injection or jailbreak violation.
 
     Args:
         filename: Name of the file/prompt where injection was detected
         context: Optional context dict with ide_type, hook_event, etc.
+        attack_type: Type of attack - "injection" or "jailbreak"
     """
     if not HAS_VIOLATION_LOGGER:
         return
@@ -1598,15 +1599,17 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
     try:
         ctx = context or {}
         violation_logger = ViolationLogger()
+        vtype = "jailbreak_detected" if attack_type == "jailbreak" else "prompt_injection"
+        reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
         violation_logger.log_violation(
-            violation_type="prompt_injection",
+            violation_type=vtype,
             blocked={
                 "file_path": filename if filename != "user_prompt" else None,
                 "source": "prompt" if filename == "user_prompt" else "file",
                 "pattern": "Heuristic pattern detected",
                 "confidence": 0.95,
                 "method": "heuristic",
-                "reason": "Prompt injection pattern detected"
+                "reason": reason
             },
             context={
                 "ide_type": ctx.get("ide_type", "unknown"),
@@ -1715,9 +1718,10 @@ def _handle_violations_command(args):
             secret_type = blocked.get("secret_type", "Unknown")
             print(f"  Secret type: {secret_type}")
 
-        elif v.get("violation_type") == "prompt_injection":
+        elif v.get("violation_type") in ("prompt_injection", "jailbreak_detected"):
             source = blocked.get("source", "unknown")
             pattern = blocked.get("pattern", "Unknown")
+            print(f"  Type: {'Jailbreak' if v.get('violation_type') == 'jailbreak_detected' else 'Injection'}")
             print(f"  Source: {source}")
             print(f"  Pattern: {pattern}")
 
@@ -2746,15 +2750,17 @@ def process_hook_input():
                     # PreToolUse = file content (check critical patterns only, threshold 0.90)
                     source_type = "user_prompt" if hook_event == "prompt" else "file_content"
 
-                    should_block, injection_error, injection_detected = check_prompt_injection(
-                        content_to_scan, injection_config, file_path=file_path, tool_name=tool_identifier, source_type=source_type
+                    detector = PromptInjectionDetector(injection_config)
+                    should_block, injection_error, injection_detected = detector.detect(
+                        content_to_scan, file_path=file_path, tool_name=tool_identifier, source_type=source_type
                     )
 
                     # Log violation if injection was detected (in both log and block modes)
                     if injection_detected:
                         _log_prompt_injection_violation(
                             filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path}
+                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
+                            attack_type=detector.last_attack_type
                         )
 
                     if should_block:
@@ -3062,7 +3068,7 @@ def main():
         )
         violations_parser.add_argument(
             "--type",
-            choices=["tool_permission", "directory_blocking", "secret_detected", "prompt_injection"],
+            choices=["tool_permission", "directory_blocking", "secret_detected", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"],
             help="Filter by violation type"
         )
         violations_parser.add_argument(

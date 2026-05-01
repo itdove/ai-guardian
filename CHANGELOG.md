@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Jailbreak Detection Patterns** (Issue #263)
+  - 13 built-in jailbreak patterns across 4 categories: role-play jailbreaks (DAN/sudo/god mode), identity manipulation (pretend/imagine unrestricted AI), constraint removal (no rules now, free from restrictions), and hypothetical framing (fictional scenario without rules)
+  - New `jailbreak_patterns` config key for user-defined patterns (extends built-in patterns)
+  - Error messages distinguish "Jailbreak Attempt Detected" from "Prompt Injection Detected"
+  - New `jailbreak_detected` violation logging type with TUI checkbox and violations panel tab
+  - Jailbreak patterns only checked for user prompts (not file content) to minimize false positives
+  - Named jailbreak persona detection (DAN, STAN, DUDE, AIM, KEVIN)
+  - Reference: "Jailbroken: How Does LLM Safety Training Fail?" (Princeton, 2023)
+  - OWASP LLM Top 10: LLM01 - Prompt Injection
+  - 40+ unit tests covering detection, false positives, attack type distinction, config, sensitivity, allowlist, and violation logging
+
 - **PII Detection in Tool Outputs** (Issue #262)
   - GDPR/CCPA compliance: detect and redact personally identifiable information across all three hooks (UserPromptSubmit, PreToolUse, PostToolUse)
   - 7 PII types supported: SSN (with invalid format exclusions), Credit Card (Luhn validation), US Phone, Email (preserves domain), US Passport, IBAN (mod-97 validation), International Phone (E.164)

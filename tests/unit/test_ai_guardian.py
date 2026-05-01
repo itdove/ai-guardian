@@ -1296,9 +1296,9 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_check_injection.assert_not_called()
 
     @patch('ai_guardian._load_prompt_injection_config')
-    @patch('ai_guardian.check_prompt_injection')
+    @patch('ai_guardian.PromptInjectionDetector')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_prompt_injection_time_based_expired_auto_enabled(self, mock_check_secrets, mock_check_injection, mock_load_config):
+    def test_prompt_injection_time_based_expired_auto_enabled(self, mock_check_secrets, mock_detector_class, mock_load_config):
         """Test prompt injection detection auto-enabled after disable period expires"""
         from datetime import datetime, timezone
 
@@ -1313,7 +1313,9 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         }, None)
 
         mock_check_secrets.return_value = (False, None)
-        mock_check_injection.return_value = (True, "Injection detected", True)
+        mock_instance = mock_detector_class.return_value
+        mock_instance.detect.return_value = (True, "Injection detected", True)
+        mock_instance.last_attack_type = "injection"
 
         hook_input = json.dumps({
             "hook_event_name": "UserPromptSubmit",
@@ -1328,8 +1330,8 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(response["exit_code"], 0, "Exit code should be 0 with JSON response")
         output = json.loads(response["output"])
         self.assertEqual(output["decision"], "block", "Should block when injection detected")
-        # Injection check should be called
-        mock_check_injection.assert_called_once()
+        # Injection detector should be called
+        mock_instance.detect.assert_called_once()
 
     @patch('ai_guardian._load_permissions_config')
     @patch('ai_guardian.ToolPolicyChecker')
@@ -1439,9 +1441,9 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
     @patch('ai_guardian._load_prompt_injection_config')
     @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian.check_prompt_injection')
+    @patch('ai_guardian.PromptInjectionDetector')
     @patch('ai_guardian.check_secrets_with_gitleaks')
-    def test_multiple_features_different_states(self, mock_check_secrets, mock_check_injection, mock_secret_config, mock_injection_config):
+    def test_multiple_features_different_states(self, mock_check_secrets, mock_detector_class, mock_secret_config, mock_injection_config):
         """Test multiple features with different enable/disable states"""
         from datetime import datetime, timezone
 
@@ -1459,7 +1461,9 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             }
         }, None)
 
-        mock_check_injection.return_value = (False, None, False)
+        mock_instance = mock_detector_class.return_value
+        mock_instance.detect.return_value = (False, None, False)
+        mock_instance.last_attack_type = "injection"
         mock_check_secrets.return_value = (True, "Secret detected")
 
         hook_input = json.dumps({
@@ -1472,8 +1476,8 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
         # Should allow (prompt injection check runs and passes, secret scanning disabled)
         self.assertEqual(response["exit_code"], 0)
-        # Injection check should be called (enabled)
-        mock_check_injection.assert_called_once()
+        # Injection detector should be called (enabled)
+        mock_instance.detect.assert_called_once()
         # Secret check should NOT be called (disabled)
         mock_check_secrets.assert_not_called()
 

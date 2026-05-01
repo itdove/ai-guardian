@@ -840,6 +840,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "max_score_threshold": 0.75,
             "allowlist_patterns": [],
             "custom_patterns": [],
+            "jailbreak_patterns": [],
             "ignore_tools": [],
             "ignore_files": [],
             "unicode_detection": {
@@ -947,7 +948,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "ssrf_blocked", "config_file_exfil", "pii_detected"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"]
         }
     }
 

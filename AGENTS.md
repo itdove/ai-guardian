@@ -911,6 +911,7 @@ When modifying the configuration schema:
 - [ ] Add comprehensive tests
 - [ ] Update documentation (README, CHANGELOG, docs/*)
 - [ ] Test `ai-guardian setup --create-config` output
+- [ ] If adding a new pattern category: update `ai-guardian patterns list` command (Issue #337)
 
 ### Example: Adding Unicode Detection
 
@@ -1145,7 +1146,12 @@ When a new pattern passes evaluation:
    - Credit research source in commit message
    - Update this section's "Last Research Review" date
 
-5. **Submit PR**
+5. **Update Pattern Listing Command** (Issue #337)
+   - If a **new pattern category** was created (e.g., `NORMALIZATION_ATTACK_PATTERNS`), update `ai-guardian patterns list` to include it
+   - If a **new configurable key** was added to the schema (e.g., `normalization_patterns`), verify it appears in the listing output
+   - Run `ai-guardian patterns list` to confirm the new category/patterns are visible
+
+6. **Submit PR**
    - Reference pattern enhancement issue and monthly reminder
    - Include test results and false positive analysis
 
