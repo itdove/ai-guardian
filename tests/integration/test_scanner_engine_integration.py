@@ -22,8 +22,8 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_secret_scanning_config')
-    def test_scanner_not_found_raises_error(self, mock_load_config, mock_select_engine):
-        """Test that missing scanner raises error instead of silent fallback."""
+    def test_scanner_not_found_warns(self, mock_load_config, mock_select_engine):
+        """Test that missing scanner warns instead of blocking (Issue #343)."""
         # Mock configuration with leaktk
         mock_load_config.return_value = ({"engines": ["leaktk"]}, None)
 
@@ -35,18 +35,18 @@ class TestScannerEngineIntegration(unittest.TestCase):
             "  • LeakTK: brew install leaktk/tap/leaktk"
         )
 
-        # Should return blocking error
+        # Should return warning (not blocking)
         has_secrets, error_msg = check_secrets_with_gitleaks(
             "aws_key=AKIAIOSFODNN7EXAMPLE",
             filename="test.txt"
         )
 
-        # Verify it blocks
-        self.assertTrue(has_secrets, "Should block when scanner not found")
-        self.assertIsNotNone(error_msg)
-        self.assertIn("NO SCANNER AVAILABLE", error_msg)
-        self.assertIn("Secret scanning is enabled but no scanner is available", error_msg)
-        self.assertIn("Install a scanner", error_msg)
+        # Verify it warns but does NOT block
+        self.assertFalse(has_secrets, "Should NOT block when scanner not found (Issue #343)")
+        self.assertIsNotNone(error_msg, "Warning message should be returned")
+        self.assertIn("WARNING", error_msg, "Should indicate warning")
+        self.assertIn("ai-guardian scanner install leaktk", error_msg, "Should suggest installing configured scanner")
+        self.assertIn("you may leak secrets", error_msg, "Should warn about risk")
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.select_engine')

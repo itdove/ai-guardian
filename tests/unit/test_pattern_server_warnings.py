@@ -197,8 +197,8 @@ class PatternServerWarningsTest(TestCase):
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_pattern_server_and_no_engines_blocks(self, mock_client_class, mock_pattern_config, mock_select_engine):
-        """Test that operation is BLOCKED when pattern server fails AND no scanner engines available"""
+    def test_pattern_server_and_no_engines_warns(self, mock_client_class, mock_pattern_config, mock_select_engine):
+        """Test that operation shows WARNING when pattern server fails AND no scanner engines available"""
         # Setup: Pattern server configured without warn_on_failure field
         pattern_config = {
             "url": "https://pattern-server.example.com"
@@ -226,11 +226,12 @@ class PatternServerWarningsTest(TestCase):
             with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Operation should be blocked (no scanner available)
-        self.assertTrue(has_secrets, "Operation should be blocked when no scanner available")
-        self.assertIsNotNone(error_msg, "Error message should be returned")
-        self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
-        self.assertIn("NO SCANNER AVAILABLE", error_msg, "Should indicate no scanner")
+        # Verify: Operation should warn but NOT block (Issue #343)
+        self.assertFalse(has_secrets, "Operation should NOT be blocked when no scanner available")
+        self.assertIsNotNone(error_msg, "Warning message should be returned")
+        self.assertIn("WARNING", error_msg, "Should indicate warning")
+        self.assertIn("ai-guardian scanner install", error_msg, "Should contain install command")
+        self.assertIn("you may leak secrets", error_msg, "Should warn about leaked secrets")
 
     @patch('ai_guardian.pattern_server.logger')
     @patch('requests.get')
@@ -432,8 +433,8 @@ class PatternServerWarningsTest(TestCase):
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.PatternServerClient')
-    def test_blocking_error_message_when_no_scanner(self, mock_client_class, mock_pattern_config, mock_select_engine):
-        """Test that blocking error message contains helpful information when no scanner available"""
+    def test_warning_message_when_no_scanner(self, mock_client_class, mock_pattern_config, mock_select_engine):
+        """Test that warning message contains helpful information when no scanner available (Issue #343)"""
         # Setup: Pattern server configured
         pattern_config = {
             "url": "https://pattern-server.example.com",
@@ -458,16 +459,14 @@ class PatternServerWarningsTest(TestCase):
             with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
 
-        # Verify: Error message contains helpful details
-        self.assertTrue(has_secrets, "Operation should be blocked")
-        self.assertIsNotNone(error_msg, "Error message should be returned")
+        # Verify: Warning message (not blocking) with helpful details (Issue #343)
+        self.assertFalse(has_secrets, "Operation should NOT be blocked when no scanner available")
+        self.assertIsNotNone(error_msg, "Warning message should be returned")
 
-        # Check for helpful information in error message
-        self.assertIn("BLOCKED BY POLICY", error_msg, "Should indicate blocking policy")
-        self.assertIn("NO SCANNER AVAILABLE", error_msg, "Should indicate no scanner available")
-        self.assertIn("pattern-server.example.com", error_msg, "Should mention server URL")
-        self.assertIn("To fix", error_msg, "Should provide fix instructions")
-        self.assertIn("Install a scanner", error_msg, "Should mention installing scanner")
+        # Check for helpful information in warning message
+        self.assertIn("WARNING", error_msg, "Should indicate warning")
+        self.assertIn("ai-guardian scanner install", error_msg, "Should contain install command")
+        self.assertIn("you may leak secrets", error_msg, "Should warn about risk")
 
     @patch('logging.warning')
     @patch('logging.info')

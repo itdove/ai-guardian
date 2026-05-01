@@ -1918,35 +1918,16 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     config_source = f"{engine_config.type} defaults"
 
                 except RuntimeError as e:
-                    # NO SCANNER AVAILABLE - BLOCK
-                    error_msg = (
-                        f"\n{'='*70}\n"
-                        f"🚨 BLOCKED BY POLICY\n"
-                        f"🔒 NO SCANNER AVAILABLE\n"
-                        f"{'='*70}\n\n"
-                        f"Secret scanning is enabled but no scanner is available.\n\n"
+                    # NO SCANNER AVAILABLE - WARN (allow operation to continue)
+                    default_scanner = engines_list[0] if engines_list else "gitleaks"
+                    warning_msg = (
+                        f"⚠️  WARNING: Default scanner not installed\n\n"
+                        f"Please install the {default_scanner}, with the command:\n"
+                        f"  ai-guardian scanner install {default_scanner}\n\n"
+                        f"Until the scanner is not installed, you may leak secrets."
                     )
-
-                    if pattern_server_attempted:
-                        error_msg += (
-                            f"Attempted fallback:\n"
-                            f"  1. Pattern server: {pattern_config.get('url')} - unavailable\n"
-                            f"  2. Scanner engines: {engines_list} - none installed\n\n"
-                        )
-                    else:
-                        error_msg += (
-                            f"Tried scanner engines: {engines_list} - none installed\n\n"
-                        )
-
-                    error_msg += (
-                        f"This operation has been blocked for security.\n\n"
-                        f"To fix:\n"
-                        f"  1. Install a scanner: brew install gitleaks\n"
-                        f"  2. OR disable secret_scanning in config\n"
-                        f"{'='*70}\n"
-                    )
-                    logging.error(f"No scanner available")
-                    return True, error_msg
+                    logging.warning(f"No scanner available - warning user")
+                    return False, warning_msg
 
             # Validate pattern completeness if using pattern server
             if config_source == "pattern server" and gitleaks_config_path:
@@ -1977,20 +1958,16 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
                     engine_config = select_engine(engines_list)
                 except RuntimeError as e:
-                    # No scanner found - error already logged
-                    error_msg = (
-                        f"\n{'='*70}\n"
-                        f"🚨 BLOCKED BY POLICY\n"
-                        f"🔒 NO SCANNER AVAILABLE\n"
-                        f"{'='*70}\n\n"
-                        f"{str(e)}\n\n"
-                        f"Secret scanning is enabled but no scanner is available.\n\n"
-                        f"This operation has been blocked for security.\n"
-                        f"Install a scanner or update your configuration.\n"
-                        f"{'='*70}\n"
+                    # No scanner found - warn (allow operation to continue)
+                    default_scanner = engines_list[0] if engines_list else "gitleaks"
+                    warning_msg = (
+                        f"⚠️  WARNING: Default scanner not installed\n\n"
+                        f"Please install the {default_scanner}, with the command:\n"
+                        f"  ai-guardian scanner install {default_scanner}\n\n"
+                        f"Until the scanner is not installed, you may leak secrets."
                     )
-                    logging.error(f"Scanner engine selection failed: {e}")
-                    return True, error_msg
+                    logging.warning(f"Scanner engine selection failed: {e}")
+                    return False, warning_msg
                 except Exception as e:
                     logging.error(f"Unexpected error selecting scanner engine: {e}")
                     return False, None
@@ -2428,6 +2405,11 @@ def process_hook_input():
                 ignore_files=ignore_files,
                 ignore_tools=ignore_tools
             )
+
+            if not has_secrets and error_message:
+                # Scanner not available - display warning but allow operation
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                     warning_message=error_message)
 
             if has_secrets:
                 # Check if redaction is enabled
@@ -2879,6 +2861,10 @@ def process_hook_input():
                 ignore_files=ignore_files,
                 ignore_tools=ignore_tools
             )
+
+            if not has_secrets and error_message:
+                # Scanner not available - add warning to messages list
+                warning_messages.append(error_message)
 
             if has_secrets:
                 # Secrets found - block operation
