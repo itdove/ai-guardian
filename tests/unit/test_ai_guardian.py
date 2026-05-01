@@ -535,6 +535,46 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
         self.assertEqual(response["exit_code"], 0)
 
+    def test_format_response_posttooluse_modified_output(self):
+        """Test format_response includes updatedToolOutput in PostToolUse when modified_output provided"""
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.CLAUDE_CODE,
+            has_secrets=False,
+            hook_event="posttooluse",
+            modified_output="redacted content here"
+        )
+        output = json.loads(response["output"])
+        self.assertIn("hookSpecificOutput", output)
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PostToolUse")
+        self.assertEqual(output["hookSpecificOutput"]["updatedToolOutput"], "redacted content here")
+        self.assertEqual(output["hookSpecificOutput"]["updatedMCPToolOutput"], "redacted content here")
+        self.assertEqual(response["exit_code"], 0)
+
+    def test_format_response_posttooluse_no_modified_output(self):
+        """Test format_response omits updatedToolOutput when no modified_output provided"""
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.CLAUDE_CODE,
+            has_secrets=False,
+            hook_event="posttooluse"
+        )
+        output = json.loads(response["output"])
+        self.assertEqual(output, {})
+        self.assertNotIn("hookSpecificOutput", output)
+
+    def test_format_response_posttooluse_modified_output_with_warning(self):
+        """Test format_response includes both systemMessage and updatedToolOutput"""
+        response = ai_guardian.format_response(
+            ai_guardian.IDEType.CLAUDE_CODE,
+            has_secrets=False,
+            hook_event="posttooluse",
+            warning_message="PII detected",
+            modified_output="[HIDDEN SSN] found"
+        )
+        output = json.loads(response["output"])
+        self.assertEqual(output["systemMessage"], "PII detected")
+        self.assertEqual(output["hookSpecificOutput"]["updatedToolOutput"], "[HIDDEN SSN] found")
+        self.assertEqual(output["hookSpecificOutput"]["updatedMCPToolOutput"], "[HIDDEN SSN] found")
+
     def test_format_response_cursor_allow(self):
         """Test format_response for Cursor (allow)"""
         response = ai_guardian.format_response(

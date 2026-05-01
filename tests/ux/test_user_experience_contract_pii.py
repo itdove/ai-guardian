@@ -132,21 +132,22 @@ class PIIUserPromptSubmitTests(TestCase):
 class PIIPostToolUseTests(TestCase):
     """Test PII redaction in tool outputs (PostToolUse hook)."""
 
+    @patch('ai_guardian._scan_for_pii')
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
     @patch('ai_guardian._load_secret_scanning_config')
-    def test_posttooluse_redacts_credit_card(self, mock_ss, mock_gitleaks, mock_pii):
+    def test_posttooluse_redacts_credit_card(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
-        USER EXPERIENCE: Tool output contains credit card -> REDACTED
+        USER EXPERIENCE: Tool output contains credit card with action=redact -> REDACTED
 
         Scenario:
         1. Claude runs a Bash command
         2. Output contains credit card number 4532015112830366
-        3. ai-guardian PostToolUse hook runs
+        3. ai-guardian PostToolUse hook runs with action=redact
 
         Expected User Experience:
         ✅ Output is returned (not blocked)
-        🔒 Credit card is masked: [HIDDEN CREDIT CARD ****0366]
+        🔒 Credit card is masked via updatedToolOutput
         ⚠️ User sees warning about PII redaction
         """
         mock_ss.return_value = (None, None)
@@ -154,9 +155,15 @@ class PIIPostToolUseTests(TestCase):
         mock_pii.return_value = ({
             'enabled': True,
             'pii_types': ['credit_card'],
-            'action': 'block',
+            'action': 'redact',
             'ignore_files': []
         }, None)
+        mock_scan.return_value = (
+            True,
+            "Card: [HIDDEN CREDIT CARD ****0366]",
+            [{'type': 'credit_card', 'start': 6, 'end': 22}],
+            "Found 1 PII item(s):\n  - credit_card\n\nAction: redact\n"
+        )
 
         hook_data = {
             "hook_event_name": "PostToolUse",
@@ -164,8 +171,8 @@ class PIIPostToolUseTests(TestCase):
                 "name": "Bash",
                 "input": {"command": "cat data.txt"},
             },
-            "tool_result": {
-                "content": [{"type": "text", "text": "Card: 4532015112830366"}]
+            "tool_response": {
+                "output": "Card: 4532015112830366"
             }
         }
 
@@ -173,11 +180,11 @@ class PIIPostToolUseTests(TestCase):
             result = ai_guardian.process_hook_input()
 
         output = json.loads(result['output'])
-        # Should have modified output with redacted credit card
-        modified = output.get('output', '')
-        assert '4532015112830366' not in modified, "Credit card should be redacted"
-        if modified:
-            assert '0366' in modified, "Last 4 digits should be preserved"
+        assert output.get('decision') != 'block', "redact action should not block"
+        assert 'hookSpecificOutput' in output, "Should have hookSpecificOutput with redacted content"
+        updated = output['hookSpecificOutput'].get('updatedToolOutput', '')
+        assert '4532015112830366' not in updated, "Credit card should be redacted in updatedToolOutput"
+        assert 'HIDDEN CREDIT CARD' in updated, "Should contain masked placeholder"
 
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
@@ -210,8 +217,8 @@ class PIIPostToolUseTests(TestCase):
                 "name": "Bash",
                 "input": {"command": "cat data.txt"},
             },
-            "tool_result": {
-                "content": [{"type": "text", "text": "SSN: 123-45-6789"}]
+            "tool_response": {
+                "output": "SSN: 123-45-6789"
             }
         }
 
@@ -223,6 +230,168 @@ class PIIPostToolUseTests(TestCase):
         assert output.get('decision') != 'block', "log-only should not block"
         # Should have a system message warning
         assert 'systemMessage' in output or output == {}, f"Expected warning or pass-through: {output}"
+
+
+    @patch('ai_guardian._scan_for_pii')
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_posttooluse_redact_action_replaces_output(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
+        """
+        USER EXPERIENCE: PII found with action=redact -> OUTPUT REPLACED
+
+        Scenario:
+        1. scan_pii.action = "redact"
+        2. Tool output contains SSN
+        3. PII is masked and output is replaced via updatedToolOutput
+
+        Expected User Experience:
+        ✅ Output is replaced with redacted version
+        🔒 SSN masked: [HIDDEN SSN]
+        ⚠️ Warning shown about PII detection
+        """
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'redact',
+            'ignore_files': []
+        }, None)
+        mock_scan.return_value = (
+            True,
+            "SSN: [HIDDEN SSN]",
+            [{'type': 'ssn', 'start': 5, 'end': 16}],
+            "Found 1 PII item(s):\n  - ssn\n\nAction: redact\n"
+        )
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": "cat data.txt"},
+            },
+            "tool_response": {
+                "output": "SSN: 123-45-6789"
+            }
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        output = json.loads(result['output'])
+        assert output.get('decision') != 'block', "redact action should not block in PostToolUse"
+        assert 'systemMessage' in output, "Should show warning about PII"
+        assert 'hookSpecificOutput' in output, "Should have hookSpecificOutput with redacted content"
+        updated = output['hookSpecificOutput'].get('updatedToolOutput', '')
+        assert '123-45-6789' not in updated, "SSN should be redacted in updatedToolOutput"
+        assert 'HIDDEN SSN' in updated, "Should contain masked placeholder"
+
+    @patch('ai_guardian._scan_for_pii')
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_posttooluse_block_action_blocks_output(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
+        """
+        USER EXPERIENCE: PII found with action=block -> OUTPUT BLOCKED
+
+        Scenario:
+        1. scan_pii.action = "block"
+        2. Tool output contains SSN
+        3. Output is blocked entirely
+
+        Expected User Experience:
+        ❌ Output is blocked
+        🛡️ User sees PII detection error
+        """
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'block',
+            'ignore_files': []
+        }, None)
+        mock_scan.return_value = (
+            True,
+            "SSN: [HIDDEN SSN]",
+            [{'type': 'ssn', 'start': 5, 'end': 16}],
+            "Found 1 PII item(s):\n  - ssn\n\nAction: block\n"
+        )
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": "cat data.txt"},
+            },
+            "tool_response": {
+                "output": "SSN: 123-45-6789"
+            }
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        output = json.loads(result['output'])
+        assert output.get('decision') == 'block', "block action should block in PostToolUse"
+
+    @patch('ai_guardian._scan_for_pii')
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_pretooluse_redact_action_blocks(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
+        """
+        USER EXPERIENCE: PII found in PreToolUse with action=redact -> BLOCKED
+
+        Scenario:
+        1. scan_pii.action = "redact"
+        2. File being read contains PII
+        3. In PreToolUse, redact behaves as block (can't redact before tool runs)
+
+        Expected User Experience:
+        ❌ File read is blocked
+        🛡️ User sees PII detection error
+        """
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'redact',
+            'ignore_files': []
+        }, None)
+        mock_scan.return_value = (
+            True,
+            "SSN: [HIDDEN SSN]",
+            [{'type': 'ssn', 'start': 5, 'end': 16}],
+            "Found 1 PII item(s):\n  - ssn\n\nAction: redact\n"
+        )
+
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("SSN: 123-45-6789")
+            tmp_path = f.name
+
+        try:
+            hook_data = {
+                "hook_event_name": "PreToolUse",
+                "tool_use": {
+                    "name": "Read",
+                    "parameters": {"file_path": tmp_path}
+                }
+            }
+
+            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                result = ai_guardian.process_hook_input()
+
+            output = json.loads(result['output'])
+            has_deny = output.get('hookSpecificOutput', {}).get('permissionDecision') == 'deny'
+            has_block = output.get('decision') == 'block'
+            assert has_deny or has_block, \
+                f"redact action should block in PreToolUse: {output}"
+        finally:
+            os.unlink(tmp_path)
 
 
 class PIIPreToolUseTests(TestCase):

@@ -265,8 +265,10 @@
     "_comment": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0)",
     "_comment2": "Scans user prompts, file reads, and tool outputs for personally identifiable information",
     "_comment3": "Enabled by default. Use ignore_files to skip test files with example PII data.",
-    "_comment4": "action: 'block' = block in UserPromptSubmit/PreToolUse, warn in PostToolUse (default)",
-    "_comment5": "action: 'log-only' = warn but allow in all hooks",
+    "_comment4": "action: 'block' = block in all hooks (default)",
+    "_comment5": "action: 'redact' = replace PII with masked text in PostToolUse, block in PreToolUse/UserPromptSubmit",
+    "_comment6": "action: 'warn' = log violation and show warning but allow",
+    "_comment7": "action: 'log-only' = log violation silently",
     "enabled": true,
     "pii_types": [
       "ssn",
