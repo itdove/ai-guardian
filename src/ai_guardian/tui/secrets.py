@@ -14,11 +14,19 @@ from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Static, Button, Input, Label, Checkbox
 
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, default_placeholder,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class SecretsContent(Container):
+class SecretsContent(SchemaDefaultsMixin, Container):
     """Content widget for Secrets tab."""
+
+    SCHEMA_SECTION = "secret_scanning.pattern_server"
+    SCHEMA_FIELDS = [
+        ("pattern-server-warn-on-failure", "warn_on_failure", "checkbox"),
+    ]
 
     CSS = """
     SecretsContent {
@@ -159,13 +167,19 @@ class SecretsContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Patterns Endpoint:")
-                    yield Input(placeholder="/patterns/gitleaks/8.18.1", id="pattern-server-endpoint")
+                    yield Input(
+                        placeholder=default_placeholder("secret_scanning.pattern_server.patterns_endpoint"),
+                        id="pattern-server-endpoint",
+                    )
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Warn on Failure:")
                     yield Checkbox("", id="pattern-server-warn-on-failure", value=True)
-                    yield Static("[dim]Show warnings when pattern server fails (auth, network, etc)[/dim]")
+                    yield Static(
+                        f"[dim]Show warnings when pattern server fails (auth, network, etc)[/dim] "
+                        f"{default_indicator('secret_scanning.pattern_server.warn_on_failure')}"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Auth Method:")
@@ -195,13 +209,25 @@ class SecretsContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Refresh Interval:")
-                    yield Input(placeholder="12", id="cache-refresh-interval")
-                    yield Static("[dim]hours (Press Enter to save)[/dim]")
+                    yield Input(
+                        placeholder=default_placeholder("secret_scanning.pattern_server.cache.refresh_interval_hours"),
+                        id="cache-refresh-interval",
+                    )
+                    yield Static(
+                        f"[dim]hours (Press Enter to save)[/dim] "
+                        f"{default_indicator('secret_scanning.pattern_server.cache.refresh_interval_hours')}"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Expire After:")
-                    yield Input(placeholder="168", id="cache-expire-after")
-                    yield Static("[dim]hours (Press Enter to save)[/dim]")
+                    yield Input(
+                        placeholder=default_placeholder("secret_scanning.pattern_server.cache.expire_after_hours"),
+                        id="cache-expire-after",
+                    )
+                    yield Static(
+                        f"[dim]hours (Press Enter to save)[/dim] "
+                        f"{default_indicator('secret_scanning.pattern_server.cache.expire_after_hours')}"
+                    )
 
             # Violation logging section
             with Container(classes="section"):
@@ -376,6 +402,8 @@ class SecretsContent(Container):
             self.query_one("#log-type-pii", Checkbox).value = "pii_detected" in log_types
         except Exception:
             pass  # Widgets may not be mounted yet
+
+        self._apply_default_indicators(pattern_server)
 
     def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:
         """Update a toggle widget with new configuration value."""

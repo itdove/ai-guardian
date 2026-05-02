@@ -14,6 +14,9 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
@@ -28,8 +31,13 @@ ALL_PII_TYPES = [
 ]
 
 
-class ScanPIIContent(Container):
+class ScanPIIContent(SchemaDefaultsMixin, Container):
     """Content widget for PII Detection tab."""
+
+    SCHEMA_SECTION = "scan_pii"
+    SCHEMA_FIELDS = [
+        ("pii-action-select", "action", "select"),
+    ]
 
     CSS = """
     ScanPIIContent {
@@ -134,12 +142,15 @@ class ScanPIIContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
                     yield Select(
-                        [
-                            ("Block (reject operation)", "block"),
-                            ("Redact (mask PII in output)", "redact"),
-                            ("Warn (allow with warning)", "warn"),
-                            ("Log Only (silent logging)", "log-only"),
-                        ],
+                        select_options_with_default(
+                            [
+                                ("Block (reject operation)", "block"),
+                                ("Redact (mask PII in output)", "redact"),
+                                ("Warn (allow with warning)", "warn"),
+                                ("Log Only (silent logging)", "log-only"),
+                            ],
+                            "scan_pii.action",
+                        ),
                         value="block",
                         id="pii-action-select",
                     )
@@ -306,6 +317,8 @@ class ScanPIIContent(Container):
             self.query_one("#pii-allowlist-patterns", Static).update(allowlist_text)
         except Exception:
             pass
+
+        self._apply_default_indicators(pii_config)
 
     def _save_config(self, updates: Dict[str, Any]) -> bool:
         config_dir = get_config_dir()

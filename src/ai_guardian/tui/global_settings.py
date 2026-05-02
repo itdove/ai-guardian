@@ -15,11 +15,15 @@ from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class GlobalSettingsContent(Container):
+class GlobalSettingsContent(SchemaDefaultsMixin, Container):
     """Content widget for Global Settings tab."""
+
+    SCHEMA_SECTION = ""
+    SCHEMA_FIELDS = []
 
     CSS = """
     GlobalSettingsContent {
@@ -48,7 +52,7 @@ class GlobalSettingsContent(Container):
                 title="🔐 Tool Permissions Enforcement",
                 config_key="permissions_enabled",
                 current_value=True,
-                help_text="Controls whether AI Guardian enforces tool permission rules. When disabled, all tools are allowed.",
+                help_text="Controls whether AI Guardian enforces tool permission rules. When disabled, all tools are allowed. (default: enabled)",
                 id="permissions_enabled_toggle",
                 classes="section",
             )
@@ -58,7 +62,7 @@ class GlobalSettingsContent(Container):
                 title="🔍 Secret Scanning (Gitleaks)",
                 config_key="secret_scanning",
                 current_value=True,
-                help_text="Controls whether AI Guardian scans for secrets using Gitleaks. When disabled, no secret detection is performed.",
+                help_text="Controls whether AI Guardian scans for secrets using Gitleaks. When disabled, no secret detection is performed. (default: enabled)",
                 id="secret_scanning_toggle",
                 classes="section",
             )

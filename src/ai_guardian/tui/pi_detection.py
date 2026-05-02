@@ -14,11 +14,23 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Input, Label, Select
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, default_placeholder,
+    select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class PIDetectionContent(Container):
+class PIDetectionContent(SchemaDefaultsMixin, Container):
     """Content widget for Prompt Injection Detection Settings."""
+
+    SCHEMA_SECTION = "prompt_injection"
+    SCHEMA_FIELDS = [
+        ("detector-select", "detector", "select"),
+        ("sensitivity-select", "sensitivity", "select"),
+        ("score-threshold-input", "max_score_threshold", "input"),
+        ("pi-action-select", "action", "select"),
+    ]
 
     CSS = """
     PIDetectionContent {
@@ -99,11 +111,14 @@ class PIDetectionContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Detector:")
                     yield Select(
-                        [
-                            ("Heuristic (fast, local)", "heuristic"),
-                            ("Rebuff (ML-based)", "rebuff"),
-                            ("LLM Guard", "llm-guard"),
-                        ],
+                        select_options_with_default(
+                            [
+                                ("Heuristic (fast, local)", "heuristic"),
+                                ("Rebuff (ML-based)", "rebuff"),
+                                ("LLM Guard", "llm-guard"),
+                            ],
+                            "prompt_injection.detector",
+                        ),
                         value="heuristic",
                         id="detector-select",
                     )
@@ -111,15 +126,24 @@ class PIDetectionContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Sensitivity:")
                     yield Select(
-                        [("Low", "low"), ("Medium", "medium"), ("High", "high")],
+                        select_options_with_default(
+                            [("Low", "low"), ("Medium", "medium"), ("High", "high")],
+                            "prompt_injection.sensitivity",
+                        ),
                         value="medium",
                         id="sensitivity-select",
                     )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Score Threshold:")
-                    yield Input(placeholder="0.75", id="score-threshold-input")
-                    yield Static("[dim]0.0-1.0 (press Enter to save)[/dim]")
+                    yield Input(
+                        placeholder=default_placeholder("prompt_injection.max_score_threshold"),
+                        id="score-threshold-input",
+                    )
+                    yield Static(
+                        f"[dim]0.0-1.0 (press Enter to save)[/dim] "
+                        f"{default_indicator('prompt_injection.max_score_threshold')}"
+                    )
 
             with Container(classes="section"):
                 yield Static("[bold]Action on Detection[/bold]", classes="section-title")
@@ -127,11 +151,14 @@ class PIDetectionContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
                     yield Select(
-                        [
-                            ("Block (prevent execution)", "block"),
-                            ("Warn (allow with warning)", "warn"),
-                            ("Log Only (silent logging)", "log-only"),
-                        ],
+                        select_options_with_default(
+                            [
+                                ("Block (prevent execution)", "block"),
+                                ("Warn (allow with warning)", "warn"),
+                                ("Log Only (silent logging)", "log-only"),
+                            ],
+                            "prompt_injection.action",
+                        ),
                         value="block",
                         id="pi-action-select",
                     )
@@ -227,6 +254,7 @@ class PIDetectionContent(Container):
         except Exception:
             pass
 
+        self._apply_default_indicators(pi_config)
         self._load_statistics()
 
     def _load_statistics(self) -> None:

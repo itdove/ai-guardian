@@ -15,11 +15,21 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class SecretRedactionContent(Container):
+class SecretRedactionContent(SchemaDefaultsMixin, Container):
     """Content widget for Secret Redaction tab."""
+
+    SCHEMA_SECTION = "secret_redaction"
+    SCHEMA_FIELDS = [
+        ("action-select", "action", "select"),
+        ("preserve-format-checkbox", "preserve_format", "checkbox"),
+        ("log-redactions-checkbox", "log_redactions", "checkbox"),
+    ]
 
     CSS = """
     SecretRedactionContent {
@@ -158,12 +168,15 @@ class SecretRedactionContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
                     yield Select(
-                        [
-                            ("Log Only (redact silently)", "log-only"),
-                            ("Warn (redact and notify)", "warn"),
-                        ],
+                        select_options_with_default(
+                            [
+                                ("Log Only (redact silently)", "log-only"),
+                                ("Warn (redact and notify)", "warn"),
+                            ],
+                            "secret_redaction.action",
+                        ),
                         value="warn",
-                        id="action-select"
+                        id="action-select",
                     )
                     yield Static("[dim](Press 's' to save)[/dim]")
 
@@ -178,12 +191,18 @@ class SecretRedactionContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Preserve Format:")
                     yield Checkbox("", id="preserve-format-checkbox", value=True)
-                    yield Static("[dim]Keep prefix/suffix visible for debugging (e.g., sk-***-xyz)[/dim]")
+                    yield Static(
+                        f"[dim]Keep prefix/suffix visible for debugging (e.g., sk-***-xyz)[/dim] "
+                        f"{default_indicator('secret_redaction.preserve_format')}"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Log Redactions:")
                     yield Checkbox("", id="log-redactions-checkbox", value=True)
-                    yield Static("[dim]Record all redactions in violation log for audit trail[/dim]")
+                    yield Static(
+                        f"[dim]Record all redactions in violation log for audit trail[/dim] "
+                        f"{default_indicator('secret_redaction.log_redactions')}"
+                    )
 
             # Additional patterns section
             with Container(classes="section"):
@@ -245,6 +264,9 @@ class SecretRedactionContent(Container):
         else:
             patterns_text = "[dim]No additional patterns configured[/dim]"
         self.query_one("#additional-patterns-list", Static).update(patterns_text)
+
+        # Apply schema default indicators
+        self._apply_default_indicators(redaction_config)
 
         # Load statistics
         self._load_statistics()

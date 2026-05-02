@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Show default values in TUI config panels from schema** (Issue #371)
+  - Each config field now shows its default value from `ai-guardian-config.schema.json`
+  - Select widgets mark the default option with `(default)` suffix
+  - Checkbox and Input widgets show `(default: on/off/value)` indicator text
+  - Fields changed from default are highlighted with a yellow left-border
+  - New `SchemaDefaults` singleton loads and caches schema once for performance
+  - New `SchemaDefaultsMixin` provides reusable default-indicator logic for all panels
+  - Applied to 11 config panels: SSRF, PI Detection, PII, Secret Redaction, Violation Logging, Config Scanner, Unicode Detection, Secrets, Prompt Injection, Remote Configs, Global Settings
+
 - **Copy-to-clipboard support in TUI** (Issue #362)
   - Auto-copy on text selection: selecting text with the mouse automatically copies it to the system clipboard (like Claude Code)
   - Copy button on Violation Details modal: one-click copy of full violation JSON

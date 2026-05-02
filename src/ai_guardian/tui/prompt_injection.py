@@ -14,11 +14,22 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, default_placeholder,
+    select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class PromptInjectionContent(Container):
+class PromptInjectionContent(SchemaDefaultsMixin, Container):
     """Content widget for Prompt Injection tab."""
+
+    SCHEMA_SECTION = "prompt_injection"
+    SCHEMA_FIELDS = [
+        ("detector-select", "detector", "select"),
+        ("sensitivity-select", "sensitivity", "select"),
+        ("score-threshold-input", "max_score_threshold", "input"),
+    ]
 
     CSS = """
     PromptInjectionContent {
@@ -126,25 +137,37 @@ class PromptInjectionContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Detector:")
                     yield Select(
-                        [("Heuristic (fast, local)", "heuristic"), ("Rebuff (ML-based)", "rebuff"), ("LLM Guard", "llm-guard")],
+                        select_options_with_default(
+                            [("Heuristic (fast, local)", "heuristic"), ("Rebuff (ML-based)", "rebuff"), ("LLM Guard", "llm-guard")],
+                            "prompt_injection.detector",
+                        ),
                         value="heuristic",
-                        id="detector-select"
+                        id="detector-select",
                     )
                     yield Static("[dim](Press 's' to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Sensitivity:")
                     yield Select(
-                        [("Low", "low"), ("Medium", "medium"), ("High", "high")],
+                        select_options_with_default(
+                            [("Low", "low"), ("Medium", "medium"), ("High", "high")],
+                            "prompt_injection.sensitivity",
+                        ),
                         value="medium",
-                        id="sensitivity-select"
+                        id="sensitivity-select",
                     )
                     yield Static("[dim](Press 's' to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Score Threshold:")
-                    yield Input(placeholder="0.75", id="score-threshold-input")
-                    yield Static("[dim]0.0-1.0 (Press Enter to save)[/dim]")
+                    yield Input(
+                        placeholder=default_placeholder("prompt_injection.max_score_threshold"),
+                        id="score-threshold-input",
+                    )
+                    yield Static(
+                        f"[dim]0.0-1.0 (Press Enter to save)[/dim] "
+                        f"{default_indicator('prompt_injection.max_score_threshold')}"
+                    )
 
             # Unicode Attack Detection section
             with Container(classes="section"):
@@ -304,6 +327,8 @@ class PromptInjectionContent(Container):
         else:
             custom_text = "[dim]No custom patterns configured[/dim]"
         self.query_one("#custom-patterns", Static).update(custom_text)
+
+        self._apply_default_indicators(pi_config)
 
         # Get violation stats
         from ai_guardian.violation_logger import ViolationLogger
