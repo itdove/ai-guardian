@@ -105,10 +105,9 @@ ENGINE_PRESETS = {
         type="detect-secrets",
         binary="detect-secrets",
         command_template=[
-            "{binary}", "scan", "--string", "{source_file}",
-            "--baseline", "{report_file}"
+            "{binary}", "scan", "{source_file}"
         ],
-        config_flag=None,  # detect-secrets uses plugin configuration
+        config_flag=None,
         output_parser="detect-secrets",
         success_exit_code=0,
         secrets_found_exit_code=1

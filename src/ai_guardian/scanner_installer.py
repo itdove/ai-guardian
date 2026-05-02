@@ -433,6 +433,29 @@ class ScannerInstaller:
                 f"For security reasons, installation has been aborted."
             )
 
+    @staticmethod
+    def _safe_extract_tar(tar_ref: tarfile.TarFile, extract_dir: Path) -> None:
+        """Extract tar archive with path traversal protection."""
+        resolved_dir = str(extract_dir.resolve())
+        for member in tar_ref.getmembers():
+            member_path = (extract_dir / member.name).resolve()
+            if not str(member_path).startswith(resolved_dir + os.sep) and str(member_path) != resolved_dir:
+                raise RuntimeError(f"Path traversal detected in archive: {member.name}")
+        if sys.version_info >= (3, 12):
+            tar_ref.extractall(extract_dir, filter='data')
+        else:
+            tar_ref.extractall(extract_dir)
+
+    @staticmethod
+    def _safe_extract_zip(zip_ref: zipfile.ZipFile, extract_dir: Path) -> None:
+        """Extract zip archive with path traversal protection."""
+        resolved_dir = str(extract_dir.resolve())
+        for info in zip_ref.infolist():
+            member_path = (extract_dir / info.filename).resolve()
+            if not str(member_path).startswith(resolved_dir + os.sep) and str(member_path) != resolved_dir:
+                raise RuntimeError(f"Path traversal detected in archive: {info.filename}")
+        zip_ref.extractall(extract_dir)
+
     def install_from_download(
         self, scanner_name: str, version: Optional[str] = None
     ) -> Path:
@@ -535,19 +558,19 @@ class ScannerInstaller:
                         "Checksum verification skipped - checksums file not available"
                     )
 
-                # Extract archive
+                # Extract archive (with path traversal protection)
                 extract_dir = temp_path / "extract"
                 extract_dir.mkdir()
 
                 if ext == "zip":
                     with zipfile.ZipFile(archive_path, "r") as zip_ref:
-                        zip_ref.extractall(extract_dir)
+                        self._safe_extract_zip(zip_ref, extract_dir)
                 elif ext == "tar.xz":
                     with tarfile.open(archive_path, "r:xz") as tar_ref:
-                        tar_ref.extractall(extract_dir)
+                        self._safe_extract_tar(tar_ref, extract_dir)
                 elif ext == "tar.gz":
                     with tarfile.open(archive_path, "r:gz") as tar_ref:
-                        tar_ref.extractall(extract_dir)
+                        self._safe_extract_tar(tar_ref, extract_dir)
                 else:
                     raise RuntimeError(f"Unsupported archive format: {ext}")
 
@@ -798,8 +821,6 @@ class ScannerInstaller:
                 continue
 
         logger.debug(f"Failed to get version for {scanner_name}")
-        return None
-
         return None
 
     def _compare_versions(self, version1: str, version2: str) -> int:
