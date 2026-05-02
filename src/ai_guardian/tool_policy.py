@@ -1155,7 +1155,7 @@ class ToolPolicyChecker:
         # Generate suggested configuration
         suggested_matcher, suggested_patterns = self._suggest_permission_rule(tool_name)
 
-        config_path = "~/.config/ai-guardian/ai-guardian.json"
+        config_path = str(get_config_dir() / "ai-guardian.json")
 
         # Start with header
         msg = "🛡️ Tool Access Denied\n\n"

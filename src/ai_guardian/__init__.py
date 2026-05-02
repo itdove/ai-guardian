@@ -890,6 +890,72 @@ def extract_tool_result(hook_data):
         return None, "unknown"
 
 
+def _should_skip_pii_scan(pii_config, tool_identifier=None, file_path=None):
+    """Check if PII scan should be skipped based on ignore_tools and ignore_files config."""
+    ignore_tools = pii_config.get('ignore_tools', [])
+    if ignore_tools and tool_identifier:
+        for pattern in ignore_tools:
+            if fnmatch.fnmatch(tool_identifier, pattern):
+                logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
+                return True
+
+    ignore_files = pii_config.get('ignore_files', [])
+    if ignore_files and file_path:
+        for pattern in ignore_files:
+            if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(os.path.basename(file_path), pattern):
+                logging.info(f"Skipping PII scan for ignored file: {file_path} (pattern: {pattern})")
+                return True
+
+    return False
+
+
+def _build_directory_denied_message(file_path, denied_dir, matched_pattern):
+    """Build a standardized directory access denied error message."""
+    error_msg = "🛡️ Directory Access Denied\n\n"
+
+    if matched_pattern:
+        error_msg += "Protection: Directory Rule\n"
+    else:
+        error_msg += "Protection: .ai-read-deny Marker\n"
+
+    display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
+    error_msg += f"File: {display_path}\n"
+
+    if denied_dir:
+        display_dir = denied_dir if len(denied_dir) <= 100 else "..." + denied_dir[-97:]
+        error_msg += f"Protected Directory: {display_dir}\n"
+
+    if matched_pattern:
+        display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
+        error_msg += f"Pattern: {display_pattern}\n"
+
+    error_msg += "\nWhy blocked: "
+    if matched_pattern:
+        error_msg += "This file is blocked by a directory access rule.\n"
+        error_msg += "Directory rules prevent AI access to specific paths.\n"
+    else:
+        error_msg += "This directory contains a .ai-read-deny marker file.\n"
+        error_msg += "All subdirectories are blocked from AI access.\n"
+
+    error_msg += "\nThis operation has been blocked for security.\n"
+    error_msg += "DO NOT attempt to bypass this protection - it prevents unauthorized directory access.\n"
+
+    error_msg += "\nRecommendation:\n"
+    if matched_pattern:
+        error_msg += "- Update directory_rules in ai-guardian.json to allow this path\n"
+        error_msg += "- Move this file to an accessible location\n"
+        error_msg += "- Verify this file should be accessible to AI agents\n"
+    else:
+        error_msg += f"- Remove the .ai-read-deny file from {denied_dir} (manually)\n"
+        error_msg += "- Move this file to an accessible location\n"
+        error_msg += "- Add an allow rule in directory_rules config to override marker\n"
+
+    error_msg += "\nConfig: ~/.config/ai-guardian/ai-guardian.json\n"
+    error_msg += "Section: directory_rules\n"
+
+    return error_msg
+
+
 def extract_file_content_from_tool(hook_data):
     """
     Extract file path/content from PreToolUse/beforeReadFile hook data.
@@ -910,54 +976,7 @@ def extract_file_content_from_tool(hook_data):
             # Check if directory is denied
             is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
             if is_denied:
-                # Format error message with new structure
-                error_msg = "🛡️ Directory Access Denied\n\n"
-
-                if matched_pattern:
-                    error_msg += "Protection: Directory Rule\n"
-                else:
-                    error_msg += "Protection: .ai-read-deny Marker\n"
-
-                # Truncate very long paths
-                display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
-                error_msg += f"File: {display_path}\n"
-
-                if denied_dir:
-                    display_dir = denied_dir if len(denied_dir) <= 100 else "..." + denied_dir[-97:]
-                    error_msg += f"Protected Directory: {display_dir}\n"
-
-                if matched_pattern:
-                    display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
-                    error_msg += f"Pattern: {display_pattern}\n"
-
-                # Why blocked section
-                error_msg += "\nWhy blocked: "
-                if matched_pattern:
-                    error_msg += "This file is blocked by a directory access rule.\n"
-                    error_msg += "Directory rules prevent AI access to specific paths.\n"
-                else:
-                    error_msg += "This directory contains a .ai-read-deny marker file.\n"
-                    error_msg += "All subdirectories are blocked from AI access.\n"
-
-                # Security warnings
-                error_msg += "\nThis operation has been blocked for security.\n"
-                error_msg += "DO NOT attempt to bypass this protection - it prevents unauthorized directory access.\n"
-
-                # Recommendations
-                error_msg += "\nRecommendation:\n"
-                if matched_pattern:
-                    error_msg += "- Update directory_rules in ai-guardian.json to allow this path\n"
-                    error_msg += "- Move this file to an accessible location\n"
-                    error_msg += "- Verify this file should be accessible to AI agents\n"
-                else:
-                    error_msg += f"- Remove the .ai-read-deny file from {denied_dir} (manually)\n"
-                    error_msg += "- Move this file to an accessible location\n"
-                    error_msg += "- Add an allow rule in directory_rules config to override marker\n"
-
-                # Config path
-                error_msg += "\nConfig: ~/.config/ai-guardian/ai-guardian.json\n"
-                error_msg += "Section: directory_rules\n"
-
+                error_msg = _build_directory_denied_message(file_path, denied_dir, matched_pattern)
                 return None, os.path.basename(file_path), file_path, True, error_msg, None
 
             return content, os.path.basename(file_path), file_path, False, None, dir_warning
@@ -1016,54 +1035,7 @@ def extract_file_content_from_tool(hook_data):
         # Check if directory is denied BEFORE reading the file
         is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
         if is_denied:
-            # Format error message with new structure
-            error_msg = "🛡️ Directory Access Denied\n\n"
-
-            if matched_pattern:
-                error_msg += "Protection: Directory Rule\n"
-            else:
-                error_msg += "Protection: .ai-read-deny Marker\n"
-
-            # Truncate very long paths
-            display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
-            error_msg += f"File: {display_path}\n"
-
-            if denied_dir:
-                display_dir = denied_dir if len(denied_dir) <= 100 else "..." + denied_dir[-97:]
-                error_msg += f"Protected Directory: {display_dir}\n"
-
-            if matched_pattern:
-                display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
-                error_msg += f"Pattern: {display_pattern}\n"
-
-            # Why blocked section
-            error_msg += "\nWhy blocked: "
-            if matched_pattern:
-                error_msg += "This file is blocked by a directory access rule.\n"
-                error_msg += "Directory rules prevent AI access to specific paths.\n"
-            else:
-                error_msg += "This directory contains a .ai-read-deny marker file.\n"
-                error_msg += "All subdirectories are blocked from AI access.\n"
-
-            # Security warnings
-            error_msg += "\nThis operation has been blocked for security.\n"
-            error_msg += "DO NOT attempt to bypass this protection - it prevents unauthorized directory access.\n"
-
-            # Recommendations
-            error_msg += "\nRecommendation:\n"
-            if matched_pattern:
-                error_msg += "- Update directory_rules in ai-guardian.json to allow this path\n"
-                error_msg += "- Move this file to an accessible location\n"
-                error_msg += "- Verify this file should be accessible to AI agents\n"
-            else:
-                error_msg += f"- Remove the .ai-read-deny file from {denied_dir} (manually)\n"
-                error_msg += "- Move this file to an accessible location\n"
-                error_msg += "- Add an allow rule in directory_rules config to override marker\n"
-
-            # Config path
-            error_msg += "\nConfig: ~/.config/ai-guardian/ai-guardian.json\n"
-            error_msg += "Section: directory_rules\n"
-
+            error_msg = _build_directory_denied_message(file_path, denied_dir, matched_pattern)
             return None, os.path.basename(file_path), file_path, True, error_msg, None
 
         # Read the file content
@@ -1334,7 +1306,7 @@ def _load_pii_config():
     """
     _PII_DEFAULTS = {
         'enabled': True,
-        'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
+        'pii_types': ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'],
         'action': 'block',
         'ignore_files': [],
         'ignore_tools': [],
@@ -1366,7 +1338,6 @@ def _scan_for_pii(text, pii_config):
         result = redactor.redact(text)
         redactions = result.get('redactions', [])
         if redactions:
-            pii_types = list(set(r['type'] for r in redactions))
             warning = (
                 f"\n{'='*70}\n"
                 f"🔒 PII DETECTED\n"
@@ -1381,6 +1352,8 @@ def _scan_for_pii(text, pii_config):
         return False, text, [], None
     except Exception as e:
         logging.error(f"PII scan error: {e}")
+        if pii_config.get('action') == 'block':
+            return True, text, [], f"PII scan failed: {e}. Blocking for safety."
         return False, text, [], None
 
 
@@ -1968,7 +1941,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         f"⚠️  WARNING: Default scanner not installed\n\n"
                         f"Please install the {default_scanner}, with the command:\n"
                         f"  ai-guardian scanner install {default_scanner}\n\n"
-                        f"Until the scanner is not installed, you may leak secrets."
+                        f"Until the scanner is installed, you may leak secrets."
                     )
                     logging.warning(f"No scanner available - warning user")
                     return False, warning_msg
@@ -2008,7 +1981,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         f"⚠️  WARNING: Default scanner not installed\n\n"
                         f"Please install the {default_scanner}, with the command:\n"
                         f"  ai-guardian scanner install {default_scanner}\n\n"
-                        f"Until the scanner is not installed, you may leak secrets."
+                        f"Until the scanner is installed, you may leak secrets."
                     )
                     logging.warning(f"Scanner engine selection failed: {e}")
                     return False, warning_msg
@@ -2590,27 +2563,8 @@ def process_hook_input():
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and pii_config.get('enabled', True):
-                # Check ignore_tools for PII scanning (Issue #355)
-                pii_skip_scan = False
-                pii_ignore_tools = pii_config.get('ignore_tools', [])
-                if pii_ignore_tools and tool_identifier:
-                    for pattern in pii_ignore_tools:
-                        if fnmatch.fnmatch(tool_identifier, pattern):
-                            logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
-                            pii_skip_scan = True
-                            break
-
-                # Check ignore_files for PII scanning (Issue #355)
-                if not pii_skip_scan:
-                    pii_ignore_files = pii_config.get('ignore_files', [])
-                    if pii_ignore_files:
-                        pii_file_path = tool_input.get("file_path") or tool_input.get("path")
-                        if pii_file_path:
-                            for pattern in pii_ignore_files:
-                                if fnmatch.fnmatch(pii_file_path, pattern) or fnmatch.fnmatch(os.path.basename(pii_file_path), pattern):
-                                    logging.info(f"Skipping PII scan for ignored file: {pii_file_path} (pattern: {pattern})")
-                                    pii_skip_scan = True
-                                    break
+                pii_file_path = tool_input.get("file_path") or tool_input.get("path")
+                pii_skip_scan = _should_skip_pii_scan(pii_config, tool_identifier, pii_file_path)
 
                 if not pii_skip_scan:
                     logging.info("Scanning tool output for PII...")
@@ -2641,12 +2595,14 @@ def process_hook_input():
                         if pii_action == 'block':
                             return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                                  error_message=pii_warning)
-                        elif pii_action in ('redact', 'warn'):
+                        elif pii_action == 'redact':
                             return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning, modified_output=redacted_text)
-                        else:
+                        elif pii_action == 'warn':
                             return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning)
+                        elif pii_action == 'log-only':
+                            return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
@@ -3007,24 +2963,7 @@ def process_hook_input():
             if pii_config and pii_config.get('enabled', True):
                 should_scan_pii = True
 
-                # Check ignore_tools for PreToolUse PII scanning (Issue #355)
-                pii_ignore_tools = pii_config.get('ignore_tools', [])
-                if pii_ignore_tools and tool_identifier:
-                    for pattern in pii_ignore_tools:
-                        if fnmatch.fnmatch(tool_identifier, pattern):
-                            logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
-                            should_scan_pii = False
-                            break
-
-                # Check ignore_files for PreToolUse
-                if should_scan_pii:
-                    pii_ignore_files = pii_config.get('ignore_files', [])
-                    if file_path and pii_ignore_files:
-                        for pattern in pii_ignore_files:
-                            if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(filename, pattern):
-                                logging.info(f"Skipping PII scan for {filename} (matched ignore pattern: {pattern})")
-                                should_scan_pii = False
-                                break
+                should_scan_pii = not _should_skip_pii_scan(pii_config, tool_identifier, file_path)
 
                 if should_scan_pii:
                     logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
@@ -3062,7 +3001,7 @@ def process_hook_input():
                         elif pii_action == 'warn':
                             warning_messages.append(pii_warning)
                         elif pii_action == 'log-only':
-                            warning_messages.append(pii_warning)
+                            pass
 
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None

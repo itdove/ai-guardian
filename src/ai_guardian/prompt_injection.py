@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, Union, List
 
-from ai_guardian.config_utils import is_expired
+from ai_guardian.config_utils import is_expired, validate_regex_pattern
 from ai_guardian import allowlist_utils
 from ai_guardian.tool_policy import _strip_bash_heredoc_content
 from ai_guardian.utils.path_matching import match_ignore_pattern
@@ -763,12 +763,13 @@ class PromptInjectionDetector:
         self._compiled_custom = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
             for pattern in self.custom_patterns
+            if validate_regex_pattern(pattern)
         ]
 
-        # Compile user-defined jailbreak patterns
         self._compiled_user_jailbreak = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
             for pattern in self.user_jailbreak_patterns
+            if validate_regex_pattern(pattern)
         ]
 
         # Track the last detected attack type for violation logging

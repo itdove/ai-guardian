@@ -249,7 +249,7 @@ class SecretRedactor:
         # Load PII patterns if enabled (Issue #262)
         if self.pii_config.get('enabled', False):
             pii_types = self.pii_config.get('pii_types',
-                ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'])
+                ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'])
             for pii_type in pii_types:
                 if pii_type in self.PII_PATTERNS:
                     pattern, strategy, label = self.PII_PATTERNS[pii_type]
