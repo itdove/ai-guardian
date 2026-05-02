@@ -1336,7 +1336,8 @@ def _load_pii_config():
         'enabled': True,
         'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
         'action': 'block',
-        'ignore_files': []
+        'ignore_files': [],
+        'ignore_tools': []
     }
     config, error_msg = _load_config_file()
     if error_msg:
@@ -2544,38 +2545,61 @@ def process_hook_input():
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and pii_config.get('enabled', True):
-                logging.info("Scanning tool output for PII...")
-                has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
-                if has_pii:
-                    pii_action = pii_config.get('action', 'block')
-                    pii_types = list(set(r['type'] for r in pii_redactions))
-                    logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
+                # Check ignore_tools for PII scanning (Issue #355)
+                pii_skip_scan = False
+                pii_ignore_tools = pii_config.get('ignore_tools', [])
+                if pii_ignore_tools and tool_identifier:
+                    for pattern in pii_ignore_tools:
+                        if fnmatch.fnmatch(tool_identifier, pattern):
+                            logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
+                            pii_skip_scan = True
+                            break
 
-                    # Log violation
-                    from ai_guardian.violation_logger import ViolationLogger
-                    violation_logger = ViolationLogger()
-                    violation_logger.log_violation(
-                        violation_type='pii_detected',
-                        blocked={
-                            'tool': tool_identifier,
-                            'hook': 'PostToolUse',
-                            'file_path': None,
-                            'line_number': None,
-                            'pii_count': len(pii_redactions),
-                            'pii_types': pii_types
-                        },
-                        context={'action': pii_action, 'hook_event': 'posttooluse'}
-                    )
+                # Check ignore_files for PII scanning (Issue #355)
+                if not pii_skip_scan:
+                    pii_ignore_files = pii_config.get('ignore_files', [])
+                    if pii_ignore_files:
+                        pii_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        if pii_file_path:
+                            for pattern in pii_ignore_files:
+                                if fnmatch.fnmatch(pii_file_path, pattern) or fnmatch.fnmatch(os.path.basename(pii_file_path), pattern):
+                                    logging.info(f"Skipping PII scan for ignored file: {pii_file_path} (pattern: {pattern})")
+                                    pii_skip_scan = True
+                                    break
 
-                    if pii_action == 'block':
-                        return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                             error_message=pii_warning)
-                    elif pii_action in ('redact', 'warn'):
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=pii_warning, modified_output=redacted_text)
-                    else:
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=pii_warning)
+                if not pii_skip_scan:
+                    logging.info("Scanning tool output for PII...")
+                    has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
+                    if has_pii:
+                        pii_action = pii_config.get('action', 'block')
+                        pii_types = list(set(r['type'] for r in pii_redactions))
+                        logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
+
+                        # Log violation
+                        from ai_guardian.violation_logger import ViolationLogger
+                        violation_logger = ViolationLogger()
+                        violation_logger.log_violation(
+                            violation_type='pii_detected',
+                            blocked={
+                                'tool': tool_identifier,
+                                'hook': 'PostToolUse',
+                                'file_path': None,
+                                'line_number': None,
+                                'pii_count': len(pii_redactions),
+                                'pii_types': pii_types
+                            },
+                            context={'action': pii_action, 'hook_event': 'posttooluse'}
+                        )
+
+                        if pii_action == 'block':
+                            return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                                 error_message=pii_warning)
+                        elif pii_action in ('redact', 'warn'):
+                            return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                                 warning_message=pii_warning, modified_output=redacted_text)
+                        else:
+                            return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                                 warning_message=pii_warning)
 
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
@@ -2932,16 +2956,26 @@ def process_hook_input():
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and pii_config.get('enabled', True):
-                # Check ignore_files for PreToolUse
-                pii_ignore_files = pii_config.get('ignore_files', [])
                 should_scan_pii = True
-                if file_path and pii_ignore_files:
-                    import fnmatch
-                    for pattern in pii_ignore_files:
-                        if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(filename, pattern):
-                            logging.info(f"Skipping PII scan for {filename} (matched ignore pattern: {pattern})")
+
+                # Check ignore_tools for PreToolUse PII scanning (Issue #355)
+                pii_ignore_tools = pii_config.get('ignore_tools', [])
+                if pii_ignore_tools and tool_identifier:
+                    for pattern in pii_ignore_tools:
+                        if fnmatch.fnmatch(tool_identifier, pattern):
+                            logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
                             should_scan_pii = False
                             break
+
+                # Check ignore_files for PreToolUse
+                if should_scan_pii:
+                    pii_ignore_files = pii_config.get('ignore_files', [])
+                    if file_path and pii_ignore_files:
+                        for pattern in pii_ignore_files:
+                            if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(filename, pattern):
+                                logging.info(f"Skipping PII scan for {filename} (matched ignore pattern: {pattern})")
+                                should_scan_pii = False
+                                break
 
                 if should_scan_pii:
                     logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")

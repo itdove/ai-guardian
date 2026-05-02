@@ -868,7 +868,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "pii_types": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"],
             "action": "block",
-            "ignore_files": []
+            "ignore_files": [],
+            "ignore_tools": []
         },
 
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
