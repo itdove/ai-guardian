@@ -3171,6 +3171,12 @@ def main():
             help="Launch interactive TUI for configuration management"
         )
 
+        # Console subcommand (alias for tui)
+        console_parser = subparsers.add_parser(
+            "console",
+            help="Launch interactive console (alias for tui)"
+        )
+
         # Scan subcommand
         scan_parser = subparsers.add_parser(
             "scan",
@@ -3432,8 +3438,8 @@ def main():
                 print("Error: violation_logger module not available", file=sys.stderr)
                 return 1
 
-        # Handle tui command
-        if args.command == "tui":
+        # Handle tui/console command
+        if args.command in ("tui", "console"):
             try:
                 from ai_guardian.tui import AIGuardianTUI
                 app = AIGuardianTUI()
