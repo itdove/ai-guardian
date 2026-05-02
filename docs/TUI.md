@@ -1380,7 +1380,7 @@ Each log entry contains:
 
 #### Log File Location
 
-Logs are written to: `~/.config/ai-guardian/ai-guardian.log`
+Logs are written to: `~/.local/state/ai-guardian/ai-guardian.log`
 
 **Log rotation**:
 - Maximum size: 10 MB
@@ -1389,11 +1389,11 @@ Logs are written to: `~/.config/ai-guardian/ai-guardian.log`
 
 **Log files**:
 ```
-~/.config/ai-guardian/ai-guardian.log        # Current log
-~/.config/ai-guardian/ai-guardian.log.1      # Previous rotation
-~/.config/ai-guardian/ai-guardian.log.2      # 2 rotations ago
+~/.local/state/ai-guardian/ai-guardian.log        # Current log
+~/.local/state/ai-guardian/ai-guardian.log.1      # Previous rotation
+~/.local/state/ai-guardian/ai-guardian.log.2      # 2 rotations ago
 ...
-~/.config/ai-guardian/ai-guardian.log.5      # Oldest backup
+~/.local/state/ai-guardian/ai-guardian.log.5      # Oldest backup
 ```
 
 #### Common Log Messages
@@ -1741,7 +1741,7 @@ ai-guardian tui --log-level DEBUG
 - Upgrade AI Guardian: `pip install --upgrade ai-guardian`
 - Use larger terminal window
 - Check for conflicting Python packages: `pip list | grep textual`
-- Check logs: `~/.config/ai-guardian/ai-guardian.log`
+- Check logs: `~/.local/state/ai-guardian/ai-guardian.log`
 
 ---
 
@@ -1796,7 +1796,7 @@ curl -H "Authorization: Bearer $POLICY_TOKEN" https://...
 rm -rf ~/.config/ai-guardian/remote-cache/
 
 # Check logs for fetch errors
-grep "remote config" ~/.config/ai-guardian/ai-guardian.log
+grep "remote config" ~/.local/state/ai-guardian/ai-guardian.log
 ```
 
 ---
@@ -1872,7 +1872,7 @@ gitleaks version
 echo "AKIAIOSFODNN7EXAMPLE" | gitleaks detect --no-git --redact -
 
 # Check logs for Gitleaks errors
-grep -i "gitleaks" ~/.config/ai-guardian/ai-guardian.log
+grep -i "gitleaks" ~/.local/state/ai-guardian/ai-guardian.log
 ```
 
 ---
@@ -1972,7 +1972,7 @@ AI Guardian uses JSON for configuration:
 **User config**: `~/.config/ai-guardian/ai-guardian.json`
 **Project config**: `.ai-guardian.json` (in repo root)
 **Violation log**: `~/.config/ai-guardian/violation.log` (JSON lines)
-**Application log**: `~/.config/ai-guardian/ai-guardian.log` (plain text)
+**Application log**: `~/.local/state/ai-guardian/ai-guardian.log` (plain text)
 
 **Schema validation**: JSON is validated against internal schema on load.
 

@@ -55,6 +55,82 @@ def get_config_dir() -> Path:
     return Path("~/.config/ai-guardian").expanduser()
 
 
+def get_state_dir() -> Path:
+    """
+    Get ai-guardian state directory (logs, violations).
+
+    Priority order:
+    1. AI_GUARDIAN_STATE_DIR (direct override)
+    2. XDG_STATE_HOME/ai-guardian (XDG standard)
+    3. ~/.local/state/ai-guardian (default)
+
+    Returns:
+        Path: State directory path
+    """
+    state_dir = os.environ.get("AI_GUARDIAN_STATE_DIR")
+    if state_dir:
+        return Path(state_dir).expanduser()
+
+    state_home = os.environ.get("XDG_STATE_HOME")
+    if state_home:
+        return Path(state_home) / "ai-guardian"
+
+    return Path("~/.local/state/ai-guardian").expanduser()
+
+
+def get_cache_dir() -> Path:
+    """
+    Get ai-guardian cache directory.
+
+    Priority order:
+    1. AI_GUARDIAN_CACHE_DIR (direct override)
+    2. XDG_CACHE_HOME/ai-guardian (XDG standard)
+    3. ~/.cache/ai-guardian (default)
+
+    Returns:
+        Path: Cache directory path
+    """
+    cache_dir = os.environ.get("AI_GUARDIAN_CACHE_DIR")
+    if cache_dir:
+        return Path(cache_dir).expanduser()
+
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    if cache_home:
+        return Path(cache_home) / "ai-guardian"
+
+    return Path("~/.cache/ai-guardian").expanduser()
+
+
+def migrate_state_files() -> None:
+    """
+    Migrate state files from old config dir to new state dir.
+
+    For backward compatibility when users upgrade, checks if state files
+    exist in the old location (config dir) and copies them to the new
+    state dir if the new location doesn't have them yet.
+    """
+    import shutil
+
+    config_dir = get_config_dir()
+    state_dir = get_state_dir()
+
+    if config_dir == state_dir:
+        return
+
+    state_files = ["violations.jsonl", "ai-guardian.log"]
+    for filename in state_files:
+        old_path = config_dir / filename
+        new_path = state_dir / filename
+
+        if old_path.exists() and not new_path.exists():
+            try:
+                state_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(old_path), str(new_path))
+                logger.info(f"Migrated {filename} from {config_dir} to {state_dir}")
+            except OSError as e:
+                logger.warning(f"Failed to migrate {filename}: {e}")
+
+
 def parse_iso8601(timestamp_str: str) -> Optional[datetime]:
     """
     Parse ISO 8601 timestamp string to datetime object.

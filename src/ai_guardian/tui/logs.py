@@ -14,7 +14,7 @@ from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Button, Static
 from textual.screen import ModalScreen
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_state_dir
 
 
 class ConfirmClearModal(ModalScreen):
@@ -120,7 +120,7 @@ class LogsContent(Container):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.log_file = get_config_dir() / "ai-guardian.log"
+        self.log_file = get_state_dir() / "ai-guardian.log"
         self.current_filter = "DEBUG"
 
     def compose(self) -> ComposeResult:

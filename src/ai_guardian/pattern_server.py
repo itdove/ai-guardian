@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 
-from ai_guardian.config_utils import is_feature_enabled
+from ai_guardian.config_utils import get_cache_dir, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class PatternServerClient:
 
         # Get cache path - use config value or default for pattern type
         default_cache_file = self.DEFAULT_CACHE_FILES.get(pattern_type, f"{pattern_type}-patterns.toml")
-        default_cache_path = f"~/.cache/ai-guardian/{default_cache_file}"
+        default_cache_path = str(get_cache_dir() / default_cache_file)
         self.cache_path = Path(cache_config.get("path", default_cache_path)).expanduser()
 
         self.refresh_interval = cache_config.get("refresh_interval_hours", 12) * 3600  # hours to seconds

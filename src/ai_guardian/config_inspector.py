@@ -15,6 +15,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+from ai_guardian.config_utils import get_cache_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +75,7 @@ class ConfigInspector:
 
             # Check cache
             cache_config = pattern_server.get("cache", {})
-            cache_path = Path(cache_config.get("path", "~/.cache/ai-guardian/ssrf-patterns.toml")).expanduser()
+            cache_path = Path(cache_config.get("path", str(get_cache_dir() / "ssrf-patterns.toml"))).expanduser()
             if cache_path.exists():
                 import time
                 mtime = cache_path.stat().st_mtime
@@ -170,7 +172,7 @@ class ConfigInspector:
 
             # Check cache
             cache_config = pattern_server.get("cache", {})
-            cache_path = Path(cache_config.get("path", "~/.cache/ai-guardian/secrets-patterns.toml")).expanduser()
+            cache_path = Path(cache_config.get("path", str(get_cache_dir() / "secrets-patterns.toml"))).expanduser()
             if cache_path.exists():
                 import time
                 mtime = cache_path.stat().st_mtime
