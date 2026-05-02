@@ -288,11 +288,11 @@
       "ssn",
       "credit_card",
       "phone",
-      "email",
       "us_passport",
       "iban",
       "intl_phone"
     ],
+    "_comment_email_opt_in": "Email PII detection is available but not enabled by default (too noisy in codebases). Add 'email' to pii_types to enable.",
     "action": "block",
     "ignore_files": [],
     "_comment_ignore_tools": "Tool name patterns to skip during PII scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (all MCP tools), 'Skill:*' (all skills), 'Bash' (Bash tool)",

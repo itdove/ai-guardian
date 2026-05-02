@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Remove email from default `scan_pii.pii_types` list** (Issue #370)
+  - Email addresses are ubiquitous in codebases (commit templates, CODEOWNERS, package.json, license headers, git config, documentation) and generate excessive noise with little security value
+  - Email PII detection remains available as an opt-in option by adding `"email"` to `pii_types`
+  - Existing configs with explicit `"email"` in `pii_types` continue to work (no breaking change)
+  - Updated schema default, setup.py default config, and example config
+
 - **Remove dev source code patterns from immutable deny rules** (Issue #369)
   - Removed `ai-guardian/src/ai_guardian` and `ai-guardian/ai_guardian` patterns from Bash, PowerShell, Write, and Edit immutable deny lists
   - Dev source protection was redundant with git/PR workflow (AI can't push to main)
