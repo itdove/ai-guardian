@@ -10,7 +10,9 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from ai_guardian.tui.app import AIGuardianTUI, NAV_GROUPS, HELP_DOCS, HelpModal
+from ai_guardian.tui.app import (
+    AIGuardianTUI, NAV_GROUPS, HELP_DOCS, HelpModal, copy_to_system_clipboard,
+)
 
 
 class TestTUIApp:
@@ -430,6 +432,142 @@ class TestClipboardSupport:
         details = json.dumps(modal.violation, indent=2)
         assert '"type": "secret_detected"' in details
         assert '"severity": "high"' in details
+
+    def test_app_has_copy_to_clipboard_override(self):
+        """Test that AIGuardianTUI overrides copy_to_clipboard for native fallback."""
+        app = AIGuardianTUI()
+        assert hasattr(app, "copy_to_clipboard")
+        import inspect
+        source = inspect.getsource(AIGuardianTUI.copy_to_clipboard)
+        assert "copy_to_system_clipboard" in source
+
+
+class TestCopyToSystemClipboard:
+    """Tests for the platform-native copy_to_system_clipboard function."""
+
+    def test_copy_succeeds_on_macos(self):
+        """Test clipboard copy using pbcopy on macOS."""
+        from unittest.mock import patch, MagicMock
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "darwin"
+            result = copy_to_system_clipboard("test text")
+            assert result is True
+            mock_subprocess.run.assert_called_once()
+            args = mock_subprocess.run.call_args
+            assert args[0][0] == ["pbcopy"]
+            assert args[1]["input"] == b"test text"
+
+    def test_copy_succeeds_on_linux_xclip(self):
+        """Test clipboard copy using xclip on Linux."""
+        from unittest.mock import patch
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "linux"
+            result = copy_to_system_clipboard("test text")
+            assert result is True
+            args = mock_subprocess.run.call_args
+            assert args[0][0] == ["xclip", "-selection", "clipboard"]
+
+    def test_copy_falls_back_to_xsel_on_linux(self):
+        """Test fallback to xsel when xclip is not available."""
+        from unittest.mock import patch, call
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "linux"
+            mock_subprocess.run.side_effect = [
+                FileNotFoundError("xclip not found"),
+                None,
+            ]
+            result = copy_to_system_clipboard("test text")
+            assert result is True
+            assert mock_subprocess.run.call_count == 2
+            second_call = mock_subprocess.run.call_args_list[1]
+            assert second_call[0][0] == ["xsel", "--clipboard", "--input"]
+
+    def test_copy_succeeds_on_windows(self):
+        """Test clipboard copy using clip on Windows."""
+        from unittest.mock import patch
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "win32"
+            result = copy_to_system_clipboard("test text")
+            assert result is True
+            args = mock_subprocess.run.call_args
+            assert args[0][0] == ["clip"]
+            assert args[1]["input"] == "test text".encode("utf-16le")
+
+    def test_copy_returns_false_on_unknown_platform(self):
+        """Test that unknown platforms return False."""
+        from unittest.mock import patch
+        with patch("ai_guardian.tui.app.sys") as mock_sys:
+            mock_sys.platform = "freebsd"
+            result = copy_to_system_clipboard("test text")
+            assert result is False
+
+    def test_copy_returns_false_on_command_not_found(self):
+        """Test graceful handling when clipboard command is missing."""
+        from unittest.mock import patch
+        import subprocess as real_subprocess
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "darwin"
+            mock_subprocess.run.side_effect = FileNotFoundError("pbcopy not found")
+            mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
+            mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
+            result = copy_to_system_clipboard("test text")
+            assert result is False
+
+    def test_copy_returns_false_on_process_error(self):
+        """Test graceful handling when clipboard command fails."""
+        from unittest.mock import patch
+        import subprocess as real_subprocess
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "darwin"
+            mock_subprocess.run.side_effect = real_subprocess.CalledProcessError(1, "pbcopy")
+            mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
+            mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
+            result = copy_to_system_clipboard("test text")
+            assert result is False
+
+    def test_copy_returns_false_on_timeout(self):
+        """Test graceful handling when clipboard command times out."""
+        from unittest.mock import patch
+        import subprocess as real_subprocess
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "darwin"
+            mock_subprocess.run.side_effect = real_subprocess.TimeoutExpired("pbcopy", 5)
+            mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
+            mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
+            result = copy_to_system_clipboard("test text")
+            assert result is False
+
+    def test_copy_handles_unicode(self):
+        """Test clipboard copy with unicode text."""
+        from unittest.mock import patch
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "darwin"
+            text = "Unicode: ☃ ❤ \U0001f680"
+            result = copy_to_system_clipboard(text)
+            assert result is True
+            args = mock_subprocess.run.call_args
+            assert args[1]["input"] == text.encode("utf-8")
+
+    def test_linux_both_xclip_and_xsel_missing(self):
+        """Test that Linux returns False when both xclip and xsel are missing."""
+        from unittest.mock import patch
+        import subprocess as real_subprocess
+        with patch("ai_guardian.tui.app.sys") as mock_sys, \
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
+            mock_sys.platform = "linux"
+            mock_subprocess.run.side_effect = FileNotFoundError("not found")
+            mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
+            mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
+            result = copy_to_system_clipboard("test text")
+            assert result is False
 
 
 if __name__ == "__main__":
