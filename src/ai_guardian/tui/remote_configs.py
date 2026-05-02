@@ -174,6 +174,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
     #urls-list {
         margin: 1 0;
         min-height: 10;
+        max-height: 16;
     }
 
     #add-url-section {

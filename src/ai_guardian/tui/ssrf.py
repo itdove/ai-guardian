@@ -79,12 +79,16 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         margin: 0 0 0 1;
     }
 
-    #blocked-ips-list, #blocked-domains-list, #allowed-domains-list {
+    .list-scroll {
+        max-height: 10;
         margin: 1 0;
-        padding: 1;
         background: $surface;
         border: solid $primary;
-        min-height: 6;
+    }
+
+    #blocked-ips-list, #blocked-domains-list, #allowed-domains-list {
+        padding: 1;
+        min-height: 2;
     }
 
     #actions {
@@ -198,7 +202,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Additional Blocked IPs[/bold]", classes="section-title")
                 yield Static("Additional IP addresses or CIDR ranges to block:", classes="setting-row")
-                yield Static("", id="blocked-ips-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="blocked-ips-list")
                 yield Input(placeholder="Enter IP/CIDR to block (e.g., 203.0.113.0/24)", id="new-blocked-ip-input")
                 yield Static("[dim]Press 'i' to add IP/CIDR[/dim]", classes="setting-row")
 
@@ -206,7 +211,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Additional Blocked Domains[/bold]", classes="section-title")
                 yield Static("Additional domain names to block:", classes="setting-row")
-                yield Static("", id="blocked-domains-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="blocked-domains-list")
                 yield Input(placeholder="Enter domain to block (e.g., internal.example.com)", id="new-blocked-domain-input")
                 yield Static("[dim]Press 'd' to add domain[/dim]", classes="setting-row")
 
@@ -221,7 +227,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
                     "[dim]⚠️  Cannot override immutable protections (metadata endpoints, private IPs, dangerous schemes)[/dim]",
                     classes="setting-row"
                 )
-                yield Static("", id="allowed-domains-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="allowed-domains-list")
                 yield Input(placeholder="Enter domain to allow (e.g., api.corp.internal)", id="new-allowed-domain-input")
                 yield Static("[dim]Press 'a' to add allowed domain[/dim]", classes="setting-row")
 

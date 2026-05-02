@@ -133,6 +133,7 @@ class PermissionsDiscoveryContent(Container):
     .list-container {
         margin: 1 0;
         min-height: 8;
+        max-height: 16;
     }
 
     #add-entry-section {

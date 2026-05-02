@@ -75,12 +75,16 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
         margin: 0 0 0 1;
     }
 
-    #additional-files-list, #ignore-files-list, #additional-patterns-list {
+    .list-scroll {
+        max-height: 10;
         margin: 1 0;
-        padding: 1;
         background: $surface;
         border: solid $primary;
-        min-height: 6;
+    }
+
+    #additional-files-list, #ignore-files-list, #additional-patterns-list {
+        padding: 1;
+        min-height: 2;
     }
 
     #actions {
@@ -180,7 +184,8 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Additional Files to Scan[/bold]", classes="section-title")
                 yield Static("Additional config files to monitor:", classes="setting-row")
-                yield Static("", id="additional-files-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="additional-files-list")
                 yield Input(placeholder="Enter filename pattern (e.g., .myagent.conf)", id="new-additional-file-input")
                 yield Static("[dim]Press 'f' to add file pattern[/dim]", classes="setting-row")
 
@@ -188,7 +193,8 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Ignore Files[/bold]", classes="section-title")
                 yield Static("File patterns to exclude from scanning:", classes="setting-row")
-                yield Static("", id="ignore-files-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="ignore-files-list")
                 yield Input(placeholder="Enter ignore pattern (e.g., **/*.example.md)", id="new-ignore-file-input")
                 yield Static("[dim]Press 'g' to add ignore pattern[/dim]", classes="setting-row")
 
@@ -196,7 +202,8 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Additional Detection Patterns[/bold]", classes="section-title")
                 yield Static("Custom regex patterns to detect as credential exfiltration:", classes="setting-row")
-                yield Static("", id="additional-patterns-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="additional-patterns-list")
                 yield Input(placeholder="Enter custom regex pattern", id="new-pattern-input")
                 yield Static("[dim]Press 'p' to add pattern[/dim]", classes="setting-row")
 

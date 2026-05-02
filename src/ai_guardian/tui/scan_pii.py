@@ -86,12 +86,16 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         margin: 0 1 0 0;
     }
 
-    #ignore-files-list, #ignore-tools-list, #pii-allowlist-patterns {
+    .list-scroll {
+        max-height: 10;
         margin: 1 0;
-        padding: 1;
         background: $surface;
         border: solid $primary;
-        min-height: 4;
+    }
+
+    #ignore-files-list, #ignore-tools-list, #pii-allowlist-patterns {
+        padding: 1;
+        min-height: 2;
     }
 
     #actions {
@@ -185,7 +189,8 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     "(e.g., test files with example PII data).[/dim]",
                     classes="section-title",
                 )
-                yield Static("", id="ignore-files-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="ignore-files-list")
                 yield Input(
                     placeholder="Enter glob pattern (e.g., tests/**, *.test.py)",
                     id="pii-ignore-file-input",
@@ -198,7 +203,8 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     "(e.g., mcp__*, Skill:*, Bash).[/dim]",
                     classes="section-title",
                 )
-                yield Static("", id="ignore-tools-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="ignore-tools-list")
                 yield Input(
                     placeholder="Enter tool name pattern (e.g., mcp__*, Skill:*)",
                     id="pii-ignore-tool-input",
@@ -212,7 +218,8 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     "Unlike ignore_files, this keeps scanning but skips matching values.[/dim]",
                     classes="section-title",
                 )
-                yield Static("", id="pii-allowlist-patterns")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="pii-allowlist-patterns")
                 yield Input(
                     placeholder="Enter regex pattern (e.g., \\b[\\w.+-]+@example\\.com\\b)",
                     id="pii-allowlist-input",
