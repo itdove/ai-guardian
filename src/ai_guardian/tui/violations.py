@@ -34,8 +34,7 @@ class ViolationDetailsModal(ModalScreen):
 
     #modal-container {
         width: 80;
-        height: auto;
-        max-height: 90%;
+        height: 80%;
         background: $panel;
         border: thick $primary;
         padding: 1 2;
@@ -47,14 +46,13 @@ class ViolationDetailsModal(ModalScreen):
     }
 
     #modal-content {
-        height: auto;
-        max-height: 70;
-    }
-
-    #modal-content-text {
+        height: 1fr;
         background: $surface;
         padding: 1;
         margin: 1 0;
+    }
+
+    #modal-content-text {
         color: $success;
     }
 
