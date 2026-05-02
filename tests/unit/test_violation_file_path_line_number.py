@@ -410,3 +410,123 @@ class TestAllViolationTypesHaveFilePath:
             "file_path": None, "matcher": "Bash", "reason": "SSRF"
         })
         assert "file_path" in blocked
+
+
+class TestSecretRedactorLineNumber:
+    """Test that SecretRedactor.redact() includes line_number in redaction entries (Issue #359)."""
+
+    def test_line_number_on_first_line(self):
+        """PII on line 1 should return line_number=1."""
+        from ai_guardian.secret_redactor import SecretRedactor
+        redactor = SecretRedactor(
+            config={'enabled': True},
+            pii_config={'enabled': True, 'pii_types': ['email']},
+            pii_only=True
+        )
+        result = redactor.redact("contact: user@example.com")
+        redactions = result.get('redactions', [])
+        assert len(redactions) >= 1
+        assert redactions[0]['line_number'] == 1
+        assert 'column' in redactions[0]
+
+    def test_line_number_on_third_line(self):
+        """PII on line 3 should return line_number=3."""
+        from ai_guardian.secret_redactor import SecretRedactor
+        redactor = SecretRedactor(
+            config={'enabled': True},
+            pii_config={'enabled': True, 'pii_types': ['email']},
+            pii_only=True
+        )
+        text = "line one\nline two\ncontact: user@example.com\nline four"
+        result = redactor.redact(text)
+        redactions = result.get('redactions', [])
+        assert len(redactions) >= 1
+        assert redactions[0]['line_number'] == 3
+        assert redactions[0]['column'] == len("contact: ") + 1
+
+    def test_line_number_multiple_redactions(self):
+        """Multiple PII items on different lines should each have correct line_number."""
+        from ai_guardian.secret_redactor import SecretRedactor
+        redactor = SecretRedactor(
+            config={'enabled': True},
+            pii_config={'enabled': True, 'pii_types': ['email']},
+            pii_only=True
+        )
+        text = "email: alice@example.com\nno pii here\nemail: bob@example.com"
+        result = redactor.redact(text)
+        redactions = result.get('redactions', [])
+        assert len(redactions) >= 2
+        line_numbers = [r['line_number'] for r in redactions]
+        assert 1 in line_numbers
+        assert 3 in line_numbers
+
+    def test_column_position_correct(self):
+        """Column should be the 1-based position within the line."""
+        from ai_guardian.secret_redactor import SecretRedactor
+        redactor = SecretRedactor(
+            config={'enabled': True},
+            pii_config={'enabled': True, 'pii_types': ['email']},
+            pii_only=True
+        )
+        text = "first line\nsecond: user@example.com"
+        result = redactor.redact(text)
+        redactions = result.get('redactions', [])
+        assert len(redactions) >= 1
+        r = redactions[0]
+        assert r['line_number'] == 2
+        assert r['column'] == len("second: ") + 1
+
+
+class TestPIIViolationLineNumberPopulated:
+    """Test that PII violation logging populates line_number from redactions (Issue #359)."""
+
+    @mock.patch('ai_guardian._load_pii_config')
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    @mock.patch('ai_guardian._load_secret_scanning_config')
+    @mock.patch('ai_guardian._load_prompt_injection_config')
+    def test_pretooluse_pii_line_number_populated(self, mock_pi, mock_ss, mock_gitleaks, mock_pii):
+        """PreToolUse PII violations should have actual line_number, not None."""
+        import json
+        from io import StringIO
+        mock_pi.return_value = (None, None)
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'ignore_files': [],
+            'ignore_tools': []
+        }, None)
+
+        file_content = "line one\nline two\ncontact: user@example.com\nline four"
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": {
+                "file_path": "/tmp/test_data.txt",
+                "content": file_content
+            }
+        }
+
+        with mock.patch('ai_guardian.ViolationLogger') as mock_vl_class:
+            mock_logger = mock.MagicMock()
+            mock_vl_class.return_value = mock_logger
+
+            with mock.patch('ai_guardian.extract_file_content_from_tool') as mock_extract:
+                mock_extract.return_value = (file_content, "test_data.txt", "/tmp/test_data.txt", False, None, None)
+
+                with mock.patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                    import ai_guardian
+                    ai_guardian.process_hook_input()
+
+            if mock_logger.log_violation.called:
+                for call in mock_logger.log_violation.call_args_list:
+                    kwargs = call[1] if call[1] else {}
+                    if kwargs.get('violation_type') == 'pii_detected':
+                        blocked = kwargs['blocked']
+                        assert blocked['line_number'] is not None, \
+                            f"Expected line_number to be populated, got None. blocked={blocked}"
+                        assert blocked['line_number'] == 3, \
+                            f"Expected line_number=3, got {blocked['line_number']}"
+                        break
