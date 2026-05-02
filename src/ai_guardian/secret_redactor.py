@@ -15,6 +15,7 @@ import logging
 from typing import List, Dict, Tuple, Optional
 
 from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian import allowlist_utils
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +264,12 @@ class SecretRedactor:
                         logger.warning(f"Failed to compile PII pattern for {label}: {e}")
             logger.info(f"PII Detection: Loaded patterns for {pii_types}")
 
+        # Compile PII allowlist patterns (Issue #357)
+        raw_allowlist = self.pii_config.get('allowlist_patterns', [])
+        self._compiled_pii_allowlist = allowlist_utils.compile_allowlist(raw_allowlist)
+        if self._compiled_pii_allowlist:
+            logger.info(f"PII Allowlist: {len(self._compiled_pii_allowlist)} active patterns")
+
         logger.info(f"Secret Redaction: Loaded {len(self.compiled_patterns)} patterns")
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> List:
@@ -343,6 +350,14 @@ class SecretRedactor:
 
                 # Apply redaction strategy
                 original = match.group(0)
+
+                # Skip if match is allowlisted (Issue #357)
+                if self._compiled_pii_allowlist and allowlist_utils.check_allowlist(
+                    original, self._compiled_pii_allowlist
+                ):
+                    logger.debug(f"PII match allowlisted: {secret_type}")
+                    continue
+
                 redacted, metadata = self._apply_strategy(match, strategy, secret_type)
 
                 # Skip if strategy returned None (e.g., failed Luhn/IBAN validation)

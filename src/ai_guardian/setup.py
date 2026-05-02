@@ -820,6 +820,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords) using Gitleaks patterns",
         "secret_scanning": {
             "enabled": True,
+            "allowlist_patterns": [],
             "pattern_server": {
                 "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
                 "patterns_endpoint": "/patterns/gitleaks/8.27.0",
@@ -869,7 +870,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "pii_types": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"],
             "action": "block",
             "ignore_files": [],
-            "ignore_tools": []
+            "ignore_tools": [],
+            "allowlist_patterns": []
         },
 
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",

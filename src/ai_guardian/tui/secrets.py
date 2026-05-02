@@ -50,6 +50,14 @@ class SecretsContent(Container):
         align: left middle;
     }
 
+    #secret-allowlist-patterns {
+        margin: 1 0;
+        padding: 1;
+        background: $surface;
+        border: solid $primary;
+        min-height: 4;
+    }
+
     .setting-row Label {
         margin: 0 2 0 0;
         width: 20;
@@ -114,6 +122,21 @@ class SecretsContent(Container):
                     "  2. Project-specific: .gitleaks.toml (if exists)\n"
                     "  3. Built-in: Gitleaks default rules (AWS, GitHub, SSH keys, etc.)[/dim]",
                     id="gitleaks-config"
+                )
+
+            # Allowlist patterns section (Issue #357)
+            with Container(classes="section"):
+                yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Regex patterns for known-safe secret values to ignore "
+                    "(e.g., test API key prefixes, example tokens). "
+                    "Unlike ignore_files, this keeps scanning but skips matching values.[/dim]",
+                    classes="section-title",
+                )
+                yield Static("", id="secret-allowlist-patterns")
+                yield Input(
+                    placeholder="Enter regex pattern (e.g., pk_test_[A-Za-z0-9]{24,})",
+                    id="secret-allowlist-input",
                 )
 
             # Pattern server toggle section (standalone)
@@ -283,6 +306,39 @@ class SecretsContent(Container):
 
         self.query_one("#gitleaks-status", Static).update(gitleaks_status)
 
+        # Allowlist patterns (Issue #357)
+        allowlist = secret_scanning.get("allowlist_patterns", [])
+        if allowlist:
+            pattern_lines = []
+            for pattern in allowlist:
+                if isinstance(pattern, dict):
+                    pattern_str = pattern.get("pattern", "")
+                    valid_until = pattern.get("valid_until", "")
+                    if valid_until:
+                        from datetime import datetime, timezone
+                        try:
+                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            now = datetime.now(timezone.utc)
+                            if expiry_dt <= now:
+                                pattern_lines.append(f"  {pattern_str} [EXPIRED]")
+                            elif (expiry_dt - now).total_seconds() < 86400:
+                                pattern_lines.append(f"  {pattern_str} [expires {valid_until}]")
+                            else:
+                                pattern_lines.append(f"  {pattern_str} [until {valid_until}]")
+                        except (ValueError, TypeError):
+                            pattern_lines.append(f"  {pattern_str}")
+                    else:
+                        pattern_lines.append(f"  {pattern_str}")
+                else:
+                    pattern_lines.append(f"  {pattern}")
+            allowlist_text = "\n".join(pattern_lines)
+        else:
+            allowlist_text = "[dim]No allowlist patterns configured[/dim]"
+        try:
+            self.query_one("#secret-allowlist-patterns", Static).update(allowlist_text)
+        except Exception:
+            pass
+
         # Cache settings
         cache = pattern_server.get("cache", {})
         cache_path = cache.get("path", str(get_cache_dir() / "patterns.toml"))
@@ -424,6 +480,8 @@ class SecretsContent(Container):
                 self.save_violation_logging_field("retention_days", days)
             except ValueError:
                 self.app.notify("Retention days must be a number", severity="error")
+        elif event.input.id == "secret-allowlist-input":
+            self._add_allowlist_pattern()
 
     def action_test_server(self) -> None:
         """Test pattern server connection (triggered by 't' key)."""
@@ -676,6 +734,52 @@ class SecretsContent(Container):
 
         except Exception as e:
             self.app.notify(f"Error saving log types: {e}", severity="error")
+
+    def _add_allowlist_pattern(self) -> None:
+        """Add a regex pattern to the secret scanning allowlist."""
+        input_widget = self.query_one("#secret-allowlist-input", Input)
+        pattern = input_widget.value.strip()
+
+        if not pattern:
+            self.app.notify("Please enter a regex pattern", severity="error")
+            return
+
+        import re
+        try:
+            re.compile(pattern)
+        except re.error as e:
+            self.app.notify(f"Invalid regex: {e}", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
+            if "allowlist_patterns" not in config["secret_scanning"]:
+                config["secret_scanning"]["allowlist_patterns"] = []
+
+            if pattern in config["secret_scanning"]["allowlist_patterns"]:
+                self.app.notify("Pattern already in allowlist", severity="warning")
+                return
+
+            config["secret_scanning"]["allowlist_patterns"].append(pattern)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added allowlist pattern: {pattern}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
 
     def test_pattern_server(self) -> None:
         """Test connection to pattern server."""

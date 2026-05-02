@@ -78,7 +78,7 @@ class ScanPIIContent(Container):
         margin: 0 1 0 0;
     }
 
-    #ignore-files-list, #ignore-tools-list {
+    #ignore-files-list, #ignore-tools-list, #pii-allowlist-patterns {
         margin: 1 0;
         padding: 1;
         background: $surface;
@@ -193,6 +193,20 @@ class ScanPIIContent(Container):
                     id="pii-ignore-tool-input",
                 )
 
+            with Container(classes="section"):
+                yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Regex patterns for known-safe PII values to ignore "
+                    "(e.g., @anthropic.com emails, @example.com addresses). "
+                    "Unlike ignore_files, this keeps scanning but skips matching values.[/dim]",
+                    classes="section-title",
+                )
+                yield Static("", id="pii-allowlist-patterns")
+                yield Input(
+                    placeholder="Enter regex pattern (e.g., \\b[\\w.+-]+@example\\.com\\b)",
+                    id="pii-allowlist-input",
+                )
+
     def on_mount(self) -> None:
         self.load_config()
 
@@ -261,6 +275,38 @@ class ScanPIIContent(Container):
         except Exception:
             pass
 
+        allowlist = pii_config.get("allowlist_patterns", [])
+        if allowlist:
+            pattern_lines = []
+            for pattern in allowlist:
+                if isinstance(pattern, dict):
+                    pattern_str = pattern.get("pattern", "")
+                    valid_until = pattern.get("valid_until", "")
+                    if valid_until:
+                        from datetime import datetime, timezone
+                        try:
+                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            now = datetime.now(timezone.utc)
+                            if expiry_dt <= now:
+                                pattern_lines.append(f"  {pattern_str} [EXPIRED]")
+                            elif (expiry_dt - now).total_seconds() < 86400:
+                                pattern_lines.append(f"  {pattern_str} [expires {valid_until}]")
+                            else:
+                                pattern_lines.append(f"  {pattern_str} [until {valid_until}]")
+                        except (ValueError, TypeError):
+                            pattern_lines.append(f"  {pattern_str}")
+                    else:
+                        pattern_lines.append(f"  {pattern_str}")
+                else:
+                    pattern_lines.append(f"  {pattern}")
+            allowlist_text = "\n".join(pattern_lines)
+        else:
+            allowlist_text = "[dim]No allowlist patterns configured[/dim]"
+        try:
+            self.query_one("#pii-allowlist-patterns", Static).update(allowlist_text)
+        except Exception:
+            pass
+
     def _save_config(self, updates: Dict[str, Any]) -> bool:
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
@@ -321,6 +367,8 @@ class ScanPIIContent(Container):
             self._add_ignore_file()
         elif event.input.id == "pii-ignore-tool-input":
             self._add_ignore_tool()
+        elif event.input.id == "pii-allowlist-input":
+            self._add_allowlist_pattern()
         elif event.input.id and "scan_pii_enabled" in event.input.id:
             toggle = self.query_one("#scan_pii_enabled_toggle", TimeBasedToggle)
             value = toggle.get_value()
@@ -398,6 +446,51 @@ class ScanPIIContent(Container):
             input_widget.value = ""
             self.load_config()
             self.app.notify(f"Added ignore tool pattern: {pattern}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
+
+    def _add_allowlist_pattern(self) -> None:
+        input_widget = self.query_one("#pii-allowlist-input", Input)
+        pattern = input_widget.value.strip()
+
+        if not pattern:
+            self.app.notify("Please enter a regex pattern", severity="error")
+            return
+
+        import re
+        try:
+            re.compile(pattern)
+        except re.error as e:
+            self.app.notify(f"Invalid regex: {e}", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "scan_pii" not in config:
+                config["scan_pii"] = {}
+            if "allowlist_patterns" not in config["scan_pii"]:
+                config["scan_pii"]["allowlist_patterns"] = []
+
+            if pattern in config["scan_pii"]["allowlist_patterns"]:
+                self.app.notify("Pattern already in allowlist", severity="warning")
+                return
+
+            config["scan_pii"]["allowlist_patterns"].append(pattern)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added allowlist pattern: {pattern}", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")
