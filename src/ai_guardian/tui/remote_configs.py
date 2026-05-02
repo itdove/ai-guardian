@@ -15,6 +15,9 @@ from textual.widgets import Static, Button, Input, Label, Checkbox
 from textual.message import Message
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, default_placeholder,
+)
 
 
 class RemoteConfigEntry(Container):
@@ -114,8 +117,14 @@ class RemoteConfigEntry(Container):
             self.post_message(self.RemovePressed(self.index))
 
 
-class RemoteConfigsContent(Container):
+class RemoteConfigsContent(SchemaDefaultsMixin, Container):
     """Content widget for Remote Configs tab."""
+
+    SCHEMA_SECTION = "remote_configs"
+    SCHEMA_FIELDS = [
+        ("refresh-interval-input", "refresh_interval_hours", "input"),
+        ("expire-after-input", "expire_after_hours", "input"),
+    ]
 
     CSS = """
     RemoteConfigsContent {
@@ -218,13 +227,25 @@ class RemoteConfigsContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Refresh Interval:")
-                    yield Input(placeholder="12", id="refresh-interval-input")
-                    yield Static("[dim]hours (Press Enter to save)[/dim]")
+                    yield Input(
+                        placeholder=default_placeholder("remote_configs.refresh_interval_hours"),
+                        id="refresh-interval-input",
+                    )
+                    yield Static(
+                        f"[dim]hours (Press Enter to save)[/dim] "
+                        f"{default_indicator('remote_configs.refresh_interval_hours')}"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Expire After:")
-                    yield Input(placeholder="168", id="expire-after-input")
-                    yield Static("[dim]hours (Press Enter to save)[/dim]")
+                    yield Input(
+                        placeholder=default_placeholder("remote_configs.expire_after_hours"),
+                        id="expire-after-input",
+                    )
+                    yield Static(
+                        f"[dim]hours (Press Enter to save)[/dim] "
+                        f"{default_indicator('remote_configs.expire_after_hours')}"
+                    )
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -264,6 +285,8 @@ class RemoteConfigsContent(Container):
             self.query_one("#expire-after-input", Input).value = str(expire_after)
         except Exception:
             pass  # Widgets may not be mounted yet
+
+        self._apply_default_indicators(remote_configs)
 
     def update_urls_list(self, urls: List[Any]) -> None:
         """Update the URLs list display."""

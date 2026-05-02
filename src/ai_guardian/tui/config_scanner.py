@@ -15,11 +15,19 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class ConfigScannerContent(Container):
+class ConfigScannerContent(SchemaDefaultsMixin, Container):
     """Content widget for Config File Scanner tab."""
+
+    SCHEMA_SECTION = "config_file_scanning"
+    SCHEMA_FIELDS = [
+        ("action-select", "action", "select"),
+    ]
 
     CSS = """
     ConfigScannerContent {
@@ -148,13 +156,16 @@ class ConfigScannerContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
                     yield Select(
-                        [
-                            ("Block (default)", "block"),
-                            ("Warn (allow but notify)", "warn"),
-                            ("Log Only (silent)", "log-only")
-                        ],
+                        select_options_with_default(
+                            [
+                                ("Block", "block"),
+                                ("Warn (allow but notify)", "warn"),
+                                ("Log Only (silent)", "log-only"),
+                            ],
+                            "config_file_scanning.action",
+                        ),
                         value="block",
-                        id="action-select"
+                        id="action-select",
                     )
                     yield Static("[dim](Press 's' to save)[/dim]")
 
@@ -253,6 +264,9 @@ class ConfigScannerContent(Container):
         else:
             patterns_text = "[dim]No additional patterns configured[/dim]"
         self.query_one("#additional-patterns-list", Static).update(patterns_text)
+
+        # Apply schema default indicators
+        self._apply_default_indicators(scanner_config)
 
         # Load statistics
         self._load_statistics()

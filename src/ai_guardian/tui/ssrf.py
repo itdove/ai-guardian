@@ -14,11 +14,20 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class SSRFContent(Container):
+class SSRFContent(SchemaDefaultsMixin, Container):
     """Content widget for SSRF Protection tab."""
+
+    SCHEMA_SECTION = "ssrf_protection"
+    SCHEMA_FIELDS = [
+        ("action-select", "action", "select"),
+        ("allow-localhost-checkbox", "allow_localhost", "checkbox"),
+    ]
 
     CSS = """
     SSRFContent {
@@ -153,13 +162,16 @@ class SSRFContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
                     yield Select(
-                        [
-                            ("Block (default)", "block"),
-                            ("Warn (allow but notify)", "warn"),
-                            ("Log Only (silent)", "log-only")
-                        ],
+                        select_options_with_default(
+                            [
+                                ("Block", "block"),
+                                ("Warn (allow but notify)", "warn"),
+                                ("Log Only (silent)", "log-only"),
+                            ],
+                            "ssrf_protection.action",
+                        ),
                         value="block",
-                        id="action-select"
+                        id="action-select",
                     )
                     yield Static("[dim](Press 's' to save)[/dim]")
 
@@ -177,7 +189,10 @@ class SSRFContent(Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Allow Localhost:")
                     yield Checkbox("", id="allow-localhost-checkbox", value=False)
-                    yield Static("[dim]Enable to allow localhost (127.0.0.1, ::1) access for local dev/testing[/dim]")
+                    yield Static(
+                        f"[dim]Enable to allow localhost (127.0.0.1, ::1) access for local dev/testing[/dim] "
+                        f"{default_indicator('ssrf_protection.allow_localhost')}"
+                    )
 
             # Additional blocked IPs section
             with Container(classes="section"):
@@ -277,6 +292,9 @@ class SSRFContent(Container):
             allowed_text = "[dim]No domains in allow-list[/dim]"
         self.query_one("#allowed-domains-list", Static).update(allowed_text)
 
+        # Apply schema default indicators
+        self._apply_default_indicators(ssrf_config)
+
         # Load statistics (if available)
         self._load_statistics()
 
@@ -371,6 +389,7 @@ class SSRFContent(Container):
 
         if checkbox_id == "allow-localhost-checkbox":
             self.save_config({"allow_localhost": event.value})
+            self._update_default_indicator("allow-localhost-checkbox", "allow_localhost", event.value)
         elif checkbox_id and "ssrf_protection_enabled" in checkbox_id:
             # Handle TimeBasedToggle checkbox changes
             toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
@@ -383,6 +402,7 @@ class SSRFContent(Container):
 
         if select_id == "action-select":
             self.save_config({"action": event.value})
+            self._update_default_indicator("action-select", "action", event.value)
         elif select_id and "ssrf_protection_enabled" in select_id:
             # Handle TimeBasedToggle select changes
             toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)

@@ -648,6 +648,11 @@ class AIGuardianTUI(App):
         border-left: heavy $accent;
     }
 
+    /* Changed from default indicator */
+    .changed-from-default {
+        border-left: heavy #d4aa00;
+    }
+
     /* Violations nested filter tabs */
     TabbedContent {
         height: 100%;

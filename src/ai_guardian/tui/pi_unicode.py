@@ -13,6 +13,7 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Label, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, default_indicator
 
 
 UNICODE_SETTINGS = [
@@ -31,8 +32,14 @@ UNICODE_SETTINGS = [
 ]
 
 
-class PIUnicodeContent(Container):
+class PIUnicodeContent(SchemaDefaultsMixin, Container):
     """Content widget for Unicode Attack Detection."""
+
+    SCHEMA_SECTION = "prompt_injection.unicode_detection"
+    SCHEMA_FIELDS = [
+        (f"unicode-{key}", key, "checkbox")
+        for key, _, _ in UNICODE_SETTINGS
+    ]
 
     CSS = """
     PIUnicodeContent {
@@ -94,7 +101,11 @@ class PIUnicodeContent(Container):
                             id=f"unicode-{config_key}",
                             value=True,
                         )
-                    yield Static(f"[dim]    {description}[/dim]", classes="setting-row")
+                    yield Static(
+                        f"[dim]    {description}[/dim] "
+                        f"{default_indicator(f'prompt_injection.unicode_detection.{config_key}')}",
+                        classes="setting-row",
+                    )
 
             with Container(classes="section"):
                 yield Static("[bold]How Unicode Attacks Work[/bold]", classes="section-title")
@@ -141,6 +152,8 @@ class PIUnicodeContent(Container):
                 cb.value = unicode_config.get(config_key, True)
             except Exception:
                 pass
+
+        self._apply_default_indicators(unicode_config)
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         checkbox_id = event.checkbox.id

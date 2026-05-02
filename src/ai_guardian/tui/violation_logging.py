@@ -14,6 +14,9 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin, default_indicator, default_placeholder,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
@@ -30,8 +33,14 @@ ALL_LOG_TYPES = [
 ]
 
 
-class ViolationLoggingContent(Container):
+class ViolationLoggingContent(SchemaDefaultsMixin, Container):
     """Content widget for Violation Logging tab."""
+
+    SCHEMA_SECTION = "violation_logging"
+    SCHEMA_FIELDS = [
+        ("vlog-max-entries", "max_entries", "input"),
+        ("vlog-retention-days", "retention_days", "input"),
+    ]
 
     CSS = """
     ViolationLoggingContent {
@@ -123,19 +132,25 @@ class ViolationLoggingContent(Container):
                     yield Label("Max Entries:")
                     yield Input(
                         value="1000",
-                        placeholder="1000",
+                        placeholder=default_placeholder("violation_logging.max_entries"),
                         id="vlog-max-entries",
                     )
-                    yield Static("[dim]Maximum log entries to retain (press Enter to save)[/dim]")
+                    yield Static(
+                        f"[dim]Maximum log entries to retain (press Enter to save)[/dim] "
+                        f"{default_indicator('violation_logging.max_entries')}"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Retention Days:")
                     yield Input(
                         value="30",
-                        placeholder="30",
+                        placeholder=default_placeholder("violation_logging.retention_days"),
                         id="vlog-retention-days",
                     )
-                    yield Static("[dim]Days to keep log entries (press Enter to save)[/dim]")
+                    yield Static(
+                        f"[dim]Days to keep log entries (press Enter to save)[/dim] "
+                        f"{default_indicator('violation_logging.retention_days')}"
+                    )
 
             with Container(classes="section"):
                 yield Static("[bold]Violation Types to Log[/bold]", classes="section-title")
@@ -204,6 +219,7 @@ class ViolationLoggingContent(Container):
             except Exception:
                 pass
 
+        self._apply_default_indicators(vlog_config)
         self._load_statistics()
 
     def _load_statistics(self) -> None:
