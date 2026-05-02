@@ -13,12 +13,17 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Button, Static
 from textual.screen import ModalScreen
+from textual.binding import Binding
 
 from ai_guardian.config_utils import get_state_dir
 
 
 class ConfirmClearModal(ModalScreen):
     """Modal for confirming log file clear."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=False),
+    ]
 
     CSS = """
     ConfirmClearModal {
@@ -74,6 +79,10 @@ class ConfirmClearModal(ModalScreen):
             self.dismiss(True)
         else:
             self.dismiss(False)
+
+    def action_cancel(self) -> None:
+        """Dismiss modal on ESC key."""
+        self.dismiss(False)
 
 
 class LogEntry(Static):

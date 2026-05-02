@@ -13,6 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Button, Static, TabbedContent, TabPane
 from textual.screen import ModalScreen
+from textual.binding import Binding
 from textual import events
 
 from ai_guardian.violation_logger import ViolationLogger
@@ -22,6 +23,10 @@ from ai_guardian.config_utils import get_config_dir
 class ViolationDetailsModal(ModalScreen):
     """Modal for displaying full violation details."""
 
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close", show=False),
+    ]
+
     CSS = """
     ViolationDetailsModal {
         align: center middle;
@@ -29,8 +34,7 @@ class ViolationDetailsModal(ModalScreen):
 
     #modal-container {
         width: 80;
-        height: auto;
-        max-height: 90%;
+        height: 80%;
         background: $panel;
         border: thick $primary;
         padding: 1 2;
@@ -42,12 +46,13 @@ class ViolationDetailsModal(ModalScreen):
     }
 
     #modal-content {
-        height: auto;
-        max-height: 70;
-        overflow-y: auto;
+        height: 1fr;
         background: $surface;
         padding: 1;
         margin: 1 0;
+    }
+
+    #modal-content-text {
         color: $success;
     }
 
@@ -71,9 +76,9 @@ class ViolationDetailsModal(ModalScreen):
         with Container(id="modal-container"):
             yield Static("[bold]Violation Details[/bold]", id="modal-header")
 
-            # Format the violation data as JSON
             details = json.dumps(self.violation, indent=2)
-            yield Static(details, id="modal-content")
+            with VerticalScroll(id="modal-content"):
+                yield Static(details, id="modal-content-text")
 
             with Horizontal(id="modal-actions"):
                 yield Button("Copy", id="copy-details", variant="default")
@@ -156,7 +161,10 @@ class ViolationCard(Vertical):
             reason = blocked.get("reason", "")
             yield Static(f"Tool: {tool_name}/{tool_value}", classes="violation-detail")
             if blocked.get("file_path"):
-                yield Static(f"File: {blocked['file_path']}", classes="violation-detail")
+                location_text = f"File: {blocked['file_path']}"
+                if blocked.get("line_number"):
+                    location_text += f" (line {blocked['line_number']})"
+                yield Static(location_text, classes="violation-detail")
             yield Static(f"Reason: {reason}", classes="violation-detail")
 
             # Show suggested rule
@@ -221,12 +229,25 @@ class ViolationCard(Vertical):
         elif vtype == "prompt_injection":
             source = blocked.get("source", "unknown")
             file_path = blocked.get("file_path")
+            line_number = blocked.get("line_number")
             pattern = blocked.get("pattern", "Unknown")
+            matched_text = blocked.get("matched_text")
+            confidence = blocked.get("confidence")
+            method = blocked.get("method")
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                location_text = f"File: {file_path}"
+                if line_number:
+                    location_text += f" (line {line_number})"
+                yield Static(location_text, classes="violation-detail")
             else:
                 yield Static(f"Source: {source}", classes="violation-detail")
             yield Static(f"Pattern: {pattern}", classes="violation-detail")
+            if matched_text:
+                yield Static(f"Matched: {matched_text[:80]}", classes="violation-detail")
+            if method:
+                yield Static(f"Method: {method}", classes="violation-detail")
+            if confidence:
+                yield Static(f"Confidence: {confidence:.2f}", classes="violation-detail")
 
         elif vtype == "secret_redaction":
             tool = blocked.get("tool", "Unknown")
@@ -264,15 +285,19 @@ class ViolationCard(Vertical):
 
         elif vtype == "jailbreak_detected":
             file_path = blocked.get("file_path")
+            line_number = blocked.get("line_number")
             confidence = blocked.get("confidence", 0.0)
+            matched_text = blocked.get("matched_text", "")
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                location_text = f"File: {file_path}"
+                if line_number:
+                    location_text += f" (line {line_number})"
+                yield Static(location_text, classes="violation-detail")
             else:
                 tool = blocked.get("tool", "Unknown")
-                matched_text = blocked.get("matched_text", "")
                 yield Static(f"Tool: {tool}", classes="violation-detail")
-                if matched_text:
-                    yield Static(f"Matched: {matched_text[:60]}", classes="violation-detail")
+            if matched_text:
+                yield Static(f"Matched: {matched_text[:80]}", classes="violation-detail")
             if confidence:
                 yield Static(f"Confidence: {confidence:.2f}", classes="violation-detail")
 
@@ -334,6 +359,7 @@ class ViolationsContent(Container):
 
     .violation-actions {
         height: auto;
+        margin: 1 0 0 0;
     }
 
     .violation-actions Button {

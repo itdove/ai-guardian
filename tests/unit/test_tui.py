@@ -452,7 +452,7 @@ class TestCopyToSystemClipboard:
              patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
             mock_sys.platform = "darwin"
             result = copy_to_system_clipboard("test text")
-            assert result is True
+            assert result is None
             mock_subprocess.run.assert_called_once()
             args = mock_subprocess.run.call_args
             assert args[0][0] == ["pbcopy"]
@@ -465,7 +465,7 @@ class TestCopyToSystemClipboard:
              patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
             mock_sys.platform = "linux"
             result = copy_to_system_clipboard("test text")
-            assert result is True
+            assert result is None
             args = mock_subprocess.run.call_args
             assert args[0][0] == ["xclip", "-selection", "clipboard"]
 
@@ -480,7 +480,7 @@ class TestCopyToSystemClipboard:
                 None,
             ]
             result = copy_to_system_clipboard("test text")
-            assert result is True
+            assert result is None
             assert mock_subprocess.run.call_count == 2
             second_call = mock_subprocess.run.call_args_list[1]
             assert second_call[0][0] == ["xsel", "--clipboard", "--input"]
@@ -492,20 +492,21 @@ class TestCopyToSystemClipboard:
              patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
             mock_sys.platform = "win32"
             result = copy_to_system_clipboard("test text")
-            assert result is True
+            assert result is None
             args = mock_subprocess.run.call_args
             assert args[0][0] == ["clip"]
             assert args[1]["input"] == "test text".encode("utf-16le")
 
-    def test_copy_returns_false_on_unknown_platform(self):
-        """Test that unknown platforms return False."""
+    def test_copy_returns_error_on_unknown_platform(self):
+        """Test that unknown platforms return error message."""
         from unittest.mock import patch
         with patch("ai_guardian.tui.app.sys") as mock_sys:
             mock_sys.platform = "freebsd"
             result = copy_to_system_clipboard("test text")
-            assert result is False
+            assert isinstance(result, str)
+            assert "not supported" in result
 
-    def test_copy_returns_false_on_command_not_found(self):
+    def test_copy_returns_error_on_command_not_found(self):
         """Test graceful handling when clipboard command is missing."""
         from unittest.mock import patch
         import subprocess as real_subprocess
@@ -516,9 +517,9 @@ class TestCopyToSystemClipboard:
             mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
             mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
             result = copy_to_system_clipboard("test text")
-            assert result is False
+            assert isinstance(result, str)
 
-    def test_copy_returns_false_on_process_error(self):
+    def test_copy_returns_error_on_process_error(self):
         """Test graceful handling when clipboard command fails."""
         from unittest.mock import patch
         import subprocess as real_subprocess
@@ -529,9 +530,9 @@ class TestCopyToSystemClipboard:
             mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
             mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
             result = copy_to_system_clipboard("test text")
-            assert result is False
+            assert isinstance(result, str)
 
-    def test_copy_returns_false_on_timeout(self):
+    def test_copy_returns_error_on_timeout(self):
         """Test graceful handling when clipboard command times out."""
         from unittest.mock import patch
         import subprocess as real_subprocess
@@ -542,7 +543,7 @@ class TestCopyToSystemClipboard:
             mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
             mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
             result = copy_to_system_clipboard("test text")
-            assert result is False
+            assert isinstance(result, str)
 
     def test_copy_handles_unicode(self):
         """Test clipboard copy with unicode text."""
@@ -552,12 +553,12 @@ class TestCopyToSystemClipboard:
             mock_sys.platform = "darwin"
             text = "Unicode: ☃ ❤ \U0001f680"
             result = copy_to_system_clipboard(text)
-            assert result is True
+            assert result is None
             args = mock_subprocess.run.call_args
             assert args[1]["input"] == text.encode("utf-8")
 
-    def test_linux_both_xclip_and_xsel_missing(self):
-        """Test that Linux returns False when both xclip and xsel are missing."""
+    def test_linux_both_missing_returns_install_instructions(self):
+        """Test that Linux returns install instructions when both xclip and xsel are missing."""
         from unittest.mock import patch
         import subprocess as real_subprocess
         with patch("ai_guardian.tui.app.sys") as mock_sys, \
@@ -567,7 +568,106 @@ class TestCopyToSystemClipboard:
             mock_subprocess.CalledProcessError = real_subprocess.CalledProcessError
             mock_subprocess.TimeoutExpired = real_subprocess.TimeoutExpired
             result = copy_to_system_clipboard("test text")
-            assert result is False
+            assert isinstance(result, str)
+            assert "xclip" in result
+            assert "sudo apt install" in result
+
+
+class TestViolationCardFields:
+    """Tests for ViolationCard rendering of violation type fields."""
+
+    def test_prompt_injection_card_shows_matched_text(self):
+        """Test that prompt_injection card renders matched_text field."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        assert 'matched_text = blocked.get("matched_text")' in source or \
+               "matched_text" in source
+
+    def test_prompt_injection_card_shows_confidence(self):
+        """Test that prompt_injection card renders confidence field."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        assert "confidence" in source
+
+    def test_prompt_injection_card_shows_method(self):
+        """Test that prompt_injection card renders method field."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        assert "method" in source
+
+    def test_prompt_injection_card_shows_line_number(self):
+        """Test that prompt_injection card renders line_number with file_path."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        pi_section_start = source.index('vtype == "prompt_injection"')
+        pi_section = source[pi_section_start:pi_section_start + 800]
+        assert "line_number" in pi_section
+
+    def test_jailbreak_card_shows_line_number(self):
+        """Test that jailbreak_detected card renders line_number with file_path."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        jb_section_start = source.index('vtype == "jailbreak_detected"')
+        jb_section = source[jb_section_start:jb_section_start + 800]
+        assert "line_number" in jb_section
+
+    def test_jailbreak_card_always_shows_matched_text(self):
+        """Test that jailbreak_detected card shows matched_text regardless of file_path."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        jb_section_start = source.index('vtype == "jailbreak_detected"')
+        jb_section = source[jb_section_start:jb_section_start + 800]
+        matched_count = jb_section.count("matched_text")
+        assert matched_count >= 2, "matched_text should be shown outside the else branch"
+
+    def test_tool_permission_card_shows_line_number(self):
+        """Test that tool_permission card renders line_number with file_path."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        tp_section_start = source.index('vtype == "tool_permission"')
+        tp_section = source[tp_section_start:tp_section_start + 500]
+        assert "line_number" in tp_section
+
+
+class TestModalEscBindings:
+    """Tests for ESC key bindings on all modal screens."""
+
+    def test_violation_details_modal_has_esc_binding(self):
+        """Test that ViolationDetailsModal has ESC key binding."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        binding_keys = [b.key for b in ViolationDetailsModal.BINDINGS]
+        assert "escape" in binding_keys
+
+    def test_add_permission_modal_has_esc_binding(self):
+        """Test that AddPermissionModal has ESC key binding."""
+        from ai_guardian.tui.permissions import AddPermissionModal
+        binding_keys = [b.key for b in AddPermissionModal.BINDINGS]
+        assert "escape" in binding_keys
+
+    def test_confirm_clear_modal_has_esc_binding(self):
+        """Test that ConfirmClearModal has ESC key binding."""
+        from ai_guardian.tui.logs import ConfirmClearModal
+        binding_keys = [b.key for b in ConfirmClearModal.BINDINGS]
+        assert "escape" in binding_keys
+
+    def test_violation_details_modal_has_scrollbar(self):
+        """Test that ViolationDetailsModal wraps content in VerticalScroll."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        source = inspect.getsource(ViolationDetailsModal.compose)
+        assert "VerticalScroll" in source
+
+    def test_violation_actions_have_top_margin(self):
+        """Test that violation-actions CSS has top margin to prevent overlap."""
+        from ai_guardian.tui.violations import ViolationsContent
+        assert "margin: 1 0 0 0" in ViolationsContent.CSS
 
 
 class TestListScrollWrapping:
