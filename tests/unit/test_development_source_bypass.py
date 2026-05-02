@@ -296,3 +296,152 @@ class DevelopmentSourceBypassTest(TestCase):
         self.assertFalse(is_allowed, "Bash cache poisoning should be blocked")
         # Bug #94 fix: Bash errors now show "Protection:" not "FILE PROTECTED"
         self.assertIn("Protection:", error_msg)
+
+    # ========================================================================
+    # Test: Bash/PowerShell commands on dev source are allowed (Issue #369)
+    # Dev source patterns removed - redundant with git/PR workflow
+    # ========================================================================
+
+    def test_bash_sed_read_on_dev_source_allowed(self):
+        """sed -n to read file ranges on dev source is allowed (Issue #369 false positive fix)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -n '100,200p' /home/user/ai-guardian/src/ai_guardian/tool_policy.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "sed -n on dev source should be allowed (git/PR protects dev source)")
+        self.assertIsNone(error_msg)
+
+    def test_bash_awk_on_dev_source_allowed(self):
+        """awk on dev source is allowed (Issue #369 false positive fix)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "awk 'NR>=100 && NR<=200' /home/user/ai-guardian/src/ai_guardian/tool_policy.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "awk on dev source should be allowed (git/PR protects dev source)")
+        self.assertIsNone(error_msg)
+
+    def test_bash_sed_on_dev_source_alt_layout_allowed(self):
+        """sed on dev source alternative layout is allowed (Issue #369)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/old/new/' /home/user/ai-guardian/ai_guardian/tool_policy.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "sed on dev source alt layout should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_bash_chmod_on_dev_source_allowed(self):
+        """chmod on dev source is allowed (Issue #369)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "chmod +x /home/user/ai-guardian/src/ai_guardian/__main__.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "chmod on dev source should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_bash_redirect_on_dev_source_allowed(self):
+        """Redirect on dev source is allowed (Issue #369)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "grep 'pattern' /home/user/ai-guardian/src/ai_guardian/tool_policy.py > /tmp/output.txt"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "redirect with dev source path should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_bash_sed_on_pip_installed_still_blocked(self):
+        """sed on pip-installed package is still blocked (Issue #369 - keep pip protection)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "sed on pip-installed package should still be blocked")
+        self.assertIn("Protection:", error_msg)
+
+    def test_powershell_set_content_on_dev_source_allowed(self):
+        """PowerShell Set-Content on dev source is allowed (Issue #369)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Set-Content -Path /home/user/ai-guardian/src/ai_guardian/__init__.py -Value '# test'"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "PowerShell Set-Content on dev source should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_powershell_set_content_on_pip_installed_still_blocked(self):
+        """PowerShell Set-Content on pip-installed package is still blocked (Issue #369)"""
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Set-Content -Path C:\\Python\\Lib\\site-packages\\ai_guardian\\tool_policy.py -Value ''"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "PowerShell Set-Content on pip-installed should still be blocked")
+        self.assertIn("Protection:", error_msg)
