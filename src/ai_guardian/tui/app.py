@@ -6,6 +6,8 @@ Provides interactive text-based interface for AI Guardian configuration.
 Sidebar tree navigation with grouped sections and content switching.
 """
 
+import subprocess
+import sys
 from typing import Optional
 
 from textual.app import App, ComposeResult
@@ -16,6 +18,43 @@ from textual.widgets import (
 from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual import events
+
+
+def copy_to_system_clipboard(text: str) -> bool:
+    """Copy text to the system clipboard using platform-native commands.
+
+    Returns True if the copy succeeded, False otherwise.
+    """
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(
+                ["pbcopy"], input=text.encode("utf-8"), check=True,
+                capture_output=True, timeout=5,
+            )
+        elif sys.platform == "win32":
+            subprocess.run(
+                ["clip"], input=text.encode("utf-16le"), check=True,
+                capture_output=True, timeout=5,
+            )
+        elif sys.platform.startswith("linux"):
+            try:
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=text.encode("utf-8"), check=True,
+                    capture_output=True, timeout=5,
+                )
+            except FileNotFoundError:
+                subprocess.run(
+                    ["xsel", "--clipboard", "--input"],
+                    input=text.encode("utf-8"), check=True,
+                    capture_output=True, timeout=5,
+                )
+        else:
+            return False
+    except (FileNotFoundError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired):
+        return False
+    return True
 
 
 NAV_GROUPS = [
@@ -697,6 +736,15 @@ class AIGuardianTUI(App):
         Binding("s", "save_setting", "Save", show=True),
         Binding("t", "test_connection", "Test", show=True),
     ]
+
+    def copy_to_clipboard(self, text: str) -> None:
+        """Copy text to clipboard with platform-native fallback.
+
+        Tries native commands first (pbcopy/xclip/clip) then falls back
+        to Textual's OSC 52 escape sequence for terminals that support it.
+        """
+        if not copy_to_system_clipboard(text):
+            super().copy_to_clipboard(text)
 
     def on_text_selected(self, event: events.TextSelected) -> None:
         """Auto-copy selected text to clipboard."""

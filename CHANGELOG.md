@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **TUI copy to clipboard now works on macOS Terminal.app** (Issue #377)
+  - Textual's `copy_to_clipboard()` uses OSC 52 escape sequences which macOS Terminal.app does not support
+  - Added platform-native clipboard fallback: `pbcopy` (macOS), `xclip`/`xsel` (Linux), `clip` (Windows)
+  - Falls back to OSC 52 for terminals that support it (iTerm2, Kitty, WezTerm, etc.)
+  - Error handling prevents crashes when clipboard commands are unavailable
+
 ### Added
 
 - **Show default values in TUI config panels from schema** (Issue #371)
