@@ -12,17 +12,16 @@
 
 #### Creating Branches and Pull Requests
 
-1. **Update main branch** before creating a new branch:
+1. **Check if a branch already exists** for this work. If the current branch matches the issue (e.g., the branch name contains the issue number), use it directly — do **not** create a new branch.
+
+2. **If no branch exists**, update main and create one:
    ```bash
    git checkout main
    git pull origin main
+   git checkout -b <issue-key>-<short-description>
    ```
    **IMPORTANT**: Always ensure your main branch is up-to-date before creating a new feature branch.
 
-2. **Create a branch** from the updated main branch:
-   ```bash
-   git checkout -b <issue-key>-<short-description>
-   ```
    Example: `git checkout -b feature-add-secret-scanning`
 
 3. **Make your changes** and commit them to the branch
