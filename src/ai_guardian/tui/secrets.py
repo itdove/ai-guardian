@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Static, Button, Input, Label, Checkbox
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_cache_dir, get_config_dir
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
@@ -167,7 +167,7 @@ class SecretsContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Cache Path:")
-                    yield Input(placeholder="~/.cache/ai-guardian/patterns.toml", id="cache-path")
+                    yield Input(placeholder=str(get_cache_dir() / "patterns.toml"), id="cache-path")
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
@@ -285,7 +285,7 @@ class SecretsContent(Container):
 
         # Cache settings
         cache = pattern_server.get("cache", {})
-        cache_path = cache.get("path", "~/.cache/ai-guardian/patterns.toml")
+        cache_path = cache.get("path", str(get_cache_dir() / "patterns.toml"))
         refresh_interval = cache.get("refresh_interval_hours", 12)
         expire_after = cache.get("expire_after_hours", 168)
 

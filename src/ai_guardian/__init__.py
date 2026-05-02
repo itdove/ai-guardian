@@ -91,7 +91,9 @@ def _record_factory(*args, **kwargs):
 logging.setLogRecordFactory(_record_factory)
 
 # Set up file handler with rotation
-_log_file = get_config_dir() / "ai-guardian.log"
+from ai_guardian.config_utils import get_state_dir, migrate_state_files
+migrate_state_files()
+_log_file = get_state_dir() / "ai-guardian.log"
 _log_file.parent.mkdir(parents=True, exist_ok=True)
 
 _file_handler = RotatingFileHandler(

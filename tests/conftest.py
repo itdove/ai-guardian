@@ -24,7 +24,15 @@ def _isolate_config_dir(tmp_path):
     """
     config_dir = tmp_path / "auto_config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
+    state_dir = tmp_path / "auto_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir = tmp_path / "auto_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    with mock.patch.dict(os.environ, {
+        "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
+        "AI_GUARDIAN_STATE_DIR": str(state_dir),
+        "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
+    }):
         yield config_dir
 
 

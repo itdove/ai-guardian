@@ -14,7 +14,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_cache_dir, get_config_dir
 
 
 class IDESetup:
@@ -825,7 +825,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
                 "patterns_endpoint": "/patterns/gitleaks/8.27.0",
                 "warn_on_failure": True,
                 "cache": {
-                    "path": "~/.cache/ai-guardian/patterns.toml",
+                    "path": str(get_cache_dir() / "patterns.toml"),
                     "refresh_interval_hours": 12,
                     "expire_after_hours": 168
                 }

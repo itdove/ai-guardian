@@ -35,10 +35,10 @@ Every time AI Guardian blocks something, it creates a log entry:
 
 ## Log File Location
 
-Logs are stored in your AI Guardian config directory:
+Logs are stored in your AI Guardian state directory:
 
 ```
-~/.config/ai-guardian/violations.jsonl
+~/.local/state/ai-guardian/violations.jsonl
 ```
 
 **Format:** JSONL (one JSON object per line)
@@ -175,7 +175,7 @@ Violation logging is enabled by default:
 
 **Answer:** Query the violation log:
 ```bash
-cat ~/.config/ai-guardian/violations.json | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq '.[] | select(.timestamp > "2024-03-01")'
 ```
 
@@ -226,7 +226,7 @@ cat ~/.config/ai-guardian/violations.json | \
 
 **Analysis:**
 ```bash
-cat ~/.config/ai-guardian/violations.json | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq -r '.[] | .violation_type' | \
   sort | uniq -c | sort -nr
 ```
@@ -250,22 +250,22 @@ cat ~/.config/ai-guardian/violations.json | \
 
 ```bash
 # View all violations
-cat ~/.config/ai-guardian/violations.jsonl | jq '.'
+cat ~/.local/state/ai-guardian/violations.jsonl | jq '.'
 
 # Filter by type
-cat ~/.config/ai-guardian/violations.jsonl | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq 'select(.violation_type == "directory_blocking")'
 
 # Count by type
-cat ~/.config/ai-guardian/violations.jsonl | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq -r '.violation_type' | sort | uniq -c
 
 # Recent violations (last 24 hours)
-cat ~/.config/ai-guardian/violations.jsonl | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq 'select(.timestamp > "'$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)'")'
 
 # Unresolved violations only
-cat ~/.config/ai-guardian/violations.jsonl | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq 'select(.resolved == false)'
 ```
 
@@ -292,14 +292,14 @@ Violation logs can be integrated with Security Information and Event Management 
 
 ```bash
 # JSONL is already line-delimited - copy directly
-cp ~/.config/ai-guardian/violations.jsonl /var/log/splunk/ai-guardian.log
+cp ~/.local/state/ai-guardian/violations.jsonl /var/log/splunk/ai-guardian.log
 ```
 
 ### Export to Elasticsearch
 
 ```bash
 # Bulk upload to Elasticsearch
-cat ~/.config/ai-guardian/violations.jsonl | \
+cat ~/.local/state/ai-guardian/violations.jsonl | \
   jq -c '{"index": {"_index": "ai-guardian-violations"}} , .' | \
   curl -X POST "localhost:9200/_bulk" -H 'Content-Type: application/json' -d @-
 ```
@@ -311,7 +311,7 @@ import json
 
 # Read JSONL violations (one per line)
 violations = []
-with open('~/.config/ai-guardian/violations.jsonl') as f:
+with open('~/.local/state/ai-guardian/violations.jsonl') as f:
     for line in f:
         violations.append(json.loads(line))
 
@@ -387,7 +387,7 @@ Violation logs may contain sensitive information:
 **Recommendations:**
 1. **Restrict permissions:**
    ```bash
-   chmod 600 ~/.config/ai-guardian/violations.json
+   chmod 600 ~/.local/state/ai-guardian/violations.jsonl
    ```
 
 2. **Encrypt log files** (if needed):

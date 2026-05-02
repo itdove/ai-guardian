@@ -102,7 +102,7 @@ ai-guardian provides comprehensive protection **immediately** with zero configur
 | SSRF protection | ✅ Enabled | Blocks private IPs, metadata endpoints |
 | Immutable file protection | ✅ Enabled | Cannot be disabled |
 | `.ai-read-deny` markers | ✅ Enabled | Always respected |
-| Violation logging | ✅ Enabled | Logs to `~/.config/ai-guardian/violations.jsonl` |
+| Violation logging | ✅ Enabled | Logs to `~/.local/state/ai-guardian/violations.jsonl` |
 | Tool/Skill permissions | ⚠️ Allow all | Configure `permissions.rules` to restrict |
 | Directory rules | ⚠️ Allow all | Configure `directory_rules` to restrict |
 
@@ -737,7 +737,7 @@ AI Guardian supports three enforcement levels:
 - Perfect for compliance auditing and security monitoring
 
 **Log files:**
-- **Location**: `~/.config/ai-guardian/ai-guardian.log`
+- **Location**: `~/.local/state/ai-guardian/ai-guardian.log`
 - **Rotation**: Automatic rotation at 5MB, keeps 3 backup files
 - **Format**: All log entries include version information for easier debugging
 
@@ -1774,7 +1774,7 @@ Add to your `~/.config/ai-guardian/ai-guardian.json`:
 
 ```bash
 # Check the logs
-tail -20 ~/.config/ai-guardian/ai-guardian.log | grep -i pattern
+tail -20 ~/.local/state/ai-guardian/ai-guardian.log | grep -i pattern
 
 # Test with a known secret (will be blocked)
 echo '{"prompt": "aws_key=AKIAIOSFODNN7EXAMPLE"}' | ai-guardian
@@ -1997,16 +1997,21 @@ Configure ai-guardian behavior with environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `AI_GUARDIAN_CONFIG_DIR` | Custom configuration directory location | `~/.config/ai-guardian` (or `$XDG_CONFIG_HOME/ai-guardian`) |
+| `AI_GUARDIAN_STATE_DIR` | Custom state directory (logs, violations) | `~/.local/state/ai-guardian` (or `$XDG_STATE_HOME/ai-guardian`) |
+| `AI_GUARDIAN_CACHE_DIR` | Custom cache directory (pattern files) | `~/.cache/ai-guardian` (or `$XDG_CACHE_HOME/ai-guardian`) |
 | `AI_GUARDIAN_IDE_TYPE` | Override IDE auto-detection (`claude` or `cursor`) | Auto-detect |
 | `AI_GUARDIAN_SKILL_CACHE_TTL_HOURS` | Skill directory cache TTL in hours | `24` |
 | `AI_GUARDIAN_REFRESH_INTERVAL_HOURS` | Remote config refresh interval | `12` |
 | `AI_GUARDIAN_EXPIRE_AFTER_HOURS` | Remote config expiration time | `168` (7 days) |
 | `AI_GUARDIAN_PATTERN_TOKEN` | Bearer token for pattern server authentication | None |
 
-**Configuration Directory Priority:**
-1. `AI_GUARDIAN_CONFIG_DIR` (if set) - direct override
-2. `$XDG_CONFIG_HOME/ai-guardian` (if `XDG_CONFIG_HOME` is set)
-3. `~/.config/ai-guardian` - default fallback
+**Directory Priority (XDG Base Directory compliant):**
+
+| Directory | Env Override | XDG Variable | Default |
+|-----------|-------------|-------------|---------|
+| Config | `AI_GUARDIAN_CONFIG_DIR` | `XDG_CONFIG_HOME/ai-guardian` | `~/.config/ai-guardian` |
+| State | `AI_GUARDIAN_STATE_DIR` | `XDG_STATE_HOME/ai-guardian` | `~/.local/state/ai-guardian` |
+| Cache | `AI_GUARDIAN_CACHE_DIR` | `XDG_CACHE_HOME/ai-guardian` | `~/.cache/ai-guardian` |
 
 **Example:**
 ```bash

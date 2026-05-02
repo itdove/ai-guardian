@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_state_dir
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class ViolationLogger:
 
         # Determine log path
         if log_path is None:
-            config_dir = get_config_dir()
-            log_path = config_dir / "violations.jsonl"
+            state_dir = get_state_dir()
+            log_path = state_dir / "violations.jsonl"
 
         self.log_path = log_path
 

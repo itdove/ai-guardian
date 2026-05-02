@@ -413,7 +413,7 @@ Beyond permissions, ai-guardian provides security features not available in sett
 ### 7. Violation Logging
 
 **All violations logged to:**
-- `~/.config/ai-guardian/violations.jsonl` (JSON format)
+- `~/.local/state/ai-guardian/violations.jsonl` (JSON format)
 - Python logs: `~/.local/state/ai-guardian/ai-guardian.log`
 
 **View violations:**

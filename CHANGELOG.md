@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **XDG Base Directory compliance: separate config, state, and cache paths** (Issue #352)
+  - New `get_state_dir()` function: logs and violations now stored in `XDG_STATE_HOME/ai-guardian` (default `~/.local/state/ai-guardian`) instead of config dir
+  - New `get_cache_dir()` function: all cache paths respect `XDG_CACHE_HOME` via centralized function instead of hardcoded `~/.cache/ai-guardian/`
+  - Environment variable overrides: `AI_GUARDIAN_STATE_DIR`, `AI_GUARDIAN_CACHE_DIR` for direct control
+  - Backward-compatible migration: state files in old config dir are automatically copied to new state dir on first run
+  - Updated TUI to display correct paths for log files and cache settings
+  - Test isolation updated to isolate state and cache directories alongside config
+
 ### Fixed
 
 - **auto_directory_rules generated allow rules overridden by user deny rules** (Issue #348)
