@@ -78,7 +78,7 @@ class ScanPIIContent(Container):
         margin: 0 1 0 0;
     }
 
-    #ignore-files-list {
+    #ignore-files-list, #ignore-tools-list {
         margin: 1 0;
         padding: 1;
         background: $surface;
@@ -180,6 +180,19 @@ class ScanPIIContent(Container):
                     id="pii-ignore-file-input",
                 )
 
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Tools[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Tool name patterns to skip during PII scanning "
+                    "(e.g., mcp__*, Skill:*, Bash).[/dim]",
+                    classes="section-title",
+                )
+                yield Static("", id="ignore-tools-list")
+                yield Input(
+                    placeholder="Enter tool name pattern (e.g., mcp__*, Skill:*)",
+                    id="pii-ignore-tool-input",
+                )
+
     def on_mount(self) -> None:
         self.load_config()
 
@@ -210,6 +223,7 @@ class ScanPIIContent(Container):
         action = pii_config.get("action", "block")
         pii_types = pii_config.get("pii_types", [t for t, _ in ALL_PII_TYPES])
         ignore_files = pii_config.get("ignore_files", [])
+        ignore_tools = pii_config.get("ignore_tools", [])
 
         try:
             toggle = self.query_one("#scan_pii_enabled_toggle", TimeBasedToggle)
@@ -235,6 +249,15 @@ class ScanPIIContent(Container):
             files_text = "[dim]No ignore patterns configured[/dim]"
         try:
             self.query_one("#ignore-files-list", Static).update(files_text)
+        except Exception:
+            pass
+
+        if ignore_tools:
+            tools_text = "\n".join([f"  {t}" for t in ignore_tools])
+        else:
+            tools_text = "[dim]No ignored tools configured[/dim]"
+        try:
+            self.query_one("#ignore-tools-list", Static).update(tools_text)
         except Exception:
             pass
 
@@ -296,6 +319,8 @@ class ScanPIIContent(Container):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "pii-ignore-file-input":
             self._add_ignore_file()
+        elif event.input.id == "pii-ignore-tool-input":
+            self._add_ignore_tool()
         elif event.input.id and "scan_pii_enabled" in event.input.id:
             toggle = self.query_one("#scan_pii_enabled_toggle", TimeBasedToggle)
             value = toggle.get_value()
@@ -335,6 +360,44 @@ class ScanPIIContent(Container):
             input_widget.value = ""
             self.load_config()
             self.app.notify(f"Added ignore pattern: {pattern}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
+
+    def _add_ignore_tool(self) -> None:
+        input_widget = self.query_one("#pii-ignore-tool-input", Input)
+        pattern = input_widget.value.strip()
+
+        if not pattern:
+            self.app.notify("Please enter a tool name pattern", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "scan_pii" not in config:
+                config["scan_pii"] = {}
+            if "ignore_tools" not in config["scan_pii"]:
+                config["scan_pii"]["ignore_tools"] = []
+
+            if pattern in config["scan_pii"]["ignore_tools"]:
+                self.app.notify("Pattern already in list", severity="warning")
+                return
+
+            config["scan_pii"]["ignore_tools"].append(pattern)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added ignore tool pattern: {pattern}", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")

@@ -442,6 +442,14 @@
             "type": "string"
           },
           "default": []
+        },
+        "ignore_tools": {
+          "type": "array",
+          "description": "Tool name patterns to skip during PII scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (ignore all MCP tools), 'Skill:*' (ignore all skills), 'Bash' (ignore Bash tool). Useful for tools whose output legitimately contains PII-like patterns.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "additionalProperties": true

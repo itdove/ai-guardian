@@ -287,7 +287,20 @@
       "intl_phone"
     ],
     "action": "block",
-    "ignore_files": []
+    "ignore_files": [],
+    "_comment_ignore_tools": "Tool name patterns to skip during PII scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (all MCP tools), 'Skill:*' (all skills), 'Bash' (Bash tool)",
+    "ignore_tools": []
+  },
+
+  "config_file_scanning": {
+    "_comment": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - NEW in v1.5.0",
+    "_comment2": "Scans for curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage",
+    "_comment3": "Core patterns are immutable and cannot be disabled",
+    "enabled": true,
+    "action": "block",
+    "additional_files": [],
+    "ignore_files": [],
+    "additional_patterns": []
   },
 
   "ssrf_protection": {
