@@ -390,8 +390,8 @@ class PowerShellProtectionTest(TestCase):
         self.assertFalse(is_allowed, "PowerShell Set-Content on site-packages/ai_guardian should still be blocked")
         self.assertIn("Protection:", error_msg)
 
-    def test_powershell_still_blocks_source_repo(self):
-        """PowerShell cannot modify ai-guardian/src/ai_guardian/ (command tools always blocked)"""
+    def test_powershell_allows_dev_source_repo(self):
+        """PowerShell can modify ai-guardian/src/ai_guardian/ (Issue #369: dev source redundant with git workflow)"""
 
         hook_data = {
             "hook_event_name": "PreToolUse",
@@ -405,7 +405,7 @@ class PowerShellProtectionTest(TestCase):
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "PowerShell Remove-Item on ai-guardian/src/ai_guardian should still be blocked")
+        self.assertTrue(is_allowed, "PowerShell on dev source should be allowed (git/PR protects dev source)")
 
     # ========================================================================
     # Test: PowerShell cannot modify .ai-read-deny marker files

@@ -53,10 +53,13 @@ logger = logging.getLogger(__name__)
 
 # Hardcoded critical protections - cannot be disabled or bypassed
 #
+# Dev source patterns removed (Issue #369) - redundant with git/PR workflow.
+# AI can't push to main; all changes go through PR review.
+#
 # BYPASS BEHAVIOR (via _should_skip_immutable_protection):
 # - Edit/Write on development source: BYPASSED (enables contributor workflow)
 # - Edit/Write on config/hooks/cache/pip: ALWAYS blocked (no bypass)
-# - Bash/PowerShell on anything: ALWAYS blocked (no bypass)
+# - Bash/PowerShell on config/hooks/cache/pip: ALWAYS blocked (no bypass)
 #
 # These patterns are checked FIRST, before any user-configured permissions
 IMMUTABLE_DENY_PATTERNS = {
@@ -76,10 +79,8 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/Claude/settings.json",    # Windows
         "*/Cursor/hooks.json",        # Windows
 
-        # Package code - Pip ALWAYS protected, dev source bypassed for Write/Edit only
-        "*/site-packages/ai_guardian/*",           # Pip-installed - always blocked
-        "*/ai-guardian/src/ai_guardian/*",         # Dev source - bypassed for Write/Edit
-        "*/ai-guardian/ai_guardian/*",             # Alternative layout
+        # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
+        "*/site-packages/ai_guardian/*",
 
         # Directory markers - ALWAYS protected (prevents bypass of directory rules)
         "*/.ai-read-deny",
@@ -102,10 +103,8 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/Claude/settings.json",
         "*/Cursor/hooks.json",
 
-        # Package code - Pip ALWAYS protected, dev source bypassed for Write/Edit only
-        "*/site-packages/ai_guardian/*",           # Pip-installed - always blocked
-        "*/ai-guardian/src/ai_guardian/*",         # Dev source - bypassed for Write/Edit
-        "*/ai-guardian/ai_guardian/*",             # Alternative layout
+        # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
+        "*/site-packages/ai_guardian/*",
 
         # Directory markers - ALWAYS protected (prevents bypass of directory rules)
         "*/.ai-read-deny",
@@ -114,21 +113,20 @@ IMMUTABLE_DENY_PATTERNS = {
 
     "Bash": [
         # Block commands that could modify protected files
-        # Note: NO BYPASS for Bash - always blocks even on dev source
-        # (Prevents rm, mv, chmod, etc. on source code)
+        # Dev source patterns removed (Issue #369) - redundant with git/PR workflow
         # Patterns are path-specific to avoid blocking legitimate content mentioning "ai-guardian" (Issue #188)
 
         # sed protection - specific paths only
         "*sed*ai-guardian.json*", "*sed*.ai-guardian.json*",  # Config files
         "*sed*.config/ai-guardian/*",  # Config directory
-        "*sed*site-packages/ai_guardian*", "*sed*ai-guardian/src/ai_guardian*", "*sed*ai-guardian/ai_guardian*",  # Package code
+        "*sed*site-packages/ai_guardian*",  # Pip-installed package
         "*sed*.claude/settings.json*",
         "*sed*.cursor/hooks.json*",
 
         # awk protection - specific paths only
         "*awk*ai-guardian.json*", "*awk*.ai-guardian.json*",  # Config files
         "*awk*.config/ai-guardian/*",  # Config directory
-        "*awk*site-packages/ai_guardian*", "*awk*ai-guardian/src/ai_guardian*", "*awk*ai-guardian/ai_guardian*",  # Package code
+        "*awk*site-packages/ai_guardian*",  # Pip-installed package
         "*awk*.claude/settings.json*",
         "*awk*.cursor/hooks.json*",
 
@@ -145,7 +143,7 @@ IMMUTABLE_DENY_PATTERNS = {
         # chmod protection - specific paths only
         "*chmod*ai-guardian.json*", "*chmod*.ai-guardian.json*",  # Config files
         "*chmod*.config/ai-guardian/*",  # Config directory
-        "*chmod*site-packages/ai_guardian*", "*chmod*ai-guardian/src/ai_guardian*", "*chmod*ai-guardian/ai_guardian*",  # Package code
+        "*chmod*site-packages/ai_guardian*",  # Pip-installed package
         "*chmod*.claude/settings.json*",
         "*chmod*.cursor/hooks.json*",
 
@@ -157,7 +155,7 @@ IMMUTABLE_DENY_PATTERNS = {
         # Redirect protection - specific paths only
         "*>*ai-guardian.json*", "*>*.ai-guardian.json*",  # Config files
         "*>*.config/ai-guardian/*",  # Config directory
-        "*>*site-packages/ai_guardian*", "*>*ai-guardian/src/ai_guardian*", "*>*ai-guardian/ai_guardian*",  # Package code
+        "*>*site-packages/ai_guardian*",  # Pip-installed package
         "*>*.claude/settings.json*",
         "*>*.cursor/hooks.json*",
 
@@ -194,8 +192,7 @@ IMMUTABLE_DENY_PATTERNS = {
     ],
 
     "PowerShell": [
-        # Note: NO BYPASS for PowerShell - always blocks even on dev source
-        # (Prevents Remove-Item, Move-Item, etc. on source code)
+        # Dev source patterns removed (Issue #369) - redundant with git/PR workflow
         # Patterns are path-specific to avoid blocking legitimate content mentioning "ai-guardian" (Issue #188)
 
         # Protect ai-guardian config files - specific paths only
@@ -244,19 +241,11 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Clear-Content*Claude\\settings.json*", "*Clear-Content*Cursor\\hooks.json*",
         "*Out-File*Claude\\settings.json*", "*Out-File*Cursor\\hooks.json*",
 
-        # Protect ai-guardian package source
+        # Protect pip-installed package (no git/PR review for installed packages)
         "*Remove-Item*site-packages/ai_guardian/*", "*Remove-Item*site-packages\\ai_guardian\\*",
-        "*Remove-Item*ai-guardian/src/ai_guardian/*", "*Remove-Item*ai-guardian\\src\\ai_guardian\\*",
-        "*Remove-Item*ai-guardian/ai_guardian/*", "*Remove-Item*ai-guardian\\ai_guardian\\*",
         "*Set-Content*site-packages/ai_guardian/*", "*Set-Content*site-packages\\ai_guardian\\*",
-        "*Set-Content*ai-guardian/src/ai_guardian/*", "*Set-Content*ai-guardian\\src\\ai_guardian\\*",
-        "*Set-Content*ai-guardian/ai_guardian/*", "*Set-Content*ai-guardian\\ai_guardian\\*",
         "*Clear-Content*site-packages/ai_guardian/*", "*Clear-Content*site-packages\\ai_guardian\\*",
-        "*Clear-Content*ai-guardian/src/ai_guardian/*", "*Clear-Content*ai-guardian\\src\\ai_guardian\\*",
-        "*Clear-Content*ai-guardian/ai_guardian/*", "*Clear-Content*ai-guardian\\ai_guardian\\*",
         "*Out-File*site-packages/ai_guardian/*", "*Out-File*site-packages\\ai_guardian\\*",
-        "*Out-File*ai-guardian/src/ai_guardian/*", "*Out-File*ai-guardian\\src\\ai_guardian\\*",
-        "*Out-File*ai-guardian/ai_guardian/*", "*Out-File*ai-guardian\\ai_guardian\\*",
 
         # Protect against PowerShell redirections - specific paths only
         "*>*ai-guardian.json*", "*>*.ai-guardian.json*",

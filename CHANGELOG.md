@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Remove dev source code patterns from immutable deny rules** (Issue #369)
+  - Removed `ai-guardian/src/ai_guardian` and `ai-guardian/ai_guardian` patterns from Bash, PowerShell, Write, and Edit immutable deny lists
+  - Dev source protection was redundant with git/PR workflow (AI can't push to main)
+  - Eliminates false positives for `sed -n`, `awk`, and grep-with-redirect on dev source
+  - Resolves inconsistency where Write/Edit bypassed dev source protection but Bash `sed`/`awk` on the same files was blocked
+  - Pip-installed package (`*/site-packages/ai_guardian/*`) protection kept for all tools
+  - Config, cache, IDE hooks, and `.ai-read-deny` marker protections unchanged
+
 - **XDG Base Directory compliance: separate config, state, and cache paths** (Issue #352)
   - New `get_state_dir()` function: logs and violations now stored in `XDG_STATE_HOME/ai-guardian` (default `~/.local/state/ai-guardian`) instead of config dir
   - New `get_cache_dir()` function: all cache paths respect `XDG_CACHE_HOME` via centralized function instead of hardcoded `~/.cache/ai-guardian/`
