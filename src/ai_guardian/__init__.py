@@ -1892,12 +1892,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             gitleaks_config_path = None
             config_source = None
             pattern_server_attempted = False
+            pattern_server_url = None
 
             # Priority 1: Pattern server (if enabled and available)
             if HAS_PATTERN_SERVER:
                 pattern_config = _load_pattern_server_config()
                 if pattern_config:
                     pattern_server_attempted = True
+                    pattern_server_url = pattern_config.get('url')
                     try:
                         pattern_client = PatternServerClient(pattern_config)
                         server_patterns = pattern_client.get_patterns_path()
@@ -1938,12 +1940,24 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 except RuntimeError as e:
                     # NO SCANNER AVAILABLE - WARN (allow operation to continue)
                     default_scanner = engines_list[0] if engines_list else "gitleaks"
-                    warning_msg = (
-                        f"⚠️  WARNING: Default scanner not installed\n\n"
-                        f"Please install the {default_scanner}, with the command:\n"
-                        f"  ai-guardian scanner install {default_scanner}\n\n"
-                        f"Until the scanner is installed, you may leak secrets."
-                    )
+                    if pattern_server_attempted:
+                        warning_msg = (
+                            f"⚠️  WARNING: No secret scanning available\n\n"
+                            f"Pattern server: {pattern_server_url} — unavailable\n"
+                            f"Scanner engines: {engines_list} — none installed\n\n"
+                            f"Please install a scanner with:\n"
+                            f"  ai-guardian scanner install {default_scanner}\n\n"
+                            f"Until a scanner is installed, you may leak secrets."
+                        )
+                    else:
+                        warning_msg = (
+                            f"⚠️  WARNING: No secret scanning available\n\n"
+                            f"No scanner engine is installed.\n"
+                            f"Tried engines: {engines_list} — none found\n\n"
+                            f"Please install a scanner with:\n"
+                            f"  ai-guardian scanner install {default_scanner}\n\n"
+                            f"Until a scanner is installed, you may leak secrets."
+                        )
                     logging.warning(f"No scanner available - warning user")
                     return False, warning_msg
 
@@ -1977,12 +1991,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     engine_config = select_engine(engines_list)
                 except RuntimeError as e:
                     # No scanner found - warn (allow operation to continue)
+                    # Path 2: Pattern server succeeded but no engine to run patterns
                     default_scanner = engines_list[0] if engines_list else "gitleaks"
                     warning_msg = (
-                        f"⚠️  WARNING: Default scanner not installed\n\n"
-                        f"Please install the {default_scanner}, with the command:\n"
+                        f"⚠️  WARNING: Scanner engine required\n\n"
+                        f"Enterprise patterns are available from the pattern server,\n"
+                        f"but no scanner engine is installed to use them.\n\n"
+                        f"Please install a scanner with:\n"
                         f"  ai-guardian scanner install {default_scanner}\n\n"
-                        f"Until the scanner is installed, you may leak secrets."
+                        f"Until a scanner is installed, you may leak secrets."
                     )
                     logging.warning(f"Scanner engine selection failed: {e}")
                     return False, warning_msg
