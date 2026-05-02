@@ -1509,12 +1509,17 @@ class ToolPolicyChecker:
             # Create violation logger
             violation_logger = ViolationLogger()
 
+            # For file-path tools, check_value is the file path
+            file_path_tools = {"Write", "Read", "Edit", "NotebookEdit"}
+            file_path = check_value if tool_name in file_path_tools else None
+
             # Log the violation
             violation_logger.log_violation(
                 violation_type=violation_type,
                 blocked={
                     "tool_name": tool_name,
                     "tool_value": check_value,
+                    "file_path": file_path,
                     "matcher": matcher,
                     "reason": reason
                 },

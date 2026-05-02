@@ -150,6 +150,8 @@ class ViolationCard(Vertical):
             tool_value = blocked.get("tool_value", "")
             reason = blocked.get("reason", "")
             yield Static(f"Tool: {tool_name}/{tool_value}", classes="violation-detail")
+            if blocked.get("file_path"):
+                yield Static(f"File: {blocked['file_path']}", classes="violation-detail")
             yield Static(f"Reason: {reason}", classes="violation-detail")
 
             # Show suggested rule
@@ -213,15 +215,22 @@ class ViolationCard(Vertical):
 
         elif vtype == "prompt_injection":
             source = blocked.get("source", "unknown")
+            file_path = blocked.get("file_path")
             pattern = blocked.get("pattern", "Unknown")
-            yield Static(f"Source: {source}", classes="violation-detail")
+            if file_path:
+                yield Static(f"File: {file_path}", classes="violation-detail")
+            else:
+                yield Static(f"Source: {source}", classes="violation-detail")
             yield Static(f"Pattern: {pattern}", classes="violation-detail")
 
         elif vtype == "secret_redaction":
             tool = blocked.get("tool", "Unknown")
+            file_path = blocked.get("file_path")
             redaction_count = blocked.get("redaction_count", 0)
             redacted_types = blocked.get("redacted_types", [])
             yield Static(f"Tool: {tool}", classes="violation-detail")
+            if file_path:
+                yield Static(f"File: {file_path}", classes="violation-detail")
             yield Static(f"Redacted: {redaction_count} secret(s)", classes="violation-detail")
             if redacted_types:
                 yield Static(f"Types: {', '.join(redacted_types)}", classes="violation-detail")
@@ -229,21 +238,28 @@ class ViolationCard(Vertical):
         elif vtype == "pii_detected":
             tool = blocked.get("tool", "Unknown")
             hook = blocked.get("hook", "Unknown")
+            file_path = blocked.get("file_path")
             pii_count = blocked.get("pii_count", 0)
             pii_types = blocked.get("pii_types", [])
             yield Static(f"Hook: {hook}", classes="violation-detail")
             yield Static(f"Tool: {tool}", classes="violation-detail")
+            if file_path:
+                yield Static(f"File: {file_path}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
                 yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
 
         elif vtype == "jailbreak_detected":
-            tool = blocked.get("tool", "Unknown")
-            matched_text = blocked.get("matched_text", "")
+            file_path = blocked.get("file_path")
             confidence = blocked.get("confidence", 0.0)
-            yield Static(f"Tool: {tool}", classes="violation-detail")
-            if matched_text:
-                yield Static(f"Matched: {matched_text[:60]}", classes="violation-detail")
+            if file_path:
+                yield Static(f"File: {file_path}", classes="violation-detail")
+            else:
+                tool = blocked.get("tool", "Unknown")
+                matched_text = blocked.get("matched_text", "")
+                yield Static(f"Tool: {tool}", classes="violation-detail")
+                if matched_text:
+                    yield Static(f"Matched: {matched_text[:60]}", classes="violation-detail")
             if confidence:
                 yield Static(f"Confidence: {confidence:.2f}", classes="violation-detail")
 
