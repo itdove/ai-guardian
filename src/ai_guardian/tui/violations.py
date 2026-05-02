@@ -226,11 +226,15 @@ class ViolationCard(Vertical):
         elif vtype == "secret_redaction":
             tool = blocked.get("tool", "Unknown")
             file_path = blocked.get("file_path")
+            line_number = blocked.get("line_number")
             redaction_count = blocked.get("redaction_count", 0)
             redacted_types = blocked.get("redacted_types", [])
             yield Static(f"Tool: {tool}", classes="violation-detail")
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                location_text = f"File: {file_path}"
+                if line_number:
+                    location_text += f" (line {line_number})"
+                yield Static(location_text, classes="violation-detail")
             yield Static(f"Redacted: {redaction_count} secret(s)", classes="violation-detail")
             if redacted_types:
                 yield Static(f"Types: {', '.join(redacted_types)}", classes="violation-detail")
@@ -239,12 +243,16 @@ class ViolationCard(Vertical):
             tool = blocked.get("tool", "Unknown")
             hook = blocked.get("hook", "Unknown")
             file_path = blocked.get("file_path")
+            line_number = blocked.get("line_number")
             pii_count = blocked.get("pii_count", 0)
             pii_types = blocked.get("pii_types", [])
             yield Static(f"Hook: {hook}", classes="violation-detail")
             yield Static(f"Tool: {tool}", classes="violation-detail")
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                location_text = f"File: {file_path}"
+                if line_number:
+                    location_text += f" (line {line_number})"
+                yield Static(location_text, classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
                 yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")

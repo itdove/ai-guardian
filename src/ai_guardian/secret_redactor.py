@@ -382,9 +382,12 @@ class SecretRedactor:
                 redacted_regions.append(new_region)
 
                 # Record redaction
+                line_start = text.rfind('\n', 0, start) + 1
                 redactions.append({
                     'type': secret_type,
                     'position': start,
+                    'line_number': text[:start].count('\n') + 1,
+                    'column': start - line_start + 1,
                     'original_length': len(original),
                     'redacted_length': len(redacted),
                     'strategy': strategy,

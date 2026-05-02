@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PII violations always have line_number: null** (Issue #359)
+  - `SecretRedactor.redact()` now includes `line_number` and `column` in each redaction entry
+  - PII violation logging (PostToolUse, PreToolUse, UserPromptSubmit) now populates `line_number` from redaction results instead of hardcoding `None`
+  - Secret redaction violation logging now populates `file_path` and `line_number` from tool input and redaction results
+  - TUI displays line numbers for `pii_detected` and `secret_redaction` violations
+
 - **auto_directory_rules generated allow rules overridden by user deny rules** (Issue #348)
   - Changed `insert_generated_rules()` to insert generated rules AFTER user rules (before immutable rules) instead of at the beginning
   - With last-match-wins semantics, generated allow rules now correctly override broad user deny rules

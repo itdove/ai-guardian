@@ -2532,12 +2532,14 @@ def process_hook_input():
                         # Log to violation logger
                         from ai_guardian.violation_logger import ViolationLogger
                         violation_logger = ViolationLogger()
+                        redaction_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        first_line = redactions[0].get('line_number') if redactions else None
                         violation_logger.log_violation(
                             violation_type='secret_redaction',
                             blocked={
                                 'tool': tool_identifier,
-                                'file_path': None,
-                                'line_number': None,
+                                'file_path': redaction_file_path,
+                                'line_number': first_line,
                                 'redaction_count': len(redactions),
                                 'redacted_types': [r['type'] for r in redactions]
                             },
@@ -2618,13 +2620,15 @@ def process_hook_input():
                         # Log violation
                         from ai_guardian.violation_logger import ViolationLogger
                         violation_logger = ViolationLogger()
+                        pii_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
                         violation_logger.log_violation(
                             violation_type='pii_detected',
                             blocked={
                                 'tool': tool_identifier,
                                 'hook': 'PostToolUse',
-                                'file_path': None,
-                                'line_number': None,
+                                'file_path': pii_file_path,
+                                'line_number': pii_first_line,
                                 'pii_count': len(pii_redactions),
                                 'pii_types': pii_types
                             },
@@ -3031,13 +3035,14 @@ def process_hook_input():
                         from ai_guardian.violation_logger import ViolationLogger
                         violation_logger = ViolationLogger()
                         hook_name = 'UserPromptSubmit' if hook_event == 'prompt' else 'PreToolUse'
+                        pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
                         violation_logger.log_violation(
                             violation_type='pii_detected',
                             blocked={
                                 'tool': tool_identifier or filename,
                                 'hook': hook_name,
                                 'file_path': file_path,
-                                'line_number': None,
+                                'line_number': pii_first_line,
                                 'pii_count': len(pii_redactions),
                                 'pii_types': pii_types
                             },
