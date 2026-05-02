@@ -771,19 +771,28 @@ def check_directory_denied(file_path, config=None):
         # No .ai-read-deny marker - check rule decision
         if rule_decision == "deny":
             # Check action
+            rule_reason = f"denied by directory rule: {matched_pattern}"
+            rule_suggestion = {
+                "action": "update_directory_rules",
+                "config_file": "ai-guardian.json",
+                "warning": f"Directory rules deny access (matched pattern: {matched_pattern})"
+            }
             if rule_action == "warn":
                 logging.warning(f"Policy violation (warn mode): {file_path} - denied by rules but allowed for audit")
-                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
+                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
+                                                  reason=rule_reason, suggestion=rule_suggestion)
                 warn_msg = f"⚠️  Policy violation (warn mode): Directory rules deny '{file_path}' but allowed for audit"
                 return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
             elif rule_action == "log-only":
                 logging.warning(f"Policy violation (log-only mode): {file_path} - denied by rules but allowed for audit (silent)")
-                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
+                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
+                                                  reason=rule_reason, suggestion=rule_suggestion)
                 return False, None, None, matched_pattern  # ALLOW - logged for audit, NO warning
             else:
                 # Block access
                 logging.error(f"Directory rules deny access to {abs_path}")
-                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False)
+                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
+                                                  reason=rule_reason, suggestion=rule_suggestion)
                 return True, os.path.dirname(abs_path), None, matched_pattern  # BLOCK
 
         # Default: allow access
@@ -1487,14 +1496,17 @@ def _is_ai_guardian_test_file(file_path):
     return False
 
 
-def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False):
+def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False,
+                                      reason: str = None, suggestion: dict = None):
     """
     Log a directory blocking violation.
 
     Args:
         file_path: Path to the file that was blocked
-        denied_directory: Directory containing .ai-read-deny marker
+        denied_directory: Directory containing .ai-read-deny marker or matched by rules
         is_excluded: Whether the path was in an excluded directory (but .ai-read-deny still blocked it)
+        reason: Why the path was blocked (defaults to ".ai-read-deny marker found")
+        suggestion: Remediation suggestion dict (defaults to marker removal suggestion)
     """
     if not HAS_VIOLATION_LOGGER:
         return
@@ -1511,20 +1523,26 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
         if is_excluded:
             context["note"] = "Directory exclusions can override .ai-read-deny markers (path was excluded but deny marker existed)"
 
+        if reason is None:
+            reason = ".ai-read-deny marker found"
+
+        if suggestion is None:
+            suggestion = {
+                "action": "remove_deny_marker",
+                "file_path": os.path.join(denied_directory, ".ai-read-deny"),
+                "warning": "This directory contains sensitive files"
+            }
+
         violation_logger.log_violation(
             violation_type="directory_blocking",
             blocked={
                 "file_path": file_path,
                 "denied_directory": denied_directory,
-                "reason": ".ai-read-deny marker found",
+                "reason": reason,
                 "exclusion_overridden": is_excluded
             },
             context=context,
-            suggestion={
-                "action": "remove_deny_marker",
-                "file_path": os.path.join(denied_directory, ".ai-read-deny"),
-                "warning": "This directory contains sensitive files"
-            },
+            suggestion=suggestion,
             severity="warning"
         )
     except Exception as e:
