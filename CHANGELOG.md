@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ai-guardian console` alias for `ai-guardian tui`** (Issue #389)
+  - `ai-guardian console` launches the same TUI as `ai-guardian tui`
+  - Both commands shown in `ai-guardian --help`
+
 - **JSON Config Editor in TUI** (Issue #388)
   - Raw JSON editor for `ai-guardian.json` with syntax highlighting and line numbers
   - Real-time JSON validation with status indicator
