@@ -693,6 +693,13 @@ class AIGuardianTUI(App):
         Binding("t", "test_connection", "Test", show=True),
     ]
 
+    def on_text_selected(self, event: events.TextSelected) -> None:
+        """Auto-copy selected text to clipboard."""
+        selection = self.screen.get_selected_text()
+        if selection:
+            self.copy_to_clipboard(selection)
+            self.notify("Copied to clipboard", severity="information")
+
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Store original value when Input gets focus."""
         widget = event.widget

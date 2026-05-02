@@ -395,5 +395,42 @@ class TestConfigViewer:
             assert merged_config["permissions"][0]["matcher"] == "mcp__*"
 
 
+class TestClipboardSupport:
+    """Tests for copy-to-clipboard functionality."""
+
+    def test_app_has_text_selected_handler(self):
+        """Test that AIGuardianTUI has on_text_selected handler for auto-copy."""
+        app = AIGuardianTUI()
+        assert hasattr(app, "on_text_selected")
+        assert callable(app.on_text_selected)
+
+    def test_violation_details_modal_has_copy_button(self):
+        """Test that ViolationDetailsModal handles copy-details button ID."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        import inspect
+        source = inspect.getsource(ViolationDetailsModal.compose)
+        assert "copy-details" in source
+        source_handler = inspect.getsource(ViolationDetailsModal.on_button_pressed)
+        assert "copy-details" in source_handler
+        assert "copy_to_clipboard" in source_handler
+
+    def test_violation_details_modal_copy_handler(self):
+        """Test that ViolationDetailsModal handles copy-details button."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        from textual.widgets import Button
+        modal = ViolationDetailsModal({"type": "test", "message": "test violation"})
+        assert hasattr(modal, "on_button_pressed")
+
+    def test_violation_details_modal_stores_violation_data(self):
+        """Test that ViolationDetailsModal stores violation data for copying."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {"type": "secret_detected", "severity": "high", "file": "test.py"}
+        modal = ViolationDetailsModal(violation)
+        assert modal.violation == violation
+        details = json.dumps(modal.violation, indent=2)
+        assert '"type": "secret_detected"' in details
+        assert '"severity": "high"' in details
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
