@@ -48,6 +48,10 @@ class PermissionCard(Container):
 class AddPermissionModal(ModalScreen):
     """Modal for adding/editing permission rules."""
 
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=False),
+    ]
+
     CSS = """
     AddPermissionModal {
         align: center middle;
@@ -162,6 +166,10 @@ class AddPermissionModal(ModalScreen):
 
         elif event.button.id == "cancel-permission":
             self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        """Dismiss modal on ESC key."""
+        self.dismiss(None)
 
 
 class PermissionsScreen(Screen):

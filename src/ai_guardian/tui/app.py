@@ -20,10 +20,10 @@ from textual.binding import Binding
 from textual import events
 
 
-def copy_to_system_clipboard(text: str) -> bool:
+def copy_to_system_clipboard(text: str) -> Optional[str]:
     """Copy text to the system clipboard using platform-native commands.
 
-    Returns True if the copy succeeded, False otherwise.
+    Returns None on success, or an error message string on failure.
     """
     try:
         if sys.platform == "darwin":
@@ -44,17 +44,23 @@ def copy_to_system_clipboard(text: str) -> bool:
                     capture_output=True, timeout=5,
                 )
             except FileNotFoundError:
-                subprocess.run(
-                    ["xsel", "--clipboard", "--input"],
-                    input=text.encode("utf-8"), check=True,
-                    capture_output=True, timeout=5,
-                )
+                try:
+                    subprocess.run(
+                        ["xsel", "--clipboard", "--input"],
+                        input=text.encode("utf-8"), check=True,
+                        capture_output=True, timeout=5,
+                    )
+                except FileNotFoundError:
+                    return (
+                        "Install xclip for clipboard support: "
+                        "sudo apt install xclip"
+                    )
         else:
-            return False
+            return "Clipboard not supported on this platform"
     except (FileNotFoundError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired):
-        return False
-    return True
+        return "Clipboard command failed"
+    return None
 
 
 NAV_GROUPS = [
@@ -743,8 +749,12 @@ class AIGuardianTUI(App):
         Tries native commands first (pbcopy/xclip/clip) then falls back
         to Textual's OSC 52 escape sequence for terminals that support it.
         """
-        if not copy_to_system_clipboard(text):
-            super().copy_to_clipboard(text)
+        error = copy_to_system_clipboard(text)
+        if error is None:
+            return
+        super().copy_to_clipboard(text)
+        if "Install" in error:
+            self.notify(error, severity="warning")
 
     def on_text_selected(self, event: events.TextSelected) -> None:
         """Auto-copy selected text to clipboard."""
