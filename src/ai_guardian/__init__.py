@@ -1621,10 +1621,14 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         violation_logger = ViolationLogger()
         vtype = "jailbreak_detected" if attack_type == "jailbreak" else "prompt_injection"
         reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
+        # Prefer full file_path from context over filename basename
+        full_path = ctx.get("file_path")
+        if not full_path and filename != "user_prompt":
+            full_path = filename
         violation_logger.log_violation(
             violation_type=vtype,
             blocked={
-                "file_path": filename if filename != "user_prompt" else None,
+                "file_path": full_path,
                 "source": "prompt" if filename == "user_prompt" else "file",
                 "pattern": "Heuristic pattern detected",
                 "confidence": 0.95,
@@ -1720,6 +1724,8 @@ def _handle_violations_command(args):
             tool_value = blocked.get("tool_value", "")
             reason = blocked.get("reason", "")
             print(f"  Tool: {tool_name}/{tool_value}")
+            if blocked.get("file_path"):
+                print(f"  File: {blocked['file_path']}")
             print(f"  Reason: {reason}")
 
         elif v.get("violation_type") == "directory_blocking":
@@ -1732,7 +1738,15 @@ def _handle_violations_command(args):
             source = blocked.get("source", "unknown")
             file_path = blocked.get("file_path")
             if file_path:
-                print(f"  File: {file_path}")
+                location = f"  File: {file_path}"
+                line_number = blocked.get("line_number")
+                if line_number:
+                    end_line = blocked.get("end_line")
+                    if end_line and end_line != line_number:
+                        location += f" (lines {line_number}-{end_line})"
+                    else:
+                        location += f" (line {line_number})"
+                print(location)
             else:
                 print(f"  Source: {source}")
             secret_type = blocked.get("secret_type", "Unknown")
@@ -1742,7 +1756,10 @@ def _handle_violations_command(args):
             source = blocked.get("source", "unknown")
             pattern = blocked.get("pattern", "Unknown")
             print(f"  Type: {'Jailbreak' if v.get('violation_type') == 'jailbreak_detected' else 'Injection'}")
-            print(f"  Source: {source}")
+            if blocked.get("file_path"):
+                print(f"  File: {blocked['file_path']}")
+            else:
+                print(f"  Source: {source}")
             print(f"  Pattern: {pattern}")
 
         # Display suggestion
@@ -2478,6 +2495,8 @@ def process_hook_input():
                             violation_type='secret_redaction',
                             blocked={
                                 'tool': tool_identifier,
+                                'file_path': None,
+                                'line_number': None,
                                 'redaction_count': len(redactions),
                                 'redacted_types': [r['type'] for r in redactions]
                             },
@@ -2540,6 +2559,8 @@ def process_hook_input():
                         blocked={
                             'tool': tool_identifier,
                             'hook': 'PostToolUse',
+                            'file_path': None,
+                            'line_number': None,
                             'pii_count': len(pii_redactions),
                             'pii_types': pii_types
                         },
@@ -2828,6 +2849,7 @@ def process_hook_input():
                                     violation_type="config_file_exfil",
                                     blocked={
                                         "file_path": file_path,
+                                        "line_number": None,
                                         "reason": config_error,
                                         "details": config_details
                                     },
@@ -2938,6 +2960,8 @@ def process_hook_input():
                             blocked={
                                 'tool': tool_identifier or filename,
                                 'hook': hook_name,
+                                'file_path': file_path,
+                                'line_number': None,
                                 'pii_count': len(pii_redactions),
                                 'pii_types': pii_types
                             },
