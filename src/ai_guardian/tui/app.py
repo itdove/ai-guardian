@@ -54,6 +54,9 @@ NAV_GROUPS = [
         ("Config File", "panel-config-file"),
         ("Effective Config", "panel-config-effective"),
     ]),
+    ("Tools", [
+        ("Regex Tester", "panel-regex-tester"),
+    ]),
 ]
 
 
@@ -122,6 +125,14 @@ HELP_DOCS = {
         "  [bold]Config File[/bold] — View raw JSON config files\n"
         "  [bold]Effective Config[/bold] — View resolved runtime "
         "configuration"
+    ),
+    "Tools": (
+        "[bold]Tools[/bold]\n\n"
+        "Utility tools for testing and debugging AI Guardian "
+        "security patterns.\n\n"
+        "[bold]Sections:[/bold]\n"
+        "  [bold]Regex Tester[/bold] — Interactively test regex "
+        "patterns with ReDoS validation and config integration"
     ),
     # Panel-level help
     "panel-security-dashboard": (
@@ -432,6 +443,23 @@ HELP_DOCS = {
         "  - Secret redaction patterns\n"
         "  - Unicode detection settings\n"
         "  - Config file scanning rules"
+    ),
+    "panel-regex-tester": (
+        "[bold]Regex Tester[/bold]\n\n"
+        "Interactively test regex patterns against sample text "
+        "with real-time match results.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Enter a regex pattern and see matches instantly\n"
+        "  - ReDoS safety validation via validate_regex_pattern()\n"
+        "  - Match count, matched text, and positions\n"
+        "  - Toggle IGNORECASE and MULTILINE flags\n"
+        "  - Add tested patterns to config sections\n\n"
+        "[bold]Config targets:[/bold]\n"
+        "  - Prompt Injection allowlist\n"
+        "  - PII Detection allowlist\n"
+        "  - Secret Scanning allowlist\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Clear and reset the tester"
     ),
 }
 
@@ -769,6 +797,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-config-effective"):
                     from ai_guardian.tui.config_effective import ConfigEffectiveContent
                     yield ConfigEffectiveContent()
+
+                with Container(id="panel-regex-tester"):
+                    from ai_guardian.tui.regex_tester import RegexTesterContent
+                    yield RegexTesterContent()
 
         yield Footer()
 
