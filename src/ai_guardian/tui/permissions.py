@@ -218,6 +218,10 @@ class PermissionsScreen(Screen):
         margin: 0 1 0 0;
     }
 
+    #permissions-list {
+        max-height: 20;
+    }
+
     #no-permissions {
         margin: 2;
         padding: 2;

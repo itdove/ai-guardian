@@ -81,12 +81,16 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
         margin: 0 0 0 1;
     }
 
-    #additional-patterns-list {
+    .list-scroll {
+        max-height: 10;
         margin: 1 0;
-        padding: 1;
         background: $surface;
         border: solid $primary;
-        min-height: 6;
+    }
+
+    #additional-patterns-list {
+        padding: 1;
+        min-height: 2;
     }
 
     #actions {
@@ -208,7 +212,8 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Additional Redaction Patterns[/bold]", classes="section-title")
                 yield Static("Custom regex patterns to detect and redact:", classes="setting-row")
-                yield Static("", id="additional-patterns-list")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="additional-patterns-list")
                 yield Input(placeholder="Enter custom regex pattern (e.g., MY_SECRET_[A-Z0-9]+)", id="new-pattern-input")
                 yield Static("[dim]Press 'p' to add pattern[/dim]", classes="setting-row")
 

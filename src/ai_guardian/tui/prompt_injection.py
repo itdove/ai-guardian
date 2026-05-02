@@ -77,12 +77,16 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
         margin: 0 0 0 1;
     }
 
-    #allowlist-patterns {
+    .list-scroll {
+        max-height: 10;
         margin: 1 0;
-        padding: 1;
         background: $surface;
         border: solid $primary;
-        min-height: 8;
+    }
+
+    #allowlist-patterns, #custom-patterns {
+        padding: 1;
+        min-height: 2;
     }
 
     #actions {
@@ -208,14 +212,16 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
             with Container(classes="section"):
                 yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
                 yield Static("Regex patterns to ignore (e.g., for documentation):", classes="setting-row")
-                yield Static("", id="allowlist-patterns")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="allowlist-patterns")
                 yield Input(placeholder="Enter pattern to allowlist (press 'a' to add)", id="new-allowlist-input")
 
             # Custom patterns section
             with Container(classes="section"):
                 yield Static("[bold]Custom Detection Patterns[/bold]", classes="section-title")
                 yield Static("Additional regex patterns to detect as injection:", classes="setting-row")
-                yield Static("", id="custom-patterns")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="custom-patterns")
                 yield Input(placeholder="Enter custom pattern to detect (press 'c' to add)", id="new-custom-input")
 
             # Statistics section

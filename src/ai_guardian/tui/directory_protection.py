@@ -130,6 +130,7 @@ class DirectoryProtectionContent(Container):
     #paths-list {
         margin: 1 0;
         min-height: 8;
+        max-height: 16;
     }
 
     #add-path-section {

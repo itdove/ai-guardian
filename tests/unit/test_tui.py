@@ -570,5 +570,62 @@ class TestCopyToSystemClipboard:
             assert result is False
 
 
+class TestListScrollWrapping:
+    """Tests that editable list widgets are wrapped in scrollable containers."""
+
+    @pytest.mark.parametrize("module,class_name,list_ids", [
+        ("scan_pii", "ScanPIIContent", ["ignore-files-list", "ignore-tools-list", "pii-allowlist-patterns"]),
+        ("secrets", "SecretsContent", ["secret-allowlist-patterns"]),
+        ("prompt_injection", "PromptInjectionContent", ["allowlist-patterns", "custom-patterns"]),
+        ("config_scanner", "ConfigScannerContent", ["additional-files-list", "ignore-files-list", "additional-patterns-list"]),
+        ("ssrf", "SSRFContent", ["blocked-ips-list", "blocked-domains-list", "allowed-domains-list"]),
+        ("secret_redaction", "SecretRedactionContent", ["additional-patterns-list"]),
+    ])
+    def test_list_statics_have_scroll_wrapper(self, module, class_name, list_ids):
+        """Verify each list Static is inside a VerticalScroll context manager."""
+        import importlib
+        import inspect
+        import re
+        mod = importlib.import_module(f"ai_guardian.tui.{module}")
+        cls = getattr(mod, class_name)
+        source = inspect.getsource(cls.compose)
+        for list_id in list_ids:
+            pattern = rf'VerticalScroll\(classes="list-scroll"\).*?\n\s+yield Static\("", id="{list_id}"\)'
+            assert re.search(pattern, source, re.DOTALL), (
+                f"{class_name}.compose(): {list_id} not wrapped in VerticalScroll(classes='list-scroll')"
+            )
+
+    @pytest.mark.parametrize("module,class_name", [
+        ("scan_pii", "ScanPIIContent"),
+        ("secrets", "SecretsContent"),
+        ("prompt_injection", "PromptInjectionContent"),
+        ("config_scanner", "ConfigScannerContent"),
+        ("ssrf", "SSRFContent"),
+        ("secret_redaction", "SecretRedactionContent"),
+    ])
+    def test_css_has_list_scroll_class(self, module, class_name):
+        """Verify each panel CSS defines .list-scroll with max-height."""
+        import importlib
+        mod = importlib.import_module(f"ai_guardian.tui.{module}")
+        cls = getattr(mod, class_name)
+        assert ".list-scroll" in cls.CSS, f"{class_name} CSS missing .list-scroll class"
+        assert "max-height" in cls.CSS, f"{class_name} CSS missing max-height in .list-scroll"
+
+    @pytest.mark.parametrize("module,class_name", [
+        ("directory_protection", "DirectoryProtectionContent"),
+        ("permissions", "PermissionsScreen"),
+        ("permissions_discovery", "PermissionsDiscoveryContent"),
+        ("remote_configs", "RemoteConfigsContent"),
+    ])
+    def test_pattern_b_containers_have_max_height(self, module, class_name):
+        """Verify Pattern B VerticalScroll containers have max-height in their CSS."""
+        import importlib
+        mod = importlib.import_module(f"ai_guardian.tui.{module}")
+        cls = getattr(mod, class_name)
+        assert "max-height" in cls.CSS, (
+            f"{class_name} CSS missing max-height for scrollable list container"
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

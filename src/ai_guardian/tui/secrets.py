@@ -58,12 +58,16 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         align: left middle;
     }
 
-    #secret-allowlist-patterns {
+    .list-scroll {
+        max-height: 10;
         margin: 1 0;
-        padding: 1;
         background: $surface;
         border: solid $primary;
-        min-height: 4;
+    }
+
+    #secret-allowlist-patterns {
+        padding: 1;
+        min-height: 2;
     }
 
     .setting-row Label {
@@ -141,7 +145,8 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     "Unlike ignore_files, this keeps scanning but skips matching values.[/dim]",
                     classes="section-title",
                 )
-                yield Static("", id="secret-allowlist-patterns")
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="secret-allowlist-patterns")
                 yield Input(
                     placeholder="Enter regex pattern (e.g., pk_test_[A-Za-z0-9]{24,})",
                     id="secret-allowlist-input",
