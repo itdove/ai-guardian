@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **auto_directory_rules generated allow rules overridden by user deny rules** (Issue #348)
+  - Changed `insert_generated_rules()` to insert generated rules AFTER user rules (before immutable rules) instead of at the beginning
+  - With last-match-wins semantics, generated allow rules now correctly override broad user deny rules
+  - Immutable rules still take highest priority at final positions
+  - Updated docstrings in `directory_rule_generator.py` and `tool_policy.py` to reflect correct rule ordering
+
 - **Test isolation: prevent tests from writing to real violations.jsonl** (Issue #344)
   - Added `autouse` fixture `_isolate_config_dir` that redirects `AI_GUARDIAN_CONFIG_DIR` to a temporary directory for every test
   - Eliminates 211+ spurious violation entries written to the user's audit log per `pytest` run

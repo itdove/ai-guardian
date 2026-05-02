@@ -10,11 +10,11 @@ Rule generation:
 2. Matches skill names against permission patterns
 3. Generates 'allow' directory rules for matching skills
 4. Marks rules with _generated: true metadata
-5. Rules inserted at BEGINNING of directory_rules.rules array
+5. Rules inserted AFTER user rules, BEFORE immutable rules
 
 Rule order (last-match-wins):
-  Generated → User → Immutable
-  (User can override Generated, Immutable overrides all)
+  User → Generated → Immutable
+  (Generated overrides User, Immutable overrides all)
 """
 
 import fnmatch
@@ -44,7 +44,7 @@ class DirectoryRuleGenerator:
 
         Returns:
             List of directory rule dictionaries with _generated: true metadata.
-            These should be inserted at the BEGINNING of directory_rules.rules.
+            These should be inserted AFTER user rules, BEFORE immutable rules.
         """
         # Check if auto-generation is enabled
         permissions = self.config.get("permissions", {})
@@ -389,12 +389,12 @@ def insert_generated_rules(
     generated_rules: List[Dict]
 ) -> Dict:
     """
-    Insert generated rules at the BEGINNING of directory_rules.rules.
+    Insert generated rules AFTER user rules but BEFORE immutable rules.
 
     Rule order (last-match-wins):
-      Position 0-N: Generated rules (weakest - can be overridden)
-      Position N+1+: User rules (override generated)
-      Final positions: Immutable rules (strongest - override all)
+      Position 0-N:     User rules (broadest scope)
+      Position N+1-M:   Generated rules (specific exceptions from auto_directory_rules)
+      Final positions:  Immutable rules (strongest - override all)
 
     Args:
         config: Full configuration dict
@@ -412,13 +412,31 @@ def insert_generated_rules(
     # Handle both old array format and new object format
     if isinstance(directory_rules, dict):
         existing_rules = directory_rules.get("rules", [])
-        # Insert generated rules at BEGINNING
-        merged_rules = generated_rules + existing_rules
+        # Find where immutable rules start
+        immutable_start = next(
+            (i for i, r in enumerate(existing_rules) if isinstance(r, dict) and r.get("_immutable")),
+            len(existing_rules)
+        )
+        # Insert generated rules after user rules, before immutable rules
+        merged_rules = (
+            existing_rules[:immutable_start] +
+            generated_rules +
+            existing_rules[immutable_start:]
+        )
         directory_rules["rules"] = merged_rules
         config["directory_rules"] = directory_rules
     elif isinstance(directory_rules, list):
         # Old array format - convert to new format
-        merged_rules = generated_rules + directory_rules
+        # Find where immutable rules start
+        immutable_start = next(
+            (i for i, r in enumerate(directory_rules) if isinstance(r, dict) and r.get("_immutable")),
+            len(directory_rules)
+        )
+        merged_rules = (
+            directory_rules[:immutable_start] +
+            generated_rules +
+            directory_rules[immutable_start:]
+        )
         config["directory_rules"] = {
             "action": "block",
             "rules": merged_rules
@@ -430,5 +448,5 @@ def insert_generated_rules(
             "rules": generated_rules
         }
 
-    logger.info(f"Inserted {len(generated_rules)} generated rules at beginning of directory_rules")
+    logger.info(f"Inserted {len(generated_rules)} generated rules after user rules in directory_rules")
     return config

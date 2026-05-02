@@ -2308,13 +2308,13 @@ class ToolPolicyChecker:
         Auto-generate directory rules from skill permissions.
 
         If auto_directory_rules.enabled is true, generates directory rules
-        for allowed skills and inserts them at the BEGINNING of directory_rules.rules
-        (before user rules, so user can override).
+        for allowed skills and inserts them AFTER user rules but BEFORE
+        immutable rules (so generated rules override broad user denies).
 
         Rule order (last-match-wins):
-          Position 0-N: Generated rules (weakest - user can override)
-          Position N+1+: User rules (override generated)
-          Final positions: Immutable rules (strongest - override all)
+          Position 0-N:     User rules (broadest scope)
+          Position N+1-M:   Generated rules (specific exceptions from auto_directory_rules)
+          Final positions:  Immutable rules (strongest - override all)
 
         Args:
             config: Configuration dict (modified in-place)
@@ -2338,7 +2338,7 @@ class ToolPolicyChecker:
             generated_rules = generator.generate_directory_rules()
 
             if generated_rules:
-                # Insert at BEGINNING of directory_rules.rules
+                # Insert AFTER user rules, BEFORE immutable rules
                 insert_generated_rules(config, generated_rules)
                 logger.info(f"Auto-generated {len(generated_rules)} directory rules from skill permissions")
             else:
