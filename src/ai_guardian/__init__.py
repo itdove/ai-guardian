@@ -950,7 +950,7 @@ def _build_directory_denied_message(file_path, denied_dir, matched_pattern):
         error_msg += "- Move this file to an accessible location\n"
         error_msg += "- Add an allow rule in directory_rules config to override marker\n"
 
-    error_msg += "\nConfig: ~/.config/ai-guardian/ai-guardian.json\n"
+    error_msg += f"\nConfig: {get_config_dir() / 'ai-guardian.json'}\n"
     error_msg += "Section: directory_rules\n"
 
     return error_msg
@@ -1353,7 +1353,8 @@ def _scan_for_pii(text, pii_config):
     except Exception as e:
         logging.error(f"PII scan error: {e}")
         if pii_config.get('action') == 'block':
-            return True, text, [], f"PII scan failed: {e}. Blocking for safety."
+            logging.error(f"PII scan exception detail: {e}")
+            return True, text, [], "PII scan failed. Blocking for safety."
         return False, text, [], None
 
 
@@ -2603,6 +2604,9 @@ def process_hook_input():
                                                  warning_message=pii_warning)
                         elif pii_action == 'log-only':
                             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                        else:
+                            logging.warning(f"Unknown PII action '{pii_action}', allowing through")
+                            return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
@@ -2961,8 +2965,6 @@ def process_hook_input():
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and pii_config.get('enabled', True):
-                should_scan_pii = True
-
                 should_scan_pii = not _should_skip_pii_scan(pii_config, tool_identifier, file_path)
 
                 if should_scan_pii:
