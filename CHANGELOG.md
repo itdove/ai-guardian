@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **JSON Config Editor in TUI** (Issue #388)
+  - Raw JSON editor for `ai-guardian.json` with syntax highlighting and line numbers
+  - Real-time JSON validation with status indicator
+  - Schema validation warnings on save (non-blocking)
+  - Save with confirmation dialog and automatic backup (`.bak`)
+  - Reload from disk option (Ctrl+R)
+  - Config path shown (respects `XDG_CONFIG_HOME` / `AI_GUARDIAN_CONFIG_DIR`)
+
 - **Show default values in TUI config panels from schema** (Issue #371)
   - Each config field now shows its default value from `ai-guardian-config.schema.json`
   - Select widgets mark the default option with `(default)` suffix
