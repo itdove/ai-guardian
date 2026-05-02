@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Copy-to-clipboard support in TUI** (Issue #362)
+  - Auto-copy on text selection: selecting text with the mouse automatically copies it to the system clipboard (like Claude Code)
+  - Copy button on Violation Details modal: one-click copy of full violation JSON
+  - Uses Textual's built-in `TextSelected` event and `copy_to_clipboard()` API
+  - Works across all TUI panels without requiring terminal-specific modifier keys
+
 - **`--yes`/`-y` flag for `violations --clear`** (Issue #360)
   - Skips confirmation prompt for non-interactive use (CI, Claude Code `!` prefix, piped scripts)
   - `ai-guardian violations --clear --yes` or `ai-guardian violations --clear -y`

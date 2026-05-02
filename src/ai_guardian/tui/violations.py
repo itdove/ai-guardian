@@ -76,11 +76,16 @@ class ViolationDetailsModal(ModalScreen):
             yield Static(details, id="modal-content")
 
             with Horizontal(id="modal-actions"):
+                yield Button("Copy", id="copy-details", variant="default")
                 yield Button("Close (ESC)", id="close-details", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "close-details":
+        if event.button.id == "copy-details":
+            details = json.dumps(self.violation, indent=2)
+            self.app.copy_to_clipboard(details)
+            self.app.notify("Violation details copied to clipboard", severity="information")
+        elif event.button.id == "close-details":
             self.dismiss()
 
 
