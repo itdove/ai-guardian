@@ -153,6 +153,13 @@
       "reason": "Testing with known-safe example secrets"
     },
     "_pattern_server_comment": "NEW in v1.7.0: pattern_server nested under secret_scanning (was at root level)",
+    "_comment_allowlist": "Regex patterns for known-safe secret values to ignore (for false positives). Unlike ignore_files which skips entire files, this lets you keep scanning but exclude specific known-safe values. Complements inline '# gitleaks:allow' for cases where you cannot modify the source file.",
+    "allowlist_patterns": [],
+    "_allowlist_examples": [
+      "pk_test_[A-Za-z0-9]{24,}",
+      "EXAMPLE_API_KEY_[A-Z0-9]+",
+      {"pattern": "sk_test_temp_[A-Za-z0-9]+", "valid_until": "2026-06-01T00:00:00Z"}
+    ],
     "pattern_server": {
       "_comment": "Optional: Enhanced secret detection patterns from a pattern server",
       "_comment2": "This is an ADVANCED feature - most users should use default Gitleaks patterns",
@@ -289,7 +296,14 @@
     "action": "block",
     "ignore_files": [],
     "_comment_ignore_tools": "Tool name patterns to skip during PII scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (all MCP tools), 'Skill:*' (all skills), 'Bash' (Bash tool)",
-    "ignore_tools": []
+    "ignore_tools": [],
+    "_comment_allowlist": "Regex patterns for known-safe PII values to ignore (for false positives). Unlike ignore_files which skips entire files, this lets you keep scanning but exclude specific known-safe values such as corporate email domains or example data.",
+    "allowlist_patterns": [],
+    "_allowlist_examples": [
+      "\\b[\\w.+-]+@anthropic\\.com\\b",
+      "\\b[\\w.+-]+@example\\.(com|org|net)\\b",
+      {"pattern": "\\b555-0[0-9]{3}\\b", "valid_until": "2026-06-01T00:00:00Z"}
+    ]
   },
 
   "config_file_scanning": {

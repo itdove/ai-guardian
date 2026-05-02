@@ -245,6 +245,22 @@
           },
           "default": []
         },
+        "allowlist_patterns": {
+          "type": "array",
+          "description": "Regex patterns for known-safe secret values to ignore (for false positives). Unlike ignore_files which skips entire files, this lets you keep scanning but exclude specific known-safe values such as test API key prefixes or example tokens. Complements inline '# gitleaks:allow' for cases where you cannot modify the source file. Supports time-based patterns for temporary allowlisting.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Simple regex pattern"
+              },
+              {
+                "$ref": "#/definitions/time_based_pattern"
+              }
+            ]
+          },
+          "default": []
+        },
         "pattern_server": {
           "type": ["object", "null"],
           "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server (NEW in v1.7.0: nested under secret_scanning). Configure this section to use enterprise patterns instead of Gitleaks defaults. Presence = enabled, null or absence = disabled (use defaults). Supports cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults.",
@@ -448,6 +464,22 @@
           "description": "Tool name patterns to skip during PII scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (ignore all MCP tools), 'Skill:*' (ignore all skills), 'Bash' (ignore Bash tool). Useful for tools whose output legitimately contains PII-like patterns.",
           "items": {
             "type": "string"
+          },
+          "default": []
+        },
+        "allowlist_patterns": {
+          "type": "array",
+          "description": "Regex patterns for known-safe PII values to ignore (for false positives). Unlike ignore_files which skips entire files, this lets you keep scanning but exclude specific known-safe values such as corporate email domains or example data. Supports time-based patterns for temporary allowlisting.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Simple regex pattern"
+              },
+              {
+                "$ref": "#/definitions/time_based_pattern"
+              }
+            ]
           },
           "default": []
         }

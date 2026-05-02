@@ -6,6 +6,8 @@ and PII-specific redaction strategies.
 """
 
 import time
+from datetime import datetime, timezone
+
 import pytest
 from ai_guardian.secret_redactor import SecretRedactor
 
@@ -295,3 +297,113 @@ class TestPIIPerformance:
 
         assert elapsed < 50, f"PII scan took {elapsed}ms, expected <50ms"
         assert len(result['redactions']) > 0
+
+
+class TestPIIAllowlistPatterns:
+    """Test PII allowlist_patterns support (Issue #357)."""
+
+    def test_email_allowlisted_not_redacted(self):
+        """Email matching allowlist pattern should not be flagged."""
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': [r'\b[\w.+-]+@anthropic\.com\b'],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Contact noreply@anthropic.com for help"
+        result = redactor.redact(text)
+        assert result['redacted_text'] == text
+        assert len(result['redactions']) == 0
+
+    def test_non_allowlisted_email_still_redacted(self):
+        """Email not matching allowlist should still be flagged."""
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': [r'\b[\w.+-]+@anthropic\.com\b'],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Contact secret@personal.com for help"
+        result = redactor.redact(text)
+        assert len(result['redactions']) == 1
+
+    def test_multiple_allowlist_patterns(self):
+        """Multiple allowlist patterns work together."""
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': [
+                r'\b[\w.+-]+@anthropic\.com\b',
+                r'\b[\w.+-]+@example\.(com|org|net)\b',
+            ],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Emails: noreply@anthropic.com and user@example.org and secret@real.com"
+        result = redactor.redact(text)
+        assert len(result['redactions']) == 1
+        assert 'secret@real.com' not in result['redacted_text']
+        assert 'noreply@anthropic.com' in result['redacted_text']
+        assert 'user@example.org' in result['redacted_text']
+
+    def test_allowlist_with_no_patterns(self):
+        """Empty allowlist has no effect — PII still detected."""
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': [],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Email: user@example.com"
+        result = redactor.redact(text)
+        assert len(result['redactions']) == 1
+
+    def test_allowlist_dangerous_pattern_blocked(self):
+        """Catch-all patterns like .* are blocked."""
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': ['.*'],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Email: user@example.com"
+        result = redactor.redact(text)
+        assert len(result['redactions']) == 1
+
+    def test_allowlist_time_based_active(self):
+        """Active time-based pattern suppresses PII detection."""
+        from datetime import timedelta
+        future = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': [
+                {'pattern': r'\b[\w.+-]+@anthropic\.com\b', 'valid_until': future}
+            ],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Email: noreply@anthropic.com"
+        result = redactor.redact(text)
+        assert len(result['redactions']) == 0
+
+    def test_allowlist_time_based_expired(self):
+        """Expired time-based pattern does not suppress detection."""
+        from datetime import timedelta
+        past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        config = {
+            'enabled': True,
+            'pii_types': ['email'],
+            'action': 'block',
+            'allowlist_patterns': [
+                {'pattern': r'\b[\w.+-]+@anthropic\.com\b', 'valid_until': past}
+            ],
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config, pii_only=True)
+        text = "Email: noreply@anthropic.com"
+        result = redactor.redact(text)
+        assert len(result['redactions']) == 1

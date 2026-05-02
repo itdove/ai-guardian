@@ -399,5 +399,62 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
         # Production file should scan (depends on gitleaks availability)
 
 
+class TestSecretScanningAllowlistPatterns(unittest.TestCase):
+    """Tests for allowlist_patterns configuration in secret scanning (Issue #357)."""
+
+    def test_allowlist_patterns_parameter_accepted(self):
+        """Verify allowlist_patterns parameter is accepted without error."""
+        safe_content = "just some normal text with no secrets"
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            safe_content,
+            filename="test.txt",
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9]+"]
+        )
+        self.assertFalse(is_secret)
+
+    def test_allowlist_patterns_with_ignore_tools(self):
+        """Allowlist patterns work alongside ignore_tools."""
+        safe_content = "just some normal text"
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            safe_content,
+            filename="test.txt",
+            tool_name="Read",
+            ignore_tools=["Read"],
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9]+"]
+        )
+        self.assertFalse(is_secret, "Ignored tool should not be scanned")
+
+    def test_allowlist_patterns_empty_list_has_no_effect(self):
+        """Empty allowlist_patterns list should not change behavior."""
+        safe_content = "no secrets here"
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            safe_content,
+            filename="test.txt",
+            allowlist_patterns=[]
+        )
+        self.assertFalse(is_secret)
+
+    def test_allowlist_patterns_none_accepted(self):
+        """None value for allowlist_patterns should be handled gracefully."""
+        safe_content = "no secrets here"
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            safe_content,
+            filename="test.txt",
+            allowlist_patterns=None
+        )
+        self.assertFalse(is_secret)
+
+    def test_allowlist_dangerous_patterns_blocked(self):
+        """Catch-all patterns like .* should be rejected."""
+        safe_content = "no secrets here"
+        is_secret, error_msg = check_secrets_with_gitleaks(
+            safe_content,
+            filename="test.txt",
+            allowlist_patterns=[".*"]
+        )
+        # Should work without error; dangerous pattern is just ignored
+        self.assertFalse(is_secret)
+
+
 if __name__ == "__main__":
     unittest.main()

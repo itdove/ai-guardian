@@ -1337,7 +1337,8 @@ def _load_pii_config():
         'pii_types': ['ssn', 'credit_card', 'phone', 'email', 'us_passport', 'iban', 'intl_phone'],
         'action': 'block',
         'ignore_files': [],
-        'ignore_tools': []
+        'ignore_tools': [],
+        'allowlist_patterns': []
     }
     config, error_msg = _load_config_file()
     if error_msg:
@@ -1806,7 +1807,8 @@ def _count_gitleaks_patterns(config_path):
 
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
-                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None):
+                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
+                                allowlist_patterns: Optional[list] = None):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -1831,6 +1833,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         tool_name: Optional tool name being used (for ignore_tools matching)
         ignore_files: Optional list of glob patterns for files to skip
         ignore_tools: Optional list of tool name patterns to skip
+        allowlist_patterns: Optional list of regex patterns for known-safe values to ignore
 
     Returns:
         tuple: (has_secrets: bool, error_message: str or None)
@@ -2097,6 +2100,41 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 }
                     except Exception as e:
                         logging.debug(f"Failed to parse scanner JSON report: {e}")
+
+                # Filter findings through allowlist patterns (Issue #357)
+                if allowlist_patterns and secret_details:
+                    from ai_guardian import allowlist_utils
+                    compiled_allowlist = allowlist_utils.compile_allowlist(allowlist_patterns)
+                    if compiled_allowlist:
+                        content_str = content if isinstance(content, str) else str(content)
+                        content_lines = content_str.splitlines()
+
+                        all_allowlisted = True
+                        # Check findings from modern parser
+                        if scan_result and scan_result.get("findings"):
+                            for finding in scan_result["findings"]:
+                                line_num = finding.get("line_number", 0)
+                                if line_num > 0 and line_num <= len(content_lines):
+                                    line_text = content_lines[line_num - 1]
+                                    if not allowlist_utils.check_allowlist(line_text, compiled_allowlist):
+                                        all_allowlisted = False
+                                        break
+                                else:
+                                    all_allowlisted = False
+                                    break
+                        else:
+                            # Legacy parser or single finding — check via line number
+                            line_num = secret_details.get("line_number", 0)
+                            if line_num > 0 and line_num <= len(content_lines):
+                                line_text = content_lines[line_num - 1]
+                                if not allowlist_utils.check_allowlist(line_text, compiled_allowlist):
+                                    all_allowlisted = False
+                            else:
+                                all_allowlisted = False
+
+                        if all_allowlisted:
+                            logging.info("All secret findings matched allowlist patterns — skipping")
+                            return False, None
 
                 # Build error message with details if available
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
@@ -2434,6 +2472,7 @@ def process_hook_input():
 
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
+            secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
 
             # Check for secrets in the output (use composite identifier for ignore matching)
             has_secrets, error_message = check_secrets_with_gitleaks(
@@ -2441,7 +2480,8 @@ def process_hook_input():
                 context={"ide_type": ide_type.value, "hook_event": "posttooluse"},
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
-                ignore_tools=ignore_tools
+                ignore_tools=ignore_tools,
+                allowlist_patterns=secret_allowlist
             )
 
             if not has_secrets and error_message:
@@ -2915,9 +2955,10 @@ def process_hook_input():
             datetime.now(timezone.utc),
             default=True
         ):
-            # Extract ignore lists from config
+            # Extract ignore lists and allowlist from config
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
+            secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
 
             has_secrets, error_message = check_secrets_with_gitleaks(
                 content_to_scan, filename,
@@ -2925,7 +2966,8 @@ def process_hook_input():
                 file_path=file_path,
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
-                ignore_tools=ignore_tools
+                ignore_tools=ignore_tools,
+                allowlist_patterns=secret_allowlist
             )
 
             if not has_secrets and error_message:

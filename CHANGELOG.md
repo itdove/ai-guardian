@@ -33,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Allowlist patterns for scan_pii and secret_scanning** (Issue #357)
+  - `allowlist_patterns` config option added to `scan_pii` and `secret_scanning` sections
+  - Suppresses false positives for known-safe values (e.g., corporate email domains, test API key prefixes) without skipping entire files via `ignore_files`
+  - Supports both simple string patterns and time-based patterns with expiration (`valid_until`)
+  - ReDoS protection via `validate_regex_pattern()` on all user-supplied patterns
+  - Dangerous catch-all patterns (`.*`, `.+`) are blocked
+  - Shared `allowlist_utils.py` module extracted from `prompt_injection.py` for consistent behavior across all three scanning modules
+  - TUI updated with allowlist pattern editing for both PII and secret scanning screens
+  - Schema, setup defaults, and example config updated
+  - Existing `prompt_injection.allowlist_patterns` behavior unchanged (refactored to use shared module)
+
 - **Jailbreak Detection Patterns** (Issue #263)
   - 13 built-in jailbreak patterns across 4 categories: role-play jailbreaks (DAN/sudo/god mode), identity manipulation (pretend/imagine unrestricted AI), constraint removal (no rules now, free from restrictions), and hypothetical framing (fictional scenario without rules)
   - New `jailbreak_patterns` config key for user-defined patterns (extends built-in patterns)

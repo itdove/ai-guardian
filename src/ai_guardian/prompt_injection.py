@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, Union, List
 
 from ai_guardian.config_utils import is_expired
+from ai_guardian import allowlist_utils
 from ai_guardian.tool_policy import _strip_bash_heredoc_content
 from ai_guardian.utils.path_matching import match_ignore_pattern
 
@@ -724,7 +725,7 @@ class PromptInjectionDetector:
         self.detector_type = self.config.get("detector", "heuristic")
         # Load and validate allowlist patterns (prevent dangerous patterns like .*)
         raw_allowlist = self.config.get("allowlist_patterns", [])
-        self.allowlist_patterns = self._validate_allowlist_patterns(raw_allowlist)
+        self.allowlist_patterns = allowlist_utils.validate_allowlist_patterns(raw_allowlist)
 
         # Load custom patterns
         self.custom_patterns = self.config.get("custom_patterns", [])
@@ -757,11 +758,7 @@ class PromptInjectionDetector:
         ]
 
         # Compile allowlist patterns (filter expired ones first)
-        valid_allowlist = self._filter_valid_patterns(self.allowlist_patterns)
-        self._compiled_allowlist = [
-            re.compile(self._extract_pattern_string(pattern), re.IGNORECASE | re.MULTILINE)
-            for pattern in valid_allowlist
-        ]
+        self._compiled_allowlist = allowlist_utils.compile_allowlist(self.allowlist_patterns)
 
         self._compiled_custom = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
@@ -785,73 +782,12 @@ class PromptInjectionDetector:
         self.unicode_detector = UnicodeAttackDetector(unicode_config)
 
     def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
-        """
-        Extract the pattern string from a pattern entry.
-
-        Args:
-            pattern_entry: Either a string pattern or dict with 'pattern' field
-
-        Returns:
-            str: The pattern string
-
-        Examples:
-            >>> self._extract_pattern_string("test:.*")
-            "test:.*"
-
-            >>> self._extract_pattern_string({"pattern": "debug:.*", "valid_until": "2026-04-13T12:00:00Z"})
-            "debug:.*"
-        """
-        if isinstance(pattern_entry, str):
-            return pattern_entry
-        elif isinstance(pattern_entry, dict) and "pattern" in pattern_entry:
-            return pattern_entry["pattern"]
-        else:
-            # Fallback - return string representation
-            return str(pattern_entry)
+        """Extract the pattern string from a pattern entry."""
+        return allowlist_utils.extract_pattern_string(pattern_entry)
 
     def _is_allowlist_pattern_valid(self, pattern_entry: Union[str, Dict], current_time: Optional[datetime] = None) -> bool:
-        """
-        Check if an allowlist pattern entry is still valid (not expired).
-
-        Supports both simple format (string) and extended format (dict with valid_until).
-
-        Args:
-            pattern_entry: Either a string pattern or dict with 'pattern' and 'valid_until'
-            current_time: Optional current time for testing (defaults to now in UTC)
-
-        Returns:
-            bool: True if pattern is valid, False if expired
-
-        Examples:
-            >>> self._is_allowlist_pattern_valid("test:.*")
-            True
-
-            >>> self._is_allowlist_pattern_valid({"pattern": "temp:.*", "valid_until": "2099-12-31T23:59:59Z"})
-            True
-
-            >>> self._is_allowlist_pattern_valid({"pattern": "old:.*", "valid_until": "2020-01-01T00:00:00Z"})
-            False
-        """
-        # Simple format (string) - never expires
-        if isinstance(pattern_entry, str):
-            return True
-
-        # Extended format (dict) - check for valid_until field
-        if isinstance(pattern_entry, dict):
-            # No valid_until field - treat as non-expiring
-            if "valid_until" not in pattern_entry:
-                return True
-
-            valid_until = pattern_entry.get("valid_until")
-            if not valid_until:
-                return True
-
-            # Check if expired
-            return not is_expired(valid_until, current_time)
-
-        # Unknown format - treat as valid (fail-safe)
-        logger.warning(f"Unknown allowlist pattern entry format: {type(pattern_entry)}")
-        return True
+        """Check if an allowlist pattern entry is still valid (not expired)."""
+        return allowlist_utils.is_allowlist_pattern_valid(pattern_entry, current_time)
 
     def _sanitize_text_for_logging(self, text: str) -> str:
         """
@@ -888,92 +824,16 @@ class PromptInjectionDetector:
         return sanitized
 
     def _validate_allowlist_patterns(self, patterns: List[Union[str, Dict]]) -> List[Union[str, Dict]]:
-        """
-        Validate allowlist patterns to prevent dangerous patterns that disable all detection.
-
-        Dangerous patterns:
-        - .* (matches everything)
-        - .+ (matches everything with at least one char)
-        - Other overly broad patterns
-
-        Args:
-            patterns: List of pattern entries (strings or dicts)
-
-        Returns:
-            list: Filtered list with only safe patterns
-        """
-        from ai_guardian.config_utils import validate_regex_pattern
-
-        safe_patterns = []
-        for pattern_entry in patterns:
-            pattern_str = self._extract_pattern_string(pattern_entry)
-
-            # Block dangerous catch-all patterns
-            dangerous_patterns = [
-                r'.*',      # Matches everything
-                r'.+',      # Matches everything with at least one char
-                r'[\s\S]*', # Matches everything including newlines
-                r'[\s\S]+', # Matches everything with at least one char
-            ]
-
-            if pattern_str in dangerous_patterns:
-                logger.error(
-                    f"Blocked dangerous allowlist pattern '{pattern_str}' - "
-                    f"this would disable all prompt injection detection"
-                )
-                continue
-
-            # Validate pattern for ReDoS
-            if not validate_regex_pattern(pattern_str):
-                logger.error(
-                    f"Blocked invalid/dangerous allowlist pattern '{pattern_str}' - "
-                    f"failed ReDoS validation"
-                )
-                continue
-
-            safe_patterns.append(pattern_entry)
-
-        return safe_patterns
+        """Validate allowlist patterns, blocking catch-all and ReDoS-unsafe entries."""
+        return allowlist_utils.validate_allowlist_patterns(patterns)
 
     def _filter_valid_patterns(self, patterns: List[Union[str, Dict]], current_time: Optional[datetime] = None) -> List[Union[str, Dict]]:
-        """
-        Filter out expired patterns from a list.
-
-        Args:
-            patterns: List of pattern entries (strings or dicts)
-            current_time: Optional current time for testing
-
-        Returns:
-            list: Filtered list with only valid (non-expired) patterns
-        """
-        valid_patterns = []
-        for pattern_entry in patterns:
-            if self._is_allowlist_pattern_valid(pattern_entry, current_time):
-                valid_patterns.append(pattern_entry)
-            else:
-                # Log when we skip an expired pattern
-                pattern_str = self._extract_pattern_string(pattern_entry)
-                valid_until = pattern_entry.get("valid_until") if isinstance(pattern_entry, dict) else None
-                logger.info(f"Skipping expired allowlist pattern '{pattern_str}' (expired: {valid_until})")
-
-        return valid_patterns
+        """Filter out expired patterns from a list."""
+        return allowlist_utils.filter_valid_patterns(patterns, current_time)
 
     def _check_allowlist(self, content: str) -> bool:
-        """
-        Check if content matches any allowlist pattern.
-
-        Only checks non-expired patterns.
-
-        Args:
-            content: The text to check
-
-        Returns:
-            True if content is allowlisted (should skip detection)
-        """
-        for pattern in self._compiled_allowlist:
-            if pattern.search(content):
-                return True
-        return False
+        """Check if content matches any allowlist pattern."""
+        return allowlist_utils.check_allowlist(content, self._compiled_allowlist)
 
     def _is_file_ignored(self, file_path: Optional[str]) -> bool:
         """
