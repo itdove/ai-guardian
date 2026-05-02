@@ -1668,7 +1668,10 @@ def _handle_violations_command(args):
 
     # Handle --clear
     if args.clear:
-        confirm = input("Are you sure you want to clear all violations? [y/N] ")
+        if args.yes:
+            confirm = "y"
+        else:
+            confirm = input("Are you sure you want to clear all violations? [y/N] ")
         if confirm.lower() == 'y':
             if violation_logger.clear_log():
                 print("Violations log cleared successfully")
@@ -3197,6 +3200,11 @@ def main():
             "--export",
             metavar="FILE",
             help="Export violations to JSON file"
+        )
+        violations_parser.add_argument(
+            "--yes", "-y",
+            action="store_true",
+            help="Skip confirmation prompt (for non-interactive use)"
         )
 
         # TUI subcommand
