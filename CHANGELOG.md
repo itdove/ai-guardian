@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--yes`/`-y` flag for `violations --clear`** (Issue #360)
+  - Skips confirmation prompt for non-interactive use (CI, Claude Code `!` prefix, piped scripts)
+  - `ai-guardian violations --clear --yes` or `ai-guardian violations --clear -y`
+  - Without flag, interactive confirmation prompt is unchanged
+
 ### Changed
 
 - **Remove dev source code patterns from immutable deny rules** (Issue #369)
