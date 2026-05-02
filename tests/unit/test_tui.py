@@ -37,10 +37,10 @@ class TestNavGroups:
         """Test that NAV_GROUPS defines exactly 8 category groups."""
         assert len(NAV_GROUPS) == 8
 
-    def test_nav_groups_has_twentytwo_panels(self):
-        """Test that NAV_GROUPS defines exactly 22 leaf panels."""
+    def test_nav_groups_has_twentythree_panels(self):
+        """Test that NAV_GROUPS defines exactly 23 leaf panels."""
         total_leaves = sum(len(items) for _, items in NAV_GROUPS)
-        assert total_leaves == 22
+        assert total_leaves == 23
 
     def test_panel_ids_are_unique(self):
         """Test that all panel IDs are unique."""
@@ -109,6 +109,7 @@ class TestNavGroups:
         assert "panel-violations" in nav_dict["Monitoring"]
         assert "panel-violation-logging" in nav_dict["Monitoring"]
         assert "panel-config-file" in nav_dict["Configuration"]
+        assert "panel-config-editor" in nav_dict["Configuration"]
         assert "panel-config-effective" in nav_dict["Configuration"]
         assert "panel-regex-tester" in nav_dict["Tools"]
 
@@ -135,7 +136,7 @@ class TestHelpDocs:
             assert len(doc) > 0, f"Help doc for {key} is empty"
 
     def test_help_docs_total_count(self):
-        """Test total help doc entries: 6 categories + 15 panels = 21."""
+        """Test total help doc entries: 8 categories + 23 panels = 31."""
         expected = len(NAV_GROUPS) + sum(len(items) for _, items in NAV_GROUPS)
         assert len(HELP_DOCS) == expected
 

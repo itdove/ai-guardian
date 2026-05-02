@@ -97,6 +97,7 @@ NAV_GROUPS = [
         ("Directory Protection", "panel-directory-protection"),
         ("Remote Configs", "panel-remote-configs"),
         ("Config File", "panel-config-file"),
+        ("Config Editor", "panel-config-editor"),
         ("Effective Config", "panel-config-effective"),
     ]),
     ("Tools", [
@@ -476,6 +477,21 @@ HELP_DOCS = {
         "  2. Project local: .ai-guardian.json (in project root)\n\n"
         "Shows the merged JSON from all sources with file "
         "locations and existence status."
+    ),
+    "panel-config-editor": (
+        "[bold]Config Editor[/bold]\n\n"
+        "Edit ai-guardian.json directly with syntax highlighting, "
+        "real-time validation, and schema checking.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - JSON syntax highlighting with line numbers\n"
+        "  - Real-time validation status bar\n"
+        "  - Schema validation warnings on save\n"
+        "  - Automatic backup before saving (.bak)\n"
+        "  - Undo support (built-in TextArea)\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]Ctrl+S[/bold]  Save with confirmation\n"
+        "  [bold]Ctrl+R[/bold]  Reload from disk\n"
+        "  [bold]Ctrl+Z[/bold]  Undo"
     ),
     "panel-config-effective": (
         "[bold]Effective Config[/bold]\n\n"
@@ -863,6 +879,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-config-file"):
                     from ai_guardian.tui.config_viewer import ConfigContent
                     yield ConfigContent()
+
+                with Container(id="panel-config-editor"):
+                    from ai_guardian.tui.config_editor import ConfigEditorContent
+                    yield ConfigEditorContent()
 
                 with Container(id="panel-config-effective"):
                     from ai_guardian.tui.config_effective import ConfigEffectiveContent
