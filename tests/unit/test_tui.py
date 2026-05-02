@@ -31,14 +31,14 @@ class TestTUIApp:
 class TestNavGroups:
     """Tests for navigation structure."""
 
-    def test_nav_groups_has_seven_categories(self):
-        """Test that NAV_GROUPS defines exactly 7 category groups."""
-        assert len(NAV_GROUPS) == 7
+    def test_nav_groups_has_eight_categories(self):
+        """Test that NAV_GROUPS defines exactly 8 category groups."""
+        assert len(NAV_GROUPS) == 8
 
-    def test_nav_groups_has_twentyone_panels(self):
-        """Test that NAV_GROUPS defines exactly 21 leaf panels."""
+    def test_nav_groups_has_twentytwo_panels(self):
+        """Test that NAV_GROUPS defines exactly 22 leaf panels."""
         total_leaves = sum(len(items) for _, items in NAV_GROUPS)
-        assert total_leaves == 21
+        assert total_leaves == 22
 
     def test_panel_ids_are_unique(self):
         """Test that all panel IDs are unique."""
@@ -91,6 +91,7 @@ class TestNavGroups:
         assert "Secrets" in category_names
         assert "Monitoring" in category_names
         assert "Configuration" in category_names
+        assert "Tools" in category_names
 
     def test_expected_panels_in_categories(self):
         """Test that key panels are in the correct categories."""
@@ -107,6 +108,7 @@ class TestNavGroups:
         assert "panel-violation-logging" in nav_dict["Monitoring"]
         assert "panel-config-file" in nav_dict["Configuration"]
         assert "panel-config-effective" in nav_dict["Configuration"]
+        assert "panel-regex-tester" in nav_dict["Tools"]
 
 
 class TestHelpDocs:
