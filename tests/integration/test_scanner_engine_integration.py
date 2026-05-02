@@ -47,6 +47,9 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIn("WARNING", error_msg, "Should indicate warning")
         self.assertIn("ai-guardian scanner install leaktk", error_msg, "Should suggest installing configured scanner")
         self.assertIn("you may leak secrets", error_msg, "Should warn about risk")
+        # Issue #384: Context-aware message
+        self.assertIn("No secret scanning available", error_msg, "Should use context-aware title")
+        self.assertIn("['leaktk']", error_msg, "Should list tried engines")
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.select_engine')

@@ -3,6 +3,7 @@ Unit tests for pattern_server warn_on_failure configuration.
 
 Tests verify that the warn_on_failure setting correctly controls whether
 warnings are shown when the pattern server fails to provide patterns.
+Also tests context-aware warning messages (Issue #384).
 """
 
 import logging
@@ -232,6 +233,10 @@ class PatternServerWarningsTest(TestCase):
         self.assertIn("WARNING", error_msg, "Should indicate warning")
         self.assertIn("ai-guardian scanner install", error_msg, "Should contain install command")
         self.assertIn("you may leak secrets", error_msg, "Should warn about leaked secrets")
+        # Issue #384: Context-aware message should mention pattern server URL
+        self.assertIn("No secret scanning available", error_msg, "Should use context-aware title")
+        self.assertIn("https://pattern-server.example.com", error_msg, "Should mention pattern server URL")
+        self.assertIn("unavailable", error_msg, "Should indicate pattern server was unavailable")
 
     @patch('ai_guardian.pattern_server.logger')
     @patch('requests.get')
@@ -467,6 +472,9 @@ class PatternServerWarningsTest(TestCase):
         self.assertIn("WARNING", error_msg, "Should indicate warning")
         self.assertIn("ai-guardian scanner install", error_msg, "Should contain install command")
         self.assertIn("you may leak secrets", error_msg, "Should warn about risk")
+        # Issue #384: Context-aware message should mention pattern server URL
+        self.assertIn("No secret scanning available", error_msg, "Should use context-aware title")
+        self.assertIn("https://pattern-server.example.com", error_msg, "Should mention pattern server URL")
 
     @patch('logging.warning')
     @patch('logging.info')
@@ -709,3 +717,93 @@ class PatternServerWarningsTest(TestCase):
                     any("check your" in str(call).lower() for call in info_calls),
                     f"Expected info about checking token. Got: {info_calls}"
                 )
+
+
+class TestContextAwareWarningMessages(TestCase):
+    """Tests for context-aware scanner warning messages (Issue #384)."""
+
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_warning_path1_no_pattern_server_attempted(self, mock_scanning_config, mock_select_engine):
+        """Path 1: No pattern server attempted, no engines — shows engines list."""
+        mock_scanning_config.return_value = ({"engines": ["gitleaks"]}, None)
+        mock_select_engine.side_effect = RuntimeError("No secret scanner found")
+
+        content = "This is test content"
+        with patch('ai_guardian.HAS_PATTERN_SERVER', False):
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+
+        self.assertFalse(has_secrets)
+        self.assertIsNotNone(error_msg)
+        self.assertIn("No secret scanning available", error_msg)
+        self.assertIn("No scanner engine is installed", error_msg)
+        self.assertIn("['gitleaks']", error_msg)
+        self.assertIn("none found", error_msg)
+        self.assertNotIn("Pattern server", error_msg)
+        self.assertIn("ai-guardian scanner install gitleaks", error_msg)
+        self.assertIn("you may leak secrets", error_msg)
+
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.PatternServerClient')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_warning_path1_pattern_server_attempted_and_failed(
+        self, mock_pattern_config, mock_client_class, mock_scanning_config, mock_select_engine
+    ):
+        """Path 1: Pattern server attempted but failed, no engines — shows both."""
+        pattern_config = {"url": "https://patterns.security.example.com"}
+        mock_pattern_config.return_value = pattern_config
+
+        mock_client = MagicMock()
+        mock_client.get_patterns_path.return_value = None
+        mock_client_class.return_value = mock_client
+
+        mock_scanning_config.return_value = ({"engines": ["gitleaks", "betterleaks"]}, None)
+        mock_select_engine.side_effect = RuntimeError("No secret scanner found")
+
+        content = "This is test content"
+        with patch('ai_guardian.HAS_PATTERN_SERVER', True):
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+
+        self.assertFalse(has_secrets)
+        self.assertIsNotNone(error_msg)
+        self.assertIn("No secret scanning available", error_msg)
+        self.assertIn("https://patterns.security.example.com", error_msg)
+        self.assertIn("unavailable", error_msg)
+        self.assertIn("['gitleaks', 'betterleaks']", error_msg)
+        self.assertIn("none installed", error_msg)
+        self.assertIn("ai-guardian scanner install gitleaks", error_msg)
+        self.assertIn("you may leak secrets", error_msg)
+
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.PatternServerClient')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_warning_path2_pattern_server_ok_no_engines(
+        self, mock_pattern_config, mock_client_class, mock_scanning_config, mock_select_engine
+    ):
+        """Path 2: Pattern server succeeded but no engine to run patterns."""
+        pattern_config = {"url": "https://patterns.security.example.com"}
+        mock_pattern_config.return_value = pattern_config
+
+        mock_client = MagicMock()
+        mock_client.get_patterns_path.return_value = "/tmp/test-patterns.toml"
+        mock_client_class.return_value = mock_client
+
+        mock_scanning_config.return_value = ({"engines": ["gitleaks"]}, None)
+        mock_select_engine.side_effect = RuntimeError("No secret scanner found")
+
+        content = "This is test content"
+        with patch('ai_guardian.HAS_PATTERN_SERVER', True):
+            with patch('ai_guardian.HAS_SCANNER_ENGINE', True):
+                has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(content, "test.txt")
+
+        self.assertFalse(has_secrets)
+        self.assertIsNotNone(error_msg)
+        self.assertIn("Scanner engine required", error_msg)
+        self.assertIn("Enterprise patterns are available", error_msg)
+        self.assertIn("no scanner engine is installed to use them", error_msg)
+        self.assertIn("ai-guardian scanner install gitleaks", error_msg)
+        self.assertIn("you may leak secrets", error_msg)
