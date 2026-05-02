@@ -864,10 +864,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_patterns": []
         },
 
-        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for SSN, credit card, phone, email, passport, IBAN, international phone.",
+        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for SSN, credit card, phone, passport, IBAN, international phone. Email detection is available but opt-in (add 'email' to pii_types).",
         "scan_pii": {
             "enabled": True,
-            "pii_types": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"],
+            "pii_types": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone"],
             "action": "block",
             "ignore_files": [],
             "ignore_tools": [],

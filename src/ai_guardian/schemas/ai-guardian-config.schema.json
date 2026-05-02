@@ -443,7 +443,7 @@
             "type": "string",
             "enum": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"]
           },
-          "default": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone"]
+          "default": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone"]
         },
         "action": {
           "type": "string",
