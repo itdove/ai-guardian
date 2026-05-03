@@ -2669,11 +2669,13 @@ def process_hook_input():
                                              error_message=error_message,
                                              hook_event=hook_event)
                 else:
-                    # Emergency bypass - allow secrets through when redaction disabled
+                    # Redaction disabled - block to prevent secrets from reaching AI model
                     logging.warning(
-                        f"Secrets detected but redaction disabled (emergency bypass) - allowing through"
+                        f"Secrets detected and redaction disabled - blocking output"
                     )
-                    return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                    return format_response(ide_type, has_secrets=True,
+                                         error_message=error_message,
+                                         hook_event=hook_event)
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
 

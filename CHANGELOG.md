@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PostToolUse now blocks secrets when secret_redaction is disabled** (Issue #414)
+  - Previously, detected secrets were allowed through as an "emergency bypass" when `secret_redaction.enabled = false`
+  - Now correctly blocks tool output containing secrets, preventing them from reaching the AI model
+  - Added UX contract tests verifying block vs redact behavior for PostToolUse
+
 - **TUI copy to clipboard now works on macOS Terminal.app** (Issue #377)
   - Textual's `copy_to_clipboard()` uses OSC 52 escape sequences which macOS Terminal.app does not support
   - Added platform-native clipboard fallback: `pbcopy` (macOS), `xclip`/`xsel` (Linux), `clip` (Windows)
