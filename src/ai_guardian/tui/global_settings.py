@@ -4,7 +4,7 @@ Global Settings Tab Content
 
 Manage global security feature toggles:
 - permissions_enabled: Global tool permissions enforcement
-- secret_scanning: Gitleaks secret scanning
+- secret_scanning: Secret scanning
 """
 
 import json
@@ -59,10 +59,10 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
             # Secret scanning toggle
             yield TimeBasedToggle(
-                title="🔍 Secret Scanning (Gitleaks)",
+                title="🔍 Secret Scanning",
                 config_key="secret_scanning",
                 current_value=True,
-                help_text="Controls whether AI Guardian scans for secrets using Gitleaks. When disabled, no secret detection is performed. (default: enabled)",
+                help_text="Controls whether AI Guardian scans for secrets using the configured scanner engine. When disabled, no secret detection is performed. (default: enabled)",
                 id="secret_scanning_toggle",
                 classes="section",
             )
