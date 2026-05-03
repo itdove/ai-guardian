@@ -2242,7 +2242,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
                     f"  • Add to .gitignore if in config file\n"
                     f"  • Never commit secrets to git\n"
-                    f"  • If false positive: add '# gitleaks:allow' comment to the line\n\n"
+                    f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
                     f"⚠️  Secret value NOT shown in this message for security\n\n"
                 )
 

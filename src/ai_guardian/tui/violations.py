@@ -868,8 +868,8 @@ class ViolationsContent(Container):
                     '  "secret_scanning": {\n'
                     '    "allowlist_patterns": ["your-regex-pattern"]\n'
                     "  }\n\n"
-                    "[bold]Option 2:[/bold] Add comment before the line in source files:\n"
-                    "  # gitleaks:allow\n\n"
+                    "[bold]Option 2:[/bold] Add inline comment at the end of the line:\n"
+                    "  YOUR_SECRET_LINE # gitleaks:allow\n\n"
                     "[bold]Option 3:[/bold] Add to .gitleaks.toml allowlist\n\n"
                     "[dim]Tip: Option 1 works for both file scanning and tool output scanning.\n"
                     "Options 2-3 only work for file scanning (PreToolUse).[/dim]"

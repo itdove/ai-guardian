@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **gitleaks:allow guidance now correctly says "at the end of the line"** (Issue #416)
+  - Block message in `__init__.py` changed from ambiguous "comment to the line" to "at the end of the line"
+  - TUI violations help changed from incorrect "before the line" to "inline comment at the end of the line"
+  - TUI example now shows inline usage: `YOUR_SECRET_LINE # gitleaks:allow`
+  - gitleaks only recognizes `# gitleaks:allow` when it appears on the same line as the secret
+
 - **PostToolUse now blocks secrets when secret_redaction is disabled** (Issue #414)
   - Previously, detected secrets were allowed through as an "emergency bypass" when `secret_redaction.enabled = false`
   - Now correctly blocks tool output containing secrets, preventing them from reaching the AI model

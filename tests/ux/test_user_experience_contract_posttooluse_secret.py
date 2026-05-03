@@ -335,3 +335,98 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         updated_output = hook_output.get('updatedToolOutput', '')
         assert 'FAKE_TEST_SECRET_VALUE_1234' not in updated_output, \
             "Redacted output must not contain the raw secret value"
+
+
+class GitleaksAllowGuidanceTests(TestCase):
+    """
+    Tests verifying that gitleaks:allow guidance tells users to put the
+    comment inline (at the end of the line), not before the line.
+
+    Issue #416: gitleaks only recognizes # gitleaks:allow when it appears
+    on the SAME line as the secret, not on a preceding line.
+    """
+
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_block_message_says_end_of_line(
+        self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
+    ):
+        """
+        USER EXPERIENCE: Block message gitleaks:allow guidance says "at the end of the line"
+
+        Issue #416: The old text said "comment to the line" which is ambiguous.
+        gitleaks:allow MUST be on the same line as the secret to work.
+
+        Expected User Experience:
+        User sees: "add '# gitleaks:allow' at the end of the line"
+        NOT: "add '# gitleaks:allow' comment to the line"
+        NOT: "before the line"
+        """
+        mock_pattern.return_value = (None, None)
+        mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        error_with_guidance = (
+            "Secret Detected\n"
+            "Recommendation:\n"
+            "  • If false positive: add '# gitleaks:allow' at the end of the line\n"
+        )
+        mock_gitleaks.return_value = (True, error_with_guidance)
+        mock_redact.return_value = ({"enabled": False}, None)
+        mock_pii.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "guidance_test_001",
+            "tool_input": {"command": "cat /tmp/test.txt"},
+            "tool_response": {"output": "SECRET_KEY=FAKE_TEST_SECRET_VALUE_1234"}
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        response = json.loads(result['output'])
+        reason = response.get('reason', '')
+
+        assert "at the end of the line" in reason, \
+            f"Block message must say 'at the end of the line', got: {reason}"
+        assert "before the line" not in reason, \
+            f"Block message must NOT say 'before the line', got: {reason}"
+
+    def test_check_secrets_error_message_text(self):
+        """
+        USER EXPERIENCE: check_secrets_with_gitleaks error message uses correct guidance
+
+        Directly verifies the source code text for the gitleaks:allow recommendation.
+        This test does NOT require gitleaks to be installed — it reads the source.
+        """
+        import inspect
+        source = inspect.getsource(ai_guardian.check_secrets_with_gitleaks)
+
+        assert "at the end of the line" in source, \
+            "check_secrets_with_gitleaks must say 'at the end of the line'"
+        assert "before the line" not in source, \
+            "check_secrets_with_gitleaks must NOT say 'before the line'"
+        assert "comment to the line" not in source, \
+            "check_secrets_with_gitleaks must NOT say 'comment to the line'"
+
+    def test_tui_violations_gitleaks_allow_guidance(self):
+        """
+        USER EXPERIENCE: TUI violations secret allowlisting says "inline" / "at the end"
+
+        Issue #416: The TUI said "Add comment before the line" which is wrong.
+        Must say "Add inline comment at the end of the line" with an example
+        showing the comment on the same line as the secret.
+        """
+        import inspect
+        from ai_guardian.tui import violations
+        source = inspect.getsource(violations)
+
+        assert "before the line" not in source, \
+            "TUI violations must NOT say 'before the line' for gitleaks:allow"
+        assert "inline comment at the end of the line" in source, \
+            "TUI violations must say 'inline comment at the end of the line'"
+        assert "YOUR_SECRET_LINE # gitleaks:allow" in source, \
+            "TUI violations must show inline example: YOUR_SECRET_LINE # gitleaks:allow"
