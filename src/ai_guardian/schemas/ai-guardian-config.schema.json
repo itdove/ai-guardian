@@ -263,14 +263,14 @@
         },
         "pattern_server": {
           "type": ["object", "null"],
-          "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server (NEW in v1.7.0: nested under secret_scanning). Configure this section to use enterprise patterns instead of Gitleaks defaults. Presence = enabled, null or absence = disabled (use defaults). Supports cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults.",
+          "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server (NEW in v1.7.0: nested under secret_scanning). Configure this section to use enterprise patterns instead of Gitleaks defaults. Uses the 'enabled' field to control active state. Supports cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults.",
           "additionalProperties": true,
           "properties": {
             "enabled": {
               "oneOf": [
                 {
                   "type": "boolean",
-                  "description": "DEPRECATED: Use presence/absence of pattern_server section instead. Will be removed in v2.0.0."
+                  "description": "Controls whether the pattern server is active. Supports boolean or time-based temporary disable."
                 },
                 {
                   "$ref": "#/definitions/time_based_feature"
@@ -496,14 +496,13 @@
           "oneOf": [
             {
               "type": "boolean",
-              "description": "DEPRECATED: Use presence/absence of pattern_server section instead"
+              "description": "Controls whether the pattern server is active"
             },
             {
               "$ref": "#/definitions/time_based_feature"
             }
           ],
-          "default": false,
-          "deprecated": true
+          "default": false
         },
         "immutable": {
           "type": "boolean",
