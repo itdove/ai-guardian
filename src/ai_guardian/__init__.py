@@ -1474,8 +1474,46 @@ def _is_ai_guardian_test_file(file_path):
     return False
 
 
+def _extract_context_snippet(text: str, line_number: int, max_chars: int = 200) -> Optional[str]:
+    """
+    Extract a few lines of context around a detection position.
+
+    The text should already be redacted (no raw PII/secrets).
+
+    Args:
+        text: Already-redacted text to extract snippet from
+        line_number: 1-based line number of the detection
+        max_chars: Maximum characters in the snippet
+
+    Returns:
+        Snippet string or None if inputs are invalid
+    """
+    if not text or not line_number or line_number < 1:
+        return None
+
+    lines = text.split('\n')
+    idx = line_number - 1
+
+    if idx >= len(lines):
+        return None
+
+    start = max(0, idx - 1)
+    end = min(len(lines), idx + 2)
+    snippet_lines = lines[start:end]
+
+    snippet = '...'.join(line.strip() for line in snippet_lines if line.strip())
+    if not snippet:
+        return None
+
+    if len(snippet) > max_chars:
+        snippet = snippet[:max_chars - 3] + '...'
+
+    return snippet
+
+
 def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False,
-                                      reason: str = None, suggestion: dict = None):
+                                      reason: str = None, suggestion: dict = None,
+                                      hook_context: Optional[Dict] = None):
     """
     Log a directory blocking violation.
 
@@ -1485,14 +1523,15 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
         is_excluded: Whether the path was in an excluded directory (but .ai-read-deny still blocked it)
         reason: Why the path was blocked (defaults to ".ai-read-deny marker found")
         suggestion: Remediation suggestion dict (defaults to marker removal suggestion)
+        hook_context: Optional dict with tool_use_id, session_id for correlation
     """
     if not HAS_VIOLATION_LOGGER:
         return
 
     try:
+        hctx = hook_context or {}
         violation_logger = ViolationLogger()
 
-        # Prepare context with exclusion status
         context = {
             "project_path": os.getcwd(),
             "path_in_exclusion": is_excluded
@@ -1500,6 +1539,11 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
 
         if is_excluded:
             context["note"] = "Directory exclusions can override .ai-read-deny markers (path was excluded but deny marker existed)"
+
+        if hctx.get("tool_use_id"):
+            context["tool_use_id"] = hctx["tool_use_id"]
+        if hctx.get("session_id"):
+            context["session_id"] = hctx["session_id"]
 
         if reason is None:
             reason = ".ai-read-deny marker found"
@@ -1527,7 +1571,8 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
         logger.debug(f"Failed to log directory blocking violation: {e}")
 
 
-def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None, secret_details: Optional[Dict] = None):
+def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None, secret_details: Optional[Dict] = None,
+                                    hook_context: Optional[Dict] = None):
     """
     Log a secret detection violation.
 
@@ -1535,6 +1580,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         filename: Name of the file/prompt where secret was detected
         context: Optional context dict with ide_type, hook_event, etc.
         secret_details: Optional dict with Gitleaks finding details (rule_id, line_number, etc.)
+        hook_context: Optional dict with tool_use_id, session_id for correlation
     """
     if not HAS_VIOLATION_LOGGER:
         return
@@ -1542,6 +1588,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
     try:
         ctx = context or {}
         details = secret_details or {}
+        hctx = hook_context or {}
 
         # Build blocked info with detailed location if available
         blocked_info = {
@@ -1561,15 +1608,21 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         if details.get("total_findings"):
             blocked_info["total_findings"] = details["total_findings"]
 
+        violation_ctx = {
+            "ide_type": ctx.get("ide_type", "unknown"),
+            "hook_event": ctx.get("hook_event", "unknown"),
+            "project_path": os.getcwd()
+        }
+        if hctx.get("tool_use_id"):
+            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
+        if hctx.get("session_id"):
+            violation_ctx["session_id"] = hctx["session_id"]
+
         violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type="secret_detected",
             blocked=blocked_info,
-            context={
-                "ide_type": ctx.get("ide_type", "unknown"),
-                "hook_event": ctx.get("hook_event", "unknown"),
-                "project_path": os.getcwd()
-            },
+            context=violation_ctx,
             suggestion={
                 "action": "review_and_remove_secret",
                 "warning": "Secrets should never be committed to code or shared with AI"
@@ -1580,7 +1633,8 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         logger.debug(f"Failed to log secret detection violation: {e}")
 
 
-def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection"):
+def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
+                                    hook_context: Optional[Dict] = None):
     """
     Log a prompt injection or jailbreak violation.
 
@@ -1588,19 +1642,29 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         filename: Name of the file/prompt where injection was detected
         context: Optional context dict with ide_type, hook_event, etc.
         attack_type: Type of attack - "injection" or "jailbreak"
+        hook_context: Optional dict with tool_use_id, session_id for correlation
     """
     if not HAS_VIOLATION_LOGGER:
         return
 
     try:
         ctx = context or {}
+        hctx = hook_context or {}
         violation_logger = ViolationLogger()
         vtype = "jailbreak_detected" if attack_type == "jailbreak" else "prompt_injection"
         reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
-        # Prefer full file_path from context over filename basename
         full_path = ctx.get("file_path")
         if not full_path and filename != "user_prompt":
             full_path = filename
+        violation_ctx = {
+            "ide_type": ctx.get("ide_type", "unknown"),
+            "hook_event": ctx.get("hook_event", "unknown"),
+            "project_path": os.getcwd()
+        }
+        if hctx.get("tool_use_id"):
+            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
+        if hctx.get("session_id"):
+            violation_ctx["session_id"] = hctx["session_id"]
         violation_logger.log_violation(
             violation_type=vtype,
             blocked={
@@ -1611,11 +1675,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
                 "method": "heuristic",
                 "reason": reason
             },
-            context={
-                "ide_type": ctx.get("ide_type", "unknown"),
-                "hook_event": ctx.get("hook_event", "unknown"),
-                "project_path": os.getcwd()
-            },
+            context=violation_ctx,
             suggestion={
                 "action": "add_allowlist_pattern",
                 "note": "If this is legitimate (e.g., documentation), add to allowlist in ai-guardian.json"
@@ -2191,7 +2251,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 )
 
                 # Log secret detection violation with details
-                _log_secret_detection_violation(filename, context, secret_details)
+                _log_secret_detection_violation(filename, context, secret_details,
+                                                hook_context=context)
 
                 # Always block - secret scanning does not support "log" mode
                 # Rationale: Allowing secrets through (even in audit mode) creates security risk:
@@ -2415,6 +2476,10 @@ def process_hook_input():
         if ide_type != IDEType.CURSOR:
             logging.info(f"Detected hook event: {hook_event}")
 
+        # Extract correlation IDs from hook data (available in both PreToolUse and PostToolUse)
+        hook_tool_use_id = hook_data.get("tool_use_id")
+        hook_session_id = hook_data.get("session_id")
+
         # Handle PostToolUse event - scan tool output before sending to AI
         if hook_event == "posttooluse":
             logging.info("Processing PostToolUse hook...")
@@ -2446,6 +2511,13 @@ def process_hook_input():
 
             logging.info(f"PostToolUse tool_identifier: {tool_identifier}")
 
+            # Extract command for Bash tool (for violation context)
+            bash_command = None
+            if tool_name == "Bash":
+                raw_cmd = tool_input.get("command", "")
+                if raw_cmd:
+                    bash_command = raw_cmd[:500]
+
             logging.info(f"Scanning {tool_identifier} output for secrets...")
 
             # Load secret scanning config for ignore lists
@@ -2469,9 +2541,14 @@ def process_hook_input():
             secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
 
             # Check for secrets in the output (use composite identifier for ignore matching)
+            post_secret_ctx = {"ide_type": ide_type.value, "hook_event": "posttooluse"}
+            if hook_tool_use_id:
+                post_secret_ctx["tool_use_id"] = hook_tool_use_id
+            if hook_session_id:
+                post_secret_ctx["session_id"] = hook_session_id
             has_secrets, error_message = check_secrets_with_gitleaks(
                 tool_output, f"{tool_identifier}_output",
-                context={"ide_type": ide_type.value, "hook_event": "posttooluse"},
+                context=post_secret_ctx,
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
                 ignore_tools=ignore_tools,
@@ -2528,19 +2605,31 @@ def process_hook_input():
                         violation_logger = ViolationLogger()
                         redaction_file_path = tool_input.get("file_path") or tool_input.get("path")
                         first_line = redactions[0].get('line_number') if redactions else None
+                        blocked_info = {
+                            'tool': tool_identifier,
+                            'file_path': redaction_file_path,
+                            'line_number': first_line,
+                            'redaction_count': len(redactions),
+                            'redacted_types': [r['type'] for r in redactions]
+                        }
+                        if bash_command:
+                            blocked_info['command'] = bash_command
+                        snippet = _extract_context_snippet(redacted_text, first_line)
+                        if snippet:
+                            blocked_info['context_snippet'] = snippet
+                        ctx = {
+                            'action': 'redacted',
+                            'mode': action,
+                            'hook_event': 'posttooluse'
+                        }
+                        if hook_tool_use_id:
+                            ctx['tool_use_id'] = hook_tool_use_id
+                        if hook_session_id:
+                            ctx['session_id'] = hook_session_id
                         violation_logger.log_violation(
                             violation_type='secret_redaction',
-                            blocked={
-                                'tool': tool_identifier,
-                                'file_path': redaction_file_path,
-                                'line_number': first_line,
-                                'redaction_count': len(redactions),
-                                'redacted_types': [r['type'] for r in redactions]
-                            },
-                            context={
-                                'action': 'redacted',
-                                'mode': action
-                            }
+                            blocked=blocked_info,
+                            context=ctx
                         )
 
                         # Return redacted output (allow, with modifications)
@@ -2601,17 +2690,29 @@ def process_hook_input():
                         violation_logger = ViolationLogger()
                         pii_file_path = tool_input.get("file_path") or tool_input.get("path")
                         pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
+                        pii_blocked = {
+                            'tool': tool_identifier,
+                            'hook': 'PostToolUse',
+                            'file_path': pii_file_path,
+                            'line_number': pii_first_line,
+                            'pii_count': len(pii_redactions),
+                            'pii_types': pii_types
+                        }
+                        if bash_command:
+                            pii_blocked['command'] = bash_command
+                        pii_snippet_text = redacted_text if redacted_text else tool_output
+                        pii_snippet = _extract_context_snippet(pii_snippet_text, pii_first_line)
+                        if pii_snippet:
+                            pii_blocked['context_snippet'] = pii_snippet
+                        pii_ctx = {'action': pii_action, 'hook_event': 'posttooluse'}
+                        if hook_tool_use_id:
+                            pii_ctx['tool_use_id'] = hook_tool_use_id
+                        if hook_session_id:
+                            pii_ctx['session_id'] = hook_session_id
                         violation_logger.log_violation(
                             violation_type='pii_detected',
-                            blocked={
-                                'tool': tool_identifier,
-                                'hook': 'PostToolUse',
-                                'file_path': pii_file_path,
-                                'line_number': pii_first_line,
-                                'pii_count': len(pii_redactions),
-                                'pii_types': pii_types
-                            },
-                            context={'action': pii_action, 'hook_event': 'posttooluse'}
+                            blocked=pii_blocked,
+                            context=pii_ctx
                         )
 
                         if pii_action == 'block':
@@ -2832,10 +2933,16 @@ def process_hook_input():
 
                     # Log violation if injection was detected (in both log and block modes)
                     if injection_detected:
+                        inj_hook_ctx = {}
+                        if hook_tool_use_id:
+                            inj_hook_ctx["tool_use_id"] = hook_tool_use_id
+                        if hook_session_id:
+                            inj_hook_ctx["session_id"] = hook_session_id
                         _log_prompt_injection_violation(
                             filename,
                             context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
-                            attack_type=detector.last_attack_type
+                            attack_type=detector.last_attack_type,
+                            hook_context=inj_hook_ctx if inj_hook_ctx else None
                         )
 
                     if should_block:
@@ -2897,6 +3004,15 @@ def process_hook_input():
                         if HAS_VIOLATION_LOGGER:
                             try:
                                 violation_logger = ViolationLogger()
+                                exfil_ctx = {
+                                    "ide_type": ide_type.value if hasattr(ide_type, 'value') else str(ide_type),
+                                    "hook_event": hook_event,
+                                    "project_path": os.getcwd()
+                                }
+                                if hook_tool_use_id:
+                                    exfil_ctx["tool_use_id"] = hook_tool_use_id
+                                if hook_session_id:
+                                    exfil_ctx["session_id"] = hook_session_id
                                 violation_logger.log_violation(
                                     violation_type="config_file_exfil",
                                     blocked={
@@ -2905,11 +3021,7 @@ def process_hook_input():
                                         "reason": config_error,
                                         "details": config_details
                                     },
-                                    context={
-                                        "ide_type": ide_type.value if hasattr(ide_type, 'value') else str(ide_type),
-                                        "hook_event": hook_event,
-                                        "project_path": os.getcwd()
-                                    },
+                                    context=exfil_ctx,
                                     severity="critical"
                                 )
                             except Exception as e:
@@ -2948,9 +3060,14 @@ def process_hook_input():
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
             secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
 
+            pre_secret_ctx = {"ide_type": ide_type.value, "hook_event": hook_event}
+            if hook_tool_use_id:
+                pre_secret_ctx["tool_use_id"] = hook_tool_use_id
+            if hook_session_id:
+                pre_secret_ctx["session_id"] = hook_session_id
             has_secrets, error_message = check_secrets_with_gitleaks(
                 content_to_scan, filename,
-                context={"ide_type": ide_type.value, "hook_event": hook_event},
+                context=pre_secret_ctx,
                 file_path=file_path,
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
@@ -3005,17 +3122,26 @@ def process_hook_input():
                         violation_logger = ViolationLogger()
                         hook_name = 'UserPromptSubmit' if hook_event == 'prompt' else 'PreToolUse'
                         pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
+                        pre_pii_blocked = {
+                            'tool': tool_identifier or filename,
+                            'hook': hook_name,
+                            'file_path': file_path,
+                            'line_number': pii_first_line,
+                            'pii_count': len(pii_redactions),
+                            'pii_types': pii_types
+                        }
+                        pre_pii_snippet = _extract_context_snippet(content_to_scan, pii_first_line)
+                        if pre_pii_snippet:
+                            pre_pii_blocked['context_snippet'] = pre_pii_snippet
+                        pre_pii_ctx = {'action': pii_action, 'hook_event': hook_event}
+                        if hook_tool_use_id:
+                            pre_pii_ctx['tool_use_id'] = hook_tool_use_id
+                        if hook_session_id:
+                            pre_pii_ctx['session_id'] = hook_session_id
                         violation_logger.log_violation(
                             violation_type='pii_detected',
-                            blocked={
-                                'tool': tool_identifier or filename,
-                                'hook': hook_name,
-                                'file_path': file_path,
-                                'line_number': pii_first_line,
-                                'pii_count': len(pii_redactions),
-                                'pii_types': pii_types
-                            },
-                            context={'action': pii_action, 'hook_event': hook_event}
+                            blocked=pre_pii_blocked,
+                            context=pre_pii_ctx
                         )
 
                         if pii_action in ('block', 'redact'):

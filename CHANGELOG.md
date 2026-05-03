@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Enriched violation log entries with context_snippet, command, and tool_use_id** (Issue #408)
+  - `context_snippet`: ~3 lines of redacted context around the detection (max 200 chars), included for pii_detected and secret_redaction violations
+  - `command`: Bash command that produced the flagged output (truncated to 500 chars), included for Bash PostToolUse violations
+  - `tool_use_id` and `session_id`: correlation IDs for matching PreToolUse and PostToolUse events, included in all violation context dicts
+  - TUI violation cards display context_snippet when file_path is null, and show command for Bash violations
+
 - **Hook Simulator panel in TUI** (Issue #397)
   - Simulate UserPromptSubmit, PreToolUse, and PostToolUse hook events
   - Test detection rules (secrets, PII, prompt injection, config scanning) without triggering real hooks

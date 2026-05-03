@@ -271,7 +271,11 @@ class ViolationCard(Vertical):
             position = blocked.get("position")
             redaction_count = blocked.get("redaction_count", 0)
             redacted_types = blocked.get("redacted_types", [])
+            command = blocked.get("command")
+            context_snippet = blocked.get("context_snippet")
             yield Static(f"Tool: {tool}", classes="violation-detail")
+            if command:
+                yield Static(f"Command: {command[:120]}", classes="violation-detail")
             if file_path:
                 location_text = f"File: {file_path}"
                 if line_number:
@@ -280,6 +284,8 @@ class ViolationCard(Vertical):
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
+            elif context_snippet:
+                yield Static(f"Context: {context_snippet}", classes="violation-detail")
             yield Static(f"Redacted: {redaction_count} secret(s)", classes="violation-detail")
             if redacted_types:
                 yield Static(f"Types: {', '.join(redacted_types)}", classes="violation-detail")
@@ -292,8 +298,12 @@ class ViolationCard(Vertical):
             position = blocked.get("position")
             pii_count = blocked.get("pii_count", 0)
             pii_types = blocked.get("pii_types", [])
+            command = blocked.get("command")
+            context_snippet = blocked.get("context_snippet")
             yield Static(f"Hook: {hook}", classes="violation-detail")
             yield Static(f"Tool: {tool}", classes="violation-detail")
+            if command:
+                yield Static(f"Command: {command[:120]}", classes="violation-detail")
             if file_path:
                 location_text = f"File: {file_path}"
                 if line_number:
@@ -302,6 +312,8 @@ class ViolationCard(Vertical):
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
+            elif context_snippet:
+                yield Static(f"Context: {context_snippet}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
                 yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
