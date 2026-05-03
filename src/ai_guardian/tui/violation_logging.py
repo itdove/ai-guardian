@@ -17,7 +17,7 @@ from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, default_indicator, default_placeholder,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
 
 ALL_LOG_TYPES = [
@@ -261,6 +261,8 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
             if "violation_logging" not in config:
                 config["violation_logging"] = {}
 
+            if "enabled" in updates:
+                updates["enabled"] = sanitize_enabled_value(updates["enabled"])
             config["violation_logging"].update(updates)
 
             config_dir.mkdir(parents=True, exist_ok=True)
@@ -272,8 +274,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Error saving config: {e}", severity="error")
             return False
 
-    def on_select_changed(self, event) -> None:
-        if event.select.id and "violation_logging_enabled" in event.select.id:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid and "violation_logging_enabled" in bid:
             toggle = self.query_one("#violation_logging_enabled_toggle", TimeBasedToggle)
             if toggle.current_mode == "temp_disabled":
                 return
@@ -295,10 +298,6 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                     pass
             self._save_config({"log_types": enabled_types})
             self.app.notify(f"Log types updated ({len(enabled_types)} enabled)", severity="information")
-        elif "violation_logging_enabled" in checkbox_id:
-            toggle = self.query_one("#violation_logging_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self._save_config({"enabled": value})
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         input_id = event.input.id

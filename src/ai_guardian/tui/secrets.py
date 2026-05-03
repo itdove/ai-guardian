@@ -17,7 +17,7 @@ from ai_guardian.config_utils import get_cache_dir, get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, default_indicator, default_placeholder,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
 
 
 class SecretsContent(SchemaDefaultsMixin, Container):
@@ -124,6 +124,16 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         yield Static("[bold]Secret Detection Settings[/bold]", id="secrets-header")
 
         with VerticalScroll():
+            # Secret scanning enable/disable toggle
+            yield TimeBasedToggle(
+                title="🔍 Secret Scanning",
+                config_key="secret_scanning_enabled",
+                current_value=True,
+                help_text="Controls whether AI Guardian scans for secrets using the configured scanner engine. When disabled, no secret detection is performed. (default: enabled)",
+                id="secret_scanning_enabled_toggle",
+                classes="section",
+            )
+
             # Gitleaks section
             with Container(classes="section"):
                 yield Static("[bold]Scanner Engine[/bold]", classes="section-title")
@@ -237,6 +247,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
+        self._loading = False
         self.load_config()
 
     def refresh_content(self) -> None:
@@ -245,6 +256,14 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def load_config(self) -> None:
         """Load and display secret detection configuration."""
+        self._loading = True
+        try:
+            self._load_config_inner()
+        finally:
+            self._loading = False
+
+    def _load_config_inner(self) -> None:
+        """Inner config loading (guarded by _loading flag)."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -274,6 +293,14 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         auth_method = auth.get("method", "bearer")
         token_env = auth.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
         token_file = auth.get("token_file", "~/.config/ai-guardian/pattern-token")
+
+        # Load secret_scanning.enabled toggle
+        scanning_enabled = secret_scanning.get("enabled", True)
+        try:
+            ss_toggle = self.query_one("#secret_scanning_enabled_toggle", TimeBasedToggle)
+            ss_toggle.load_value(scanning_enabled)
+        except Exception:
+            pass
 
         # Update time-based toggle and inputs
         try:
@@ -356,54 +383,23 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         self._apply_default_indicators(pattern_server)
 
-    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:
-        """Update a toggle widget with new configuration value."""
-        # Parse value
-        if isinstance(value, dict):
-            toggle.is_enabled = value.get("value", False)
-            toggle.disabled_until = value.get("disabled_until", "")
-            toggle.reason = value.get("reason", "")
-        else:
-            toggle.is_enabled = value
-            toggle.disabled_until = ""
-            toggle.reason = ""
-
-        # Determine mode
-        if toggle.is_enabled:
-            toggle.current_mode = "enabled"
-        elif toggle.disabled_until:
-            toggle.current_mode = "temp_disabled"
-        else:
-            toggle.current_mode = "disabled"
-
-        # Update widgets
-        try:
-            mode_select = toggle.query_one(f"#{config_key}_mode_select")
-            mode_select.value = toggle.current_mode
-
-            disabled_until_input = toggle.query_one(f"#{config_key}_disabled_until")
-            from ai_guardian.tui.widgets import duration_from_timestamp
-            dur = duration_from_timestamp(toggle.disabled_until) if toggle.disabled_until else ""
-            disabled_until_input.value = dur if dur != "expired" else ""
-
-            reason_input = toggle.query_one(f"#{config_key}_reason")
-            reason_input.value = toggle.reason
-
-            toggle.update_temp_fields_visibility()
-            toggle.update_status_display()
-        except Exception:
-            pass
-
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox toggle."""
         if event.checkbox.id == "pattern-server-warn-on-failure":
             self.save_pattern_server_field("warn_on_failure", event.value)
 
-    def on_select_changed(self, event) -> None:
-        """Handle mode selector change in TimeBasedToggle - save immediately."""
-        select_id = event.select.id
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press in TimeBasedToggle - save immediately."""
+        if getattr(self, '_loading', False):
+            return
+        bid = event.button.id
 
-        if select_id and "pattern_server_enabled" in select_id:
+        if bid and "secret_scanning_enabled" in bid:
+            toggle = self.query_one("#secret_scanning_enabled_toggle", TimeBasedToggle)
+            if toggle.current_mode == "temp_disabled":
+                return
+            self._save_secret_scanning_enabled(toggle.get_value())
+        elif bid and "pattern_server_enabled" in bid:
             toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
             if toggle.current_mode == "temp_disabled":
                 return
@@ -412,7 +408,15 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields - save the value."""
+        if getattr(self, '_loading', False):
+            return
         input_id = event.input.id
+
+        # Handle secret_scanning_enabled toggle inputs
+        if input_id and "secret_scanning_enabled" in input_id:
+            toggle = self.query_one("#secret_scanning_enabled_toggle", TimeBasedToggle)
+            self._save_secret_scanning_enabled(toggle.get_value())
+            return
 
         # Handle TimeBasedToggle inputs
         if input_id and "pattern_server_enabled" in input_id:
@@ -455,6 +459,42 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         self.load_config()
         self.app.notify("Secrets configuration refreshed", severity="information")
 
+    def _save_secret_scanning_enabled(self, value: Union[bool, Dict[str, Any]]) -> None:
+        """Save secret_scanning.enabled to config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+                config["secret_scanning"] = {}
+
+            value = sanitize_enabled_value(value)
+            config["secret_scanning"]["enabled"] = value
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            if isinstance(value, bool):
+                status = "enabled" if value else "disabled"
+                self.app.notify(f"✓ Secret scanning {status}", severity="success")
+            else:
+                if value.get("disabled_until"):
+                    self.app.notify(
+                        f"✓ Secret scanning temporarily disabled until {format_local_time(value['disabled_until'])}",
+                        severity="success"
+                    )
+                else:
+                    self.app.notify("✓ Secret scanning disabled", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error saving config: {e}", severity="error")
+
     def save_pattern_server_enabled_value(self, value: Union[bool, Dict[str, Any]]) -> None:
         """Save pattern server enabled state to config (supports time-based format)."""
         config_dir = get_config_dir()
@@ -488,7 +528,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             else:
                 if value.get("disabled_until"):
                     self.app.notify(
-                        f"✓ Pattern server temporarily disabled until {value['disabled_until']}",
+                        f"✓ Pattern server temporarily disabled until {format_local_time(value['disabled_until'])}",
                         severity="success"
                     )
                 else:

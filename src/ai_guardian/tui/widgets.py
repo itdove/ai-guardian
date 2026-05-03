@@ -10,14 +10,41 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Union, Dict, Any
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Static, Input, Label, Select, Checkbox
+from textual.containers import HorizontalGroup, VerticalGroup
+from textual.widgets import Static, Input, Button
 from textual.validation import Validator, ValidationResult
 
 
 DURATION_PATTERN = re.compile(
     r'^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$'
 )
+
+
+def format_local_time(utc_timestamp: str) -> str:
+    """Convert a UTC ISO 8601 timestamp to a local time display string."""
+    try:
+        dt = datetime.fromisoformat(utc_timestamp.replace('Z', '+00:00'))
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    except Exception:
+        return utc_timestamp
+
+
+def sanitize_enabled_value(value: Union[bool, Dict[str, Any]]) -> Union[bool, Dict[str, Any]]:
+    """Sanitize an enabled config value before saving.
+
+    Valid formats:
+      - True / False (permanent enable/disable)
+      - {"value": bool, "disabled_until": "ISO8601Z", "reason": "..."} (temporary)
+
+    A dict without disabled_until is invalid — collapses to a plain bool.
+    """
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, dict):
+        return bool(value)
+    if not value.get("disabled_until"):
+        return value.get("value", False)
+    return value
 
 
 def parse_duration(text: str) -> Optional[timedelta]:
@@ -90,14 +117,14 @@ class DurationValidator(Validator):
         return self.failure("Invalid duration. Use: 30m, 2h, 1d, 1h30m, 2d12h")
 
 
-class TimeBasedToggle(Container):
+class TimeBasedToggle(VerticalGroup):
     """
     A widget for time-based feature toggles.
 
-    Supports three modes:
+    Supports three modes via buttons:
     - Permanently enabled (enabled=true)
     - Permanently disabled (enabled=false)
-    - Temporarily disabled (enabled=false with disabled_until + reason)
+    - Temporarily disabled (enabled=false with disabled_until)
 
     Duration input (e.g., '2h', '1d') is converted to an ISO 8601 timestamp.
     """
@@ -106,41 +133,31 @@ class TimeBasedToggle(Container):
     TimeBasedToggle {
         height: auto;
         margin: 1 0;
-        padding: 1;
-        background: $panel;
-        border: solid $primary;
+        padding: 0;
     }
 
     TimeBasedToggle .tbt-title {
-        margin: 0 0 1 0;
+        margin: 0;
         font-weight: bold;
     }
 
     TimeBasedToggle .tbt-status {
-        margin: 0 0 1 0;
-        padding: 1;
+        margin: 0;
+        padding: 0 1;
         background: $surface;
     }
 
-    TimeBasedToggle .tbt-mode-row {
-        margin: 0.5 0;
+    TimeBasedToggle .tbt-btn-row {
         height: auto;
-        align: left middle;
     }
 
-    TimeBasedToggle .tbt-mode-row Label {
+    TimeBasedToggle .tbt-btn {
         margin: 0 1 0 0;
-        width: 10;
+        min-width: 16;
     }
 
-    TimeBasedToggle .tbt-mode-row Select {
-        width: 1fr;
-        margin: 0 1 0 0;
-    }
-
-    TimeBasedToggle .tbt-mode-row Input {
-        width: 1fr;
-        margin: 0 1 0 0;
+    TimeBasedToggle .tbt-temp-row {
+        height: auto;
     }
     """
 
@@ -160,11 +177,11 @@ class TimeBasedToggle(Container):
         if isinstance(current_value, dict):
             self.is_enabled = current_value.get("value", True)
             self.disabled_until = current_value.get("disabled_until", "")
-            self.reason = current_value.get("reason", "")
+            self._reason = current_value.get("reason", "")
         else:
             self.is_enabled = current_value
             self.disabled_until = ""
-            self.reason = ""
+            self._reason = ""
 
         if self.is_enabled:
             self.current_mode = "enabled"
@@ -181,65 +198,89 @@ class TimeBasedToggle(Container):
 
         yield Static("", id=f"{self.config_key}_status", classes="tbt-status")
 
-        with Horizontal(classes="tbt-mode-row"):
-            yield Label("Mode:")
-            yield Select(
-                [
-                    ("Permanently Enabled", "enabled"),
-                    ("Permanently Disabled", "disabled"),
-                    ("Temporarily Disabled", "temp_disabled"),
-                ],
-                value=self.current_mode,
-                id=f"{self.config_key}_mode_select",
-            )
+        with HorizontalGroup(classes="tbt-btn-row"):
+            yield Button("Enable", id=f"{self.config_key}_btn_enable", classes="tbt-btn")
+            yield Button("Disable", id=f"{self.config_key}_btn_disable", classes="tbt-btn")
+            yield Button("Temp Disable", id=f"{self.config_key}_btn_temp", classes="tbt-btn")
 
-        # Duration field — shown only in temp_disabled mode
-        duration_display = duration_from_timestamp(self.disabled_until) if self.disabled_until else ""
-        with Horizontal(id=f"{self.config_key}_until_row", classes="tbt-mode-row"):
-            yield Label("Duration:")
-            yield Input(
-                value=duration_display,
-                placeholder="e.g. 30m, 2h, 1d, 1h30m",
-                validators=[DurationValidator()],
-                id=f"{self.config_key}_disabled_until",
-            )
-
-        # Reason field — shown only in temp_disabled mode
-        with Horizontal(id=f"{self.config_key}_reason_row", classes="tbt-mode-row"):
-            yield Label("Reason:")
-            yield Input(
-                value=self.reason,
-                placeholder="e.g., Emergency debugging",
-                id=f"{self.config_key}_reason",
-            )
+        dur = Input(
+            placeholder="Duration: 30m, 2h, 1d",
+            validators=[DurationValidator()],
+            id=f"{self.config_key}_disabled_until",
+        )
+        dur.styles.width = "30"
+        reason = Input(
+            placeholder="Reason (optional)",
+            id=f"{self.config_key}_reason",
+        )
+        reason.styles.width = "1fr"
+        with HorizontalGroup(classes="tbt-temp-row"):
+            yield dur
+            yield reason
 
     def on_mount(self) -> None:
-        self.update_status_display()
-        self.update_temp_fields_visibility()
+        self._update_ui()
 
-    def on_select_changed(self, event: Select.Changed) -> None:
-        if event.select.id == f"{self.config_key}_mode_select":
-            self.current_mode = event.value
-            self.update_temp_fields_visibility()
-            self.update_status_display()
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid == f"{self.config_key}_btn_enable":
+            self.current_mode = "enabled"
+            self.is_enabled = True
+            self.disabled_until = ""
+        elif bid == f"{self.config_key}_btn_disable":
+            self.current_mode = "disabled"
+            self.is_enabled = False
+            self.disabled_until = ""
+        elif bid == f"{self.config_key}_btn_temp":
+            self.current_mode = "temp_disabled"
+            self.is_enabled = False
+        else:
+            return
+        self._update_ui()
+
+    def _update_ui(self) -> None:
+        """Update buttons, status, and temp fields visibility."""
+        try:
+            btn_en = self.query_one(f"#{self.config_key}_btn_enable", Button)
+            btn_dis = self.query_one(f"#{self.config_key}_btn_disable", Button)
+            btn_tmp = self.query_one(f"#{self.config_key}_btn_temp", Button)
+            temp_row = self.query_one(".tbt-temp-row", HorizontalGroup)
+            dur_input = self.query_one(f"#{self.config_key}_disabled_until", Input)
+            reason_input = self.query_one(f"#{self.config_key}_reason", Input)
+        except Exception:
+            return
+
+        btn_en.label = "● Enable" if self.current_mode == "enabled" else "Enable"
+        btn_en.variant = "success" if self.current_mode == "enabled" else "primary"
+        btn_dis.label = "● Disable" if self.current_mode == "disabled" else "Disable"
+        btn_dis.variant = "error" if self.current_mode == "disabled" else "primary"
+        btn_tmp.label = "● Temp Disable" if self.current_mode == "temp_disabled" else "Temp Disable"
+        btn_tmp.variant = "warning" if self.current_mode == "temp_disabled" else "primary"
+
+        is_temp = self.current_mode == "temp_disabled"
+        temp_row.display = is_temp
+        if is_temp:
+            dur = duration_from_timestamp(self.disabled_until) if self.disabled_until else ""
+            dur_input.value = dur if dur and dur != "expired" else ""
+            reason_input.value = getattr(self, '_reason', "")
+
+        self.update_status_display()
 
     def update_temp_fields_visibility(self) -> None:
-        show = self.current_mode == "temp_disabled"
-        for suffix in ("_until_row", "_reason_row"):
-            try:
-                row = self.query_one(f"#{self.config_key}{suffix}", Horizontal)
-                row.display = show
-            except Exception:
-                pass
+        try:
+            temp_row = self.query_one(".tbt-temp-row", HorizontalGroup)
+            temp_row.display = self.current_mode == "temp_disabled"
+        except Exception:
+            pass
 
     def update_status_display(self) -> None:
         try:
             status_widget = self.query_one(f"#{self.config_key}_status", Static)
 
             if self.current_mode == "enabled":
-                status_text = "[status-ok]✓ ENABLED[/status-ok] - Feature is permanently enabled"
+                status_text = "[green]✓ ENABLED[/green]"
             elif self.current_mode == "disabled":
-                status_text = "[status-error]✗ DISABLED[/status-error] - Feature is permanently disabled"
+                status_text = "[red]✗ DISABLED[/red]"
             else:
                 if self.disabled_until:
                     try:
@@ -248,57 +289,46 @@ class TimeBasedToggle(Container):
 
                         if dt > now:
                             remaining = duration_from_timestamp(self.disabled_until)
-                            end_str = dt.strftime("%Y-%m-%d %H:%M UTC")
-                            status_text = f"[status-warn]⏸ TEMPORARILY DISABLED[/status-warn] for {remaining} (until {end_str})"
-                            if self.reason:
-                                status_text += f"\nReason: {self.reason}"
+                            end_str = dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+                            status_text = f"[yellow]⏸ TEMP DISABLED[/yellow] for {remaining} (until {end_str})"
                         else:
-                            status_text = "[status-ok]✓ AUTO RE-ENABLED[/status-ok] - Temporary disable period expired"
+                            status_text = "[green]✓ AUTO RE-ENABLED[/green] (expired)"
                     except Exception:
-                        status_text = "[status-warn]⏸ TEMPORARILY DISABLED[/status-warn] - Invalid timestamp"
+                        status_text = "[yellow]⏸ TEMP DISABLED[/yellow]"
                 else:
-                    status_text = "[status-warn]⏸ TEMPORARILY DISABLED[/status-warn] - Enter a duration (e.g. 2h, 1d)"
+                    status_text = "[yellow]⏸ TEMP DISABLED[/yellow] — enter duration and press Enter"
 
             status_widget.update(status_text)
         except Exception:
             pass
 
     def get_value(self) -> Union[bool, Dict[str, Any]]:
-        try:
-            mode_select = self.query_one(f"#{self.config_key}_mode_select", Select)
-            mode = mode_select.value
-
-            if mode == "enabled":
-                return True
-            elif mode == "disabled":
-                return False
-            else:
-                reason_input = self.query_one(f"#{self.config_key}_reason", Input)
-                reason = reason_input.value.strip()
-
-                result = {"value": False}
-                if self.disabled_until:
-                    result["disabled_until"] = self.disabled_until
+        if self.current_mode == "enabled":
+            return True
+        elif self.current_mode == "disabled":
+            return False
+        else:
+            result: Dict[str, Any] = {"value": False}
+            if self.disabled_until:
+                result["disabled_until"] = self.disabled_until
+            try:
+                reason = self.query_one(f"#{self.config_key}_reason", Input).value.strip()
                 if reason:
                     result["reason"] = reason
-
-                return result
-        except Exception:
-            return self.is_enabled
+            except Exception:
+                pass
+            return result
 
     def load_value(self, value: Union[bool, Dict[str, Any]]) -> None:
-        """Load a config value and update all widgets.
-
-        Call this from parent panels instead of manually setting fields.
-        """
+        """Load a config value and update all widgets."""
         if isinstance(value, dict):
             self.is_enabled = value.get("value", True)
             self.disabled_until = value.get("disabled_until", "")
-            self.reason = value.get("reason", "")
+            self._reason = value.get("reason", "")
         else:
             self.is_enabled = value
             self.disabled_until = ""
-            self.reason = ""
+            self._reason = ""
 
         if self.is_enabled:
             self.current_mode = "enabled"
@@ -307,22 +337,10 @@ class TimeBasedToggle(Container):
         else:
             self.current_mode = "disabled"
 
-        try:
-            self.query_one(f"#{self.config_key}_mode_select", Select).value = self.current_mode
-
-            dur_input = self.query_one(f"#{self.config_key}_disabled_until", Input)
-            dur = duration_from_timestamp(self.disabled_until) if self.disabled_until else ""
-            dur_input.value = dur if dur != "expired" else ""
-
-            self.query_one(f"#{self.config_key}_reason", Input).value = self.reason
-
-            self.update_temp_fields_visibility()
-            self.update_status_display()
-        except Exception:
-            pass
+        self._update_ui()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle Enter on duration or reason fields."""
+        """Handle Enter on duration field."""
         if event.input.id == f"{self.config_key}_disabled_until":
             duration_text = event.input.value.strip()
             if not duration_text:

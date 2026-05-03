@@ -7,7 +7,6 @@ View and configure prompt injection detection settings.
 
 import json
 from pathlib import Path
-from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -272,7 +271,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
         # Update widgets
         try:
             toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
-            self.mount_toggle(toggle, "prompt_injection_enabled", enabled_value)
+            toggle.load_value(enabled_value)
 
             self.query_one("#detector-select", Select).value = detector
             self.query_one("#sensitivity-select", Select).value = sensitivity
@@ -350,48 +349,13 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
         stats_text = f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
         self.query_one("#detection-stats", Static).update(stats_text)
 
-    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:
-        """Update a toggle widget with new configuration value."""
-        # Parse value
-        if isinstance(value, dict):
-            toggle.is_enabled = value.get("value", True)
-            toggle.disabled_until = value.get("disabled_until", "")
-            toggle.reason = value.get("reason", "")
-        else:
-            toggle.is_enabled = value
-            toggle.disabled_until = ""
-            toggle.reason = ""
-
-        # Determine mode
-        if toggle.is_enabled:
-            toggle.current_mode = "enabled"
-        elif toggle.disabled_until:
-            toggle.current_mode = "temp_disabled"
-        else:
-            toggle.current_mode = "disabled"
-
-        # Update widgets
-        try:
-            mode_select = toggle.query_one(f"#{config_key}_mode_select")
-            mode_select.value = toggle.current_mode
-
-            disabled_until_input = toggle.query_one(f"#{config_key}_disabled_until")
-            disabled_until_input.value = toggle.disabled_until
-
-            reason_input = toggle.query_one(f"#{config_key}_reason")
-            reason_input.value = toggle.reason
-
-            toggle.update_temp_fields_visibility()
-            toggle.update_status_display()
-        except Exception:
-            pass
-
-    def on_select_changed(self, event) -> None:
-        """Handle select change - save immediately."""
-        select_id = event.select.id
-
-        if select_id and "prompt_injection_enabled" in select_id:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press - save toggle state immediately."""
+        bid = event.button.id
+        if bid and "prompt_injection_enabled" in bid:
             toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
+            if toggle.current_mode == "temp_disabled":
+                return
             value = toggle.get_value()
             self.save_field("enabled", value)
 

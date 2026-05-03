@@ -11,14 +11,14 @@ from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Input, Label, Select
+from textual.widgets import Static, Button, Input, Label, Select
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, default_indicator, default_placeholder,
     select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
 
 class PIDetectionContent(SchemaDefaultsMixin, Container):
@@ -199,6 +199,7 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                 yield Static("", id="pi-detection-stats")
 
     def on_mount(self) -> None:
+        self._loading = False
         self.load_config()
 
     def refresh_content(self) -> None:
@@ -212,6 +213,13 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         self._save_settings()
 
     def load_config(self) -> None:
+        self._loading = True
+        try:
+            self._load_config_inner()
+        finally:
+            self._loading = False
+
+    def _load_config_inner(self) -> None:
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -271,6 +279,8 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             self.query_one("#pi-detection-stats", Static).update(f"[dim]Error: {e}[/dim]")
 
     def _save_field(self, field: str, value) -> None:
+        if field == "enabled":
+            value = sanitize_enabled_value(value)
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
         try:
@@ -307,17 +317,26 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         except Exception as e:
             self.app.notify(f"Error: {e}", severity="error")
 
-    def on_select_changed(self, event) -> None:
-        sid = event.select.id
-        if sid == "pi-action-select":
-            self._save_field("action", event.value)
-        elif sid and "prompt_injection_enabled" in sid:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if getattr(self, '_loading', False):
+            return
+        bid = event.button.id
+        if bid and "prompt_injection_enabled" in bid:
             toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
             if toggle.current_mode == "temp_disabled":
                 return
             self._save_field("enabled", toggle.get_value())
 
+    def on_select_changed(self, event) -> None:
+        if getattr(self, '_loading', False):
+            return
+        sid = event.select.id
+        if sid == "pi-action-select":
+            self._save_field("action", event.value)
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        if getattr(self, '_loading', False):
+            return
         iid = event.input.id
         if iid and "prompt_injection_enabled" in iid:
             toggle = self.query_one("#prompt_injection_enabled_toggle", TimeBasedToggle)
