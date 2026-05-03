@@ -14,7 +14,7 @@ import re
 import logging
 from typing import List, Dict, Tuple, Optional
 
-from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian.config_utils import validate_regex_pattern, is_feature_enabled
 from ai_guardian import allowlist_utils
 
 logger = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ class SecretRedactor:
                 logger.warning(f"Failed to compile custom pattern: {e}")
 
         # Load PII patterns if enabled (Issue #262)
-        if self.pii_config.get('enabled', False):
+        if is_feature_enabled(self.pii_config.get('enabled'), default=False):
             pii_types = self.pii_config.get('pii_types',
                 ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'])
             for pii_type in pii_types:

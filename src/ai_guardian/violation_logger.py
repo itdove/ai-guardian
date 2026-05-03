@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ai_guardian.config_utils import get_config_dir, get_state_dir
+from ai_guardian.config_utils import get_config_dir, get_state_dir, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -336,7 +336,7 @@ class ViolationLogger:
 
     def _is_logging_enabled(self) -> bool:
         """Check if violation logging is enabled."""
-        return self.config.get("enabled", True)
+        return is_feature_enabled(self.config.get("enabled"), default=True)
 
     def _should_log_type(self, violation_type: str) -> bool:
         """Check if a violation type should be logged."""

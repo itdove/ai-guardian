@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-from ai_guardian.config_utils import get_cache_dir
+from ai_guardian.config_utils import get_cache_dir, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class ConfigInspector:
         ssrf_config = self.config.get("ssrf_protection", {})
 
         # Basic settings
-        enabled = ssrf_config.get("enabled", True)
+        enabled = is_feature_enabled(ssrf_config.get("enabled"), default=True)
         action = ssrf_config.get("action", "block")
         allow_localhost = ssrf_config.get("allow_localhost", False)
 
@@ -387,7 +387,7 @@ class ConfigInspector:
             protector = SSRFProtector(ssrf_config)
 
             effective_config["ssrf_protection"] = {
-                "enabled": ssrf_config.get("enabled", True),
+                "enabled": is_feature_enabled(ssrf_config.get("enabled"), default=True),
                 "action": ssrf_config.get("action", "block"),
                 "blocked_ip_ranges": [str(net) for net in protector._blocked_ip_networks],
                 "blocked_domains": sorted(protector._blocked_domains),

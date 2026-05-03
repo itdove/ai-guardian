@@ -452,7 +452,7 @@ def _is_path_excluded(file_path, config):
         dir_exclusions = config.get("directory_exclusions", {})
 
         # Check enabled flag (supports boolean or object format)
-        if not is_feature_enabled(dir_exclusions.get("enabled", False)):
+        if not is_feature_enabled(dir_exclusions.get("enabled", False), datetime.now(timezone.utc), default=False):
             logging.debug("Directory exclusions disabled in config")
             return False
 
@@ -552,7 +552,7 @@ def _check_directory_rules(file_path, config):
 
         # Backward compatibility: convert directory_exclusions to rules
         dir_exclusions = config.get("directory_exclusions", {})
-        if dir_exclusions.get("enabled") and dir_exclusions.get("paths"):
+        if is_feature_enabled(dir_exclusions.get("enabled"), datetime.now(timezone.utc), default=False) and dir_exclusions.get("paths"):
             # Log deprecation warning once
             if not hasattr(_check_directory_rules, '_warned_deprecation'):
                 logging.warning("directory_exclusions is deprecated - use directory_rules instead")
@@ -2580,7 +2580,11 @@ def process_hook_input():
             pii_config, pii_error = _load_pii_config()
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
-            if pii_config and pii_config.get('enabled', True):
+            if pii_config and is_feature_enabled(
+                pii_config.get('enabled'),
+                datetime.now(timezone.utc),
+                default=True
+            ):
                 pii_file_path = tool_input.get("file_path") or tool_input.get("path")
                 pii_skip_scan = _should_skip_pii_scan(pii_config, tool_identifier, pii_file_path)
 
@@ -2981,7 +2985,11 @@ def process_hook_input():
             pii_config, pii_error = _load_pii_config()
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
-            if pii_config and pii_config.get('enabled', True):
+            if pii_config and is_feature_enabled(
+                pii_config.get('enabled'),
+                datetime.now(timezone.utc),
+                default=True
+            ):
                 should_scan_pii = not _should_skip_pii_scan(pii_config, tool_identifier, file_path)
 
                 if should_scan_pii:
