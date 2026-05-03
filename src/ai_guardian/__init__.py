@@ -1621,7 +1621,10 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
 
 
 def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
-                                    hook_context: Optional[Dict] = None):
+                                    hook_context: Optional[Dict] = None,
+                                    matched_pattern: Optional[str] = None,
+                                    matched_text: Optional[str] = None,
+                                    confidence: Optional[float] = None):
     """
     Log a prompt injection or jailbreak violation.
 
@@ -1630,6 +1633,9 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         context: Optional context dict with ide_type, hook_event, etc.
         attack_type: Type of attack - "injection" or "jailbreak"
         hook_context: Optional dict with tool_use_id, session_id for correlation
+        matched_pattern: The regex or pattern name that matched
+        matched_text: The text that triggered detection
+        confidence: Actual confidence score from the detector
     """
     if not HAS_VIOLATION_LOGGER:
         return
@@ -1652,16 +1658,19 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             violation_ctx["tool_use_id"] = hctx["tool_use_id"]
         if hctx.get("session_id"):
             violation_ctx["session_id"] = hctx["session_id"]
+        blocked_entry = {
+            "file_path": full_path,
+            "source": "prompt" if filename == "user_prompt" else "file",
+            "pattern": matched_pattern or "Unknown",
+            "confidence": confidence if confidence is not None else 0.0,
+            "method": "heuristic",
+            "reason": reason
+        }
+        if matched_text:
+            blocked_entry["matched_text"] = matched_text[:100]
         violation_logger.log_violation(
             violation_type=vtype,
-            blocked={
-                "file_path": full_path,
-                "source": "prompt" if filename == "user_prompt" else "file",
-                "pattern": "Heuristic pattern detected",
-                "confidence": 0.95,
-                "method": "heuristic",
-                "reason": reason
-            },
+            blocked=blocked_entry,
             context=violation_ctx,
             suggestion={
                 "action": "add_allowlist_pattern",
@@ -2943,7 +2952,10 @@ def process_hook_input():
                             filename,
                             context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
                             attack_type=detector.last_attack_type,
-                            hook_context=inj_hook_ctx if inj_hook_ctx else None
+                            hook_context=inj_hook_ctx if inj_hook_ctx else None,
+                            matched_pattern=detector.last_matched_pattern,
+                            matched_text=detector.last_matched_text,
+                            confidence=detector.last_confidence
                         )
 
                     if should_block:
