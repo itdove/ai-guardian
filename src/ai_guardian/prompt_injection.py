@@ -772,8 +772,11 @@ class PromptInjectionDetector:
             if validate_regex_pattern(pattern)
         ]
 
-        # Track the last detected attack type for violation logging
+        # Track the last detected attack type and details for violation logging
         self.last_attack_type = "injection"
+        self.last_matched_pattern = None
+        self.last_matched_text = None
+        self.last_confidence = None
 
         # Initialize Unicode attack detector
         unicode_config = self.config.get("unicode_detection", {})
@@ -1231,8 +1234,11 @@ class PromptInjectionDetector:
                 is_injection, confidence, matched_text, matched_pattern, attack_type = self._heuristic_detection(content_to_check, source_type)
 
             if is_injection:
-                # Store attack type for caller to use (e.g., violation logging)
+                # Store detection details for caller to use (e.g., violation logging)
                 self.last_attack_type = attack_type
+                self.last_matched_pattern = matched_pattern
+                self.last_matched_text = matched_text
+                self.last_confidence = confidence
 
                 # Format error message with detailed information
                 error_msg = self._format_error_message(
