@@ -79,11 +79,11 @@ class PatternRow(Horizontal):
                     # Check if expiring soon (within 24 hours)
                     time_remaining = expiry_dt - now
                     if time_remaining.total_seconds() < 86400:  # 24 hours
-                        pattern_display += f" [status-warn][expires {self.valid_until}][/status-warn]"
+                        pattern_display += f" [status-warn][expires {format_local_time(self.valid_until)}][/status-warn]"
                     else:
-                        pattern_display += f" [dim][until {self.valid_until}][/dim]"
+                        pattern_display += f" [dim][until {format_local_time(self.valid_until)}][/dim]"
             except Exception:
-                pattern_display += f" [dim][until {self.valid_until}][/dim]"
+                pattern_display += f" [dim][until {format_local_time(self.valid_until)}][/dim]"
 
         yield Static(pattern_display)
         yield Button("Remove", id=f"remove-{self.mode}-{self.index}", variant="error")

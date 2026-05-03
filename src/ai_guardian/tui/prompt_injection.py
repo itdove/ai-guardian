@@ -17,7 +17,7 @@ from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, default_indicator, default_placeholder,
     select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle
+from ai_guardian.tui.widgets import TimeBasedToggle, format_local_time
 
 
 class PromptInjectionContent(SchemaDefaultsMixin, Container):
@@ -310,11 +310,11 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
                                 # Check if expiring soon (within 24 hours)
                                 time_remaining = expiry_dt - now
                                 if time_remaining.total_seconds() < 86400:  # 24 hours
-                                    pattern_lines.append(f"  • {pattern_str} [status-warn][expires {valid_until}][/status-warn]")
+                                    pattern_lines.append(f"  • {pattern_str} [status-warn][expires {format_local_time(valid_until)}][/status-warn]")
                                 else:
-                                    pattern_lines.append(f"  • {pattern_str} [dim][until {valid_until}][/dim]")
+                                    pattern_lines.append(f"  • {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
                         except Exception:
-                            pattern_lines.append(f"  • {pattern_str} [dim][until {valid_until}][/dim]")
+                            pattern_lines.append(f"  • {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
                     else:
                         pattern_lines.append(f"  • {pattern_str}")
                 else:

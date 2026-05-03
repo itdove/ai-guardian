@@ -14,6 +14,7 @@ from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, Input
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import format_local_time
 
 
 class PIPatternsContent(Container):
@@ -137,11 +138,11 @@ class PIPatternsContent(Container):
                             if expiry_dt <= now:
                                 pattern_lines.append(f"  {pattern_str} [status-error][EXPIRED][/status-error]")
                             elif (expiry_dt - now).total_seconds() < 86400:
-                                pattern_lines.append(f"  {pattern_str} [status-warn][expires {valid_until}][/status-warn]")
+                                pattern_lines.append(f"  {pattern_str} [status-warn][expires {format_local_time(valid_until)}][/status-warn]")
                             else:
-                                pattern_lines.append(f"  {pattern_str} [dim][until {valid_until}][/dim]")
+                                pattern_lines.append(f"  {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
                         except Exception:
-                            pattern_lines.append(f"  {pattern_str} [dim][until {valid_until}][/dim]")
+                            pattern_lines.append(f"  {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
                     else:
                         pattern_lines.append(f"  {pattern_str}")
                 else:

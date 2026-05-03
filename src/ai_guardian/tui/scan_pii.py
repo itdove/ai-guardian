@@ -17,7 +17,7 @@ from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
 
 
 ALL_PII_TYPES = [
@@ -316,9 +316,9 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                             if expiry_dt <= now:
                                 pattern_lines.append(f"  {pattern_str} [EXPIRED]")
                             elif (expiry_dt - now).total_seconds() < 86400:
-                                pattern_lines.append(f"  {pattern_str} [expires {valid_until}]")
+                                pattern_lines.append(f"  {pattern_str} [expires {format_local_time(valid_until)}]")
                             else:
-                                pattern_lines.append(f"  {pattern_str} [until {valid_until}]")
+                                pattern_lines.append(f"  {pattern_str} [until {format_local_time(valid_until)}]")
                         except (ValueError, TypeError):
                             pattern_lines.append(f"  {pattern_str}")
                     else:
