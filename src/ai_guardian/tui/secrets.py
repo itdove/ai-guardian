@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox
 
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
@@ -126,7 +126,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         with VerticalScroll():
             # Gitleaks section
             with Container(classes="section"):
-                yield Static("[bold]Gitleaks Configuration[/bold]", classes="section-title")
+                yield Static("[bold]Scanner Engine[/bold]", classes="section-title")
                 yield Static("", id="gitleaks-status")
                 yield Static(
                     "[dim]Detection sources (in priority order):\n"
@@ -157,7 +157,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 title="Pattern Server (Optional - Enhanced Patterns)",
                 config_key="pattern_server_enabled",
                 current_value=False,
-                help_text="Enable to use custom security patterns from a remote server in addition to Gitleaks defaults",
+                help_text="Enable to use custom security patterns from a remote server in addition to built-in scanner rules",
                 id="pattern_server_enabled_toggle",
             )
 
@@ -234,35 +234,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                         f"{default_indicator('secret_scanning.pattern_server.cache.expire_after_hours')}"
                     )
 
-            # Violation logging section
-            with Container(classes="section"):
-                yield Static("[bold]Violation Logging Settings[/bold]", classes="section-title")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Enabled:")
-                    yield Checkbox("", id="violation-logging-enabled")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Max Entries:")
-                    yield Input(placeholder="1000", id="violation-max-entries")
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Retention Days:")
-                    yield Input(placeholder="30", id="violation-retention-days")
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                yield Static("Log Types (auto-saves):", classes="setting-row")
-                with Vertical(id="log-types-container"):
-                    yield Checkbox("Tool Permission", id="log-type-tool", value=True)
-                    yield Checkbox("Directory Blocking", id="log-type-directory", value=True)
-                    yield Checkbox("Secret Detected", id="log-type-secret", value=True)
-                    yield Checkbox("Secret Redaction", id="log-type-redaction", value=True)
-                    yield Checkbox("Prompt Injection", id="log-type-injection", value=True)
-                    yield Checkbox("Jailbreak Detected", id="log-type-jailbreak", value=True)
-                    yield Checkbox("SSRF Blocked", id="log-type-ssrf", value=True)
-                    yield Checkbox("Config File Exfil", id="log-type-config-exfil", value=True)
-                    yield Checkbox("PII Detected", id="log-type-pii", value=True)
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -383,31 +354,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass  # Widgets may not be mounted yet
 
-        # Violation logging settings
-        violation_logging = config.get("violation_logging", {})
-        log_enabled = violation_logging.get("enabled", True)
-        max_entries = violation_logging.get("max_entries", 1000)
-        retention_days = violation_logging.get("retention_days", 30)
-        log_types = violation_logging.get("log_types", ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"])
-
-        try:
-            self.query_one("#violation-logging-enabled", Checkbox).value = log_enabled
-            self.query_one("#violation-max-entries", Input).value = str(max_entries)
-            self.query_one("#violation-retention-days", Input).value = str(retention_days)
-
-            # Update checkboxes
-            self.query_one("#log-type-tool", Checkbox).value = "tool_permission" in log_types
-            self.query_one("#log-type-directory", Checkbox).value = "directory_blocking" in log_types
-            self.query_one("#log-type-secret", Checkbox).value = "secret_detected" in log_types
-            self.query_one("#log-type-redaction", Checkbox).value = "secret_redaction" in log_types
-            self.query_one("#log-type-injection", Checkbox).value = "prompt_injection" in log_types
-            self.query_one("#log-type-jailbreak", Checkbox).value = "jailbreak_detected" in log_types
-            self.query_one("#log-type-ssrf", Checkbox).value = "ssrf_blocked" in log_types
-            self.query_one("#log-type-config-exfil", Checkbox).value = "config_file_exfil" in log_types
-            self.query_one("#log-type-pii", Checkbox).value = "pii_detected" in log_types
-        except Exception:
-            pass  # Widgets may not be mounted yet
-
         self._apply_default_indicators(pattern_server)
 
     def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict[str, Any]]) -> None:
@@ -450,12 +396,8 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox toggle."""
-        if event.checkbox.id == "violation-logging-enabled":
-            self.save_violation_logging_enabled(event.value)
-        elif event.checkbox.id == "pattern-server-warn-on-failure":
+        if event.checkbox.id == "pattern-server-warn-on-failure":
             self.save_pattern_server_field("warn_on_failure", event.value)
-        elif event.checkbox.id and event.checkbox.id.startswith("log-type-"):
-            self.save_log_types()
 
     def on_select_changed(self, event) -> None:
         """Handle mode selector change in TimeBasedToggle - save immediately."""
@@ -501,18 +443,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 self.save_cache_field("expire_after_hours", hours)
             except ValueError:
                 self.app.notify("Expire after must be a number", severity="error")
-        elif event.input.id == "violation-max-entries":
-            try:
-                max_entries = int(event.value)
-                self.save_violation_logging_field("max_entries", max_entries)
-            except ValueError:
-                self.app.notify("Max entries must be a number", severity="error")
-        elif event.input.id == "violation-retention-days":
-            try:
-                days = int(event.value)
-                self.save_violation_logging_field("retention_days", days)
-            except ValueError:
-                self.app.notify("Retention days must be a number", severity="error")
         elif event.input.id == "secret-allowlist-input":
             self._add_allowlist_pattern()
 
@@ -670,103 +600,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error saving cache {field}: {e}", severity="error")
-
-    def save_violation_logging_enabled(self, enabled: bool) -> None:
-        """Save violation logging enabled state to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            if "violation_logging" not in config:
-                config["violation_logging"] = {}
-
-            config["violation_logging"]["enabled"] = enabled
-
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2)
-
-            status = "enabled" if enabled else "disabled"
-            self.app.notify(f"✓ Violation logging {status}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
-
-    def save_violation_logging_field(self, field: str, value) -> None:
-        """Save a violation logging field to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            if "violation_logging" not in config:
-                config["violation_logging"] = {}
-
-            config["violation_logging"][field] = value
-
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2)
-
-            self.app.notify(f"✓ Saved {field}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving {field}: {e}", severity="error")
-
-    def save_log_types(self) -> None:
-        """Save log types based on checkbox states."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            if "violation_logging" not in config:
-                config["violation_logging"] = {}
-
-            # Collect enabled log types
-            log_types = []
-            if self.query_one("#log-type-tool", Checkbox).value:
-                log_types.append("tool_permission")
-            if self.query_one("#log-type-directory", Checkbox).value:
-                log_types.append("directory_blocking")
-            if self.query_one("#log-type-secret", Checkbox).value:
-                log_types.append("secret_detected")
-            if self.query_one("#log-type-redaction", Checkbox).value:
-                log_types.append("secret_redaction")
-            if self.query_one("#log-type-injection", Checkbox).value:
-                log_types.append("prompt_injection")
-            if self.query_one("#log-type-jailbreak", Checkbox).value:
-                log_types.append("jailbreak_detected")
-            if self.query_one("#log-type-ssrf", Checkbox).value:
-                log_types.append("ssrf_blocked")
-            if self.query_one("#log-type-config-exfil", Checkbox).value:
-                log_types.append("config_file_exfil")
-            if self.query_one("#log-type-pii", Checkbox).value:
-                log_types.append("pii_detected")
-
-            config["violation_logging"]["log_types"] = log_types
-
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2)
-
-            self.app.notify("✓ Saved log types", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving log types: {e}", severity="error")
 
     def _add_allowlist_pattern(self) -> None:
         """Add a regex pattern to the secret scanning allowlist."""
