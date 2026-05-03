@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from ai_guardian.tui.widgets import (
     ISO8601Validator, DurationValidator, TimeBasedToggle,
     parse_duration, duration_from_timestamp, sanitize_enabled_value,
+    format_local_time,
 )
 
 
@@ -242,6 +243,53 @@ class TestTimeBasedToggle(unittest.TestCase):
 
         value = toggle.get_value()
         self.assertFalse(value)
+
+
+class TestFormatLocalTime(unittest.TestCase):
+    """Test format_local_time utility function."""
+
+    def test_utc_timestamp_with_z_suffix(self):
+        """Test converting UTC timestamp with Z suffix to local time."""
+        result = format_local_time("2026-05-02T19:38:32Z")
+        self.assertNotEqual(result, "2026-05-02T19:38:32Z")
+        self.assertIn("2026", result)
+        self.assertNotIn("Z", result)
+
+    def test_utc_timestamp_with_microseconds(self):
+        """Test converting UTC timestamp with microseconds."""
+        result = format_local_time("2026-05-02T19:38:32.610852Z")
+        self.assertNotEqual(result, "2026-05-02T19:38:32.610852Z")
+        self.assertIn("2026", result)
+
+    def test_utc_timestamp_with_offset(self):
+        """Test converting UTC timestamp with +00:00 offset."""
+        result = format_local_time("2026-05-02T19:38:32+00:00")
+        self.assertIn("2026", result)
+        self.assertNotIn("+00:00", result)
+
+    def test_invalid_timestamp_returns_raw(self):
+        """Test that invalid timestamp returns the raw string."""
+        result = format_local_time("not-a-timestamp")
+        self.assertEqual(result, "not-a-timestamp")
+
+    def test_empty_string_returns_raw(self):
+        """Test that empty string returns the raw string."""
+        result = format_local_time("")
+        self.assertEqual(result, "")
+
+    def test_output_format(self):
+        """Test that output matches expected format YYYY-MM-DD HH:MM TZ."""
+        result = format_local_time("2026-01-15T12:00:00Z")
+        parts = result.split()
+        self.assertEqual(len(parts), 3)
+        self.assertRegex(parts[0], r'\d{4}-\d{2}-\d{2}')
+        self.assertRegex(parts[1], r'\d{2}:\d{2}')
+
+    def test_known_utc_midnight(self):
+        """Test that UTC midnight converts correctly."""
+        result = format_local_time("2026-06-15T00:00:00Z")
+        self.assertIn("2026", result)
+        self.assertNotIn("T00:00:00", result)
 
 
 if __name__ == '__main__':

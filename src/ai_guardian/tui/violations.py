@@ -18,6 +18,7 @@ from textual import events
 
 from ai_guardian.violation_logger import ViolationLogger
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import format_local_time
 
 
 class ViolationDetailsModal(ModalScreen):
@@ -152,7 +153,7 @@ class ViolationCard(Vertical):
         title = " ".join(title_parts)
 
         yield Static(f"[bold]{title}[/bold]", classes="violation-title")
-        yield Static(f"[muted]{timestamp}[/muted]", classes="violation-timestamp")
+        yield Static(f"[muted]{format_local_time(timestamp)}[/muted]", classes="violation-timestamp")
 
         # Details based on violation type
         if vtype == "tool_permission":

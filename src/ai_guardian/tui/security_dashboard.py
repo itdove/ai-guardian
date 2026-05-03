@@ -16,6 +16,7 @@ from textual.containers import Container, Horizontal, VerticalScroll, Grid
 from textual.widgets import Static, Button, Label
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import format_local_time
 
 
 class SecurityDashboardContent(Container):
@@ -259,7 +260,7 @@ class SecurityDashboardContent(Container):
             # Check for time-based status
             if isinstance(status, dict) and status.get("disabled_until"):
                 disabled_until = status.get("disabled_until", "")
-                status_text += f"\n[dim]Until: {disabled_until}[/dim]"
+                status_text += f"\n[dim]Until: {format_local_time(disabled_until)}[/dim]"
 
             status_widget.update(status_text)
 
