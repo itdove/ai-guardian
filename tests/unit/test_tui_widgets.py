@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from ai_guardian.tui.widgets import (
     ISO8601Validator, DurationValidator, TimeBasedToggle,
-    parse_duration, duration_from_timestamp,
+    parse_duration, duration_from_timestamp, sanitize_enabled_value,
 )
 
 
@@ -50,6 +50,36 @@ class TestISO8601Validator(unittest.TestCase):
         """Test whitespace-only is allowed (optional field)."""
         result = self.validator.validate("   ")
         self.assertTrue(result.is_valid)
+
+
+class TestSanitizeEnabledValue(unittest.TestCase):
+    """Test sanitize_enabled_value prevents corrupted config values."""
+
+    def test_true_passthrough(self):
+        self.assertIs(sanitize_enabled_value(True), True)
+
+    def test_false_passthrough(self):
+        self.assertIs(sanitize_enabled_value(False), False)
+
+    def test_valid_temp_disabled_passthrough(self):
+        val = {"value": False, "disabled_until": "2026-12-31T23:59:59Z", "reason": "test"}
+        self.assertEqual(sanitize_enabled_value(val), val)
+
+    def test_dict_without_disabled_until_collapses_to_false(self):
+        self.assertIs(sanitize_enabled_value({"value": False}), False)
+
+    def test_dict_without_disabled_until_collapses_to_true(self):
+        self.assertIs(sanitize_enabled_value({"value": True}), True)
+
+    def test_dict_with_empty_disabled_until_collapses(self):
+        self.assertIs(sanitize_enabled_value({"value": False, "disabled_until": ""}), False)
+
+    def test_dict_with_reason_only_collapses(self):
+        self.assertIs(sanitize_enabled_value({"value": False, "reason": "test"}), False)
+
+    def test_non_bool_non_dict_converts(self):
+        self.assertIs(sanitize_enabled_value(1), True)
+        self.assertIs(sanitize_enabled_value(0), False)
 
 
 class TestParseDuration(unittest.TestCase):
@@ -140,7 +170,6 @@ class TestTimeBasedToggle(unittest.TestCase):
 
         self.assertTrue(toggle.is_enabled)
         self.assertEqual(toggle.disabled_until, "")
-        self.assertEqual(toggle.reason, "")
         self.assertEqual(toggle.current_mode, "enabled")
 
     def test_init_with_bool_false(self):
@@ -153,7 +182,6 @@ class TestTimeBasedToggle(unittest.TestCase):
 
         self.assertFalse(toggle.is_enabled)
         self.assertEqual(toggle.disabled_until, "")
-        self.assertEqual(toggle.reason, "")
         self.assertEqual(toggle.current_mode, "disabled")
 
     def test_init_with_dict_enabled(self):
@@ -183,7 +211,6 @@ class TestTimeBasedToggle(unittest.TestCase):
 
         self.assertFalse(toggle.is_enabled)
         self.assertEqual(toggle.disabled_until, future_time)
-        self.assertEqual(toggle.reason, "Testing")
         self.assertEqual(toggle.current_mode, "temp_disabled")
 
     def test_get_value_simple_enabled(self):

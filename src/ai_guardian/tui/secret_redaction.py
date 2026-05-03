@@ -8,7 +8,7 @@ Redacts sensitive information from tool outputs instead of blocking operations.
 
 import json
 from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -276,22 +276,6 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
         # Load statistics
         self._load_statistics()
 
-    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict]) -> None:
-        """
-        Mount a time-based toggle with the current value.
-
-        Args:
-            toggle: TimeBasedToggle widget
-            config_key: Configuration key
-            value: Current value (bool or time-based dict)
-        """
-        if isinstance(value, dict):
-            # Time-based feature
-            toggle.set_time_based_value(value)
-        else:
-            # Simple boolean
-            toggle.set_value(value)
-
     def _load_statistics(self) -> None:
         """Load and display secret redaction statistics."""
         try:
@@ -376,11 +360,15 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
             self.save_config({"preserve_format": event.value})
         elif checkbox_id == "log-redactions-checkbox":
             self.save_config({"log_redactions": event.value})
-        elif checkbox_id and "secret_redaction_enabled" in checkbox_id:
-            # Handle TimeBasedToggle checkbox changes
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press - save toggle state immediately."""
+        bid = event.button.id
+        if bid and "secret_redaction_enabled" in bid:
             toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self.save_config({"enabled": value})
+            if toggle.current_mode == "temp_disabled":
+                return
+            self.save_config({"enabled": toggle.get_value()})
 
     def on_select_changed(self, event) -> None:
         """Handle select changes - save immediately."""
@@ -388,11 +376,6 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
         if select_id == "action-select":
             self.save_config({"action": event.value})
-        elif select_id and "secret_redaction_enabled" in select_id:
-            toggle = self.query_one("#secret_redaction_enabled_toggle", TimeBasedToggle)
-            if toggle.current_mode == "temp_disabled":
-                return
-            self.save_config({"enabled": toggle.get_value()})
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""

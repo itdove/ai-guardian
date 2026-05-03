@@ -7,7 +7,7 @@ View and configure SSRF (Server-Side Request Forgery) protection settings.
 
 import json
 from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -17,7 +17,7 @@ from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, default_indicator, select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
 
 class SSRFContent(SchemaDefaultsMixin, Container):
@@ -239,6 +239,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
+        self._loading = False
         self.load_config()
 
     def refresh_content(self) -> None:
@@ -247,6 +248,14 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
     def load_config(self) -> None:
         """Load and display SSRF protection configuration."""
+        self._loading = True
+        try:
+            self._load_config_inner()
+        finally:
+            self._loading = False
+
+    def _load_config_inner(self) -> None:
+        """Inner load logic for SSRF protection configuration."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -271,7 +280,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         # Update widgets
         try:
             toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
-            self.mount_toggle(toggle, "ssrf_protection_enabled", enabled_value)
+            toggle.load_value(enabled_value)
 
             self.query_one("#action-select", Select).value = action
             self.query_one("#allow-localhost-checkbox", Checkbox).value = allow_localhost
@@ -304,22 +313,6 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         # Load statistics (if available)
         self._load_statistics()
-
-    def mount_toggle(self, toggle: TimeBasedToggle, config_key: str, value: Union[bool, Dict]) -> None:
-        """
-        Mount a time-based toggle with the current value.
-
-        Args:
-            toggle: TimeBasedToggle widget
-            config_key: Configuration key
-            value: Current value (bool or time-based dict)
-        """
-        if isinstance(value, dict):
-            # Time-based feature
-            toggle.set_time_based_value(value)
-        else:
-            # Simple boolean
-            toggle.set_value(value)
 
     def _load_statistics(self) -> None:
         """Load and display SSRF detection statistics."""
@@ -375,7 +368,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             if "ssrf_protection" not in config:
                 config["ssrf_protection"] = {}
 
-            # Update configuration
+            if "enabled" in config_updates:
+                config_updates["enabled"] = sanitize_enabled_value(config_updates["enabled"])
             config["ssrf_protection"].update(config_updates)
 
             # Save config
@@ -392,32 +386,39 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox changes - save immediately."""
+        if getattr(self, '_loading', False):
+            return
         checkbox_id = event.checkbox.id
 
         if checkbox_id == "allow-localhost-checkbox":
             self.save_config({"allow_localhost": event.value})
             self._update_default_indicator("allow-localhost-checkbox", "allow_localhost", event.value)
-        elif checkbox_id and "ssrf_protection_enabled" in checkbox_id:
-            # Handle TimeBasedToggle checkbox changes
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press - save toggle state immediately."""
+        if getattr(self, '_loading', False):
+            return
+        bid = event.button.id
+        if bid and "ssrf_protection_enabled" in bid:
             toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self.save_config({"enabled": value})
+            if toggle.current_mode == "temp_disabled":
+                return
+            self.save_config({"enabled": toggle.get_value()})
 
     def on_select_changed(self, event) -> None:
         """Handle select changes - save immediately."""
+        if getattr(self, '_loading', False):
+            return
         select_id = event.select.id
 
         if select_id == "action-select":
             self.save_config({"action": event.value})
             self._update_default_indicator("action-select", "action", event.value)
-        elif select_id and "ssrf_protection_enabled" in select_id:
-            # Handle TimeBasedToggle select changes
-            toggle = self.query_one("#ssrf_protection_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self.save_config({"enabled": value})
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""
+        if getattr(self, '_loading', False):
+            return
         input_id = event.input.id
 
         # Handle TimeBasedToggle inputs

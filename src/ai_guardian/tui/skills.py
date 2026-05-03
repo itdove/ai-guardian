@@ -15,6 +15,7 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Static, Input, Label
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
 
 
 class PatternRow(Horizontal):
@@ -214,6 +215,16 @@ class SkillsContent(Container):
         yield Static("[bold]Skill Permissions[/bold]", id="skills-header")
 
         with VerticalScroll():
+            # Permissions enforcement toggle
+            yield TimeBasedToggle(
+                title="🔐 Tool Permissions Enforcement",
+                config_key="sk_permissions_enabled",
+                current_value=True,
+                help_text="Controls whether AI Guardian enforces tool permission rules. When disabled, all tools are allowed. (default: enabled)",
+                id="sk_permissions_enabled_toggle",
+                classes="section",
+            )
+
             # Allow list section
             with Container(classes="section"):
                 yield Static("[bold][green]✓ Allow List[/green][/bold]", classes="section-title")
@@ -232,6 +243,7 @@ class SkillsContent(Container):
 
     def on_mount(self) -> None:
         """Load permissions when mounted."""
+        self._loading = False
         self.load_patterns()
 
     def refresh_content(self) -> None:
@@ -240,6 +252,14 @@ class SkillsContent(Container):
 
     def load_patterns(self) -> None:
         """Load and display allow/deny patterns."""
+        self._loading = True
+        try:
+            self._load_patterns_inner()
+        finally:
+            self._loading = False
+
+    def _load_patterns_inner(self) -> None:
+        """Inner pattern loading (guarded by _loading flag)."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -250,6 +270,19 @@ class SkillsContent(Container):
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
+
+                    # Load permissions enabled toggle
+                    permissions_obj = config.get("permissions", {})
+                    if isinstance(permissions_obj, dict):
+                        perm_enabled = permissions_obj.get("enabled", True)
+                    else:
+                        perm_enabled = True
+                    try:
+                        toggle = self.query_one("#sk_permissions_enabled_toggle", TimeBasedToggle)
+                        toggle.load_value(perm_enabled)
+                    except Exception:
+                        pass
+
                     # NEW unified structure in v1.4.0
                     permissions_obj = config.get("permissions", {})
                     if isinstance(permissions_obj, dict):
@@ -298,7 +331,9 @@ class SkillsContent(Container):
             ))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses (only remove buttons)."""
+        """Handle button presses (remove buttons and toggle buttons)."""
+        if getattr(self, '_loading', False):
+            return
         button_id = event.button.id
 
         if button_id and button_id.startswith("remove-allow-"):
@@ -309,9 +344,21 @@ class SkillsContent(Container):
             idx = int(button_id.replace("remove-deny-", ""))
             self.remove_pattern_by_index("deny", idx)
 
+        elif button_id and "sk_permissions_enabled" in button_id:
+            toggle = self.query_one("#sk_permissions_enabled_toggle", TimeBasedToggle)
+            if toggle.current_mode == "temp_disabled":
+                return
+            self._save_permissions_enabled(toggle.get_value())
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""
-        if event.input.id == "new-allow-pattern":
+        if getattr(self, '_loading', False):
+            return
+        input_id = event.input.id
+        if input_id and "sk_permissions_enabled" in input_id:
+            toggle = self.query_one("#sk_permissions_enabled_toggle", TimeBasedToggle)
+            self._save_permissions_enabled(toggle.get_value())
+        elif event.input.id == "new-allow-pattern":
             self.add_pattern("allow")
         elif event.input.id == "new-deny-pattern":
             self.add_pattern("deny")
@@ -328,6 +375,42 @@ class SkillsContent(Container):
         """Refresh patterns (triggered by 'r' key)."""
         self.load_patterns()
         self.app.notify("Skill permissions refreshed", severity="information")
+
+    def _save_permissions_enabled(self, value: Union[bool, Dict[str, Any]]) -> None:
+        """Save permissions.enabled to config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "permissions" not in config or not isinstance(config["permissions"], dict):
+                config["permissions"] = {"enabled": True, "rules": []}
+
+            value = sanitize_enabled_value(value)
+            config["permissions"]["enabled"] = value
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            if isinstance(value, bool):
+                status = "enabled" if value else "disabled"
+                self.app.notify(f"✓ Permissions enforcement {status}", severity="success")
+            else:
+                if value.get("disabled_until"):
+                    self.app.notify(
+                        f"✓ Permissions enforcement temporarily disabled until {format_local_time(value['disabled_until'])}",
+                        severity="success"
+                    )
+                else:
+                    self.app.notify("✓ Permissions enforcement disabled", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error saving config: {e}", severity="error")
 
     def add_pattern(self, mode: str) -> None:
         """Add a pattern to allow or deny list."""

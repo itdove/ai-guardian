@@ -17,7 +17,7 @@ from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle
+from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
 
 ALL_PII_TYPES = [
@@ -226,6 +226,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                 )
 
     def on_mount(self) -> None:
+        self._loading = False
         self.load_config()
 
     def refresh_content(self) -> None:
@@ -239,6 +240,13 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         self.app.notify("Settings auto-saved on change", severity="information")
 
     def load_config(self) -> None:
+        self._loading = True
+        try:
+            self._load_config_inner()
+        finally:
+            self._loading = False
+
+    def _load_config_inner(self) -> None:
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -340,6 +348,8 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             if "scan_pii" not in config:
                 config["scan_pii"] = {}
 
+            if "enabled" in updates:
+                updates["enabled"] = sanitize_enabled_value(updates["enabled"])
             config["scan_pii"].update(updates)
 
             config_dir.mkdir(parents=True, exist_ok=True)
@@ -351,17 +361,26 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Error saving config: {e}", severity="error")
             return False
 
-    def on_select_changed(self, event) -> None:
-        if event.select.id == "pii-action-select":
-            self._save_config({"action": event.value})
-            self.app.notify(f"PII action set to: {event.value}", severity="information")
-        elif event.select.id and "scan_pii_enabled" in event.select.id:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if getattr(self, '_loading', False):
+            return
+        bid = event.button.id
+        if bid and "scan_pii_enabled" in bid:
             toggle = self.query_one("#scan_pii_enabled_toggle", TimeBasedToggle)
             if toggle.current_mode == "temp_disabled":
                 return
             self._save_config({"enabled": toggle.get_value()})
 
+    def on_select_changed(self, event) -> None:
+        if getattr(self, '_loading', False):
+            return
+        if event.select.id == "pii-action-select":
+            self._save_config({"action": event.value})
+            self.app.notify(f"PII action set to: {event.value}", severity="information")
+
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        if getattr(self, '_loading', False):
+            return
         checkbox_id = event.checkbox.id
         if not checkbox_id:
             return
@@ -377,12 +396,10 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     pass
             self._save_config({"pii_types": enabled_types})
             self.app.notify(f"PII types updated ({len(enabled_types)} enabled)", severity="information")
-        elif "scan_pii_enabled" in checkbox_id:
-            toggle = self.query_one("#scan_pii_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self._save_config({"enabled": value})
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        if getattr(self, '_loading', False):
+            return
         if event.input.id == "pii-ignore-file-input":
             self._add_ignore_file()
         elif event.input.id == "pii-ignore-tool-input":
