@@ -108,43 +108,49 @@ class PermissionsDiscoveryContent(Container):
 
     CSS = """
     PermissionsDiscoveryContent {
-        height: 100%;
+        height: auto;
     }
 
     #permissions-discovery-header {
-        margin: 1 0;
+        margin: 0 0 1 0;
         padding: 1;
         background: $primary;
         color: $text;
     }
 
+    .mode-indicator {
+        margin: 0 0 0 1;
+        padding: 0 1;
+    }
+
     .section {
-        margin: 1 0;
+        margin: 0 0 1 0;
         padding: 1;
         background: $panel;
         border: solid $primary;
     }
 
     .section-title {
-        margin: 0 0 1 0;
+        margin: 0 0 0 0;
         font-weight: bold;
     }
 
     .list-container {
-        margin: 1 0;
-        min-height: 8;
-        max-height: 16;
+        margin: 0 0;
+        min-height: 3;
+        max-height: 10;
     }
 
     #add-entry-section {
-        margin: 1 0;
+        margin: 0 0 1 0;
         padding: 1;
+        height: auto;
         background: $surface;
         border: solid $accent;
     }
 
     .input-row {
-        margin: 0.5 0;
+        margin: 0 0;
         height: auto;
         align: left middle;
     }
@@ -174,89 +180,114 @@ class PermissionsDiscoveryContent(Container):
         """Compose the permissions discovery tab content."""
         yield Static("[bold]Permissions Auto-Discovery[/bold]", id="permissions-discovery-header")
 
-        with VerticalScroll():
-            # Status section
-            with Container(classes="section"):
-                yield Static("[bold]📊 Auto-Discovery Status[/bold]", classes="section-title")
-                yield Static("", id="discovery-status")
+        # Status section
+        with Container(classes="section"):
+            yield Static("[bold]📊 Auto-Discovery Status[/bold]", classes="section-title")
+            yield Static("", id="discovery-status")
 
-            # Info section
-            with Container(classes="section"):
-                yield Static(
-                    "[bold]ℹ️  How Auto-Discovery Works[/bold]\n\n"
-                    "[status-warn]⚡ Auto-discovery is ENABLED when you add entries below[/status-warn]\n\n"
-                    "[dim]Auto-discovery scans directories or GitHub repos for skill/MCP definitions "
-                    "and automatically creates permissions based on what it finds.[/dim]\n\n"
-                    "[bold]Allow vs Deny Lists:[/bold]\n"
-                    "  • [status-ok]Allow[/status-ok] - Discovered tools are automatically allowed\n"
-                    "  • [status-error]Deny[/status-error] - Discovered tools are automatically blocked\n\n"
-                    "[bold]To Enable:[/bold] Add an entry below ↓\n"
-                    "[bold]To Disable:[/bold] Remove all entries\n\n"
-                    "[dim]💡 TIP: Most users should use Remote Configs instead (simpler)[/dim]"
+        # Info section
+        with Container(classes="section"):
+            yield Static(
+                "[bold]ℹ️  How Auto-Discovery Works[/bold]\n"
+                "[dim]Scans directories or GitHub repos for skill/MCP definitions and auto-creates permissions.[/dim]\n"
+                "  [status-ok]Allow[/status-ok] = discovered tools allowed  "
+                "[status-error]Deny[/status-error] = discovered tools blocked  "
+                "[dim]💡 Most users should use Remote Configs instead[/dim]"
+            )
+
+        # Allow directories section
+        with Container(classes="section"):
+            yield Static("[bold]Allow Directories[/bold]", classes="section-title")
+            yield Static(
+                "[dim]Scan these directories and allow discovered tools[/dim]",
+                classes="section-title"
+            )
+
+            with VerticalScroll(id="allow-list", classes="list-container"):
+                yield Static("[dim]No allow directories configured[/dim]")
+
+        # Deny directories section
+        with Container(classes="section"):
+            yield Static("[bold]Deny Directories[/bold]", classes="section-title")
+            yield Static(
+                "[dim]Scan these directories and deny discovered tools[/dim]",
+                classes="section-title"
+            )
+
+            with VerticalScroll(id="deny-list", classes="list-container"):
+                yield Static("[dim]No deny directories configured[/dim]")
+
+        # Add new entry section
+        with Container(id="add-entry-section"):
+            yield Static("[bold]Add New Directory[/bold]", classes="section-title")
+
+            yield Static("", id="selection-indicator", classes="mode-indicator")
+
+            with Horizontal(classes="input-row"):
+                yield Label("List Type:")
+                yield Select(
+                    [("Allow", "allow"), ("Deny", "deny")],
+                    value="allow",
+                    allow_blank=False,
+                    compact=True,
+                    id="list-type-select"
                 )
 
-            # Allow directories section
-            with Container(classes="section"):
-                yield Static("[bold]Allow Directories[/bold]", classes="section-title")
-                yield Static(
-                    "[dim]Scan these directories and allow discovered tools[/dim]",
-                    classes="section-title"
+            with Horizontal(classes="input-row"):
+                yield Label("Matcher:")
+                yield Input(placeholder="Skill, mcp__*, etc.", id="matcher-input")
+                yield Static("[dim]Tool pattern to match[/dim]")
+
+            with Horizontal(classes="input-row"):
+                yield Label("Mode:")
+                yield Select(
+                    [("Allow", "allow"), ("Deny", "deny")],
+                    value="allow",
+                    allow_blank=False,
+                    compact=True,
+                    id="mode-select"
                 )
 
-                with VerticalScroll(id="allow-list", classes="list-container"):
-                    yield Static("[dim]No allow directories configured[/dim]")
+            with Horizontal(classes="input-row"):
+                yield Label("URL:")
+                yield Input(placeholder="/path/to/dir or https://github.com/user/repo", id="url-input")
 
-            # Deny directories section
-            with Container(classes="section"):
-                yield Static("[bold]Deny Directories[/bold]", classes="section-title")
-                yield Static(
-                    "[dim]Scan these directories and deny discovered tools[/dim]",
-                    classes="section-title"
-                )
+            with Horizontal(classes="input-row"):
+                yield Label("Token Env Var:")
+                yield Input(placeholder="GITHUB_TOKEN (optional)", id="token-env-input")
 
-                with VerticalScroll(id="deny-list", classes="list-container"):
-                    yield Static("[dim]No deny directories configured[/dim]")
-
-            # Add new entry section
-            with Container(id="add-entry-section"):
-                yield Static("[bold]Add New Directory[/bold]", classes="section-title")
-
-                with Horizontal(classes="input-row"):
-                    yield Label("List Type:")
-                    yield Select(
-                        [("Allow", "allow"), ("Deny", "deny")],
-                        value="allow",
-                        id="list-type-select"
-                    )
-
-                with Horizontal(classes="input-row"):
-                    yield Label("Matcher:")
-                    yield Input(placeholder="Skill, mcp__*, etc.", id="matcher-input")
-                    yield Static("[dim]Tool pattern to match[/dim]")
-
-                with Horizontal(classes="input-row"):
-                    yield Label("Mode:")
-                    yield Select(
-                        [("Allow", "allow"), ("Deny", "deny")],
-                        value="allow",
-                        id="mode-select"
-                    )
-
-                with Horizontal(classes="input-row"):
-                    yield Label("URL:")
-                    yield Input(placeholder="/path/to/dir or https://github.com/user/repo", id="url-input")
-
-                with Horizontal(classes="input-row"):
-                    yield Label("Token Env Var:")
-                    yield Input(placeholder="GITHUB_TOKEN (optional)", id="token-env-input")
-
-                with Horizontal(classes="input-row"):
-                    yield Label("")
-                    yield Button("Add Directory", variant="success", id="add-entry-button")
+            with Horizontal(classes="input-row"):
+                yield Label("")
+                yield Button("Add Directory", variant="success", id="add-entry-button")
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
         self.load_config()
+        self._update_selection_indicator()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Update the selection indicator when a Select widget changes."""
+        if event.select.id in ("list-type-select", "mode-select"):
+            self._update_selection_indicator()
+
+    def _update_selection_indicator(self) -> None:
+        """Update the visual indicator showing current list-type and mode selections."""
+        try:
+            indicator = self.query_one("#selection-indicator", Static)
+            list_type = self.query_one("#list-type-select", Select).value
+            mode = self.query_one("#mode-select", Select).value
+
+            lt_color = "green" if list_type == "allow" else "red"
+            lt_icon = "✓" if list_type == "allow" else "✗"
+            mode_color = "green" if mode == "allow" else "red"
+            mode_icon = "✓" if mode == "allow" else "✗"
+
+            indicator.update(
+                f"List: [{lt_color}]{lt_icon} {str(list_type).upper()}[/{lt_color}]  "
+                f"Mode: [{mode_color}]{mode_icon} {str(mode).upper()}[/{mode_color}]"
+            )
+        except Exception:
+            pass
 
     def refresh_content(self) -> None:
         """Refresh configuration (called by parent app)."""

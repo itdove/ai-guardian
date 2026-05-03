@@ -727,6 +727,31 @@ class TestListScrollWrapping:
             f"{class_name} CSS missing max-height for scrollable list container"
         )
 
+    def test_permissions_discovery_has_selection_indicator(self):
+        """Verify permissions discovery panel has a selection indicator widget."""
+        import importlib, inspect
+        mod = importlib.import_module("ai_guardian.tui.permissions_discovery")
+        cls = getattr(mod, "PermissionsDiscoveryContent")
+        source = inspect.getsource(cls.compose)
+        assert "selection-indicator" in source, (
+            "PermissionsDiscoveryContent.compose() missing selection-indicator widget"
+        )
+        assert ".mode-indicator" in cls.CSS, (
+            "PermissionsDiscoveryContent CSS missing .mode-indicator class"
+        )
+
+    def test_permissions_discovery_has_select_changed_handler(self):
+        """Verify permissions discovery panel handles Select.Changed events."""
+        import importlib
+        mod = importlib.import_module("ai_guardian.tui.permissions_discovery")
+        cls = getattr(mod, "PermissionsDiscoveryContent")
+        assert hasattr(cls, "on_select_changed"), (
+            "PermissionsDiscoveryContent missing on_select_changed handler"
+        )
+        assert hasattr(cls, "_update_selection_indicator"), (
+            "PermissionsDiscoveryContent missing _update_selection_indicator method"
+        )
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
