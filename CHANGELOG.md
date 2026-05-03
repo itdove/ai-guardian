@@ -21,13 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ai-guardian console` launches the same TUI as `ai-guardian tui`
   - Both commands shown in `ai-guardian --help`
 
-- **JSON Config Editor in TUI** (Issue #388)
+- **JSON Config Editor in TUI** (Issue #388, #391)
   - Raw JSON editor for `ai-guardian.json` with syntax highlighting and line numbers
   - Real-time JSON validation with status indicator
   - Schema validation warnings on save (non-blocking)
   - Save with confirmation dialog and automatic backup (`.bak`)
   - Reload from disk option (Ctrl+R)
   - Config path shown (respects `XDG_CONFIG_HOME` / `AI_GUARDIAN_CONFIG_DIR`)
+  - **Console Settings panel** with theme selector dropdown (Issue #391)
+    - Monokai, VS Code Dark, Dracula, GitHub Light themes
+    - Theme preference persisted in `console.editor_theme` config field
+    - New `console` section added to schema, setup defaults, and example config
+  - **New dependencies**: `tree-sitter>=0.25.0` and `tree-sitter-json>=0.24.0` (MIT license) for JSON syntax highlighting in the config editor
 
 - **Show default values in TUI config panels from schema** (Issue #371)
   - Each config field now shows its default value from `ai-guardian-config.schema.json`

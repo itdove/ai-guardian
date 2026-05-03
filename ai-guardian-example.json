@@ -615,6 +615,12 @@
     }
   },
 
+  "_comment_console": "TUI console settings",
+  "console": {
+    "editor_theme": "monokai",
+    "_comment_editor_theme": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"
+  },
+
   "_pattern_matching": {
     "_comment": "How patterns are matched for each matcher type:",
     "Skill": "Matches against input.skill (e.g., 'daf-jira' matches 'daf-*')",

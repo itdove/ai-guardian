@@ -946,6 +946,11 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "urls": []
         },
 
+        "_comment_console": "TUI console settings (editor theme preference)",
+        "console": {
+            "editor_theme": "monokai"
+        },
+
         "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
         "violation_logging": {
             "enabled": True,
