@@ -637,6 +637,100 @@ class TestViolationCardFields:
         tp_section = source[tp_section_start:tp_section_start + 500]
         assert "line_number" in tp_section
 
+    def test_details_button_always_shown_for_unresolved(self):
+        """Test that Details button is outside can_approve block for unresolved violations."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        action_start = source.index("# Action buttons")
+        action_section = source[action_start:]
+        lines = action_section.split("\n")
+        not_resolved_line = next(
+            i for i, l in enumerate(lines) if "if not resolved:" in l
+        )
+        indent = len(lines[not_resolved_line]) - len(lines[not_resolved_line].lstrip())
+        unresolved_lines = [lines[not_resolved_line]]
+        for line in lines[not_resolved_line + 1:]:
+            stripped = line.strip()
+            if stripped == "" or (len(line) - len(line.lstrip())) > indent:
+                unresolved_lines.append(line)
+            elif stripped.startswith("else:") and (len(line) - len(line.lstrip())) == indent:
+                break
+            else:
+                unresolved_lines.append(line)
+        unresolved_block = "\n".join(unresolved_lines)
+        assert "with Horizontal" in unresolved_block
+        assert "if can_approve:" in unresolved_block
+        assert 'Button("Details"' in unresolved_block
+        horizontal_pos = unresolved_block.index("with Horizontal")
+        can_approve_pos = unresolved_block.index("if can_approve:")
+        assert horizontal_pos < can_approve_pos, \
+            "Horizontal container should wrap both can_approve buttons and Details button"
+
+    def test_position_displayed_in_location(self):
+        """Test that position (char offset) is included in location display."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        assert ', pos {position}' in source or ", pos {blocked['position']}" in source or \
+               'pos {position}' in source
+
+    def test_ssrf_blocked_type_handled(self):
+        """Test that ssrf_blocked violation type has a dedicated section."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        assert 'vtype == "ssrf_blocked"' in source
+
+    def test_config_file_exfil_type_handled(self):
+        """Test that config_file_exfil violation type has a dedicated section."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        assert 'vtype == "config_file_exfil"' in source
+
+    def test_ssrf_blocked_shows_location(self):
+        """Test that ssrf_blocked section includes file_path and line_number."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        ssrf_start = source.index('vtype == "ssrf_blocked"')
+        ssrf_section = source[ssrf_start:ssrf_start + 800]
+        assert "file_path" in ssrf_section
+        assert "line_number" in ssrf_section
+        assert "position" in ssrf_section
+
+    def test_config_file_exfil_shows_file_path(self):
+        """Test that config_file_exfil section shows file_path."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        cfe_start = source.index('vtype == "config_file_exfil"')
+        cfe_section = source[cfe_start:cfe_start + 500]
+        assert "file_path" in cfe_section
+
+    def test_all_location_types_include_position(self):
+        """Test that all violation types with line_number also handle position."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationCard
+        source = inspect.getsource(ViolationCard.compose)
+        types_with_location = [
+            "tool_permission", "secret_detected", "prompt_injection",
+            "secret_redaction", "pii_detected", "jailbreak_detected",
+            "ssrf_blocked"
+        ]
+        for vtype in types_with_location:
+            section_start = source.index(f'vtype == "{vtype}"')
+            next_elif = source.find("elif vtype ==", section_start + 1)
+            action_buttons = source.find("# Action buttons", section_start)
+            section_end = min(
+                x for x in [next_elif, action_buttons] if x > 0
+            )
+            section = source[section_start:section_end]
+            if "line_number" in section:
+                assert "position" in section, \
+                    f"{vtype} section has line_number but missing position support"
+
 
 class TestModalEscBindings:
     """Tests for ESC key bindings on all modal screens."""
