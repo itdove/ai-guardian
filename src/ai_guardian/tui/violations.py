@@ -864,11 +864,15 @@ class ViolationsContent(Container):
                         details += f":{line_number}"
                     details += "\n"
                 details += (
-                    "\n[bold]Option 1:[/bold] Add comment before the line:\n"
+                    "\n[bold]Option 1:[/bold] Add a regex pattern to ai-guardian.json:\n"
+                    '  "secret_scanning": {\n'
+                    '    "allowlist_patterns": ["your-regex-pattern"]\n'
+                    "  }\n\n"
+                    "[bold]Option 2:[/bold] Add comment before the line in source files:\n"
                     "  # gitleaks:allow\n\n"
-                    "[bold]Option 2:[/bold] Add to .gitleaks.toml allowlist\n\n"
-                    "[dim]Note: Secret scanning cannot be bypassed via TUI config — "
-                    "the scanner engine controls allowlisting.[/dim]"
+                    "[bold]Option 3:[/bold] Add to .gitleaks.toml allowlist\n\n"
+                    "[dim]Tip: Option 1 works for both file scanning and tool output scanning.\n"
+                    "Options 2-3 only work for file scanning (PreToolUse).[/dim]"
                 )
 
                 self.violation_logger.mark_resolved(timestamp, action="info_shown")
