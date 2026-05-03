@@ -279,17 +279,34 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         # Pattern server status - read from secret_scanning.pattern_server (new location)
         # with fallback to root-level pattern_server (deprecated) for backward compatibility
         secret_scanning = config.get("secret_scanning", {})
-        pattern_server = secret_scanning.get("pattern_server", {})
 
-        # Fallback to deprecated root-level location if not found in secret_scanning
-        if not pattern_server:
-            pattern_server = config.get("pattern_server", {})
+        # Only fall back to root level if key is absent (not if explicitly null)
+        if "pattern_server" in secret_scanning:
+            pattern_server = secret_scanning["pattern_server"]
+        elif "pattern_server" in config:
+            pattern_server = config["pattern_server"]
+        else:
+            pattern_server = {}
 
-        enabled_value = pattern_server.get("enabled", False)
-        server_url = pattern_server.get("url", pattern_server.get("server_url", ""))
-        patterns_endpoint = pattern_server.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
-        warn_on_failure = pattern_server.get("warn_on_failure", True)
-        auth = pattern_server.get("auth", {})
+        if pattern_server is None:
+            enabled_value = False
+        elif not isinstance(pattern_server, dict) or not pattern_server:
+            enabled_value = False
+        elif "enabled" in pattern_server:
+            enabled_value = pattern_server["enabled"]
+        elif "disabled_until" in pattern_server:
+            enabled_value = {
+                "value": False,
+                "disabled_until": pattern_server["disabled_until"],
+                "reason": pattern_server.get("disabled_reason", ""),
+            }
+        else:
+            enabled_value = True
+        ps = pattern_server if isinstance(pattern_server, dict) else {}
+        server_url = ps.get("url", ps.get("server_url", ""))
+        patterns_endpoint = ps.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
+        warn_on_failure = ps.get("warn_on_failure", True)
+        auth = ps.get("auth", {})
         auth_method = auth.get("method", "bearer")
         token_env = auth.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
         token_file = auth.get("token_file", "~/.config/ai-guardian/pattern-token")
@@ -369,7 +386,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             pass
 
         # Cache settings
-        cache = pattern_server.get("cache", {})
+        cache = ps.get("cache", {})
         cache_path = cache.get("path", str(get_cache_dir() / "patterns.toml"))
         refresh_interval = cache.get("refresh_interval_hours", 12)
         expire_after = cache.get("expire_after_hours", 168)
@@ -381,7 +398,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass  # Widgets may not be mounted yet
 
-        self._apply_default_indicators(pattern_server)
+        self._apply_default_indicators(ps)
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox toggle."""
@@ -511,12 +528,33 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             if "secret_scanning" not in config:
                 config["secret_scanning"] = {}
 
-            # Ensure pattern_server section exists under secret_scanning
-            if "pattern_server" not in config["secret_scanning"]:
-                config["secret_scanning"]["pattern_server"] = {}
+            value = sanitize_enabled_value(value)
 
-            # Save to secret_scanning.pattern_server (new location)
-            config["secret_scanning"]["pattern_server"]["enabled"] = value
+            if isinstance(value, bool):
+                if value:
+                    # Enabling: ensure section exists, remove deprecated fields
+                    if config["secret_scanning"].get("pattern_server") is None:
+                        config["secret_scanning"]["pattern_server"] = {}
+                    if "pattern_server" not in config["secret_scanning"]:
+                        config["secret_scanning"]["pattern_server"] = {}
+                    config["secret_scanning"]["pattern_server"].pop("enabled", None)
+                    config["secret_scanning"]["pattern_server"].pop("disabled_until", None)
+                    config["secret_scanning"]["pattern_server"].pop("disabled_reason", None)
+                else:
+                    # Disabling: set section to null
+                    config["secret_scanning"]["pattern_server"] = None
+            else:
+                # Time-based temp disable: keep section, store disabled_until at section level
+                if config["secret_scanning"].get("pattern_server") is None:
+                    config["secret_scanning"]["pattern_server"] = {}
+                if "pattern_server" not in config["secret_scanning"]:
+                    config["secret_scanning"]["pattern_server"] = {}
+                config["secret_scanning"]["pattern_server"].pop("enabled", None)
+                config["secret_scanning"]["pattern_server"]["disabled_until"] = value.get("disabled_until", "")
+                if value.get("reason"):
+                    config["secret_scanning"]["pattern_server"]["disabled_reason"] = value["reason"]
+                else:
+                    config["secret_scanning"]["pattern_server"].pop("disabled_reason", None)
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
@@ -540,6 +578,15 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception as e:
             self.app.notify(f"Error saving config: {e}", severity="error")
 
+    def _ensure_pattern_server_section(self, config: dict) -> None:
+        """Ensure secret_scanning.pattern_server exists as a dict."""
+        if "secret_scanning" not in config:
+            config["secret_scanning"] = {}
+        if config["secret_scanning"].get("pattern_server") is None:
+            config["secret_scanning"]["pattern_server"] = {}
+        if "pattern_server" not in config["secret_scanning"]:
+            config["secret_scanning"]["pattern_server"] = {}
+
     def save_pattern_server_field(self, field: str, value: str) -> None:
         """Save a pattern server field to config."""
         config_dir = get_config_dir()
@@ -552,13 +599,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             else:
                 config = {}
 
-            # Ensure secret_scanning section exists
-            if "secret_scanning" not in config:
-                config["secret_scanning"] = {}
-
-            # Ensure pattern_server section exists under secret_scanning
-            if "pattern_server" not in config["secret_scanning"]:
-                config["secret_scanning"]["pattern_server"] = {}
+            self._ensure_pattern_server_section(config)
 
             # Save to secret_scanning.pattern_server (new location)
             config["secret_scanning"]["pattern_server"][field] = value
@@ -583,13 +624,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             else:
                 config = {}
 
-            # Ensure secret_scanning section exists
-            if "secret_scanning" not in config:
-                config["secret_scanning"] = {}
-
-            # Ensure pattern_server section exists under secret_scanning
-            if "pattern_server" not in config["secret_scanning"]:
-                config["secret_scanning"]["pattern_server"] = {}
+            self._ensure_pattern_server_section(config)
 
             # Ensure auth section exists under pattern_server
             if "auth" not in config["secret_scanning"]["pattern_server"]:
@@ -618,13 +653,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             else:
                 config = {}
 
-            # Ensure secret_scanning section exists
-            if "secret_scanning" not in config:
-                config["secret_scanning"] = {}
-
-            # Ensure pattern_server section exists under secret_scanning
-            if "pattern_server" not in config["secret_scanning"]:
-                config["secret_scanning"]["pattern_server"] = {}
+            self._ensure_pattern_server_section(config)
 
             # Ensure cache section exists under pattern_server
             if "cache" not in config["secret_scanning"]["pattern_server"]:
