@@ -5,6 +5,7 @@
         "tests/unit/test_secret_redaction.py",
         "tests/unit/test_ai_guardian.py",
         "tests/integration/test_pattern_server_integration.py",
+        "tests/integration/test_scanner_engine_integration.py",
         "tests/integration/test_integration_mcp.py",
         "tests/fixtures/attack_constants.py"
     ]

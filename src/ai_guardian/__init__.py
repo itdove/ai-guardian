@@ -2096,6 +2096,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     cmd.extend(['--config', str(Path(gitleaks_config_path).absolute())])
 
             # Run scanner
+            logging.debug(f"Scanner command: {' '.join(cmd)}")
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -2106,13 +2107,24 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             # Determine expected exit codes for secrets found/success
             # Use engine-specific codes if available, otherwise use gitleaks defaults
             expected_secrets_code = engine_config.secrets_found_exit_code if engine_config else 42
-            expected_success_codes = [engine_config.success_exit_code] if engine_config else [0, 1]
-            # Also accept exit code 1 for gitleaks compatibility
-            if engine_config and engine_config.type == "gitleaks" and 1 not in expected_success_codes:
-                expected_success_codes.append(1)
+            expected_success_codes = [engine_config.success_exit_code] if engine_config else [0]
+
+            logging.debug(f"Scanner exit code: {result.returncode}, expected_secrets={expected_secrets_code}, expected_success={expected_success_codes}")
+
+            # Gitleaks/betterleaks use exit code 1 as default "secrets found" code
+            # when --exit-code flag is not honored. Treat exit 1 as secrets found
+            # for these engines to prevent bypass (Issue #411).
+            _is_gitleaks_like = (
+                (engine_config and engine_config.type in ("gitleaks", "betterleaks"))
+                or not engine_config  # legacy path uses gitleaks
+            )
+            _is_secrets_found = (
+                result.returncode == expected_secrets_code
+                or (result.returncode == 1 and _is_gitleaks_like)
+            )
 
             # Check exit code
-            if result.returncode == expected_secrets_code:  # Secrets found
+            if _is_secrets_found:  # Secrets found
                 # Parse scanner output using appropriate parser (Issue #154)
                 secret_details = None
                 scan_result = None

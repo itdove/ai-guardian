@@ -156,6 +156,157 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets, "Should fail open on unexpected errors")
         self.assertIsNone(error_msg)
 
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.subprocess.run')
+    def test_gitleaks_exit_code_1_not_treated_as_success(
+        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+    ):
+        """Exit code 1 from gitleaks must NOT be treated as success (Issue #411).
+
+        Gitleaks exit code 1 is its default 'secrets found' code when --exit-code
+        is not specified or not honored. Treating it as success silently bypasses
+        secret detection.
+        """
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
+
+        mock_engine = MagicMock()
+        mock_engine.type = "gitleaks"
+        mock_engine.output_parser = "gitleaks"
+        mock_engine.secrets_found_exit_code = 42
+        mock_engine.success_exit_code = 0
+        mock_select_engine.return_value = mock_engine
+
+        mock_build_command.return_value = ["gitleaks", "detect", "..."]
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_result.stderr = "leaks found: 1"
+        mock_run.return_value = mock_result
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY",  # notsecret
+            filename="test.txt"
+        )
+
+        self.assertTrue(has_secrets, "Exit code 1 from gitleaks must mean secrets found, not success (Issue #411)")
+        self.assertIsNotNone(error_msg)
+
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.subprocess.run')
+    def test_gitleaks_exit_code_42_blocks_operation(
+        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+    ):
+        """Exit code 42 (custom) from gitleaks must be treated as secrets found."""
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
+
+        mock_engine = MagicMock()
+        mock_engine.type = "gitleaks"
+        mock_engine.output_parser = "gitleaks"
+        mock_engine.secrets_found_exit_code = 42
+        mock_engine.success_exit_code = 0
+        mock_select_engine.return_value = mock_engine
+
+        mock_build_command.return_value = ["gitleaks", "detect", "..."]
+
+        mock_result = MagicMock()
+        mock_result.returncode = 42
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        mock_run.return_value = mock_result
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY",  # notsecret
+            filename="test.txt"
+        )
+
+        self.assertTrue(has_secrets, "Exit code 42 from gitleaks must block the operation")
+        self.assertIsNotNone(error_msg)
+        self.assertIn("Secret Detected", error_msg)
+
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.subprocess.run')
+    def test_gitleaks_exit_code_0_allows_operation(
+        self, mock_run, mock_load_config, mock_get_parser,
+        mock_build_command, mock_select_engine
+    ):
+        """Exit code 0 from gitleaks means no secrets found — allow operation."""
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
+
+        mock_engine = MagicMock()
+        mock_engine.type = "gitleaks"
+        mock_engine.output_parser = "gitleaks"
+        mock_engine.secrets_found_exit_code = 42
+        mock_engine.success_exit_code = 0
+        mock_select_engine.return_value = mock_engine
+
+        mock_build_command.return_value = ["gitleaks", "detect", "..."]
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stderr = ""
+        mock_run.return_value = mock_result
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {
+            "has_secrets": False,
+            "findings": [],
+            "total_findings": 0
+        }
+        mock_get_parser.return_value = mock_parser
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "clean content without secrets",
+            filename="test.txt"
+        )
+
+        self.assertFalse(has_secrets, "Exit code 0 should allow the operation")
+        self.assertIsNone(error_msg)
+
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.subprocess.run')
+    def test_betterleaks_exit_code_1_not_treated_as_success(
+        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+    ):
+        """Exit code 1 from betterleaks must also be treated as secrets found (Issue #411)."""
+        mock_load_config.return_value = ({"engines": ["betterleaks"]}, None)
+
+        mock_engine = MagicMock()
+        mock_engine.type = "betterleaks"
+        mock_engine.output_parser = "gitleaks"
+        mock_engine.secrets_found_exit_code = 42
+        mock_engine.success_exit_code = 0
+        mock_select_engine.return_value = mock_engine
+
+        mock_build_command.return_value = ["betterleaks", "dir", "..."]
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        mock_result.stderr = "leaks found: 1"
+        mock_run.return_value = mock_result
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY",  # notsecret
+            filename="test.txt"
+        )
+
+        self.assertTrue(has_secrets, "Exit code 1 from betterleaks must mean secrets found (Issue #411)")
+        self.assertIsNotNone(error_msg)
+
 
 if __name__ == '__main__':
     unittest.main()
