@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hook Simulator panel in TUI** (Issue #397)
+  - Simulate UserPromptSubmit, PreToolUse, and PostToolUse hook events
+  - Test detection rules (secrets, PII, prompt injection, config scanning) without triggering real hooks
+  - View BLOCKED/ALLOWED/WARNING decisions with detection details
+  - Toggle raw JSON response with IDE format selector (Claude Code, Cursor, GitHub Copilot)
+  - Simulation isolated from real violations log (uses temporary state directory)
+
 - **`ai-guardian console` alias for `ai-guardian tui`** (Issue #389)
   - `ai-guardian console` launches the same TUI as `ai-guardian tui`
   - Both commands shown in `ai-guardian --help`

@@ -37,10 +37,10 @@ class TestNavGroups:
         """Test that NAV_GROUPS defines exactly 8 category groups."""
         assert len(NAV_GROUPS) == 8
 
-    def test_nav_groups_has_twentyfour_panels(self):
-        """Test that NAV_GROUPS defines exactly 24 leaf panels."""
+    def test_nav_groups_has_twentyfive_panels(self):
+        """Test that NAV_GROUPS defines exactly 25 leaf panels."""
         total_leaves = sum(len(items) for _, items in NAV_GROUPS)
-        assert total_leaves == 24
+        assert total_leaves == 25
 
     def test_panel_ids_are_unique(self):
         """Test that all panel IDs are unique."""
@@ -112,6 +112,7 @@ class TestNavGroups:
         assert "panel-config-editor" in nav_dict["Configuration"]
         assert "panel-config-effective" in nav_dict["Configuration"]
         assert "panel-regex-tester" in nav_dict["Tools"]
+        assert "panel-hook-simulator" in nav_dict["Tools"]
 
 
 class TestHelpDocs:
