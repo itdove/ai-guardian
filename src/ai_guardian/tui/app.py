@@ -103,6 +103,7 @@ NAV_GROUPS = [
     ]),
     ("Tools", [
         ("Regex Tester", "panel-regex-tester"),
+        ("Hook Simulator", "panel-hook-simulator"),
     ]),
 ]
 
@@ -183,7 +184,9 @@ HELP_DOCS = {
         "security patterns.\n\n"
         "[bold]Sections:[/bold]\n"
         "  [bold]Regex Tester[/bold] — Interactively test regex "
-        "patterns with ReDoS validation and config integration"
+        "patterns with ReDoS validation and config integration\n"
+        "  [bold]Hook Simulator[/bold] — Test detection rules against "
+        "simulated hook events without triggering real hooks"
     ),
     # Panel-level help
     "panel-security-dashboard": (
@@ -535,6 +538,20 @@ HELP_DOCS = {
         "  - Secret Scanning allowlist\n\n"
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]r[/bold]  Clear and reset the tester"
+    ),
+    "panel-hook-simulator": (
+        "[bold]Hook Simulator[/bold]\n\n"
+        "Test AI Guardian's detection pipeline against simulated hook "
+        "events without triggering real hooks or logging violations.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Simulate UserPromptSubmit, PreToolUse, and PostToolUse\n"
+        "  - Select tool type and file path for tool-use hooks\n"
+        "  - View BLOCKED/ALLOWED/WARNING decisions\n"
+        "  - See detection details (secrets, PII, prompt injection)\n"
+        "  - View redacted output when applicable\n"
+        "  - Raw JSON response with IDE format selector\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Clear and reset the simulator"
     ),
 }
 
@@ -909,6 +926,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-regex-tester"):
                     from ai_guardian.tui.regex_tester import RegexTesterContent
                     yield RegexTesterContent()
+
+                with Container(id="panel-hook-simulator"):
+                    from ai_guardian.tui.hook_simulator import HookSimulatorContent
+                    yield HookSimulatorContent()
 
         yield Footer()
 
