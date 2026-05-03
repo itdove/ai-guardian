@@ -290,10 +290,12 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         if pattern_server is None:
             enabled_value = False
-        elif not isinstance(pattern_server, dict) or not pattern_server:
+        elif not isinstance(pattern_server, dict):
             enabled_value = False
         elif "enabled" in pattern_server:
             enabled_value = pattern_server["enabled"]
+        elif not pattern_server:
+            enabled_value = False
         elif "disabled_until" in pattern_server:
             enabled_value = {
                 "value": False,
@@ -513,7 +515,11 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Error saving config: {e}", severity="error")
 
     def save_pattern_server_enabled_value(self, value: Union[bool, Dict[str, Any]]) -> None:
-        """Save pattern server enabled state to config (supports time-based format)."""
+        """Save pattern server enabled state to config (supports time-based format).
+
+        Only writes the 'enabled' field — never modifies, deletes, or nullifies
+        any other field in the pattern_server section (url, auth, cache, etc.).
+        """
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -524,37 +530,13 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             else:
                 config = {}
 
-            # Ensure secret_scanning section exists
             if "secret_scanning" not in config:
                 config["secret_scanning"] = {}
 
             value = sanitize_enabled_value(value)
 
-            if isinstance(value, bool):
-                if value:
-                    # Enabling: ensure section exists, remove deprecated fields
-                    if config["secret_scanning"].get("pattern_server") is None:
-                        config["secret_scanning"]["pattern_server"] = {}
-                    if "pattern_server" not in config["secret_scanning"]:
-                        config["secret_scanning"]["pattern_server"] = {}
-                    config["secret_scanning"]["pattern_server"].pop("enabled", None)
-                    config["secret_scanning"]["pattern_server"].pop("disabled_until", None)
-                    config["secret_scanning"]["pattern_server"].pop("disabled_reason", None)
-                else:
-                    # Disabling: set section to null
-                    config["secret_scanning"]["pattern_server"] = None
-            else:
-                # Time-based temp disable: keep section, store disabled_until at section level
-                if config["secret_scanning"].get("pattern_server") is None:
-                    config["secret_scanning"]["pattern_server"] = {}
-                if "pattern_server" not in config["secret_scanning"]:
-                    config["secret_scanning"]["pattern_server"] = {}
-                config["secret_scanning"]["pattern_server"].pop("enabled", None)
-                config["secret_scanning"]["pattern_server"]["disabled_until"] = value.get("disabled_until", "")
-                if value.get("reason"):
-                    config["secret_scanning"]["pattern_server"]["disabled_reason"] = value["reason"]
-                else:
-                    config["secret_scanning"]["pattern_server"].pop("disabled_reason", None)
+            self._ensure_pattern_server_section(config)
+            config["secret_scanning"]["pattern_server"]["enabled"] = value
 
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)

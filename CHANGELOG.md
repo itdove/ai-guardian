@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **TUI pattern server toggle no longer destroys configuration** (Issue #418)
+  - Previously, disabling the pattern server via TUI set the entire section to `null`, losing URL, auth, and cache settings
+  - Now all three toggle modes (enable, disable, temp disable) only write the `enabled` field
+  - Other configuration (url, auth, cache, patterns_endpoint, warn_on_failure) is never modified by toggle operations
+  - Backend `_load_pattern_server_config` now uses `is_feature_enabled()` for time-based disable support
+  - Migration no longer strips the `enabled` field when moving pattern_server config
+  - Temp disable duration/reason inputs now auto-save when focus leaves the field (no Enter required)
+
 - **gitleaks:allow guidance now correctly says "at the end of the line"** (Issue #416)
   - Block message in `__init__.py` changed from ambiguous "comment to the line" to "at the end of the line"
   - TUI violations help changed from incorrect "before the line" to "inline comment at the end of the line"

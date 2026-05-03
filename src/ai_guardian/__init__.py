@@ -1144,24 +1144,16 @@ def _load_pattern_server_config():
         if "pattern_server" in secret_scanning:
             pattern_config = secret_scanning["pattern_server"]
 
-            # Handle explicit null (disabled)
+            # Handle explicit null (backward compat: disabled)
             if pattern_config is None:
                 logging.debug("Pattern server explicitly disabled (secret_scanning.pattern_server = null)")
                 return None
 
-            # Handle dict config (enabled if has url)
             if isinstance(pattern_config, dict):
-                # Warn if using deprecated 'enabled' field
+                # Check enabled field (primary mechanism)
                 if "enabled" in pattern_config:
-                    logging.warning(
-                        "DEPRECATED: pattern_server.enabled field is no longer needed. "
-                        "Use presence/absence of pattern_server section to enable/disable. "
-                        "To disable: set pattern_server to null or remove the section. "
-                        "This field will be removed in v2.0.0."
-                    )
-                    # Respect enabled=false for backward compatibility
-                    if not pattern_config.get("enabled", True):
-                        logging.debug("Pattern server disabled via deprecated 'enabled: false'")
+                    if not is_feature_enabled(pattern_config["enabled"]):
+                        logging.debug("Pattern server disabled via enabled field")
                         return None
 
                 # Enabled if configured (has URL)
@@ -1188,15 +1180,10 @@ def _load_pattern_server_config():
             )
 
             if isinstance(pattern_config, dict):
-                # Warn if using deprecated 'enabled' field
+                # Check enabled field
                 if "enabled" in pattern_config:
-                    logging.warning(
-                        "DEPRECATED: pattern_server.enabled field is no longer needed. "
-                        "Use presence/absence of pattern_server section to enable/disable."
-                    )
-                    # Respect enabled=false for backward compatibility
-                    if not pattern_config.get("enabled", True):
-                        logging.debug("Pattern server disabled via deprecated 'enabled: false'")
+                    if not is_feature_enabled(pattern_config["enabled"]):
+                        logging.debug("Pattern server disabled via enabled field")
                         return None
 
                 # Enabled if configured

@@ -574,18 +574,11 @@ class IDESetup:
         # Perform migration: move to secret_scanning.pattern_server
         old_pattern_server = config.pop("pattern_server")
 
-        # Remove deprecated 'enabled' field
-        if isinstance(old_pattern_server, dict) and "enabled" in old_pattern_server:
-            enabled = old_pattern_server.pop("enabled")
-            # If it was explicitly disabled, set to null instead
-            if not enabled:
-                old_pattern_server = None
-
         # Ensure secret_scanning section exists
         if "secret_scanning" not in config:
             config["secret_scanning"] = {}
 
-        # Move pattern_server under secret_scanning
+        # Move pattern_server under secret_scanning, preserving enabled field as-is
         config["secret_scanning"]["pattern_server"] = old_pattern_server
 
         return True, config

@@ -106,6 +106,14 @@ class ISO8601Validator(Validator):
             return self.failure("Invalid ISO 8601 format. Expected: YYYY-MM-DDTHH:MM:SSZ")
 
 
+class _BlurSaveInput(Input):
+    """Input that auto-submits when focus leaves, triggering the same save as Enter."""
+
+    def on_blur(self) -> None:
+        if self.value.strip():
+            self.action_submit()
+
+
 class DurationValidator(Validator):
     """Validator for duration strings like 30m, 2h, 1d, 1h30m."""
 
@@ -203,13 +211,13 @@ class TimeBasedToggle(VerticalGroup):
             yield Button("Disable", id=f"{self.config_key}_btn_disable", classes="tbt-btn")
             yield Button("Temp Disable", id=f"{self.config_key}_btn_temp", classes="tbt-btn")
 
-        dur = Input(
+        dur = _BlurSaveInput(
             placeholder="Duration: 30m, 2h, 1d",
             validators=[DurationValidator()],
             id=f"{self.config_key}_disabled_until",
         )
         dur.styles.width = "30"
-        reason = Input(
+        reason = _BlurSaveInput(
             placeholder="Reason (optional)",
             id=f"{self.config_key}_reason",
         )
