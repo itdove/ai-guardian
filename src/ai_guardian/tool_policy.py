@@ -1503,6 +1503,17 @@ class ToolPolicyChecker:
             file_path = check_value if tool_name in file_path_tools else None
 
             # Log the violation
+            ctx = {
+                "ide_type": ide_type,
+                "hook_event": hook_data.get("hook_event_name"),
+                "project_path": os.getcwd()
+            }
+            tool_use_id = hook_data.get("tool_use_id")
+            session_id = hook_data.get("session_id")
+            if tool_use_id:
+                ctx["tool_use_id"] = tool_use_id
+            if session_id:
+                ctx["session_id"] = session_id
             violation_logger.log_violation(
                 violation_type=violation_type,
                 blocked={
@@ -1512,11 +1523,7 @@ class ToolPolicyChecker:
                     "matcher": matcher,
                     "reason": reason
                 },
-                context={
-                    "ide_type": ide_type,
-                    "hook_event": hook_data.get("hook_event_name"),
-                    "project_path": os.getcwd()
-                },
+                context=ctx,
                 suggestion={
                     "action": "add_allow_pattern",
                     "config_path": str(get_config_dir() / "ai-guardian.json"),
