@@ -31,7 +31,7 @@ except ImportError:
     Draft7Validator = None
     JsonSchemaValidationError = None
 
-from ai_guardian.config_utils import get_config_dir, is_expired
+from ai_guardian.config_utils import get_config_dir, is_expired, is_feature_enabled
 
 # Import violation logger
 try:
@@ -495,7 +495,7 @@ class ToolPolicyChecker:
             # Prevents accessing private networks, metadata endpoints, and dangerous URL schemes
             if HAS_SSRF_PROTECTOR:
                 ssrf_config = self.config.get("ssrf_protection", {})
-                if ssrf_config.get("enabled", True):  # Enabled by default
+                if is_feature_enabled(ssrf_config.get("enabled"), datetime.now(timezone.utc), default=True):
                     ssrf_protector = SSRFProtector(ssrf_config)
                     should_block, error_msg = ssrf_protector.check(tool_name, tool_input)
 
