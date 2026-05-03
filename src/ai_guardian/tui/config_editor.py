@@ -18,12 +18,14 @@ from textual.screen import ModalScreen
 from textual.widgets import Static, Button, TextArea
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.tui.console_settings import load_editor_theme
 
 try:
     from jsonschema import Draft7Validator, ValidationError as JsonSchemaValidationError
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
+
 
 _schema_validator = None
 
@@ -222,10 +224,11 @@ class ConfigEditorContent(Container):
         )
         yield Static(f"[dim]{self._config_path}[/dim]", id="editor-path")
 
+        theme = load_editor_theme()
         yield TextArea(
             "",
             language="json",
-            theme="monokai",
+            theme=theme,
             show_line_numbers=True,
             tab_behavior="indent",
             id="config-text-editor",
@@ -236,8 +239,23 @@ class ConfigEditorContent(Container):
     def on_mount(self) -> None:
         self.load_config()
 
+    def on_show(self) -> None:
+        """Reload theme when panel becomes visible."""
+        self._apply_saved_theme()
+
     def refresh_content(self) -> None:
+        self._apply_saved_theme()
         self.load_config()
+
+    def _apply_saved_theme(self) -> None:
+        """Read theme from config and apply to the editor."""
+        try:
+            editor = self.query_one("#config-text-editor", TextArea)
+            theme = load_editor_theme()
+            if editor.theme != theme:
+                editor.theme = theme
+        except Exception:
+            pass
 
     def load_config(self) -> None:
         """Load config file into the editor."""

@@ -98,6 +98,7 @@ NAV_GROUPS = [
         ("Remote Configs", "panel-remote-configs"),
         ("Config File", "panel-config-file"),
         ("Config Editor", "panel-config-editor"),
+        ("Console Settings", "panel-console-settings"),
         ("Effective Config", "panel-config-effective"),
     ]),
     ("Tools", [
@@ -169,6 +170,10 @@ HELP_DOCS = {
         "  [bold]Remote Configs[/bold] — Manage remote configuration "
         "sources (URLs, update schedules)\n"
         "  [bold]Config File[/bold] — View raw JSON config files\n"
+        "  [bold]Config Editor[/bold] — Edit config with syntax "
+        "highlighting and validation\n"
+        "  [bold]Console Settings[/bold] — Editor theme and display "
+        "preferences\n"
         "  [bold]Effective Config[/bold] — View resolved runtime "
         "configuration"
     ),
@@ -492,6 +497,15 @@ HELP_DOCS = {
         "  [bold]Ctrl+S[/bold]  Save with confirmation\n"
         "  [bold]Ctrl+R[/bold]  Reload from disk\n"
         "  [bold]Ctrl+Z[/bold]  Undo"
+    ),
+    "panel-console-settings": (
+        "[bold]Console Settings[/bold]\n\n"
+        "Configure TUI console preferences.\n\n"
+        "[bold]Settings:[/bold]\n"
+        "  [bold]Editor Theme[/bold] — Color theme for the JSON config "
+        "editor. Options: Monokai, VS Code Dark, Dracula, GitHub Light\n\n"
+        "Changes are saved immediately to console.editor_theme in "
+        "your config file."
     ),
     "panel-config-effective": (
         "[bold]Effective Config[/bold]\n\n"
@@ -883,6 +897,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-config-editor"):
                     from ai_guardian.tui.config_editor import ConfigEditorContent
                     yield ConfigEditorContent()
+
+                with Container(id="panel-console-settings"):
+                    from ai_guardian.tui.console_settings import ConsoleSettingsContent
+                    yield ConsoleSettingsContent()
 
                 with Container(id="panel-config-effective"):
                     from ai_guardian.tui.config_effective import ConfigEffectiveContent

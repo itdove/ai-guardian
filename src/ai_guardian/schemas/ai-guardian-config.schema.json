@@ -1237,6 +1237,18 @@
           "minimum": 1
         }
       }
+    },
+    "console": {
+      "type": "object",
+      "description": "TUI console settings (editor theme, display preferences)",
+      "properties": {
+        "editor_theme": {
+          "type": "string",
+          "enum": ["monokai", "vscode_dark", "dracula", "github_light"],
+          "default": "monokai",
+          "description": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"
+        }
+      }
     }
   }
 }

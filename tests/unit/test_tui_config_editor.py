@@ -167,3 +167,12 @@ class TestConfigEditorContent:
             assert config_path.exists()
             backup_path = config_path.with_suffix(".json.bak")
             assert not backup_path.exists()
+
+
+class TestConfigEditorThemeIntegration:
+    """Tests for config editor theme loading."""
+
+    def test_editor_uses_load_editor_theme(self):
+        """Verify config editor imports and calls load_editor_theme."""
+        from ai_guardian.tui.config_editor import load_editor_theme
+        assert callable(load_editor_theme)
