@@ -939,6 +939,11 @@ class AIGuardianTUI(App):
         if event.node.data is not None:
             switcher = self.query_one("#panels", ContentSwitcher)
             switcher.current = event.node.data
+            panel = self.query_one(f"#{event.node.data}", Container)
+            for child in panel.children:
+                if hasattr(child, "refresh_content"):
+                    child.refresh_content()
+                    break
 
     def _get_current_content(self):
         """Get the content widget from the currently visible panel."""
