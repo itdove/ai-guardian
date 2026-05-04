@@ -125,11 +125,15 @@ logging.basicConfig(
 # Global logger instance
 logger = logging.getLogger(__name__)
 
-# Log version at startup
-logger.info(f"AI Guardian v{__version__} initialized")
-logger.info(f"Python {sys.version.split()[0]}")
-import platform
-logger.info(f"Platform: {platform.platform()}")
+# Log version at startup (suppress for sanitize command — stdout must be clean)
+if "sanitize" not in sys.argv:
+    logger.info(f"AI Guardian v{__version__} initialized")
+    logger.info(f"Python {sys.version.split()[0]}")
+    import platform
+    logger.info(f"Platform: {platform.platform()}")
+else:
+    import platform
+    logging.disable(logging.CRITICAL)
 
 
 class IDEType(Enum):
@@ -3918,6 +3922,42 @@ def main():
             help="Output as JSON"
         )
 
+        # Sanitize subcommand (Issue #443)
+        sanitize_parser = subparsers.add_parser(
+            "sanitize",
+            help="Redact secrets, PII, and threats from text"
+        )
+        sanitize_parser.add_argument(
+            "input",
+            nargs="?",
+            help="File to sanitize (reads stdin if omitted)"
+        )
+        sanitize_parser.add_argument(
+            "--no-secrets",
+            action="store_true",
+            help="Skip secret redaction"
+        )
+        sanitize_parser.add_argument(
+            "--no-pii",
+            action="store_true",
+            help="Skip PII redaction"
+        )
+        sanitize_parser.add_argument(
+            "--no-threats",
+            action="store_true",
+            help="Skip prompt injection and unicode attack neutralization"
+        )
+        sanitize_parser.add_argument(
+            "--summary",
+            action="store_true",
+            help="Print redaction summary to stderr"
+        )
+        sanitize_parser.add_argument(
+            "--exit-code",
+            action="store_true",
+            help="Exit with code 1 if redactions were made (for CI/CD)"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -4203,6 +4243,20 @@ def main():
 
             except Exception as e:
                 print(f"Error listing patterns: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle sanitize command (Issue #443)
+        if args.command == "sanitize":
+            try:
+                from ai_guardian.sanitizer import sanitize_command
+                return sanitize_command(args)
+            except ImportError as e:
+                print(f"Error: Sanitizer module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running sanitize: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1

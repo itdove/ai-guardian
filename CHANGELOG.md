@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sanitize Command** (Issue #443)
+  - New `ai-guardian sanitize` command for redacting secrets, PII, and threats from text
+  - Neutralizes: secrets, PII, prompt injection patterns, unicode attacks (zero-width chars, bidi overrides, tag chars, homoglyphs)
+  - Reads from stdin or file, outputs only redacted text to stdout (pipe-safe)
+  - Ignores user config — hardcoded maximum detection, no allowlists, no ignore patterns
+  - Flags: `--no-secrets`, `--no-pii`, `--no-threats`, `--summary`, `--exit-code`
+  - Designed for cleaning transcripts before sharing with other AI agents
+
 - **OSC 52 terminal escape sequence as clipboard fallback** (Issue #433)
   - Added `wl-copy` support for Wayland environments
   - Added OSC 52 escape sequence as final fallback for containers/SSH/headless
