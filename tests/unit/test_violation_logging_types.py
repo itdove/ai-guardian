@@ -12,7 +12,7 @@ ALL_LOG_TYPES = [
     "tool_permission", "directory_blocking", "secret_detected",
     "secret_redaction", "prompt_injection", "jailbreak_detected",
     "ssrf_blocked", "config_file_exfil", "pii_detected",
-    "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript"
+    "secret_in_transcript", "pii_in_transcript"
 ]
 
 

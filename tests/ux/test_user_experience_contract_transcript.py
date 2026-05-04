@@ -1,9 +1,13 @@
 """
-User Experience Contract Tests for Transcript Scanning (Issue #430)
+User Experience Contract Tests for Transcript Scanning (Issue #430, #442)
 
 These tests document and verify the expected user experience when ai-guardian
-scans the conversation transcript for secrets, PII, and prompt injection
-that may have entered via ! shell commands.
+scans the conversation transcript for secrets and PII that may have entered
+via ! shell commands.
+
+Prompt injection scanning is intentionally excluded from transcript scanning
+because conversation history naturally contains patterns that trigger false
+positives (Issue #442).
 
 Key contract: Transcript scanning is DETECT-ONLY. It warns the user via
 systemMessage but NEVER blocks the prompt, because the sensitive content
@@ -27,10 +31,11 @@ class TranscriptScanningUserExperienceTests(TestCase):
 
     These tests verify that:
     1. Secrets from ! commands are detected in transcripts
-    2. Warnings are shown via systemMessage (not blocking)
-    3. The user prompt is never blocked due to transcript findings
-    4. Feature can be disabled
-    5. Missing transcript_path is handled gracefully
+    2. PII from ! commands is detected in transcripts
+    3. Warnings are shown via systemMessage (not blocking)
+    4. The user prompt is never blocked due to transcript findings
+    5. Feature can be disabled
+    6. Missing transcript_path is handled gracefully
     """
 
     @patch('ai_guardian._scan_for_pii')
