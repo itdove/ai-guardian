@@ -6,9 +6,10 @@ Provides interactive text-based interface for AI Guardian configuration.
 Sidebar tree navigation with grouped sections and content switching.
 """
 
+import base64
 import subprocess
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -20,47 +21,75 @@ from textual.binding import Binding
 from textual import events
 
 
-def copy_to_system_clipboard(text: str) -> Optional[str]:
-    """Copy text to the system clipboard using platform-native commands.
+def copy_osc52(text: str) -> bool:
+    """Copy to clipboard via OSC 52 escape sequence.
 
-    Returns None on success, or an error message string on failure.
+    Works in terminals that support it (iTerm2, kitty, alacritty, WezTerm,
+    foot, Windows Terminal). Does NOT work in macOS Terminal.app or older
+    GNOME Terminal.
     """
     try:
-        if sys.platform == "darwin":
-            subprocess.run(
-                ["pbcopy"], input=text.encode("utf-8"), check=True,
-                capture_output=True, timeout=5,
-            )
-        elif sys.platform == "win32":
-            subprocess.run(
-                ["clip"], input=text.encode("utf-16le"), check=True,
-                capture_output=True, timeout=5,
-            )
-        elif sys.platform.startswith("linux"):
-            try:
-                subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=text.encode("utf-8"), check=True,
-                    capture_output=True, timeout=5,
-                )
-            except FileNotFoundError:
-                try:
-                    subprocess.run(
-                        ["xsel", "--clipboard", "--input"],
-                        input=text.encode("utf-8"), check=True,
-                        capture_output=True, timeout=5,
-                    )
-                except FileNotFoundError:
-                    return (
-                        "Install xclip for clipboard support: "
-                        "sudo apt install xclip"
-                    )
-        else:
-            return "Clipboard not supported on this platform"
+        encoded = base64.b64encode(text.encode("utf-8")).decode("utf-8")
+        sys.stdout.write(f"\033]52;c;{encoded}\a")
+        sys.stdout.flush()
+        return True
+    except Exception:
+        return False
+
+
+def _try_clipboard_command(cmd: list, text: str,
+                           encoding: str = "utf-8") -> bool:
+    """Try a clipboard command, returning True on success."""
+    try:
+        subprocess.run(
+            cmd, input=text.encode(encoding), check=True,
+            capture_output=True, timeout=5,
+        )
+        return True
     except (FileNotFoundError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired):
-        return "Clipboard command failed"
-    return None
+        return False
+
+
+def copy_to_system_clipboard(text: str) -> Tuple[Optional[str], Optional[str]]:
+    """Copy text to the system clipboard using platform-native commands.
+
+    Returns a (error, method) tuple:
+      - On success: (None, method_name) e.g. (None, "pbcopy")
+      - On failure: (error_message, None)
+    """
+    if sys.platform == "darwin":
+        if _try_clipboard_command(["pbcopy"], text):
+            return (None, "pbcopy")
+    elif sys.platform == "win32":
+        if _try_clipboard_command(["clip"], text, encoding="utf-16le"):
+            return (None, "clip")
+    elif sys.platform.startswith("linux"):
+        if _try_clipboard_command(
+            ["xclip", "-selection", "clipboard"], text,
+        ):
+            return (None, "xclip")
+        if _try_clipboard_command(
+            ["xsel", "--clipboard", "--input"], text,
+        ):
+            return (None, "xsel")
+        if _try_clipboard_command(["wl-copy"], text):
+            return (None, "wl-copy")
+        if copy_osc52(text):
+            return (None, "OSC 52")
+        return (
+            "Install xclip or wl-copy for clipboard support, "
+            "or use a terminal with OSC 52 support",
+            None,
+        )
+    else:
+        if copy_osc52(text):
+            return (None, "OSC 52")
+        return ("Clipboard not supported on this platform", None)
+
+    if copy_osc52(text):
+        return (None, "OSC 52")
+    return ("Clipboard command failed", None)
 
 
 NAV_GROUPS = [
@@ -798,10 +827,10 @@ class AIGuardianTUI(App):
     def copy_to_clipboard(self, text: str) -> None:
         """Copy text to clipboard with platform-native fallback.
 
-        Tries native commands first (pbcopy/xclip/clip) then falls back
-        to Textual's OSC 52 escape sequence for terminals that support it.
+        Tries native commands first (pbcopy/xclip/xsel/wl-copy), then
+        OSC 52, then falls back to Textual's built-in OSC 52 sequence.
         """
-        error = copy_to_system_clipboard(text)
+        error, method = copy_to_system_clipboard(text)
         if error is None:
             return
         super().copy_to_clipboard(text)
