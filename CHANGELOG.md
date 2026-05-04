@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-04
+
 ### Changed
 
 - **Renamed all TUI references to Console** (Issue #440)
@@ -1118,7 +1120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/itdove/ai-guardian/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/itdove/ai-guardian/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/itdove/ai-guardian/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/itdove/ai-guardian/compare/v1.3.0...v1.4.0
