@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **TUI violations panel no longer auto-modifies config** (Issue #421)
+  - Removed "Approve & Add to Allowlist" and "Keep Blocked" action buttons from all violation cards
+  - Removed "Undo Resolution" button from resolved violation cards
+  - Details modal now shows type-specific resolution instructions with copyable config snippets
+  - Users must manually edit config (via TUI config panels, JSON editor, or text editor)
+  - Fixed keyboard navigation for SSRF, Config Exfil, and PII tabs (missing list_id_map entries)
+
 ### Fixed
 
 - **TUI pattern server toggle no longer destroys configuration** (Issue #418)

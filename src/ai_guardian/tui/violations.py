@@ -2,12 +2,11 @@
 """
 Violations Tab Content
 
-Display all recent violations with filtering and one-click approval.
+Display all recent violations with filtering and resolution instructions.
 """
 
 import json
-from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
@@ -17,7 +16,6 @@ from textual.binding import Binding
 from textual import events
 
 from ai_guardian.violation_logger import ViolationLogger
-from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
 
 
@@ -72,17 +70,140 @@ class ViolationDetailsModal(ModalScreen):
         super().__init__(*args, **kwargs)
         self.violation = violation
 
+    def _get_resolution_instructions(self):
+        """Return (instructions_text, config_snippet) for this violation type."""
+        vtype = self.violation.get("violation_type", "")
+        blocked = self.violation.get("blocked", {})
+        suggestion = self.violation.get("suggestion", {})
+
+        if vtype == "tool_permission":
+            rule = suggestion.get("rule", {})
+            snippet = json.dumps({"permissions": {"rules": [rule]}}, indent=2) if rule else ""
+            return (
+                "Add this rule to [bold]permissions.rules[/bold] in ai-guardian.json:",
+                snippet,
+            )
+
+        elif vtype == "prompt_injection":
+            pattern = blocked.get("pattern", "<pattern>")
+            snippet = json.dumps(
+                {"prompt_injection": {"allowlist_patterns": [pattern]}}, indent=2
+            )
+            return (
+                "Add this pattern to [bold]prompt_injection.allowlist_patterns[/bold]:",
+                snippet,
+            )
+
+        elif vtype == "jailbreak_detected":
+            pattern = blocked.get("pattern", blocked.get("matched_text", "<pattern>"))
+            snippet = json.dumps(
+                {"prompt_injection": {"allowlist_patterns": [pattern]}}, indent=2
+            )
+            return (
+                "Add this pattern to [bold]prompt_injection.allowlist_patterns[/bold]:",
+                snippet,
+            )
+
+        elif vtype == "secret_detected":
+            file_path = blocked.get("file_path", "<file>")
+            secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
+            instructions = (
+                f"Secret type: {secret_type}\n\n"
+                "[bold]Option 1:[/bold] Add a regex pattern to ai-guardian.json:\n"
+                '  "secret_scanning": {{\n'
+                '    "allowlist_patterns": ["your-regex-pattern"]\n'
+                "  }}\n\n"
+                "[bold]Option 2:[/bold] Add inline comment at the end of the line:\n"
+                "  YOUR_SECRET_LINE # gitleaks:allow\n\n"
+                "[bold]Option 3:[/bold] Add to .gitleaks.toml allowlist\n\n"
+                "[dim]Tip: Option 1 works for both file scanning and tool output scanning.\n"
+                "Options 2-3 only work for file scanning (PreToolUse).[/dim]"
+            )
+            snippet = json.dumps(
+                {"secret_scanning": {"allowlist_patterns": ["your-regex-pattern"]}}, indent=2
+            )
+            return (instructions, snippet)
+
+        elif vtype == "directory_blocking":
+            denied_dir = blocked.get("denied_directory", "<directory>")
+            instructions = (
+                "Add an allow rule to [bold]directory_rules.rules[/bold] or remove the deny pattern.\n\n"
+                f"To remove the deny file:\n  rm {denied_dir}/.ai-read-deny"
+            )
+            snippet = f"rm {denied_dir}/.ai-read-deny"
+            return (instructions, snippet)
+
+        elif vtype == "pii_detected":
+            file_path = blocked.get("file_path", "<file>")
+            snippet = json.dumps(
+                {"scan_pii": {"allowlist_patterns": ["<pattern>"], "ignore_files": [file_path]}},
+                indent=2,
+            )
+            return (
+                "Add pattern to [bold]scan_pii.allowlist_patterns[/bold] "
+                "or file to [bold]scan_pii.ignore_files[/bold]:",
+                snippet,
+            )
+
+        elif vtype == "secret_redaction":
+            snippet = json.dumps(
+                {"secret_scanning": {"allowlist_patterns": ["<pattern>"]}}, indent=2
+            )
+            return (
+                "Add pattern to [bold]secret_scanning.allowlist_patterns[/bold]:",
+                snippet,
+            )
+
+        elif vtype == "ssrf_blocked":
+            tool_value = blocked.get("tool_value", "")
+            domain = "<domain>"
+            if tool_value:
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(tool_value)
+                    if parsed.hostname:
+                        domain = parsed.hostname
+                except Exception:
+                    pass
+            snippet = json.dumps(
+                {"ssrf_protection": {"additional_allowed_domains": [domain]}}, indent=2
+            )
+            return (
+                "Add domain to [bold]ssrf_protection.additional_allowed_domains[/bold]:",
+                snippet,
+            )
+
+        elif vtype == "config_file_exfil":
+            file_path = blocked.get("file_path", "<file>")
+            snippet = json.dumps(
+                {"config_file_scanning": {"ignore_files": [file_path]}}, indent=2
+            )
+            return (
+                "Add file to [bold]config_file_scanning.ignore_files[/bold]:",
+                snippet,
+            )
+
+        return ("No specific resolution instructions available for this violation type.", "")
+
     def compose(self) -> ComposeResult:
         """Compose the modal."""
+        instructions, snippet = self._get_resolution_instructions()
+
         with Container(id="modal-container"):
             yield Static("[bold]Violation Details[/bold]", id="modal-header")
 
             details = json.dumps(self.violation, indent=2)
             with VerticalScroll(id="modal-content"):
                 yield Static(details, id="modal-content-text")
+                yield Static("\n[bold]--- How to Resolve ---[/bold]\n")
+                yield Static(instructions)
+                if snippet:
+                    yield Static(f"\n[bold]Config snippet:[/bold]\n{snippet}")
 
             with Horizontal(id="modal-actions"):
-                yield Button("Copy", id="copy-details", variant="default")
+                yield Button("Copy Details", id="copy-details", variant="default")
+                if snippet:
+                    yield Button("Copy Snippet", id="copy-snippet", variant="success")
                 yield Button("Close (ESC)", id="close-details", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -91,6 +212,11 @@ class ViolationDetailsModal(ModalScreen):
             details = json.dumps(self.violation, indent=2)
             self.app.copy_to_clipboard(details)
             self.app.notify("Violation details copied to clipboard", severity="information")
+        elif event.button.id == "copy-snippet":
+            _, snippet = self._get_resolution_instructions()
+            if snippet:
+                self.app.copy_to_clipboard(snippet)
+                self.app.notify("Config snippet copied to clipboard", severity="information")
         elif event.button.id == "close-details":
             self.dismiss()
 
@@ -371,38 +497,9 @@ class ViolationCard(Vertical):
             if details:
                 yield Static(f"Details: {details[:120]}", classes="violation-detail")
 
-        # Action buttons
-        if not resolved:
-            # Unresolved violations - show approve/deny buttons
-            can_approve = False
-            approve_label = "✓ Approve & Add to Allowlist"
-
-            if vtype == "tool_permission" and suggestion.get("rule"):
-                can_approve = True
-            elif vtype == "prompt_injection":
-                can_approve = True  # Can add to allowlist
-            elif vtype == "jailbreak_detected":
-                can_approve = True  # Can add to allowlist
-            elif vtype == "secret_detected":
-                can_approve = True  # Can suggest gitleaks:allow comment
-                approve_label = "ℹ Show Allowlist Instruction"
-            elif vtype == "directory_blocking":
-                can_approve = True  # Can remove .ai-read-deny file
-                approve_label = "✓ Remove .ai-read-deny File"
-
-            with Horizontal(classes="violation-actions"):
-                if can_approve:
-                    if vtype == "secret_detected":
-                        yield Button(approve_label, id=f"approve-{timestamp_id}", variant="primary")
-                    else:
-                        yield Button(approve_label, id=f"approve-{timestamp_id}", variant="success")
-                    yield Button("✗ Keep Blocked", id=f"deny-{timestamp_id}", variant="error")
-                yield Button("Details", id=f"details-{timestamp_id}")
-        else:
-            # Resolved violations - show undo button
-            with Horizontal(classes="violation-actions"):
-                yield Button("↺ Undo Resolution", id=f"undo-{timestamp_id}", variant="warning")
-                yield Button("Details", id=f"details-{timestamp_id}")
+        # Action buttons — Details only (shows resolution instructions)
+        with Horizontal(classes="violation-actions"):
+            yield Button("Details", id=f"details-{timestamp_id}")
 
 
 class ViolationsContent(Container):
@@ -466,7 +563,7 @@ class ViolationsContent(Container):
         yield Static(
             "[dim]Historical log of blocked operations. "
             "Use sub-tabs to filter by type. "
-            "Tool permission violations can be approved with action buttons.[/dim]",
+            "Click Details on any violation for resolution instructions.[/dim]",
             classes="violation-detail"
         )
 
@@ -583,30 +680,10 @@ class ViolationsContent(Container):
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses (only approve/deny/details/undo on violation cards)."""
+        """Handle button presses (details on violation cards)."""
         button_id = event.button.id
 
-        # Approve button
-        if button_id and button_id.startswith("approve-"):
-            timestamp_id = button_id.replace("approve-", "")
-            # Convert sanitized ID back to original timestamp format
-            timestamp = self._unsanitize_timestamp(timestamp_id)
-            self.approve_violation(timestamp)
-
-        # Deny button
-        elif button_id and button_id.startswith("deny-"):
-            timestamp_id = button_id.replace("deny-", "")
-            timestamp = self._unsanitize_timestamp(timestamp_id)
-            self.deny_violation(timestamp)
-
-        # Undo button
-        elif button_id and button_id.startswith("undo-"):
-            timestamp_id = button_id.replace("undo-", "")
-            timestamp = self._unsanitize_timestamp(timestamp_id)
-            self.undo_violation(timestamp)
-
-        # Details button
-        elif button_id and button_id.startswith("details-"):
+        if button_id and button_id.startswith("details-"):
             timestamp_id = button_id.replace("details-", "")
             timestamp = self._unsanitize_timestamp(timestamp_id)
             self.show_violation_details(timestamp)
@@ -649,7 +726,10 @@ class ViolationsContent(Container):
                 "filter-redaction": "#violations-list-redaction",
                 "filter-directory": "#violations-list-directory",
                 "filter-injection": "#violations-list-injection",
-                "filter-jailbreak": "#violations-list-jailbreak"
+                "filter-jailbreak": "#violations-list-jailbreak",
+                "filter-ssrf": "#violations-list-ssrf",
+                "filter-config-exfil": "#violations-list-config-exfil",
+                "filter-pii": "#violations-list-pii",
             }
             list_id = list_id_map.get(active_tab)
             if not list_id:
@@ -760,258 +840,6 @@ class ViolationsContent(Container):
             filter_tabs.active = "filter-redaction"
         except:
             pass
-
-    def approve_violation(self, timestamp: str) -> None:
-        """Approve a violation and add appropriate allowlist rule."""
-        # Find the violation
-        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
-        violation = next((v for v in violations if v.get("timestamp") == timestamp), None)
-
-        if not violation:
-            self.app.notify("Violation not found", severity="error")
-            return
-
-        vtype = violation.get("violation_type")
-        blocked = violation.get("blocked", {})
-        suggestion = violation.get("suggestion", {})
-
-        # Load current config
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            # Handle different violation types
-            if vtype == "tool_permission":
-                # Original logic - use suggested rule
-                suggested_rule = suggestion.get("rule")
-                if not suggested_rule:
-                    self.app.notify("No suggested rule available", severity="error")
-                    return
-
-                permissions_obj = config.get("permissions", {})
-                if isinstance(permissions_obj, dict):
-                    all_permissions = permissions_obj.get("rules", [])
-                    is_dict_format = True
-                elif isinstance(permissions_obj, list):
-                    all_permissions = permissions_obj
-                    is_dict_format = False
-                else:
-                    all_permissions = []
-                    is_dict_format = False
-
-                matcher = suggested_rule.get("matcher")
-                mode = suggested_rule.get("mode")
-
-                existing_rule = next(
-                    (r for r in all_permissions
-                     if r.get("matcher") == matcher and r.get("mode") == mode),
-                    None
-                )
-
-                if existing_rule:
-                    new_patterns = suggested_rule.get("patterns", [])
-                    existing_patterns = existing_rule.get("patterns", [])
-                    merged_patterns = list(set(existing_patterns + new_patterns))
-                    existing_rule["patterns"] = merged_patterns
-                    action_msg = f"Merged patterns into existing {matcher} rule"
-                else:
-                    all_permissions.append(suggested_rule)
-                    action_msg = f"Added new {matcher} rule"
-
-                if is_dict_format:
-                    config["permissions"]["rules"] = all_permissions
-                else:
-                    config["permissions"] = all_permissions
-
-            elif vtype in ("prompt_injection", "jailbreak_detected"):
-                # Both share the same prompt_injection allowlist_patterns
-                source = blocked.get("source", "unknown")
-                pattern = blocked.get("pattern", "")
-
-                if not pattern:
-                    self.app.notify("No pattern found to allowlist", severity="error")
-                    return
-
-                if "prompt_injection" not in config:
-                    config["prompt_injection"] = {}
-                if "allowlist_patterns" not in config["prompt_injection"]:
-                    config["prompt_injection"]["allowlist_patterns"] = []
-
-                if pattern in config["prompt_injection"]["allowlist_patterns"]:
-                    self.app.notify("Pattern already in allowlist", severity="warning")
-                    return
-
-                config["prompt_injection"]["allowlist_patterns"].append(pattern)
-                label = "jailbreak" if vtype == "jailbreak_detected" else "prompt injection"
-                action_msg = f"Added '{pattern}' to {label} allowlist"
-
-            elif vtype == "secret_detected":
-                file_path = blocked.get("file_path", "")
-                line_number = blocked.get("line_number", "")
-                secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
-
-                details = f"[bold]How to Allow This Secret[/bold]\n\n"
-                details += f"Secret type: {secret_type}\n"
-                if file_path:
-                    details += f"File: {file_path}"
-                    if line_number:
-                        details += f":{line_number}"
-                    details += "\n"
-                details += (
-                    "\n[bold]Option 1:[/bold] Add a regex pattern to ai-guardian.json:\n"
-                    '  "secret_scanning": {\n'
-                    '    "allowlist_patterns": ["your-regex-pattern"]\n'
-                    "  }\n\n"
-                    "[bold]Option 2:[/bold] Add inline comment at the end of the line:\n"
-                    "  YOUR_SECRET_LINE # gitleaks:allow\n\n"
-                    "[bold]Option 3:[/bold] Add to .gitleaks.toml allowlist\n\n"
-                    "[dim]Tip: Option 1 works for both file scanning and tool output scanning.\n"
-                    "Options 2-3 only work for file scanning (PreToolUse).[/dim]"
-                )
-
-                self.violation_logger.mark_resolved(timestamp, action="info_shown")
-                self.load_all_filters()
-                from ai_guardian.tui.app import HelpModal
-                self.app.push_screen(HelpModal("Secret Allowlisting", details))
-                return
-
-            elif vtype == "directory_blocking":
-                # Remove the .ai-read-deny file
-                denied_dir = blocked.get("denied_directory")
-
-                if not denied_dir:
-                    self.app.notify("Cannot find directory path", severity="error")
-                    return
-
-                from pathlib import Path
-                deny_file = Path(denied_dir) / ".ai-read-deny"
-
-                try:
-                    if deny_file.exists():
-                        deny_file.unlink()
-                        action_msg = f"Removed {deny_file}"
-                    else:
-                        self.app.notify(f"File not found: {deny_file}", severity="warning")
-                        return
-                except Exception as e:
-                    self.app.notify(f"Error removing file: {e}", severity="error")
-                    return
-
-                # Mark as resolved
-                self.violation_logger.mark_resolved(timestamp, action="approved")
-                self.load_all_filters()
-                self.app.notify(f"✓ {action_msg}", severity="success")
-                return
-
-            else:
-                self.app.notify(f"Cannot approve {vtype} violations", severity="error")
-                return
-
-            # Write updated config (except for secret_detected which returned early)
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2)
-
-            # Mark violation as resolved
-            self.violation_logger.mark_resolved(timestamp, action="approved")
-
-            # Refresh the display
-            self.load_all_filters()
-
-            self.app.notify(f"✓ {action_msg}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error updating config: {e}", severity="error")
-
-    def deny_violation(self, timestamp: str) -> None:
-        """Mark a violation as resolved without adding the rule."""
-        if self.violation_logger.mark_resolved(timestamp, action="denied"):
-            self.load_all_filters()
-            self.app.notify("Violation marked as denied", severity="information")
-        else:
-            self.app.notify("Failed to mark violation as denied", severity="error")
-
-    def undo_violation(self, timestamp: str) -> None:
-        """Undo resolution - mark as unresolved and reverse config change."""
-        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
-        violation = next((v for v in violations if v.get("timestamp") == timestamp), None)
-
-        if not violation:
-            self.app.notify("Violation not found", severity="error")
-            return
-
-        vtype = violation.get("violation_type")
-        blocked = violation.get("blocked", {})
-        suggestion = violation.get("suggestion", {})
-        resolved_action = violation.get("resolved_action", "")
-
-        if resolved_action == "approved":
-            config_dir = get_config_dir()
-            config_path = config_dir / "ai-guardian.json"
-
-            try:
-                if config_path.exists():
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                else:
-                    config = {}
-
-                reversed_config = False
-
-                if vtype == "tool_permission":
-                    suggested_rule = suggestion.get("rule", {})
-                    matcher = suggested_rule.get("matcher")
-                    mode = suggested_rule.get("mode")
-                    patterns_to_remove = suggested_rule.get("patterns", [])
-
-                    permissions_obj = config.get("permissions", {})
-                    if isinstance(permissions_obj, dict):
-                        all_permissions = permissions_obj.get("rules", [])
-                    elif isinstance(permissions_obj, list):
-                        all_permissions = permissions_obj
-                    else:
-                        all_permissions = []
-
-                    for perm in all_permissions:
-                        if perm.get("matcher") == matcher and perm.get("mode") == mode:
-                            existing = perm.get("patterns", [])
-                            perm["patterns"] = [p for p in existing if p not in patterns_to_remove]
-                            if not perm["patterns"]:
-                                all_permissions.remove(perm)
-                            reversed_config = True
-                            break
-
-                    if isinstance(config.get("permissions"), dict):
-                        config["permissions"]["rules"] = all_permissions
-                    else:
-                        config["permissions"] = all_permissions
-
-                elif vtype in ("prompt_injection", "jailbreak_detected"):
-                    pattern = blocked.get("pattern", "")
-                    if pattern:
-                        allowlist = config.get("prompt_injection", {}).get("allowlist_patterns", [])
-                        if pattern in allowlist:
-                            allowlist.remove(pattern)
-                            reversed_config = True
-
-                if reversed_config:
-                    with open(config_path, 'w', encoding='utf-8') as f:
-                        json.dump(config, f, indent=2)
-
-            except Exception as e:
-                self.app.notify(f"Error reversing config: {e}", severity="error")
-                return
-
-        if self.violation_logger.mark_unresolved(timestamp):
-            self.load_all_filters()
-            self.app.notify("✓ Violation undone (config change reversed)", severity="success")
-        else:
-            self.app.notify("Failed to undo violation", severity="error")
 
     def show_violation_details(self, timestamp: str) -> None:
         """Show detailed information about a violation in a modal."""
