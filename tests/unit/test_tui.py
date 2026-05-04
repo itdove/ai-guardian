@@ -802,6 +802,68 @@ class TestViolationResolutionInstructions:
         assert "copy-snippet" in source
 
 
+class TestPanelRefreshOnNavigation:
+    """Tests for panel refresh when navigating via sidebar tree."""
+
+    def test_on_tree_node_selected_calls_refresh_content(self):
+        """Test that navigating to a panel calls refresh_content on its content widget."""
+        from unittest.mock import patch, MagicMock
+
+        app = AIGuardianTUI()
+
+        mock_switcher = MagicMock()
+        mock_content = MagicMock(spec=["refresh_content"])
+        mock_panel = MagicMock()
+        mock_panel.children = [mock_content]
+
+        mock_event = MagicMock()
+        mock_event.node.data = "panel-global-settings"
+
+        with patch.object(app, "query_one", side_effect=lambda sel, *a: {
+            "#panels": mock_switcher,
+            "#panel-global-settings": mock_panel,
+        }.get(sel if isinstance(sel, str) else sel)):
+            app.on_tree_node_selected(mock_event)
+
+        assert mock_switcher.current == "panel-global-settings"
+        mock_content.refresh_content.assert_called_once()
+
+    def test_on_tree_node_selected_skips_when_no_data(self):
+        """Test that tree node selection with no data does nothing."""
+        from unittest.mock import MagicMock, patch
+
+        app = AIGuardianTUI()
+        mock_event = MagicMock()
+        mock_event.node.data = None
+
+        with patch.object(app, "query_one") as mock_query:
+            app.on_tree_node_selected(mock_event)
+            mock_query.assert_not_called()
+
+    def test_on_tree_node_selected_handles_no_refresh_content(self):
+        """Test graceful handling when content widget has no refresh_content."""
+        from unittest.mock import MagicMock, patch
+
+        app = AIGuardianTUI()
+
+        mock_switcher = MagicMock()
+        mock_content = MagicMock(spec=[])
+        del mock_content.refresh_content
+        mock_panel = MagicMock()
+        mock_panel.children = [mock_content]
+
+        mock_event = MagicMock()
+        mock_event.node.data = "panel-regex-tester"
+
+        with patch.object(app, "query_one", side_effect=lambda sel, *a: {
+            "#panels": mock_switcher,
+            "#panel-regex-tester": mock_panel,
+        }.get(sel if isinstance(sel, str) else sel)):
+            app.on_tree_node_selected(mock_event)
+
+        assert mock_switcher.current == "panel-regex-tester"
+
+
 class TestModalEscBindings:
     """Tests for ESC key bindings on all modal screens."""
 
