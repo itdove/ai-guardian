@@ -1054,9 +1054,28 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "transcript_scanning": {
+      "type": "object",
+      "description": "Scan conversation transcript for secrets, PII, and prompt injection that bypassed hooks (e.g., from ! shell commands). Incrementally scans new transcript content on each UserPromptSubmit event. Detection only — warns but does not block (the content is already in the AI context). Supports Claude Code, Cursor, and GitHub Copilot. NEW in v1.7.0 (Issue #430).",
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
         }
       },
       "additionalProperties": false

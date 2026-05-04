@@ -1307,6 +1307,362 @@ def _load_pii_config():
     return config.get("scan_pii", _PII_DEFAULTS), None
 
 
+def _load_transcript_scanning_config():
+    """
+    Load transcript scanning configuration from ai-guardian.json.
+
+    Returns defaults (enabled=True) when the transcript_scanning section
+    is absent, so transcript scanning is on by default.
+
+    Returns:
+        tuple: (config_dict, error_message or None)
+    """
+    _DEFAULTS = {
+        'enabled': True,
+    }
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return _DEFAULTS, error_msg
+    if config is None:
+        return _DEFAULTS, None
+    return config.get("transcript_scanning", _DEFAULTS), None
+
+
+def _get_transcript_path(hook_data: dict) -> Optional[str]:
+    """
+    Extract transcript path from hook data across IDE types.
+
+    Tries multiple field names for IDE-agnostic support:
+    - Claude Code: transcript_path
+    - Other IDEs may use transcriptPath, transcript, or conversation_path
+
+    Args:
+        hook_data: Parsed hook input JSON
+
+    Returns:
+        Absolute path to transcript file, or None if not available
+    """
+    for field in ("transcript_path", "transcriptPath", "transcript", "conversation_path"):
+        path = hook_data.get(field)
+        if path and isinstance(path, str):
+            return path
+    return None
+
+
+def _load_transcript_positions() -> Dict[str, int]:
+    """Load transcript scanning byte-offset positions from state dir."""
+    state_dir = get_state_dir()
+    pos_file = state_dir / "transcript_positions.json"
+    try:
+        if pos_file.exists():
+            with open(pos_file, 'r', encoding='utf-8') as f:
+                positions = json.load(f)
+            if isinstance(positions, dict):
+                return positions
+    except Exception as e:
+        logging.debug(f"Failed to load transcript positions: {e}")
+    return {}
+
+
+def _save_transcript_positions(positions: Dict[str, int]) -> None:
+    """Save transcript scanning byte-offset positions to state dir.
+
+    Prunes entries for transcript files that no longer exist.
+    """
+    state_dir = get_state_dir()
+    state_dir.mkdir(parents=True, exist_ok=True)
+    pos_file = state_dir / "transcript_positions.json"
+    try:
+        pruned = {k: v for k, v in positions.items() if os.path.exists(k)}
+        with open(pos_file, 'w', encoding='utf-8') as f:
+            json.dump(pruned, f)
+    except Exception as e:
+        logging.debug(f"Failed to save transcript positions: {e}")
+
+
+def _extract_text_from_transcript_line(line_data: dict) -> str:
+    """Extract scannable text content from a transcript JSONL line.
+
+    Defensively handles various JSONL formats from different IDEs.
+
+    Args:
+        line_data: Parsed JSON object from one line of the transcript
+
+    Returns:
+        Concatenated text content found in the line
+    """
+    texts = []
+
+    # message.content (string or list of content blocks)
+    message = line_data.get("message")
+    if isinstance(message, dict):
+        content = message.get("content", "")
+        if isinstance(content, str):
+            texts.append(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    texts.append(block.get("text", ""))
+
+    # Direct content field (string or list)
+    content = line_data.get("content")
+    if isinstance(content, str):
+        texts.append(content)
+    elif isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict):
+                text = block.get("text") or block.get("content", "")
+                if text:
+                    texts.append(text)
+
+    # Direct text field
+    text = line_data.get("text")
+    if isinstance(text, str):
+        texts.append(text)
+
+    # Tool result / output fields
+    for field in ("result", "output", "stdout"):
+        val = line_data.get(field)
+        if isinstance(val, str):
+            texts.append(val)
+
+    return "\n".join(t for t in texts if t)
+
+
+def scan_transcript_incremental(
+    transcript_path: str,
+    secret_config: Optional[Dict] = None,
+    pii_config: Optional[Dict] = None,
+    injection_config: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None
+) -> list:
+    """
+    Incrementally scan transcript file for secrets, PII, and prompt injection.
+
+    Reads only new bytes since the last recorded position. Extracts text
+    content from JSONL lines and runs through all available scanners.
+
+    Args:
+        transcript_path: Absolute path to the JSONL transcript file
+        secret_config: Secret scanning config (for allowlist, ignore patterns)
+        pii_config: PII scanning config
+        injection_config: Prompt injection config
+        hook_context: Optional dict with session_id for correlation
+
+    Returns:
+        List of warning message strings (empty if nothing found)
+    """
+    warnings = []
+
+    if not os.path.exists(transcript_path):
+        logging.debug(f"Transcript file does not exist: {transcript_path}")
+        return warnings
+
+    positions = _load_transcript_positions()
+    last_pos = positions.get(transcript_path, 0)
+
+    try:
+        file_size = os.path.getsize(transcript_path)
+    except OSError as e:
+        logging.debug(f"Cannot stat transcript file: {e}")
+        return warnings
+
+    # File truncated or rotated — reset position
+    if file_size < last_pos:
+        logging.debug("Transcript file truncated, resetting position to 0")
+        last_pos = 0
+
+    # Nothing new to scan
+    if file_size <= last_pos:
+        return warnings
+
+    try:
+        with open(transcript_path, 'r', encoding='utf-8', errors='replace') as f:
+            f.seek(last_pos)
+            new_content = f.read()
+    except OSError as e:
+        logging.debug(f"Cannot read transcript file: {e}")
+        return warnings
+
+    # Parse JSONL lines and extract text
+    texts = []
+    for line in new_content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            line_data = json.loads(line)
+            if isinstance(line_data, dict):
+                extracted = _extract_text_from_transcript_line(line_data)
+                if extracted:
+                    texts.append(extracted)
+        except json.JSONDecodeError:
+            continue
+
+    combined_text = "\n".join(texts)
+
+    if not combined_text:
+        # Update position even if no text found (skip binary/empty lines)
+        positions[transcript_path] = file_size
+        _save_transcript_positions(positions)
+        return warnings
+
+    # --- Secret scanning ---
+    if secret_config is None or is_feature_enabled(
+        secret_config.get("enabled") if secret_config else None,
+        datetime.now(timezone.utc),
+        default=True
+    ):
+        try:
+            secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
+            has_secrets, secret_error = check_secrets_with_gitleaks(
+                combined_text, "transcript",
+                context={"ide_type": "transcript_scan", "hook_event": "prompt"},
+                allowlist_patterns=secret_allowlist
+            )
+            if has_secrets and secret_error:
+                warning_msg = (
+                    f"\n{'='*70}\n"
+                    f"🔍 SECRET DETECTED IN CONVERSATION TRANSCRIPT\n"
+                    f"{'='*70}\n"
+                    f"A secret was found in your conversation history\n"
+                    f"(possibly from a ! shell command).\n"
+                    f"The secret has already been sent to the AI model.\n"
+                    f"Recommended actions:\n"
+                    f"  1. Rotate the exposed credential immediately\n"
+                    f"  2. Start a new session to limit further exposure\n"
+                    f"  3. Review your shell history for other leaked secrets\n"
+                    f"{'='*70}\n"
+                )
+                warnings.append(warning_msg)
+                _log_transcript_violation(
+                    "secret_in_transcript", transcript_path,
+                    details={"reason": secret_error},
+                    hook_context=hook_context
+                )
+        except Exception as e:
+            logging.debug(f"Transcript secret scan error (fail-open): {e}")
+
+    # --- PII scanning ---
+    if pii_config and is_feature_enabled(
+        pii_config.get("enabled"),
+        datetime.now(timezone.utc),
+        default=True
+    ):
+        try:
+            has_pii, _, pii_redactions, _ = _scan_for_pii(combined_text, pii_config)
+            if has_pii:
+                pii_types = list(set(r['type'] for r in pii_redactions))
+                warning_msg = (
+                    f"\n{'='*70}\n"
+                    f"🔍 PII DETECTED IN CONVERSATION TRANSCRIPT\n"
+                    f"{'='*70}\n"
+                    f"Found {len(pii_redactions)} PII item(s): {', '.join(pii_types)}\n"
+                    f"(possibly from a ! shell command).\n"
+                    f"The PII has already been sent to the AI model.\n"
+                    f"Recommended actions:\n"
+                    f"  1. Assess the data exposure per your compliance policies\n"
+                    f"  2. Start a new session to limit further exposure\n"
+                    f"  3. Review your shell history for other leaked PII\n"
+                    f"{'='*70}\n"
+                )
+                warnings.append(warning_msg)
+                _log_transcript_violation(
+                    "pii_in_transcript", transcript_path,
+                    details={"pii_types": pii_types, "pii_count": len(pii_redactions)},
+                    hook_context=hook_context
+                )
+        except Exception as e:
+            logging.debug(f"Transcript PII scan error (fail-open): {e}")
+
+    # --- Prompt injection scanning ---
+    if HAS_PROMPT_INJECTION and injection_config and is_feature_enabled(
+        injection_config.get("enabled"),
+        datetime.now(timezone.utc),
+        default=True
+    ):
+        try:
+            detector = PromptInjectionDetector(injection_config)
+            _, injection_error, injection_detected = detector.detect(
+                combined_text, source_type="file_content"
+            )
+            if injection_detected:
+                warning_msg = (
+                    f"\n{'='*70}\n"
+                    f"🔍 PROMPT INJECTION DETECTED IN CONVERSATION TRANSCRIPT\n"
+                    f"{'='*70}\n"
+                    f"A prompt injection pattern was found in your conversation history\n"
+                    f"(possibly from a ! shell command).\n"
+                    f"The content has already been sent to the AI model.\n"
+                    f"Recommended actions:\n"
+                    f"  1. Start a new session immediately\n"
+                    f"  2. Do not trust AI responses from this session\n"
+                    f"  3. Review recent AI actions for unexpected behavior\n"
+                    f"{'='*70}\n"
+                )
+                warnings.append(warning_msg)
+                _log_transcript_violation(
+                    "prompt_injection_in_transcript", transcript_path,
+                    details={
+                        "attack_type": getattr(detector, 'last_attack_type', None),
+                        "reason": injection_error
+                    },
+                    hook_context=hook_context
+                )
+        except Exception as e:
+            logging.debug(f"Transcript prompt injection scan error (fail-open): {e}")
+
+    # Update position
+    positions[transcript_path] = file_size
+    _save_transcript_positions(positions)
+
+    return warnings
+
+
+def _log_transcript_violation(
+    violation_type: str,
+    transcript_path: str,
+    details: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None
+):
+    """Log a violation detected in the conversation transcript."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+    try:
+        hctx = hook_context or {}
+        blocked_info = {
+            "transcript_path": transcript_path,
+            "source": "transcript",
+        }
+        if details:
+            blocked_info.update(details)
+
+        violation_ctx = {
+            "ide_type": "unknown",
+            "hook_event": "prompt",
+            "project_path": os.getcwd()
+        }
+        if hctx.get("session_id"):
+            violation_ctx["session_id"] = hctx["session_id"]
+
+        violation_logger = ViolationLogger()
+        violation_logger.log_violation(
+            violation_type=violation_type,
+            blocked=blocked_info,
+            context=violation_ctx,
+            suggestion={
+                "action": "review_and_remediate",
+                "warning": "Sensitive content was detected in the conversation transcript. "
+                           "It may have been entered via a ! shell command. "
+                           "The content has already been sent to the AI model. "
+                           "Rotate any exposed credentials and start a new session."
+            },
+            severity="high"
+        )
+    except Exception as e:
+        logging.debug(f"Failed to log transcript violation: {e}")
+
+
 def _scan_for_pii(text, pii_config):
     """
     Scan text for PII using SecretRedactor with PII patterns.
@@ -3168,6 +3524,53 @@ def process_hook_input():
                             warning_messages.append(pii_warning)
                         elif pii_action == 'log-only':
                             pass
+
+        # Transcript scanning for secrets, PII, and prompt injection (Issue #430)
+        # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
+        transcript_path = _get_transcript_path(hook_data)
+        if transcript_path and hook_event == "prompt":
+            try:
+                ts_config, ts_error = _load_transcript_scanning_config()
+                if ts_error:
+                    logging.warning(f"Transcript scanning config error: {ts_error}")
+
+                if ts_config and is_feature_enabled(
+                    ts_config.get("enabled"),
+                    datetime.now(timezone.utc),
+                    default=True
+                ):
+                    logging.info("Scanning transcript for secrets/PII/injection...")
+
+                    # Reuse already-loaded configs; load fresh if not yet available
+                    try:
+                        ts_secret_config = secret_config
+                    except NameError:
+                        ts_secret_config, _ = _load_secret_scanning_config()
+                    try:
+                        ts_pii_config = pii_config
+                    except NameError:
+                        ts_pii_config, _ = _load_pii_config()
+                    try:
+                        ts_injection_config = injection_config
+                    except NameError:
+                        ts_injection_config, _ = _load_prompt_injection_config() if HAS_PROMPT_INJECTION else (None, None)
+
+                    transcript_warnings = scan_transcript_incremental(
+                        transcript_path,
+                        secret_config=ts_secret_config,
+                        pii_config=ts_pii_config,
+                        injection_config=ts_injection_config,
+                        hook_context={"session_id": hook_session_id} if hook_session_id else None
+                    )
+                    if transcript_warnings:
+                        warning_messages.extend(transcript_warnings)
+                        logging.warning(f"Transcript scanning found {len(transcript_warnings)} issue(s)")
+                    else:
+                        logging.info("✓ No threats detected in transcript")
+                elif ts_config and ide_type != IDEType.CURSOR:
+                    logging.info("⚠️  Transcript scanning temporarily disabled")
+            except Exception as e:
+                logging.warning(f"Transcript scanning error (fail-open): {e}")
 
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None

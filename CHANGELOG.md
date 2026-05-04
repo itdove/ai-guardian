@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Transcript Scanning for Secrets, PII, and Prompt Injection** (Issue #430)
+  - Incrementally scans conversation transcript on each `UserPromptSubmit` event
+  - Detects threats that entered via `! command` shell mode (which bypasses hooks)
+  - Scans for secrets (via gitleaks/engines), PII, and prompt injection patterns
+  - Detection only: warns via `systemMessage` (cannot block — content already in AI context)
+  - IDE-agnostic: supports Claude Code, Cursor, and GitHub Copilot transcript paths
+  - New violation types: `secret_in_transcript`, `pii_in_transcript`, `prompt_injection_in_transcript`
+  - Position tracking in `~/.local/state/ai-guardian/transcript_positions.json` prevents re-scanning
+  - Configurable via `transcript_scanning.enabled` (default: `true`)
+  - Performance: reads only new bytes since last scan via byte-offset tracking
+
 - **Multi-Engine Scanner Support — TruffleHog and detect-secrets** (Issue #249)
   - **TruffleHog**: 700+ detectors with entropy analysis and verified secrets detection (`"engines": ["trufflehog"]`)
   - **detect-secrets**: Baseline workflow for CI/CD pipelines with plugin-based detection (`"engines": ["detect-secrets"]`)
