@@ -1433,20 +1433,21 @@ def scan_transcript_incremental(
     transcript_path: str,
     secret_config: Optional[Dict] = None,
     pii_config: Optional[Dict] = None,
-    injection_config: Optional[Dict] = None,
     hook_context: Optional[Dict] = None
 ) -> list:
     """
-    Incrementally scan transcript file for secrets, PII, and prompt injection.
+    Incrementally scan transcript file for secrets and PII.
 
     Reads only new bytes since the last recorded position. Extracts text
-    content from JSONL lines and runs through all available scanners.
+    content from JSONL lines and runs through available scanners.
+
+    Prompt injection scanning is intentionally excluded — conversation
+    history naturally contains patterns that trigger false positives.
 
     Args:
         transcript_path: Absolute path to the JSONL transcript file
         secret_config: Secret scanning config (for allowlist, ignore patterns)
         pii_config: PII scanning config
-        injection_config: Prompt injection config
         hook_context: Optional dict with session_id for correlation
 
     Returns:
@@ -1574,43 +1575,6 @@ def scan_transcript_incremental(
                 )
         except Exception as e:
             logging.debug(f"Transcript PII scan error (fail-open): {e}")
-
-    # --- Prompt injection scanning ---
-    if HAS_PROMPT_INJECTION and injection_config and is_feature_enabled(
-        injection_config.get("enabled"),
-        datetime.now(timezone.utc),
-        default=True
-    ):
-        try:
-            detector = PromptInjectionDetector(injection_config)
-            _, injection_error, injection_detected = detector.detect(
-                combined_text, source_type="file_content"
-            )
-            if injection_detected:
-                warning_msg = (
-                    f"\n{'='*70}\n"
-                    f"🔍 PROMPT INJECTION DETECTED IN CONVERSATION TRANSCRIPT\n"
-                    f"{'='*70}\n"
-                    f"A prompt injection pattern was found in your conversation history\n"
-                    f"(possibly from a ! shell command).\n"
-                    f"The content has already been sent to the AI model.\n"
-                    f"Recommended actions:\n"
-                    f"  1. Start a new session immediately\n"
-                    f"  2. Do not trust AI responses from this session\n"
-                    f"  3. Review recent AI actions for unexpected behavior\n"
-                    f"{'='*70}\n"
-                )
-                warnings.append(warning_msg)
-                _log_transcript_violation(
-                    "prompt_injection_in_transcript", transcript_path,
-                    details={
-                        "attack_type": getattr(detector, 'last_attack_type', None),
-                        "reason": injection_error
-                    },
-                    hook_context=hook_context
-                )
-        except Exception as e:
-            logging.debug(f"Transcript prompt injection scan error (fail-open): {e}")
 
     # Update position
     positions[transcript_path] = file_size
@@ -3525,8 +3489,9 @@ def process_hook_input():
                         elif pii_action == 'log-only':
                             pass
 
-        # Transcript scanning for secrets, PII, and prompt injection (Issue #430)
+        # Transcript scanning for secrets and PII (Issue #430, #442)
         # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
+        # Prompt injection scanning intentionally excluded — too many false positives in conversation context
         transcript_path = _get_transcript_path(hook_data)
         if transcript_path and hook_event == "prompt":
             try:
@@ -3539,7 +3504,7 @@ def process_hook_input():
                     datetime.now(timezone.utc),
                     default=True
                 ):
-                    logging.info("Scanning transcript for secrets/PII/injection...")
+                    logging.info("Scanning transcript for secrets/PII...")
 
                     # Reuse already-loaded configs; load fresh if not yet available
                     try:
@@ -3550,16 +3515,11 @@ def process_hook_input():
                         ts_pii_config = pii_config
                     except NameError:
                         ts_pii_config, _ = _load_pii_config()
-                    try:
-                        ts_injection_config = injection_config
-                    except NameError:
-                        ts_injection_config, _ = _load_prompt_injection_config() if HAS_PROMPT_INJECTION else (None, None)
 
                     transcript_warnings = scan_transcript_incremental(
                         transcript_path,
                         secret_config=ts_secret_config,
                         pii_config=ts_pii_config,
-                        injection_config=ts_injection_config,
                         hook_context={"session_id": hook_session_id} if hook_session_id else None
                     )
                     if transcript_warnings:
