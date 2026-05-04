@@ -249,7 +249,7 @@ git commit -m "docs: update installation instructions"
 # Run all tests (1,222+ tests)
 pytest
 
-# Run with coverage (excludes TUI modules automatically)
+# Run with coverage (excludes Console modules automatically)
 pytest --cov=ai_guardian --cov-report=term-missing
 
 # Run specific test file

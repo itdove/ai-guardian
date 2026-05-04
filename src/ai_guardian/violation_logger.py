@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class ViolationLogger:
-    """Log blocked operations for audit and TUI review."""
+    """Log blocked operations for audit and console review."""
 
     def __init__(self, log_path: Optional[Path] = None, config: Optional[Dict] = None):
         """

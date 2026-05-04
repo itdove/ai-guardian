@@ -627,7 +627,7 @@
     }
   },
 
-  "_comment_console": "TUI console settings",
+  "_comment_console": "Console settings",
   "console": {
     "editor_theme": "monokai",
     "_comment_editor_theme": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"

@@ -229,7 +229,7 @@ This operation has been blocked for security.
 - Secrets found → Execution **allowed**
 - No message shown to user (hook limitation)
 - Violation logged at WARNING level
-- Visible in `ai-guardian tui`
+- Visible in `ai-guardian console`
 
 ### Common Configurations
 
@@ -288,7 +288,7 @@ This operation has been blocked for security.
 ```
 
 - Log violations without blocking users
-- Monitor in TUI to identify false positives
+- Monitor in Console to identify false positives
 - Switch to "block" after validation
 
 ---
@@ -738,7 +738,7 @@ secret_scanning.enabled == true?
 3. Pattern server includes AWS key pattern
 4. Secret detected → **ALLOWED** (secret_scanning.action = "log")
 5. Violation logged (WARNING level)
-6. Visible in `ai-guardian tui`
+6. Visible in `ai-guardian console`
 
 #### Example 3: No Pattern Server, Default Patterns
 
@@ -1151,7 +1151,7 @@ secret_scanning.action → Block or log?
 ## Related Documentation
 
 - [HOOKS.md](HOOKS.md) - Why log mode doesn't show messages
-- [TUI.md](TUI.md) - Using the TUI to view violations
+- [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
 - [README.md](../README.md) - Configuration examples
 - [CHANGELOG.md](../CHANGELOG.md) - Feature history
 - [Gitleaks --redact](https://github.com/gitleaks/gitleaks#redaction)

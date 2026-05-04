@@ -2,7 +2,7 @@
 """
 Console Settings Panel
 
-Manage TUI console preferences: editor color theme.
+Manage console preferences: editor color theme.
 """
 
 import json

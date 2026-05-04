@@ -3,7 +3,7 @@
 Schema Defaults Utility
 
 Loads default values from the JSON schema and provides helpers
-for TUI panels to display defaults and highlight changed values.
+for Console panels to display defaults and highlight changed values.
 """
 
 import json

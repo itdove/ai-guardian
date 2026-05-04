@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed all TUI references to Console** (Issue #440)
+  - `ai-guardian console` is now the primary documented command
+  - `ai-guardian tui` remains as backward-compatible alias
+  - Updated all user-facing text, help strings, error messages, and documentation
+  - Renamed `docs/TUI.md` to `docs/CONSOLE.md`
+  - Renamed GitHub `tui` label to `console`
+  - Internal `src/ai_guardian/tui/` directory unchanged (no import breakage)
+
 ### Added
 
 - **OSC 52 terminal escape sequence as clipboard fallback** (Issue #433)
@@ -23,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added security note to README.md Known Limitations section
   - Added to AGENTS.md Common Issues section
   - Added top-level comment in ai-guardian-example.json
-  - Added recommendation in TUI Security Dashboard and help panel
+  - Added recommendation in Console Security Dashboard and help panel
   - `!` commands bypass all ai-guardian hooks; use regular commands instead
   - Transcript scanning (Issue #430) provides after-the-fact detection
 
@@ -83,7 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `allowlist_patterns` config option suppresses false positives for known-safe values (e.g., corporate email domains, test API key prefixes)
   - Supports simple string patterns and time-based patterns with expiration (`valid_until`)
   - ReDoS protection and dangerous catch-all pattern blocking
-  - TUI updated with allowlist pattern editing for both PII and secret scanning
+  - Console updated with allowlist pattern editing for both PII and secret scanning
 
 - **Auto-Generate Directory Rules from Skill Permissions** (Issue #144)
   - Auto-generate directory access rules from skill permissions, eliminating duplicate configuration
@@ -96,25 +106,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New `ai-guardian config show` command with `--all`, `--section`, `--preview-auto-rules` flags
   - All rules visible with `[USER]`, `[GENERATED]`, `[IMMUTABLE]` labels
 
-- **Hook Simulator panel in TUI** (Issue #397)
+- **Hook Simulator panel in Console** (Issue #397)
   - Simulate UserPromptSubmit, PreToolUse, and PostToolUse hook events
   - Test detection rules without triggering real hooks
   - View BLOCKED/ALLOWED/WARNING decisions with detection details
   - IDE format selector (Claude Code, Cursor, GitHub Copilot)
 
-- **JSON Config Editor in TUI** (Issue #388, #391)
+- **JSON Config Editor in Console** (Issue #388, #391)
   - Raw JSON editor for `ai-guardian.json` with syntax highlighting and line numbers
   - Real-time JSON validation with schema validation warnings on save
   - Console Settings panel with theme selector (Monokai, VS Code Dark, Dracula, GitHub Light)
   - New `console` section in schema, setup defaults, and example config
   - New dependencies: `tree-sitter>=0.25.0` and `tree-sitter-json>=0.24.0` (MIT license)
 
-- **Show default values in TUI config panels from schema** (Issue #371)
+- **Show default values in Console config panels from schema** (Issue #371)
   - Each config field shows its default value from the schema
   - Fields changed from default are highlighted with a yellow left-border
   - Applied to all 11 config panels
 
-- **Copy-to-clipboard support in TUI** (Issue #362)
+- **Copy-to-clipboard support in Console** (Issue #362)
   - Auto-copy on text selection (like Claude Code)
   - Copy button on Violation Details modal
   - Platform-native clipboard fallback for macOS Terminal.app, Linux, Windows (Issue #377)
@@ -126,7 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`ssrf_blocked` and `config_file_exfil` violation logging types** (Issue #322)
   - SSRF and config exfiltration violations now have dedicated log types instead of being misclassified as `tool_permission`
-  - TUI tabs and checkboxes for both new types
+  - Console tabs and checkboxes for both new types
   - Backward compatible with existing configs
 
 - **Scanner/Pattern-Server Discovery Commands** (Issue #320)
@@ -138,7 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Outputs raw JSON only, pipeable to `jq`
   - `$schema` field now uses `file://` URI pointing to bundled schema (works offline)
 
-- **`ai-guardian console` alias for `ai-guardian tui`** (Issue #389)
+- **`ai-guardian tui` alias for `ai-guardian console`** (Issue #389)
 
 - **`--yes`/`-y` flag for `violations --clear`** (Issue #360)
   - Skips confirmation prompt for non-interactive use (CI, Claude Code `!` prefix, piped scripts)
@@ -152,13 +162,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **TUI: Replaced 'Directory Protection' panel with 'Directory Rules' panel** (Issue #426)
+- **Console: Replaced 'Directory Protection' panel with 'Directory Rules' panel** (Issue #426)
   - New panel manages `directory_rules` configuration (allow/deny path access control)
   - Moved from Configuration section to Permissions section in navigation
 
-- **TUI violations panel no longer auto-modifies config** (Issue #421)
+- **Console violations panel no longer auto-modifies config** (Issue #421)
   - Removed approve/deny action buttons; details modal now shows resolution instructions with copyable config snippets
-  - Users must manually edit config via TUI panels, JSON editor, or text editor
+  - Users must manually edit config via Console panels, JSON editor, or text editor
 
 - **Enhanced error messages across all protection layers** (Issue #287)
   - Consistent `🛡️ [Protection Type]` format (replaced `🚨 BLOCKED BY POLICY`)
@@ -182,11 +192,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **TUI pattern server toggle no longer destroys configuration** (Issue #418)
+- **Console pattern server toggle no longer destroys configuration** (Issue #418)
   - Toggle modes now only write the `enabled` field; other settings (url, auth, cache) are preserved
 
 - **gitleaks:allow guidance now correctly says "at the end of the line"** (Issue #416)
-  - Fixed incorrect placement instructions in block messages and TUI help text
+  - Fixed incorrect placement instructions in block messages and Console help text
 
 - **Prompt injection violation logs show actual pattern details** (Issue #420)
   - Previously hardcoded "Heuristic pattern detected" with confidence 0.95 for all violations
@@ -467,7 +477,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Migration**: For users who want old "block" behavior, add sensitive files to `.gitleaksignore` to prevent reading them entirely
   - **Impact**: 
     - Schema updated to only allow "warn" and "log-only" 
-    - TUI dropdown no longer shows "block" option
+    - Console dropdown no longer shows "block" option
     - Config validation rejects "block" with migration guidance
     - Default config templates updated to use "warn"
   - **Files Modified**:
@@ -633,7 +643,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Secret Detection (1 test): Secret caught at PostToolUse stage
     - Multi-Tool Sequence (1 test): Multiple tools in realistic workflow
   - **74 new integration and use-case tests** covering all 9 protection layers with MCP tools
-  - **Test Coverage**: Core protection modules at 70% (excluding TUI/setup: 4,500 statements, 1,359 missing)
+  - **Test Coverage**: Core protection modules at 70% (excluding Console/setup: 4,500 statements, 1,359 missing)
   - Part of ongoing MCP security validation effort
 
 - **Pattern Server Support for Security Features** (Issue #206, Epic #186)
@@ -931,7 +941,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Available for: tool permissions (per-rule), prompt injection (global), directory rules (global)
   - Secret scanning always blocks (no action field for security)
   - Useful for baseline metrics, impact analysis, compliance audits, and passive monitoring
-  - All violations logged to TUI and violation log regardless of action
+  - All violations logged to Console and violation log regardless of action
 
 - **Flexible scanner engine support** (Issues #153, #154)
   - Support for BetterLeaks (20-40% faster than Gitleaks) and LeakTK (auto-pattern management)
@@ -1060,7 +1070,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Remote policy configuration for enterprise/team policies
   - Multi-level config: project → user → remote
 
-- **Interactive TUI** for managing configuration
+- **Interactive Console** for managing configuration
   - Tab-based interface for all security features
   - One-click approval of blocked operations from violation log
   - Visual configuration management with validation

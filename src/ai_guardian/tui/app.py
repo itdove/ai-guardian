@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main TUI Application
+Main Console Application
 
 Provides interactive text-based interface for AI Guardian configuration.
 Sidebar tree navigation with grouped sections and content switching.
@@ -537,7 +537,7 @@ HELP_DOCS = {
     ),
     "panel-console-settings": (
         "[bold]Console Settings[/bold]\n\n"
-        "Configure TUI console preferences.\n\n"
+        "Configure console preferences.\n\n"
         "[bold]Settings:[/bold]\n"
         "  [bold]Editor Theme[/bold] — Color theme for the JSON config "
         "editor. Options: Monokai, VS Code Dark, Dracula, GitHub Light\n\n"
@@ -658,7 +658,7 @@ class HelpModal(ModalScreen):
 
 
 class AIGuardianTUI(App):
-    """AI Guardian TUI Application with sidebar navigation."""
+    """AI Guardian Console Application with sidebar navigation."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -1159,6 +1159,6 @@ class AIGuardianTUI(App):
 
 
 def run_tui():
-    """Run the AI Guardian TUI application."""
+    """Run the AI Guardian Console application."""
     app = AIGuardianTUI()
     app.run()

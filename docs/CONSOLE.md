@@ -1,12 +1,12 @@
-# AI Guardian TUI (Text User Interface) Guide
+# AI Guardian Console Guide
 
-This guide provides comprehensive documentation for the AI Guardian interactive Text User Interface (TUI).
+This guide provides comprehensive documentation for the AI Guardian interactive Console.
 
 ## Overview
 
-The AI Guardian TUI is a modern, tab-based interactive interface built with [Textual](https://textual.textualize.io/) that provides a user-friendly way to manage security policies and configurations. With 6,207 lines of code across 16 modules and 11 specialized tabs, the TUI offers powerful features while maintaining ease of use.
+The AI Guardian Console is a modern, tab-based interactive interface built with [Textual](https://textual.textualize.io/) that provides a user-friendly way to manage security policies and configurations. With 6,207 lines of code across 16 modules and 11 specialized tabs, the Console offers powerful features while maintaining ease of use.
 
-### Why Use the TUI?
+### Why Use the Console?
 
 ✅ **User-friendly**: No need to remember JSON schema syntax or command-line flags  
 ✅ **Real-time validation**: Prevents syntax errors before saving configuration  
@@ -18,9 +18,9 @@ The AI Guardian TUI is a modern, tab-based interactive interface built with [Tex
 
 ### Security by Design
 
-**The TUI is designed for manual, deliberate config changes only.**
+**The Console is designed for manual, deliberate config changes only.**
 
-Unlike command-line flags, the TUI requires you to physically see and click buttons to approve changes. This prevents an AI agent from sneakily modifying your configuration behind the scenes.
+Unlike command-line flags, the Console requires you to physically see and click buttons to approve changes. This prevents an AI agent from sneakily modifying your configuration behind the scenes.
 
 - ✅ **Manual approval required**: You must click buttons for each change
 - ✅ **Human-in-the-loop**: Every config modification is visible in the UI
@@ -39,13 +39,13 @@ Unlike command-line flags, the TUI requires you to physically see and click butt
 
 3. **Minimum terminal size**: 80x24 characters (recommended: 120x40)
 
-### Launching the TUI
+### Launching the Console
 
 ```bash
 ai-guardian tui
 ```
 
-The TUI will launch in your terminal with a tab-based interface.
+The Console will launch in your terminal with a tab-based interface.
 
 ### First Steps
 
@@ -61,7 +61,7 @@ The TUI will launch in your terminal with a tab-based interface.
 
 | Key | Action |
 |-----|--------|
-| `q` | Quit the TUI |
+| `q` | Quit the Console |
 | `Escape` | Go back to previous screen / Close modal |
 | `r` | Refresh current screen |
 | `Arrow keys` | Navigate between UI elements |
@@ -250,7 +250,7 @@ Pattern: Ignore previous instructions
 
 1. **AI attempts to use a tool** (e.g., `daf-cli`)
 2. **Tool is blocked** (not in allow list)
-3. **Violation appears in TUI** with details
+3. **Violation appears in Console** with details
 4. **Review violation**: Click **View Details**
 5. **Approve if safe**: Click **Approve & Add Rule**
 6. **Automatic rule creation**: Pattern added to `skills.allow[]`
@@ -351,7 +351,7 @@ Patterns can have expiration timestamps for temporary permissions:
 }
 ```
 
-**Visual indicators in TUI**:
+**Visual indicators in Console**:
 - `[expires 2026-04-15T18:00:00Z]` - Yellow badge, expires soon (< 24 hours)
 - `[until 2026-04-15T18:00:00Z]` - Gray badge, expires later
 - `[EXPIRED]` - Red badge, pattern no longer active
@@ -575,7 +575,7 @@ Gitleaks detects 100+ secret types including:
 
 **NEW**: Remote configurations can mark sections and permission rules as `immutable` to enforce enterprise policies.
 
-**How Immutability Appears in TUI:**
+**How Immutability Appears in Console:**
 
 1. **Remote Configs Tab**:
    - Remote configs with immutable sections/rules are displayed with a visual indicator
@@ -1109,7 +1109,7 @@ touch /path/to/sensitive-dir/.ai-read-deny
 
 **Detection**:
 - AI Guardian scans for `.ai-read-deny` markers at startup
-- TUI shows active markers in Directory Protection tab
+- Console shows active markers in Directory Protection tab
 - No need to configure paths manually
 
 #### How to Use
@@ -1186,7 +1186,7 @@ touch ./private-keys/.ai-read-deny
 - Use absolute paths or `~` for home directory
 
 **"Marker not detected"**
-- Click **Rescan** in TUI
+- Click **Rescan** in Console
 - Verify marker file is named exactly `.ai-read-deny` (leading dot)
 - Check marker is in parent directory of files you want to protect
 
@@ -1471,7 +1471,7 @@ Logs are written to: `~/.local/state/ai-guardian/ai-guardian.log`
 3. Select mode: **Disabled until...**
 4. Enter timestamp: `2026-04-15T18:00:00Z` (2 hours from now)
 5. Click **Save**
-6. TUI shows: "[status-warn]Auto re-enable in 2 hours[/status-warn]"
+6. Console shows: "[status-warn]Auto re-enable in 2 hours[/status-warn]"
 7. Work with test credentials
 8. After 2 hours: Secret scanning automatically re-enables
 
@@ -1671,7 +1671,7 @@ Violations tab contains nested tabs:
 
 ### Custom Styling and Themes
 
-**Theme support**: TUI uses Textual's theming system.
+**Theme support**: Console uses Textual's theming system.
 
 **Color schemes**:
 - **Primary**: Main accent color (blue)
@@ -1695,7 +1695,7 @@ CUSTOM_THEME = Theme(
 
 ### Keyboard-Driven Navigation
 
-**Philosophy**: TUI is fully keyboard-navigable for power users.
+**Philosophy**: Console is fully keyboard-navigable for power users.
 
 **Tab navigation**:
 - `Tab` - Next element
@@ -1707,7 +1707,7 @@ CUSTOM_THEME = Theme(
 - `Enter` - Confirm (on buttons)
 
 **Global shortcuts**:
-- `q` - Quit TUI
+- `q` - Quit Console
 - `r` - Refresh current tab
 - `?` - Help (future)
 
@@ -1717,7 +1717,7 @@ CUSTOM_THEME = Theme(
 
 ## Troubleshooting
 
-### TUI Won't Launch
+### Console Won't Launch
 
 **Symptom**: `ai-guardian tui` command fails or crashes.
 
@@ -1747,7 +1747,7 @@ ai-guardian tui --log-level DEBUG
 
 ### Configuration Not Saving
 
-**Symptom**: Changes in TUI don't persist after restart.
+**Symptom**: Changes in Console don't persist after restart.
 
 **Diagnosis**:
 ```bash
@@ -1826,7 +1826,7 @@ grep "remote config" ~/.local/state/ai-guardian/ai-guardian.log
 
 ---
 
-### TUI Display Issues
+### Console Display Issues
 
 **Symptom**: Garbled text, missing colors, layout problems.
 
@@ -1881,15 +1881,15 @@ grep -i "gitleaks" ~/.local/state/ai-guardian/ai-guardian.log
 
 ### Architecture
 
-The TUI is built using:
-- **Textual**: Modern Python TUI framework
+The Console is built using:
+- **Textual**: Modern Python Console framework
 - **asyncio**: Asynchronous event handling
 - **JSON**: Configuration storage and interchange
 
 **Module structure**:
 ```
 src/ai_guardian/tui/
-├── app.py                    # Main TUI application
+├── app.py                    # Main Console application
 ├── global_settings.py        # Global Settings tab
 ├── violations.py             # Violations tab
 ├── skills.py                 # Skills tab
@@ -1919,16 +1919,16 @@ src/ai_guardian/tui/
 4. Load project-local config (.ai-guardian.json)
 5. Load user config (~/.config/ai-guardian/ai-guardian.json)
 6. Deep merge all sources (higher priority overwrites)
-7. Display merged config in TUI
+7. Display merged config in Console
 ```
 
-**User makes change in TUI**:
+**User makes change in Console**:
 ```
 1. User clicks button or enters text
 2. Event handler validates input
 3. Update in-memory configuration
 4. Write to user config file (~/.config/ai-guardian/ai-guardian.json)
-5. Refresh TUI display
+5. Refresh Console display
 6. Emit success/error notification
 ```
 
@@ -1936,7 +1936,7 @@ src/ai_guardian/tui/
 ```
 1. AI Guardian hook blocks operation
 2. Violation logged to ~/.config/ai-guardian/violation.log
-3. Violation appears in TUI Violations tab
+3. Violation appears in Console Violations tab
 4. User clicks "Approve & Add Rule"
 5. Pattern extracted from violation
 6. Smart merge check (already covered?)
@@ -1977,7 +1977,7 @@ AI Guardian uses JSON for configuration:
 **Schema validation**: JSON is validated against internal schema on load.
 
 **Error handling**:
-- Invalid JSON: Error message in TUI, fallback to defaults
+- Invalid JSON: Error message in Console, fallback to defaults
 - Missing fields: Filled with defaults
 - Unknown fields: Ignored (forward compatibility)
 
@@ -2004,7 +2004,7 @@ AI Guardian uses JSON for configuration:
 
 ## Summary
 
-The AI Guardian TUI provides a comprehensive, user-friendly interface for managing security policies:
+The AI Guardian Console provides a comprehensive, user-friendly interface for managing security policies:
 
 - **11 specialized tabs** covering all aspects of AI security
 - **Time-based permissions** for temporary elevated access

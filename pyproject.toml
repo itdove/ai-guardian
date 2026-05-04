@@ -67,7 +67,7 @@ markers = [
 [tool.coverage.run]
 source = ["src/ai_guardian"]
 omit = [
-    # TUI modules (separate from core security logic)
+    # Console modules (separate from core security logic)
     "src/ai_guardian/tui/*",
 
     # Infrastructure/setup modules

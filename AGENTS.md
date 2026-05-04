@@ -898,10 +898,10 @@ When modifying the configuration schema:
    - Provide security warnings and use cases where appropriate
    - **CRITICAL**: This file serves as the primary reference for users
 
-4. **TUI (Terminal User Interface)** (if applicable)
-   - Check if the TUI auto-generates from schema or needs manual updates
-   - Most TUI components auto-generate from schema, but verify
-   - Update TUI tests if configuration affects UI
+4. **Console** (if applicable)
+   - Check if the Console auto-generates from schema or needs manual updates
+   - Most Console components auto-generate from schema, but verify
+   - Update Console tests if configuration affects UI
 
 5. **Code Implementation**
    - Update the relevant detector/module to read new config options
@@ -918,7 +918,7 @@ When modifying the configuration schema:
 - [ ] Update JSON schema with new property
 - [ ] Update setup.py default config
 - [ ] Update ai-guardian-example.json with examples
-- [ ] Verify TUI compatibility (usually auto-generates)
+- [ ] Verify Console compatibility (usually auto-generates)
 - [ ] Implement code to read new config
 - [ ] Add comprehensive tests
 - [ ] Update documentation (README, CHANGELOG, docs/*)

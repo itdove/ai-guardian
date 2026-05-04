@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TUI Theme
+Console Theme
 
-Centralized color scheme and styling inspired by OpenShell TUI.
+Centralized color scheme and styling for the Console.
 Provides semantic color names for consistent visual hierarchy.
 """
 

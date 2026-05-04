@@ -912,7 +912,7 @@ Easy to add new engines as they emerge:
 
 **Step 3: Monitor logs for 1-2 weeks**
 ```bash
-ai-guardian tui  # Review what TruffleHog found
+ai-guardian console  # Review what TruffleHog found
 ```
 
 **Step 4: Enable blocking**
