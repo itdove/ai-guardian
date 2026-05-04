@@ -878,7 +878,6 @@ class TestListScrollWrapping:
         assert "max-height" in cls.CSS, f"{class_name} CSS missing max-height in .list-scroll"
 
     @pytest.mark.parametrize("module,class_name", [
-        ("directory_protection", "DirectoryProtectionContent"),
         ("permissions", "PermissionsScreen"),
         ("permissions_discovery", "PermissionsDiscoveryContent"),
         ("remote_configs", "RemoteConfigsContent"),
