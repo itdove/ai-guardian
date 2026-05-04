@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OSC 52 terminal escape sequence as clipboard fallback** (Issue #433)
+  - Added `wl-copy` support for Wayland environments
+  - Added OSC 52 escape sequence as final fallback for containers/SSH/headless
+  - Works in UBI 10 containers and SSH sessions without xclip/xsel
+  - Fallback chain: xclip → xsel → wl-copy → OSC 52
+  - Existing pbcopy (macOS) and clip (Windows) behavior unchanged
+  - Extracted `_try_clipboard_command()` helper to reduce duplication
+
 ### Documentation
 
 - **Warning about `!` shell command bypass** (Issue #431)
