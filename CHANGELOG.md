@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Warning about `!` shell command bypass** (Issue #431)
+  - Added security note to README.md Known Limitations section
+  - Added to AGENTS.md Common Issues section
+  - Added top-level comment in ai-guardian-example.json
+  - Added recommendation in TUI Security Dashboard and help panel
+  - `!` commands bypass all ai-guardian hooks; use regular commands instead
+  - Transcript scanning (Issue #430) provides after-the-fact detection
+
 ### Security
 
 - **Gitleaks exit code 1 treated as "no secrets found" — secrets bypass detection** (Issue #411)

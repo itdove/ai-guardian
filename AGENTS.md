@@ -211,6 +211,19 @@ Solution: Changed to use public key patterns (e.g., `pk_test_` prefix) which Git
 
 **Best Practice**: When testing secret detection, prefer using public key patterns or less sensitive token types that still validate your regex patterns without triggering GitHub's scanner.
 
+### Shell Mode (`!` Prefix) Bypasses Security Hooks
+
+Commands run with the `!` prefix in Claude Code execute locally and bypass **all** ai-guardian hooks. The command text and output enter the AI's conversation context without security scanning.
+
+**What is NOT scanned when using `!`:**
+- Secrets in command text or output
+- PII in command output
+- Prompt injection in command output
+
+**Safe alternative:** Use regular commands (without `!`) which go through Claude's Bash tool and are scanned by ai-guardian's hooks.
+
+**Mitigation:** Transcript scanning (Issue #430) detects threats after the fact by scanning the conversation transcript, but cannot block content already in the AI's context.
+
 ---
 
 ## Release Management

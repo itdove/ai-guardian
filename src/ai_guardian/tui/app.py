@@ -196,6 +196,10 @@ HELP_DOCS = {
         "  - Feature status cards showing enabled/disabled state\n"
         "  - Recent violation summary with counts by category\n"
         "  - Quick enable/disable toggles for each feature\n\n"
+        "[bold]⚠ Known Limitation:[/bold]\n"
+        "  Commands run with the '!' prefix in Claude Code bypass all\n"
+        "  ai-guardian hooks. Do not use '!' to display secrets or read\n"
+        "  untrusted files. Enable transcript_scanning for detection.\n\n"
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]r[/bold]  Refresh dashboard data"
     ),

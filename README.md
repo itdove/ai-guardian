@@ -2289,6 +2289,26 @@ Works on your own fork too! If you're a maintainer of `yourname/ai-guardian`, yo
 - Detection errors allow operations to proceed (won't block legitimate work)
 - Not suitable for zero-trust environments requiring fail-closed behavior
 
+**Shell Mode (`!` Prefix) Bypass:**
+
+Commands run with the `!` prefix in Claude Code (e.g., `! cat .env`) execute locally and bypass **all** ai-guardian hooks (UserPromptSubmit, PreToolUse, PostToolUse). The command text and output are added directly to the AI's conversation context **without any security scanning**.
+
+This means:
+- Secrets typed in `!` commands reach the AI model undetected
+- PII in `!` command output is not redacted
+- Prompt injection in `!` command output is not checked
+- No violation is logged at the time of execution
+
+**Do NOT use `!` commands to:**
+- Display files containing secrets (`! cat .env`, `! cat ~/.aws/credentials`)
+- Run commands that output credentials (`! aws sts get-caller-identity`)
+- Paste or echo sensitive data (`! echo "API_KEY=..."`)
+- Read untrusted files that could contain prompt injection
+
+**Instead use:** Regular commands (without `!`) which go through Claude's Bash tool and are scanned by ai-guardian's PreToolUse and PostToolUse hooks.
+
+**Mitigation:** Transcript scanning (v1.7.0, Issue #430) provides after-the-fact detection by scanning the conversation transcript for secrets, PII, and prompt injection on each `UserPromptSubmit` event. However, this is detection-only — it cannot block content already in the AI's context.
+
 ### What AI Guardian Protects Against
 
 ✅ **Common threats it catches:**
