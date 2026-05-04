@@ -7,546 +7,175 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Gitleaks exit code 1 treated as "no secrets found" — secrets bypass detection** (Issue #411)
+  - Gitleaks exit code 1 (default for "secrets found") was incorrectly added to the success codes list, causing detected secrets to be silently allowed through
+  - Now correctly treats exit code 1 as "secrets found" when `--exit-code 42` is specified
+  - Added debug logging for scanner command and exit code to aid troubleshooting
+  - Bug introduced in v1.4.0 (PR #154)
+
+- **PostToolUse allowed secrets through when secret_redaction was disabled** (Issue #414)
+  - When `secret_redaction.enabled = false`, detected secrets were allowed through as an "emergency bypass" instead of being blocked
+  - PostToolUse now correctly blocks tool output containing secrets regardless of redaction settings
+
+### Added
+
+- **Multi-Engine Scanner Support — TruffleHog and detect-secrets** (Issue #249)
+  - **TruffleHog**: 700+ detectors with entropy analysis and verified secrets detection (`"engines": ["trufflehog"]`)
+  - **detect-secrets**: Baseline workflow for CI/CD pipelines with plugin-based detection (`"engines": ["detect-secrets"]`)
+  - **Execution Strategies**: `first-match` (default), `any-match` (maximum security), `consensus` (reduce false positives with threshold)
+  - Smart deduplication when multiple engines find the same secret
+  - License: TruffleHog is AGPL-3.0 (used via subprocess, no AGPL obligations); detect-secrets is Apache-2.0
+  - Interactive license notice during `ai-guardian scanner install trufflehog`
+
+- **PII Detection in Tool Outputs** (Issue #262)
+  - GDPR/CCPA compliance: detect and redact PII across all three hooks (UserPromptSubmit, PreToolUse, PostToolUse)
+  - 7 PII types: SSN, Credit Card (Luhn), US Phone, Email, US Passport, IBAN (mod-97), International Phone (E.164)
+  - Top-level `scan_pii` config section with `enabled`, `pii_types`, `action`, `ignore_files`, and `allowlist_patterns`
+  - Enabled by default; `action: "redact"` masks PII in PostToolUse, blocks in PreToolUse/UserPromptSubmit
+
+- **Jailbreak Detection Patterns** (Issue #263)
+  - 13 built-in patterns across 4 categories: role-play jailbreaks (DAN/sudo/god mode), identity manipulation, constraint removal, hypothetical framing
+  - New `jailbreak_patterns` config key for user-defined patterns
+  - Error messages distinguish "Jailbreak Attempt Detected" from "Prompt Injection Detected"
+  - New `jailbreak_detected` violation logging type
+  - Patterns only checked for user prompts (not file content) to minimize false positives
+
+- **Enhanced Prompt Injection Detection — 24 new patterns** (Issue #285)
+  - 15 CRITICAL patterns: fake completion, HTML comment injection, chain-of-thought exploitation, instruction replacement, auto-approval manipulation, and more
+  - 8 DOCUMENTATION patterns: output format manipulation, workflow chaining, Base64 encoding, delimiter injection
+  - Sources: PayloadsAllTheThings, Hermes Security Patterns, Open-Prompt-Injection (USENIX 2024), arXiv 2601.17548
+  - All patterns maintain <1ms detection target
+
+- **Allowlist patterns for scan_pii and secret_scanning** (Issue #357)
+  - `allowlist_patterns` config option suppresses false positives for known-safe values (e.g., corporate email domains, test API key prefixes)
+  - Supports simple string patterns and time-based patterns with expiration (`valid_until`)
+  - ReDoS protection and dangerous catch-all pattern blocking
+  - TUI updated with allowlist pattern editing for both PII and secret scanning
+
+- **Auto-Generate Directory Rules from Skill Permissions** (Issue #144)
+  - Auto-generate directory access rules from skill permissions, eliminating duplicate configuration
+  - Multi-IDE support: Claude Code, Cursor, VSCode/Copilot, Windsurf
+  - Opt-in via `auto_directory_rules.enabled: true`
+  - Rule order (last-match-wins): User rules → Generated rules → Immutable rules
+  - Generated rules override broad user deny rules for specific permitted skill paths
+  - `allow_symlinks` option (default: `true`) for container environments (Issue #324)
+  - Plugin cache directory scanning for Claude Code plugins
+  - New `ai-guardian config show` command with `--all`, `--section`, `--preview-auto-rules` flags
+  - All rules visible with `[USER]`, `[GENERATED]`, `[IMMUTABLE]` labels
+
+- **Hook Simulator panel in TUI** (Issue #397)
+  - Simulate UserPromptSubmit, PreToolUse, and PostToolUse hook events
+  - Test detection rules without triggering real hooks
+  - View BLOCKED/ALLOWED/WARNING decisions with detection details
+  - IDE format selector (Claude Code, Cursor, GitHub Copilot)
+
+- **JSON Config Editor in TUI** (Issue #388, #391)
+  - Raw JSON editor for `ai-guardian.json` with syntax highlighting and line numbers
+  - Real-time JSON validation with schema validation warnings on save
+  - Console Settings panel with theme selector (Monokai, VS Code Dark, Dracula, GitHub Light)
+  - New `console` section in schema, setup defaults, and example config
+  - New dependencies: `tree-sitter>=0.25.0` and `tree-sitter-json>=0.24.0` (MIT license)
+
+- **Show default values in TUI config panels from schema** (Issue #371)
+  - Each config field shows its default value from the schema
+  - Fields changed from default are highlighted with a yellow left-border
+  - Applied to all 11 config panels
+
+- **Copy-to-clipboard support in TUI** (Issue #362)
+  - Auto-copy on text selection (like Claude Code)
+  - Copy button on Violation Details modal
+  - Platform-native clipboard fallback for macOS Terminal.app, Linux, Windows (Issue #377)
+
+- **Enriched violation log entries** (Issue #408)
+  - `context_snippet`: redacted context around detection (for PII and secret violations)
+  - `command`: Bash command that produced flagged output
+  - `tool_use_id` and `session_id`: correlation IDs for matching PreToolUse/PostToolUse events
+
+- **`ssrf_blocked` and `config_file_exfil` violation logging types** (Issue #322)
+  - SSRF and config exfiltration violations now have dedicated log types instead of being misclassified as `tool_permission`
+  - TUI tabs and checkboxes for both new types
+  - Backward compatible with existing configs
+
+- **Scanner/Pattern-Server Discovery Commands** (Issue #320)
+  - `ai-guardian scanner supported` — lists all supported scanners with versions, repos, and licenses
+  - `ai-guardian pattern-servers supported` — lists all configured pattern servers
+  - `--json` flag for `scanner list`, `scanner info`, `scanner supported`, and `pattern-servers supported`
+
+- **`--json` flag for `setup --create-config`** (Issue #326)
+  - Outputs raw JSON only, pipeable to `jq`
+  - `$schema` field now uses `file://` URI pointing to bundled schema (works offline)
+
+- **`ai-guardian console` alias for `ai-guardian tui`** (Issue #389)
+
+- **`--yes`/`-y` flag for `violations --clear`** (Issue #360)
+  - Skips confirmation prompt for non-interactive use (CI, Claude Code `!` prefix, piped scripts)
+
+- **Dependabot and scanner version monitoring** (Issues #288, #289, #290, #291, #292, #293, #309)
+  - Dependabot configuration for automated GitHub Actions and Python package updates (monthly, grouped PRs)
+  - Daily scanner version health monitoring via CI (`scripts/check_scanner_versions.py`)
+  - Scanner version existence pre-flight checks in CI (fail fast if versions missing)
+  - Automated monthly prompt injection pattern research reminders
+  - Comprehensive dependency management documentation in AGENTS.md
+
 ### Changed
 
-- **TUI: Replaced deprecated 'Directory Protection' panel with 'Directory Rules' panel** (Issue #426)
+- **TUI: Replaced 'Directory Protection' panel with 'Directory Rules' panel** (Issue #426)
   - New panel manages `directory_rules` configuration (allow/deny path access control)
   - Moved from Configuration section to Permissions section in navigation
-  - Groups with other access controls: Skills, MCP Servers, Permissions Discovery
-  - Supports viewing/editing violation action (block, warn, log-only)
-  - Add and remove allow/deny rules with path patterns
 
 - **TUI violations panel no longer auto-modifies config** (Issue #421)
-  - Removed "Approve & Add to Allowlist" and "Keep Blocked" action buttons from all violation cards
-  - Removed "Undo Resolution" button from resolved violation cards
-  - Details modal now shows type-specific resolution instructions with copyable config snippets
-  - Users must manually edit config (via TUI config panels, JSON editor, or text editor)
-  - Fixed keyboard navigation for SSRF, Config Exfil, and PII tabs (missing list_id_map entries)
+  - Removed approve/deny action buttons; details modal now shows resolution instructions with copyable config snippets
+  - Users must manually edit config via TUI panels, JSON editor, or text editor
+
+- **Enhanced error messages across all protection layers** (Issue #287)
+  - Consistent `🛡️ [Protection Type]` format (replaced `🚨 BLOCKED BY POLICY`)
+  - Shows exact regex pattern, confidence level, and sanitized matched text for prompt injection
+  - Shows secret type and location for secret scanning (value NEVER shown)
+  - Context-specific recommendations and config paths for all violation types
+
+- **Remove email from default `scan_pii.pii_types` list** (Issue #370)
+  - Email PII detection now opt-in (add `"email"` to `pii_types` to re-enable)
+  - Existing configs with explicit `"email"` continue to work
+
+- **Remove dev source code patterns from immutable deny rules** (Issue #369)
+  - Dev source protection was redundant with git/PR workflow
+  - Pip-installed package protection kept; config/cache/hooks/markers unchanged
+
+- **XDG Base Directory compliance** (Issue #352)
+  - Logs and violations now stored in `XDG_STATE_HOME/ai-guardian` (default `~/.local/state/ai-guardian`)
+  - Cache paths respect `XDG_CACHE_HOME` via centralized `get_cache_dir()`
+  - Environment variable overrides: `AI_GUARDIAN_STATE_DIR`, `AI_GUARDIAN_CACHE_DIR`
+  - Backward-compatible migration from old config dir on first run
 
 ### Fixed
 
 - **TUI pattern server toggle no longer destroys configuration** (Issue #418)
-  - Previously, disabling the pattern server via TUI set the entire section to `null`, losing URL, auth, and cache settings
-  - Now all three toggle modes (enable, disable, temp disable) only write the `enabled` field
-  - Other configuration (url, auth, cache, patterns_endpoint, warn_on_failure) is never modified by toggle operations
-  - Backend `_load_pattern_server_config` now uses `is_feature_enabled()` for time-based disable support
-  - Migration no longer strips the `enabled` field when moving pattern_server config
-  - Temp disable duration/reason inputs now auto-save when focus leaves the field (no Enter required)
+  - Toggle modes now only write the `enabled` field; other settings (url, auth, cache) are preserved
 
 - **gitleaks:allow guidance now correctly says "at the end of the line"** (Issue #416)
-  - Block message in `__init__.py` changed from ambiguous "comment to the line" to "at the end of the line"
-  - TUI violations help changed from incorrect "before the line" to "inline comment at the end of the line"
-  - TUI example now shows inline usage: `YOUR_SECRET_LINE # gitleaks:allow`
-  - gitleaks only recognizes `# gitleaks:allow` when it appears on the same line as the secret
+  - Fixed incorrect placement instructions in block messages and TUI help text
 
-- **PostToolUse now blocks secrets when secret_redaction is disabled** (Issue #414)
-  - Previously, detected secrets were allowed through as an "emergency bypass" when `secret_redaction.enabled = false`
-  - Now correctly blocks tool output containing secrets, preventing them from reaching the AI model
-  - Added UX contract tests verifying block vs redact behavior for PostToolUse
+- **Prompt injection violation logs show actual pattern details** (Issue #420)
+  - Previously hardcoded "Heuristic pattern detected" with confidence 0.95 for all violations
+  - Now shows actual matched pattern, matched text, and real confidence score from detector
 
-- **TUI copy to clipboard now works on macOS Terminal.app** (Issue #377)
-  - Textual's `copy_to_clipboard()` uses OSC 52 escape sequences which macOS Terminal.app does not support
-  - Added platform-native clipboard fallback: `pbcopy` (macOS), `xclip`/`xsel` (Linux), `clip` (Windows)
-  - Falls back to OSC 52 for terminals that support it (iTerm2, Kitty, WezTerm, etc.)
-  - Error handling prevents crashes when clipboard commands are unavailable
+- **Directory blocking violations report correct reason** (Issue #347)
+  - Previously always reported ".ai-read-deny marker found" even for directory rule violations
+  - Now correctly distinguishes between marker-based and rule-based blocking with matched pattern
 
-### Added
+- **PII violations now include line numbers** (Issue #359)
+  - PII and secret redaction violation logging populates `line_number` and `column` from redaction results instead of hardcoding `None`
 
-- **Enriched violation log entries with context_snippet, command, and tool_use_id** (Issue #408)
-  - `context_snippet`: ~3 lines of redacted context around the detection (max 200 chars), included for pii_detected and secret_redaction violations
-  - `command`: Bash command that produced the flagged output (truncated to 500 chars), included for Bash PostToolUse violations
-  - `tool_use_id` and `session_id`: correlation IDs for matching PreToolUse and PostToolUse events, included in all violation context dicts
-  - TUI violation cards display context_snippet when file_path is null, and show command for Bash violations
+- **Scanner installer respects --use-pinned and --version flags** (Issue #295)
+  - After package manager installation, verifies installed version matches target; falls back to direct download if mismatched
 
-- **Hook Simulator panel in TUI** (Issue #397)
-  - Simulate UserPromptSubmit, PreToolUse, and PostToolUse hook events
-  - Test detection rules (secrets, PII, prompt injection, config scanning) without triggering real hooks
-  - View BLOCKED/ALLOWED/WARNING decisions with detection details
-  - Toggle raw JSON response with IDE format selector (Claude Code, Cursor, GitHub Copilot)
-  - Simulation isolated from real violations log (uses temporary state directory)
+- **GitHub Workflows: scanner versions synced with pyproject.toml** (Issue #289)
+  - CI now installs exact pinned versions of all three scanners (gitleaks, betterleaks, leaktk) from pyproject.toml
 
-- **`ai-guardian console` alias for `ai-guardian tui`** (Issue #389)
-  - `ai-guardian console` launches the same TUI as `ai-guardian tui`
-  - Both commands shown in `ai-guardian --help`
-
-- **JSON Config Editor in TUI** (Issue #388, #391)
-  - Raw JSON editor for `ai-guardian.json` with syntax highlighting and line numbers
-  - Real-time JSON validation with status indicator
-  - Schema validation warnings on save (non-blocking)
-  - Save with confirmation dialog and automatic backup (`.bak`)
-  - Reload from disk option (Ctrl+R)
-  - Config path shown (respects `XDG_CONFIG_HOME` / `AI_GUARDIAN_CONFIG_DIR`)
-  - **Console Settings panel** with theme selector dropdown (Issue #391)
-    - Monokai, VS Code Dark, Dracula, GitHub Light themes
-    - Theme preference persisted in `console.editor_theme` config field
-    - New `console` section added to schema, setup defaults, and example config
-  - **New dependencies**: `tree-sitter>=0.25.0` and `tree-sitter-json>=0.24.0` (MIT license) for JSON syntax highlighting in the config editor
-
-- **Show default values in TUI config panels from schema** (Issue #371)
-  - Each config field now shows its default value from `ai-guardian-config.schema.json`
-  - Select widgets mark the default option with `(default)` suffix
-  - Checkbox and Input widgets show `(default: on/off/value)` indicator text
-  - Fields changed from default are highlighted with a yellow left-border
-  - New `SchemaDefaults` singleton loads and caches schema once for performance
-  - New `SchemaDefaultsMixin` provides reusable default-indicator logic for all panels
-  - Applied to 11 config panels: SSRF, PI Detection, PII, Secret Redaction, Violation Logging, Config Scanner, Unicode Detection, Secrets, Prompt Injection, Remote Configs, Global Settings
-
-- **Copy-to-clipboard support in TUI** (Issue #362)
-  - Auto-copy on text selection: selecting text with the mouse automatically copies it to the system clipboard (like Claude Code)
-  - Copy button on Violation Details modal: one-click copy of full violation JSON
-  - Uses Textual's built-in `TextSelected` event and `copy_to_clipboard()` API
-  - Works across all TUI panels without requiring terminal-specific modifier keys
-
-- **`--yes`/`-y` flag for `violations --clear`** (Issue #360)
-  - Skips confirmation prompt for non-interactive use (CI, Claude Code `!` prefix, piped scripts)
-  - `ai-guardian violations --clear --yes` or `ai-guardian violations --clear -y`
-  - Without flag, interactive confirmation prompt is unchanged
-
-### Changed
-
-- **Remove email from default `scan_pii.pii_types` list** (Issue #370)
-  - Email addresses are ubiquitous in codebases (commit templates, CODEOWNERS, package.json, license headers, git config, documentation) and generate excessive noise with little security value
-  - Email PII detection remains available as an opt-in option by adding `"email"` to `pii_types`
-  - Existing configs with explicit `"email"` in `pii_types` continue to work (no breaking change)
-  - Updated schema default, setup.py default config, and example config
-
-- **Remove dev source code patterns from immutable deny rules** (Issue #369)
-  - Removed `ai-guardian/src/ai_guardian` and `ai-guardian/ai_guardian` patterns from Bash, PowerShell, Write, and Edit immutable deny lists
-  - Dev source protection was redundant with git/PR workflow (AI can't push to main)
-  - Eliminates false positives for `sed -n`, `awk`, and grep-with-redirect on dev source
-  - Resolves inconsistency where Write/Edit bypassed dev source protection but Bash `sed`/`awk` on the same files was blocked
-  - Pip-installed package (`*/site-packages/ai_guardian/*`) protection kept for all tools
-  - Config, cache, IDE hooks, and `.ai-read-deny` marker protections unchanged
-
-- **XDG Base Directory compliance: separate config, state, and cache paths** (Issue #352)
-  - New `get_state_dir()` function: logs and violations now stored in `XDG_STATE_HOME/ai-guardian` (default `~/.local/state/ai-guardian`) instead of config dir
-  - New `get_cache_dir()` function: all cache paths respect `XDG_CACHE_HOME` via centralized function instead of hardcoded `~/.cache/ai-guardian/`
-  - Environment variable overrides: `AI_GUARDIAN_STATE_DIR`, `AI_GUARDIAN_CACHE_DIR` for direct control
-  - Backward-compatible migration: state files in old config dir are automatically copied to new state dir on first run
-  - Updated TUI to display correct paths for log files and cache settings
-  - Test isolation updated to isolate state and cache directories alongside config
-
-### Fixed
-
-- **PII violations always have line_number: null** (Issue #359)
-  - `SecretRedactor.redact()` now includes `line_number` and `column` in each redaction entry
-  - PII violation logging (PostToolUse, PreToolUse, UserPromptSubmit) now populates `line_number` from redaction results instead of hardcoding `None`
-  - Secret redaction violation logging now populates `file_path` and `line_number` from tool input and redaction results
-  - TUI displays line numbers for `pii_detected` and `secret_redaction` violations
-
-- **auto_directory_rules generated allow rules overridden by user deny rules** (Issue #348)
-  - Changed `insert_generated_rules()` to insert generated rules AFTER user rules (before immutable rules) instead of at the beginning
-  - With last-match-wins semantics, generated allow rules now correctly override broad user deny rules
-  - Immutable rules still take highest priority at final positions
-  - Updated docstrings in `directory_rule_generator.py` and `tool_policy.py` to reflect correct rule ordering
-
-- **Test isolation: prevent tests from writing to real violations.jsonl** (Issue #344)
-  - Added `autouse` fixture `_isolate_config_dir` that redirects `AI_GUARDIAN_CONFIG_DIR` to a temporary directory for every test
-  - Eliminates 211+ spurious violation entries written to the user's audit log per `pytest` run
-  - Fixed 5 setup tests that relied on `XDG_CONFIG_HOME` without clearing `AI_GUARDIAN_CONFIG_DIR`
-  - Fixed `test_startup_version_logging` to use the file handler's actual path instead of `get_config_dir()`
-
-### Added
-
-- **Allowlist patterns for scan_pii and secret_scanning** (Issue #357)
-  - `allowlist_patterns` config option added to `scan_pii` and `secret_scanning` sections
-  - Suppresses false positives for known-safe values (e.g., corporate email domains, test API key prefixes) without skipping entire files via `ignore_files`
-  - Supports both simple string patterns and time-based patterns with expiration (`valid_until`)
-  - ReDoS protection via `validate_regex_pattern()` on all user-supplied patterns
-  - Dangerous catch-all patterns (`.*`, `.+`) are blocked
-  - Shared `allowlist_utils.py` module extracted from `prompt_injection.py` for consistent behavior across all three scanning modules
-  - TUI updated with allowlist pattern editing for both PII and secret scanning screens
-  - Schema, setup defaults, and example config updated
-  - Existing `prompt_injection.allowlist_patterns` behavior unchanged (refactored to use shared module)
-
-- **Jailbreak Detection Patterns** (Issue #263)
-  - 13 built-in jailbreak patterns across 4 categories: role-play jailbreaks (DAN/sudo/god mode), identity manipulation (pretend/imagine unrestricted AI), constraint removal (no rules now, free from restrictions), and hypothetical framing (fictional scenario without rules)
-  - New `jailbreak_patterns` config key for user-defined patterns (extends built-in patterns)
-  - Error messages distinguish "Jailbreak Attempt Detected" from "Prompt Injection Detected"
-  - New `jailbreak_detected` violation logging type with TUI checkbox and violations panel tab
-  - Jailbreak patterns only checked for user prompts (not file content) to minimize false positives
-  - Named jailbreak persona detection (DAN, STAN, DUDE, AIM, KEVIN)
-  - Reference: "Jailbroken: How Does LLM Safety Training Fail?" (Princeton, 2023)
-  - OWASP LLM Top 10: LLM01 - Prompt Injection
-  - 40+ unit tests covering detection, false positives, attack type distinction, config, sensitivity, allowlist, and violation logging
-
-- **PII Detection in Tool Outputs** (Issue #262)
-  - GDPR/CCPA compliance: detect and redact personally identifiable information across all three hooks (UserPromptSubmit, PreToolUse, PostToolUse)
-  - 7 PII types supported: SSN (with invalid format exclusions), Credit Card (Luhn validation), US Phone, Email (preserves domain), US Passport, IBAN (mod-97 validation), International Phone (E.164)
-  - Top-level `scan_pii` config section with `enabled`, `pii_types`, `action`, and `ignore_files`
-  - Enabled by default; `action: "redact"` masks PII in PostToolUse output, blocks in UserPromptSubmit/PreToolUse
-  - `ignore_files` glob patterns for skipping files with example PII data (e.g., test fixtures)
-  - Extends existing `SecretRedactor` infrastructure with PII patterns and three new masking strategies (`credit_card`, `pii_email`, `iban`)
-  - Added `pii_detected` violation logging type with TUI checkbox and violations filter tab
-  - 36 unit tests covering all PII types, false positive avoidance, Luhn/IBAN validation, type filtering, and performance
-  - 7 UX contract tests covering all three hooks, ignore_files, and disabled state
-
-- **`ssrf_blocked` and `config_file_exfil` violation logging types** (Issue #322)
-  - SSRF detections were misclassified as `tool_permission`, making it impossible to filter or configure SSRF logging independently
-  - Config file exfiltration threats produced no audit trail at all — the most dangerous attack vector (persistence multiplier) was completely invisible in violation logs, TUI, and audit exports
-  - Added `ssrf_blocked` violation type: SSRF violations in `tool_policy.py` now log with their own dedicated type instead of `tool_permission`
-  - Added `config_file_exfil` violation type: Config file exfiltration detections in `__init__.py` now call `violation_logger.log_violation()` before returning blocked response
-  - Updated `log_types` enum in JSON schema to include both new types
-  - Updated defaults in `violation_logger.py`, `setup.py`, and TUI settings
-  - Added TUI checkboxes in secrets settings for new log types
-  - Added TUI violation panel tabs/filters for `ssrf_blocked` and `config_file_exfil`
-  - Backward compatible: existing configs with explicit 5-type `log_types` list silently skip new types until manually updated
-  - Added 18 tests covering defaults, filtering, schema validation, and logging behavior
-
-- **`--json` flag for `setup --create-config` and bundled schema path** (Issue #326)
-  - Added `--json` flag to `setup --create-config` that outputs only raw JSON, making it pipeable to `jq` and other tools
-  - Changed `$schema` field to use a `file://` URI pointing to the bundled schema instead of a GitHub URL, ensuring the schema always matches the installed version and works offline
-  - The `--json` flag skips the config-already-exists check and suppresses all non-JSON output
-
-- **allow_symlinks flag and plugin cache discovery for auto_directory_rules** (Issue #324)
-  - Added `allow_symlinks` boolean property (default: `true`) to `auto_directory_rules` config
-  - In container environments (e.g., carbonite), skills are installed as symlinks — previously all symlinks were unconditionally skipped, making auto-generated directory rules non-functional
-  - When `true`, symlinked skill directories that resolve to valid directories are followed
-  - When `false`, all symlinks are skipped (original behavior)
-  - Broken symlinks are always skipped regardless of this setting
-  - Added plugin cache directory scanning: `~/.claude/plugins/cache/*/*/*/skills/` — skills installed via Claude Code plugins are now discovered automatically
-  - Updated schema, setup.py default config, and example config
-  - Added 11 test cases covering symlink handling, plugin cache discovery, and edge cases
-
-- **Scanner/Pattern-Server Discovery Commands** (Issue #320)
-  - `ai-guardian scanner supported` — lists all supported scanners with versions, repos, and licenses
-  - `ai-guardian pattern-servers supported` — lists all configured pattern servers with URLs and endpoints
-  - `--json` flag for `scanner list`, `scanner info`, `scanner supported`, and `pattern-servers supported`
-  - Bundled `pyproject.toml` in wheel via `force-include` so scanner config is available in non-editable installs
-  - Updated `_load_scanner_config()` to try bundled path first, then fall back to development path
-  - Added `get_pattern_servers()` method to `ScannerInstaller`
-
-- **Multi-Engine Scanner Support - Phase 2** (Issue #249, v1.6.0)
-  - **TruffleHog Scanner Support**:
-    - Added `TruffleHogOutputParser` for parsing TruffleHog newline-delimited JSON output
-    - Added `trufflehog` engine preset in `ENGINE_PRESETS`
-    - Supports 700+ detectors with entropy analysis
-    - Handles verified secrets detection
-    - Configuration: `"engines": ["trufflehog"]`
-  - **detect-secrets Scanner Support**:
-    - Added `DetectSecretsOutputParser` for parsing detect-secrets baseline JSON
-    - Added `detect-secrets` engine preset in `ENGINE_PRESETS`
-    - Supports baseline workflow for CI/CD pipelines
-    - Plugin-based detection system
-    - Configuration: `"engines": ["detect-secrets"]`
-  - **Execution Strategies** (`src/ai_guardian/scanners/strategies.py`):
-    - `FirstMatchStrategy`: Use first available engine (default, backward compatible)
-    - `AnyMatchStrategy`: Run all engines, block if ANY finds secrets (maximum security)
-    - `ConsensusStrategy`: Block only if N engines agree (reduces false positives)
-    - Smart deduplication: Same secret found by multiple engines = single result
-    - Verified secret preference: Engines that verify secrets get priority
-  - **Testing**: 38 new unit tests added
-    - `test_trufflehog_parser.py`: 8 tests for TruffleHog output parsing
-    - `test_detect_secrets_parser.py`: 9 tests for detect-secrets output parsing
-    - `test_execution_strategies.py`: 21 tests for execution strategies and deduplication
-  - **Configuration Examples**:
-    - Maximum security: `{"engines": ["gitleaks", "trufflehog"], "execution_strategy": "any-match"}`
-    - Reduced false positives: `{"engines": ["gitleaks", "trufflehog", "detect-secrets"], "execution_strategy": "consensus", "consensus_threshold": 2}`
-    - Enterprise migration: `{"engines": ["trufflehog"]}` (use existing investment)
-  - **CI/CD Integration**:
-    - Added TruffleHog (v3.88.0) and detect-secrets (v1.5.0) to `pyproject.toml` scanner versions
-    - Added scanner repository mappings for trufflesecurity/trufflehog and Yelp/detect-secrets
-    - Updated `.github/workflows/integration-tests.yml` to install detect-secrets (TruffleHog skipped - tested via mocks)
-    - Scanner version health monitoring now tracks TruffleHog and detect-secrets updates
-  - **License Considerations**:
-    - TruffleHog uses AGPL-3.0 license (copyleft)
-    - AI Guardian uses TruffleHog as external tool via subprocess (no derivative work, no AGPL obligations)
-    - Interactive license notice shown during `ai-guardian scanner install trufflehog`
-    - Documentation added to `MULTI_ENGINE_SUPPORT.md` explaining AGPL-3.0 implications
-    - Alternative scanners available for organizations with AGPL concerns (gitleaks, betterleaks, leaktk, detect-secrets)
-    - detect-secrets uses Apache-2.0 (same as ai-guardian)
-
-- **Dependency Management Documentation** (Issue #293)
-  - New comprehensive "Dependency Management" section in AGENTS.md
-  - Covers all aspects of dependency management workflow:
-    - Dependabot automation (GitHub Actions and Python packages)
-    - Scanner version checking (daily automated monitoring)
-    - Manual update procedures for immediate changes
-  - Step-by-step workflows for responding to update alerts
-  - Best practices for version pinning and update strategies
-  - Troubleshooting guide for common dependency issues
-  - Monitoring commands and audit procedures
-  - Version update frequency reference table
-  - Consolidates and expands on related issues #289, #290, #291, #292
-
-- **Enhanced Prompt Injection Detection** (Issue #285, Phase 1)
-  - **24 New Patterns from 2026 Security Research**:
-    - CRITICAL patterns (15): Fake completion attacks, HTML comment injection, chain-of-thought exploitation, Python attribute chain exploitation, recursive self-prompting, XSS payload generation, SQL injection prompting, newline context switching, conditional safety bypass, CSS-hidden HTML content, maintenance mode activation, auto-approval manipulation, instruction replacement (new/update/instead)
-    - DOCUMENTATION patterns (8): Output format manipulation, workflow chaining, role reversal declarations, chat template delimiters, Base64 command encoding, delimiter injection ([SYSTEM]/template variables), context manipulation (conversation reset/session restart)
-    - SUSPICIOUS patterns (1): Identity spoofing
-  - **Research Sources**:
-    - PayloadsAllTheThings (GitHub) - instruction override, role manipulation, constraint bypass patterns
-    - Hermes Security Patterns (fullsend-ai experiments) - delimiter attacks, chat template injection, context manipulation
-    - Open-Prompt-Injection dataset (Liu et al., USENIX Security 2024) - fake completion, multi-vector attacks
-    - "Prompt Injection Attacks on Agentic Coding Assistants" (arXiv 2601.17548, Jan 2026) - AI IDE-specific attacks
-  - **Attack Coverage**:
-    - Instruction replacement attacks ("new instructions:", "instead follow", "update your rules")
-    - Multi-vector combined attacks (escape chars + fake completion + context ignoring)
-    - AI IDE-specific attacks (skill poisoning, GitHub issue/PR comment injection, MCP tool description poisoning)
-    - Obfuscation bypasses (Base64 encoding, chat template injection, delimiter attacks)
-    - Workflow manipulation (chaining, conditional triggers, auto-approval claims)
-    - Context manipulation (conversation reset, session restart with malicious intent)
-  - **Performance**: All patterns maintain <1ms detection target
-  - **Testing**: 42 new tests added (positive/negative cases for each pattern)
-  - **Documentation**: Research analysis in `docs/research/open-prompt-injection-analysis.md`
-
-- **Dependabot Configuration** (Issue #292, #309)
-  - **Automated Dependency Updates**: `.github/dependabot.yml`
-    - GitHub Actions monitoring: Monthly checks for action version updates
-      - Monitors: actions/checkout, actions/setup-python, codecov/codecov-action, etc.
-      - Labels: `ci-cd`, `dependabot`
-      - Commit prefix: `ci:`
-      - PR limit: 5 concurrent
-      - Grouping: All updates (minor, patch, and major) grouped into single PRs
-    - Python package monitoring: Monthly checks for pip dependencies
-      - Monitors: textual, jsonschema, requests, pyyaml, tomli, pytest, etc.
-      - Labels: `enhancement`, `dependabot`
-      - Commit prefix: `deps:`
-      - PR limit: 10 concurrent
-      - Grouping: All updates (minor, patch, and major) grouped into single PRs
-  - **Security Benefits**:
-    - ✅ Automated CVE alerts: Immediate PRs for security vulnerabilities (regardless of schedule)
-    - ✅ Zero-effort monitoring: Dependabot checks automatically
-    - ✅ CI validation: All PRs run full test suite before merge
-  - **Complements Scanner Checking** (#291):
-    - Dependabot: Standard dependencies (GitHub Actions, Python packages)
-    - Scanner checking: Custom scanners (gitleaks, betterleaks, leaktk)
-  - **Documentation**: Added Dependabot section to AGENTS.md
-
-- **Daily Scanner Version Health Monitoring** (Issue #291)
-  - **Enhanced Version Check Script**: `scripts/check_scanner_versions.py --check-updates`
-    - Checks for scanner version updates via GitHub releases API
-    - Calculates age of pinned versions (alerts when >30 days old)
-    - Compares pinned versions against latest available versions
-    - Checks LeakTK pattern server version updates
-      - Monitors `ai-guardian-example.json` pattern endpoint version
-      - Compares against latest pattern directory in leaktk/patterns repo
-    - Outputs JSON results for workflow automation (`versions.json`)
-    - Exit codes: 0 = up to date, 1 = outdated versions found
-  - **CI/CD Automation**: Daily health check workflow
-    - `.github/workflows/integration-tests.yml`: New `version-health-check` job
-    - Runs daily at 2 AM UTC (schedule) and manual trigger (workflow_dispatch)
-    - Only runs on schedule/manual, skips on PRs to avoid noise
-    - Smart issue management:
-      - Duplicate prevention: Checks for existing open issues before creating
-      - Daily updates: Comments on existing issue instead of creating duplicates
-      - Auto-closes: Issue closes when versions are updated
-    - Creates GitHub issue when versions outdated (>30 days) or updates available
-      - Label: `scanner-version-update`, `dependencies`, `maintenance`
-      - Includes: Version comparison, age tracking, update instructions
-      - Special handling: LeakTK pattern updates include both ai-guardian-example.json and pyproject.toml update instructions
-  - **Benefits**:
-    - ✅ Proactive alerts: Know when scanner updates available
-    - ✅ Security awareness: Track age of dependencies
-    - ✅ Zero maintenance: Fully automated daily checks
-    - ✅ No duplicates: Smart issue management
-    - ✅ Audit trail: GitHub issues document all updates
-    - ✅ Pattern monitoring: Track LeakTK pattern version updates
-  - **Related**: Issue #290 - Version existence check, Issue #289 - Version mismatch fix
-
-- **Scanner Version Existence Check** (Issue #290)
-  - **Pre-flight Check Script**: `scripts/check_scanner_versions.py`
-    - Verifies pinned scanner versions in `pyproject.toml` exist on GitHub releases
-    - Checks download URLs are accessible via GitHub Releases API
-    - Prevents CI failures from yanked versions, deleted repos, or missing assets
-    - Reports file sizes and download URLs for each scanner
-    - Exits with code 1 if any version is missing (fails workflow fast)
-    - Supports different asset naming conventions:
-      - gitleaks/betterleaks: `scanner_version_platform.tar.gz`
-      - leaktk: `scanner-version-platform.tar.xz` with hyphens and x86_64
-  - **CI/CD Integration**: Added to workflows
-    - `.github/workflows/integration-tests.yml`: New `version-check` job runs before all test jobs
-    - `.github/workflows/test.yml`: New `version-check` job prevents wasted test runs
-    - All test jobs depend on version-check passing (`needs: version-check`)
-  - **Error Messages**: Clear, actionable error reporting
-    - "Release vX.Y.Z not found in owner/repo"
-    - "Asset filename not found in release vX.Y.Z"
-    - "🚨 CRITICAL: One or more pinned scanner versions do not exist!"
-  - **Benefits**:
-    - ✅ Fail fast: Detect missing versions before attempting download
-    - ✅ Clear errors: Actionable error messages instead of cryptic wget failures
-    - ✅ Prevents CI waste: Don't run tests if scanner install will fail
-    - ✅ Automation-ready: Can be used in version update workflows
-  - **Related**: Parent issue #289 - Version mismatch fix
-
-- **Automated Monthly Prompt Injection Pattern Research Workflow** (Issue #288)
-  - **GitHub Actions Workflow**: Monthly automated reminder issues (1st of month, 9am UTC)
-    - File: `.github/workflows/pattern-research-reminder.yml`
-    - Duplicate prevention: Checks for existing open reminders before creating new ones
-    - Manual trigger option: `workflow_dispatch` for on-demand execution
-    - Pre-populated research checklist: Links to Hermes, OWASP, academic sources
-    - Smart commenting: Adds reminder to existing issues instead of creating duplicates
-  - **Issue Template**: Standardized pattern enhancement submissions
-    - File: `.github/ISSUE_TEMPLATE/pattern-enhancement.md`
-    - YAML form template with required fields (source, URL, date, patterns)
-    - Evaluation checklist: Applies to AI IDEs, not duplicate, low false positives, reproducible
-    - Pattern structure: Regex, attack examples, safe examples, rationale, category
-    - Implementation recommendations: Severity, category placement, test requirements
-  - **Documentation**: Comprehensive maintenance process in AGENTS.md
-    - Section: "Security Research & Innovation" → "Periodic Pattern Maintenance"
-    - Monthly research process: Step-by-step workflow from discovery to implementation
-    - Priority-ranked source list: Hermes, OWASP, academic papers, CVEs, blogs, conferences
-    - Evaluation criteria: Decision matrix for apply vs reject (4 criteria: applies to AI IDEs, not duplicate, low FP, reproducible)
-    - Pattern addition workflow: Issue creation → Implementation → Testing → Documentation → PR
-    - Last review date tracking: Maintains history of last 3 months of reviews
-    - Example pattern addition: Complete walkthrough with code samples
-  - **Benefits**:
-    - ✅ Never forget monthly pattern reviews (automated reminders)
-    - ✅ No duplicate reminder issues (smart duplicate prevention)
-    - ✅ Standardized pattern submissions (issue template)
-    - ✅ Clear evaluation criteria (decision matrix)
-    - ✅ Audit trail of all pattern reviews (GitHub issue history)
-    - ✅ Low maintenance overhead (runs automatically)
-  - **Related**: Parent issue #147 - Research open source prompt injection detection libraries
-
-### Changed
-
-- **Enhanced Error Messages - Phase 3** (Issue #287)
-  - **Detailed Error Messages Across All Protection Layers**:
-    - All security error messages now follow consistent Phase 3 format
-    - Changed from `🚨 BLOCKED BY POLICY` to `🛡️ [Protection Type]` format
-    - Removed `===` separator lines for cleaner presentation
-  - **Prompt Injection Detection** (`prompt_injection.py`):
-    - Shows exact regex pattern that triggered detection (not human-readable names)
-    - Displays confidence level (High/Medium/Low) with score
-    - Sanitized matched text (max 60 chars, newlines removed)
-    - Context information (file path or tool name when applicable)
-    - Prevents re-interpretation attacks by showing raw regex
-  - **Secret Scanning** (`__init__.py`):
-    - Shows secret type (from rule_id) and exact location (file:line)
-    - Scanner name (Gitleaks/BetterLeaks/LeakTK) and pattern source
-    - ⚠️ Secret value NEVER shown in error message for security
-    - Recommendations for secure alternatives (env vars, secret managers)
-  - **Tool Policy** (`tool_policy.py`):
-    - Shows tool name, matcher, and denied pattern
-    - Context-specific recommendations (e.g., npm package review for install commands)
-    - Truncates long commands/patterns to 100 chars with ellipsis
-  - **Immutable File Protection** (`tool_policy.py`):
-    - Differentiates protection types (pip-installed source, config files, .ai-read-deny markers)
-    - Shows development setup instructions for pip-installed packages
-    - Clarifies that protection is immutable and cannot be disabled
-  - **Directory Protection** (`__init__.py`):
-    - Distinguishes between directory rules and .ai-read-deny markers
-    - Shows protected directory and matched pattern (if rule-based)
-    - Different recommendations for rules vs markers
-  - **Consistent Format Across All Layers**:
-    - Protection type clearly identified
-    - Pattern/rule that triggered the block
-    - "Why blocked" explanation with security context
-    - "This operation has been blocked for security" notice
-    - **"DO NOT attempt to bypass this protection"** security warning (preserved from previous phases)
-    - Actionable recommendations specific to the violation
-    - Config path and section for user modifications
-  - **Testing**: 21 new comprehensive tests in `test_error_messages.py`
-    - Verifies Phase 3 format across all protection types
-    - Ensures no old format elements (🚨, ===, old headers)
-    - Validates security warnings preserved
-    - Tests regex pattern display, sanitization, truncation
-  - **Security Benefits**:
-    - ✅ Prevents re-interpretation attacks (shows regex, not attack strings)
-    - ✅ Never leaks secret values in error messages
-    - ✅ Maintains security warnings across all layers
-    - ✅ Provides actionable guidance without compromising security
-  - **User Experience**:
-    - Consistent format makes errors predictable and easier to parse
-    - Context-specific recommendations reduce support burden
-    - Clear config paths enable quick self-service fixes
-
-### Fixed
-
-- **Pattern server configuration section name misalignment** (PR #318)
-  - Corrected integration test workflow to use `pattern_servers` (plural) instead of incorrect singular form
-  - Added leaktk pattern server configuration to `pyproject.toml` with GitHub raw content endpoint
-  - Fixed test assertions to match Phase 3 error message format (#287): updated patterns for immutable protection labels, capitalized protection type names, and revised security message wording
-  - All 1357 tests passing after fixes
-
-- **Scanner installer ignores --use-pinned and --version flags when package manager succeeds** (Issue #295)
-  - **Root Cause**: Package manager installation returned success without verifying installed version matched requested version
-  - **Impact**: Users requesting specific versions (e.g., `--version 8.30.1` or `--use-pinned`) got different versions when package manager succeeded (e.g., apt-get installing v8.18.2)
-  - **Fix**: After package manager installation, verify installed version matches target version:
-    - If versions match: Return success
-    - If versions differ: Print warning and fall back to direct download from GitHub releases
-  - **Fallback Behavior**:
-    ```
-    ⚠️  Package manager installed gitleaks 8.18.2, but 8.30.1 was requested
-    Falling back to direct download for gitleaks 8.30.1...
-    ```
-  - **Guarantees**: `--version` and `--use-pinned` flags now guarantee exact scanner versions in CI/CD
-  - **Test Coverage**: Added 3 regression tests for explicit version, pinned version, and correct version scenarios
-  - **CI/CD Improvement**: Updated GitHub workflows to use scanner installer instead of manual wget/tar
-    - Simplifies workflow maintenance (single source of truth in pyproject.toml)
-    - Removes manual version extraction and download logic
-    - Ensures workflows use same installation method as users
-    - Updated workflows: `test.yml`, `integration-tests.yml` (3 jobs)
-
-### Added
-
-- **Auto-Generate Directory Rules from Skill Permissions** (Issue #144)
-  - **Eliminates Duplication**: Auto-generate directory access rules from skill permissions, eliminating the need to configure skills in two places
-  - **Multi-IDE Support**: Scans standard skill locations for Claude Code, Cursor, VSCode/Copilot, and Windsurf
-    - Claude Code: `./.claude/skills`, `~/.claude/skills`, `$CLAUDE_CONFIG_DIR/skills`
-    - Cursor: `./.cursor/skills`, `~/.cursor/skills`, `$CURSOR_PROJECT_PATH/.cursor/skills`
-    - VSCode/Copilot: `./.vscode/skills`, `~/.vscode/skills`, `$VSCODE_CWD/.vscode/skills`
-    - Windsurf: `./.windsurf/skills`, `~/.windsurf/skills`
-  - **Opt-In Feature**: Requires explicit `auto_directory_rules.enabled: true` in config
-  - **User Control Maintained**: Generated rules inserted at BEGINNING of directory_rules array (user rules can override)
-  - **Rule Order** (last-match-wins): Generated → User → Immutable
-  - **Transparency**: All rules visible with clear labels `[USER]`, `[GENERATED]`, `[IMMUTABLE]`
-  - **Configuration**:
-    ```json
-    {
-      "permissions": {
-        "auto_directory_rules": {
-          "enabled": true,
-          "skill_directories": "auto"
-        }
-      }
-    }
-    ```
-  - **New CLI Command**: `ai-guardian config show`
-    - `ai-guardian config show` - Display user-defined configuration
-    - `ai-guardian config show --all` - Include auto-generated rules with `[GENERATED]` labels
-    - `ai-guardian config show --section <name>` - Show specific section only
-    - `ai-guardian config show --preview-auto-rules` - Preview what auto-generation would create
-  - **Implementation**:
-    - Added `DirectoryRuleGenerator` class for auto-generation logic
-    - Added `ConfigDisplay` class for displaying merged configuration
-    - Updated JSON schema with `auto_directory_rules` section
-    - Integrated into `ToolPolicyChecker._load_config()` after remote config merge
-  - **Critical Design Decision**: Investigation (INVESTIGATION_ISSUE_144.md) identified that original proposal had rule order BACKWARDS
-    - Original: User → Generated → Immutable (Generated wins, breaks user control)
-    - Implemented: Generated → User → Immutable (User can override, maintains control)
-  - **Visibility**: Investigation identified "invisible immutable rules" as breaking user trust
-    - All rules (user, generated, immutable) are visible with clear source attribution
-    - `config show --all` displays complete merged configuration with labels
-  - **Test Coverage**: Added 39 comprehensive test cases:
-    - Rule generation from skill permissions patterns
-    - Rule insertion order (Generated first, User second)
-    - Multi-IDE support (Claude, Cursor, VSCode, Windsurf)
-    - Environment variable handling (CLAUDE_CONFIG_DIR, CURSOR_PROJECT_PATH, VSCODE_CWD)
-    - Configuration display with source labeling
-    - Immutable rule visibility (critical UX requirement)
-
-### Fixed
-
-- **GitHub Workflows: Sync all scanner versions with pyproject.toml** (Issue #289)
-  - **Problem**: GitHub workflows were using hardcoded gitleaks v8.18.2 while pyproject.toml pinned v8.30.1
-  - **Impact**: Tests ran against different scanner version (12 patch versions behind) than users received via `ai-guardian scanner install --use-pinned`
-  - **Solution**: Workflows now dynamically extract versions from pyproject.toml and download exact versions from GitHub releases
-  - **Comprehensive Testing**: CI now installs and verifies all three scanners:
-    - gitleaks v8.30.1 (previously hardcoded v8.18.2 - 12 patch versions behind)
-    - betterleaks v1.1.2 (newly added to CI)
-    - leaktk v0.2.10 (newly added to CI)
-  - **Single Source of Truth**: pyproject.toml `[tool.ai-guardian.scanners]` is authoritative for all scanner versions
-  - **Implementation**: Uses direct GitHub release downloads to guarantee exact version match
-  - **Files Updated**:
-    - `.github/workflows/test.yml` - Install all 3 scanners from pyproject.toml versions
-    - `.github/workflows/integration-tests.yml` - Updated 3 jobs (integration-tests, test-isolation, performance-check)
-  - **Benefits**: 
-    - Tests always match user experience (exact version from `--use-pinned`)
-    - No manual workflow updates needed when pinned versions change
-    - Comprehensive scanner coverage ensures all three work correctly
-  - **Note**: Discovered bug in scanner installer where package managers (apt-get) install wrong versions even with `--use-pinned` flag - filed separate issue
+- **Pattern server configuration section name corrected** (PR #318)
+  - Integration test workflow now uses `pattern_servers` (plural) instead of incorrect singular form
 
 ## [1.5.1] - 2026-04-28
 
