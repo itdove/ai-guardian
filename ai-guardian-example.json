@@ -17,6 +17,8 @@
   "_comment14": "  - .ai-read-deny marker files (directory protection)",
   "_comment15": "No configuration can disable these protections - they are hardcoded",
   "_comment16": "====================================================================",
+  "_comment17": "⚠️ LIMITATION: '!' shell commands in Claude Code bypass ALL ai-guardian hooks.",
+  "_comment18": "  See 'transcript_scanning' section below for after-the-fact detection.",
 
   "permissions": {
     "_comment": "Tool permission enforcement - WHERE THE RULES LIVE",

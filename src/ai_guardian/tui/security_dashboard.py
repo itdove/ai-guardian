@@ -380,6 +380,12 @@ class SecurityDashboardContent(Container):
             recommendations.append("💡 Tip: Review the Violations tab regularly to monitor security events.")
             recommendations.append("💡 Tip: Use time-based toggles to temporarily disable features during debugging.")
 
+        recommendations.append(
+            "⚠ Shell mode bypass: Commands run with the '!' prefix in Claude Code "
+            "bypass all ai-guardian hooks. Avoid using '!' to display secrets or "
+            "untrusted files. Enable transcript_scanning for after-the-fact detection."
+        )
+
         recommendations_text = "\n\n".join(recommendations)
         self.query_one("#recommendations", Static).update(recommendations_text)
 
