@@ -101,7 +101,7 @@ AI IDEs like Claude Code support two permission layers:
 | **Config Exfiltration** | ❌ Not supported | ✅ Detection patterns | Prevent config file leaks |
 | **Directory Rules** | ❌ Not supported | ✅ Path-based control | Block `~/.ssh`, `~/.aws`, etc. |
 | **Immutable Protection** | ❌ Not enforced | ✅ Hardcoded | Protects IDE config, ai-guardian files |
-| **Violation Logging** | ❌ No audit trail | ✅ JSON logs + TUI | View violations in `ai-guardian tui` |
+| **Violation Logging** | ❌ No audit trail | ✅ JSON logs + Console | View violations in `ai-guardian console` |
 | **Action Modes** | Binary (allow/deny) | Block, Log, Redact | Flexible enforcement |
 
 ---
@@ -194,7 +194,7 @@ AI IDEs like Claude Code support two permission layers:
 | **Secret scanning** | ❌ Not supported | ✅ **Required** | Detect leaked credentials |
 | **Prompt injection detection** | ❌ Not supported | ✅ Use this | Security layer |
 | **Directory access control** | ❌ Not supported | ✅ Use this | Block `~/.ssh`, `~/.aws` |
-| **Compliance audit trail** | ❌ No logging | ✅ **Required** | View violations in TUI |
+| **Compliance audit trail** | ❌ No logging | ✅ **Required** | View violations in Console |
 
 **Recommended Decision Tree:**
 
@@ -418,10 +418,10 @@ Beyond permissions, ai-guardian provides security features not available in sett
 
 **View violations:**
 ```bash
-ai-guardian tui  # Interactive TUI
+ai-guardian console  # Interactive Console
 ```
 
-**TUI features:**
+**Console features:**
 - Filter by type (permissions, secrets, directories)
 - One-click approval (add to allowlist)
 - Violation statistics
@@ -612,7 +612,7 @@ ai-guardian tui  # Interactive TUI
 
 **Phase 2: Identify Violations**
 ```bash
-ai-guardian tui  # Review violations
+ai-guardian console  # Review violations
 ```
 
 **Phase 3: Allowlist** (Block mode)
@@ -748,7 +748,7 @@ https://policies.company.com/
 
 - [README.md](../README.md) - Main AI Guardian documentation
 - [HOOKS.md](HOOKS.md) - Hook integration architecture and ordering
-- [TUI.md](TUI.md) - Using the TUI to view violations
+- [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
 - [SECRET_SCANNING.md](SECRET_SCANNING.md) - Secret detection details
 - [SSRF_PROTECTION.md](SSRF_PROTECTION.md) - SSRF protection configuration
 - [Claude Code Permissions](https://code.claude.com/docs/en/permissions) - Official settings.json docs

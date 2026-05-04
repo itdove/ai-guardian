@@ -785,7 +785,7 @@ def create_default_config(
         else:
             message += f"  • Permissions: Enabled (Skills/MCP blocked by default)\n"
             message += f"\n  Next steps:\n"
-            message += f"  1. Run 'ai-guardian tui' to configure allowed skills\n"
+            message += f"  1. Run 'ai-guardian console' to configure allowed skills\n"
             message += f"  2. Or edit {config_path} manually\n"
 
         return True, message
@@ -897,13 +897,13 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             },
             "rules": [] if permissive else [
                 {
-                    "_comment": "Skills - Blocked by default. Add allow rules via TUI.",
+                    "_comment": "Skills - Blocked by default. Add allow rules via Console.",
                     "matcher": "Skill",
                     "mode": "deny",
                     "patterns": ["*"]
                 },
                 {
-                    "_comment": "MCP Servers - Blocked by default. Add allow rules via TUI.",
+                    "_comment": "MCP Servers - Blocked by default. Add allow rules via Console.",
                     "matcher": "mcp__*",
                     "mode": "deny",
                     "patterns": ["*"]
@@ -939,7 +939,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "urls": []
         },
 
-        "_comment_console": "TUI console settings (editor theme preference)",
+        "_comment_console": "Console settings (editor theme preference)",
         "console": {
             "editor_theme": "monokai"
         },

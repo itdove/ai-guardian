@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-AI Guardian TUI Module
+AI Guardian Console Module
 
-Interactive Text User Interface for managing AI Guardian configuration.
+Interactive Console for managing AI Guardian configuration.
 Provides user-friendly screens for viewing violations, managing permissions,
 and configuring security settings.
 """

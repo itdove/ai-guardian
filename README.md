@@ -313,19 +313,19 @@ AI Guardian uses a hybrid version management approach:
 
 See [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) for detailed installation guide.
 
-## Interactive TUI
+## Interactive Console
 
 Launch the interactive Text User Interface to manage AI Guardian configuration visually:
 
-> **📖 Comprehensive Documentation**: See [docs/TUI.md](docs/TUI.md) for detailed TUI documentation including all 11 tabs, keyboard shortcuts, workflows, and troubleshooting.
+> **📖 Comprehensive Documentation**: See [docs/CONSOLE.md](docs/CONSOLE.md) for detailed Console documentation including all 11 tabs, keyboard shortcuts, workflows, and troubleshooting.
 
 ```bash
-ai-guardian tui
+ai-guardian console
 ```
 
 ### Tab-Based Interface
 
-The TUI uses a modern tab-based interface with separate tabs for each concern:
+The Console uses a modern tab-based interface with separate tabs for each concern:
 
 1. **⚙️ Global Settings** - Global security feature toggles (NEW)
    - Manage permissions enforcement (`permissions.enabled`) with time-based toggles
@@ -388,7 +388,7 @@ The TUI uses a modern tab-based interface with separate tabs for each concern:
     - Filter by log level
     - Real-time log viewing
 
-### Why Use the TUI?
+### Why Use the Console?
 
 - ✅ **User-friendly**: No need to remember JSON schema syntax
 - ✅ **Validation**: Real-time validation prevents syntax errors
@@ -398,9 +398,9 @@ The TUI uses a modern tab-based interface with separate tabs for each concern:
 
 ### Security Note
 
-**The TUI is designed for manual, deliberate config changes only.**
+**The Console is designed for manual, deliberate config changes only.**
 
-Unlike command-line flags, the TUI requires you to physically see and click buttons to approve changes. This prevents an AI agent from sneakily modifying your configuration behind the scenes.
+Unlike command-line flags, the Console requires you to physically see and click buttons to approve changes. This prevents an AI agent from sneakily modifying your configuration behind the scenes.
 
 - ✅ **Manual approval required**: You must click "Approve & Add Rule" for each change
 - ✅ **Human-in-the-loop**: Every config modification is visible in the UI
@@ -408,7 +408,7 @@ Unlike command-line flags, the TUI requires you to physically see and click butt
 
 ### Navigation
 
-- `q` - Quit the TUI
+- `q` - Quit the Console
 - `Escape` - Go back to previous screen
 - `r` - Refresh current screen
 - `Arrow keys` / `Tab` - Navigate between buttons
@@ -732,7 +732,7 @@ AI Guardian supports three enforcement levels:
 
 **Violation tracking:**
 - All violations are logged to ViolationLogger regardless of action mode
-- View violations in TUI with `ai-guardian tui`
+- View violations in Console with `ai-guardian console`
 - Violations include timestamp, type, details, and suggested fixes
 - Perfect for compliance auditing and security monitoring
 
@@ -2459,7 +2459,7 @@ Tests use:
 - **Mock MCP Server**: No external dependencies required
 - **Test Isolation**: Each test runs in isolated temporary directories
 - **Attack Constants**: Clearly marked fake credentials for testing
-- **Coverage Config**: Automatically excludes TUI modules from coverage reports
+- **Coverage Config**: Automatically excludes Console modules from coverage reports
 
 ### CI/CD
 
@@ -2470,7 +2470,7 @@ All tests run automatically on every pull request:
 
 ### Coverage
 
-**Core Protection Modules: 70% coverage** (TUI/setup modules excluded)
+**Core Protection Modules: 70% coverage** (Console/setup modules excluded)
 
 | Module | Coverage | Focus |
 |--------|----------|-------|

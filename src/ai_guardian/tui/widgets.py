@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Reusable TUI Widgets
+Reusable Console Widgets
 
-Common widgets used across multiple TUI tabs.
+Common widgets used across multiple Console tabs.
 """
 
 import re

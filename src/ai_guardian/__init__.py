@@ -2160,7 +2160,7 @@ def _handle_violations_command(args):
 
         print()
 
-    print(f"To allow blocked operations, run: ai-guardian tui (when available)")
+    print(f"To allow blocked operations, run: ai-guardian console (when available)")
     print(f"Or manually edit: ~/.config/ai-guardian/ai-guardian.json\n")
 
     return 0
@@ -3715,16 +3715,16 @@ def main():
             help="Skip confirmation prompt (for non-interactive use)"
         )
 
-        # TUI subcommand
-        tui_parser = subparsers.add_parser(
-            "tui",
-            help="Launch interactive TUI for configuration management"
-        )
-
-        # Console subcommand (alias for tui)
+        # Console subcommand (primary)
         console_parser = subparsers.add_parser(
             "console",
-            help="Launch interactive console (alias for tui)"
+            help="Launch interactive console for configuration management"
+        )
+
+        # TUI subcommand (alias for console, kept for backward compatibility)
+        tui_parser = subparsers.add_parser(
+            "tui",
+            help="Launch interactive console (alias for ai-guardian console)"
         )
 
         # Scan subcommand
@@ -3996,11 +3996,11 @@ def main():
                 app.run()
                 return 0
             except ImportError as e:
-                print(f"Error: TUI dependencies not available. Install with: pip install ai-guardian", file=sys.stderr)
+                print(f"Error: Console dependencies not available. Install with: pip install ai-guardian", file=sys.stderr)
                 print(f"Details: {e}", file=sys.stderr)
                 return 1
             except Exception as e:
-                print(f"Error running TUI: {e}", file=sys.stderr)
+                print(f"Error running console: {e}", file=sys.stderr)
                 return 1
 
         # Handle scan command

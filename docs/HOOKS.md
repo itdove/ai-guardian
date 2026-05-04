@@ -184,21 +184,21 @@ Users never see policy violations in "log mode":
 **3. Compliance & Audit**
 The actual value is in audit logging, not user warnings:
 - All violations logged to ViolationLogger
-- Visible in TUI (`ai-guardian tui`)
+- Visible in Console (`ai-guardian console`)
 - Logged at WARNING level for audit
 - Perfect for compliance tracking
 
 ### What "Log Mode" Does
 
 ✅ **Logs violation** at WARNING level  
-✅ **Records to ViolationLogger** (visible in TUI)  
+✅ **Records to ViolationLogger** (visible in Console)  
 ✅ **Allows execution** (exit 0)  
 ❌ **Does NOT show message to user** (Claude Code limitation)
 
 ### What "Block Mode" Does
 
 ✅ **Logs violation** at ERROR level  
-✅ **Records to ViolationLogger** (visible in TUI)  
+✅ **Records to ViolationLogger** (visible in Console)  
 ✅ **Shows error message to user** (exit != 0, stderr displayed)  
 ✅ **Prevents execution**
 
@@ -283,7 +283,7 @@ Since users won't see warnings, log mode is best for:
 
 **Workflow:**
 1. Deploy with `action: "log"`
-2. Monitor violations in TUI
+2. Monitor violations in Console
 3. Identify false positives
 4. Adjust patterns
 5. Switch to `action: "block"`
@@ -318,9 +318,9 @@ Since users won't see warnings, log mode is best for:
 
 Since users don't see warnings in Claude Code, use these methods:
 
-#### 1. TUI (Recommended)
+#### 1. Console (Recommended)
 ```bash
-ai-guardian tui
+ai-guardian console
 ```
 
 Shows all violations with:
@@ -361,7 +361,7 @@ cat ~/.local/state/ai-guardian/violations.jsonl | jq .
 - Keep ai-guardian first in all hooks arrays for consistency
 - Test warning visibility after adding new hooks
 - Use separate matchers for different tools if needed
-- Use TUI to monitor log mode violations
+- Use Console to monitor log mode violations
 
 ❌ **Don't:**
 - Add other hooks before ai-guardian in PreToolUse or UserPromptSubmit when using log mode
@@ -439,7 +439,7 @@ sys.exit(2)  # Block execution
 - Zero-trust environments
 
 ✅ **Monitor violations via:**
-- `ai-guardian tui` (best UX)
+- `ai-guardian console` (best UX)
 - Log files (automation)
 - ViolationLogger (programmatic access)
 
@@ -448,7 +448,7 @@ sys.exit(2)  # Block execution
 ✅ **Do:**
 - Use "log" terminology consistently
 - Document that violations are logged, not shown
-- Direct users to TUI for violation visibility
+- Direct users to Console for violation visibility
 
 ❌ **Don't:**
 - Generate warning messages in log mode (wasted effort)
@@ -459,7 +459,7 @@ sys.exit(2)  # Block execution
 
 ## Related Documentation
 
-- [TUI.md](TUI.md) - Using the TUI to view violations
+- [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
 - [README.md](../README.md) - Action modes configuration
 - [CHANGELOG.md](../CHANGELOG.md) - Version history
 - [Claude Code Hooks Documentation](https://code.claude.com/docs/en/hooks)

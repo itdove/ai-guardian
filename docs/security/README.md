@@ -177,7 +177,7 @@ Most features support these action modes:
 
 - [Configuration Guide](../CONFIGURATION.md) - Full configuration reference
 - [Hooks Documentation](../HOOKS.md) - Hook system and customization
-- [TUI Guide](../TUI.md) - Terminal user interface for configuration
+- [Console Guide](../CONSOLE.md) - Interactive console for configuration
 
 ---
 
