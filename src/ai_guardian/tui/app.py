@@ -77,6 +77,7 @@ NAV_GROUPS = [
         ("Skills", "panel-skills"),
         ("MCP Servers", "panel-mcp"),
         ("Permissions Discovery", "panel-permissions-discovery"),
+        ("Directory Rules", "panel-directory-rules"),
     ]),
     ("Secrets", [
         ("Secret Scanning", "panel-secrets"),
@@ -94,7 +95,6 @@ NAV_GROUPS = [
         ("PII Detection", "panel-scan-pii"),
     ]),
     ("Configuration", [
-        ("Directory Protection", "panel-directory-protection"),
         ("Remote Configs", "panel-remote-configs"),
         ("Config File", "panel-config-file"),
         ("Config Editor", "panel-config-editor"),
@@ -123,14 +123,17 @@ HELP_DOCS = {
     "Permissions": (
         "[bold]Permissions[/bold]\n\n"
         "Control what Claude Code is allowed to do. Permissions are "
-        "evaluated as allow/deny rules matched against tool names.\n\n"
+        "evaluated as allow/deny rules matched against tool names "
+        "and directory paths.\n\n"
         "[bold]Sections:[/bold]\n"
         "  [bold]Skills[/bold] — Manage allow/deny patterns for Claude "
         "Code skills (slash commands)\n"
         "  [bold]MCP Servers[/bold] — Manage permissions for MCP server "
         "tool invocations\n"
         "  [bold]Permissions Discovery[/bold] — Review tool calls that "
-        "don't match any existing rule"
+        "don't match any existing rule\n"
+        "  [bold]Directory Rules[/bold] — Control which file paths "
+        "Claude Code can access (allow/deny)"
     ),
     "Threat Detection": (
         "[bold]Threat Detection[/bold]\n\n"
@@ -163,11 +166,8 @@ HELP_DOCS = {
     ),
     "Configuration": (
         "[bold]Configuration[/bold]\n\n"
-        "Manage AI Guardian's configuration files and directory "
-        "protections.\n\n"
+        "Manage AI Guardian's configuration files and settings.\n\n"
         "[bold]Sections:[/bold]\n"
-        "  [bold]Directory Protection[/bold] — Define protected directories "
-        "that Claude Code cannot access\n"
         "  [bold]Remote Configs[/bold] — Manage remote configuration "
         "sources (URLs, update schedules)\n"
         "  [bold]Config File[/bold] — View raw JSON config files\n"
@@ -454,18 +454,19 @@ HELP_DOCS = {
         "  - Filter by log level\n"
         "  - Clear log display"
     ),
-    "panel-directory-protection": (
-        "[bold]Directory Protection[/bold]\n\n"
-        "Define directories that Claude Code is not allowed to read "
-        "from or write to.\n\n"
+    "panel-directory-rules": (
+        "[bold]Directory Rules[/bold]\n\n"
+        "Control which file paths Claude Code can access using "
+        "ordered allow/deny rules.\n\n"
         "[bold]How it works:[/bold]\n"
-        "  - Protected paths are checked on every file operation\n"
-        "  - Both absolute and relative paths are supported\n"
-        "  - Glob patterns work (e.g., /home/*/.ssh)\n\n"
-        "[bold]Common protected paths:[/bold]\n"
-        "  - ~/.ssh — SSH private keys\n"
-        "  - ~/.aws — AWS credentials\n"
-        "  - ~/.config/gcloud — GCP credentials"
+        "  - Rules are evaluated in order (last match wins)\n"
+        "  - Each rule specifies allow or deny with path patterns\n"
+        "  - If no rules match, access is allowed (default)\n"
+        "  - Pattern: deny broad paths, then allow specific ones\n\n"
+        "[bold]Common patterns:[/bold]\n"
+        "  - Deny ~/.ssh/** — Block SSH private keys\n"
+        "  - Deny ~/.aws/** — Block AWS credentials\n"
+        "  - Deny ~/** then allow ~/dev/** — Workspace isolation"
     ),
     "panel-remote-configs": (
         "[bold]Remote Configurations[/bold]\n\n"
@@ -899,9 +900,9 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.logs import LogsContent
                     yield LogsContent()
 
-                with Container(id="panel-directory-protection"):
-                    from ai_guardian.tui.directory_protection import DirectoryProtectionContent
-                    yield DirectoryProtectionContent()
+                with Container(id="panel-directory-rules"):
+                    from ai_guardian.tui.directory_rules import DirectoryRulesContent
+                    yield DirectoryRulesContent()
 
                 with Container(id="panel-remote-configs"):
                     from ai_guardian.tui.remote_configs import RemoteConfigsContent

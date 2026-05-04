@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **TUI: Replaced deprecated 'Directory Protection' panel with 'Directory Rules' panel** (Issue #426)
+  - New panel manages `directory_rules` configuration (allow/deny path access control)
+  - Moved from Configuration section to Permissions section in navigation
+  - Groups with other access controls: Skills, MCP Servers, Permissions Discovery
+  - Supports viewing/editing violation action (block, warn, log-only)
+  - Add and remove allow/deny rules with path patterns
+
 - **TUI violations panel no longer auto-modifies config** (Issue #421)
   - Removed "Approve & Add to Allowlist" and "Keep Blocked" action buttons from all violation cards
   - Removed "Undo Resolution" button from resolved violation cards
