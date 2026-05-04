@@ -148,84 +148,6 @@ class TestHelpDocs:
         assert modal._body == "Test body content"
 
 
-class TestViolationsApproval:
-    """Tests for violation approval functionality."""
-
-    def test_approve_violation_adds_rule(self):
-        """Test that approving a violation adds the rule to config."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "ai-guardian.json"
-
-            config = {
-                "permissions": []
-            }
-            with open(config_path, 'w') as f:
-                json.dump(config, f)
-
-            new_rule = {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": ["daf-jira"]
-            }
-
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-
-            config["permissions"].append(new_rule)
-
-            with open(config_path, 'w') as f:
-                json.dump(config, f)
-
-            with open(config_path, 'r') as f:
-                updated_config = json.load(f)
-
-            assert len(updated_config["permissions"]) == 1
-            assert updated_config["permissions"][0] == new_rule
-
-    def test_approve_violation_merges_patterns(self):
-        """Test that approving a violation merges patterns with existing rule."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "ai-guardian.json"
-
-            config = {
-                "permissions": [
-                    {
-                        "matcher": "Skill",
-                        "mode": "allow",
-                        "patterns": ["daf-*"]
-                    }
-                ]
-            }
-            with open(config_path, 'w') as f:
-                json.dump(config, f)
-
-            new_pattern = "release"
-
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-
-            existing_rule = next(
-                (r for r in config["permissions"]
-                 if r.get("matcher") == "Skill" and r.get("mode") == "allow"),
-                None
-            )
-
-            if existing_rule:
-                existing_patterns = existing_rule.get("patterns", [])
-                merged_patterns = list(set(existing_patterns + [new_pattern]))
-                existing_rule["patterns"] = merged_patterns
-
-            with open(config_path, 'w') as f:
-                json.dump(config, f)
-
-            with open(config_path, 'r') as f:
-                updated_config = json.load(f)
-
-            assert len(updated_config["permissions"]) == 1
-            assert "daf-*" in updated_config["permissions"][0]["patterns"]
-            assert "release" in updated_config["permissions"][0]["patterns"]
-
-
 class TestPermissionsEditor:
     """Tests for permissions editor functionality."""
 
@@ -637,35 +559,16 @@ class TestViolationCardFields:
         tp_section = source[tp_section_start:tp_section_start + 500]
         assert "line_number" in tp_section
 
-    def test_details_button_always_shown_for_unresolved(self):
-        """Test that Details button is outside can_approve block for unresolved violations."""
+    def test_details_button_always_shown(self):
+        """Test that only Details button exists — no approve/deny/undo buttons."""
         import inspect
         from ai_guardian.tui.violations import ViolationCard
         source = inspect.getsource(ViolationCard.compose)
-        action_start = source.index("# Action buttons")
-        action_section = source[action_start:]
-        lines = action_section.split("\n")
-        not_resolved_line = next(
-            i for i, l in enumerate(lines) if "if not resolved:" in l
-        )
-        indent = len(lines[not_resolved_line]) - len(lines[not_resolved_line].lstrip())
-        unresolved_lines = [lines[not_resolved_line]]
-        for line in lines[not_resolved_line + 1:]:
-            stripped = line.strip()
-            if stripped == "" or (len(line) - len(line.lstrip())) > indent:
-                unresolved_lines.append(line)
-            elif stripped.startswith("else:") and (len(line) - len(line.lstrip())) == indent:
-                break
-            else:
-                unresolved_lines.append(line)
-        unresolved_block = "\n".join(unresolved_lines)
-        assert "with Horizontal" in unresolved_block
-        assert "if can_approve:" in unresolved_block
-        assert 'Button("Details"' in unresolved_block
-        horizontal_pos = unresolved_block.index("with Horizontal")
-        can_approve_pos = unresolved_block.index("if can_approve:")
-        assert horizontal_pos < can_approve_pos, \
-            "Horizontal container should wrap both can_approve buttons and Details button"
+        assert 'Button("Details"' in source
+        assert "can_approve" not in source
+        assert "Approve" not in source
+        assert "Keep Blocked" not in source
+        assert "Undo Resolution" not in source
 
     def test_position_displayed_in_location(self):
         """Test that position (char offset) is included in location display."""
@@ -730,6 +633,173 @@ class TestViolationCardFields:
             if "line_number" in section:
                 assert "position" in section, \
                     f"{vtype} section has line_number but missing position support"
+
+
+class TestViolationResolutionInstructions:
+    """Tests for violation resolution instructions in ViolationDetailsModal."""
+
+    def test_modal_has_resolution_instructions_method(self):
+        """Test that ViolationDetailsModal has _get_resolution_instructions method."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        assert hasattr(ViolationDetailsModal, "_get_resolution_instructions")
+
+    def test_tool_permission_instructions(self):
+        """Test resolution instructions for tool_permission violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "tool_permission",
+            "blocked": {},
+            "suggestion": {"rule": {"matcher": "Skill", "mode": "allow", "patterns": ["test"]}},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "permissions.rules" in instructions
+        assert "Skill" in snippet
+        assert "test" in snippet
+
+    def test_prompt_injection_instructions(self):
+        """Test resolution instructions for prompt_injection violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "prompt_injection",
+            "blocked": {"pattern": "ignore previous"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "allowlist_patterns" in instructions
+        assert "ignore previous" in snippet
+
+    def test_jailbreak_detected_instructions(self):
+        """Test resolution instructions for jailbreak_detected violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "jailbreak_detected",
+            "blocked": {"matched_text": "jailbreak text"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "allowlist_patterns" in instructions
+        assert "jailbreak text" in snippet
+
+    def test_secret_detected_instructions(self):
+        """Test resolution instructions for secret_detected violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "secret_detected",
+            "blocked": {"file_path": "test.py", "rule_id": "api-key"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "gitleaks:allow" in instructions
+        assert "secret_scanning" in snippet
+
+    def test_directory_blocking_instructions(self):
+        """Test resolution instructions for directory_blocking violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "directory_blocking",
+            "blocked": {"denied_directory": "/tmp/secret"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "directory_rules" in instructions or ".ai-read-deny" in instructions
+        assert "/tmp/secret" in snippet
+
+    def test_pii_detected_instructions(self):
+        """Test resolution instructions for pii_detected violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "pii_detected",
+            "blocked": {"file_path": "data.csv"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "scan_pii" in instructions
+        assert "scan_pii" in snippet
+
+    def test_secret_redaction_instructions(self):
+        """Test resolution instructions for secret_redaction violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "secret_redaction",
+            "blocked": {},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "secret_scanning" in instructions
+        assert "allowlist_patterns" in snippet
+
+    def test_ssrf_blocked_instructions(self):
+        """Test resolution instructions for ssrf_blocked violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "ssrf_blocked",
+            "blocked": {"tool_value": "https://example.com/api"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "additional_allowed_domains" in instructions
+        assert "example.com" in snippet
+
+    def test_config_file_exfil_instructions(self):
+        """Test resolution instructions for config_file_exfil violations."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "config_file_exfil",
+            "blocked": {"file_path": ".env"},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "config_file_scanning" in instructions
+        assert ".env" in snippet
+
+    def test_unknown_type_instructions(self):
+        """Test resolution instructions for unknown violation types."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        violation = {
+            "violation_type": "unknown_type",
+            "blocked": {},
+            "suggestion": {},
+        }
+        modal = ViolationDetailsModal(violation)
+        instructions, snippet = modal._get_resolution_instructions()
+        assert "No specific resolution" in instructions
+        assert snippet == ""
+
+    def test_all_known_types_have_instructions(self):
+        """Test that all 9 known violation types return non-empty instructions."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        known_types = [
+            "tool_permission", "prompt_injection", "jailbreak_detected",
+            "secret_detected", "directory_blocking", "pii_detected",
+            "secret_redaction", "ssrf_blocked", "config_file_exfil",
+        ]
+        for vtype in known_types:
+            violation = {
+                "violation_type": vtype,
+                "blocked": {"pattern": "test", "file_path": "test.py",
+                            "denied_directory": "/tmp", "tool_value": "https://x.com"},
+                "suggestion": {"rule": {"matcher": "Skill", "mode": "allow", "patterns": ["t"]}},
+            }
+            modal = ViolationDetailsModal(violation)
+            instructions, snippet = modal._get_resolution_instructions()
+            assert instructions, f"{vtype} should have non-empty instructions"
+            assert snippet, f"{vtype} should have non-empty snippet"
+
+    def test_copy_snippet_button_in_modal(self):
+        """Test that ViolationDetailsModal has copy-snippet button handling."""
+        import inspect
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        source = inspect.getsource(ViolationDetailsModal.on_button_pressed)
+        assert "copy-snippet" in source
 
 
 class TestModalEscBindings:
