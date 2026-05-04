@@ -306,6 +306,16 @@
     ]
   },
 
+  "transcript_scanning": {
+    "_comment": "Scan conversation transcript for secrets, PII, and prompt injection (NEW in v1.7.0, Issue #430)",
+    "_comment2": "When users type '! command' in Claude Code, the output bypasses ai-guardian hooks",
+    "_comment3": "but gets added to the transcript. This feature incrementally scans the transcript",
+    "_comment4": "for threats on each UserPromptSubmit event and warns if any are found.",
+    "_comment5": "Detection only — cannot block since the content is already in the AI's context.",
+    "_comment6": "Supports Claude Code, Cursor, and GitHub Copilot (IDE-agnostic transcript path lookup).",
+    "enabled": true
+  },
+
   "config_file_scanning": {
     "_comment": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - NEW in v1.5.0",
     "_comment2": "Scans for curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage",

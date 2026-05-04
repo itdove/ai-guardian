@@ -944,12 +944,17 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "editor_theme": "monokai"
         },
 
+        "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
+        "transcript_scanning": {
+            "enabled": True,
+        },
+
         "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
         "violation_logging": {
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript"]
         }
     }
 
