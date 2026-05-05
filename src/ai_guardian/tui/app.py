@@ -110,6 +110,7 @@ NAV_GROUPS = [
     ]),
     ("Secrets", [
         ("Secret Scanning", "panel-secrets"),
+        ("Engine Configuration", "panel-secret-engines"),
         ("Secret Redaction", "panel-secret-redaction"),
     ]),
     ("Prompt Injection", [
@@ -419,6 +420,21 @@ HELP_DOCS = {
         "  - Custom allowlist for known false positives\n\n"
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]t[/bold]  Test pattern server connection"
+    ),
+    "panel-secret-engines": (
+        "[bold]Engine Configuration[/bold]\n\n"
+        "Configure multiple secret scanner engines and execution strategies.\n\n"
+        "[bold]Strategies:[/bold]\n"
+        "  [bold]first-match[/bold] — Use first available engine (default)\n"
+        "  [bold]any-match[/bold] — Block if ANY engine finds secrets\n"
+        "  [bold]consensus[/bold] — Block only if N engines agree\n\n"
+        "[bold]Per-engine options:[/bold]\n"
+        "  - ignore_files — File exclusions per engine\n"
+        "  - pattern_server — Per-engine pattern server\n"
+        "  - file_patterns — Route file types to engines\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]Ctrl+S[/bold]  Save changes\n"
+        "  [bold]Ctrl+R[/bold]  Reload from disk"
     ),
     "panel-secret-redaction": (
         "[bold]Secret Redaction[/bold]\n\n"
@@ -916,6 +932,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-secrets"):
                     from ai_guardian.tui.secrets import SecretsContent
                     yield SecretsContent()
+
+                with Container(id="panel-secret-engines"):
+                    from ai_guardian.tui.secret_engines import SecretEnginesContent
+                    yield SecretEnginesContent()
 
                 with Container(id="panel-secret-redaction"):
                     from ai_guardian.tui.secret_redaction import SecretRedactionContent

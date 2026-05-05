@@ -212,7 +212,28 @@
         "expire_after_hours": 168,
         "_comment": "Patterns auto-refresh every 12h, expire after 7 days"
       }
-    }
+    },
+    "_engines_comment": "NEW in v1.7.0: Multi-engine support with execution strategies",
+    "_engines_comment2": "Configure multiple scanner engines with different strategies for combining results",
+    "engines": ["gitleaks"],
+    "_engines_examples": {
+      "_simple": ["gitleaks"],
+      "_multi_engine": ["gitleaks", "trufflehog"],
+      "_with_per_engine_config": [
+        "gitleaks",
+        {
+          "type": "trufflehog",
+          "binary": "trufflehog",
+          "ignore_files": ["**/test/**", "**/fixtures/**"],
+          "file_patterns": ["*.env*", "*.yaml", "*.json"],
+          "_comment": "TruffleHog for config files, with test exclusions"
+        }
+      ]
+    },
+    "execution_strategy": "first-match",
+    "_execution_strategy_comment": "NEW in v1.7.0: 'first-match' (default, backward compatible), 'any-match' (block if ANY engine finds secrets), 'consensus' (block only if N engines agree)",
+    "consensus_threshold": 2,
+    "_consensus_threshold_comment": "Only used with 'consensus' strategy. Minimum engines that must agree before blocking."
   },
 
   "prompt_injection": {

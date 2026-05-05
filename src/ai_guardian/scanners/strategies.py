@@ -7,11 +7,13 @@ Provides different strategies for combining results from multiple scanners:
 - ConsensusStrategy: Block only if multiple engines agree (reduces false positives)
 """
 
+import fnmatch
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import List, Dict, Any, Optional, Set, Tuple, Callable
 
 
 @dataclass
@@ -50,18 +52,22 @@ class ExecutionStrategy(ABC):
     @abstractmethod
     def execute(
         self,
-        scanners: List[Any],  # List of configured scanner engines
-        content: str,
-        filename: str,
+        engine_configs: List[Any],
+        scanner_fn: Callable,
+        source_file: str,
+        report_file_prefix: str,
+        config_path: Optional[str] = None,
         context: Optional[Dict] = None
     ) -> ScanResult:
         """
         Execute scanners and combine results.
 
         Args:
-            scanners: List of scanner engine configurations
-            content: Text content to scan
-            filename: Filename for context
+            engine_configs: List of EngineConfig objects
+            scanner_fn: Callable(engine_config, source_file, report_file, config_path) -> ScanResult
+            source_file: Path to file being scanned
+            report_file_prefix: Base path for report files (each engine gets a unique suffix)
+            config_path: Optional scanner configuration file path
             context: Optional metadata (ide_type, hook_event, etc.)
 
         Returns:
@@ -69,43 +75,65 @@ class ExecutionStrategy(ABC):
         """
         pass
 
+    @staticmethod
+    def _filter_engines_for_file(
+        engines: List[Any], filename: str
+    ) -> List[Any]:
+        """
+        Filter engines to those whose file_patterns match the filename.
+
+        Engines without file_patterns handle all files.
+        Falls back to all engines if no engine matches.
+        """
+        applicable = []
+        for engine in engines:
+            if engine.file_patterns is None:
+                applicable.append(engine)
+            elif any(fnmatch.fnmatch(filename, pat) for pat in engine.file_patterns):
+                applicable.append(engine)
+
+        return applicable if applicable else engines
+
 
 class FirstMatchStrategy(ExecutionStrategy):
     """
     Use first available scanner, fall back if unavailable.
 
     This is the default strategy, maintaining backward compatibility.
-    Tries scanners in order, returning the first one that's available.
+    Tries scanners in order, using the first one that succeeds.
     """
 
     def execute(
         self,
-        scanners: List[Any],
-        content: str,
-        filename: str,
+        engine_configs: List[Any],
+        scanner_fn: Callable,
+        source_file: str,
+        report_file_prefix: str,
+        config_path: Optional[str] = None,
         context: Optional[Dict] = None
     ) -> ScanResult:
-        """
-        Execute first available scanner.
+        filename = context.get("filename", "") if context else ""
+        engines = self._filter_engines_for_file(engine_configs, filename)
 
-        Args:
-            scanners: List of scanner configurations (ordered by preference)
-            content: Content to scan
-            filename: File being scanned
-            context: Optional metadata
+        for engine_config in engines:
+            report_file = f"{report_file_prefix}_{engine_config.type}.json"
+            logging.info(f"FirstMatchStrategy: trying engine {engine_config.type}")
 
-        Returns:
-            Result from first available scanner
-        """
-        for scanner_config in scanners:
-            # This would call the actual scanner execution
-            # For now, this is a placeholder that would be integrated
-            # with the existing check_secrets_with_gitleaks() logic
-            logging.info(f"FirstMatchStrategy: Trying scanner {scanner_config.type}")
-            # TODO: Integrate with actual scanner execution
-            pass
+            result = scanner_fn(
+                engine_config, source_file, report_file, config_path
+            )
 
-        # If no scanner available, return no secrets found
+            if result.error and "not found" in (result.error or "").lower():
+                logging.warning(f"Engine {engine_config.type} unavailable, trying next")
+                continue
+
+            logging.info(
+                f"Strategy 'first-match' complete: engine={engine_config.type} "
+                f"duration_ms={result.scan_time_ms:.1f} "
+                f"has_secrets={result.has_secrets}"
+            )
+            return result
+
         return ScanResult(
             has_secrets=False,
             secrets=[],
@@ -119,88 +147,116 @@ class AnyMatchStrategy(ExecutionStrategy):
     Run all scanners, block if ANY finds secrets.
 
     Provides maximum security by requiring all scanners to pass.
-    Useful for defense-in-depth and compliance requirements.
+    Uses parallel execution for performance.
     """
 
     def execute(
         self,
-        scanners: List[Any],
-        content: str,
-        filename: str,
+        engine_configs: List[Any],
+        scanner_fn: Callable,
+        source_file: str,
+        report_file_prefix: str,
+        config_path: Optional[str] = None,
         context: Optional[Dict] = None
     ) -> ScanResult:
-        """
-        Execute all available scanners and combine results.
+        filename = context.get("filename", "") if context else ""
+        engines = self._filter_engines_for_file(engine_configs, filename)
 
-        Args:
-            scanners: List of scanner configurations
-            content: Content to scan
-            filename: File being scanned
-            context: Optional metadata
+        if not engines:
+            return ScanResult(
+                has_secrets=False, secrets=[], engine="none",
+                error="No scanners available"
+            )
 
-        Returns:
-            Combined result (has_secrets=True if ANY scanner found secrets)
-        """
+        results = self._run_engines_parallel(
+            engines, scanner_fn, source_file, report_file_prefix, config_path
+        )
+
         all_secrets: List[SecretMatch] = []
         engines_run: List[str] = []
         total_time_ms = 0.0
 
-        for scanner_config in scanners:
-            logging.info(f"AnyMatchStrategy: Running scanner {scanner_config.type}")
-            # TODO: Integrate with actual scanner execution
-            # result = run_scanner(scanner_config, content, filename)
-            # all_secrets.extend(result.secrets)
-            # engines_run.append(scanner_config.type)
-            # total_time_ms += result.scan_time_ms
-            pass
+        for result in results:
+            if result.error and "not found" in (result.error or "").lower():
+                continue
+            engines_run.append(result.engine)
+            all_secrets.extend(result.secrets)
+            total_time_ms = max(total_time_ms, result.scan_time_ms)
 
-        # Deduplicate secrets by line number and rule
         unique_secrets = self._deduplicate(all_secrets)
+        engine_label = f"any-match({','.join(engines_run)})"
+
+        logging.info(
+            f"Strategy 'any-match' complete: engines_run={len(engines_run)} "
+            f"total_duration_ms={total_time_ms:.1f} "
+            f"combined_findings={len(all_secrets)} "
+            f"deduplicated={len(unique_secrets)} "
+            f"has_secrets={len(unique_secrets) > 0}"
+        )
 
         return ScanResult(
             has_secrets=len(unique_secrets) > 0,
             secrets=unique_secrets,
-            engine=f"multiple({','.join(engines_run)})",
+            engine=engine_label,
             scan_time_ms=total_time_ms
         )
 
-    def _deduplicate(self, secrets: List[SecretMatch]) -> List[SecretMatch]:
+    @staticmethod
+    def _run_engines_parallel(
+        engines, scanner_fn, source_file, report_file_prefix, config_path
+    ) -> List[ScanResult]:
+        max_workers = min(len(engines), 4)
+        results: List[ScanResult] = []
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {}
+            for engine_config in engines:
+                report_file = f"{report_file_prefix}_{engine_config.type}.json"
+                future = pool.submit(
+                    scanner_fn, engine_config, source_file, report_file, config_path
+                )
+                futures[future] = engine_config.type
+
+            for future in as_completed(futures):
+                engine_type = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    logging.error(f"Engine {engine_type} raised exception: {e}")
+                    results.append(ScanResult(
+                        has_secrets=False, secrets=[], engine=engine_type,
+                        error=str(e)
+                    ))
+
+        return results
+
+    @staticmethod
+    def _deduplicate(secrets: List[SecretMatch]) -> List[SecretMatch]:
         """
         Deduplicate secrets found by multiple engines.
 
-        Strategy: Keep the secret with highest confidence when multiple
-        engines find the same secret at the same location.
-
-        Args:
-            secrets: List of all secret matches from all engines
-
-        Returns:
-            Deduplicated list of secret matches
+        Keeps the secret with highest confidence when multiple engines
+        find the same secret at the same location. Prefers verified secrets.
         """
         if not secrets:
             return []
 
-        # Group by (file, line_number, rule_id)
         grouped: Dict[Tuple[str, int, str], List[SecretMatch]] = defaultdict(list)
         for secret in secrets:
             key = (secret.file, secret.line_number, secret.rule_id)
             grouped[key].append(secret)
 
-        # For each group, keep the one with highest confidence
-        # or the verified one if any engine verified it
         unique: List[SecretMatch] = []
         for group_secrets in grouped.values():
-            # Prefer verified secrets
             verified = [s for s in group_secrets if s.verified]
             if verified:
                 best = max(verified, key=lambda s: s.confidence)
             else:
                 best = max(group_secrets, key=lambda s: s.confidence)
 
-            # Add all engine names that found this secret
             engines = {s.engine for s in group_secrets if s.engine}
             best.engine = ",".join(sorted(engines))
-
             unique.append(best)
 
         return unique
@@ -211,57 +267,60 @@ class ConsensusStrategy(ExecutionStrategy):
     Block only if multiple scanners agree (reduces false positives).
 
     Requires N engines to find the same secret before blocking.
-    Useful for reducing interruptions in development while maintaining security.
     """
 
     def __init__(self, threshold: int = 2):
-        """
-        Initialize consensus strategy.
-
-        Args:
-            threshold: Minimum number of engines that must agree (default: 2)
-        """
         self.threshold = threshold
 
     def execute(
         self,
-        scanners: List[Any],
-        content: str,
-        filename: str,
+        engine_configs: List[Any],
+        scanner_fn: Callable,
+        source_file: str,
+        report_file_prefix: str,
+        config_path: Optional[str] = None,
         context: Optional[Dict] = None
     ) -> ScanResult:
-        """
-        Execute all scanners and require consensus.
+        filename = context.get("filename", "") if context else ""
+        engines = self._filter_engines_for_file(engine_configs, filename)
 
-        Args:
-            scanners: List of scanner configurations
-            content: Content to scan
-            filename: File being scanned
-            context: Optional metadata
+        if not engines:
+            return ScanResult(
+                has_secrets=False, secrets=[], engine="none",
+                error="No scanners available"
+            )
 
-        Returns:
-            Result with only secrets that meet consensus threshold
-        """
+        results = AnyMatchStrategy._run_engines_parallel(
+            engines, scanner_fn, source_file, report_file_prefix, config_path
+        )
+
         all_secrets: List[SecretMatch] = []
         engines_run: List[str] = []
         total_time_ms = 0.0
 
-        for scanner_config in scanners:
-            logging.info(f"ConsensusStrategy: Running scanner {scanner_config.type}")
-            # TODO: Integrate with actual scanner execution
-            # result = run_scanner(scanner_config, content, filename)
-            # all_secrets.extend(result.secrets)
-            # engines_run.append(scanner_config.type)
-            # total_time_ms += result.scan_time_ms
-            pass
+        for result in results:
+            if result.error and "not found" in (result.error or "").lower():
+                continue
+            engines_run.append(result.engine)
+            all_secrets.extend(result.secrets)
+            total_time_ms = max(total_time_ms, result.scan_time_ms)
 
-        # Group by location and find secrets that meet threshold
         consensus_secrets = self._find_consensus(all_secrets)
+        engine_label = f"consensus({','.join(engines_run)})"
+
+        logging.info(
+            f"Strategy 'consensus' complete: engines_run={len(engines_run)} "
+            f"threshold={self.threshold} "
+            f"total_duration_ms={total_time_ms:.1f} "
+            f"combined_findings={len(all_secrets)} "
+            f"consensus_findings={len(consensus_secrets)} "
+            f"has_secrets={len(consensus_secrets) > 0}"
+        )
 
         return ScanResult(
             has_secrets=len(consensus_secrets) > 0,
             secrets=consensus_secrets,
-            engine=f"consensus({','.join(engines_run)})",
+            engine=engine_label,
             scan_time_ms=total_time_ms
         )
 
@@ -269,40 +328,24 @@ class ConsensusStrategy(ExecutionStrategy):
         """
         Find secrets that meet consensus threshold.
 
-        Groups secrets by approximate location (file and line number range)
-        and returns only those found by at least threshold engines.
-
-        Args:
-            secrets: List of all secret matches from all engines
-
-        Returns:
-            List of secrets that met consensus threshold
+        Groups secrets by file and line number, returns only those
+        found by at least threshold engines.
         """
         if not secrets:
             return []
 
-        # Group by (file, line_number with tolerance of ±1)
-        # This accounts for slight differences in how engines report line numbers
         grouped: Dict[Tuple[str, int], List[SecretMatch]] = defaultdict(list)
-
         for secret in secrets:
-            # Round to nearest line (handles ±1 tolerance)
             key = (secret.file, secret.line_number)
             grouped[key].append(secret)
 
-        # Find secrets that meet threshold
         consensus: List[SecretMatch] = []
         for location_secrets in grouped.values():
-            # Count unique engines that found this secret
             engines = {s.engine for s in location_secrets if s.engine}
 
             if len(engines) >= self.threshold:
-                # Use the highest confidence match
                 best = max(location_secrets, key=lambda s: s.confidence)
-
-                # Annotate with all engines that found it
                 best.engine = f"{','.join(sorted(engines))} ({len(engines)} engines)"
-
                 consensus.append(best)
 
         return consensus

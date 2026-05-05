@@ -192,6 +192,25 @@
                     "description": "Parser type: 'gitleaks', 'leaktk', 'trufflehog', or 'detect-secrets'",
                     "enum": ["gitleaks", "leaktk", "trufflehog", "detect-secrets"],
                     "default": "gitleaks"
+                  },
+                  "ignore_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Per-engine glob patterns for files to skip scanning. Merged with global ignore_files. Use when one engine has more false positives on certain file types (e.g., TruffleHog on test fixtures)."
+                  },
+                  "pattern_server": {
+                    "type": "object",
+                    "description": "Per-engine pattern server override. Overrides the global pattern_server for this engine only. Useful when different engines need different pattern formats.",
+                    "properties": {
+                      "url": {"type": "string", "description": "Pattern server URL for this engine"},
+                      "auth_token_env": {"type": "string", "description": "Environment variable containing auth token"},
+                      "cache_hours": {"type": "integer", "description": "Cache duration in hours", "default": 24}
+                    }
+                  },
+                  "file_patterns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "File extensions/patterns this engine should handle for file type routing (e.g., ['*.env*', '*.yaml', '*.json']). Engines without file_patterns handle all files. Used with any-match and consensus strategies to route files to specialized engines."
                   }
                 },
                 "required": ["type", "binary"]
