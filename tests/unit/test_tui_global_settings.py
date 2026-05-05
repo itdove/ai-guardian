@@ -12,19 +12,20 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from ai_guardian.tui.global_settings import GlobalSettingsContent, FEATURES
+from ai_guardian.tui.global_settings import GlobalSettingsContent, FEATURES, FEATURE_ACTIONS
 
 
 class TestFeatureMap:
     """Test FEATURES defines correct mappings."""
 
-    def test_has_seven_features(self):
-        assert len(FEATURES) == 7
+    def test_has_eight_features(self):
+        assert len(FEATURES) == 8
 
     def test_expected_sections(self):
         sections = [s for s, _, _ in FEATURES]
         assert "permissions" in sections
         assert "secret_scanning" in sections
+        assert "secret_redaction" in sections
         assert "prompt_injection" in sections
         assert "scan_pii" in sections
         assert "ssrf_protection" in sections
@@ -83,7 +84,83 @@ class TestSaveLogic:
         assert result["secret_scanning"]["enabled"] is False
         assert result["secret_scanning"]["engine"] == "gitleaks"
 
-    def test_save_all_seven_sections(self):
+    def test_save_all_sections(self):
         for section, _, _ in FEATURES:
             result = self._do_save(section, True)
             assert result[section]["enabled"] is True
+
+
+class TestFeatureActions:
+    """Test FEATURE_ACTIONS defines correct mappings."""
+
+    def test_five_features_have_actions(self):
+        assert len(FEATURE_ACTIONS) == 5
+
+    def test_expected_sections(self):
+        assert "secret_redaction" in FEATURE_ACTIONS
+        assert "prompt_injection" in FEATURE_ACTIONS
+        assert "scan_pii" in FEATURE_ACTIONS
+        assert "ssrf_protection" in FEATURE_ACTIONS
+        assert "config_file_scanning" in FEATURE_ACTIONS
+
+    def test_all_have_required_keys(self):
+        for section, info in FEATURE_ACTIONS.items():
+            assert "schema_path" in info, f"{section} missing schema_path"
+            assert "options" in info, f"{section} missing options"
+            assert "default" in info, f"{section} missing default"
+
+    def test_default_in_options(self):
+        for section, info in FEATURE_ACTIONS.items():
+            option_values = [v for _, v in info["options"]]
+            assert info["default"] in option_values, (
+                f"{section} default '{info['default']}' not in options"
+            )
+
+    def test_schema_paths_match_sections(self):
+        for section, info in FEATURE_ACTIONS.items():
+            assert info["schema_path"].startswith(f"{section}.")
+
+
+class TestActionSaveLogic:
+    """Test _save_action writes correct config structure."""
+
+    def _do_save_action(self, section, value, existing_config=None):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            if existing_config:
+                with open(config_path, 'w') as f:
+                    json.dump(existing_config, f)
+
+            content = GlobalSettingsContent()
+            content._loading = False
+
+            with patch("ai_guardian.tui.global_settings.get_config_dir", return_value=Path(tmpdir)), \
+                 patch.object(type(content), "app", new_callable=lambda: property(lambda self: MagicMock())):
+                content._save_action(section, value, "Test Feature")
+
+            with open(config_path, 'r') as f:
+                return json.load(f)
+
+    def test_save_action_block(self):
+        result = self._do_save_action("prompt_injection", "block")
+        assert result["prompt_injection"]["action"] == "block"
+
+    def test_save_action_warn(self):
+        result = self._do_save_action("ssrf_protection", "warn")
+        assert result["ssrf_protection"]["action"] == "warn"
+
+    def test_save_action_log_only(self):
+        result = self._do_save_action("config_file_scanning", "log-only")
+        assert result["config_file_scanning"]["action"] == "log-only"
+
+    def test_save_action_preserves_existing(self):
+        existing = {"prompt_injection": {"enabled": True, "detector": "heuristic"}}
+        result = self._do_save_action("prompt_injection", "warn", existing)
+        assert result["prompt_injection"]["action"] == "warn"
+        assert result["prompt_injection"]["enabled"] is True
+        assert result["prompt_injection"]["detector"] == "heuristic"
+
+    def test_save_action_all_supported_features(self):
+        for section in FEATURE_ACTIONS:
+            result = self._do_save_action(section, "warn")
+            assert result[section]["action"] == "warn"
