@@ -233,7 +233,7 @@ class MCPServersContent(Container):
         margin: 0 1 0 0;
     }
 
-    #no-permissions {
+    .empty-state {
         margin: 2;
         padding: 2;
         text-align: center;
@@ -303,7 +303,6 @@ class MCPServersContent(Container):
                     "[dim]Press 'a' to add permissions for MCP server tools.\n"
                     "Example: mcp__notebooklm-mcp__*[/dim]",
                     classes="empty-state",
-                    id="no-permissions"
                 )
             )
             return

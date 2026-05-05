@@ -881,7 +881,7 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.mcp_servers import MCPServersContent
                     yield MCPServersContent()
 
-                with VerticalScroll(id="panel-permissions-discovery"):
+                with Container(id="panel-permissions-discovery"):
                     from ai_guardian.tui.permissions_discovery import PermissionsDiscoveryContent
                     yield PermissionsDiscoveryContent()
 
