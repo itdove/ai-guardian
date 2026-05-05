@@ -57,7 +57,7 @@ class ScannerInstaller:
     """Handles installation of scanner engines."""
 
     # Supported scanners
-    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"]
+    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets", "secretlint", "gitguardian"]
 
     # License information for scanners
     SCANNER_LICENSES = {
@@ -66,6 +66,8 @@ class ScannerInstaller:
         "leaktk": "Apache-2.0",
         "trufflehog": "AGPL-3.0",
         "detect-secrets": "Apache-2.0",
+        "secretlint": "MIT",
+        "gitguardian": "Proprietary (free tier)",
     }
 
     def __init__(self, install_dir: Optional[Path] = None):

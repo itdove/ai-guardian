@@ -72,9 +72,9 @@ class TestScannerManager:
         manager = ScannerManager()
         scanners = manager.list_installed()
 
-        assert len(scanners) == 3
+        assert len(scanners) == len(ScannerManager.SUPPORTED_SCANNERS)
         scanner_names = {s.name for s in scanners}
-        assert scanner_names == {"gitleaks", "betterleaks", "leaktk"}
+        assert scanner_names == set(ScannerManager.SUPPORTED_SCANNERS)
 
     @mock.patch("subprocess.run")
     def test_get_version_success(self, mock_run):

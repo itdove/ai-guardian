@@ -21,6 +21,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Console "Engine Configuration" panel with JSON editor for engines and strategy dropdown
   - 30 new tests (92% coverage for scanners module)
 
+- **Result caching and incremental scanning** (Issue #250, Phase 3)
+  - `ScanResultCache`: File-based cache for scan results keyed by content hash + engine type + config hash
+  - Configurable TTL (`cache_ttl_hours`, default 24h) with automatic expiry
+  - `FileStateTracker`: Track file states for incremental scanning — skip unchanged files
+  - Cache integrates transparently with `run_single_engine()` and all execution strategies
+  - Config: `"cache_results": true, "cache_ttl_hours": 24, "incremental": true`
+
+- **Secretlint integration** (Issue #250, Phase 3)
+  - New `secretlint` engine preset (MIT license, Node.js-based, plugin architecture)
+  - `SecretlintOutputParser` for JSON output (array and newline-delimited formats)
+  - Rule ID normalization (extracts short name from `@secretlint/secretlint-rule-*` chains)
+  - Install: `npm install -g @secretlint/secretlint-rule-preset-recommend`
+
+- **GitGuardian integration** (Issue #250, Phase 3)
+  - New `gitguardian` engine preset (ggshield CLI, 350+ secret types)
+  - `GitGuardianOutputParser` with verified secret support (`validity: "valid_data"`)
+  - Consent mechanism for cloud engines: `ai-guardian engine consent gitguardian`
+  - API key validation via `GITGUARDIAN_API_KEY` environment variable
+  - Cloud service warning in Console and documentation
+  - License: Proprietary (free tier for individuals)
+
+- **Enterprise features** (Issue #250, Phase 3)
+  - Remote engine configuration: fetch engine config from remote URL with caching
+  - Merge strategies: remote engines prepended to local (or replace with `immutable: true`)
+  - Audit logging: JSONL at `~/.local/state/ai-guardian/scan-audit.jsonl`
+  - Compliance reporting: generate reports for HIPAA, PCI-DSS, SOC2 frameworks
+  - Export audit data for external audits
+
 - **Action field dropdowns in Console Global Settings** (Issue #447)
   - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
   - Action changes auto-save to config and stay in sync between global settings and individual panels

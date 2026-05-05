@@ -230,10 +230,45 @@
         }
       ]
     },
+    "_engines_secretlint_example": {
+      "_comment": "Secretlint (MIT, Node.js): npm install -g @secretlint/secretlint-rule-preset-recommend",
+      "_config": ["gitleaks", "secretlint"]
+    },
+    "_engines_gitguardian_example": {
+      "_comment": "GitGuardian (Proprietary, cloud): pip install ggshield. Requires consent and API key.",
+      "_consent": "Run: ai-guardian engine consent gitguardian",
+      "_api_key": "Set GITGUARDIAN_API_KEY environment variable",
+      "_warning": "Content is sent to GitGuardian cloud API for scanning",
+      "_config": ["gitleaks", "gitguardian"]
+    },
     "execution_strategy": "first-match",
     "_execution_strategy_comment": "NEW in v1.7.0: 'first-match' (default, backward compatible), 'any-match' (block if ANY engine finds secrets), 'consensus' (block only if N engines agree)",
     "consensus_threshold": 2,
-    "_consensus_threshold_comment": "Only used with 'consensus' strategy. Minimum engines that must agree before blocking."
+    "_consensus_threshold_comment": "Only used with 'consensus' strategy. Minimum engines that must agree before blocking.",
+
+    "_comment_caching": "NEW in v1.7.0: Result caching and incremental scanning",
+    "cache_results": false,
+    "_cache_results_comment": "Cache scan results per content hash to avoid re-scanning unchanged content",
+    "cache_ttl_hours": 24,
+    "_cache_ttl_comment": "Cached results older than this (hours) are re-scanned",
+    "incremental": false,
+    "_incremental_comment": "Only scan files whose content changed since last scan. Requires cache_results (auto-enabled).",
+
+    "_comment_enterprise": "NEW in v1.7.0: Enterprise features for audit and compliance",
+    "audit_logging": false,
+    "_audit_logging_comment": "Log all scan operations to ~/.local/state/ai-guardian/scan-audit.jsonl for compliance",
+    "_remote_engine_config_example": {
+      "_comment": "Fetch engine configuration from a remote URL for centralized management",
+      "url": "https://security.example.com/ai-guardian/engines.json",
+      "refresh_interval_hours": 12,
+      "expire_after_hours": 168,
+      "auth_token_env": "SECURITY_CONFIG_TOKEN",
+      "immutable": false
+    },
+    "_compliance_example": {
+      "_comment": "Compliance reporting: generate reports for HIPAA, PCI-DSS, or SOC2",
+      "framework": "soc2"
+    }
   },
 
   "prompt_injection": {

@@ -47,6 +47,8 @@ class EngineConfig:
     ignore_files: Optional[List[str]] = None
     pattern_server: Optional[Dict[str, Any]] = None
     file_patterns: Optional[List[str]] = None
+    requires_consent: bool = False
+    api_key_env: Optional[str] = None
 
 
 # Built-in engine presets
@@ -117,7 +119,36 @@ ENGINE_PRESETS = {
         output_parser="detect-secrets",
         success_exit_code=0,
         secrets_found_exit_code=1
-    )
+    ),
+
+    "secretlint": EngineConfig(
+        type="secretlint",
+        binary="secretlint",
+        command_template=[
+            "{binary}", "{source_file}",
+            "--format", "json"
+        ],
+        config_flag=["--secretlintrc", "{config_path}"],
+        output_parser="secretlint",
+        success_exit_code=0,
+        secrets_found_exit_code=1
+    ),
+
+    "gitguardian": EngineConfig(
+        type="gitguardian",
+        binary="ggshield",
+        command_template=[
+            "{binary}", "secret", "scan", "path",
+            "{source_file}",
+            "--json", "--exit-zero"
+        ],
+        config_flag=None,
+        output_parser="gitguardian",
+        success_exit_code=0,
+        secrets_found_exit_code=1,
+        requires_consent=True,
+        api_key_env="GITGUARDIAN_API_KEY"
+    ),
 }
 
 
@@ -171,8 +202,45 @@ def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
             engine_config.pattern_server = engine_spec["pattern_server"]
         if "file_patterns" in engine_spec:
             engine_config.file_patterns = engine_spec["file_patterns"]
+        if "requires_consent" in engine_spec:
+            engine_config.requires_consent = engine_spec["requires_consent"]
+        if "api_key_env" in engine_spec:
+            engine_config.api_key_env = engine_spec["api_key_env"]
 
     return engine_config
+
+
+def check_engine_consent(engine_config: EngineConfig) -> bool:
+    """Check if user has consented to cloud engine usage."""
+    if not engine_config.requires_consent:
+        return True
+    from ai_guardian.config_utils import get_config_dir
+    consent_file = get_config_dir() / "consent" / f"{engine_config.type}.consent"
+    return consent_file.exists()
+
+
+def grant_engine_consent(engine_type: str) -> None:
+    """Record user consent for a cloud engine."""
+    from datetime import datetime, timezone
+    from ai_guardian.config_utils import get_config_dir
+    consent_dir = get_config_dir() / "consent"
+    consent_dir.mkdir(parents=True, exist_ok=True)
+    consent_file = consent_dir / f"{engine_type}.consent"
+    consent_file.write_text(
+        f"Consented to use {engine_type} cloud scanning service.\n"
+        f"Content will be sent to external API for analysis.\n"
+        f"Timestamp: {datetime.now(timezone.utc).isoformat()}\n"
+    )
+
+
+def revoke_engine_consent(engine_type: str) -> bool:
+    """Revoke user consent for a cloud engine. Returns True if file existed."""
+    from ai_guardian.config_utils import get_config_dir
+    consent_file = get_config_dir() / "consent" / f"{engine_type}.consent"
+    if consent_file.exists():
+        consent_file.unlink()
+        return True
+    return False
 
 
 def select_engine(engines_config: List[Any]) -> EngineConfig:
@@ -201,6 +269,13 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
     for engine_spec in engines_config:
         engine_config = _build_engine_config(engine_spec)
         if engine_config is None:
+            continue
+
+        if not check_engine_consent(engine_config):
+            logging.warning(
+                f"Scanner '{engine_config.type}' requires consent. "
+                f"Run: ai-guardian engine consent {engine_config.type}"
+            )
             continue
 
         if shutil.which(engine_config.binary):
@@ -241,6 +316,12 @@ def select_all_engines(engines_config: List[Any]) -> List[EngineConfig]:
     for engine_spec in engines_config:
         engine_config = _build_engine_config(engine_spec)
         if engine_config is None:
+            continue
+
+        if not check_engine_consent(engine_config):
+            logging.warning(
+                f"Scanner '{engine_config.type}' requires consent, skipping"
+            )
             continue
 
         if shutil.which(engine_config.binary):

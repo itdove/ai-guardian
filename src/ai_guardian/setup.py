@@ -810,13 +810,22 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
     config = {
         "$schema": schema_uri,
 
-        "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords) using Gitleaks patterns",
+        "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords). Supported engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian",
         "secret_scanning": {
             "enabled": True,
             "allowlist_patterns": [],
+            "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
             "engines": ["gitleaks"],
+            "_comment_strategy": "Strategies: first-match (default), any-match (block if ANY finds secrets), consensus (block only if N agree)",
             "execution_strategy": "first-match",
             "consensus_threshold": 2,
+            "_comment_cache": "Result caching: skip re-scanning unchanged content (v1.7.0+)",
+            "cache_results": False,
+            "cache_ttl_hours": 24,
+            "_comment_incremental": "Incremental scanning: only scan files whose content changed (v1.7.0+, requires cache_results)",
+            "incremental": False,
+            "_comment_audit": "Audit logging: log all scan operations for compliance (v1.7.0+)",
+            "audit_logging": False,
             "pattern_server": {
                 "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
                 "patterns_endpoint": "/patterns/gitleaks/8.27.0",

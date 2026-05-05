@@ -24,6 +24,8 @@ def run_single_engine(
     report_file: str,
     config_path: Optional[str] = None,
     timeout: int = 30,
+    cache=None,
+    content_hash: Optional[str] = None,
 ) -> ScanResult:
     """
     Run a single scanner engine and return standardized results.
@@ -37,10 +39,30 @@ def run_single_engine(
         report_file: Path for scanner output report
         config_path: Optional path to scanner configuration file
         timeout: Subprocess timeout in seconds
+        cache: Optional ScanResultCache for result caching
+        content_hash: Optional content hash for cache lookups
 
     Returns:
         ScanResult with findings from this engine
     """
+    if cache and content_hash:
+        from ai_guardian.scanners.cache import ScanResultCache
+        cfg_hash = ScanResultCache.config_hash(engine_config)
+        cached = cache.get(content_hash, engine_config.type, cfg_hash)
+        if cached is not None:
+            logging.info(
+                f"Cache hit for {engine_config.type} "
+                f"(hash={content_hash[:12]})"
+            )
+            return cached
+
+    if hasattr(engine_config, 'api_key_env') and engine_config.api_key_env:
+        if not os.environ.get(engine_config.api_key_env):
+            return ScanResult(
+                has_secrets=False, secrets=[], engine=engine_config.type,
+                error=f"API key not set: ${engine_config.api_key_env}"
+            )
+
     start_time = time.monotonic()
 
     try:
@@ -78,19 +100,29 @@ def run_single_engine(
         )
 
         if is_secrets_found:
-            return _parse_secrets_result(engine_config, report_file, elapsed_ms)
+            scan_result = _parse_secrets_result(engine_config, report_file, elapsed_ms)
+            if cache and content_hash:
+                from ai_guardian.scanners.cache import ScanResultCache
+                cfg_hash = ScanResultCache.config_hash(engine_config)
+                cache.put(content_hash, engine_config.type, cfg_hash, scan_result)
+            return scan_result
 
         if result.returncode == engine_config.success_exit_code:
             logging.info(
                 f"Engine scan complete: engine={engine_config.type} "
                 f"duration_ms={elapsed_ms:.1f} findings=0 has_secrets=False"
             )
-            return ScanResult(
+            clean_result = ScanResult(
                 has_secrets=False,
                 secrets=[],
                 engine=engine_config.type,
                 scan_time_ms=elapsed_ms
             )
+            if cache and content_hash:
+                from ai_guardian.scanners.cache import ScanResultCache
+                cfg_hash = ScanResultCache.config_hash(engine_config)
+                cache.put(content_hash, engine_config.type, cfg_hash, clean_result)
+            return clean_result
 
         # Unexpected exit code
         stderr_preview = ""
