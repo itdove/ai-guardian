@@ -11,6 +11,7 @@ from ai_guardian.scanners.engine_builder import (
     EngineConfig,
     ENGINE_PRESETS,
     select_engine,
+    select_all_engines,
     build_scanner_command
 )
 from ai_guardian.scanners.output_parsers import (
@@ -28,11 +29,13 @@ from ai_guardian.scanners.strategies import (
     EXECUTION_STRATEGIES,
     get_strategy
 )
+from ai_guardian.scanners.executor import run_single_engine
 
 __all__ = [
     'EngineConfig',
     'ENGINE_PRESETS',
     'select_engine',
+    'select_all_engines',
     'build_scanner_command',
     'ScannerOutputParser',
     'get_parser',
@@ -44,5 +47,6 @@ __all__ = [
     'SecretMatch',
     'ScanResult',
     'EXECUTION_STRATEGIES',
-    'get_strategy'
+    'get_strategy',
+    'run_single_engine'
 ]

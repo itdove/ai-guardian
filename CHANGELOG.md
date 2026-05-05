@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-engine execution strategies** (Issue #250, Phase 3)
+  - Execution strategy support: `first-match` (default), `any-match` (block if ANY engine finds secrets), `consensus` (block only if N engines agree)
+  - Parallel engine execution via ThreadPoolExecutor for `any-match` and `consensus` strategies
+  - Smart deduplication across engines (prefers verified secrets, highest confidence)
+  - Per-engine configuration: `ignore_files`, `pattern_server`, `file_patterns`
+  - File type routing: route different file types to specialized engines (e.g., `.env` → TruffleHog, `.py` → Gitleaks)
+  - Structured scan metrics logging (engine, duration, findings count)
+  - New `run_single_engine()` executor for reusable single-engine subprocess execution
+  - New `select_all_engines()` for multi-engine strategies
+  - Console "Engine Configuration" panel with JSON editor for engines and strategy dropdown
+  - 30 new tests (92% coverage for scanners module)
+
 - **Action field dropdowns in Console Global Settings** (Issue #447)
   - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
   - Action changes auto-save to config and stay in sync between global settings and individual panels

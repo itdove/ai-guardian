@@ -71,8 +71,10 @@ except ImportError:
 
 # Import scanner engine modules for flexible scanner support
 try:
-    from ai_guardian.scanners.engine_builder import select_engine, build_scanner_command
+    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command
     from ai_guardian.scanners.output_parsers import get_parser
+    from ai_guardian.scanners.strategies import get_strategy, ScanResult as StrategyScanResult, SecretMatch
+    from ai_guardian.scanners.executor import run_single_engine
     HAS_SCANNER_ENGINE = True
 except ImportError:
     HAS_SCANNER_ENGINE = False
@@ -2174,13 +2176,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
     Supports optional pattern server integration for enhanced detection patterns.
 
-    TODO: Multi-engine support (#91) - Currently hardcoded to Gitleaks only.
-          Future: Support multiple engines via secret_scanning.engines config:
-          - gitleaks (current default)
-          - trufflehog
-          - detect-secrets
-          - secretlint
-          See https://github.com/itdove/ai-guardian/issues/91 for implementation plan.
+    Multi-engine support (#91): Supports multiple scanner engines via
+    secret_scanning.engines config and execution strategies (first-match,
+    any-match, consensus). See docs/MULTI_ENGINE_SUPPORT.md for details.
 
     Args:
         content: The text content to scan for secrets
@@ -2299,10 +2297,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
             # Priority 2: Scanner Engines (if pattern server not used)
             engine_config = None
+            execution_strategy_name = "first-match"
+            consensus_threshold = 2
             if not gitleaks_config_path and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config, _ = _load_secret_scanning_config()
                     engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
+                    execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
+                    consensus_threshold = scanner_config.get("consensus_threshold", 2) if scanner_config else 2
 
                     # Select first available engine (logs warnings for unavailable ones)
                     engine_config = select_engine(engines_list)
@@ -2361,6 +2363,105 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 delete=False
             ) as rf:
                 report_file = rf.name
+
+            # Multi-engine strategy execution path (any-match, consensus)
+            # For these strategies, run all engines via the strategy framework
+            # and return the combined result directly.
+            if (execution_strategy_name in ("any-match", "consensus")
+                    and HAS_SCANNER_ENGINE and not gitleaks_config_path):
+                try:
+                    all_engines = select_all_engines(engines_list)
+                    strategy_kwargs = {}
+                    if execution_strategy_name == "consensus":
+                        strategy_kwargs["threshold"] = consensus_threshold
+                    strategy = get_strategy(execution_strategy_name, **strategy_kwargs)
+
+                    strategy_result = strategy.execute(
+                        engine_configs=all_engines,
+                        scanner_fn=run_single_engine,
+                        source_file=tmp_file_path,
+                        report_file_prefix=report_file.replace('.json', ''),
+                        config_path=None,
+                        context={"filename": filename}
+                    )
+
+                    if strategy_result.has_secrets and strategy_result.secrets:
+                        # Apply allowlist filtering
+                        if allowlist_patterns:
+                            from ai_guardian import allowlist_utils
+                            compiled_allowlist = allowlist_utils.compile_allowlist(allowlist_patterns)
+                            if compiled_allowlist:
+                                content_str = content if isinstance(content, str) else str(content)
+                                content_lines = content_str.splitlines()
+                                all_allowlisted = True
+                                for secret in strategy_result.secrets:
+                                    line_num = secret.line_number
+                                    if line_num > 0 and line_num <= len(content_lines):
+                                        if not allowlist_utils.check_allowlist(content_lines[line_num - 1], compiled_allowlist):
+                                            all_allowlisted = False
+                                            break
+                                    else:
+                                        all_allowlisted = False
+                                        break
+                                if all_allowlisted:
+                                    logging.info("All strategy findings matched allowlist — skipping")
+                                    return False, None
+
+                        first_secret = strategy_result.secrets[0]
+                        secret_details = {
+                            "rule_id": first_secret.rule_id,
+                            "file": first_secret.file or filename,
+                            "line_number": first_secret.line_number,
+                            "end_line": first_secret.end_line or 0,
+                            "commit": first_secret.commit or "N/A",
+                            "total_findings": len(strategy_result.secrets)
+                        }
+
+                        scanner_name = strategy_result.engine
+                        error_msg = (
+                            f"\n{'='*70}\n"
+                            f"🛡️ Secret Detected\n"
+                            f"{'='*70}\n\n"
+                            f"Protection: Secret Scanning ({execution_strategy_name} strategy)\n"
+                            f"Secret Type: {secret_details['rule_id']}\n"
+                        )
+                        if secret_details.get('line_number'):
+                            error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
+                        else:
+                            error_msg += f"Location: {secret_details['file']}\n"
+                        error_msg += (
+                            f"Scanner: {scanner_name}\n"
+                            f"Patterns: Built-in Defaults\n"
+                            f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
+                            f"and be accessed by unauthorized users.\n\n"
+                            f"This operation has been blocked for security.\n"
+                            f"Please remove the sensitive information and try again.\n\n"
+                            f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+                            f"Recommendation:\n"
+                            f"  • Move secrets to environment variables\n"
+                            f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
+                            f"  • Add to .gitignore if in config file\n"
+                            f"  • Never commit secrets to git\n"
+                            f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
+                            f"⚠️  Secret value NOT shown in this message for security\n\n"
+                            f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+                            f"Section: secret_scanning.enabled\n"
+                            f"{'='*70}\n"
+                        )
+
+                        _log_secret_detection_violation(filename, context, secret_details,
+                                                        hook_context=context)
+                        logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
+                        return True, error_msg
+
+                    return False, None
+
+                except RuntimeError as e:
+                    logging.warning(f"Multi-engine strategy failed: {e}")
+                    return False, str(e)
+                except Exception as e:
+                    logging.error(f"Unexpected error in multi-engine strategy: {e}")
+                    return False, None
 
             # If we have pattern server config, select engine for using it
             # (engine_config already set above if using scanner defaults)
@@ -2711,31 +2812,35 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     except Exception:
                         pass  # Silent fail on final cleanup
 
-            # Securely clean up report file (contains Gitleaks findings)
-            # Even though --redact is used, we securely overwrite as defense in depth
-            if report_file and os.path.exists(report_file):
-                try:
-                    # Make file writable
-                    os.chmod(report_file, 0o600)
+            # Securely clean up report files (contains scanner findings)
+            # Handles both single-engine report and multi-engine strategy report files
+            report_files_to_clean = []
+            if report_file:
+                report_files_to_clean.append(report_file)
+                # Multi-engine strategies create per-engine report files
+                report_prefix = report_file.replace('.json', '')
+                import glob as _glob
+                report_files_to_clean.extend(
+                    _glob.glob(f"{report_prefix}_*.json")
+                )
 
-                    # Overwrite with zeros to prevent recovery
-                    file_size = os.path.getsize(report_file)
-                    with open(report_file, 'wb') as f:
-                        f.write(b'\x00' * file_size)
-                        f.flush()
-                        os.fsync(f.fileno())
-
-                    # Delete the file
-                    os.unlink(report_file)
-
-                except Exception as cleanup_error:
-                    logging.debug(f"Failed to securely cleanup report file: {cleanup_error}")
-                    # Still try basic deletion
+            for rf_path in report_files_to_clean:
+                if os.path.exists(rf_path):
                     try:
-                        if os.path.exists(report_file):
-                            os.unlink(report_file)
-                    except Exception:
-                        pass  # Silent fail on final cleanup
+                        os.chmod(rf_path, 0o600)
+                        file_size = os.path.getsize(rf_path)
+                        with open(rf_path, 'wb') as f:
+                            f.write(b'\x00' * file_size)
+                            f.flush()
+                            os.fsync(f.fileno())
+                        os.unlink(rf_path)
+                    except Exception as cleanup_error:
+                        logging.debug(f"Failed to securely cleanup report file {rf_path}: {cleanup_error}")
+                        try:
+                            if os.path.exists(rf_path):
+                                os.unlink(rf_path)
+                        except Exception:
+                            pass
 
     except FileNotFoundError:
         # Scanner binary not found - warn but allow (user may not be able to install immediately)

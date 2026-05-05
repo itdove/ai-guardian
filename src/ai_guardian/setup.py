@@ -814,6 +814,9 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "secret_scanning": {
             "enabled": True,
             "allowlist_patterns": [],
+            "engines": ["gitleaks"],
+            "execution_strategy": "first-match",
+            "consensus_threshold": 2,
             "pattern_server": {
                 "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
                 "patterns_endpoint": "/patterns/gitleaks/8.27.0",
