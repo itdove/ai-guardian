@@ -1085,5 +1085,72 @@ class TestListScrollWrapping:
         )
 
 
+class TestPanelContainerConsistency:
+    """Tests for panel wrapper consistency (issue #446)."""
+
+    def test_all_panels_use_container_wrapper(self):
+        """Test that all panels in compose() use Container, not VerticalScroll.
+
+        Bug #446: panel-permissions-discovery used VerticalScroll instead of
+        Container, causing WrongType crash when on_tree_node_selected queries
+        for Container type.
+        """
+        import inspect
+        source = inspect.getsource(AIGuardianTUI.compose)
+        panel_ids = [pid for _, items in NAV_GROUPS for _, pid in items]
+        for panel_id in panel_ids:
+            pattern = f'id="{panel_id}"'
+            idx = source.find(pattern)
+            assert idx != -1, f"Panel {panel_id} not found in compose()"
+            context = source[max(0, idx - 80):idx]
+            assert "VerticalScroll" not in context, (
+                f"Panel {panel_id} wrapped in VerticalScroll instead of Container. "
+                f"This causes WrongType crash in on_tree_node_selected."
+            )
+
+    def test_on_tree_node_selected_queries_container(self):
+        """Test that on_tree_node_selected queries panels as Container type."""
+        import inspect
+        source = inspect.getsource(AIGuardianTUI.on_tree_node_selected)
+        assert "Container" in source
+
+    def test_get_current_content_queries_container(self):
+        """Test that _get_current_content queries panels as Container type."""
+        import inspect
+        source = inspect.getsource(AIGuardianTUI._get_current_content)
+        assert "Container" in source
+
+
+class TestMCPServersNoDuplicateIds:
+    """Tests for MCP servers panel avoiding DuplicateIds (issue #446)."""
+
+    def test_empty_state_widget_has_no_fixed_id(self):
+        """Test that the empty-state Static in load_permissions has no id.
+
+        Bug #446: The 'no-permissions' id caused DuplicateIds crash because
+        remove_children() is async and didn't complete before mount().
+        """
+        import inspect
+        from ai_guardian.tui.mcp_servers import MCPServersContent
+        source = inspect.getsource(MCPServersContent.load_permissions)
+        assert 'id="no-permissions"' not in source, (
+            "Empty-state Static should not have a fixed id to avoid "
+            "DuplicateIds crash when remove_children() hasn't completed"
+        )
+
+    def test_empty_state_uses_class_for_styling(self):
+        """Test that the empty-state widget uses CSS class instead of id."""
+        import inspect
+        from ai_guardian.tui.mcp_servers import MCPServersContent
+        source = inspect.getsource(MCPServersContent.load_permissions)
+        assert 'classes="empty-state"' in source
+
+    def test_css_uses_class_selector_not_id(self):
+        """Test that CSS targets .empty-state class, not #no-permissions id."""
+        from ai_guardian.tui.mcp_servers import MCPServersContent
+        assert ".empty-state" in MCPServersContent.CSS
+        assert "#no-permissions" not in MCPServersContent.CSS
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

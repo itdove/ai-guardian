@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Console crashes on MCP Servers panel and Permissions Discovery panel** (Issue #446)
+  - Fixed DuplicateIds crash when navigating to MCP Servers panel by removing fixed widget ID from empty-state Static and using CSS class selector instead
+  - Fixed WrongType crash when navigating to Permissions Discovery panel by changing panel wrapper from VerticalScroll to Container, consistent with all other panels
+
 ## [1.6.0] - 2026-05-04
 
 ### Changed
