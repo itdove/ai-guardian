@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Action field dropdowns in Console Global Settings** (Issue #447)
+  - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
+  - Action changes auto-save to config and stay in sync between global settings and individual panels
+
 ### Fixed
 
 - **Console crashes on MCP Servers panel and Permissions Discovery panel** (Issue #446)
