@@ -164,8 +164,9 @@ class SecretEnginesContent(Container):
                 '    "file_patterns": ["*.env*", "*.yaml"]\n'
                 '  }\n'
                 ']\n\n'
-                "Built-in engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets\n"
-                "Per-engine options: ignore_files, pattern_server, file_patterns",
+                "Built-in engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian\n"
+                "Per-engine options: ignore_files, pattern_server, file_patterns\n"
+                "Cloud engines (gitguardian): require consent via 'ai-guardian engine consent'",
                 markup=False,
             )
 
@@ -274,7 +275,7 @@ class SecretEnginesContent(Container):
         if not isinstance(data, list):
             return None, "Engines must be a JSON array"
 
-        valid_presets = {"gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"}
+        valid_presets = {"gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets", "secretlint", "gitguardian"}
         for i, entry in enumerate(data):
             if isinstance(entry, str):
                 if entry not in valid_presets:

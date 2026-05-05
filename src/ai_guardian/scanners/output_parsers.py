@@ -355,12 +355,197 @@ class DetectSecretsOutputParser(ScannerOutputParser):
             return None
 
 
+class SecretlintOutputParser(ScannerOutputParser):
+    """
+    Parser for Secretlint output.
+
+    Secretlint outputs JSON array of file results:
+    [
+        {
+            "filePath": "/path/to/file.txt",
+            "messages": [
+                {
+                    "ruleId": "@secretlint/secretlint-rule-preset-recommend > @secretlint/secretlint-rule-aws",
+                    "message": "Found AWS Access Key ID",
+                    "loc": {"start": {"line": 3, "column": 0}, "end": {"line": 3, "column": 42}},
+                    "severity": "error"
+                }
+            ]
+        }
+    ]
+
+    Also handles newline-delimited JSON (one object per file).
+    """
+
+    def parse(self, output_file: str) -> Optional[Dict[str, Any]]:
+        try:
+            output_path = Path(output_file)
+            if not output_path.exists():
+                logging.error(f"Secretlint output file not found: {output_file}")
+                return None
+
+            content = output_path.read_text(encoding="utf-8").strip()
+            if not content:
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
+
+            file_results = self._parse_content(content)
+            if file_results is None:
+                return None
+
+            standardized_findings = []
+            for file_result in file_results:
+                file_path = file_result.get("filePath", "unknown")
+                for msg in file_result.get("messages", []):
+                    rule_id = self._normalize_rule_id(msg.get("ruleId", "unknown"))
+                    loc = msg.get("loc", {})
+                    start = loc.get("start", {})
+                    end = loc.get("end", {})
+
+                    standardized_findings.append({
+                        "rule_id": rule_id,
+                        "file": file_path,
+                        "line_number": start.get("line", 0),
+                        "end_line": end.get("line", start.get("line", 0)),
+                        "description": msg.get("message", "Secret detected"),
+                        "commit": "N/A",
+                    })
+
+            if not standardized_findings:
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
+
+            return {
+                "has_secrets": True,
+                "findings": standardized_findings,
+                "total_findings": len(standardized_findings),
+            }
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse Secretlint JSON output: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Unexpected error parsing Secretlint output: {e}")
+            return None
+
+    @staticmethod
+    def _parse_content(content: str) -> Optional[List[Dict]]:
+        try:
+            data = json.loads(content)
+            if isinstance(data, list):
+                return data
+            if isinstance(data, dict):
+                return [data]
+            return None
+        except json.JSONDecodeError:
+            pass
+
+        results = []
+        for line in content.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict):
+                    results.append(obj)
+            except json.JSONDecodeError:
+                continue
+        return results if results else None
+
+    @staticmethod
+    def _normalize_rule_id(rule_id: str) -> str:
+        if " > " in rule_id:
+            rule_id = rule_id.split(" > ")[-1]
+        rule_id = rule_id.replace("@secretlint/secretlint-rule-", "")
+        return rule_id
+
+
+class GitGuardianOutputParser(ScannerOutputParser):
+    """
+    Parser for GitGuardian (ggshield) output.
+
+    ggshield outputs JSON with format:
+    {
+        "policy_break_count": 1,
+        "policies": ["Secrets detection"],
+        "policy_breaks": [
+            {
+                "break_type": "AWS Keys",
+                "policy": "Secrets detection",
+                "validity": "valid_data",
+                "incidents": [
+                    {
+                        "location": {
+                            "filename": "test.txt",
+                            "line_start": 5,
+                            "line_end": 5
+                        },
+                        "type": "aws_access_key_id"
+                    }
+                ]
+            }
+        ]
+    }
+    """
+
+    def parse(self, output_file: str) -> Optional[Dict[str, Any]]:
+        try:
+            output_path = Path(output_file)
+            if not output_path.exists():
+                logging.error(f"GitGuardian output file not found: {output_file}")
+                return None
+
+            with open(output_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            policy_breaks = data.get("policy_breaks", [])
+            if not policy_breaks:
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
+
+            standardized_findings = []
+            for pb in policy_breaks:
+                break_type = pb.get("break_type", "unknown")
+                validity = pb.get("validity", "")
+                verified = validity == "valid_data"
+
+                for incident in pb.get("incidents", []):
+                    location = incident.get("location", {})
+                    incident_type = incident.get("type", break_type)
+
+                    standardized_findings.append({
+                        "rule_id": incident_type.lower().replace(" ", "-"),
+                        "file": location.get("filename", "unknown"),
+                        "line_number": location.get("line_start", 0),
+                        "end_line": location.get("line_end", 0),
+                        "description": f"{break_type} detected",
+                        "commit": "N/A",
+                        "verified": verified,
+                    })
+
+            if not standardized_findings:
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
+
+            return {
+                "has_secrets": True,
+                "findings": standardized_findings,
+                "total_findings": len(standardized_findings),
+            }
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse GitGuardian JSON output: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Unexpected error parsing GitGuardian output: {e}")
+            return None
+
+
 # Parser registry
 OUTPUT_PARSERS = {
     "gitleaks": GitleaksOutputParser(),
     "leaktk": LeakTKOutputParser(),
     "trufflehog": TruffleHogOutputParser(),
-    "detect-secrets": DetectSecretsOutputParser()
+    "detect-secrets": DetectSecretsOutputParser(),
+    "secretlint": SecretlintOutputParser(),
+    "gitguardian": GitGuardianOutputParser(),
 }
 
 

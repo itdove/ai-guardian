@@ -31,7 +31,7 @@ class InstalledScanner:
 class ScannerManager:
     """Manages installed scanner engines."""
 
-    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk"]
+    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets", "secretlint", "gitguardian"]
 
     def __init__(self, config: Optional[dict] = None):
         """
