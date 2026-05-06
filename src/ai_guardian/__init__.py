@@ -1490,12 +1490,15 @@ def scan_transcript_incremental(
         return warnings
 
     try:
-        with open(transcript_path, 'r', encoding='utf-8', errors='replace') as f:
+        with open(transcript_path, 'rb') as f:
             f.seek(last_pos)
-            new_content = f.read()
+            new_bytes = f.read()
+            new_pos = f.tell()
     except OSError as e:
         logging.debug(f"Cannot read transcript file: {e}")
         return warnings
+
+    new_content = new_bytes.decode('utf-8', errors='replace')
 
     # Parse JSONL lines and extract text
     texts = []
@@ -1516,7 +1519,7 @@ def scan_transcript_incremental(
 
     if not combined_text:
         # Update position even if no text found (skip binary/empty lines)
-        positions[transcript_path] = file_size
+        positions[transcript_path] = new_pos
         _save_transcript_positions(positions)
         return warnings
 
@@ -1588,8 +1591,8 @@ def scan_transcript_incremental(
         except Exception as e:
             logging.debug(f"Transcript PII scan error (fail-open): {e}")
 
-    # Update position
-    positions[transcript_path] = file_size
+    # Update position to actual bytes read
+    positions[transcript_path] = new_pos
     _save_transcript_positions(positions)
 
     return warnings

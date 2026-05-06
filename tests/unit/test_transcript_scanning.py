@@ -403,6 +403,140 @@ class TestScanTranscriptIncremental(unittest.TestCase):
         self.assertEqual(result, [])
 
 
+class TestPositionTrackingRegression(unittest.TestCase):
+    """Regression tests for position tracking (Issue #462)."""
+
+    @mock.patch('ai_guardian._scan_for_pii')
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_position_persists_across_scans_with_pii(self, mock_gitleaks, mock_pii):
+        """Previously flagged PII must NOT be re-flagged on subsequent scans."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        line1 = json.dumps({"text": "My SSN is 078-05-1120"}) + "\n"
+        transcript.write_text(line1)
+
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (True, "redacted", [{"type": "ssn"}], "PII found")
+
+        pii_config = {"enabled": True, "pii_types": ["ssn"]}
+
+        # Scan 1: should detect PII
+        result1 = scan_transcript_incremental(str(transcript), pii_config=pii_config)
+        self.assertTrue(len(result1) > 0, "First scan should detect PII")
+
+        # Verify position was saved
+        positions = _load_transcript_positions()
+        saved_pos = positions.get(str(transcript))
+        self.assertIsNotNone(saved_pos, "Position should be saved after scan")
+        self.assertGreater(saved_pos, 0, "Position should advance past 0")
+
+        # Reset mocks for second scan
+        mock_gitleaks.reset_mock()
+        mock_pii.reset_mock()
+
+        # Scan 2: no new content — should return no warnings
+        result2 = scan_transcript_incremental(str(transcript), pii_config=pii_config)
+        self.assertEqual(result2, [], "Second scan should return no warnings (no new content)")
+        mock_pii.assert_not_called()
+
+    @mock.patch('ai_guardian._scan_for_pii')
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_position_advances_after_pii_detection(self, mock_gitleaks, mock_pii):
+        """After PII detection, new clean content should not trigger warnings."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        line1 = json.dumps({"text": "My SSN is 078-05-1120"}) + "\n"
+        transcript.write_text(line1)
+
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (True, "redacted", [{"type": "ssn"}], "PII found")
+
+        pii_config = {"enabled": True, "pii_types": ["ssn"]}
+
+        # Scan 1: detect PII
+        scan_transcript_incremental(str(transcript), pii_config=pii_config)
+
+        # Append clean content
+        line2 = json.dumps({"text": "This is clean text"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        # Reset mocks — clean content should not trigger PII
+        mock_gitleaks.reset_mock()
+        mock_pii.reset_mock()
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (False, "", [], "")
+
+        # Scan 2: should only scan new clean content
+        result2 = scan_transcript_incremental(str(transcript), pii_config=pii_config)
+        self.assertEqual(result2, [], "Clean content should not trigger warnings")
+
+        # Verify scanner was called with only the new content
+        mock_gitleaks.assert_called_once()
+        scanned_text = mock_gitleaks.call_args[0][0]
+        self.assertIn("clean text", scanned_text)
+        self.assertNotIn("SSN", scanned_text)
+
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_position_tracking_with_multibyte_utf8(self, mock_gitleaks):
+        """Position tracking works correctly with multi-byte UTF-8 characters."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        line1 = json.dumps({"text": "Hello world"}, ensure_ascii=False) + "\n"
+        transcript.write_bytes(line1.encode('utf-8'))
+
+        mock_gitleaks.return_value = (False, None)
+
+        # Scan 1: scan the initial content
+        scan_transcript_incremental(str(transcript))
+
+        # Verify position matches actual byte size
+        positions = _load_transcript_positions()
+        saved_pos = positions.get(str(transcript))
+        actual_size = os.path.getsize(str(transcript))
+        self.assertEqual(saved_pos, actual_size)
+
+        # Append content with multi-byte characters
+        line2 = json.dumps({"text": "New content"}, ensure_ascii=False) + "\n"
+        with open(str(transcript), 'ab') as f:
+            f.write(line2.encode('utf-8'))
+
+        mock_gitleaks.reset_mock()
+        mock_gitleaks.return_value = (False, None)
+
+        # Scan 2: should only scan new content
+        scan_transcript_incremental(str(transcript))
+
+        mock_gitleaks.assert_called_once()
+        scanned_text = mock_gitleaks.call_args[0][0]
+        self.assertIn("New content", scanned_text)
+        self.assertNotIn("Hello world", scanned_text)
+
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_updates_position_to_actual_bytes_read(self, mock_gitleaks):
+        """Position saved should reflect actual bytes read, not pre-measured file size."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        content = json.dumps({"text": "Hello"}) + "\n"
+        transcript.write_text(content)
+
+        mock_gitleaks.return_value = (False, None)
+        scan_transcript_incremental(str(transcript))
+
+        positions = _load_transcript_positions()
+        saved_pos = positions.get(str(transcript))
+        expected_bytes = len(content.encode('utf-8'))
+        self.assertEqual(saved_pos, expected_bytes)
+
+
 class TestLogTranscriptViolation(unittest.TestCase):
     """Test violation logging for transcript findings."""
 
