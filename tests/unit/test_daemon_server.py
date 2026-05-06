@@ -56,13 +56,19 @@ class TestDaemonServerLifecycle:
         thread.start()
 
         pid_path = Path(short_state_dir) / "daemon.pid"
-        for _ in range(20):
+        pid_info = None
+        for _ in range(30):
             if pid_path.exists():
-                break
+                try:
+                    content = pid_path.read_text()
+                    if content.strip():
+                        pid_info = json.loads(content)
+                        break
+                except (json.JSONDecodeError, OSError):
+                    pass
             time.sleep(0.1)
 
-        assert pid_path.exists()
-        pid_info = json.loads(pid_path.read_text())
+        assert pid_info is not None, "PID file not written in time"
         assert pid_info["pid"] == os.getpid()
 
         server.stop()
