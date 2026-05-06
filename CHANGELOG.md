@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cross-hook context passing** (Issue #366)
+  - `HookContextManager` module (`hook_context.py`) for PreToolUse to PostToolUse correlation via `tool_use_id`
+  - PostToolUse inherits `file_path` from PreToolUse context for violation entries
+  - Skip double-scanning: PostToolUse skips secret scan when PreToolUse already scanned clean
+  - `ignore_files` consistency: PostToolUse respects ignore decisions from PreToolUse
+  - PII skip consistency: PostToolUse skips PII scan when PreToolUse skipped via `ignore_files`
+  - Daemon mode: uses `DaemonState` in-memory store (zero I/O overhead)
+  - Local mode: session-scoped temp file with secure `0600` permissions
+  - TUI: correlation ID and hook event shown on violation cards
+  - TUI: "Correlated" button shows the paired PreToolUse/PostToolUse violation
+  - Fail-safe: if context unavailable, PostToolUse processes normally (no regression)
+
 - **Documentation: per-engine pattern server auth** (Issue #458)
   - Document that `AI_GUARDIAN_PATTERN_TOKEN` is the default env var for all pattern server sections
   - Document how to override `token_env` per section for multi-server setups
