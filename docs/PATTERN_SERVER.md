@@ -286,6 +286,122 @@ Pattern server provides patterns via simple HTTP API:
 
 ---
 
+## Authentication
+
+### Default: Single Token for All Pattern Servers
+
+By default, all pattern server sections use the same environment variable for authentication:
+
+```bash
+export AI_GUARDIAN_PATTERN_TOKEN="your-token"
+```
+
+This works when all pattern servers share the same credentials (the common case).
+
+Each pattern server reads its auth config independently. If `token_env` is not specified in a section's `auth` block, it falls back to `AI_GUARDIAN_PATTERN_TOKEN`.
+
+### Per-Section Auth for Multiple Servers
+
+When different detection features use different pattern servers with different credentials, override `token_env` in each section:
+
+```json
+{
+  "secret_scanning": {
+    "pattern_server": {
+      "url": "https://secrets-patterns.internal.com",
+      "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_SECRET_PATTERNS_TOKEN"
+      }
+    }
+  },
+  "ssrf_protection": {
+    "pattern_server": {
+      "url": "https://ssrf-patterns.internal.com",
+      "patterns_endpoint": "/patterns/ssrf/v1",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_SSRF_PATTERNS_TOKEN"
+      }
+    }
+  },
+  "config_file_scanning": {
+    "pattern_server": {
+      "url": "https://exfil-patterns.internal.com",
+      "patterns_endpoint": "/patterns/exfil/v1",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_EXFIL_PATTERNS_TOKEN"
+      }
+    }
+  },
+  "secret_redaction": {
+    "pattern_server": {
+      "url": "https://redaction-patterns.internal.com",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_REDACTION_PATTERNS_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Then set each environment variable:
+
+```bash
+export AI_GUARDIAN_SECRET_PATTERNS_TOKEN="token-for-secrets-server"
+export AI_GUARDIAN_SSRF_PATTERNS_TOKEN="token-for-ssrf-server"
+export AI_GUARDIAN_EXFIL_PATTERNS_TOKEN="token-for-exfil-server"
+export AI_GUARDIAN_REDACTION_PATTERNS_TOKEN="token-for-redaction-server"
+```
+
+### Auth Options
+
+Each pattern server `auth` block supports:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `method` | Auth method | `"bearer"` |
+| `token_env` | Env var containing the token | `"AI_GUARDIAN_PATTERN_TOKEN"` |
+| `token_file` | File path containing the token | `"~/.config/ai-guardian/pattern-token"` |
+
+**Token resolution order:**
+1. Environment variable (`token_env`) — checked first
+2. Token file (`token_file`) — used if env var is not set
+
+**Using `token_file` instead of env vars:**
+
+```json
+{
+  "secret_scanning": {
+    "pattern_server": {
+      "url": "https://secrets-patterns.internal.com",
+      "auth": {
+        "method": "bearer",
+        "token_file": "~/.config/ai-guardian/secret-patterns-token"
+      }
+    }
+  }
+}
+```
+
+Token files are read at runtime. Permissions are restricted to `0600` when written by AI Guardian.
+
+### Which Sections Support Pattern Server?
+
+| Config Section | Pattern Type | Default Token Env |
+|----------------|-------------|-------------------|
+| `secret_scanning.pattern_server` | Secret detection rules | `AI_GUARDIAN_PATTERN_TOKEN` |
+| `secret_redaction.pattern_server` | Secret redaction/masking rules | `AI_GUARDIAN_PATTERN_TOKEN` |
+| `ssrf_protection.pattern_server` | Blocked IPs/domains | `AI_GUARDIAN_PATTERN_TOKEN` |
+| `config_file_scanning.pattern_server` | Exfiltration patterns | `AI_GUARDIAN_PATTERN_TOKEN` |
+
+All default to `AI_GUARDIAN_PATTERN_TOKEN` unless overridden with `token_env`.
+
+---
+
 ## Security Considerations
 
 ### Server Authentication
@@ -296,8 +412,10 @@ Pattern server provides patterns via simple HTTP API:
 {
   "pattern_server": {
     "url": "https://patterns.corp.internal/api/v1/secrets",
-    "auth_header": "X-API-Key",
-    "auth_token_env": "PATTERN_SERVER_TOKEN"
+    "auth": {
+      "method": "bearer",
+      "token_env": "PATTERN_SERVER_TOKEN"
+    }
   }
 }
 ```
@@ -305,7 +423,7 @@ Pattern server provides patterns via simple HTTP API:
 AI Guardian sends:
 ```
 GET /api/v1/secrets
-X-API-Key: <token from PATTERN_SERVER_TOKEN env var>
+Authorization: Bearer <token from PATTERN_SERVER_TOKEN env var>
 ```
 
 ### Pattern Validation
