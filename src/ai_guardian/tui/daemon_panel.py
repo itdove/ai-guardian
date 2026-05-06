@@ -92,6 +92,8 @@ class DaemonPanelContent(Static):
 
         with Horizontal(classes="button-group"):
             yield Button("Save", id="daemon-save", variant="primary")
+            yield Button("Start", id="daemon-start-btn", variant="success")
+            yield Button("Stop", id="daemon-stop-btn", variant="error")
             yield Button("Status", id="daemon-status-btn", variant="default")
 
         yield Static("")
@@ -110,8 +112,62 @@ class DaemonPanelContent(Static):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "daemon-save":
             self._save_config()
+        elif event.button.id == "daemon-start-btn":
+            self._start_daemon()
+        elif event.button.id == "daemon-stop-btn":
+            self._stop_daemon()
         elif event.button.id == "daemon-status-btn":
             self._refresh_status()
+
+    def _start_daemon(self):
+        try:
+            from ai_guardian.daemon.client import is_daemon_running, start_daemon_background
+
+            if is_daemon_running():
+                self.app.notify("Daemon is already running", severity="warning")
+                return
+
+            self._update_mode_in_config("auto")
+            if start_daemon_background():
+                self.app.notify("Daemon started (mode set to 'auto')", severity="information")
+            else:
+                self.app.notify("Failed to start daemon", severity="error")
+        except Exception as e:
+            self.app.notify(f"Start failed: {e}", severity="error")
+        self._refresh_status()
+
+    def _stop_daemon(self):
+        try:
+            from ai_guardian.daemon.client import is_daemon_running, send_shutdown
+
+            self._update_mode_in_config("local")
+            if not is_daemon_running():
+                self.app.notify("Daemon is not running (mode set to 'local')", severity="information")
+            elif send_shutdown():
+                self.app.notify("Daemon stopped (mode set to 'local')", severity="information")
+            else:
+                self.app.notify("Failed to stop daemon", severity="error")
+        except Exception as e:
+            self.app.notify(f"Stop failed: {e}", severity="error")
+        self._refresh_status()
+
+    def _update_mode_in_config(self, mode):
+        config_path = get_config_dir() / "ai-guardian.json"
+        if config_path.exists():
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        else:
+            config = {}
+        if "daemon" not in config:
+            config["daemon"] = {}
+        config["daemon"]["mode"] = mode
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+        # Update the mode dropdown
+        try:
+            self.query_one("#daemon-mode", Select).value = mode
+        except Exception:
+            pass
 
     def _save_config(self):
         try:
