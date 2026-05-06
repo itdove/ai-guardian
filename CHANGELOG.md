@@ -22,9 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Wrapped in try/except to handle IndexError/AttributeError from empty selections
 
 - **Transcript scanner re-flags same content on every prompt** (Issue #462)
-  - Fixed position tracking so previously scanned transcript content is not re-flagged
-  - `_scan_transcript_content()` now correctly updates byte-offset positions after each scan
-  - Prevents duplicate warnings from appearing on every `UserPromptSubmit` event
+  - First scan of a new transcript now initializes position to current file size instead of scanning from byte 0
+  - Initial transcript content (system context, tool responses) was already scanned by PreToolUse/PostToolUse hooks — rescanning caused duplicate PII/secret warnings that overshadowed real security events (e.g., jailbreak detection)
+  - Truncated/compacted transcripts now skip to current end instead of rescanning from 0
+  - Transcript scanning now only catches content from `!` shell commands (its intended purpose)
 
 ### Documentation
 
