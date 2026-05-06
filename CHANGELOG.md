@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Simplified README to ~230 lines** (Issue #454)
+  - Moved detailed documentation to `docs/` folder with links
+  - Created `docs/SECURITY_DESIGN.md` for self-protection architecture details
+  - Created `docs/README.md` as documentation index
+  - Added documentation guidelines to AGENTS.md (README ~300 line limit)
+  - No information lost — all content accessible via docs/ links
+
 ### Added
 
 - **Daemon service architecture** (Issue #367, Phases 1-3)

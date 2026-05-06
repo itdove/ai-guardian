@@ -942,6 +942,40 @@ When Unicode detection was added (Issue #195):
 
 ---
 
+## Documentation Guidelines
+
+### README Size Limit
+
+**CRITICAL**: The README.md must be kept to **~300 lines maximum**. It serves as a concise landing page, not a comprehensive reference.
+
+**Rules:**
+- Every feature gets **one line** in the README + a link to its docs/ page
+- No code examples longer than **5 lines** in README
+- Detailed configuration, examples, and edge cases go in `docs/`
+- Keep Quick Start as simple as possible (3 commands)
+
+### Documentation Structure
+
+All detailed documentation lives in the `docs/` folder:
+- `docs/README.md` — Index of all documentation files
+- `docs/CONFIGURATION.md` — Full configuration reference
+- `docs/security/` — Security feature documentation
+- `docs/CONSOLE.md` — Interactive console guide
+- `docs/TOOL_POLICY.md` — Permission system details
+- `docs/SECURITY_DESIGN.md` — Architecture and self-protection
+
+**When adding a new feature:**
+1. Add a one-line entry to the README Features table with a link
+2. Create or update the appropriate `docs/` file with full details
+3. Update `docs/README.md` index if creating a new file
+4. Update CHANGELOG.md
+
+**When modifying existing features:**
+- Update the relevant `docs/` file, not the README
+- Only update README if the feature name or one-line description changes
+
+---
+
 ## Common Tasks
 
 ### Adding a New Feature
