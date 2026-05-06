@@ -16,7 +16,7 @@ try:
     from PIL import Image, ImageDraw
 
     HAS_PYSTRAY = True
-except ImportError:
+except Exception:
     HAS_PYSTRAY = False
 
 
