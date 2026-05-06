@@ -102,6 +102,8 @@ class DaemonTray:
             pystray.MenuItem("AI Guardian Daemon", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Console", self._on_open_console),
+            pystray.MenuItem("Violations", self._on_open_violations),
+            pystray.MenuItem("Daemon", self._on_open_daemon),
             pystray.MenuItem("Reload Config", self._on_reload_config),
             pystray.MenuItem(
                 lambda _: f"Mode: {self._current_mode}",
@@ -164,6 +166,7 @@ class DaemonTray:
                 lambda _: self._violations_text(), None, enabled=False
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Restart", self._on_restart),
             pystray.MenuItem("Quit", self._on_quit),
         )
         self._icon = pystray.Icon(
@@ -323,12 +326,23 @@ class DaemonTray:
             pass
         return "auto"
 
-    def _on_open_console(self, icon, item):
-        """Launch the ai-guardian TUI console in a new terminal window.
+    def _on_open_violations(self, icon, item):
+        """Launch the console directly to the Violations panel."""
+        self._launch_console("panel-violations")
 
-        On macOS: opens a maximized Terminal window that closes on exit.
-        On Linux: opens the default terminal emulator.
-        On Windows: opens a maximized cmd window.
+    def _on_open_daemon(self, icon, item):
+        """Launch the console directly to the Daemon panel."""
+        self._launch_console("panel-daemon")
+
+    def _on_open_console(self, icon, item):
+        """Launch the console."""
+        self._launch_console()
+
+    def _launch_console(self, panel=None):
+        """Launch the ai-guardian console in a new terminal window.
+
+        Args:
+            panel: Optional panel ID to open (e.g., 'panel-violations')
         """
         import subprocess
         import platform
@@ -336,6 +350,8 @@ class DaemonTray:
 
         executable = shutil.which("ai-guardian")
         cmd_str = f"{executable} console" if executable else "python -m ai_guardian console"
+        if panel:
+            cmd_str += f" --panel {panel}"
 
         try:
             system = platform.system()
@@ -494,6 +510,29 @@ class DaemonTray:
             secs = int(remaining % 60)
             return f"Resume ({mins}m {secs}s left)"
         return "Resume (paused)"
+
+    def _on_restart(self, icon, item):
+        """Restart the daemon (stop + start)."""
+        import subprocess
+        import shutil
+
+        executable = shutil.which("ai-guardian")
+        if executable:
+            cmd = [executable, "daemon", "restart"]
+        else:
+            import sys
+            cmd = [sys.executable, "-m", "ai_guardian", "daemon", "restart"]
+
+        self._stop()
+        try:
+            subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to restart daemon: {e}")
 
     def _on_quit(self, icon, item):
         self._stop()

@@ -692,6 +692,7 @@ class AIGuardianTUI(App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._input_original_values = {}
+        self.initial_panel = None
 
     CSS = """
     Screen {
@@ -1004,6 +1005,14 @@ class AIGuardianTUI(App):
                     yield HookSimulatorContent()
 
         yield Footer()
+
+    def on_mount(self) -> None:
+        if self.initial_panel:
+            try:
+                switcher = self.query_one("#panels", ContentSwitcher)
+                switcher.current = self.initial_panel
+            except Exception:
+                pass
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Switch panel when a tree leaf is selected."""

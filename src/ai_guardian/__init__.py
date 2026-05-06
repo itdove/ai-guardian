@@ -3986,11 +3986,19 @@ def main():
             "console",
             help="Launch interactive console for configuration management"
         )
+        console_parser.add_argument(
+            "--panel",
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+        )
 
         # TUI subcommand (alias for console, kept for backward compatibility)
         tui_parser = subparsers.add_parser(
             "tui",
             help="Launch interactive console (alias for ai-guardian console)"
+        )
+        tui_parser.add_argument(
+            "--panel",
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
         )
 
         # Scan subcommand
@@ -4326,6 +4334,9 @@ def main():
             try:
                 from ai_guardian.tui import AIGuardianTUI
                 app = AIGuardianTUI()
+                initial_panel = getattr(args, "panel", None)
+                if initial_panel:
+                    app.initial_panel = initial_panel
                 app.run()
                 return 0
             except ImportError as e:
