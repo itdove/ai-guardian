@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Daemon service architecture** (Issue #367, Phases 1-3)
+  - Long-running daemon process for faster hook processing (~1-5ms vs ~50-100ms per-invocation)
+  - Three modes: `"auto"` (default, daemon with local fallback), `"local"` (per-process, for CI/CD), `"daemon"` (require daemon, for testing/compliance)
+  - Unix domain socket IPC on macOS/Linux, TCP localhost fallback on Windows
+  - In-memory cross-hook state sharing between PreToolUse and PostToolUse via `tool_use_id`
+  - Config auto-reload: mtime check per-request + periodic SHA256 checksum verification
+  - Compiled regex pattern caching in memory (invalidated on config change)
+  - Lazy daemon start: first hook call in `auto` mode starts daemon in background
+  - Idle timeout auto-stop (default 30 minutes, configurable)
+  - CLI commands: `ai-guardian daemon start|stop|status|restart`
+  - System tray icon with status indicator and Pause/Resume menu (pystray + Pillow included as dependencies)
+  - Graceful shutdown on SIGTERM/SIGINT with socket/PID file cleanup
+  - New config section: `daemon` with `mode`, `idle_timeout_minutes`, `client_timeout_seconds`, `tray.enabled`
+  - Environment variable override: `AI_GUARDIAN_DAEMON_MODE=local` for CI/CD
+  - Extracted `process_hook_data()` for direct dict-based hook processing (daemon and direct mode)
+
 - **Multi-engine execution strategies** (Issue #250, Phase 3)
   - Execution strategy support: `first-match` (default), `any-match` (block if ANY engine finds secrets), `consensus` (block only if N engines agree)
   - Parallel engine execution via ThreadPoolExecutor for `any-match` and `consensus` strategies

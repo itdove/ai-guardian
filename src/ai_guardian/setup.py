@@ -967,6 +967,15 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "max_entries": 1000,
             "retention_days": 30,
             "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript"]
+        },
+        "_comment_daemon": "Background daemon for faster hook processing. Modes: 'auto' (default, daemon with fallback), 'local' (per-process, CI/CD), 'daemon' (require daemon, for testing). Override with AI_GUARDIAN_DAEMON_MODE env var.",
+        "daemon": {
+            "mode": "auto",
+            "idle_timeout_minutes": 30,
+            "client_timeout_seconds": 2.0,
+            "tray": {
+                "enabled": True
+            }
         }
     }
 
