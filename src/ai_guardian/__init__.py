@@ -1472,7 +1472,6 @@ def scan_transcript_incremental(
         return warnings
 
     positions = _load_transcript_positions()
-    last_pos = positions.get(transcript_path, 0)
 
     try:
         file_size = os.path.getsize(transcript_path)
@@ -1480,10 +1479,25 @@ def scan_transcript_incremental(
         logging.debug(f"Cannot stat transcript file: {e}")
         return warnings
 
-    # File truncated or rotated — reset position
+    if transcript_path not in positions:
+        # First scan for this transcript: skip to current end.
+        # Content up to this point was already scanned by PreToolUse/PostToolUse hooks.
+        # Transcript scanning only needs to catch content from ! shell commands,
+        # which will appear in bytes added AFTER this initial position.
+        positions[transcript_path] = file_size
+        _save_transcript_positions(positions)
+        logging.debug(f"Transcript first seen, initialized position to {file_size}")
+        return warnings
+
+    last_pos = positions[transcript_path]
+
+    # File truncated or rotated — skip to current end rather than rescanning.
+    # The old content was already scanned; rescanning from 0 causes duplicate warnings.
     if file_size < last_pos:
-        logging.debug("Transcript file truncated, resetting position to 0")
-        last_pos = 0
+        logging.debug("Transcript file truncated, advancing position to current size")
+        positions[transcript_path] = file_size
+        _save_transcript_positions(positions)
+        return warnings
 
     # Nothing new to scan
     if file_size <= last_pos:

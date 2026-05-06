@@ -23,6 +23,7 @@ from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
 import ai_guardian
+from ai_guardian import _save_transcript_positions
 
 
 class TranscriptScanningUserExperienceTests(TestCase):
@@ -79,6 +80,10 @@ class TranscriptScanningUserExperienceTests(TestCase):
             transcript_path = f.name
 
         try:
+            # Pre-save position 0 to simulate an already-initialized session
+            # where ! command output was added after initialization
+            _save_transcript_positions({transcript_path: 0})
+
             hook_data = {
                 "hook_event_name": "UserPromptSubmit",
                 "prompt": "Hello, how are you?",
@@ -276,6 +281,9 @@ class TranscriptScanningUserExperienceTests(TestCase):
             transcript_path = f.name
 
         try:
+            # Pre-save position 0 to simulate an already-initialized session
+            _save_transcript_positions({transcript_path: 0})
+
             hook_data = {
                 "hook_event_name": "UserPromptSubmit",
                 "prompt": "Hello",

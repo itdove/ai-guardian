@@ -99,11 +99,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
   - Action changes auto-save to config and stay in sync between global settings and individual panels
 
+## [1.6.1] - 2026-05-06
+
 ### Fixed
 
 - **Console crashes on MCP Servers panel and Permissions Discovery panel** (Issue #446)
   - Fixed DuplicateIds crash when navigating to MCP Servers panel by removing fixed widget ID from empty-state Static and using CSS class selector instead
   - Fixed WrongType crash when navigating to Permissions Discovery panel by changing panel wrapper from VerticalScroll to Container, consistent with all other panels
+
+- **Clipboard "Copied" notification shown incorrectly in Linux containers** (Issue #452)
+  - Console no longer shows "Copied to clipboard" when the copy actually failed
+  - `copy_to_clipboard()` now returns a boolean indicating success
+  - `on_text_selected` checks the return value before showing the notification
+  - Wrapped in try/except to handle IndexError/AttributeError from empty selections
+
+- **Transcript scanner re-flags same content on every prompt** (Issue #462)
+  - First scan of a new transcript now initializes position to current file size instead of scanning from byte 0
+  - Initial transcript content (system context, tool responses) was already scanned by PreToolUse/PostToolUse hooks — rescanning caused duplicate PII/secret warnings that overshadowed real security events (e.g., jailbreak detection)
+  - Truncated/compacted transcripts now skip to current end instead of rescanning from 0
+  - Transcript scanning now only catches content from `!` shell commands (its intended purpose)
+
+### Documentation
+
+- **Simplified README to ~230 lines** (Issue #454)
+  - Moved detailed documentation to `docs/` folder with links
+  - Created `docs/SECURITY_DESIGN.md` for self-protection architecture details
+  - Created `docs/README.md` as documentation index
+  - No information lost — all content accessible via docs/ links
 
 ## [1.6.0] - 2026-05-04
 
@@ -1218,7 +1240,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/itdove/ai-guardian/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/itdove/ai-guardian/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/itdove/ai-guardian/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/itdove/ai-guardian/compare/v1.4.0...v1.5.0
