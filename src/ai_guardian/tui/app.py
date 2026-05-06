@@ -75,11 +75,9 @@ def copy_to_system_clipboard(text: str) -> Tuple[Optional[str], Optional[str]]:
             return (None, "xsel")
         if _try_clipboard_command(["wl-copy"], text):
             return (None, "wl-copy")
-        if copy_osc52(text):
-            return (None, "OSC 52")
         return (
-            "Install xclip or wl-copy for clipboard support, "
-            "or use a terminal with OSC 52 support",
+            "Copied via terminal escape sequence. "
+            "For reliable clipboard, install xclip, xsel, or wl-copy",
             None,
         )
     else:
@@ -824,25 +822,34 @@ class AIGuardianTUI(App):
         Binding("t", "test_connection", "Test", show=True),
     ]
 
-    def copy_to_clipboard(self, text: str) -> None:
+    def copy_to_clipboard(self, text: str) -> bool:
         """Copy text to clipboard with platform-native fallback.
 
         Tries native commands first (pbcopy/xclip/xsel/wl-copy), then
-        OSC 52, then falls back to Textual's built-in OSC 52 sequence.
+        falls back to Textual's built-in OSC 52 escape sequence.
+
+        Returns True if a native clipboard tool succeeded, False if only
+        the OSC 52 fallback was attempted (unverifiable).
         """
         error, method = copy_to_system_clipboard(text)
         if error is None:
-            return
+            return True
         super().copy_to_clipboard(text)
-        if "Install" in error:
-            self.notify(error, severity="warning")
+        self.notify(
+            "Clipboard: no native tools — using terminal fallback",
+            severity="warning",
+        )
+        return False
 
     def on_text_selected(self, event: events.TextSelected) -> None:
         """Auto-copy selected text to clipboard."""
-        selection = self.screen.get_selected_text()
-        if selection:
-            self.copy_to_clipboard(selection)
-            self.notify("Copied to clipboard", severity="information")
+        try:
+            selection = self.screen.get_selected_text()
+            if selection:
+                if self.copy_to_clipboard(selection):
+                    self.notify("Copied to clipboard", severity="information")
+        except (IndexError, AttributeError):
+            pass
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Store original value when Input gets focus."""
