@@ -2888,7 +2888,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         logging.error(traceback.format_exc())
         # Fail open - don't block on errors
         return False, None
-def process_hook_data(hook_data):
+def process_hook_data(hook_data, daemon_state=None):
     """
     Process parsed hook data and return response.
 
@@ -2897,6 +2897,7 @@ def process_hook_data(hook_data):
 
     Args:
         hook_data: Parsed JSON hook data dict from IDE
+        daemon_state: Optional DaemonState for cross-hook context passing
 
     Returns:
         dict: Response with 'output' (str or None) and 'exit_code' (int)
@@ -2921,6 +2922,16 @@ def process_hook_data(hook_data):
         # Extract correlation IDs from hook data (available in both PreToolUse and PostToolUse)
         hook_tool_use_id = hook_data.get("tool_use_id")
         hook_session_id = hook_data.get("session_id")
+
+        # Create cross-hook context manager for PreToolUse/PostToolUse correlation
+        context_mgr = None
+        try:
+            from ai_guardian.hook_context import HookContextManager
+            context_mgr = HookContextManager(
+                session_id=hook_session_id, daemon_state=daemon_state
+            )
+        except Exception as e:
+            logging.debug(f"Hook context manager init failed (non-fatal): {e}")
 
         # Handle PostToolUse event - scan tool output before sending to AI
         if hook_event == "posttooluse":
@@ -2960,6 +2971,18 @@ def process_hook_data(hook_data):
                 if raw_cmd:
                     bash_command = raw_cmd[:500]
 
+            # Load PreToolUse context for cross-hook correlation (#366)
+            pretool_ctx = None
+            if context_mgr and hook_tool_use_id:
+                pretool_ctx = context_mgr.get_pretool_context(hook_tool_use_id)
+                if pretool_ctx:
+                    logging.info(f"PostToolUse: loaded PreToolUse context for {hook_tool_use_id}")
+                    # Inherit file_path from PreToolUse if not available in PostToolUse
+                    if not tool_input.get("file_path") and not tool_input.get("path"):
+                        pretool_file = pretool_ctx.get("file_path")
+                        if pretool_file:
+                            logging.info(f"PostToolUse: inherited file_path={pretool_file}")
+
             logging.info(f"Scanning {tool_identifier} output for secrets...")
 
             # Load secret scanning config for ignore lists
@@ -2982,20 +3005,39 @@ def process_hook_data(hook_data):
             ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
             secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
 
+            # Cross-hook optimization: skip secret scan if PreToolUse already scanned clean (#366)
+            pretool_scan = pretool_ctx.get("scan_results", {}) if pretool_ctx else {}
+            skip_secret_scan = (
+                pretool_scan.get("secrets_scanned")
+                and not pretool_scan.get("secrets_found")
+            )
+            if skip_secret_scan:
+                logging.info("PostToolUse: skipping secret scan (PreToolUse already scanned clean)")
+
+            # Cross-hook optimization: respect ignore_files from PreToolUse (#366)
+            if pretool_ctx and pretool_ctx.get("ignore_files_matched"):
+                logging.info("PostToolUse: skipping scans (file matched ignore_files in PreToolUse)")
+                skip_secret_scan = True
+
             # Check for secrets in the output (use composite identifier for ignore matching)
             post_secret_ctx = {"ide_type": ide_type.value, "hook_event": "posttooluse"}
             if hook_tool_use_id:
                 post_secret_ctx["tool_use_id"] = hook_tool_use_id
             if hook_session_id:
                 post_secret_ctx["session_id"] = hook_session_id
-            has_secrets, error_message = check_secrets_with_gitleaks(
-                tool_output, f"{tool_identifier}_output",
-                context=post_secret_ctx,
-                tool_name=tool_identifier,
-                ignore_files=ignore_files,
-                ignore_tools=ignore_tools,
-                allowlist_patterns=secret_allowlist
-            )
+
+            if skip_secret_scan:
+                has_secrets = False
+                error_message = None
+            else:
+                has_secrets, error_message = check_secrets_with_gitleaks(
+                    tool_output, f"{tool_identifier}_output",
+                    context=post_secret_ctx,
+                    tool_name=tool_identifier,
+                    ignore_files=ignore_files,
+                    ignore_tools=ignore_tools,
+                    allowlist_patterns=secret_allowlist
+                )
 
             if not has_secrets and error_message:
                 # Scanner not available - display warning but allow operation
@@ -3047,6 +3089,9 @@ def process_hook_data(hook_data):
                         from ai_guardian.violation_logger import ViolationLogger
                         violation_logger = ViolationLogger()
                         redaction_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        # Inherit file_path from PreToolUse context (#366)
+                        if not redaction_file_path and pretool_ctx:
+                            redaction_file_path = pretool_ctx.get("file_path")
                         first_line = redactions[0].get('line_number') if redactions else None
                         blocked_info = {
                             'tool': tool_identifier,
@@ -3069,6 +3114,8 @@ def process_hook_data(hook_data):
                             ctx['tool_use_id'] = hook_tool_use_id
                         if hook_session_id:
                             ctx['session_id'] = hook_session_id
+                        if pretool_ctx:
+                            ctx['pretool_context'] = pretool_ctx
                         violation_logger.log_violation(
                             violation_type='secret_redaction',
                             blocked=blocked_info,
@@ -3124,7 +3171,16 @@ def process_hook_data(hook_data):
                 default=True
             ):
                 pii_file_path = tool_input.get("file_path") or tool_input.get("path")
-                pii_skip_scan = _should_skip_pii_scan(pii_config, tool_identifier, pii_file_path)
+                # Inherit file_path from PreToolUse context (#366)
+                if not pii_file_path and pretool_ctx:
+                    pii_file_path = pretool_ctx.get("file_path")
+
+                # Cross-hook optimization: skip PII scan if PreToolUse skipped via ignore_files (#366)
+                pii_skip_from_pretool = (
+                    pretool_ctx
+                    and pretool_ctx.get("scan_results", {}).get("pii_skipped_reason") == "ignore_files match"
+                )
+                pii_skip_scan = pii_skip_from_pretool or _should_skip_pii_scan(pii_config, tool_identifier, pii_file_path)
 
                 if not pii_skip_scan:
                     logging.info("Scanning tool output for PII...")
@@ -3138,6 +3194,9 @@ def process_hook_data(hook_data):
                         from ai_guardian.violation_logger import ViolationLogger
                         violation_logger = ViolationLogger()
                         pii_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        # Inherit file_path from PreToolUse context (#366)
+                        if not pii_file_path and pretool_ctx:
+                            pii_file_path = pretool_ctx.get("file_path")
                         pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
                         pii_blocked = {
                             'tool': tool_identifier,
@@ -3158,6 +3217,8 @@ def process_hook_data(hook_data):
                             pii_ctx['tool_use_id'] = hook_tool_use_id
                         if hook_session_id:
                             pii_ctx['session_id'] = hook_session_id
+                        if pretool_ctx:
+                            pii_ctx['pretool_context'] = pretool_ctx
                         violation_logger.log_violation(
                             violation_type='pii_detected',
                             blocked=pii_blocked,
@@ -3347,6 +3408,24 @@ def process_hook_data(hook_data):
                 # These tools don't read files in PreToolUse, so no content to scan here
                 # They are checked by tool_policy.py for command patterns
                 logging.info(f"Tool '{tool_name}' does not read files - skipping file content scan")
+
+                # Save minimal PreToolUse context for correlation (#366)
+                if context_mgr and hook_tool_use_id:
+                    try:
+                        context_mgr.save_pretool_context(hook_tool_use_id, {
+                            "file_path": None,
+                            "tool_name": tool_identifier or tool_name,
+                            "scan_results": {
+                                "secrets_scanned": False,
+                                "secrets_found": False,
+                                "pii_scanned": False,
+                                "pii_skipped_reason": None,
+                                "prompt_injection_scanned": False,
+                            },
+                            "ignore_files_matched": False,
+                        })
+                    except Exception:
+                        pass
 
                 # No content to scan for these tools in PreToolUse
                 # Allow operation (secret scanning happens for Bash in PostToolUse if enabled)
@@ -3658,6 +3737,53 @@ def process_hook_data(hook_data):
                     logging.info("⚠️  Transcript scanning temporarily disabled")
             except Exception as e:
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
+
+        # Save PreToolUse context for PostToolUse correlation (#366)
+        if hook_event in ["pretooluse", "beforereadfile"] and context_mgr and hook_tool_use_id:
+            try:
+                # Determine if PII scan was skipped and why
+                pii_scanned = False
+                pii_skip_reason = None
+                try:
+                    if content_to_scan and pii_config:
+                        pii_was_skipped = _should_skip_pii_scan(pii_config, tool_identifier, file_path)
+                        if pii_was_skipped:
+                            pii_skip_reason = "ignore_files match"
+                        else:
+                            pii_scanned = True
+                except NameError:
+                    pass
+
+                # Determine if file matched ignore_files
+                ignore_files_matched = False
+                try:
+                    if file_path and secret_config:
+                        pre_ignore_files = secret_config.get("ignore_files", [])
+                        if pre_ignore_files:
+                            import fnmatch
+                            for pattern in pre_ignore_files:
+                                if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(os.path.basename(file_path), pattern):
+                                    ignore_files_matched = True
+                                    break
+                except NameError:
+                    pass
+
+                pretool_context = {
+                    "file_path": file_path,
+                    "tool_name": tool_identifier or tool_name,
+                    "scan_results": {
+                        "secrets_scanned": content_to_scan is not None,
+                        "secrets_found": False,  # if we got here, no secrets blocked
+                        "pii_scanned": pii_scanned,
+                        "pii_skipped_reason": pii_skip_reason,
+                        "prompt_injection_scanned": content_to_scan is not None,
+                    },
+                    "ignore_files_matched": ignore_files_matched,
+                }
+                context_mgr.save_pretool_context(hook_tool_use_id, pretool_context)
+                logging.info(f"PreToolUse: saved context for tool_use_id={hook_tool_use_id}")
+            except Exception as e:
+                logging.debug(f"Failed to save PreToolUse context (non-fatal): {e}")
 
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None

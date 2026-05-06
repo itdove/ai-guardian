@@ -267,7 +267,7 @@ class DaemonServer:
         self.state.record_activity()
 
         from ai_guardian import process_hook_data
-        result = process_hook_data(hook_data)
+        result = process_hook_data(hook_data, daemon_state=self.state)
 
         # Track stats
         exit_code = result.get("exit_code", 0)

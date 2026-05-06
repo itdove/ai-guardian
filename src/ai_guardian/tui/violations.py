@@ -497,9 +497,23 @@ class ViolationCard(Vertical):
             if details:
                 yield Static(f"Details: {details[:120]}", classes="violation-detail")
 
-        # Action buttons — Details only (shows resolution instructions)
+        # Show correlation ID and button only when correlation data exists (#366)
+        context = self.violation.get("context", {})
+        tool_use_id = context.get("tool_use_id")
+        hook_event = context.get("hook_event", "")
+        has_correlation = bool(context.get("pretool_context"))
+        if tool_use_id and has_correlation:
+            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace("pretooluse", "PreToolUse")
+            yield Static(
+                f"[dim]Correlation: {tool_use_id[:16]}... ({hook_label})[/dim]",
+                classes="violation-detail"
+            )
+
+        # Action buttons
         with Horizontal(classes="violation-actions"):
             yield Button("Details", id=f"details-{timestamp_id}")
+            if has_correlation:
+                yield Button("Correlated", id=f"correlated-{timestamp_id}", variant="default")
 
 
 class ViolationsContent(Container):
@@ -680,13 +694,18 @@ class ViolationsContent(Container):
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses (details on violation cards)."""
+        """Handle button presses (details and correlated on violation cards)."""
         button_id = event.button.id
 
         if button_id and button_id.startswith("details-"):
             timestamp_id = button_id.replace("details-", "")
             timestamp = self._unsanitize_timestamp(timestamp_id)
             self.show_violation_details(timestamp)
+
+        elif button_id and button_id.startswith("correlated-"):
+            timestamp_id = button_id.replace("correlated-", "")
+            timestamp = self._unsanitize_timestamp(timestamp_id)
+            self.show_correlated_violation(timestamp)
 
     def _unsanitize_timestamp(self, timestamp_id: str) -> str:
         """Convert sanitized timestamp ID back to original format."""
@@ -850,3 +869,51 @@ class ViolationsContent(Container):
             self.app.push_screen(ViolationDetailsModal(violation))
         else:
             self.app.notify("Violation not found", severity="error")
+
+    def show_correlated_violation(self, timestamp: str) -> None:
+        """Show correlated PreToolUse context or paired violation (#366)."""
+        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
+        source = next((v for v in violations if v.get("timestamp") == timestamp), None)
+
+        if not source:
+            self.app.notify("Violation not found", severity="error")
+            return
+
+        source_ctx = source.get("context", {})
+        tool_use_id = source_ctx.get("tool_use_id")
+        if not tool_use_id:
+            self.app.notify("No correlation ID on this violation", severity="warning")
+            return
+
+        source_hook = source_ctx.get("hook_event", "")
+
+        # Check for embedded PreToolUse context (saved when PostToolUse logs a violation)
+        pretool_ctx = source_ctx.get("pretool_context")
+        if pretool_ctx:
+            correlated_view = {
+                "correlation": "PreToolUse context for this tool invocation",
+                "tool_use_id": tool_use_id,
+                "pretool_context": pretool_ctx,
+            }
+            self.app.push_screen(ViolationDetailsModal(correlated_view))
+            return
+
+        # Fall back: search for a paired violation with same tool_use_id
+        correlated = None
+        for v in violations:
+            v_ctx = v.get("context", {})
+            if (
+                v_ctx.get("tool_use_id") == tool_use_id
+                and v.get("timestamp") != timestamp
+                and v_ctx.get("hook_event") != source_hook
+            ):
+                correlated = v
+                break
+
+        if correlated:
+            self.app.push_screen(ViolationDetailsModal(correlated))
+        else:
+            self.app.notify(
+                "No correlated PreToolUse data found",
+                severity="information",
+            )
