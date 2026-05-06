@@ -210,13 +210,13 @@ class ViolationDetailsModal(ModalScreen):
         """Handle button presses."""
         if event.button.id == "copy-details":
             details = json.dumps(self.violation, indent=2)
-            self.app.copy_to_clipboard(details)
-            self.app.notify("Violation details copied to clipboard", severity="information")
+            if self.app.copy_to_clipboard(details):
+                self.app.notify("Violation details copied to clipboard", severity="information")
         elif event.button.id == "copy-snippet":
             _, snippet = self._get_resolution_instructions()
             if snippet:
-                self.app.copy_to_clipboard(snippet)
-                self.app.notify("Config snippet copied to clipboard", severity="information")
+                if self.app.copy_to_clipboard(snippet):
+                    self.app.notify("Config snippet copied to clipboard", severity="information")
         elif event.button.id == "close-details":
             self.dismiss()
 
