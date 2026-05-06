@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Documentation: per-engine pattern server auth** (Issue #458)
+  - Document that `AI_GUARDIAN_PATTERN_TOKEN` is the default env var for all pattern server sections
+  - Document how to override `token_env` per section for multi-server setups
+  - Document `token_file` as alternative to env var
+  - Example config showing different tokens per pattern server
+  - Updated `docs/PATTERN_SERVER.md`, `ai-guardian-example.json`, and `README.md`
+
 ### Changed
 
 - **Simplified README to ~230 lines** (Issue #454)

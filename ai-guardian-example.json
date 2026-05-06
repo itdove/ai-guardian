@@ -204,7 +204,14 @@
         "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
         "token_file": "~/.config/ai-guardian/pattern-token",
         "_comment": "Token auth: Set env var OR save to token_file (pick one method)",
-        "_comment2": "Get token from your pattern server's web interface"
+        "_comment2": "Get token from your pattern server's web interface",
+        "_comment3": "Default token_env is AI_GUARDIAN_PATTERN_TOKEN for ALL pattern server sections",
+        "_comment4": "Override token_env per section when using multiple servers with different credentials",
+        "_multi_server_example": {
+          "_comment": "Example: separate token for secret scanning patterns",
+          "method": "bearer",
+          "token_env": "AI_GUARDIAN_SECRET_PATTERNS_TOKEN"
+        }
       },
       "cache": {
         "path": "~/.cache/ai-guardian/patterns.toml",
@@ -382,7 +389,21 @@
     "action": "block",
     "additional_files": [],
     "ignore_files": [],
-    "additional_patterns": []
+    "additional_patterns": [],
+    "_pattern_server_example": {
+      "_comment": "Optional: Fetch exfiltration patterns from a dedicated pattern server",
+      "_comment2": "Override token_env to use a different credential than the default AI_GUARDIAN_PATTERN_TOKEN",
+      "url": "https://exfil-patterns.internal.com",
+      "patterns_endpoint": "/patterns/exfil/v1",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_EXFIL_PATTERNS_TOKEN"
+      },
+      "cache": {
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168
+      }
+    }
   },
 
   "ssrf_protection": {
@@ -514,7 +535,22 @@
 
     "allow_localhost": false,
     "_allow_localhost_comment": "Set to true for local development (NEVER in production)",
-    "_allow_localhost_security_warning": "Only enable in development environments"
+    "_allow_localhost_security_warning": "Only enable in development environments",
+
+    "_pattern_server_example": {
+      "_comment": "Optional: Fetch SSRF protection patterns from a dedicated pattern server",
+      "_comment2": "Override token_env to use a different credential than the default AI_GUARDIAN_PATTERN_TOKEN",
+      "url": "https://ssrf-patterns.internal.com",
+      "patterns_endpoint": "/patterns/ssrf/v1",
+      "auth": {
+        "method": "bearer",
+        "token_env": "AI_GUARDIAN_SSRF_PATTERNS_TOKEN"
+      },
+      "cache": {
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168
+      }
+    }
   },
 
   "directory_rules": {

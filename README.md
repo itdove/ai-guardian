@@ -145,7 +145,9 @@ PostToolUse hooks scan tool outputs using the same pipeline. See [docs/SECURITY_
 | `AI_GUARDIAN_STATE_DIR` | State directory (logs, violations) | `~/.local/state/ai-guardian` |
 | `AI_GUARDIAN_CACHE_DIR` | Cache directory (patterns) | `~/.cache/ai-guardian` |
 | `AI_GUARDIAN_IDE_TYPE` | Override IDE auto-detection | Auto-detect |
-| `AI_GUARDIAN_PATTERN_TOKEN` | Pattern server auth token | None |
+| `AI_GUARDIAN_PATTERN_TOKEN` | Default pattern server auth token (all sections) | None |
+
+Each detection feature (`secret_scanning`, `secret_redaction`, `ssrf_protection`, `config_file_scanning`) can use its own pattern server with independent auth via `token_env` or `token_file`. See [docs/PATTERN_SERVER.md](docs/PATTERN_SERVER.md#per-section-auth-for-multiple-servers).
 
 ## Requirements
 
