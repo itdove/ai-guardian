@@ -367,6 +367,27 @@ class TestClipboardSupport:
         source = inspect.getsource(AIGuardianTUI.copy_to_clipboard)
         assert "copy_to_system_clipboard" in source
 
+    def test_copy_to_clipboard_returns_bool(self):
+        """Test that copy_to_clipboard returns True on native, False on fallback."""
+        import inspect
+        source = inspect.getsource(AIGuardianTUI.copy_to_clipboard)
+        assert "return True" in source
+        assert "return False" in source
+        assert "super().copy_to_clipboard" in source
+
+    def test_on_text_selected_checks_copy_result(self):
+        """Test that on_text_selected only notifies on successful copy."""
+        import inspect
+        source = inspect.getsource(AIGuardianTUI.on_text_selected)
+        assert "if self.copy_to_clipboard" in source
+
+    def test_violation_modal_checks_copy_result(self):
+        """Test that ViolationDetailsModal only notifies on successful copy."""
+        from ai_guardian.tui.violations import ViolationDetailsModal
+        import inspect
+        source = inspect.getsource(ViolationDetailsModal.on_button_pressed)
+        assert "if self.app.copy_to_clipboard" in source
+
 
 class TestCopyOsc52:
     """Tests for the OSC 52 clipboard escape sequence function."""
@@ -496,19 +517,20 @@ class TestCopyToSystemClipboard:
             assert error is None
             assert method == "wl-copy"
 
-    def test_copy_falls_back_to_osc52_on_linux(self):
-        """Test fallback to OSC 52 when all clipboard tools are missing."""
+    def test_linux_no_tools_returns_error(self):
+        """Test that Linux returns error when no clipboard tools are found."""
         from unittest.mock import patch
         with patch("ai_guardian.tui.app.sys") as mock_sys, \
-             patch("ai_guardian.tui.app.subprocess") as mock_subprocess, \
-             patch("ai_guardian.tui.app.copy_osc52", return_value=True):
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
             mock_sys.platform = "linux"
             mock_subprocess.run.side_effect = FileNotFoundError("not found")
             mock_subprocess.CalledProcessError = subprocess.CalledProcessError
             mock_subprocess.TimeoutExpired = subprocess.TimeoutExpired
             error, method = copy_to_system_clipboard("test text")
-            assert error is None
-            assert method == "OSC 52"
+            assert isinstance(error, str)
+            assert method is None
+            assert "terminal escape sequence" in error
+            assert "xclip" in error
 
     def test_copy_succeeds_on_windows(self):
         """Test clipboard copy using clip on Windows."""
@@ -585,12 +607,11 @@ class TestCopyToSystemClipboard:
             args = mock_subprocess.run.call_args
             assert args[1]["input"] == text.encode("utf-8")
 
-    def test_linux_all_tools_missing_returns_install_instructions(self):
-        """Test Linux returns install instructions when all tools and OSC 52 fail."""
+    def test_linux_no_tools_error_suggests_install(self):
+        """Test Linux error message suggests installing clipboard tools."""
         from unittest.mock import patch
         with patch("ai_guardian.tui.app.sys") as mock_sys, \
-             patch("ai_guardian.tui.app.subprocess") as mock_subprocess, \
-             patch("ai_guardian.tui.app.copy_osc52", return_value=False):
+             patch("ai_guardian.tui.app.subprocess") as mock_subprocess:
             mock_sys.platform = "linux"
             mock_subprocess.run.side_effect = FileNotFoundError("not found")
             mock_subprocess.CalledProcessError = subprocess.CalledProcessError
@@ -599,8 +620,8 @@ class TestCopyToSystemClipboard:
             assert isinstance(error, str)
             assert method is None
             assert "xclip" in error
+            assert "xsel" in error
             assert "wl-copy" in error
-            assert "OSC 52" in error
 
 
 class TestViolationCardFields:
