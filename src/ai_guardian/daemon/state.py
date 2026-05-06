@@ -55,6 +55,12 @@ class DaemonState:
         self._log_only_count = 0
         self._started_at = time.time()
 
+        # Proxy stats
+        self._proxy_request_count = 0
+        self._proxy_violations_count = 0
+        self._proxy_blocked_count = 0
+        self._proxy_port = 0
+
         # Paused state (for tray Pause/Resume)
         self._paused = False
         self._paused_until = 0.0  # monotonic timestamp, 0 = not time-limited
@@ -255,6 +261,29 @@ class DaemonState:
         with self._lock:
             self._log_only_count += 1
 
+    # --- Proxy stats ---
+
+    def set_proxy_port(self, port):
+        """Set the proxy listen port for stats reporting."""
+        with self._lock:
+            self._proxy_port = port
+
+    def record_proxy_request(self):
+        """Record a proxied HTTP request."""
+        with self._lock:
+            self._proxy_request_count += 1
+            self._last_activity = time.monotonic()
+
+    def record_proxy_violation(self):
+        """Record a violation detected in proxied traffic."""
+        with self._lock:
+            self._proxy_violations_count += 1
+
+    def record_proxy_blocked(self):
+        """Record a proxied request that was blocked due to violations."""
+        with self._lock:
+            self._proxy_blocked_count += 1
+
     def is_idle_timeout_expired(self):
         """Check if daemon has been idle longer than the timeout.
 
@@ -341,6 +370,10 @@ class DaemonState:
                 "paused": self._paused,
                 "pause_remaining_seconds": self._pause_remaining_locked(),
                 "started_at": self._started_at,
+                "proxy_port": self._proxy_port,
+                "proxy_request_count": self._proxy_request_count,
+                "proxy_violations_count": self._proxy_violations_count,
+                "proxy_blocked_count": self._proxy_blocked_count,
             }
 
     def _pause_remaining_locked(self):

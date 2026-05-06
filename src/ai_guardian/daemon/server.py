@@ -53,16 +53,20 @@ def _is_pid_alive(pid):
 class DaemonServer:
     """Long-running daemon server for ai-guardian."""
 
-    def __init__(self, idle_timeout=1800.0, use_tcp=False, enable_tray=True):
+    def __init__(self, idle_timeout=1800.0, use_tcp=False, enable_tray=True,
+                 proxy_config=None):
         """Initialize daemon server.
 
         Args:
             idle_timeout: Seconds of inactivity before auto-stop (0 to disable)
             use_tcp: Force TCP mode (auto-detected on Windows)
             enable_tray: Enable system tray icon if available
+            proxy_config: Optional proxy configuration dict (from daemon.proxy config)
         """
         self._use_tcp = use_tcp or (platform.system() == "Windows")
         self._enable_tray = enable_tray
+        self._proxy_config = proxy_config
+        self._proxy_server = None
         self._server_socket = None
         self._running = False
         self._shutdown_event = threading.Event()
@@ -89,9 +93,23 @@ class DaemonServer:
         )
         idle_thread.start()
 
+        # Start proxy if enabled
+        if self._proxy_config and self._proxy_config.get("enabled"):
+            try:
+                from ai_guardian.daemon.proxy import ProxyServer
+                self._proxy_server = ProxyServer(self._proxy_config, self.state)
+                self._proxy_server.start()
+                logger.info(f"Proxy started on port {self._proxy_server.port}")
+            except Exception as e:
+                logger.error(f"Proxy failed to start: {e}")
+                print(f"Warning: proxy failed to start: {e}", file=sys.stderr)
+
         sock_info = self._socket_info()
-        logger.info(f"Daemon started (pid {os.getpid()}, {sock_info})")
-        print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info})")
+        proxy_info = ""
+        if self._proxy_server and self._proxy_server.is_running:
+            proxy_info = f", proxy on port {self._proxy_server.port}"
+        logger.info(f"Daemon started (pid {os.getpid()}, {sock_info}{proxy_info})")
+        print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info}{proxy_info})")
 
         if self._enable_tray and self._should_use_main_thread_tray():
             # macOS: tray must run on main thread, socket server in background
@@ -123,6 +141,14 @@ class DaemonServer:
         self._running = False
         self._shutdown_event.set()
         logger.info("Daemon shutting down...")
+
+        # Stop proxy server
+        if self._proxy_server:
+            try:
+                self._proxy_server.stop()
+            except Exception:
+                pass
+            self._proxy_server = None
 
         # Close server socket to unblock accept()
         if self._server_socket:
@@ -235,6 +261,7 @@ class DaemonServer:
                 response = make_response(self.state.get_stats())
             elif msg_type == "reload_config":
                 self.state.force_reload_config()
+                self._sync_proxy_with_config()
                 response = make_response({"status": "config_reloaded"})
             else:
                 response = make_response(
@@ -426,6 +453,52 @@ class DaemonServer:
             self.state.resume()
             if self._tray:
                 self._tray.update_status("running")
+
+    def _sync_proxy_with_config(self):
+        """Start, stop, or restart the proxy based on current config.
+
+        Called on config reload to handle proxy changes without
+        restarting the entire daemon.
+        """
+        config = self.state.get_config()
+        proxy_cfg = config.get("daemon", {}).get("proxy", {}) if config else {}
+        should_run = proxy_cfg.get("enabled", False)
+
+        if not should_run:
+            # Proxy should be off
+            if self._proxy_server and self._proxy_server.is_running:
+                try:
+                    self._proxy_server.stop()
+                    logger.info("Proxy hot-stopped via config reload")
+                except Exception:
+                    pass
+                self._proxy_server = None
+                self._proxy_config = None
+            return
+
+        # Proxy should be running -- check if config changed
+        config_changed = proxy_cfg != self._proxy_config
+
+        if self._proxy_server and self._proxy_server.is_running and config_changed:
+            # Config changed while running -- restart proxy
+            logger.info("Proxy config changed, restarting proxy")
+            try:
+                self._proxy_server.stop()
+            except Exception:
+                pass
+            self._proxy_server = None
+
+        if not (self._proxy_server and self._proxy_server.is_running):
+            # Start proxy
+            try:
+                from ai_guardian.daemon.proxy import ProxyServer
+                self._proxy_server = ProxyServer(proxy_cfg, self.state)
+                self._proxy_server.start()
+                self._proxy_config = proxy_cfg
+                logger.info(f"Proxy hot-started on port {self._proxy_server.port}")
+            except Exception as e:
+                logger.error(f"Proxy hot-start failed: {e}")
+                self._proxy_server = None
 
     def _socket_info(self):
         """Get human-readable socket info string."""

@@ -776,6 +776,24 @@
     "client_timeout_seconds": 2.0,
     "tray": {
       "enabled": true
+    },
+    "_comment_proxy": "HTTP reverse proxy for scanning IDE-to-API traffic. Reuses existing scan configs (secret_scanning, scan_pii, prompt_injection, etc.).",
+    "_comment_proxy_anthropic": "Direct API: set enabled to true below, then export ANTHROPIC_BASE_URL=http://localhost:63152/v1",
+    "_comment_proxy_vertex": "GCP Vertex: set enabled to true, set backend_url to your region's host (global: https://aiplatform.googleapis.com, other: https://{REGION}-aiplatform.googleapis.com, no /v1!), then export ANTHROPIC_VERTEX_BASE_URL=http://localhost:63152/v1",
+    "_comment_proxy_auth": "Auth modes: 'pass-through' (default, forward all headers including GCP Bearer tokens), 'credential-injection' (proxy injects API key), 'oauth' (proxy manages tokens), 'user-auth' (SSO). Only pass-through in Phase 1.",
+    "_comment_proxy_tls": "TLS settings for backend connection. verify_backend=false for self-signed certs. client_cert/client_key for mTLS when proxy authenticates to backend on behalf of a group.",
+    "proxy": {
+      "enabled": false,
+      "listen_port": 63152,
+      "backend_url": "https://api.anthropic.com",
+      "tls": {
+        "verify_backend": true,
+        "client_cert": null,
+        "client_key": null
+      },
+      "auth": {
+        "mode": "pass-through"
+      }
     }
   }
 }

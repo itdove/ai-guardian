@@ -282,3 +282,47 @@ class TestThreadSafety:
             t.join(timeout=5)
 
         assert not errors, f"Thread safety errors: {errors}"
+
+
+class TestProxyStats:
+    """Tests for proxy-specific stats tracking."""
+
+    def test_proxy_counters_initialized_to_zero(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "config.json")
+        stats = state.get_stats()
+        assert stats["proxy_request_count"] == 0
+        assert stats["proxy_violations_count"] == 0
+        assert stats["proxy_blocked_count"] == 0
+        assert stats["proxy_port"] == 0
+
+    def test_record_proxy_request(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "config.json")
+        state.record_proxy_request()
+        state.record_proxy_request()
+        stats = state.get_stats()
+        assert stats["proxy_request_count"] == 2
+
+    def test_record_proxy_violation(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "config.json")
+        state.record_proxy_violation()
+        stats = state.get_stats()
+        assert stats["proxy_violations_count"] == 1
+
+    def test_record_proxy_blocked(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "config.json")
+        state.record_proxy_blocked()
+        stats = state.get_stats()
+        assert stats["proxy_blocked_count"] == 1
+
+    def test_set_proxy_port(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "config.json")
+        state.set_proxy_port(63152)
+        stats = state.get_stats()
+        assert stats["proxy_port"] == 63152
+
+    def test_proxy_request_resets_idle_timer(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "config.json", idle_timeout=1.0)
+        import time
+        time.sleep(0.5)
+        state.record_proxy_request()
+        assert not state.is_idle_timeout_expired()

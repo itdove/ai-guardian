@@ -128,6 +128,23 @@ class DaemonTray:
                     ),
                 ),
             ),
+            pystray.MenuItem(
+                lambda _: self._proxy_text(),
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "Enabled",
+                        lambda _, __: self._on_toggle_proxy(True),
+                        checked=lambda _: self._is_proxy_enabled(),
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "Disabled",
+                        lambda _, __: self._on_toggle_proxy(False),
+                        checked=lambda _: not self._is_proxy_enabled(),
+                        radio=True,
+                    ),
+                ),
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 lambda _: self._pause_menu_label(),
@@ -533,6 +550,71 @@ class DaemonTray:
             )
         except Exception as e:
             logger.debug(f"Failed to restart daemon: {e}")
+
+    def _proxy_text(self):
+        stats = self._get_stats()
+        proxy_port = stats.get("proxy_port", 0)
+        if proxy_port:
+            reqs = stats.get("proxy_request_count", 0)
+            return f"Proxy: port {proxy_port} ({reqs} reqs)"
+        return "Proxy: disabled"
+
+    def _is_proxy_enabled(self):
+        try:
+            import json
+            from ai_guardian.config_utils import get_config_dir
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                return config.get("daemon", {}).get("proxy", {}).get("enabled", False)
+        except Exception:
+            pass
+        return False
+
+    def _on_toggle_proxy(self, enabled):
+        try:
+            import json
+            from ai_guardian.config_utils import get_config_dir
+
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+            else:
+                config = {}
+
+            if "daemon" not in config:
+                config["daemon"] = {}
+            if "proxy" not in config["daemon"]:
+                config["daemon"]["proxy"] = {}
+
+            # Validate before enabling
+            if enabled:
+                proxy_cfg = dict(config["daemon"]["proxy"])
+                proxy_cfg["enabled"] = True
+                try:
+                    from ai_guardian.daemon.proxy import validate_proxy_config
+                    errors = validate_proxy_config(proxy_cfg)
+                    if errors:
+                        logger.error(
+                            "Cannot enable proxy - config invalid: "
+                            + "; ".join(errors)
+                        )
+                        return
+                except ImportError:
+                    pass
+
+            config["daemon"]["proxy"]["enabled"] = enabled
+
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(
+                json.dumps(config, indent=2) + "\n", encoding="utf-8"
+            )
+            logger.info(f"Proxy {'enabled' if enabled else 'disabled'} in config")
+
+            from ai_guardian.daemon.client import send_reload_config
+            send_reload_config()
+        except Exception as e:
+            logger.debug(f"Failed to toggle proxy: {e}")
 
     def _on_quit(self, icon, item):
         self._stop()

@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **API proxy mode in daemon** (Issue #437)
+  - Opt-in HTTP reverse proxy that sits between IDE and AI backend API
+  - Scans outgoing requests (user prompts) and incoming responses (AI outputs) at the network level
+  - Reuses all existing scan configurations (secrets, PII, prompt injection) -- no duplicate toggles
+  - Default port 63152 (dynamic/private range), configurable via `daemon.proxy.listen_port`
+  - Backend URL configurable (default: `https://api.anthropic.com`)
+  - TLS settings: `verify_backend`, client cert/key for mTLS
+  - Auth modes: `pass-through` (Phase 1), future: credential-injection, oauth, user-auth
+  - Streaming requests passed through unscanned (Phase 2)
+  - Proxy stats in daemon status: request count, violations, blocked
+  - System tray: proxy status display and enable/disable toggle
+  - TUI console: full proxy configuration in Daemon panel
+  - CLI: `--proxy-port` argument for daemon start
+  - Documentation: `docs/DAEMON.md` with setup guide, configuration reference, and architecture
+  - New config section: `daemon.proxy` with `enabled`, `listen_port`, `backend_url`, `tls`, `auth`
+
 - **Cross-hook context passing** (Issue #366)
   - `HookContextManager` module (`hook_context.py`) for PreToolUse to PostToolUse correlation via `tool_use_id`
   - PostToolUse inherits `file_path` from PreToolUse context for violation entries

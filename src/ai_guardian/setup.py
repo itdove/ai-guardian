@@ -975,6 +975,12 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "client_timeout_seconds": 2.0,
             "tray": {
                 "enabled": True
+            },
+            "_comment_proxy": "HTTP reverse proxy for scanning IDE-to-API traffic. Reuses existing scan configs. Set enabled to true and point IDE to http://localhost:63152.",
+            "proxy": {
+                "enabled": False,
+                "listen_port": 63152,
+                "backend_url": "https://api.anthropic.com"
             }
         }
     }

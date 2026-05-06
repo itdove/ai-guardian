@@ -88,6 +88,76 @@ class DaemonPanelContent(Static):
                 allow_blank=False,
             )
 
+        # --- Proxy Configuration ---
+        yield Static("")
+        yield Static("[bold]Proxy Configuration[/bold]\n", classes="section-header")
+
+        proxy_config = config.get("proxy", {})
+        proxy_enabled = proxy_config.get("enabled", False)
+        proxy_port = proxy_config.get("listen_port", 63152)
+        proxy_backend = proxy_config.get("backend_url", "https://api.anthropic.com")
+        proxy_tls_verify = proxy_config.get("tls", {}).get("verify_backend", True)
+        proxy_auth = proxy_config.get("auth", {}).get("mode", "pass-through")
+
+        with Vertical(classes="form-group"):
+            yield Static("Proxy Enabled")
+            yield Select(
+                [("Enabled", True), ("Disabled", False)],
+                value=proxy_enabled,
+                id="daemon-proxy-enabled",
+                allow_blank=False,
+            )
+            yield Static(
+                "[dim]HTTP reverse proxy for scanning IDE-to-API traffic[/dim]",
+                classes="help-text",
+            )
+
+        with Vertical(classes="form-group"):
+            yield Static("Listen Port")
+            yield Input(
+                str(proxy_port),
+                id="daemon-proxy-port",
+                type="integer",
+            )
+            yield Static(
+                "[dim]Default: 63152 (dynamic range). Set ANTHROPIC_BASE_URL=http://localhost:<port>/v1[/dim]",
+                classes="help-text",
+            )
+
+        with Vertical(classes="form-group"):
+            yield Static("Backend URL")
+            yield Input(
+                proxy_backend,
+                id="daemon-proxy-backend-url",
+            )
+
+        with Vertical(classes="form-group"):
+            yield Static("TLS Verify Backend")
+            yield Select(
+                [("Enabled", True), ("Disabled", False)],
+                value=proxy_tls_verify,
+                id="daemon-proxy-tls-verify",
+                allow_blank=False,
+            )
+            yield Static(
+                "[dim]Disable for self-signed corporate certificates[/dim]",
+                classes="help-text",
+            )
+
+        with Vertical(classes="form-group"):
+            yield Static("Auth Mode")
+            yield Select(
+                [
+                    ("pass-through — forward IDE auth headers", "pass-through"),
+                    ("credential-injection — proxy injects API key", "credential-injection"),
+                    ("oauth — proxy manages OAuth tokens", "oauth"),
+                    ("user-auth — SSO authentication", "user-auth"),
+                ],
+                value=proxy_auth,
+                id="daemon-proxy-auth-mode",
+                allow_blank=False,
+            )
+
         yield Static("")
 
         with Horizontal(classes="button-group"):
@@ -182,6 +252,42 @@ class DaemonPanelContent(Static):
             else:
                 full_config = {}
 
+            # Read proxy widget values
+            proxy_enabled = self.query_one("#daemon-proxy-enabled", Select).value
+            proxy_port = self.query_one("#daemon-proxy-port", Input).value
+            proxy_backend = self.query_one("#daemon-proxy-backend-url", Input).value
+            proxy_tls = self.query_one("#daemon-proxy-tls-verify", Select).value
+            proxy_auth = self.query_one("#daemon-proxy-auth-mode", Select).value
+
+            # Preserve any existing proxy keys not shown in UI
+            existing_proxy = full_config.get("daemon", {}).get("proxy", {})
+            existing_tls = existing_proxy.get("tls", {})
+
+            proxy_cfg = {
+                "enabled": proxy_enabled,
+                "listen_port": int(proxy_port or 63152),
+                "backend_url": proxy_backend or "",
+                "tls": {
+                    "verify_backend": proxy_tls,
+                    "client_cert": existing_tls.get("client_cert"),
+                    "client_key": existing_tls.get("client_key"),
+                },
+                "auth": {
+                    "mode": proxy_auth,
+                },
+            }
+
+            # Validate proxy config when proxy is enabled
+            if proxy_enabled:
+                from ai_guardian.daemon.proxy import validate_proxy_config
+                errors = validate_proxy_config(proxy_cfg)
+                if errors:
+                    self.app.notify(
+                        "Proxy config invalid:\n" + "\n".join(errors),
+                        severity="error",
+                    )
+                    return
+
             full_config["daemon"] = {
                 "mode": mode_select.value,
                 "idle_timeout_minutes": int(idle_input.value or 30),
@@ -189,6 +295,7 @@ class DaemonPanelContent(Static):
                 "tray": {
                     "enabled": tray_select.value,
                 },
+                "proxy": proxy_cfg,
             }
 
             config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -234,6 +341,13 @@ class DaemonPanelContent(Static):
                     f"Violations: {stats.get('violation_count', 0)}",
                     f"Socket: {get_socket_path()}",
                 ]
+
+                proxy_port = stats.get("proxy_port", 0)
+                if proxy_port:
+                    proxy_reqs = stats.get("proxy_request_count", 0)
+                    proxy_viols = stats.get("proxy_violations_count", 0)
+                    proxy_blocked = stats.get("proxy_blocked_count", 0)
+                    lines.append(f"Proxy: port {proxy_port} ({proxy_reqs} reqs, {proxy_viols} violations, {proxy_blocked} blocked)")
                 self.daemon_status = "\n".join(lines)
             else:
                 self.daemon_status = "[yellow]Running but could not fetch stats[/yellow]"

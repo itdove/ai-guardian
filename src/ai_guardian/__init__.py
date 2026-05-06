@@ -3888,10 +3888,23 @@ def _handle_daemon_command(args):
         else:
             from ai_guardian.daemon.server import DaemonServer
 
+            # Load proxy config from config file
+            proxy_config = None
+            try:
+                config, _ = _load_config_file()
+                if config:
+                    proxy_config = config.get("daemon", {}).get("proxy")
+                    if proxy_config and hasattr(args, "proxy_port") and args.proxy_port:
+                        proxy_config = dict(proxy_config)
+                        proxy_config["listen_port"] = args.proxy_port
+            except Exception:
+                pass
+
             idle_timeout = (args.idle_timeout or 30) * 60
             server = DaemonServer(
                 idle_timeout=idle_timeout,
                 enable_tray=not args.no_tray,
+                proxy_config=proxy_config,
             )
             try:
                 server.start()
@@ -3956,6 +3969,13 @@ def _handle_daemon_command(args):
 
             print(f"Active contexts: {stats.get('active_contexts', 0)}")
             print(f"Cached patterns: {stats.get('cached_patterns', 0)}")
+
+            proxy_port = stats.get("proxy_port", 0)
+            if proxy_port:
+                proxy_reqs = stats.get("proxy_request_count", 0)
+                proxy_viols = stats.get("proxy_violations_count", 0)
+                proxy_blocked = stats.get("proxy_blocked_count", 0)
+                print(f"Proxy: port {proxy_port} ({proxy_reqs} requests, {proxy_viols} violations, {proxy_blocked} blocked)")
         else:
             print("ai-guardian daemon: running (could not fetch stats)")
         return 0
@@ -4420,6 +4440,12 @@ def main():
             "--no-tray",
             action="store_true",
             help="Disable system tray icon"
+        )
+        daemon_start_parser.add_argument(
+            "--proxy-port",
+            type=int,
+            default=None,
+            help="Override proxy listen port (default: from config or 63152)"
         )
         daemon_sub.add_parser("stop", help="Stop running daemon")
         daemon_sub.add_parser("status", help="Show daemon status")

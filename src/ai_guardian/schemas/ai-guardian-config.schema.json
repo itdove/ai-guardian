@@ -1383,6 +1383,65 @@
             }
           },
           "additionalProperties": false
+        },
+        "proxy": {
+          "type": "object",
+          "description": "HTTP reverse proxy for scanning IDE-to-API traffic. Opt-in feature; requires daemon mode 'auto' or 'daemon'. Reuses existing scan configs (secret_scanning, scan_pii, prompt_injection, etc.) for violation detection and action decisions.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable the HTTP reverse proxy. When enabled, the daemon starts an HTTP server that intercepts IDE-to-API traffic for scanning."
+            },
+            "listen_port": {
+              "type": "integer",
+              "default": 63152,
+              "minimum": 1024,
+              "maximum": 65535,
+              "description": "Port for the proxy HTTP server. Default 63152 is in the dynamic/private range (49152-65535)."
+            },
+            "backend_url": {
+              "type": "string",
+              "default": "https://api.anthropic.com",
+              "description": "Backend API URL to forward requests to."
+            },
+            "tls": {
+              "type": "object",
+              "description": "TLS settings for the backend connection. Use client_cert/client_key for mTLS when the proxy authenticates to the backend on behalf of users.",
+              "properties": {
+                "verify_backend": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Verify the backend server's TLS certificate. Disable for self-signed corporate certificates."
+                },
+                "client_cert": {
+                  "type": ["string", "null"],
+                  "default": null,
+                  "description": "Path to client certificate for mTLS authentication to the backend."
+                },
+                "client_key": {
+                  "type": ["string", "null"],
+                  "default": null,
+                  "description": "Path to client private key for mTLS authentication to the backend."
+                }
+              },
+              "additionalProperties": false
+            },
+            "auth": {
+              "type": "object",
+              "description": "Authentication mode for API credentials. 'pass-through' forwards IDE auth headers. Other modes manage credentials centrally so developers don't need individual API keys.",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["pass-through", "credential-injection", "oauth", "user-auth"],
+                  "default": "pass-through",
+                  "description": "Authentication mode. 'pass-through': forward IDE auth headers. 'credential-injection': proxy injects API key from secure storage. 'oauth': proxy manages OAuth token lifecycle. 'user-auth': developers authenticate to proxy via SSO."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

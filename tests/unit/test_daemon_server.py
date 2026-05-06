@@ -6,7 +6,9 @@ import socket
 import tempfile
 import threading
 import time
+from pathlib import Path
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
 
@@ -292,3 +294,65 @@ class TestDaemonServerIdleTimeout:
 
         server.stop()
         thread.join(timeout=3)
+
+
+class TestDaemonServerProxy:
+    """Tests for proxy integration with daemon server."""
+
+    @patch("ai_guardian.daemon.server.get_state_dir")
+    def test_proxy_not_started_when_disabled(self, mock_state_dir, tmp_path):
+        short_name = "t_np"
+        short_state_dir = tmp_path / short_name
+        short_state_dir.mkdir()
+        mock_state_dir.return_value = short_state_dir
+
+        proxy_config = {"enabled": False, "listen_port": 0}
+        server = DaemonServer(idle_timeout=30, proxy_config=proxy_config)
+        assert server._proxy_server is None
+
+    @patch("ai_guardian.daemon.server.get_state_dir")
+    def test_proxy_not_started_when_config_none(self, mock_state_dir, tmp_path):
+        short_name = "t_nc"
+        short_state_dir = tmp_path / short_name
+        short_state_dir.mkdir()
+        mock_state_dir.return_value = short_state_dir
+
+        server = DaemonServer(idle_timeout=30, proxy_config=None)
+        assert server._proxy_server is None
+
+    @patch("ai_guardian.daemon.server.get_state_dir")
+    def test_proxy_started_when_enabled(self, mock_state_dir, tmp_path):
+        short_name = "t_pe"
+        short_state_dir = tmp_path / short_name
+        short_state_dir.mkdir()
+        mock_state_dir.return_value = short_state_dir
+
+        proxy_config = {
+            "enabled": True,
+            "listen_port": 0,
+            "backend_url": "https://api.example.com",
+        }
+        # Use TCP mode to avoid AF_UNIX path length issues in pytest temp dirs
+        server = DaemonServer(
+            idle_timeout=30, enable_tray=False, use_tcp=True,
+            proxy_config=proxy_config,
+        )
+
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        # Wait for TCP socket to be ready
+        for _ in range(30):
+            if server._running:
+                break
+            time.sleep(0.1)
+
+        try:
+            assert server._proxy_server is not None
+            assert server._proxy_server.is_running
+            proxy_port = server._proxy_server.port
+            assert proxy_port > 0
+            assert server.state.get_stats()["proxy_port"] == proxy_port
+        finally:
+            server.stop()
+            thread.join(timeout=3)

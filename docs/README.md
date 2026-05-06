@@ -24,6 +24,12 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Credential Exfiltration](security/CREDENTIAL_EXFILTRATION.md) | Config file scanning for exfiltration patterns |
 | [Secret Redaction](security/SECRET_REDACTION.md) | Masking secrets in tool outputs |
 
+## Daemon & Proxy
+
+| Document | Description |
+|----------|-------------|
+| [Daemon & Proxy](DAEMON.md) | Background daemon service and opt-in HTTP proxy for API traffic scanning |
+
 ## Architecture & Policy
 
 | Document | Description |

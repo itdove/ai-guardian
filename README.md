@@ -39,6 +39,7 @@ You're done! ai-guardian now protects against secrets, prompt injection, SSRF, a
 | Interactive Console | TUI for managing configuration visually | [docs/CONSOLE.md](docs/CONSOLE.md) |
 | Scanner Management | Install and manage 7 scanner engines | [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) |
 | Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) |
+| Daemon & Proxy | Background daemon with opt-in HTTP proxy for API traffic scanning | [docs/DAEMON.md](docs/DAEMON.md) |
 
 ## Default Behavior (No Configuration File)
 
