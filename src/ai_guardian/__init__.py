@@ -214,7 +214,8 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             - See: https://code.claude.com/docs/en/hooks
 
     Returns:
-        dict with 'output' (str to print) and 'exit_code' (int)
+        dict with 'output' (str to print), 'exit_code' (int), and optional
+        daemon metadata: '_blocked' (True when has_secrets=True)
 
     IDE Message Display Behavior:
         All IDEs (Claude Code, Cursor, Aider, GitHub Copilot):
@@ -225,6 +226,11 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             - Claude Code: systemMessage field displays warning without blocking
             - Cursor: continue:true = user_message not shown (no warning support)
     """
+    def _add_metadata(result):
+        if has_secrets:
+            result["_blocked"] = True
+        return result
+
     if ide_type == IDEType.GITHUB_COPILOT:
         # GitHub Copilot uses JSON response format
         if hook_event == "pretooluse":
@@ -240,10 +246,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                         final_error = f"{warning_message}\n\n{error_message}"
                     response["permissionDecisionReason"] = final_error
 
-            return {
+            return _add_metadata({
                 "output": json.dumps(response),
                 "exit_code": 0  # GitHub Copilot uses JSON response, not exit code
-            }
+            })
         else:
             # userPromptSubmitted uses exit codes like Claude Code
             if has_secrets and error_message:
@@ -254,10 +260,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 # Print error to stderr
                 print(final_error, file=sys.stderr)
 
-            return {
+            return _add_metadata({
                 "output": None,
                 "exit_code": 2 if has_secrets else 0
-            }
+            })
     elif ide_type == IDEType.CURSOR:
         # Cursor uses JSON response to determine block/allow, not exit code
         # Tested: Cursor does NOT display messages when allowing (continue:true, decision:allow, permission:allow)
@@ -289,10 +295,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             if has_secrets and final_error:
                 response["user_message"] = final_error
 
-        return {
+        return _add_metadata({
             "output": json.dumps(response),
             "exit_code": 0  # Cursor uses JSON response, not exit code
-        }
+        })
     else:
         # Claude Code
         if hook_event == "posttooluse":
@@ -323,10 +329,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     # Legacy field kept for backward compatibility with older Claude Code versions
                     response["hookSpecificOutput"]["updatedMCPToolOutput"] = modified_output
 
-            return {
+            return _add_metadata({
                 "output": json.dumps(response),
                 "exit_code": 0  # PostToolUse uses JSON response, not exit code
-            }
+            })
         elif hook_event == "prompt":
             # UserPromptSubmit: Uses JSON response format (per official docs)
             # https://code.claude.com/docs/en/hooks
@@ -350,10 +356,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     # Log mode: display warning but allow execution
                     response["systemMessage"] = warning_message
 
-            return {
+            return _add_metadata({
                 "output": json.dumps(response),
                 "exit_code": 0  # UserPromptSubmit uses JSON response, not exit codes
-            }
+            })
         else:
             # PreToolUse: Only return permissionDecision when denying
             # If no secrets: omit permissionDecision to allow Claude Code's normal permission system
@@ -381,10 +387,10 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 # Claude Code will use its normal permission system
                 response = {}
 
-            return {
+            return _add_metadata({
                 "output": json.dumps(response),
                 "exit_code": 0  # PreToolUse uses JSON response, not exit codes
-            }
+            })
 
 
 def detect_hook_event(hook_data):
@@ -2882,12 +2888,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         logging.error(traceback.format_exc())
         # Fail open - don't block on errors
         return False, None
-def process_hook_input():
+def process_hook_data(hook_data):
     """
-    Process hook input from stdin and check for secrets.
+    Process parsed hook data and return response.
 
-    Supports both prompt hooks (UserPromptSubmit, beforeSubmitPrompt) and
-    tool use hooks (PreToolUse, preToolUse).
+    Core processing logic usable by both the direct CLI path and the daemon
+    server. Accepts a pre-parsed dict rather than reading from stdin.
+
+    Args:
+        hook_data: Parsed JSON hook data dict from IDE
 
     Returns:
         dict: Response with 'output' (str or None) and 'exit_code' (int)
@@ -2895,10 +2904,6 @@ def process_hook_input():
               - For Cursor: output=JSON string, exit_code=0
     """
     try:
-        # Read JSON input from stdin
-        stdin_content = sys.stdin.read()
-        hook_data = json.loads(stdin_content)
-
         # Detect which IDE is calling
         ide_type = detect_ide_type(hook_data)
 
@@ -3005,9 +3010,10 @@ def process_hook_input():
                     logging.warning(f"Config error loading secret_redaction: {redaction_error}")
                     # Fall back to blocking
                     logging.warning(f"Secrets detected in {tool_identifier} output - blocking")
-                    return format_response(ide_type, has_secrets=True,
+                    result = format_response(ide_type, has_secrets=True,
                                          error_message=error_message,
                                          hook_event=hook_event)
+                    return result
 
                 # Determine action mode (always redact when secrets detected)
                 if redaction_config is None:
@@ -3081,8 +3087,10 @@ def process_hook_input():
                             logging.warning(f"WARN mode: {warning_msg}")
 
                         logging.info(f"✓ Secrets redacted, allowing output to continue")
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                        result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=warning_msg, modified_output=redacted_text)
+                        result["_warning"] = True
+                        return result
 
                     except Exception as redact_error:
                         logging.error(f"Error during secret redaction: {redact_error}")
@@ -3090,17 +3098,19 @@ def process_hook_input():
                         logging.error(traceback.format_exc())
                         # Fall back to blocking on redaction errors
                         logging.warning(f"Redaction failed, falling back to blocking")
-                        return format_response(ide_type, has_secrets=True,
+                        result = format_response(ide_type, has_secrets=True,
                                              error_message=error_message,
                                              hook_event=hook_event)
+                        return result
                 else:
                     # Redaction disabled - block to prevent secrets from reaching AI model
                     logging.warning(
                         f"Secrets detected and redaction disabled - blocking output"
                     )
-                    return format_response(ide_type, has_secrets=True,
+                    result = format_response(ide_type, has_secrets=True,
                                          error_message=error_message,
                                          hook_event=hook_event)
+                    return result
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
 
@@ -3155,16 +3165,23 @@ def process_hook_input():
                         )
 
                         if pii_action == 'block':
-                            return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                            result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                                  error_message=pii_warning)
+                            return result
                         elif pii_action == 'redact':
-                            return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                            result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning, modified_output=redacted_text)
+                            result["_warning"] = True
+                            return result
                         elif pii_action == 'warn':
-                            return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                            result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning)
+                            result["_warning"] = True
+                            return result
                         elif pii_action == 'log-only':
-                            return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                            result = format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                            result["_log_only"] = 1
+                            return result
                         else:
                             logging.warning(f"Unknown PII action '{pii_action}', allowing through")
                             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
@@ -3173,6 +3190,7 @@ def process_hook_input():
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
         warning_messages = []
+        log_only_count = 0
 
         # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
         tool_name = None
@@ -3250,9 +3268,9 @@ def process_hook_input():
                                     tool_details = f" (file_path='{file_path}')"
 
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
-                        # Include any config errors with the blocking message
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
+                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
+                        return result
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
                         logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
@@ -3296,9 +3314,9 @@ def process_hook_input():
                 # Check if directory access is denied
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
-                    # Include any config errors with the blocking message
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    return format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning)
+                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning)
+                    return result
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
                     # Accumulate warning message to display at the end
@@ -3396,9 +3414,9 @@ def process_hook_input():
                             else:
                                 logging.info("Blocking operation due to prompt injection detection")
 
-                        # Include any config errors with the blocking message
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        return format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning)
+                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning)
+                        return result
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
                         # Accumulate warning message to display at the end
@@ -3469,9 +3487,9 @@ def process_hook_input():
                             except Exception as e:
                                 logging.debug(f"Failed to log config file exfil violation: {e}")
 
-                        # Include any config errors with the blocking message
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        return format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning)
+                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning)
+                        return result
                     elif config_details and config_error:
                         # Log/warn mode: threat detected but execution allowed - display warning
                         warning_messages.append(config_error)
@@ -3522,10 +3540,9 @@ def process_hook_input():
                 warning_messages.append(error_message)
 
             if has_secrets:
-                # Secrets found - block operation
-                # Include any warning messages (e.g., JSON config errors) with the blocking message
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                return format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
+                result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
+                return result
 
             # No secrets found, allow operation
             if hook_event == "pretooluse":
@@ -3591,12 +3608,13 @@ def process_hook_input():
                             final_error = pii_warning
                             if combined_warning:
                                 final_error = f"{combined_warning}\n\n{pii_warning}"
-                            return format_response(ide_type, has_secrets=True,
+                            result = format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event)
+                            return result
                         elif pii_action == 'warn':
                             warning_messages.append(pii_warning)
                         elif pii_action == 'log-only':
-                            pass
+                            log_only_count += 1
 
         # Transcript scanning for secrets and PII (Issue #430, #442)
         # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
@@ -3644,19 +3662,198 @@ def process_hook_input():
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
 
-        return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+        result = format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+        if combined_warning:
+            result["_warning"] = True
+        if log_only_count > 0:
+            result["_log_only"] = log_only_count
+        return result
 
+    except Exception as e:
+        logging.error(f"Unexpected error processing hook data: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        # Fail-open: allow operation on errors
+        return {"output": None, "exit_code": 0}
+
+
+def process_hook_input():
+    """
+    Process hook input from stdin and check for secrets.
+
+    Thin wrapper around process_hook_data() that reads JSON from stdin.
+
+    Returns:
+        dict: Response with 'output' (str or None) and 'exit_code' (int)
+              - For Claude Code: output=None, exit_code=0 (allow) or 2 (block)
+              - For Cursor: output=JSON string, exit_code=0
+    """
+    try:
+        stdin_content = sys.stdin.read()
+        hook_data = json.loads(stdin_content)
+        return process_hook_data(hook_data)
     except json.JSONDecodeError as e:
         logging.error(f"Failed to parse hook input: {e}")
-        # Fail-open: allow operation on errors
-        # Default to Claude Code format for error responses
         return {"output": None, "exit_code": 0}
     except Exception as e:
         logging.error(f"Unexpected error in hook: {e}")
         import traceback
         logging.error(traceback.format_exc())
-        # Fail-open: allow operation on errors
         return {"output": None, "exit_code": 0}
+
+
+def _get_daemon_mode():
+    """Get daemon mode from environment variable or config.
+
+    Returns:
+        str: "auto", "local", or "daemon"
+    """
+    valid_modes = ("auto", "local", "daemon")
+    env_mode = os.environ.get("AI_GUARDIAN_DAEMON_MODE", "").lower()
+    if env_mode in valid_modes:
+        return env_mode
+
+    try:
+        config, _ = _load_config_file()
+        if config:
+            daemon_config = config.get("daemon", {})
+            mode = daemon_config.get("mode", "auto")
+            if mode in valid_modes:
+                return mode
+    except Exception:
+        pass
+
+    return "auto"
+
+
+def _set_daemon_mode_in_config(mode):
+    """Update daemon mode in the config file."""
+    try:
+        config_path = get_config_dir() / "ai-guardian.json"
+        if config_path.exists():
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        else:
+            config = {}
+        if "daemon" not in config:
+            config["daemon"] = {}
+        config["daemon"]["mode"] = mode
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        logging.info(f"Daemon mode set to '{mode}'")
+    except Exception as e:
+        logging.warning(f"Failed to update daemon mode in config: {e}")
+
+
+def _handle_daemon_command(args):
+    """Handle daemon subcommands (start, stop, status, restart)."""
+    cmd = getattr(args, "daemon_command", None)
+
+    if cmd == "start":
+        _set_daemon_mode_in_config("auto")
+        if args.background:
+            from ai_guardian.daemon.client import start_daemon_background
+
+            if start_daemon_background():
+                print("ai-guardian daemon started (mode set to 'auto')")
+                return 0
+            else:
+                print("Failed to start daemon in background", file=sys.stderr)
+                return 1
+        else:
+            from ai_guardian.daemon.server import DaemonServer
+
+            idle_timeout = (args.idle_timeout or 30) * 60
+            server = DaemonServer(
+                idle_timeout=idle_timeout,
+                enable_tray=not args.no_tray,
+            )
+            try:
+                server.start()
+            except RuntimeError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+            return 0
+
+    elif cmd == "stop":
+        from ai_guardian.daemon.client import is_daemon_running, send_shutdown
+
+        _set_daemon_mode_in_config("local")
+        if not is_daemon_running():
+            print("ai-guardian daemon is not running (mode set to 'local')")
+            return 0
+
+        if send_shutdown():
+            print("ai-guardian daemon stopped (mode set to 'local')")
+            return 0
+        else:
+            print("Failed to stop daemon", file=sys.stderr)
+            return 1
+
+    elif cmd == "status":
+        from ai_guardian.daemon.client import is_daemon_running, send_status_request
+        from ai_guardian.daemon.server import get_pid_path, get_socket_path
+
+        if not is_daemon_running():
+            print("ai-guardian daemon: not running")
+            return 1
+
+        stats = send_status_request()
+        if stats:
+            uptime = stats.get("uptime_seconds", 0)
+            hours = int(uptime // 3600)
+            minutes = int((uptime % 3600) // 60)
+            uptime_str = f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+            pid_path = get_pid_path()
+            pid = "unknown"
+            try:
+                import json as _json
+                pid_info = _json.loads(pid_path.read_text())
+                pid = pid_info.get("pid", "unknown")
+            except Exception:
+                pass
+
+            blocked = stats.get("blocked_count", 0)
+            req_count = stats.get("request_count", 0)
+            paused = " (PAUSED)" if stats.get("paused") else ""
+
+            print(f"ai-guardian daemon: running (pid {pid}){paused}")
+            print(f"Uptime: {uptime_str}")
+            print(f"Hooks processed: {req_count} ({blocked} blocked)")
+            print(f"Mode: {_get_daemon_mode()} (daemon active)")
+
+            sock_path = get_socket_path()
+            if sock_path.exists():
+                print(f"Socket: {sock_path}")
+            elif stats.get("port"):
+                print(f"TCP: 127.0.0.1:{stats['port']}")
+
+            print(f"Active contexts: {stats.get('active_contexts', 0)}")
+            print(f"Cached patterns: {stats.get('cached_patterns', 0)}")
+        else:
+            print("ai-guardian daemon: running (could not fetch stats)")
+        return 0
+
+    elif cmd == "restart":
+        from ai_guardian.daemon.client import is_daemon_running, send_shutdown
+
+        if is_daemon_running():
+            send_shutdown()
+            import time
+            time.sleep(0.5)
+
+        # Re-invoke start in foreground
+        args.daemon_command = "start"
+        args.background = False
+        if not hasattr(args, "idle_timeout"):
+            args.idle_timeout = None
+        if not hasattr(args, "no_tray"):
+            args.no_tray = False
+        return _handle_daemon_command(args)
+
+    else:
+        print("Usage: ai-guardian daemon {start|stop|status|restart}")
+        return 1
 
 
 def main():
@@ -3789,11 +3986,19 @@ def main():
             "console",
             help="Launch interactive console for configuration management"
         )
+        console_parser.add_argument(
+            "--panel",
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+        )
 
         # TUI subcommand (alias for console, kept for backward compatibility)
         tui_parser = subparsers.add_parser(
             "tui",
             help="Launch interactive console (alias for ai-guardian console)"
+        )
+        tui_parser.add_argument(
+            "--panel",
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
         )
 
         # Scan subcommand
@@ -4063,6 +4268,37 @@ def main():
             help="Exit with code 1 if redactions were made (for CI/CD)"
         )
 
+        # Daemon subcommand
+        daemon_parser = subparsers.add_parser(
+            "daemon",
+            help="Manage the background daemon service"
+        )
+        daemon_sub = daemon_parser.add_subparsers(
+            dest="daemon_command", help="Daemon commands"
+        )
+        daemon_start_parser = daemon_sub.add_parser(
+            "start", help="Start daemon"
+        )
+        daemon_start_parser.add_argument(
+            "--background", "-b",
+            action="store_true",
+            help="Start daemon in background (detached)"
+        )
+        daemon_start_parser.add_argument(
+            "--idle-timeout",
+            type=int,
+            default=None,
+            help="Idle timeout in minutes (default: from config or 30)"
+        )
+        daemon_start_parser.add_argument(
+            "--no-tray",
+            action="store_true",
+            help="Disable system tray icon"
+        )
+        daemon_sub.add_parser("stop", help="Stop running daemon")
+        daemon_sub.add_parser("status", help="Show daemon status")
+        daemon_sub.add_parser("restart", help="Restart daemon")
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -4098,6 +4334,9 @@ def main():
             try:
                 from ai_guardian.tui import AIGuardianTUI
                 app = AIGuardianTUI()
+                initial_panel = getattr(args, "panel", None)
+                if initial_panel:
+                    app.initial_panel = initial_panel
                 app.run()
                 return 0
             except ImportError as e:
@@ -4131,7 +4370,6 @@ def main():
                 if args.config:
                     config_path = Path(args.config)
                     if config_path.exists():
-                        import json
                         config = json.loads(config_path.read_text())
                     else:
                         print(f"Error: Config file not found: {config_path}", file=sys.stderr)
@@ -4150,7 +4388,6 @@ def main():
                             break
 
                     if config_path:
-                        import json
                         config = json.loads(config_path.read_text())
                     else:
                         # No config found, use empty config (show defaults)
@@ -4366,11 +4603,65 @@ def main():
                 traceback.print_exc()
                 return 1
 
+        if args.command == "daemon":
+            return _handle_daemon_command(args)
+
         # If no subcommand, just return (version was handled)
         return 0
 
     # No arguments - run as hook (read from stdin)
-    response = process_hook_input()
+    daemon_mode = _get_daemon_mode()
+    hook_data = None
+    response = None
+    stdin_consumed = False
+
+    if daemon_mode in ("auto", "daemon"):
+        try:
+            from ai_guardian.daemon.client import (
+                is_daemon_running,
+                send_hook_request,
+                start_daemon_background,
+            )
+
+            stdin_content = sys.stdin.read()
+            stdin_consumed = True
+            hook_data = json.loads(stdin_content)
+
+            if not is_daemon_running():
+                logging.info("Daemon not running, starting...")
+                started = start_daemon_background()
+                if not started:
+                    logging.warning("Failed to start daemon")
+
+            if is_daemon_running():
+                logging.info("Daemon is running, forwarding hook request")
+                response = send_hook_request(hook_data)
+                if response is not None:
+                    logging.info("Daemon processed hook request")
+                elif daemon_mode == "daemon":
+                    logging.error("Daemon returned no response (daemon mode)")
+                else:
+                    logging.warning("Daemon returned no response, falling back to direct")
+            else:
+                if daemon_mode == "daemon":
+                    logging.error("Daemon unavailable (daemon mode)")
+                else:
+                    logging.info("Daemon unavailable, falling back to direct")
+        except Exception as e:
+            if daemon_mode == "daemon":
+                logging.error(f"Daemon client error (daemon mode, no fallback): {e}")
+            else:
+                logging.info(f"Daemon client error, falling back to direct: {e}")
+
+    if response is None:
+        if daemon_mode == "daemon":
+            logging.error("Daemon mode: failed to process via daemon, allowing through (fail-open)")
+        if hook_data is not None:
+            response = process_hook_data(hook_data)
+        elif stdin_consumed:
+            response = {"output": None, "exit_code": 0}
+        else:
+            response = process_hook_input()
 
     # Output JSON to stdout if needed (for Cursor)
     if response.get("output"):

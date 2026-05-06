@@ -1,0 +1,149 @@
+"""
+Length-prefixed JSON wire protocol for daemon IPC.
+
+Messages are framed as: 4-byte big-endian length prefix + UTF-8 JSON payload.
+This avoids newline-delimiter issues since hook JSON payloads can contain
+embedded newlines.
+"""
+
+import json
+import socket
+import struct
+
+HEADER_SIZE = 4
+MAX_MESSAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+PROTOCOL_VERSION = 1
+
+
+def encode_message(data):
+    """Encode a dict as a length-prefixed JSON message.
+
+    Args:
+        data: Dict to encode
+
+    Returns:
+        bytes: 4-byte length prefix + UTF-8 JSON payload
+    """
+    payload = json.dumps(data, separators=(",", ":")).encode("utf-8")
+    if len(payload) > MAX_MESSAGE_SIZE:
+        raise ValueError(
+            f"Message too large: {len(payload)} bytes (max {MAX_MESSAGE_SIZE})"
+        )
+    header = struct.pack("!I", len(payload))
+    return header + payload
+
+
+def decode_message(sock, timeout=5.0):
+    """Read a length-prefixed JSON message from a socket.
+
+    Args:
+        sock: Connected socket to read from
+        timeout: Read timeout in seconds
+
+    Returns:
+        dict: Decoded JSON message
+
+    Raises:
+        ConnectionError: On socket disconnect or timeout
+        ValueError: On invalid message format
+    """
+    old_timeout = sock.gettimeout()
+    try:
+        sock.settimeout(timeout)
+        header = _recv_exact(sock, HEADER_SIZE)
+        length = struct.unpack("!I", header)[0]
+
+        if length > MAX_MESSAGE_SIZE:
+            raise ValueError(
+                f"Message too large: {length} bytes (max {MAX_MESSAGE_SIZE})"
+            )
+        if length == 0:
+            raise ValueError("Empty message")
+
+        payload = _recv_exact(sock, length)
+        return json.loads(payload.decode("utf-8"))
+    finally:
+        sock.settimeout(old_timeout)
+
+
+def _recv_exact(sock, n):
+    """Read exactly n bytes from socket, handling partial reads.
+
+    Args:
+        sock: Connected socket
+        n: Number of bytes to read
+
+    Returns:
+        bytes: Exactly n bytes
+
+    Raises:
+        ConnectionError: On disconnect before n bytes received
+    """
+    chunks = []
+    received = 0
+    while received < n:
+        chunk = sock.recv(n - received)
+        if not chunk:
+            raise ConnectionError(
+                f"Connection closed after {received}/{n} bytes"
+            )
+        chunks.append(chunk)
+        received += len(chunk)
+    return b"".join(chunks)
+
+
+def make_hook_request(hook_data):
+    """Create a hook request message envelope.
+
+    Args:
+        hook_data: Hook data dict from IDE
+
+    Returns:
+        dict: Request envelope with version, type, and data
+    """
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "hook",
+        "data": hook_data,
+    }
+
+
+def make_response(data):
+    """Create a response message envelope.
+
+    Args:
+        data: Response data dict (output + exit_code)
+
+    Returns:
+        dict: Response envelope with version, type, and data
+    """
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "response",
+        "data": data,
+    }
+
+
+def make_ping():
+    """Create a ping message for health checking."""
+    return {"version": PROTOCOL_VERSION, "type": "ping"}
+
+
+def make_pong():
+    """Create a pong response to a ping."""
+    return {"version": PROTOCOL_VERSION, "type": "pong"}
+
+
+def make_shutdown():
+    """Create a shutdown request message."""
+    return {"version": PROTOCOL_VERSION, "type": "shutdown"}
+
+
+def make_status_request():
+    """Create a status request message."""
+    return {"version": PROTOCOL_VERSION, "type": "status"}
+
+
+def make_reload_config():
+    """Create a config reload request message."""
+    return {"version": PROTOCOL_VERSION, "type": "reload_config"}

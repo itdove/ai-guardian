@@ -729,5 +729,17 @@
         ]
       }
     }
+  },
+
+  "_comment_daemon": "Background daemon for faster hook processing and cross-hook state sharing",
+  "_comment_daemon_modes": "'auto' (default): daemon with fallback. 'local': always per-process (CI/CD). 'daemon': require daemon, log errors if unavailable (testing/compliance). Override with AI_GUARDIAN_DAEMON_MODE env var.",
+  "_comment_daemon_tray": "System tray icon shows daemon status. Disable on headless servers.",
+  "daemon": {
+    "mode": "auto",
+    "idle_timeout_minutes": 30,
+    "client_timeout_seconds": 2.0,
+    "tray": {
+      "enabled": true
+    }
   }
 }

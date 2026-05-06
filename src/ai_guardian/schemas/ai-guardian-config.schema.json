@@ -1348,6 +1348,44 @@
           "description": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"
         }
       }
+    },
+    "daemon": {
+      "type": "object",
+      "description": "Background daemon configuration. Controls whether ai-guardian runs as a long-lived daemon process for faster hook response times and cross-hook state sharing. Two modes: 'auto' (default, try daemon then fall back to direct) and 'direct' (always per-process, for CI/CD).",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["auto", "local", "daemon"],
+          "default": "auto",
+          "description": "Daemon mode. 'auto': use daemon if running, start lazily, fall back to local. 'local': always per-process (CI/CD, containers). 'daemon': require daemon, log errors if unavailable (for testing/compliance)."
+        },
+        "idle_timeout_minutes": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 0,
+          "description": "Minutes of inactivity before daemon auto-stops. Set to 0 to disable auto-stop."
+        },
+        "client_timeout_seconds": {
+          "type": "number",
+          "default": 2.0,
+          "minimum": 0.5,
+          "maximum": 10.0,
+          "description": "Timeout in seconds for client to wait for daemon response before falling back to direct mode."
+        },
+        "tray": {
+          "type": "object",
+          "description": "System tray icon settings. Disable on headless servers without a display.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Show system tray icon when daemon is running. Set to false on headless servers."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

@@ -130,6 +130,7 @@ NAV_GROUPS = [
         ("Config Editor", "panel-config-editor"),
         ("Console Settings", "panel-console-settings"),
         ("Effective Config", "panel-config-effective"),
+        ("Daemon", "panel-daemon"),
     ]),
     ("Tools", [
         ("Regex Tester", "panel-regex-tester"),
@@ -572,6 +573,16 @@ HELP_DOCS = {
         "  - Unicode detection settings\n"
         "  - Config file scanning rules"
     ),
+    "panel-daemon": (
+        "[bold]Daemon[/bold]\n\n"
+        "Background daemon service for faster hook processing "
+        "and cross-hook state sharing.\n\n"
+        "[bold]Modes:[/bold]\n"
+        "  - [green]auto[/green]: Use daemon if running, fall back to local (default)\n"
+        "  - [yellow]local[/yellow]: Always per-process, for CI/CD and containers\n"
+        "  - [red]daemon[/red]: Require daemon, log errors if unavailable (testing)\n\n"
+        "[bold]Override:[/bold] AI_GUARDIAN_DAEMON_MODE env var > config file"
+    ),
     "panel-regex-tester": (
         "[bold]Regex Tester[/bold]\n\n"
         "Interactively test regex patterns against sample text "
@@ -681,6 +692,7 @@ class AIGuardianTUI(App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._input_original_values = {}
+        self.initial_panel = None
 
     CSS = """
     Screen {
@@ -855,10 +867,13 @@ class AIGuardianTUI(App):
 
     def on_text_selected(self, event: events.TextSelected) -> None:
         """Auto-copy selected text to clipboard."""
-        selection = self.screen.get_selected_text()
-        if selection:
-            self.copy_to_clipboard(selection)
-            self.notify("Copied to clipboard", severity="information")
+        try:
+            selection = self.screen.get_selected_text()
+            if selection:
+                self.copy_to_clipboard(selection)
+                self.notify("Copied to clipboard", severity="information")
+        except (IndexError, AttributeError):
+            pass
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Store original value when Input gets focus."""
@@ -977,6 +992,10 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.config_effective import ConfigEffectiveContent
                     yield ConfigEffectiveContent()
 
+                with Container(id="panel-daemon"):
+                    from ai_guardian.tui.daemon_panel import DaemonPanelContent
+                    yield DaemonPanelContent()
+
                 with Container(id="panel-regex-tester"):
                     from ai_guardian.tui.regex_tester import RegexTesterContent
                     yield RegexTesterContent()
@@ -986,6 +1005,14 @@ class AIGuardianTUI(App):
                     yield HookSimulatorContent()
 
         yield Footer()
+
+    def on_mount(self) -> None:
+        if self.initial_panel:
+            try:
+                switcher = self.query_one("#panels", ContentSwitcher)
+                switcher.current = self.initial_panel
+            except Exception:
+                pass
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Switch panel when a tree leaf is selected."""
