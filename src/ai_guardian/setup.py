@@ -1388,7 +1388,7 @@ def setup_hooks(
                 print(f"\n🛡️  Installing {install_scanner} scanner...\n")
                 installer = ScannerInstaller()
 
-                success = installer.install(install_scanner)
+                success = installer.install(install_scanner, ensure_only=True)
 
                 if success:
                     # Verify installation

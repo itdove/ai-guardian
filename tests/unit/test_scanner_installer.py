@@ -533,30 +533,23 @@ class TestVersionChecking:
     @mock.patch(
         "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
     )
-    def test_install_package_manager_wrong_version_with_explicit_version(
+    def test_install_upgrade_skips_package_manager(
         self, mock_pkg_mgr, mock_download, mock_get_installed
     ):
         """
-        Test that explicit version flag is respected when package manager installs wrong version.
+        Test that upgrades skip package manager to avoid unnecessary sudo prompts.
 
-        Regression test for issue #295:
-        Package manager succeeds but installs v8.18.2 when v8.30.1 was explicitly requested.
-        Should fall back to direct download to get the correct version.
+        When a scanner is already installed, upgrades should use direct download
+        instead of package manager (which requires sudo on Linux).
         """
-        # Scenario: User requests v8.30.1 explicitly
-        # Package manager succeeds but installs v8.18.2
-        # Should fall back to direct download for correct version
-
-        mock_pkg_mgr.return_value = True  # Package manager succeeds
-        mock_get_installed.return_value = "8.18.2"  # Wrong version installed
+        mock_get_installed.return_value = "8.18.2"  # Already installed
         mock_download.return_value = Path("/fake/path/gitleaks")
 
         installer = ScannerInstaller()
         success = installer.install("gitleaks", version="8.30.1")
 
-        # Should detect version mismatch and fall back to direct download
         assert success
-        mock_pkg_mgr.assert_called_once()
+        mock_pkg_mgr.assert_not_called()
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
@@ -565,54 +558,48 @@ class TestVersionChecking:
     @mock.patch(
         "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
     )
-    def test_install_package_manager_wrong_version_with_use_pinned(
+    def test_install_upgrade_pinned_skips_package_manager(
         self, mock_pkg_mgr, mock_download, mock_get_pinned, mock_get_installed
     ):
         """
-        Test that --use-pinned flag is respected when package manager installs wrong version.
+        Test that pinned-version upgrades skip package manager.
 
-        Regression test for issue #295:
-        Package manager succeeds but installs v8.18.2 when v8.30.1 was pinned.
-        Should fall back to direct download to get the pinned version.
+        When the scanner is already installed at an older version and --use-pinned
+        requests a newer one, should use direct download (no sudo).
         """
-        # Scenario: pyproject.toml pins v8.30.1, user runs with --use-pinned
-        # Package manager succeeds but installs v8.18.2
-        # Should fall back to direct download for pinned version
-
-        mock_pkg_mgr.return_value = True  # Package manager succeeds
-        mock_get_installed.return_value = "8.18.2"  # Wrong version installed
-        mock_get_pinned.return_value = "8.30.1"  # Pinned version
+        mock_get_installed.return_value = "8.18.2"  # Already installed
+        mock_get_pinned.return_value = "8.30.1"
         mock_download.return_value = Path("/fake/path/gitleaks")
 
         installer = ScannerInstaller()
         success = installer.install("gitleaks", use_pinned=True)
 
-        # Should detect version mismatch and fall back to direct download
         assert success
-        mock_pkg_mgr.assert_called_once()
+        mock_pkg_mgr.assert_not_called()
         mock_get_pinned.assert_called_once()
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
+    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager")
-    def test_install_package_manager_correct_version_no_fallback(
-        self, mock_pkg_mgr, mock_get_installed
+    def test_install_reinstall_skips_package_manager(
+        self, mock_pkg_mgr, mock_download, mock_get_installed
     ):
         """
-        Test that direct download is NOT called when package manager installs correct version.
+        Test that reinstalling the same explicit version skips package manager.
 
-        When package manager installs the requested version, should return success
-        without attempting direct download.
+        When the scanner is already at the requested version and an explicit
+        version is passed, should reinstall via direct download (no sudo).
         """
-        mock_pkg_mgr.return_value = True  # Package manager succeeds
-        mock_get_installed.return_value = "8.30.1"  # Correct version installed
+        mock_get_installed.return_value = "8.30.1"  # Already at this version
+        mock_download.return_value = Path("/fake/path/gitleaks")
 
         installer = ScannerInstaller()
         success = installer.install("gitleaks", version="8.30.1")
 
-        # Should succeed with package manager, no direct download attempted
         assert success
-        mock_pkg_mgr.assert_called_once()
+        mock_pkg_mgr.assert_not_called()
+        mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
 
 class TestChecksumVerification:

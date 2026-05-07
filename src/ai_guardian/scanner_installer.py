@@ -82,11 +82,18 @@ class ScannerInstaller:
             self.install_dir = install_dir
             self.install_dir.mkdir(parents=True, exist_ok=True)
         else:
-            # Try /usr/local/bin first, fall back to ~/.local/bin if permission denied
-            self.install_dir = Path("/usr/local/bin")
-            try:
-                self.install_dir.mkdir(parents=True, exist_ok=True)
-            except PermissionError:
+            # Try /usr/local/bin first, fall back to ~/.local/bin if not writable
+            default_dir = Path("/usr/local/bin")
+            if default_dir.exists() and os.access(default_dir, os.W_OK):
+                self.install_dir = default_dir
+            else:
+                try:
+                    default_dir.mkdir(parents=True, exist_ok=True)
+                    self.install_dir = default_dir
+                except PermissionError:
+                    pass
+
+            if not hasattr(self, "install_dir"):
                 logger.warning(
                     "No permission to write to /usr/local/bin, using ~/.local/bin instead"
                 )
@@ -616,6 +623,7 @@ class ScannerInstaller:
         version: Optional[str] = None,
         use_pinned: bool = False,
         method: Optional[InstallMethod] = None,
+        ensure_only: bool = False,
     ) -> bool:
         """
         Install scanner using best available method.
@@ -625,6 +633,7 @@ class ScannerInstaller:
             version: Specific version to install (optional)
             use_pinned: Use version from pyproject.toml (fallback)
             method: Installation method (optional)
+            ensure_only: If True, accept any working installation without upgrading
 
         Returns:
             True if installation succeeded
@@ -696,6 +705,14 @@ class ScannerInstaller:
         # Check if already installed
         installed_version = self._get_installed_version(scanner_name)
 
+        if installed_version and ensure_only:
+            binary_path = shutil.which(scanner_name)
+            if not binary_path:
+                binary_path = self.install_dir / scanner_name
+            print(f"✓ {scanner_name} {installed_version} is already installed")
+            print(f"  Path: {binary_path}")
+            return True
+
         if installed_version:
             comparison = self._compare_versions(installed_version, target_version)
 
@@ -736,8 +753,11 @@ class ScannerInstaller:
                     action = "Upgrading"
                 print(f"{action} {scanner_name} to {target_version}...")
 
-        # Try package manager first (unless method specified)
-        if method is None or method == InstallMethod.PACKAGE_MANAGER:
+        # Try package manager first, but only for fresh installs.
+        # When the scanner is already installed, skip package manager
+        # to avoid unnecessary sudo prompts on Linux.
+        scanner_already_available = installed_version or shutil.which(scanner_name)
+        if (method is None or method == InstallMethod.PACKAGE_MANAGER) and not scanner_already_available:
             if self.install_via_package_manager(scanner_name):
                 # Verify installed version matches request
                 installed_version = self._get_installed_version(scanner_name)
