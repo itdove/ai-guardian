@@ -127,6 +127,18 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                 "[dim]Quick-toggle dashboard — use each feature's panel for full settings.[/dim]"
             )
 
+            with Container(classes="gs-action-section"):
+                with Horizontal(classes="gs-action-row"):
+                    yield Label("⚠️  On Scan Error:")
+                    yield Select(
+                        select_options_with_default(
+                            [("Allow (fail-open)", "allow"), ("Block (fail-closed)", "block")],
+                            "on_scan_error",
+                        ),
+                        value="allow",
+                        id="on_scan_error_select",
+                    )
+
             for section, config_key, title in FEATURES:
                 yield TimeBasedToggle(
                     title=title,
@@ -169,6 +181,12 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                 except Exception as e:
                     self.app.notify(f"Error loading config: {e}", severity="error")
                     return
+
+            try:
+                on_scan_error = config.get("on_scan_error", "allow")
+                self.query_one("#on_scan_error_select", Select).value = on_scan_error
+            except Exception:
+                pass
 
             for section, config_key, _ in FEATURES:
                 section_data = config.get(section, {})
@@ -227,10 +245,37 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
         if not select_id:
             return
 
+        if select_id == "on_scan_error_select":
+            self._save_on_scan_error(event.value)
+            return
+
         for section, config_key, title in FEATURES:
             if select_id == f"{config_key}_action" and section in FEATURE_ACTIONS:
                 self._save_action(section, event.value, title)
                 return
+
+    def _save_on_scan_error(self, value: str) -> None:
+        """Save the global on_scan_error setting."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            config["on_scan_error"] = value
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            label = "fail-open" if value == "allow" else "fail-closed"
+            self.app.notify(f"✓ On Scan Error: {value} ({label})", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error saving: {e}", severity="error")
 
     def _save_action(self, section: str, value: str, display: str) -> None:
         """Save an action value for a feature section."""

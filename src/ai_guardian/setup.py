@@ -976,7 +976,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "tray": {
                 "enabled": True
             }
-        }
+        },
+
+        "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
+        "on_scan_error": "allow",
     }
 
     return config
