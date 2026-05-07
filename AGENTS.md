@@ -78,6 +78,9 @@ EOF
 **Note**: Tests are only required when making code changes. Documentation-only changes (markdown files, comments) do not require running tests.
 
 ```bash
+# Install test dependencies
+pip install ai-guardian[dev]
+
 # Run all tests (required before committing code changes)
 pytest
 
@@ -89,6 +92,15 @@ pytest tests/test_specific.py
 
 # Run with verbose output
 pytest -v
+```
+
+Or using [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run --extra dev python -m pytest
+uv run --extra dev python -m pytest --cov=ai_guardian --cov-report=term-missing
+uv run --extra dev python -m pytest tests/test_specific.py
+uv run --extra dev python -m pytest -v
 ```
 
 #### Test Structure

@@ -38,6 +38,9 @@ classifiers = [
 
 [project.optional-dependencies]
 skill-discovery = []
+dev = [
+  "pytest>=8.4.2",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/itdove/ai-guardian"

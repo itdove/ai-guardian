@@ -246,6 +246,9 @@ git commit -m "docs: update installation instructions"
 **Before pushing, ensure all tests pass:**
 
 ```bash
+# Install test dependencies
+pip install ai-guardian[dev]
+
 # Run all tests (1,222+ tests)
 pytest
 
@@ -254,6 +257,14 @@ pytest --cov=ai_guardian --cov-report=term-missing
 
 # Run specific test file
 pytest tests/unit/test_specific.py -v
+```
+
+Or using [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run --extra dev python -m pytest
+uv run --extra dev python -m pytest --cov=ai_guardian --cov-report=term-missing
+uv run --extra dev python -m pytest tests/unit/test_specific.py -v
 ```
 
 **Test Organization:**

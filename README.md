@@ -173,8 +173,16 @@ cd ai-guardian && pip install -e .
 ## Testing
 
 ```bash
+pip install ai-guardian[dev]                     # Install test dependencies
 pytest                                          # Run all tests
 pytest --cov=ai_guardian --cov-report=term      # With coverage
+```
+
+Or using [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run --extra dev python -m pytest             # Run all tests
+uv run --extra dev python -m pytest --cov=ai_guardian --cov-report=term  # With coverage
 ```
 
 See [AGENTS.md](AGENTS.md) for testing guidelines and CI/CD details.
