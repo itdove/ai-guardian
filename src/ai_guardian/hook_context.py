@@ -9,10 +9,12 @@ and retrieving them during PostToolUse processing, enabling:
 - Audit trail correlation via tool_use_id
 """
 
+import fcntl
 import json
 import logging
 import os
 import stat
+import tempfile
 import time
 from pathlib import Path
 from typing import Dict, Optional
@@ -124,18 +126,27 @@ class HookContextManager:
             logger.debug(f"Context cleanup error: {e}")
 
     def _save_to_file(self, tool_use_id: str, context: Dict) -> bool:
-        """Save context entry to temp file."""
+        """Save context entry to temp file with file locking."""
         if not self._context_file:
             return False
 
-        data = self._read_file() or {}
-
-        data[tool_use_id] = {
-            "context": context,
-            "timestamp": time.time(),
-        }
-
-        return self._write_file(data)
+        lock_path = str(self._context_file) + ".lock"
+        try:
+            lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                data = self._read_file() or {}
+                data[tool_use_id] = {
+                    "context": context,
+                    "timestamp": time.time(),
+                }
+                return self._write_file(data)
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+        except OSError as e:
+            logger.debug(f"Failed to acquire lock for save: {e}")
+            return False
 
     def _load_from_file(self, tool_use_id: str) -> Optional[Dict]:
         """Load context entry from temp file."""
@@ -170,24 +181,29 @@ class HookContextManager:
             return None
 
     def _write_file(self, data: Dict) -> bool:
-        """Write context data to file with secure permissions."""
+        """Write context data atomically with secure permissions."""
         if not self._context_file:
             return False
         try:
             content = json.dumps(data)
+            parent = self._context_file.parent
 
-            if not self._context_file.exists():
-                fd = os.open(
-                    str(self._context_file),
-                    os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-                    stat.S_IRUSR | stat.S_IWUSR,  # 0600
-                )
-                try:
-                    os.write(fd, content.encode("utf-8"))
-                finally:
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(parent), prefix=".ctx-", suffix=".tmp"
+            )
+            closed = False
+            try:
+                os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+                os.write(fd, content.encode("utf-8"))
+                os.close(fd)
+                closed = True
+                os.rename(tmp_path, str(self._context_file))
+            except BaseException:
+                if not closed:
                     os.close(fd)
-            else:
-                self._context_file.write_text(content, encoding="utf-8")
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
             return True
         except OSError as e:

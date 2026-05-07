@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example config showing different tokens per pattern server
   - Updated `docs/PATTERN_SERVER.md`, `ai-guardian-example.json`, and `README.md`
 
+### Fixed
+
+- **Flaky test: concurrent file access race in HookContextManager** (pre-existing)
+  - Added `fcntl.flock` file locking around the read-modify-write cycle in `_save_to_file`
+  - Changed `_write_file` to use atomic write (temp file + rename) to prevent corrupted JSON on concurrent writes
+
 ### Changed
 
 - **Simplified README to ~230 lines** (Issue #454)
