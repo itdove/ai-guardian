@@ -1386,6 +1386,12 @@
         }
       },
       "additionalProperties": false
+    },
+    "on_scan_error": {
+      "type": "string",
+      "enum": ["allow", "block"],
+      "description": "Global behavior when a scanner encounters an error (exception, unavailable, network issue). 'allow' (default): log warning, allow operation to proceed (fail-open). 'block': block the operation if any scanner fails (fail-closed, for strict compliance). NEW in v1.7.0.",
+      "default": "allow"
     }
   }
 }

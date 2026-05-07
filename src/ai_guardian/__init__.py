@@ -1340,6 +1340,21 @@ def _load_transcript_scanning_config():
     return config.get("transcript_scanning", _DEFAULTS), None
 
 
+def _get_on_scan_error_action() -> str:
+    """
+    Load the global on_scan_error setting from ai-guardian.json.
+
+    Returns:
+        str: "allow" (default, fail-open) or "block" (fail-closed)
+    """
+    config, _ = _load_config_file()
+    if config:
+        value = config.get("on_scan_error", "allow")
+        if value in ("allow", "block"):
+            return value
+    return "allow"
+
+
 def _get_transcript_path(hook_data: dict) -> Optional[str]:
     """
     Extract transcript path from hook data across IDE types.
@@ -2363,6 +2378,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             f"  ai-guardian scanner install {default_scanner}\n\n"
                             f"Until a scanner is installed, you may leak secrets."
                         )
+                    on_error = _get_on_scan_error_action()
+                    if on_error == "block":
+                        logging.error(f"No scanner available (fail-closed, on_scan_error=block)")
+                        return True, warning_msg + "\n\nOperation BLOCKED (on_scan_error=block)."
                     logging.warning(f"No scanner available - warning user")
                     return False, warning_msg
 
@@ -2806,7 +2825,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     # Print to stderr for visibility
                     print(warning_msg, file=sys.stderr)
 
-                    # Fail open - allow operation to continue
+                    on_error = _get_on_scan_error_action()
+                    if on_error == "block":
+                        logging.error(f"Secret scanning error (fail-closed, on_scan_error=block)")
+                        return True, warning_msg + "\nOperation BLOCKED (on_scan_error=block)."
                     return False, None
 
         finally:
@@ -3361,7 +3383,11 @@ def process_hook_data(hook_data, daemon_state=None):
                     # Permissions enforcement is temporarily disabled
                     logging.info("⚠️  Tool permissions enforcement temporarily disabled")
             except Exception as e:
-                # Fail-open: if policy check fails, allow the operation
+                on_error = _get_on_scan_error_action()
+                if on_error == "block":
+                    logging.error(f"Tool policy check error (fail-closed, on_scan_error=block): {e}")
+                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                          error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}")
                 logging.warning(f"Tool policy check error (fail-open): {e}")
 
         content_to_scan = None
@@ -3525,7 +3551,11 @@ def process_hook_data(hook_data, daemon_state=None):
                     # Prompt injection detection is temporarily disabled
                     logging.info("⚠️  Prompt injection detection temporarily disabled")
             except Exception as e:
-                # Fail-open: if prompt injection check fails, continue
+                on_error = _get_on_scan_error_action()
+                if on_error == "block":
+                    logging.error(f"Prompt injection check error (fail-closed, on_scan_error=block): {e}")
+                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                          error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}")
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
@@ -3597,7 +3627,11 @@ def process_hook_data(hook_data, daemon_state=None):
                     # Config file scanning is temporarily disabled
                     logging.info("⚠️  Config file scanning temporarily disabled")
             except Exception as e:
-                # Fail-open: if config scanning fails, continue
+                on_error = _get_on_scan_error_action()
+                if on_error == "block":
+                    logging.error(f"Config file scanning error (fail-closed, on_scan_error=block): {e}")
+                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                          error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}")
                 logging.warning(f"Config file scanning error (fail-open): {e}")
 
         # Check for secrets in the content
@@ -3753,6 +3787,11 @@ def process_hook_data(hook_data, daemon_state=None):
                 elif ts_config and ide_type != IDEType.CURSOR:
                     logging.info("⚠️  Transcript scanning temporarily disabled")
             except Exception as e:
+                on_error = _get_on_scan_error_action()
+                if on_error == "block":
+                    logging.error(f"Transcript scanning error (fail-closed, on_scan_error=block): {e}")
+                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                          error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}")
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
 
         # Save PreToolUse context for PostToolUse correlation (#366)

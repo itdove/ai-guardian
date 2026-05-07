@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Global `on_scan_error` configuration** (Issue #461)
+  - New top-level `on_scan_error` config parameter: `"allow"` (default) or `"block"`
+  - Controls fail-open/fail-closed behavior when scanners encounter errors
+  - `"allow"`: Current behavior — log warning, allow operation (developer productivity)
+  - `"block"`: Block operation if any scanner fails (strict compliance environments)
+  - Applies to: tool policy, prompt injection, config scanning, secret scanning, transcript scanning
+  - TUI shows new setting in Global Settings panel
+  - Default is `"allow"` for backward compatibility
+
 - **Cross-hook context passing** (Issue #366)
   - `HookContextManager` module (`hook_context.py`) for PreToolUse to PostToolUse correlation via `tool_use_id`
   - PostToolUse inherits `file_path` from PreToolUse context for violation entries
