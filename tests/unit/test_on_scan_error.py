@@ -81,18 +81,20 @@ class TestGetOnScanErrorAction(TestCase):
 class TestOnScanErrorToolPolicy(TestCase):
     """Tests for on_scan_error behavior in tool policy check."""
 
+    @patch('ai_guardian.extract_file_content_from_tool')
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian._get_on_scan_error_action')
     @patch('ai_guardian._load_permissions_config')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_tool_policy_error_allow(self, mock_pattern, mock_secret, mock_perms, mock_on_error, mock_pii):
+    def test_tool_policy_error_allow(self, mock_pattern, mock_secret, mock_perms, mock_on_error, mock_pii, mock_extract):
         """Tool policy error with on_scan_error=allow should fail-open."""
         mock_on_error.return_value = "allow"
         mock_pattern.return_value = None
         mock_secret.return_value = ({"enabled": False}, None)
         mock_perms.return_value = ({"enabled": True, "rules": []}, None)
         mock_pii.return_value = ({"enabled": False}, None)
+        mock_extract.return_value = ("file content", "test.txt", "/tmp/test.txt", False, None, None)
 
         with patch('ai_guardian.ToolPolicyChecker', side_effect=Exception("Policy check crashed")):
             hook_data = {
@@ -103,18 +105,20 @@ class TestOnScanErrorToolPolicy(TestCase):
             result = ai_guardian.process_hook_data(hook_data)
             self.assertFalse(_is_blocked(result), "Should fail-open when on_scan_error=allow")
 
+    @patch('ai_guardian.extract_file_content_from_tool')
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian._get_on_scan_error_action')
     @patch('ai_guardian._load_permissions_config')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_tool_policy_error_block(self, mock_pattern, mock_secret, mock_perms, mock_on_error, mock_pii):
+    def test_tool_policy_error_block(self, mock_pattern, mock_secret, mock_perms, mock_on_error, mock_pii, mock_extract):
         """Tool policy error with on_scan_error=block should fail-closed."""
         mock_on_error.return_value = "block"
         mock_pattern.return_value = None
         mock_secret.return_value = ({"enabled": False}, None)
         mock_perms.return_value = ({"enabled": True, "rules": []}, None)
         mock_pii.return_value = ({"enabled": False}, None)
+        mock_extract.return_value = ("file content", "test.txt", "/tmp/test.txt", False, None, None)
 
         with patch('ai_guardian.ToolPolicyChecker', side_effect=Exception("Policy check crashed")):
             hook_data = {
@@ -129,13 +133,14 @@ class TestOnScanErrorToolPolicy(TestCase):
 class TestOnScanErrorPromptInjection(TestCase):
     """Tests for on_scan_error behavior in prompt injection check."""
 
+    @patch('ai_guardian.extract_file_content_from_tool')
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian._get_on_scan_error_action')
     @patch('ai_guardian._load_prompt_injection_config')
     @patch('ai_guardian._load_permissions_config')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_prompt_injection_error_allow(self, mock_pattern, mock_secret, mock_perms, mock_injection, mock_on_error, mock_pii):
+    def test_prompt_injection_error_allow(self, mock_pattern, mock_secret, mock_perms, mock_injection, mock_on_error, mock_pii, mock_extract):
         """Prompt injection error with on_scan_error=allow should fail-open."""
         mock_on_error.return_value = "allow"
         mock_pattern.return_value = None
@@ -143,6 +148,7 @@ class TestOnScanErrorPromptInjection(TestCase):
         mock_perms.return_value = ({"enabled": False}, None)
         mock_injection.return_value = ({"enabled": True, "action": "block"}, None)
         mock_pii.return_value = ({"enabled": False}, None)
+        mock_extract.return_value = ("file content", "test.txt", "/tmp/test.txt", False, None, None)
 
         with patch('ai_guardian.HAS_PROMPT_INJECTION', True), \
              patch('ai_guardian.PromptInjectionDetector', side_effect=Exception("Injection check crashed")):
@@ -154,13 +160,14 @@ class TestOnScanErrorPromptInjection(TestCase):
             result = ai_guardian.process_hook_data(hook_data)
             self.assertFalse(_is_blocked(result), "Should fail-open when on_scan_error=allow")
 
+    @patch('ai_guardian.extract_file_content_from_tool')
     @patch('ai_guardian._load_pii_config')
     @patch('ai_guardian._get_on_scan_error_action')
     @patch('ai_guardian._load_prompt_injection_config')
     @patch('ai_guardian._load_permissions_config')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_prompt_injection_error_block(self, mock_pattern, mock_secret, mock_perms, mock_injection, mock_on_error, mock_pii):
+    def test_prompt_injection_error_block(self, mock_pattern, mock_secret, mock_perms, mock_injection, mock_on_error, mock_pii, mock_extract):
         """Prompt injection error with on_scan_error=block should fail-closed."""
         mock_on_error.return_value = "block"
         mock_pattern.return_value = None
@@ -168,6 +175,7 @@ class TestOnScanErrorPromptInjection(TestCase):
         mock_perms.return_value = ({"enabled": False}, None)
         mock_injection.return_value = ({"enabled": True, "action": "block"}, None)
         mock_pii.return_value = ({"enabled": False}, None)
+        mock_extract.return_value = ("file content", "test.txt", "/tmp/test.txt", False, None, None)
 
         with patch('ai_guardian.HAS_PROMPT_INJECTION', True), \
              patch('ai_guardian.PromptInjectionDetector', side_effect=Exception("Injection check crashed")):
