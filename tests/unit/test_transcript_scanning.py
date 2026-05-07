@@ -14,10 +14,13 @@ from unittest import mock
 
 from ai_guardian import (
     _extract_text_from_transcript_line,
+    _finding_fingerprint,
     _get_transcript_path,
+    _load_seen_findings,
     _load_transcript_positions,
     _load_transcript_scanning_config,
     _log_transcript_violation,
+    _save_seen_findings,
     _save_transcript_positions,
     scan_transcript_incremental,
 )
@@ -671,6 +674,216 @@ class TestViolationLoggerDefaults(unittest.TestCase):
         self.assertIn("secret_in_transcript", log_types)
         self.assertIn("pii_in_transcript", log_types)
         self.assertNotIn("prompt_injection_in_transcript", log_types)
+
+
+class TestSeenFindings(unittest.TestCase):
+    """Test seen-findings persistence for deduplication (Issue #483)."""
+
+    def test_load_returns_empty_when_no_file(self):
+        result = _load_seen_findings()
+        self.assertIsInstance(result, dict)
+
+    def test_save_and_load_round_trip(self):
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"text": "test"}\n')
+        data = {str(transcript): {"abc123": "2026-05-07T00:00:00+00:00"}}
+        _save_seen_findings(data)
+        loaded = _load_seen_findings()
+        self.assertEqual(loaded, data)
+
+    def test_prunes_deleted_transcripts(self):
+        data = {"/tmp/nonexistent_transcript.jsonl": {"fp1": "2026-01-01T00:00:00"}}
+        _save_seen_findings(data)
+        loaded = _load_seen_findings()
+        self.assertNotIn("/tmp/nonexistent_transcript.jsonl", loaded)
+
+    def test_load_handles_corrupt_file(self):
+        state_dir = get_state_dir()
+        state_dir.mkdir(parents=True, exist_ok=True)
+        sf_file = state_dir / "transcript_seen_findings.json"
+        sf_file.write_text("not valid json{{{")
+        result = _load_seen_findings()
+        self.assertEqual(result, {})
+
+    def test_fingerprint_deterministic(self):
+        fp1 = _finding_fingerprint("pii", "SSN:078-05-1120")
+        fp2 = _finding_fingerprint("pii", "SSN:078-05-1120")
+        self.assertEqual(fp1, fp2)
+        self.assertEqual(len(fp1), 16)
+
+    def test_fingerprint_differs_for_different_values(self):
+        fp1 = _finding_fingerprint("pii", "SSN:078-05-1120")
+        fp2 = _finding_fingerprint("pii", "SSN:999-99-9999")
+        self.assertNotEqual(fp1, fp2)
+
+    def test_fingerprint_differs_for_different_types(self):
+        fp1 = _finding_fingerprint("pii", "SSN:078-05-1120")
+        fp2 = _finding_fingerprint("secret", "SSN:078-05-1120")
+        self.assertNotEqual(fp1, fp2)
+
+
+class TestSelfReferentialLoopFix(unittest.TestCase):
+    """Regression tests for self-referential loop (Issue #483).
+
+    Verifies that the same finding appearing in new transcript bytes
+    (e.g. the AI echoing the SSN back) is NOT re-flagged.
+    """
+
+    @mock.patch('ai_guardian._scan_for_pii')
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_same_pii_not_reflagged_in_new_content(self, mock_gitleaks, mock_pii):
+        """Same SSN appearing in new transcript bytes should be suppressed."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        # Initialize position
+        scan_transcript_incremental(str(transcript))
+
+        # --- Scan 1: SSN appears for the first time ---
+        line1 = json.dumps({"text": "My SSN is 078-05-1120"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (
+            True, "redacted",
+            [{"type": "SSN", "position": 10, "original_length": 11}],
+            "PII found",
+        )
+
+        pii_config = {"enabled": True, "pii_types": ["ssn"]}
+        result1 = scan_transcript_incremental(str(transcript), pii_config=pii_config)
+        self.assertTrue(len(result1) > 0, "First scan should detect PII")
+
+        # --- Scan 2: AI echoes SSN in its response (new bytes, same value) ---
+        line2 = json.dumps({"text": "The SSN 078-05-1120 was found"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        mock_gitleaks.reset_mock()
+        mock_pii.reset_mock()
+        # "078-05-1120" starts at index 8 in "The SSN 078-05-1120 was found"
+        mock_pii.return_value = (
+            True, "redacted",
+            [{"type": "SSN", "position": 8, "original_length": 11}],
+            "PII found",
+        )
+
+        result2 = scan_transcript_incremental(str(transcript), pii_config=pii_config)
+        self.assertEqual(result2, [], "Same SSN in new content should NOT be re-flagged")
+
+    @mock.patch('ai_guardian._scan_for_pii')
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_different_pii_still_detected(self, mock_gitleaks, mock_pii):
+        """A different PII value should still be flagged even after dedup."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        # Initialize position
+        scan_transcript_incremental(str(transcript))
+
+        # --- Scan 1: First SSN ---
+        line1 = json.dumps({"text": "SSN: 078-05-1120"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (
+            True, "redacted",
+            [{"type": "SSN", "position": 5, "original_length": 11}],
+            "PII found",
+        )
+
+        pii_config = {"enabled": True, "pii_types": ["ssn"]}
+        scan_transcript_incremental(str(transcript), pii_config=pii_config)
+
+        # --- Scan 2: Different SSN ---
+        line2 = json.dumps({"text": "SSN: 999-88-7777"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        mock_gitleaks.reset_mock()
+        mock_pii.reset_mock()
+        mock_pii.return_value = (
+            True, "redacted",
+            [{"type": "SSN", "position": 5, "original_length": 11}],
+            "PII found",
+        )
+
+        result2 = scan_transcript_incremental(str(transcript), pii_config=pii_config)
+        self.assertTrue(len(result2) > 0, "Different SSN should be flagged")
+
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_same_secret_not_reflagged(self, mock_gitleaks):
+        """Same secret finding should not be re-reported."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        # Initialize position
+        scan_transcript_incremental(str(transcript))
+
+        # --- Scan 1: Secret detected ---
+        line1 = json.dumps({"text": "export KEY=AKIAIOSFODNN7EXAMPLE"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        mock_gitleaks.return_value = (True, "Secret detected: AWS key")
+        result1 = scan_transcript_incremental(str(transcript))
+        self.assertTrue(len(result1) > 0, "First scan should detect secret")
+
+        # --- Scan 2: Same secret echoed ---
+        line2 = json.dumps({"text": "The key AKIAIOSFODNN7EXAMPLE was found"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        mock_gitleaks.reset_mock()
+        mock_gitleaks.return_value = (True, "Secret detected: AWS key")
+
+        result2 = scan_transcript_incremental(str(transcript))
+        self.assertEqual(result2, [], "Same secret should NOT be re-flagged")
+
+    @mock.patch('ai_guardian._scan_for_pii')
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_seen_findings_persist_across_invocations(self, mock_gitleaks, mock_pii):
+        """Seen findings should survive save/load cycle."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        scan_transcript_incremental(str(transcript))
+
+        # Detect PII
+        line1 = json.dumps({"text": "SSN: 078-05-1120"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (
+            True, "redacted",
+            [{"type": "SSN", "position": 5, "original_length": 11}],
+            "PII found",
+        )
+
+        pii_config = {"enabled": True, "pii_types": ["ssn"]}
+        scan_transcript_incremental(str(transcript), pii_config=pii_config)
+
+        # Verify seen findings were persisted
+        seen = _load_seen_findings()
+        self.assertIn(str(transcript), seen)
+        self.assertTrue(len(seen[str(transcript)]) > 0)
 
 
 if __name__ == '__main__':
