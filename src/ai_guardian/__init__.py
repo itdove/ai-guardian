@@ -4522,6 +4522,32 @@ def main():
             help="Exit with code 1 if redactions were made (for CI/CD)"
         )
 
+        # Doctor subcommand (Issue #475)
+        doctor_parser = subparsers.add_parser(
+            "doctor",
+            help="Check ai-guardian installation health"
+        )
+        doctor_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output results as JSON"
+        )
+        doctor_parser.add_argument(
+            "--fix",
+            action="store_true",
+            help="Auto-fix issues that can be safely fixed"
+        )
+        doctor_parser.add_argument(
+            "--quiet",
+            action="store_true",
+            help="Exit codes only (0=ok, 1=warnings, 2=errors)"
+        )
+        doctor_parser.add_argument(
+            "--check-connectivity",
+            action="store_true",
+            help="Include network connectivity checks (pattern server)"
+        )
+
         # Daemon subcommand
         daemon_parser = subparsers.add_parser(
             "daemon",
@@ -4853,6 +4879,20 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error running sanitize: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle doctor command (Issue #475)
+        if args.command == "doctor":
+            try:
+                from ai_guardian.doctor import doctor_command
+                return doctor_command(args)
+            except ImportError as e:
+                print(f"Error: Doctor module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running doctor: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1
