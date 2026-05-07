@@ -37,6 +37,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 
 | Document | Description |
 |----------|-------------|
+| [Pre-commit Hook](PRE_COMMIT.md) | Scan staged files for secrets before commit |
 | [GitHub Copilot Setup](GITHUB_COPILOT.md) | Setup guide for GitHub Copilot |
 | [Aider Setup](AIDER.md) | Git hook integration for Aider |
 | [Multi-Engine Support](MULTI_ENGINE_SUPPORT.md) | Scanner engine options and future plans |

@@ -38,6 +38,7 @@ You're done! ai-guardian now protects against secrets, prompt injection, SSRF, a
 | Sanitize Command | Clean sensitive data from files | [docs/security/SECRET_REDACTION.md](docs/security/SECRET_REDACTION.md) |
 | Interactive Console | TUI for managing configuration visually | [docs/CONSOLE.md](docs/CONSOLE.md) |
 | Scanner Management | Install and manage 7 scanner engines | [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) |
+| Pre-commit Hook | Scan staged files for secrets before commit | [docs/PRE_COMMIT.md](docs/PRE_COMMIT.md) |
 | Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) |
 
 ## Default Behavior (No Configuration File)
