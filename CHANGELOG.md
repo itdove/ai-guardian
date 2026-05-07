@@ -21,12 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - TUI: "Correlated" button shows the paired PreToolUse/PostToolUse violation
   - Fail-safe: if context unavailable, PostToolUse processes normally (no regression)
 
+- **Documentation: pre-commit hook** (Issue #467)
+  - Added pre-commit hook entry to README features table
+  - Created `docs/PRE_COMMIT.md` covering `ai-guardian setup --pre-commit`, direct git hook, and pre-commit framework installation methods
+  - Updated `docs/README.md` index with new documentation link
+
 - **Documentation: per-engine pattern server auth** (Issue #458)
   - Document that `AI_GUARDIAN_PATTERN_TOKEN` is the default env var for all pattern server sections
   - Document how to override `token_env` per section for multi-server setups
   - Document `token_file` as alternative to env var
   - Example config showing different tokens per pattern server
   - Updated `docs/PATTERN_SERVER.md`, `ai-guardian-example.json`, and `README.md`
+
+### Fixed
+
+- **Flaky test: concurrent file access race in HookContextManager** (pre-existing)
+  - Added `fcntl.flock` file locking around the read-modify-write cycle in `_save_to_file`
+  - Changed `_write_file` to use atomic write (temp file + rename) to prevent corrupted JSON on concurrent writes
 
 ### Changed
 
