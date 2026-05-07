@@ -14,6 +14,7 @@ __version__ = "1.7.0-dev"
 
 import argparse
 import fnmatch
+import hashlib
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -1407,6 +1408,54 @@ def _save_transcript_positions(positions: Dict[str, int]) -> None:
         logging.debug(f"Failed to save transcript positions: {e}")
 
 
+def _load_seen_findings() -> Dict[str, Dict[str, str]]:
+    """Load seen transcript findings from state dir.
+
+    Returns:
+        Dict mapping transcript paths to dicts of {fingerprint: iso_timestamp}.
+    """
+    state_dir = get_state_dir()
+    sf_file = state_dir / "transcript_seen_findings.json"
+    try:
+        if sf_file.exists():
+            with open(sf_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception as e:
+        logging.debug(f"Failed to load seen findings: {e}")
+    return {}
+
+
+def _save_seen_findings(seen: Dict[str, Dict[str, str]]) -> None:
+    """Save seen transcript findings to state dir.
+
+    Prunes entries for transcript files that no longer exist.
+    """
+    state_dir = get_state_dir()
+    state_dir.mkdir(parents=True, exist_ok=True)
+    sf_file = state_dir / "transcript_seen_findings.json"
+    try:
+        pruned = {k: v for k, v in seen.items() if os.path.exists(k)}
+        with open(sf_file, 'w', encoding='utf-8') as f:
+            json.dump(pruned, f)
+    except Exception as e:
+        logging.debug(f"Failed to save seen findings: {e}")
+
+
+def _finding_fingerprint(finding_type: str, detail: str) -> str:
+    """Compute a short hash fingerprint for a transcript finding.
+
+    Args:
+        finding_type: Category such as "pii" or "secret"
+        detail: Type-specific detail (e.g. "SSN:078-05-1120" or error string)
+
+    Returns:
+        First 16 hex chars of SHA-256 digest.
+    """
+    return hashlib.sha256(f"{finding_type}:{detail}".encode()).hexdigest()[:16]
+
+
 def _extract_text_from_transcript_line(line_data: dict) -> str:
     """Extract scannable text content from a transcript JSONL line.
 
@@ -1552,6 +1601,11 @@ def scan_transcript_incremental(
         _save_transcript_positions(positions)
         return warnings
 
+    # Load seen findings to deduplicate across scans (breaks self-referential loop)
+    seen_all = _load_seen_findings()
+    seen = seen_all.get(transcript_path, {})
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     # --- Secret scanning ---
     if secret_config is None or is_feature_enabled(
         secret_config.get("enabled") if secret_config else None,
@@ -1566,25 +1620,28 @@ def scan_transcript_incremental(
                 allowlist_patterns=secret_allowlist
             )
             if has_secrets and secret_error:
-                warning_msg = (
-                    f"\n{'='*70}\n"
-                    f"🔍 SECRET DETECTED IN CONVERSATION TRANSCRIPT\n"
-                    f"{'='*70}\n"
-                    f"A secret was found in your conversation history\n"
-                    f"(possibly from a ! shell command).\n"
-                    f"The secret has already been sent to the AI model.\n"
-                    f"Recommended actions:\n"
-                    f"  1. Rotate the exposed credential immediately\n"
-                    f"  2. Start a new session to limit further exposure\n"
-                    f"  3. Review your shell history for other leaked secrets\n"
-                    f"{'='*70}\n"
-                )
-                warnings.append(warning_msg)
-                _log_transcript_violation(
-                    "secret_in_transcript", transcript_path,
-                    details={"reason": secret_error},
-                    hook_context=hook_context
-                )
+                fp = _finding_fingerprint("secret", secret_error)
+                if fp not in seen:
+                    warning_msg = (
+                        f"\n{'='*70}\n"
+                        f"🔍 SECRET DETECTED IN CONVERSATION TRANSCRIPT\n"
+                        f"{'='*70}\n"
+                        f"A secret was found in your conversation history\n"
+                        f"(possibly from a ! shell command).\n"
+                        f"The secret has already been sent to the AI model.\n"
+                        f"Recommended actions:\n"
+                        f"  1. Rotate the exposed credential immediately\n"
+                        f"  2. Start a new session to limit further exposure\n"
+                        f"  3. Review your shell history for other leaked secrets\n"
+                        f"{'='*70}\n"
+                    )
+                    warnings.append(warning_msg)
+                    _log_transcript_violation(
+                        "secret_in_transcript", transcript_path,
+                        details={"reason": secret_error},
+                        hook_context=hook_context
+                    )
+                    seen[fp] = now_iso
         except Exception as e:
             logging.debug(f"Transcript secret scan error (fail-open): {e}")
 
@@ -1597,32 +1654,47 @@ def scan_transcript_incremental(
         try:
             has_pii, _, pii_redactions, _ = _scan_for_pii(combined_text, pii_config)
             if has_pii:
-                pii_types = list(set(r['type'] for r in pii_redactions))
-                warning_msg = (
-                    f"\n{'='*70}\n"
-                    f"🔍 PII DETECTED IN CONVERSATION TRANSCRIPT\n"
-                    f"{'='*70}\n"
-                    f"Found {len(pii_redactions)} PII item(s): {', '.join(pii_types)}\n"
-                    f"(possibly from a ! shell command).\n"
-                    f"The PII has already been sent to the AI model.\n"
-                    f"Recommended actions:\n"
-                    f"  1. Assess the data exposure per your compliance policies\n"
-                    f"  2. Start a new session to limit further exposure\n"
-                    f"  3. Review your shell history for other leaked PII\n"
-                    f"{'='*70}\n"
-                )
-                warnings.append(warning_msg)
-                _log_transcript_violation(
-                    "pii_in_transcript", transcript_path,
-                    details={"pii_types": pii_types, "pii_count": len(pii_redactions)},
-                    hook_context=hook_context
-                )
+                new_redactions = []
+                for r in pii_redactions:
+                    pos = r.get('position', 0)
+                    length = r.get('original_length', 0)
+                    original_value = combined_text[pos:pos + length] if length else r.get('type', '')
+                    fp = _finding_fingerprint("pii", f"{r['type']}:{original_value}")
+                    if fp not in seen:
+                        new_redactions.append(r)
+                        seen[fp] = now_iso
+
+                if new_redactions:
+                    pii_types = list(set(r['type'] for r in new_redactions))
+                    warning_msg = (
+                        f"\n{'='*70}\n"
+                        f"🔍 PII DETECTED IN CONVERSATION TRANSCRIPT\n"
+                        f"{'='*70}\n"
+                        f"Found {len(new_redactions)} PII item(s): {', '.join(pii_types)}\n"
+                        f"(possibly from a ! shell command).\n"
+                        f"The PII has already been sent to the AI model.\n"
+                        f"Recommended actions:\n"
+                        f"  1. Assess the data exposure per your compliance policies\n"
+                        f"  2. Start a new session to limit further exposure\n"
+                        f"  3. Review your shell history for other leaked PII\n"
+                        f"{'='*70}\n"
+                    )
+                    warnings.append(warning_msg)
+                    _log_transcript_violation(
+                        "pii_in_transcript", transcript_path,
+                        details={"pii_types": pii_types, "pii_count": len(new_redactions)},
+                        hook_context=hook_context
+                    )
         except Exception as e:
             logging.debug(f"Transcript PII scan error (fail-open): {e}")
 
     # Update position to actual bytes read
     positions[transcript_path] = new_pos
     _save_transcript_positions(positions)
+
+    # Persist seen findings
+    seen_all[transcript_path] = seen
+    _save_seen_findings(seen_all)
 
     return warnings
 
