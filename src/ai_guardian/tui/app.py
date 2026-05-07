@@ -121,6 +121,7 @@ NAV_GROUPS = [
         ("SSRF Protection", "panel-ssrf"),
         ("Config Scanner", "panel-config-scanner"),
         ("PII Detection", "panel-scan-pii"),
+        ("Annotations", "panel-annotations"),
     ]),
     ("Configuration", [
         ("Remote Configs", "panel-remote-configs"),
@@ -404,6 +405,26 @@ HELP_DOCS = {
         "[bold]Configuration:[/bold]\n"
         "  - Enable/disable individual PII types\n"
         "  - Ignore files via glob patterns (e.g., tests/**)"
+    ),
+    "panel-annotations": (
+        "[bold]Annotation Suppression[/bold]\n\n"
+        "Suppress secrets and PII on specific lines using inline or "
+        "block annotations in source code comments.\n\n"
+        "[bold]Hardcoded markers (always active):[/bold]\n"
+        "  [bold]# ai-guardian:allow[/bold] — Suppress secrets + PII "
+        "on the line\n"
+        "  [bold]# ai-guardian:begin-allow[/bold] / "
+        "[bold]# ai-guardian:end-allow[/bold] — Block suppression\n\n"
+        "[bold]Configurable aliases:[/bold]\n"
+        "  [bold]Inline allow[/bold] — Custom markers for secrets + PII\n"
+        "  [bold]Inline allow secrets[/bold] — Secrets only "
+        "(default: gitleaks:allow)\n"
+        "  [bold]Block begin/end[/bold] — Custom block markers\n\n"
+        "[bold]Security:[/bold]\n"
+        "  - Prompt injection, jailbreak, config exfil always scanned\n"
+        "  - Only applies to file content (not prompts or tool output)\n"
+        "  - Unmatched begin-allow is ignored (fail-safe)\n"
+        "  - All suppressions logged for audit trail"
     ),
     "panel-secrets": (
         "[bold]Secret Scanning[/bold]\n\n"
@@ -947,6 +968,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-scan-pii"):
                     from ai_guardian.tui.scan_pii import ScanPIIContent
                     yield ScanPIIContent()
+
+                with Container(id="panel-annotations"):
+                    from ai_guardian.tui.annotations import AnnotationsContent
+                    yield AnnotationsContent()
 
                 with Container(id="panel-secrets"):
                     from ai_guardian.tui.secrets import SecretsContent

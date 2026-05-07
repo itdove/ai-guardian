@@ -23,6 +23,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Directory Rules](security/DIRECTORY_RULES.md) | `.ai-read-deny` markers and config-based rules |
 | [Credential Exfiltration](security/CREDENTIAL_EXFILTRATION.md) | Config file scanning for exfiltration patterns |
 | [Secret Redaction](security/SECRET_REDACTION.md) | Masking secrets in tool outputs |
+| [Inline Annotations](ANNOTATIONS.md) | Suppress false positives with per-line or block annotations |
 
 ## Architecture & Policy
 

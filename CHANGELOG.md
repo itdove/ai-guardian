@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Inline and block annotation suppression** (Issue #481)
+  - `ai-guardian:allow` on a line suppresses secrets and PII for that line
+  - `ai-guardian:begin-allow` / `ai-guardian:end-allow` suppresses a block of lines
+  - `gitleaks:allow` suppresses secrets only (default alias)
+  - Configurable aliases: `inline_allow`, `inline_allow_secrets`, `block_begin`, `block_end`
+  - User config extends defaults — add custom aliases without losing built-in ones
+  - Pre-processing approach: suppressed lines blanked before any scanner runs
+  - Suppresses secrets and PII detection (both blocking and redaction)
+  - Prompt injection, jailbreak, and config exfil are always scanned (cannot be suppressed)
+  - File content only (PreToolUse/beforeReadFile) — never applies to PostToolUse, prompts, or transcripts
+  - Fail-safe: unmatched `begin-allow` without `end-allow` is ignored with a warning
+  - Language-agnostic: searches for marker string anywhere on a line
+  - Audit trail: suppressions logged via ViolationLogger (`annotation_suppressed` type)
+  - Configurable: `annotations.enabled` (default: true) to disable for strict compliance
+  - Detection messages include annotation hint showing available suppression markers
+  - TUI: new Annotations panel under Threat Detection for managing aliases
+
 - **Global `on_scan_error` configuration** (Issue #461)
   - New top-level `on_scan_error` config parameter: `"allow"` (default) or `"block"`
   - Controls fail-open/fail-closed behavior when scanners encounter errors

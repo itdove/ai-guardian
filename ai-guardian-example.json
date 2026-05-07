@@ -371,6 +371,23 @@
     ]
   },
 
+  "annotations": {
+    "_comment": "Inline annotation suppression (NEW in v1.8.0, Issue #481)",
+    "_comment2": "Hardcoded markers (always active): ai-guardian:allow (inline), ai-guardian:begin-allow / ai-guardian:end-allow (block)",
+    "_comment3": "Annotations suppress secrets and PII only. Prompt injection, jailbreak, config exfil are ALWAYS scanned.",
+    "_comment4": "Add 'ai-guardian:allow' anywhere on a line to suppress secrets + PII for that line",
+    "_comment5": "Use 'ai-guardian:begin-allow' / 'ai-guardian:end-allow' for block suppression of multiple lines",
+    "_comment5b": "gitleaks:allow suppresses secrets only (not PII). Add 'notsecret' or other aliases to inline_allow_secrets.",
+    "_comment6": "User config extends defaults — add custom aliases without losing built-in ones",
+    "_comment7": "Set enabled to false for strict compliance environments that require no suppressions",
+    "_comment8": "Only applies to file content scanning (PreToolUse/beforeReadFile), not prompts or tool output",
+    "enabled": true,
+    "inline_allow": [],
+    "inline_allow_secrets": ["gitleaks:allow"],
+    "block_begin": [],
+    "block_end": []
+  },
+
   "transcript_scanning": {
     "_comment": "Scan conversation transcript for secrets, PII, and prompt injection (NEW in v1.7.0, Issue #430)",
     "_comment2": "When users type '! command' in Claude Code, the output bypasses ai-guardian hooks",
