@@ -266,15 +266,14 @@ class TestScannerInstaller:
             assert install_dir.exists()
             assert installer.install_dir == install_dir
 
-    def test_init_falls_back_to_local_bin(self):
-        """Test fallback to ~/.local/bin when /usr/local/bin permission denied."""
-        # Mock Path.mkdir to raise PermissionError for /usr/local/bin
+    @mock.patch("ai_guardian.scanner_installer.os.access", return_value=False)
+    def test_init_falls_back_to_local_bin(self, mock_access):
+        """Test fallback to ~/.local/bin when /usr/local/bin is not writable."""
         original_mkdir = Path.mkdir
 
         def mkdir_side_effect(self, *args, **kwargs):
             if str(self) == "/usr/local/bin":
                 raise PermissionError("Permission denied")
-            # Call original mkdir for other paths
             return original_mkdir(self, *args, **kwargs)
 
         with mock.patch.object(Path, "mkdir", mkdir_side_effect):
