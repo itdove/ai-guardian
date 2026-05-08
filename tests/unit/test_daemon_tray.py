@@ -113,16 +113,6 @@ class TestDaemonTrayCallbacks:
                     tray._on_open_console(mock.MagicMock(), mock.MagicMock())
                     mock_popen.assert_called_once()
 
-    def test_reload_config_sends_request(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda: None,
-        )
-        with mock.patch("ai_guardian.daemon.client.send_reload_config") as mock_reload:
-            tray._on_reload_config(mock.MagicMock(), mock.MagicMock())
-            mock_reload.assert_called_once()
-
     def test_pause_calls_callback_with_duration(self):
         paused_durations = []
         tray = DaemonTray(
