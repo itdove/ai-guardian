@@ -215,7 +215,7 @@ def detect_ide_type(hook_data):
     return IDEType.CLAUDE_CODE
 
 
-def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None, modified_output=None):
+def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None, modified_output=None, violation_type=None):
     """
     Format the response based on IDE type and hook event.
 
@@ -234,6 +234,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
             - Contains redacted version of tool output to replace original
             - Uses hookSpecificOutput.updatedToolOutput (works for all tools since v2.1.121)
             - See: https://code.claude.com/docs/en/hooks
+        violation_type: Optional violation type string for daemon stats tracking
 
     Returns:
         dict with 'output' (str to print), 'exit_code' (int), and optional
@@ -251,6 +252,8 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
     def _add_metadata(result):
         if has_secrets:
             result["_blocked"] = True
+        if violation_type:
+            result["_violation_type"] = violation_type
         return result
 
     if ide_type == IDEType.GITHUB_COPILOT:
@@ -3339,7 +3342,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.warning(f"Secrets detected in {tool_identifier} output - blocking")
                     result = format_response(ide_type, has_secrets=True,
                                          error_message=error_message,
-                                         hook_event=hook_event)
+                                         hook_event=hook_event,
+                                         violation_type="secret_detected")
                     return result
 
                 # Determine action mode (always redact when secrets detected)
@@ -3432,6 +3436,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=warning_msg, modified_output=redacted_text)
                         result["_warning"] = True
+                        result["_violation_type"] = "secret_redaction"
                         return result
 
                     except Exception as redact_error:
@@ -3442,7 +3447,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"Redaction failed, falling back to blocking")
                         result = format_response(ide_type, has_secrets=True,
                                              error_message=error_message,
-                                             hook_event=hook_event)
+                                             hook_event=hook_event,
+                                             violation_type="secret_redaction")
                         return result
                 else:
                     # Redaction disabled - block to prevent secrets from reaching AI model
@@ -3451,7 +3457,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     )
                     result = format_response(ide_type, has_secrets=True,
                                          error_message=error_message,
-                                         hook_event=hook_event)
+                                         hook_event=hook_event,
+                                         violation_type="secret_detected")
                     return result
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
@@ -3484,7 +3491,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
                         result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                             error_message=pii_warning)
+                                             error_message=pii_warning,
+                                             violation_type="pii_detected")
                         return result
 
                     if has_pii and pii_redactions:
@@ -3529,7 +3537,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                                 error_message=pii_warning)
+                                                 error_message=pii_warning,
+                                                 violation_type="pii_detected")
                             return result
                         elif pii_action == 'redact':
                             # Restore original content on annotation-suppressed lines
@@ -3543,15 +3552,18 @@ def process_hook_data(hook_data, daemon_state=None):
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning, modified_output=redacted_text)
                             result["_warning"] = True
+                            result["_violation_type"] = "pii_detected"
                             return result
                         elif pii_action == 'warn':
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning)
                             result["_warning"] = True
+                            result["_violation_type"] = "pii_detected"
                             return result
                         elif pii_action == 'log-only':
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event)
                             result["_log_only"] = 1
+                            result["_violation_type"] = "pii_detected"
                             return result
                         else:
                             logging.warning(f"Unknown PII action '{pii_action}', allowing through")
@@ -3640,7 +3652,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
+                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type="tool_permission")
                         return result
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
@@ -3658,7 +3670,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 if on_error == "block":
                     logging.error(f"Tool policy check error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}")
+                                          error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}",
+                                          violation_type="tool_permission")
                 logging.warning(f"Tool policy check error (fail-open): {e}")
 
         content_to_scan = None
@@ -3690,7 +3703,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning)
+                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning, violation_type="directory_blocking")
                     return result
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
@@ -3867,7 +3880,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 logging.info("Blocking operation due to prompt injection detection")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning)
+                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning, violation_type="prompt_injection")
                         return result
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
@@ -3885,7 +3898,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 if on_error == "block":
                     logging.error(f"Prompt injection check error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}")
+                                          error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
+                                          violation_type="prompt_injection")
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
@@ -3944,7 +3958,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 logging.debug(f"Failed to log config file exfil violation: {e}")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning)
+                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type="config_file_exfil")
                         return result
                     elif config_details and config_error:
                         # Log/warn mode: threat detected but execution allowed - display warning
@@ -3961,7 +3975,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 if on_error == "block":
                     logging.error(f"Config file scanning error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}")
+                                          error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}",
+                                          violation_type="config_file_exfil")
                 logging.warning(f"Config file scanning error (fail-open): {e}")
 
         # Check for secrets in the content
@@ -4003,7 +4018,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning)
+                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning, violation_type="secret_detected")
                 return result
 
             # No secrets found, allow operation
@@ -4039,7 +4054,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     if has_pii and not pii_redactions:
                         final_error = _annotation_hint(pii_warning, file_path, annotations_config)
                         result = format_response(ide_type, has_secrets=True,
-                                             error_message=final_error, hook_event=hook_event)
+                                             error_message=final_error, hook_event=hook_event,
+                                             violation_type="pii_detected")
                         return result
 
                     if has_pii and pii_redactions:
@@ -4080,7 +4096,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             if combined_warning:
                                 final_error = f"{combined_warning}\n\n{final_error}"
                             result = format_response(ide_type, has_secrets=True,
-                                                 error_message=final_error, hook_event=hook_event)
+                                                 error_message=final_error, hook_event=hook_event,
+                                                 violation_type="pii_detected")
                             return result
                         elif pii_action == 'warn':
                             warning_messages.append(pii_warning)
@@ -4132,7 +4149,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 if on_error == "block":
                     logging.error(f"Transcript scanning error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}")
+                                          error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
+                                          violation_type="secret_detected")
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
 
         # Save PreToolUse context for PostToolUse correlation (#366)
@@ -4188,8 +4206,10 @@ def process_hook_data(hook_data, daemon_state=None):
         result = format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
         if combined_warning:
             result["_warning"] = True
+            result["_violation_type"] = "mixed"
         if log_only_count > 0:
             result["_log_only"] = log_only_count
+            result["_violation_type"] = "mixed"
         return result
 
     except Exception as e:

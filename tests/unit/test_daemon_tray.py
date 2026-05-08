@@ -43,53 +43,134 @@ class TestDaemonTrayWithoutPystray:
 
 
 class TestDaemonTrayCallbacks:
-    def test_status_text(self):
+    def test_header_text_running(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        assert "running" in tray._status_text()
+        header = tray._header_text()
+        assert "AI Guardian" in header
+        assert "Running" in header
+
+    def test_header_text_paused(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        header = tray._header_text()
+        assert "Paused" in header
 
     def test_requests_text(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {"request_count": 42},
+            get_stats_callback=lambda: {"request_count": 1234},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        assert "42" in tray._requests_text()
+        text = tray._requests_text()
+        assert "1,234" in text
+        assert "Requests:" in text
 
-    def test_blocked_text(self):
+    def test_blocked_text_with_percentage(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {"blocked_count": 5},
+            get_stats_callback=lambda: {"blocked_count": 28, "request_count": 1234},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        assert "5" in tray._blocked_text()
+        text = tray._blocked_text()
+        assert "28" in text
+        assert "2.3%" in text
+
+    def test_blocked_text_zero_requests(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"blocked_count": 0, "request_count": 0},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._blocked_text()
+        assert "0" in text
+        assert "%" not in text
 
     def test_warnings_text(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {"warning_count": 3},
+            get_stats_callback=lambda: {"warning_count": 42},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        assert "3" in tray._warnings_text()
+        text = tray._warnings_text()
+        assert "42" in text
+        assert "Warned:" in text
 
     def test_log_only_text(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {"log_only_count": 2},
+            get_stats_callback=lambda: {"log_only_count": 15},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        assert "2" in tray._log_only_text()
+        text = tray._log_only_text()
+        assert "15" in text
+        assert "Logged:" in text
 
     def test_violations_text(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {"violation_count": 10},
+            get_stats_callback=lambda: {"violation_count": 5},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        assert "10" in tray._violations_text()
+        text = tray._violations_text()
+        assert "5" in text
+        assert "Violations:" in text
+
+    def test_critical_text(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"critical_count": 1},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._critical_text()
+        assert "1" in text
+        assert "Critical:" in text
+
+    def test_warning_severity_text(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"warning_severity_count": 4},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._warning_severity_text()
+        assert "4" in text
+        assert "Warning:" in text
+
+    def test_last_block_text_none(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_block_type": None, "last_block_seconds_ago": None},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._last_block_text()
+        assert "none" in text
+
+    def test_last_block_text_recent(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_block_type": "secret_detected", "last_block_seconds_ago": 120},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._last_block_text()
+        assert "secret_detected" in text
+        assert "2m ago" in text
+
+    def test_last_block_text_hours(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_block_type": "prompt_injection", "last_block_seconds_ago": 7200},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._last_block_text()
+        assert "prompt_injection" in text
+        assert "2h ago" in text
 
     def test_quit_calls_stop_callback(self):
         stopped = []
@@ -147,6 +228,32 @@ class TestDaemonTrayCallbacks:
         label = tray._resume_menu_label()
         assert "2m" in label
         assert "5s" in label
+
+
+class TestFormatTimeAgo:
+    def test_seconds(self):
+        assert DaemonTray._format_time_ago(30) == "30s ago"
+
+    def test_minutes(self):
+        assert DaemonTray._format_time_ago(120) == "2m ago"
+
+    def test_hours(self):
+        assert DaemonTray._format_time_ago(7200) == "2h ago"
+
+    def test_days(self):
+        assert DaemonTray._format_time_ago(172800) == "2d ago"
+
+    def test_none(self):
+        assert DaemonTray._format_time_ago(None) == ""
+
+    def test_zero(self):
+        assert DaemonTray._format_time_ago(0) == "0s ago"
+
+    def test_just_under_minute(self):
+        assert DaemonTray._format_time_ago(59) == "59s ago"
+
+    def test_exactly_one_minute(self):
+        assert DaemonTray._format_time_ago(60) == "1m ago"
 
 
 class TestCrossPlatform:

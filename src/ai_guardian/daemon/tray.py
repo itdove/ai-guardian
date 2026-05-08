@@ -99,7 +99,37 @@ class DaemonTray:
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
         menu = pystray.Menu(
-            pystray.MenuItem("AI Guardian Daemon", None, enabled=False),
+            pystray.MenuItem(
+                lambda _: self._header_text(),
+                pystray.Menu(
+                    pystray.MenuItem(
+                        lambda _: self._requests_text(), None, enabled=False
+                    ),
+                    pystray.MenuItem(
+                        lambda _: self._blocked_text(), None, enabled=False
+                    ),
+                    pystray.MenuItem(
+                        lambda _: self._warnings_text(), None, enabled=False
+                    ),
+                    pystray.MenuItem(
+                        lambda _: self._log_only_text(), None, enabled=False
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(
+                        lambda _: self._violations_text(), None, enabled=False
+                    ),
+                    pystray.MenuItem(
+                        lambda _: self._critical_text(), None, enabled=False
+                    ),
+                    pystray.MenuItem(
+                        lambda _: self._warning_severity_text(), None, enabled=False
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(
+                        lambda _: self._last_block_text(), None, enabled=False
+                    ),
+                ),
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Console", self._on_open_console),
             pystray.MenuItem("Violations", self._on_open_violations),
@@ -145,25 +175,6 @@ class DaemonTray:
                 lambda _: self._resume_menu_label(),
                 self._on_resume,
                 visible=lambda _: self._status == "paused",
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                lambda _: self._status_text(), None, enabled=False
-            ),
-            pystray.MenuItem(
-                lambda _: self._requests_text(), None, enabled=False
-            ),
-            pystray.MenuItem(
-                lambda _: self._blocked_text(), None, enabled=False
-            ),
-            pystray.MenuItem(
-                lambda _: self._warnings_text(), None, enabled=False
-            ),
-            pystray.MenuItem(
-                lambda _: self._log_only_text(), None, enabled=False
-            ),
-            pystray.MenuItem(
-                lambda _: self._violations_text(), None, enabled=False
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Restart", self._on_restart),
@@ -260,28 +271,72 @@ class DaemonTray:
             pass
         return image
 
-    def _status_text(self):
-        return f"Status: {self._status}"
+    def _header_text(self):
+        status = "Running" if self._status == "running" else self._status.title()
+        return f"● AI Guardian — {status}"
 
     def _requests_text(self):
         stats = self._get_stats()
-        return f"Requests: {stats.get('request_count', 0)}"
+        count = stats.get('request_count', 0)
+        return f"Requests: {count:,}"
 
     def _blocked_text(self):
         stats = self._get_stats()
-        return f"Blocked: {stats.get('blocked_count', 0)}"
+        blocked = stats.get('blocked_count', 0)
+        total = stats.get('request_count', 0)
+        if total > 0:
+            pct = blocked / total * 100
+            return f"Blocked: {blocked:,} ({pct:.1f}%)"
+        return f"Blocked: {blocked:,}"
 
     def _warnings_text(self):
         stats = self._get_stats()
-        return f"Warnings: {stats.get('warning_count', 0)}"
+        count = stats.get('warning_count', 0)
+        return f"Warned: {count:,}"
 
     def _log_only_text(self):
         stats = self._get_stats()
-        return f"Log-only: {stats.get('log_only_count', 0)}"
+        count = stats.get('log_only_count', 0)
+        return f"Logged: {count:,}"
 
     def _violations_text(self):
         stats = self._get_stats()
-        return f"Violations: {stats.get('violation_count', 0)}"
+        count = stats.get('violation_count', 0)
+        return f"Violations: {count:,}"
+
+    def _critical_text(self):
+        stats = self._get_stats()
+        count = stats.get('critical_count', 0)
+        return f"  Critical: {count:,}"
+
+    def _warning_severity_text(self):
+        stats = self._get_stats()
+        count = stats.get('warning_severity_count', 0)
+        return f"  Warning: {count:,}"
+
+    def _last_block_text(self):
+        stats = self._get_stats()
+        block_type = stats.get('last_block_type')
+        seconds_ago = stats.get('last_block_seconds_ago')
+        if block_type is None:
+            return "Last block: none"
+        return f"Last block: {block_type} {self._format_time_ago(seconds_ago)}"
+
+    @staticmethod
+    def _format_time_ago(seconds):
+        if seconds is None:
+            return ""
+        seconds = int(seconds)
+        if seconds < 60:
+            return f"{seconds}s ago"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes}m ago"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h ago"
+        days = hours // 24
+        return f"{days}d ago"
 
     def _on_change_mode(self, mode):
         """Change daemon mode in config file."""

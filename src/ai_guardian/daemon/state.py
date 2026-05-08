@@ -55,6 +55,14 @@ class DaemonState:
         self._log_only_count = 0
         self._started_at = time.time()
 
+        # Severity tracking (blocked=critical, warning=warning)
+        self._critical_count = 0
+        self._warning_severity_count = 0
+
+        # Last block tracking
+        self._last_block_type = None
+        self._last_block_time = None  # monotonic timestamp
+
         # Paused state (for tray Pause/Resume)
         self._paused = False
         self._paused_until = 0.0  # monotonic timestamp, 0 = not time-limited
@@ -240,15 +248,24 @@ class DaemonState:
             self._last_activity = time.monotonic()
             self._request_count += 1
 
-    def record_blocked(self):
-        """Record that a request was blocked (operation denied)."""
+    def record_blocked(self, violation_type=None):
+        """Record that a request was blocked (operation denied).
+
+        Args:
+            violation_type: Optional violation type string (e.g. 'secret_detected')
+        """
         with self._lock:
             self._blocked_count += 1
+            self._critical_count += 1
+            if violation_type:
+                self._last_block_type = violation_type
+            self._last_block_time = time.monotonic()
 
     def record_warning(self):
         """Record that a warning was shown to the user (threat detected, allowed)."""
         with self._lock:
             self._warning_count += 1
+            self._warning_severity_count += 1
 
     def record_log_only(self):
         """Record a silently logged violation (no user-visible message)."""
@@ -322,12 +339,18 @@ class DaemonState:
         """Get daemon statistics.
 
         Returns:
-            dict: Stats including uptime, request count, violation count
+            dict: Stats including uptime, request count, violation count,
+                  severity breakdown, and last block info
         """
         with self._lock:
             uptime = time.time() - self._started_at
             violations = (self._blocked_count + self._warning_count
                          + self._log_only_count)
+
+            last_block_seconds_ago = None
+            if self._last_block_time is not None:
+                last_block_seconds_ago = time.monotonic() - self._last_block_time
+
             return {
                 "uptime_seconds": uptime,
                 "request_count": self._request_count,
@@ -335,6 +358,10 @@ class DaemonState:
                 "warning_count": self._warning_count,
                 "log_only_count": self._log_only_count,
                 "violation_count": violations,
+                "critical_count": self._critical_count,
+                "warning_severity_count": self._warning_severity_count,
+                "last_block_type": self._last_block_type,
+                "last_block_seconds_ago": last_block_seconds_ago,
                 "active_contexts": len(self._hook_contexts),
                 "cached_patterns": len(self._compiled_patterns),
                 "config_loaded": self._config is not None,

@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tray menu status submenu with stats** (Issue #508)
+  - Main menu header shows "● AI Guardian — Running/Paused" with status submenu
+  - Submenu displays: Requests, Blocked (with percentage), Warned, Logged counts
+  - Violations grouped by severity: Critical (blocked) and Warning (warned)
+  - Last block type and time-ago display (e.g., "secret_detected 2m ago")
+  - All stats from daemon in-memory counters (fast, no file I/O)
+  - Numbers formatted with commas for readability
+  - No subjective labels — numbers only
+
 - **Project-level .aiguardignore.toml** (Issue #497)
   - Per-project `ignore_files` via `.aiguardignore.toml` in project root
   - Global `[allowlist]` paths apply to all scanners

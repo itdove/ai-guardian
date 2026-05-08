@@ -271,8 +271,9 @@ class DaemonServer:
 
         # Track stats
         exit_code = result.get("exit_code", 0)
+        violation_type = result.get("_violation_type")
         if exit_code != 0 or result.get("_blocked"):
-            self.state.record_blocked()
+            self.state.record_blocked(violation_type=violation_type)
         elif result.get("_warning"):
             self.state.record_warning()
         elif result.get("_log_only"):
@@ -283,6 +284,7 @@ class DaemonServer:
         result.pop("_blocked", None)
         result.pop("_warning", None)
         result.pop("_log_only", None)
+        result.pop("_violation_type", None)
         return result
 
     def _idle_check_loop(self):
