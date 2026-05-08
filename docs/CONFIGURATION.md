@@ -26,6 +26,45 @@ Project-specific overrides that apply only to the current directory. Useful for:
 - Custom directory rules
 - Development settings
 
+### Project-level .aiguardignore.toml
+
+**Location**: `.aiguardignore.toml` in the project root (next to `.gitleaks.toml`)
+
+A TOML file for declaring which files to skip during scanning, using a structure consistent with `.gitleaks.toml`. Unlike the JSON config's `ignore_files`, this file is designed to be committed to version control so the whole team shares the same ignore rules.
+
+**Format**:
+
+```toml
+# Global allowlist — applies to ALL scanners
+[allowlist]
+    paths = [
+        "tests/fixtures/**",
+        "tests/unit/test_ai_guardian.py",
+    ]
+
+# Per-scanner allowlists
+[secret_scanning.allowlist]
+    paths = ["tests/integration/test_scanner.py"]
+
+[scan_pii.allowlist]
+    paths = ["tests/unit/test_pii_detection.py"]
+
+[prompt_injection.allowlist]
+    paths = ["docs/security-patterns.md"]
+
+[config_file_scanning.allowlist]
+    paths = ["examples/*.json"]
+```
+
+**Behavior**:
+- Global `[allowlist]` paths are merged into every scanner's `ignore_files`
+- Per-scanner paths only apply to that scanner
+- Paths from `.aiguardignore.toml` are **additive** with JSON config `ignore_files` (both apply)
+- Cached by mtime — no performance cost for unchanged files
+- Paths with `..` are blocked for security
+
+**Relationship to `.gitleaks.toml`**: `.aiguardignore.toml` skips entire files across all scanners. `.gitleaks.toml` filters individual secret findings (regex, stopwords, per-rule allowlists). They are complementary.
+
 ### 3. Remote Configurations
 
 **Location**: Fetched from URLs defined in `remote_configs`

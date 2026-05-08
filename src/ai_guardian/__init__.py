@@ -37,6 +37,12 @@ try:
 except ImportError:
     HAS_GITLEAKS_CONFIG = False
 
+try:
+    from ai_guardian import aiguardignore as _aiguardignore_cfg
+    HAS_AIGUARDIGNORE = True
+except ImportError:
+    HAS_AIGUARDIGNORE = False
+
 # Import tool policy checker for MCP/Skill permissions
 try:
     from ai_guardian.tool_policy import ToolPolicyChecker
@@ -1086,6 +1092,20 @@ def extract_file_content_from_tool(hook_data):
         return None, "unknown_file", None, False, None, None
 
 
+def _merge_aiguardignore(scanner_config, scanner_type):
+    """Merge .aiguardignore.toml paths into a scanner config dict's ignore_files."""
+    if not HAS_AIGUARDIGNORE:
+        return scanner_config
+    extra = _aiguardignore_cfg.get_ignore_paths(scanner_type)
+    if not extra:
+        return scanner_config
+    if scanner_config is None:
+        return {"ignore_files": list(extra)}
+    result = dict(scanner_config)
+    result["ignore_files"] = list(result.get("ignore_files", [])) + list(extra)
+    return result
+
+
 def _load_config_file():
     """
     Load ai-guardian.json configuration file with detailed error reporting.
@@ -1238,7 +1258,7 @@ def _load_prompt_injection_config():
         return None, error_msg
     if config is None:
         return None, None
-    return config.get("prompt_injection"), None
+    return _merge_aiguardignore(config.get("prompt_injection"), "prompt_injection"), None
 
 
 def _load_config_scanner_config():
@@ -1253,7 +1273,7 @@ def _load_config_scanner_config():
         return None, error_msg
     if config is None:
         return None, None
-    return config.get("config_file_scanning"), None
+    return _merge_aiguardignore(config.get("config_file_scanning"), "config_file_scanning"), None
 
 
 def _load_permissions_config():
@@ -1291,7 +1311,7 @@ def _load_secret_scanning_config():
         return None, error_msg
     if config is None:
         return None, None
-    return config.get("secret_scanning"), None
+    return _merge_aiguardignore(config.get("secret_scanning"), "secret_scanning"), None
 
 
 def _load_secret_redaction_config():
@@ -1332,7 +1352,7 @@ def _load_pii_config():
         return _PII_DEFAULTS, error_msg
     if config is None:
         return _PII_DEFAULTS, None
-    return config.get("scan_pii", _PII_DEFAULTS), None
+    return _merge_aiguardignore(config.get("scan_pii", _PII_DEFAULTS), "scan_pii"), None
 
 
 def _load_transcript_scanning_config():
