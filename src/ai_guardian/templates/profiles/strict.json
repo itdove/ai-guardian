@@ -1,0 +1,198 @@
+{
+  "$schema": "__SCHEMA_URI__",
+  "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords). Supported engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian",
+  "secret_scanning": {
+    "enabled": true,
+    "allowlist_patterns": [],
+    "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
+    "engines": [
+      "gitleaks"
+    ],
+    "_comment_strategy": "Strategies: first-match (default), any-match (block if ANY finds secrets), consensus (block only if N agree)",
+    "execution_strategy": "any-match",
+    "consensus_threshold": 2,
+    "_comment_cache": "Result caching: skip re-scanning unchanged content (v1.7.0+)",
+    "cache_results": true,
+    "cache_ttl_hours": 24,
+    "_comment_incremental": "Incremental scanning: only scan files whose content changed (v1.7.0+, requires cache_results)",
+    "incremental": true,
+    "_comment_audit": "Audit logging: log all scan operations for compliance (v1.7.0+)",
+    "audit_logging": true,
+    "pattern_server": {
+      "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
+      "patterns_endpoint": "/patterns/gitleaks/8.27.0",
+      "warn_on_failure": true,
+      "cache": {
+        "path": "__CACHE_DIR__/patterns.toml",
+        "refresh_interval_hours": 12,
+        "expire_after_hours": 168
+      }
+    }
+  },
+  "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
+  "prompt_injection": {
+    "enabled": true,
+    "detector": "heuristic",
+    "sensitivity": "high",
+    "max_score_threshold": 0.5,
+    "allowlist_patterns": [],
+    "custom_patterns": [],
+    "jailbreak_patterns": [],
+    "ignore_tools": [],
+    "ignore_files": [],
+    "unicode_detection": {
+      "enabled": true,
+      "detect_zero_width": true,
+      "detect_bidi_override": true,
+      "detect_tag_chars": true,
+      "detect_homoglyphs": true,
+      "allow_rtl_languages": true,
+      "allow_emoji": true
+    }
+  },
+  "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
+  "secret_redaction": {
+    "enabled": true,
+    "action": "warn",
+    "preserve_format": true,
+    "log_redactions": true,
+    "additional_patterns": []
+  },
+  "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Strict profile: all PII types including email.",
+  "scan_pii": {
+    "enabled": true,
+    "pii_types": [
+      "ssn",
+      "credit_card",
+      "phone",
+      "us_passport",
+      "iban",
+      "intl_phone",
+      "email"
+    ],
+    "action": "block",
+    "ignore_files": [],
+    "ignore_tools": [],
+    "allowlist_patterns": []
+  },
+  "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
+  "ssrf_protection": {
+    "enabled": true,
+    "action": "block",
+    "additional_blocked_ips": [],
+    "additional_blocked_domains": [],
+    "allow_localhost": false,
+    "allowed_domains": [],
+    "_comment_path_based_rules": "Path-based filtering for granular access control (NEW in v1.6.0) - Allow/block specific URL paths on domains",
+    "path_based_rules": []
+  },
+  "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",
+  "config_file_scanning": {
+    "enabled": true,
+    "action": "block",
+    "additional_files": [],
+    "ignore_files": [],
+    "additional_patterns": []
+  },
+  "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",
+  "permissions": {
+    "enabled": true,
+    "auto_directory_rules": {
+      "enabled": false,
+      "allow_symlinks": true
+    },
+    "rules": [
+      {
+        "_comment": "Skills - Blocked by default. Add allow rules via Console.",
+        "matcher": "Skill",
+        "mode": "deny",
+        "patterns": [
+          "*"
+        ]
+      },
+      {
+        "_comment": "MCP Servers - Blocked by default. Add allow rules via Console.",
+        "matcher": "mcp__*",
+        "mode": "deny",
+        "patterns": [
+          "*"
+        ]
+      }
+    ]
+  },
+  "_comment_permissions_directories": "OPTIONAL/ADVANCED: Auto-discover tool permissions from directories/GitHub repos. Scans for permission files and merges discovered rules into permissions.rules. Most users should use remote_configs instead.",
+  "_permissions_directories_example": [
+    {
+      "_comment": "Example: scan local skills directory to auto-allow discovered skills",
+      "matcher": "Skill",
+      "mode": "allow",
+      "url": "~/.claude/skills"
+    },
+    {
+      "_comment": "Example: scan GitHub repository for skills",
+      "matcher": "Skill",
+      "mode": "allow",
+      "url": "https://github.com/your-org/skills/tree/main/skills",
+      "token_env": "GITHUB_TOKEN"
+    }
+  ],
+  "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). Last-match-wins evaluation order. See ai-guardian-example.json for examples.",
+  "directory_rules": {
+    "action": "block",
+    "rules": []
+  },
+  "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
+  "remote_configs": {
+    "urls": []
+  },
+  "_comment_console": "Console settings (editor theme preference)",
+  "console": {
+    "editor_theme": "monokai"
+  },
+  "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
+  "transcript_scanning": {
+    "enabled": true
+  },
+  "_comment_annotations": "Inline annotation suppression for secrets and PII (NEW in v1.8.0, Issue #481). Hardcoded: ai-guardian:allow (inline), ai-guardian:begin-allow/end-allow (block). Configurable aliases: inline_allow (secrets+PII), inline_allow_secrets (secrets only). Prompt injection, jailbreak, config exfil always scanned. Set enabled to false for strict compliance environments.",
+  "annotations": {
+    "enabled": false,
+    "inline_allow": [],
+    "inline_allow_secrets": [
+      "gitleaks:allow"
+    ],
+    "block_begin": [],
+    "block_end": []
+  },
+  "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
+  "violation_logging": {
+    "enabled": true,
+    "max_entries": 10000,
+    "retention_days": 90,
+    "log_types": [
+      "tool_permission",
+      "directory_blocking",
+      "secret_detected",
+      "secret_redaction",
+      "prompt_injection",
+      "jailbreak_detected",
+      "ssrf_blocked",
+      "config_file_exfil",
+      "pii_detected",
+      "secret_in_transcript",
+      "pii_in_transcript",
+      "prompt_injection_in_transcript",
+      "annotation_suppressed"
+    ]
+  },
+  "_comment_daemon": "Background daemon for faster hook processing. Modes: 'auto' (default, daemon with fallback), 'local' (per-process, CI/CD), 'daemon' (require daemon, for testing). Override with AI_GUARDIAN_DAEMON_MODE env var.",
+  "daemon": {
+    "mode": "auto",
+    "idle_timeout_minutes": 30,
+    "client_timeout_seconds": 2.0,
+    "tray": {
+      "enabled": true
+    }
+  },
+  "_comment_on_scan_error": "Global behavior when a scanner encounters an error. Strict profile: fail-closed (block on error).",
+  "on_scan_error": "block"
+}

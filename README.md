@@ -63,9 +63,11 @@ ai-guardian provides protection **immediately** with zero configuration:
 Config file: `~/.config/ai-guardian/ai-guardian.json` (or `$XDG_CONFIG_HOME/ai-guardian/`)
 
 ```bash
-ai-guardian setup --create-config              # Secure defaults (Skills/MCP blocked)
-ai-guardian setup --create-config --permissive  # Permissive (all tools allowed)
-ai-guardian setup --create-config --dry-run     # Preview without creating
+ai-guardian setup --create-config                          # Secure defaults (Skills/MCP blocked)
+ai-guardian setup --create-config --permissive              # Permissive (all tools allowed)
+ai-guardian setup --create-config --profile @minimal        # Personal projects, low friction
+ai-guardian setup --create-config --profile @strict         # Enterprise SOC2/compliance
+ai-guardian setup --list-profiles                           # List available profiles
 ```
 
 - **Example config**: [ai-guardian-example.json](ai-guardian-example.json)

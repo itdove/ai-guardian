@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Security profile templates** (Issue #466)
+  - Built-in profiles: `@minimal` (personal, low friction), `@standard` (team, moderate), `@strict` (enterprise SOC2/compliance)
+  - CLI: `ai-guardian setup --create-config --profile @strict`
+  - Custom profiles: save with `--save-profile my-team`, stored in `~/.config/ai-guardian/profiles/`
+  - List all profiles: `ai-guardian setup --list-profiles`
+  - File path profiles: `--profile /path/to/profile.json`
+  - `@standard` matches existing `--create-config` output (backward compatible)
+  - `@strict`: fail-closed (`on_scan_error: block`), high sensitivity, audit logging, annotations disabled
+  - `@minimal`: warn-only actions, low sensitivity, permissions disabled, reduced PII types
+
 - **Inline and block annotation suppression** (Issue #481)
   - `ai-guardian:allow` on a line suppresses secrets and PII for that line
   - `ai-guardian:begin-allow` / `ai-guardian:end-allow` suppresses a block of lines

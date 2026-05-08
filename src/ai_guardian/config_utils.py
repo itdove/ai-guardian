@@ -101,6 +101,18 @@ def get_cache_dir() -> Path:
     return Path("~/.cache/ai-guardian").expanduser()
 
 
+def get_profiles_dir() -> Path:
+    """
+    Get custom profiles directory.
+
+    Returns the profiles subdirectory inside the config directory.
+
+    Returns:
+        Path: Profiles directory path (e.g., ~/.config/ai-guardian/profiles/)
+    """
+    return get_config_dir() / "profiles"
+
+
 def migrate_state_files() -> None:
     """
     Migrate state files from old config dir to new state dir.

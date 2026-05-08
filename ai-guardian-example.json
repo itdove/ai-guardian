@@ -19,6 +19,12 @@
   "_comment16": "====================================================================",
   "_comment17": "⚠️ LIMITATION: '!' shell commands in Claude Code bypass ALL ai-guardian hooks.",
   "_comment18": "  See 'transcript_scanning' section below for after-the-fact detection.",
+  "_comment19": "",
+  "_comment20": "💡 TIP: Use security profiles for quick setup:",
+  "_comment21": "  ai-guardian setup --create-config --profile @minimal   (personal, low friction)",
+  "_comment22": "  ai-guardian setup --create-config --profile @standard  (team, moderate security)",
+  "_comment23": "  ai-guardian setup --create-config --profile @strict    (enterprise SOC2/compliance)",
+  "_comment24": "  ai-guardian setup --list-profiles                      (list all profiles)",
 
   "permissions": {
     "_comment": "Tool permission enforcement - WHERE THE RULES LIVE",
