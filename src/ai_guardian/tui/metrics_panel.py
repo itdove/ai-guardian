@@ -61,16 +61,33 @@ class MetricsContent(Container):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._since_days = 30
+        self._retention_days = self._get_retention_days()
+        self._since_days = min(30, self._retention_days)
+
+    @staticmethod
+    def _get_retention_days() -> int:
+        try:
+            from ai_guardian.violation_logger import ViolationLogger
+            vl = ViolationLogger()
+            return vl.config.get("retention_days", 30)
+        except Exception:
+            return 30
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Violation Metrics[/bold]", id="metrics-header")
+        yield Static(
+            f"[bold]Violation Metrics[/bold]  "
+            f"[dim](log retains {self._retention_days} days)[/dim]",
+            id="metrics-header",
+        )
 
         with VerticalScroll():
             with Horizontal(id="metrics-range-buttons"):
                 yield Button("7 days", id="metrics-7d", variant="default")
-                yield Button("30 days", id="metrics-30d", variant="primary")
-                yield Button("90 days", id="metrics-90d", variant="default")
+                yield Button("30 days", id="metrics-30d",
+                             variant="primary" if self._retention_days >= 30 else "default",
+                             disabled=self._retention_days < 30)
+                yield Button(f"All ({self._retention_days}d)", id="metrics-all",
+                             variant="default")
                 yield Button("Refresh", id="metrics-refresh", variant="success")
 
             with Container(classes="section"):
@@ -113,16 +130,22 @@ class MetricsContent(Container):
             self._since_days = 7
         elif btn_id == "metrics-30d":
             self._since_days = 30
-        elif btn_id == "metrics-90d":
-            self._since_days = 90
+        elif btn_id == "metrics-all":
+            self._since_days = self._retention_days
         elif btn_id == "metrics-refresh":
             pass
         else:
             return
 
-        for bid in ("metrics-7d", "metrics-30d", "metrics-90d"):
+        btn_for_days = {
+            "metrics-7d": 7,
+            "metrics-30d": 30,
+            "metrics-all": self._retention_days,
+        }
+        for bid, days in btn_for_days.items():
             btn = self.query_one(f"#{bid}", Button)
-            btn.variant = "primary" if bid == f"metrics-{self._since_days}d" else "default"
+            if not btn.disabled:
+                btn.variant = "primary" if days == self._since_days else "default"
 
         self._load_metrics()
 
@@ -149,6 +172,7 @@ class MetricsContent(Container):
 
         # Summary
         summary = (
+            f"[dim]Showing last {self._since_days} days[/dim]\n\n"
             f"Total violations:  [bold]{report.total_violations:,}[/bold]\n"
             f"Resolved:          {report.resolved_count:,}\n"
             f"Unresolved:        {report.unresolved_count:,}\n"

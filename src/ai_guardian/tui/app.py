@@ -530,7 +530,9 @@ HELP_DOCS = {
         "  [bold]Top Tools[/bold] — Tools with the most violations\n"
         "  [bold]Daily Trend[/bold] — Violations per day bar chart\n\n"
         "[bold]Time range:[/bold]\n"
-        "  Use the 7d / 30d / 90d buttons to change the window"
+        "  Use the 7d / 30d / All buttons to change the window.\n"
+        "  The log retains entries based on the configured\n"
+        "  retention_days (default: 30 days)"
     ),
     "panel-logs": (
         "[bold]Runtime Logs[/bold]\n\n"
