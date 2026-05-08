@@ -4389,6 +4389,21 @@ def main():
             dest="json_output",
             help="Output only raw JSON config (use with --create-config)"
         )
+        setup_parser.add_argument(
+            "--profile",
+            metavar="PROFILE",
+            help="Security profile to apply: @minimal, @standard, @strict, custom name, or file path (use with --create-config)"
+        )
+        setup_parser.add_argument(
+            "--save-profile",
+            metavar="NAME",
+            help="Save current config as a named custom profile"
+        )
+        setup_parser.add_argument(
+            "--list-profiles",
+            action="store_true",
+            help="List available security profiles (built-in and custom)"
+        )
 
         # Violations subcommand
         violations_parser = subparsers.add_parser(
@@ -4784,7 +4799,10 @@ def main():
                 auto_install_hooks=args.auto_install_hooks,
                 uninstall_hooks=args.uninstall_hooks,
                 install_scanner=args.install_scanner,
-                json_output=args.json_output
+                json_output=args.json_output,
+                profile=args.profile,
+                save_profile=args.save_profile,
+                list_profiles=args.list_profiles,
             )
             return 0 if success else 1
 

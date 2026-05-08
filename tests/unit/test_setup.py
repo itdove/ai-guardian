@@ -1212,3 +1212,127 @@ class TestCreateDefaultConfig:
 
             assert success is True
             config = json.loads(message)
+
+
+class TestCreateConfigWithProfile:
+    """Test create_default_config() with profile parameter."""
+
+    def test_create_config_with_profile_minimal(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@minimal")
+            assert success is True
+            assert "profile" in message.lower()
+
+            config_file = tmp_path / 'ai-guardian.json'
+            with open(config_file) as f:
+                config = json.load(f)
+            assert config['permissions']['enabled'] is False
+            assert config['prompt_injection']['sensitivity'] == 'low'
+
+    def test_create_config_with_profile_standard(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@standard")
+            assert success is True
+
+            config_file = tmp_path / 'ai-guardian.json'
+            with open(config_file) as f:
+                config = json.load(f)
+            assert config['permissions']['enabled'] is True
+            assert config['prompt_injection']['sensitivity'] == 'medium'
+
+    def test_create_config_with_profile_strict(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@strict")
+            assert success is True
+
+            config_file = tmp_path / 'ai-guardian.json'
+            with open(config_file) as f:
+                config = json.load(f)
+            assert config['on_scan_error'] == 'block'
+            assert config['prompt_injection']['sensitivity'] == 'high'
+            assert config['annotations']['enabled'] is False
+
+    def test_create_config_profile_not_found(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@nonexistent")
+            assert success is False
+            assert "Unknown built-in profile" in message
+
+    def test_create_config_profile_dry_run(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@strict", dry_run=True)
+            assert success is True
+            assert "[DRY RUN]" in message
+            assert not (tmp_path / 'ai-guardian.json').exists()
+
+    def test_create_config_profile_json_output(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@minimal", json_output=True)
+            assert success is True
+            config = json.loads(message)
+            assert config['permissions']['enabled'] is False
+
+    def test_profile_does_not_break_permissive(self, tmp_path):
+        from ai_guardian.setup import create_default_config
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=True)
+            assert success is True
+            config_file = tmp_path / 'ai-guardian.json'
+            with open(config_file) as f:
+                config = json.load(f)
+            assert config['permissions']['enabled'] is False
+
+
+class TestSetupHooksProfiles:
+    """Test setup_hooks() with profile-related parameters."""
+
+    def test_list_profiles(self, capsys):
+        from ai_guardian.setup import setup_hooks
+
+        success = setup_hooks(list_profiles=True)
+        assert success is True
+        captured = capsys.readouterr()
+        assert "@minimal" in captured.out
+        assert "@standard" in captured.out
+        assert "@strict" in captured.out
+
+    def test_save_profile(self, tmp_path):
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / "auto_config" / "ai-guardian.json"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(json.dumps({"test": True}))
+
+        success = setup_hooks(save_profile="my-team")
+        assert success is True
+
+        profiles_dir = tmp_path / "auto_config" / "profiles"
+        saved = json.loads((profiles_dir / "my-team.json").read_text())
+        assert saved["test"] is True
+
+    def test_save_profile_no_config(self, tmp_path, capsys):
+        from ai_guardian.setup import setup_hooks
+
+        success = setup_hooks(save_profile="my-team")
+        assert success is False
+
+    def test_profile_without_create_config(self, capsys):
+        from ai_guardian.setup import setup_hooks
+
+        success = setup_hooks(profile="@strict")
+        assert success is False
+        captured = capsys.readouterr()
+        assert "--profile requires --create-config" in captured.err

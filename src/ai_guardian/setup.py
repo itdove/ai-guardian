@@ -734,7 +734,8 @@ class IDESetup:
 def create_default_config(
     permissive: bool = False,
     dry_run: bool = False,
-    json_output: bool = False
+    json_output: bool = False,
+    profile: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Create default ai-guardian.json config file.
@@ -743,6 +744,7 @@ def create_default_config(
         permissive: If True, use permissive config (permissions disabled)
         dry_run: If True, show what would be created without writing
         json_output: If True, output only the raw JSON config
+        profile: Optional security profile name to apply
 
     Returns:
         tuple: (success: bool, message: str)
@@ -752,7 +754,16 @@ def create_default_config(
         config_path = config_dir / "ai-guardian.json"
 
         # Generate config based on mode
-        config = _get_default_config_template(permissive)
+        if profile:
+            from ai_guardian.profile_manager import load_profile, ProfileNotFoundError
+            try:
+                config = load_profile(profile)
+            except ProfileNotFoundError as e:
+                return False, str(e)
+            except json.JSONDecodeError as e:
+                return False, f"Invalid JSON in profile: {e}"
+        else:
+            config = _get_default_config_template(permissive)
 
         if json_output:
             return True, json.dumps(config, indent=2)
@@ -774,19 +785,30 @@ def create_default_config(
             json.dump(config, f, indent=2)
             f.write('\n')
 
-        message = f"✓ Created default config: {config_path}\n"
-        message += f"\n  Security settings:\n"
-        message += f"  • Secret scanning: Enabled (LeakTK patterns)\n"
-        message += f"  • Prompt injection: Enabled (medium sensitivity)\n"
-        message += f"  • SSRF protection: Enabled (blocks private IPs, metadata endpoints)\n"
-
-        if permissive:
-            message += f"  • Permissions: Disabled (all tools allowed)\n"
+        if profile:
+            message = f"✓ Created config from profile '{profile}': {config_path}\n"
+            pi_sensitivity = config.get("prompt_injection", {}).get("sensitivity", "medium")
+            on_error = config.get("on_scan_error", "allow")
+            perms = config.get("permissions", {}).get("enabled", True)
+            message += f"\n  Security settings:\n"
+            message += f"  • Prompt injection sensitivity: {pi_sensitivity}\n"
+            message += f"  • On scan error: {on_error}\n"
+            message += f"  • Permissions: {'Enabled' if perms else 'Disabled'}\n"
         else:
-            message += f"  • Permissions: Enabled (Skills/MCP blocked by default)\n"
-            message += f"\n  Next steps:\n"
-            message += f"  1. Run 'ai-guardian console' to configure allowed skills\n"
-            message += f"  2. Or edit {config_path} manually\n"
+            message = f"✓ Created default config: {config_path}\n"
+            message += f"\n  Security settings:\n"
+            message += f"  • Secret scanning: Enabled (LeakTK patterns)\n"
+            message += f"  • Prompt injection: Enabled (medium sensitivity)\n"
+            message += f"  • SSRF protection: Enabled (blocks private IPs, metadata endpoints)\n"
+
+            if permissive:
+                message += f"  • Permissions: Disabled (all tools allowed)\n"
+            else:
+                message += f"  • Permissions: Enabled (Skills/MCP blocked by default)\n"
+
+        message += f"\n  Next steps:\n"
+        message += f"  1. Run 'ai-guardian console' to configure allowed skills\n"
+        message += f"  2. Or edit {config_path} manually\n"
 
         return True, message
 
@@ -1368,7 +1390,10 @@ def setup_hooks(
     auto_install_hooks: bool = False,
     uninstall_hooks: bool = False,
     install_scanner: Optional[str] = None,
-    json_output: bool = False
+    json_output: bool = False,
+    profile: Optional[str] = None,
+    save_profile: Optional[str] = None,
+    list_profiles: bool = False,
 ) -> bool:
     """
     Setup IDE hooks with optional remote config and default config creation.
@@ -1387,11 +1412,47 @@ def setup_hooks(
         uninstall_hooks: If True, remove AI Guardian pre-commit hooks
         install_scanner: Optional scanner name to install (gitleaks, betterleaks, or leaktk)
         json_output: If True, output only raw JSON (for --create-config)
+        profile: Optional security profile to apply (use with create_config)
+        save_profile: Optional name to save current config as a custom profile
+        list_profiles: If True, list available security profiles
 
     Returns:
         bool: True if successful, False otherwise
     """
     setup = IDESetup()
+
+    # Handle profile listing if requested
+    if list_profiles:
+        from ai_guardian.profile_manager import format_profile_list
+        print(format_profile_list())
+        return True
+
+    # Handle saving current config as a profile
+    if save_profile:
+        from ai_guardian.profile_manager import save_profile as _save_profile
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+        if not config_path.exists():
+            print("Error: No config file found. Create one first with --create-config", file=sys.stderr)
+            return False
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in {config_path}: {e}", file=sys.stderr)
+            return False
+        success, message = _save_profile(save_profile, config)
+        print(message)
+        return success
+
+    # Validate --profile usage
+    if profile and not create_config:
+        print("Error: --profile requires --create-config", file=sys.stderr)
+        print("Usage: ai-guardian setup --create-config --profile @strict", file=sys.stderr)
+        return False
+
+    if profile and permissive:
+        print("Warning: --profile overrides --permissive, ignoring --permissive", file=sys.stderr)
 
     # Handle scanner installation if requested (NEW in v1.6.0)
     if install_scanner:
@@ -1457,7 +1518,8 @@ def setup_hooks(
     # Handle default config creation if requested
     if create_config:
         success, message = create_default_config(
-            permissive=permissive, dry_run=dry_run, json_output=json_output
+            permissive=permissive, dry_run=dry_run, json_output=json_output,
+            profile=profile,
         )
         print(message)
         if not success:
