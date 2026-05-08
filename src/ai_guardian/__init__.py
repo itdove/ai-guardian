@@ -1840,10 +1840,11 @@ def _scan_for_pii(text, pii_config):
             return True, result['redacted_text'], redactions, warning
         return False, text, [], None
     except Exception as e:
-        logging.error(f"PII scan error: {e}")
-        if pii_config.get('action') == 'block':
-            logging.error(f"PII scan exception detail: {e}")
-            return True, text, [], "PII scan failed. Blocking for safety."
+        logging.warning(f"PII scan error: {e}")
+        on_error = _get_on_scan_error_action()
+        if on_error == "block":
+            logging.error(f"PII scan failed (fail-closed, on_scan_error=block): {e}")
+            return True, text, [], f"PII scan failed (blocked by on_scan_error=block): {e}"
         return False, text, [], None
 
 
@@ -3479,7 +3480,14 @@ def process_hook_data(hook_data, daemon_state=None):
                 if not pii_skip_scan:
                     logging.info("Scanning tool output for PII...")
                     has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
-                    if has_pii:
+
+                    # Scan error with on_scan_error=block: block without logging a false violation (#507)
+                    if has_pii and not pii_redactions:
+                        result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                             error_message=pii_warning)
+                        return result
+
+                    if has_pii and pii_redactions:
                         pii_action = pii_config.get('action', 'block')
                         pii_types = list(set(r['type'] for r in pii_redactions))
                         logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
@@ -4026,7 +4034,15 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
                     pii_scan_content = pii_content_to_scan if pii_content_to_scan is not None else content_to_scan
                     has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config)
-                    if has_pii:
+
+                    # Scan error with on_scan_error=block: block without logging a false violation (#507)
+                    if has_pii and not pii_redactions:
+                        final_error = _annotation_hint(pii_warning, file_path, annotations_config)
+                        result = format_response(ide_type, has_secrets=True,
+                                             error_message=final_error, hook_event=hook_event)
+                        return result
+
+                    if has_pii and pii_redactions:
                         pii_action = pii_config.get('action', 'block')
                         pii_types = list(set(r['type'] for r in pii_redactions))
                         logging.warning(f"PII detected: {pii_types}")

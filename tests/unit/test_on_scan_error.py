@@ -331,6 +331,148 @@ class TestOnScanErrorTranscriptScanning(TestCase):
             self.assertTrue(_is_blocked(result), "Should fail-closed when on_scan_error=block")
 
 
+class TestOnScanErrorPiiScanning(TestCase):
+    """Tests for on_scan_error behavior in PII scanning (Issue #507)."""
+
+    def test_scan_for_pii_error_allow(self):
+        """PII scan exception with on_scan_error=allow should fail-open."""
+        pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'block'}
+
+        with patch('ai_guardian._get_on_scan_error_action', return_value='allow'), \
+             patch('ai_guardian.secret_redactor.SecretRedactor', side_effect=Exception("PII scan crashed")):
+            has_pii, text, redactions, warning = ai_guardian._scan_for_pii("test text", pii_config)
+            self.assertFalse(has_pii, "Should fail-open when on_scan_error=allow")
+            self.assertEqual(redactions, [])
+            self.assertIsNone(warning)
+
+    def test_scan_for_pii_error_block(self):
+        """PII scan exception with on_scan_error=block should fail-closed."""
+        pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'block'}
+
+        with patch('ai_guardian._get_on_scan_error_action', return_value='block'), \
+             patch('ai_guardian.secret_redactor.SecretRedactor', side_effect=Exception("PII scan crashed")):
+            has_pii, text, redactions, warning = ai_guardian._scan_for_pii("test text", pii_config)
+            self.assertTrue(has_pii, "Should fail-closed when on_scan_error=block")
+            self.assertEqual(redactions, [], "Redactions should be empty on scan error")
+            self.assertIn("on_scan_error=block", warning)
+
+    @patch('ai_guardian._scan_for_pii')
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_pii_scan_error_no_violation_logged(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
+        """PII scan error should not log a pii_detected violation (Issue #507)."""
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'block',
+            'ignore_files': []
+        }, None)
+        # Simulate scan error: has_pii=True but empty redactions
+        mock_scan.return_value = (True, "test text", [], "PII scan failed (blocked by on_scan_error=block)")
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_use": {
+                "name": "Agent",
+                "input": {},
+            },
+            "tool_response": {
+                "output": "Some agent output with no PII"
+            }
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch('ai_guardian.violation_logger.ViolationLogger.log_violation') as mock_log:
+                result = ai_guardian.process_hook_input()
+                # Should block (scan error with on_scan_error=block)
+                self.assertTrue(_is_blocked(result), "Should block on scan error with on_scan_error=block")
+                # Should NOT log a pii_detected violation
+                for call in mock_log.call_args_list:
+                    self.assertNotEqual(
+                        call.kwargs.get('violation_type', call.args[0] if call.args else None),
+                        'pii_detected',
+                        "Should not log pii_detected violation when pii_count=0"
+                    )
+
+    @patch('ai_guardian._scan_for_pii')
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian.check_secrets_with_gitleaks')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_pii_scan_no_pii_no_violation(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
+        """Clean PII scan with no findings should not block or log violations."""
+        mock_ss.return_value = (None, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'block',
+            'ignore_files': []
+        }, None)
+        # No PII found
+        mock_scan.return_value = (False, "Safe agent output", [], None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_use": {
+                "name": "Agent",
+                "input": {},
+            },
+            "tool_response": {
+                "output": "Safe agent output"
+            }
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch('ai_guardian.violation_logger.ViolationLogger.log_violation') as mock_log:
+                result = ai_guardian.process_hook_input()
+                self.assertFalse(_is_blocked(result), "Should not block when no PII found")
+                for call in mock_log.call_args_list:
+                    self.assertNotEqual(
+                        call.kwargs.get('violation_type', call.args[0] if call.args else None),
+                        'pii_detected',
+                        "Should not log pii_detected when no PII found"
+                    )
+
+    @patch('ai_guardian._scan_for_pii')
+    @patch('ai_guardian._load_pii_config')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.extract_file_content_from_tool')
+    def test_pretooluse_pii_scan_error_no_violation(self, mock_extract, mock_pattern, mock_ss, mock_pii, mock_scan):
+        """PreToolUse PII scan error should not log a false violation (Issue #507)."""
+        mock_pattern.return_value = None
+        mock_ss.return_value = ({"enabled": False}, None)
+        mock_pii.return_value = ({
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'block',
+            'ignore_files': []
+        }, None)
+        mock_extract.return_value = ("file content", "test.txt", "/tmp/test.txt", False, None, None)
+        # Simulate scan error: has_pii=True but empty redactions
+        mock_scan.return_value = (True, "file content", [], "PII scan failed (blocked by on_scan_error=block)")
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_use": {"name": "Read", "parameters": {"file_path": "/tmp/test.txt"}},
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch('ai_guardian.violation_logger.ViolationLogger.log_violation') as mock_log:
+                result = ai_guardian.process_hook_input()
+                self.assertTrue(_is_blocked(result), "Should block on scan error with on_scan_error=block")
+                for call in mock_log.call_args_list:
+                    self.assertNotEqual(
+                        call.kwargs.get('violation_type', call.args[0] if call.args else None),
+                        'pii_detected',
+                        "Should not log pii_detected violation on scan error"
+                    )
+
+
 class TestOnScanErrorBackwardCompatibility(TestCase):
     """Test backward compatibility - default behavior unchanged."""
 
