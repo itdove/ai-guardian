@@ -461,6 +461,90 @@ def test_permissions_directories_structure(schema):
 
 
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
+@pytest.mark.parametrize("section", [
+    "permissions",
+    "secret_scanning",
+    "prompt_injection",
+    "ssrf_protection",
+    "config_file_scanning",
+    "scan_pii",
+    "secret_redaction",
+    "violation_logging",
+    "transcript_scanning",
+])
+def test_time_based_enabled_all_sections_boolean(schema, section):
+    """Test that all sections with enabled field accept boolean format."""
+    config = {section: {"enabled": True}}
+    try:
+        validate(instance=config, schema=schema)
+    except ValidationError as e:
+        pytest.fail(f"{section}.enabled rejected boolean True: {e.message}")
+
+    config = {section: {"enabled": False}}
+    try:
+        validate(instance=config, schema=schema)
+    except ValidationError as e:
+        pytest.fail(f"{section}.enabled rejected boolean False: {e.message}")
+
+
+@pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
+@pytest.mark.parametrize("section", [
+    "permissions",
+    "secret_scanning",
+    "prompt_injection",
+    "ssrf_protection",
+    "config_file_scanning",
+    "scan_pii",
+    "secret_redaction",
+    "violation_logging",
+    "transcript_scanning",
+])
+def test_time_based_enabled_all_sections_object(schema, section):
+    """Test that all sections with enabled field accept time-based object format."""
+    config = {
+        section: {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2026-05-07T21:39:30Z"
+            }
+        }
+    }
+    try:
+        validate(instance=config, schema=schema)
+    except ValidationError as e:
+        pytest.fail(f"{section}.enabled rejected time-based object: {e.message}")
+
+
+@pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
+@pytest.mark.parametrize("section", [
+    "permissions",
+    "secret_scanning",
+    "prompt_injection",
+    "ssrf_protection",
+    "config_file_scanning",
+    "scan_pii",
+    "secret_redaction",
+    "violation_logging",
+    "transcript_scanning",
+])
+def test_time_based_enabled_all_sections_object_with_reason(schema, section):
+    """Test that all sections accept time-based object with optional reason."""
+    config = {
+        section: {
+            "enabled": {
+                "value": False,
+                "disabled_until": "2026-05-07T21:39:30Z",
+                "reason": "Temporary debugging"
+            }
+        }
+    }
+    try:
+        validate(instance=config, schema=schema)
+    except ValidationError as e:
+        pytest.fail(f"{section}.enabled rejected time-based with reason: {e.message}")
+
+
+@pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
 def test_invalid_timestamp_format(schema):
     """Test that invalid timestamp format is rejected."""
     config = {
