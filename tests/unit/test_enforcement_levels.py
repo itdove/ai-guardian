@@ -61,7 +61,7 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["approved-skill"],
-                    "enforcement": "block"
+                    "action": "block"
                 }
             ]
         }
@@ -324,6 +324,125 @@ class ActionDefaultsTest(unittest.TestCase):
             # Should be blocked (default)
             self.assertTrue(is_denied)
             self.assertIsNotNone(denied_dir)
+
+
+class MCPAllowRuleActionTest(unittest.TestCase):
+    """Regression tests for MCP allow rules with all action modes (Issue #495).
+
+    Verifies that MCP tools matched by an allow rule are permitted regardless
+    of the action field value.  The action field controls what happens when a
+    tool is NOT in the allow list — it must never interfere with matching.
+    """
+
+    MCP_TOOL = "mcp__mcp-atlassian__jira_update_issue"
+    MCP_MATCHER = "mcp__mcp-atlassian__*"
+
+    def _make_config(self, action=None, patterns=None):
+        rule = {
+            "matcher": self.MCP_MATCHER,
+            "mode": "allow",
+            "patterns": patterns or ["*"],
+        }
+        if action is not None:
+            rule["action"] = action
+        return {
+            "permissions": {
+                "enabled": True,
+                "rules": [rule],
+            }
+        }
+
+    def _make_hook(self, tool_name=None):
+        return {
+            "tool_use": {
+                "name": tool_name or self.MCP_TOOL,
+                "input": {"issue_key": "TEST-123", "fields": "{}"},
+            }
+        }
+
+    def test_mcp_allow_with_action_block(self):
+        """Allow rule with action=block should allow matched MCP tools."""
+        checker = ToolPolicyChecker(self._make_config(action="block"))
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Matched MCP tool must be allowed even with action=block")
+        self.assertIsNone(msg)
+
+    def test_mcp_allow_with_action_warn(self):
+        """Allow rule with action=warn should allow matched MCP tools."""
+        checker = ToolPolicyChecker(self._make_config(action="warn"))
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Matched MCP tool must be allowed with action=warn")
+        self.assertIsNone(msg)
+
+    def test_mcp_allow_with_action_log_only(self):
+        """Allow rule with action=log-only should allow matched MCP tools."""
+        checker = ToolPolicyChecker(self._make_config(action="log-only"))
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Matched MCP tool must be allowed with action=log-only")
+        self.assertIsNone(msg)
+
+    def test_mcp_allow_with_no_action(self):
+        """Allow rule with no action field should allow matched MCP tools (default)."""
+        checker = ToolPolicyChecker(self._make_config(action=None))
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Matched MCP tool must be allowed with default action")
+        self.assertIsNone(msg)
+
+    def test_mcp_not_in_list_action_block(self):
+        """Tool NOT in allow list with action=block should be blocked."""
+        config = self._make_config(action="block", patterns=["mcp__other__*"])
+        checker = ToolPolicyChecker(config)
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertFalse(is_allowed, "Non-matching MCP tool should be blocked with action=block")
+        self.assertIn("not in allow list", msg)
+
+    def test_mcp_not_in_list_action_warn(self):
+        """Tool NOT in allow list with action=warn should warn but allow."""
+        config = self._make_config(action="warn", patterns=["mcp__other__*"])
+        checker = ToolPolicyChecker(config)
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Non-matching MCP tool should be allowed with action=warn")
+        self.assertIn("Policy violation (warn mode)", msg)
+
+    def test_mcp_not_in_list_action_log_only(self):
+        """Tool NOT in allow list with action=log-only should allow silently."""
+        config = self._make_config(action="log-only", patterns=["mcp__other__*"])
+        checker = ToolPolicyChecker(config)
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Non-matching MCP tool should be allowed with action=log-only")
+        self.assertIsNone(msg)
+
+    def test_mcp_wildcard_allow_all_tools(self):
+        """Wildcard pattern '*' should match any MCP tool from the server."""
+        checker = ToolPolicyChecker(self._make_config(action="block"))
+        tools = [
+            "mcp__mcp-atlassian__jira_get_issue",
+            "mcp__mcp-atlassian__jira_search",
+            "mcp__mcp-atlassian__jira_add_comment",
+            "mcp__mcp-atlassian__jira_create_issue",
+        ]
+        for tool in tools:
+            is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook(tool))
+            self.assertTrue(is_allowed, f"{tool} should be allowed by wildcard pattern")
+
+    def test_mcp_unified_config_format(self):
+        """MCP rules in unified config format (permissions.rules) should work."""
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {
+                        "matcher": "mcp__mcp-atlassian__*",
+                        "mode": "allow",
+                        "action": "block",
+                        "patterns": ["*"],
+                    }
+                ],
+            }
+        }
+        checker = ToolPolicyChecker(config)
+        is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
+        self.assertTrue(is_allowed, "Unified config format must work for MCP allow rules")
 
 
 if __name__ == "__main__":

@@ -539,3 +539,106 @@ class MCPManualVerificationGuide(TestCase):
         """
         # This test always passes - it's a manual testing guide
         assert True, "See docstring for manual MCP verification steps"
+
+
+class MCPAllowRuleActionModesUXTest(TestCase):
+    """
+    UX contract tests for MCP allow rules with action modes (Issue #495).
+
+    Verifies that MCP tools matched by an allow rule are permitted regardless
+    of the action field value (block, warn, log-only, or absent).
+    The action field controls behavior for tools NOT in the allow list,
+    not for tools that match.
+    """
+
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_user_experience_mcp_allow_action_block(self, mock_pattern_config, mock_scan_config):
+        """
+        USER EXPERIENCE: MCP allow rule with action=block → matched tools ALLOWED
+
+        Scenario:
+        1. Config has: matcher=mcp__mcp-atlassian__*, mode=allow, action=block, patterns=["*"]
+        2. User asks Claude to update a JIRA issue
+        3. Claude calls mcp__mcp-atlassian__jira_update_issue
+        4. ai-guardian PreToolUse hook runs
+        5. Tool matches allow pattern "*"
+
+        Expected User Experience:
+        ✅ Operation ALLOWED — tool matches the allow pattern
+        ✅ No warning shown — this is an explicitly allowed tool
+        ⚠️ action=block only applies when a tool is NOT in the allow list
+        """
+        mock_pattern_config.return_value = None
+        mock_scan_config.return_value = ({"enabled": True}, None)
+
+        from ai_guardian.tool_policy import ToolPolicyChecker
+
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [{
+                    "matcher": "mcp__mcp-atlassian__*",
+                    "mode": "allow",
+                    "action": "block",
+                    "patterns": ["*"],
+                }],
+            }
+        }
+
+        checker = ToolPolicyChecker(config)
+        hook_data = {
+            "tool_use": {
+                "name": "mcp__mcp-atlassian__jira_update_issue",
+                "input": {"issue_key": "TEST-123", "fields": "{}"},
+            }
+        }
+
+        is_allowed, msg, tool_name = checker.check_tool_allowed(hook_data)
+        self.assertTrue(is_allowed, "Matched MCP tool must be allowed even with action=block")
+        self.assertIsNone(msg, "No warning for explicitly allowed tools")
+
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_user_experience_mcp_allow_no_action_field(self, mock_pattern_config, mock_scan_config):
+        """
+        USER EXPERIENCE: MCP allow rule with no action field → matched tools ALLOWED
+
+        Scenario:
+        1. Config has: matcher=mcp__mcp-atlassian__*, mode=allow, patterns=["*"]
+           (no action field — defaults to "block")
+        2. User asks Claude to view a JIRA issue
+        3. Claude calls mcp__mcp-atlassian__jira_get_issue
+        4. ai-guardian PreToolUse hook runs
+
+        Expected User Experience:
+        ✅ Operation ALLOWED — tool matches the allow pattern
+        ✅ Default action=block does not interfere with allow matching
+        """
+        mock_pattern_config.return_value = None
+        mock_scan_config.return_value = ({"enabled": True}, None)
+
+        from ai_guardian.tool_policy import ToolPolicyChecker
+
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [{
+                    "matcher": "mcp__mcp-atlassian__*",
+                    "mode": "allow",
+                    "patterns": ["*"],
+                }],
+            }
+        }
+
+        checker = ToolPolicyChecker(config)
+        hook_data = {
+            "tool_use": {
+                "name": "mcp__mcp-atlassian__jira_get_issue",
+                "input": {"issue_key": "TEST-123"},
+            }
+        }
+
+        is_allowed, msg, tool_name = checker.check_tool_allowed(hook_data)
+        self.assertTrue(is_allowed, "Matched MCP tool must be allowed with default action")
+        self.assertIsNone(msg)

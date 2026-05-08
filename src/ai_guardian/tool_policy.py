@@ -1036,6 +1036,8 @@ class ToolPolicyChecker:
             logger.warning(f"Invalid permissions.rules format: {type(rules)}")
             return []
 
+        logger.debug(f"Searching {len(rules)} permission rule(s) for tool '{tool_name}'")
+
         matching_rules = []
         for rule in rules:
             if not isinstance(rule, dict):
@@ -1047,7 +1049,7 @@ class ToolPolicyChecker:
 
             # Check if tool_name matches the matcher pattern
             if fnmatch.fnmatch(tool_name, matcher):
-                logger.debug(f"Found matching rule: {matcher}")
+                logger.debug(f"Found matching rule: matcher={matcher}, mode={rule.get('mode')}, action={rule.get('action', 'block')}, patterns={len(rule.get('patterns', []))}")
 
                 # Filter expired patterns from the rule
                 filtered_rule = rule.copy()
@@ -1061,6 +1063,9 @@ class ToolPolicyChecker:
                     filtered_rule["deny"] = self._filter_valid_patterns(filtered_rule["deny"])
 
                 matching_rules.append(filtered_rule)
+
+        if not matching_rules and tool_name.startswith("mcp__"):
+            logger.warning(f"No permission rules found for MCP tool '{tool_name}' (checked {len(rules)} rules)")
 
         return matching_rules
 
@@ -1614,6 +1619,10 @@ class ToolPolicyChecker:
 
         # Auto-generate directory rules from skill permissions (if enabled)
         self._auto_generate_directory_rules(config)
+
+        permissions = config.get("permissions", {})
+        rule_count = len(permissions.get("rules", []) if isinstance(permissions, dict) else permissions if isinstance(permissions, list) else [])
+        logger.debug(f"Config loaded: {rule_count} permission rule(s)")
 
         return config
 
