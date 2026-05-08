@@ -23,7 +23,6 @@
       "patterns_endpoint": "/patterns/gitleaks/8.27.0",
       "warn_on_failure": true,
       "cache": {
-        "path": "__CACHE_DIR__/patterns.toml",
         "refresh_interval_hours": 12,
         "expire_after_hours": 168
       }

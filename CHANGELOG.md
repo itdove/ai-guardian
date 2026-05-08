@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Portable cache path in generated config** (Issue #492)
+  - `setup --create-config` no longer generates absolute paths for `cache.path`
+  - Cache path is resolved at runtime via `get_cache_dir()` (respects `AI_GUARDIAN_CACHE_DIR`, `XDG_CACHE_HOME`, or defaults to `~/.cache/ai-guardian`)
+  - Config is now portable across machines and containers
+  - Existing configs with absolute `cache.path` values continue to work (backward compatible)
+  - All built-in profiles (`@minimal`, `@standard`, `@strict`) updated
+
 ### Added
 
 - **Pattern server doctor checks** (Issue #493)
