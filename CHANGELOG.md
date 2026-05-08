@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Project .gitleaks.toml allowlist support** (Issue #488)
+  - ai-guardian reads `.gitleaks.toml` from the project root and applies its allowlist rules
+  - Works with all scanner engines (gitleaks, betterleaks, leaktk, etc.)
+  - Supports global allowlists: `paths`, `regexes`, `stopwords`
+  - Supports per-rule allowlists via `[[rules]]` sections
+  - Path-based early skip (before scanning) and finding-level post-scan filtering
+  - Cached with mtime-based invalidation for performance
+  - Does not conflict with ai-guardian's own `allowlist_patterns` config
+
 - **Security profile templates** (Issue #466)
   - Built-in profiles: `@minimal` (personal, low friction), `@standard` (team, moderate), `@strict` (enterprise SOC2/compliance)
   - CLI: `ai-guardian setup --create-config --profile @strict`

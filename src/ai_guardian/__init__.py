@@ -31,6 +31,12 @@ from typing import Dict, Optional
 from ai_guardian.config_utils import get_config_dir, is_feature_enabled
 from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
+try:
+    from ai_guardian import gitleaks_config as _gitleaks_cfg
+    HAS_GITLEAKS_CONFIG = True
+except ImportError:
+    HAS_GITLEAKS_CONFIG = False
+
 # Import tool policy checker for MCP/Skill permissions
 try:
     from ai_guardian.tool_policy import ToolPolicyChecker
@@ -2427,6 +2433,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             logging.debug(f"Skipping scan - file is a gitleaks config: {file_path}")
             return False, None
 
+        # Check project .gitleaks.toml path allowlist (Issue #488)
+        _gitleaks_allowlist = None
+        if HAS_GITLEAKS_CONFIG:
+            _gitleaks_allowlist = _gitleaks_cfg.load_gitleaks_allowlist()
+            if _gitleaks_allowlist and file_path:
+                if _gitleaks_cfg.should_skip_file(file_path, _gitleaks_allowlist):
+                    logging.info(f"Skipping secret scanning for .gitleaks.toml allowlisted path: {file_path}")
+                    return False, None
+
         # Use in-memory filesystem on Linux for better performance
         tmp_base_dir = "/dev/shm" if os.path.exists("/dev/shm") else None
 
@@ -2595,6 +2610,21 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 if all_allowlisted:
                                     logging.info("All strategy findings matched allowlist — skipping")
                                     return False, None
+
+                        # Apply .gitleaks.toml allowlist filtering (Issue #488)
+                        if _gitleaks_allowlist and strategy_result.secrets:
+                            content_str = content if isinstance(content, str) else str(content)
+                            gl_lines = content_str.splitlines()
+                            findings_dicts = [
+                                {"rule_id": s.rule_id, "line_number": s.line_number, "file": s.file}
+                                for s in strategy_result.secrets
+                            ]
+                            remaining = _gitleaks_cfg.filter_findings(
+                                findings_dicts, gl_lines, file_path, _gitleaks_allowlist
+                            )
+                            if not remaining:
+                                logging.info("All strategy findings matched .gitleaks.toml allowlist — skipping")
+                                return False, None
 
                         first_secret = strategy_result.secrets[0]
                         secret_details = {
@@ -2811,6 +2841,22 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         if all_allowlisted:
                             logging.info("All secret findings matched allowlist patterns — skipping")
                             return False, None
+
+                # Apply .gitleaks.toml allowlist filtering (Issue #488)
+                if _gitleaks_allowlist and secret_details:
+                    content_str = content if isinstance(content, str) else str(content)
+                    gl_lines = content_str.splitlines()
+                    if scan_result and scan_result.get("findings"):
+                        gl_remaining = _gitleaks_cfg.filter_findings(
+                            scan_result["findings"], gl_lines, file_path, _gitleaks_allowlist
+                        )
+                    else:
+                        gl_remaining = _gitleaks_cfg.filter_findings(
+                            [secret_details], gl_lines, file_path, _gitleaks_allowlist
+                        )
+                    if not gl_remaining:
+                        logging.info("All secret findings matched .gitleaks.toml allowlist — skipping")
+                        return False, None
 
                 # Build error message with details if available
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
