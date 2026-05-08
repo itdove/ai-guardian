@@ -95,6 +95,10 @@ class Doctor:
             self.check_deprecated_fields,
             self.check_scanners,
             self.check_pattern_server,
+            self.check_ps_cache_path,
+            self.check_ps_auth,
+            self.check_ps_url,
+            self.check_ps_cache_freshness,
             self.check_hooks,
             self.check_state_dir,
             self.check_cache_dir,
@@ -256,64 +260,301 @@ class Doctor:
             message=", ".join(names),
         )
 
-    def check_pattern_server(self) -> CheckResult:
+    def _get_ps_config(self) -> Optional[Dict]:
+        """Extract pattern server config from loaded config (new or old location)."""
         self._ensure_config()
+        if not self._config:
+            return None
+        ss = self._config.get("secret_scanning", {})
+        if isinstance(ss, dict) and "pattern_server" in ss:
+            ps = ss["pattern_server"]
+            if isinstance(ps, dict) and ps.get("url"):
+                return ps
+        if "pattern_server" in self._config:
+            ps = self._config["pattern_server"]
+            if isinstance(ps, dict) and ps.get("url"):
+                return ps
+        return None
 
-        # Determine pattern server config
-        ps_config = None
-        if self._config:
-            # New location first
-            ss = self._config.get("secret_scanning", {})
-            if isinstance(ss, dict) and "pattern_server" in ss:
-                ps_config = ss["pattern_server"]
-            # Old location fallback
-            elif "pattern_server" in self._config:
-                ps_config = self._config["pattern_server"]
-
-        if not ps_config or not isinstance(ps_config, dict) or not ps_config.get("url"):
+    def check_pattern_server(self) -> CheckResult:
+        ps_config = self._get_ps_config()
+        if not ps_config:
             return CheckResult(
                 name="pattern_server",
                 status=CheckStatus.SKIP,
                 message="No pattern server configured",
             )
+        return CheckResult(
+            name="pattern_server",
+            status=CheckStatus.PASS,
+            message=f"Configured",
+            detail=f"URL: {ps_config.get('url', 'unknown')}",
+        )
 
-        # Check cache files
-        try:
+    def check_ps_cache_path(self) -> CheckResult:
+        ps_config = self._get_ps_config()
+        if not ps_config:
+            return CheckResult(
+                name="ps_cache_path",
+                status=CheckStatus.SKIP,
+                message="No pattern server configured",
+            )
+
+        cache_config = ps_config.get("cache", {})
+        if cache_config.get("path"):
+            cache_dir = Path(cache_config["path"]).expanduser().parent
+        else:
             from ai_guardian.config_utils import get_cache_dir
             cache_dir = get_cache_dir()
-            cache_file = cache_dir / "patterns.toml"
 
-            if cache_file.exists():
-                age_seconds = time.time() - cache_file.stat().st_mtime
-                age_days = age_seconds / 86400
+        if not cache_dir.exists():
+            return CheckResult(
+                name="ps_cache_path",
+                status=CheckStatus.FAIL,
+                message=f"{_tilde(cache_dir)} — does not exist",
+                fix_hint="Run: ai-guardian doctor --fix  (or set cache.path / XDG_CACHE_HOME)",
+                fixable=True,
+            )
 
-                if age_days > 7:
+        if not os.access(cache_dir, os.W_OK):
+            return CheckResult(
+                name="ps_cache_path",
+                status=CheckStatus.FAIL,
+                message=f"{_tilde(cache_dir)} — not writable",
+                fix_hint="Set cache.path to a writable location or set XDG_CACHE_HOME",
+            )
+
+        return CheckResult(
+            name="ps_cache_path",
+            status=CheckStatus.PASS,
+            message=f"{_tilde(cache_dir)} (writable)",
+        )
+
+    def check_ps_auth(self) -> CheckResult:
+        ps_config = self._get_ps_config()
+        if not ps_config:
+            return CheckResult(
+                name="ps_auth",
+                status=CheckStatus.SKIP,
+                message="No pattern server configured",
+            )
+
+        auth_config = ps_config.get("auth", {})
+        if not auth_config:
+            return CheckResult(
+                name="ps_auth",
+                status=CheckStatus.SKIP,
+                message="No auth configured (public server)",
+            )
+
+        token_env = auth_config.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
+        token_file = Path(auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")).expanduser()
+
+        if os.environ.get(token_env):
+            return CheckResult(
+                name="ps_auth",
+                status=CheckStatus.PASS,
+                message=f"Token found in ${token_env}",
+            )
+
+        if token_file.exists():
+            try:
+                content = token_file.read_text().strip()
+                if content:
                     return CheckResult(
-                        name="pattern_server",
-                        status=CheckStatus.WARN,
-                        message=f"Pattern cache stale ({int(age_days)} days old)",
-                        fix_hint="Patterns will refresh on next scan",
+                        name="ps_auth",
+                        status=CheckStatus.PASS,
+                        message=f"Token found in {_tilde(token_file)}",
                     )
+            except Exception:
+                pass
 
-                return CheckResult(
-                    name="pattern_server",
-                    status=CheckStatus.PASS,
-                    message=f"Cached ({int(age_days)}d old)",
-                    detail=f"URL: {ps_config.get('url', 'unknown')}",
-                )
-            else:
-                return CheckResult(
-                    name="pattern_server",
-                    status=CheckStatus.WARN,
-                    message="No cached patterns",
-                    fix_hint="Patterns will be fetched on next scan",
-                )
+        return CheckResult(
+            name="ps_auth",
+            status=CheckStatus.FAIL,
+            message="Token not set",
+            fix_hint=f"export {token_env}=your-token",
+        )
+
+    def check_ps_url(self) -> CheckResult:
+        ps_config = self._get_ps_config()
+        if not ps_config:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.SKIP,
+                message="No pattern server configured",
+            )
+
+        if not self.check_connectivity:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.SKIP,
+                message="Skipped (use --check-connectivity)",
+            )
+
+        url = ps_config.get("url", "").rstrip("/")
+        endpoint = ps_config.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
+        full_url = f"{url}{endpoint}"
+
+        if full_url.startswith("http://"):
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.FAIL,
+                message="HTTP not allowed (use HTTPS)",
+                fix_hint="Change pattern server URL to https://",
+            )
+
+        try:
+            import requests as req
+        except ImportError:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.FAIL,
+                message="requests library not installed",
+                fix_hint="pip install requests",
+            )
+
+        headers = {"User-Agent": "ai-guardian/doctor"}
+        auth_config = ps_config.get("auth", {})
+        token_env = auth_config.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
+        token = os.environ.get(token_env)
+        if not token:
+            token_file = Path(auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")).expanduser()
+            if token_file.exists():
+                try:
+                    token = token_file.read_text().strip()
+                except Exception:
+                    pass
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        try:
+            resp = req.get(full_url, headers=headers, timeout=10, verify=True)
+        except req.exceptions.Timeout:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.WARN,
+                message=f"Timeout ({url})",
+                fix_hint="Using cached patterns if available",
+            )
+        except req.exceptions.ConnectionError:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.FAIL,
+                message=f"Connection failed ({url})",
+            )
         except Exception as e:
             return CheckResult(
-                name="pattern_server",
-                status=CheckStatus.WARN,
-                message=f"Could not check cache: {e}",
+                name="ps_url",
+                status=CheckStatus.FAIL,
+                message=f"Error: {e}",
             )
+
+        if resp.status_code == 401:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.FAIL,
+                message="401 Unauthorized",
+                fix_hint=f"export {token_env}=your-token",
+            )
+        if resp.status_code != 200:
+            return CheckResult(
+                name="ps_url",
+                status=CheckStatus.FAIL,
+                message=f"{resp.status_code} from {url}",
+            )
+
+        rule_count = self._count_toml_rules(resp.text)
+        msg = f"{url} (200 OK"
+        if rule_count is not None:
+            msg += f", {rule_count} rules"
+        msg += ")"
+
+        return CheckResult(
+            name="ps_url",
+            status=CheckStatus.PASS,
+            message=msg,
+        )
+
+    def _count_toml_rules(self, text: str) -> Optional[int]:
+        """Count rules in a TOML response (best effort)."""
+        try:
+            if sys.version_info >= (3, 11):
+                import tomllib
+            else:
+                import tomli as tomllib  # type: ignore
+            data = tomllib.loads(text)
+            rules = data.get("rules", [])
+            if isinstance(rules, list):
+                return len(rules)
+        except Exception:
+            pass
+        return None
+
+    def check_ps_cache_freshness(self) -> CheckResult:
+        ps_config = self._get_ps_config()
+        if not ps_config:
+            return CheckResult(
+                name="ps_cache_freshness",
+                status=CheckStatus.SKIP,
+                message="No pattern server configured",
+            )
+
+        cache_config = ps_config.get("cache", {})
+        if cache_config.get("path"):
+            cache_file = Path(cache_config["path"]).expanduser()
+        else:
+            from ai_guardian.config_utils import get_cache_dir
+            cache_file = get_cache_dir() / "patterns.toml"
+
+        if not cache_file.exists():
+            return CheckResult(
+                name="ps_cache_freshness",
+                status=CheckStatus.WARN,
+                message="No cached patterns",
+                fix_hint="Patterns will be fetched on next scan",
+            )
+
+        age_seconds = time.time() - cache_file.stat().st_mtime
+        age_days = age_seconds / 86400
+
+        expire_hours = cache_config.get("expire_after_hours", 168)
+        expire_days = expire_hours / 24
+
+        rule_count = None
+        try:
+            content = cache_file.read_text()
+            rule_count = self._count_toml_rules(content)
+        except Exception:
+            pass
+
+        age_str = f"{int(age_days)} days old" if age_days >= 1 else "< 1 day old"
+        rule_str = f", {rule_count} rules" if rule_count is not None else ""
+
+        if age_days > expire_days:
+            return CheckResult(
+                name="ps_cache_freshness",
+                status=CheckStatus.FAIL,
+                message=f"Expired ({age_str}{rule_str})",
+                fix_hint="Refresh failed — check URL and auth settings",
+            )
+
+        refresh_hours = cache_config.get("refresh_interval_hours", 12)
+        refresh_days = refresh_hours / 24
+
+        if age_days > refresh_days:
+            return CheckResult(
+                name="ps_cache_freshness",
+                status=CheckStatus.WARN,
+                message=f"Stale ({age_str}{rule_str})",
+                fix_hint="Patterns will refresh on next scan",
+            )
+
+        return CheckResult(
+            name="ps_cache_freshness",
+            status=CheckStatus.PASS,
+            message=f"{cache_file.name} ({age_str}{rule_str})",
+        )
 
     def check_hooks(self) -> CheckResult:
         try:
@@ -764,6 +1005,10 @@ _CHECK_DISPLAY_NAMES = {
     "deprecated_fields": "Deprecated fields",
     "scanners": "Scanners",
     "pattern_server": "Pattern server",
+    "ps_cache_path": "PS cache path",
+    "ps_auth": "PS auth",
+    "ps_url": "PS URL",
+    "ps_cache_freshness": "PS cache freshness",
     "hooks": "Hooks",
     "state_dir": "State directory",
     "cache_dir": "Cache directory",

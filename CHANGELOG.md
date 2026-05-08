@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Pattern server doctor checks** (Issue #493)
+  - `ai-guardian doctor` now checks pattern server cache path writability
+  - Checks auth token availability (env var or token file)
+  - Checks pattern server URL reachability (with `--check-connectivity`)
+  - Checks cache freshness against configured refresh/expiry thresholds
+  - Each failure includes actionable fix instructions
+
 - **Project .gitleaks.toml allowlist support** (Issue #488)
   - ai-guardian reads `.gitleaks.toml` from the project root and applies its allowlist rules
   - Works with all scanner engines (gitleaks, betterleaks, leaktk, etc.)
