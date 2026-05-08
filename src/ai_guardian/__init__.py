@@ -4483,6 +4483,37 @@ def main():
             help="Skip confirmation prompt (for non-interactive use)"
         )
 
+        # Metrics subcommand (Issue #469)
+        metrics_parser = subparsers.add_parser(
+            "metrics",
+            help="Show violation statistics and trends"
+        )
+        metrics_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+        metrics_parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="Export filtered violations as CSV"
+        )
+        metrics_parser.add_argument(
+            "--since",
+            default="30d",
+            help="Time range: Nd for days (e.g. 30d) or ISO date (e.g. 2026-05-01). Default: 30d"
+        )
+        metrics_parser.add_argument(
+            "--type",
+            choices=[
+                "tool_permission", "directory_blocking", "secret_detected",
+                "secret_redaction", "prompt_injection", "jailbreak_detected",
+                "ssrf_blocked", "config_file_exfil", "pii_detected",
+                "secret_in_transcript", "pii_in_transcript",
+            ],
+            help="Filter by violation type"
+        )
+
         # Console subcommand (primary)
         console_parser = subparsers.add_parser(
             "console",
@@ -4858,6 +4889,20 @@ def main():
                 return _handle_violations_command(args)
             else:
                 print("Error: violation_logger module not available", file=sys.stderr)
+                return 1
+
+        # Handle metrics command (Issue #469)
+        if args.command == "metrics":
+            try:
+                from ai_guardian.metrics import metrics_command
+                return metrics_command(args)
+            except ImportError as e:
+                print(f"Error: Metrics module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running metrics: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
                 return 1
 
         # Handle tui/console command

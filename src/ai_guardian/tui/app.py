@@ -98,6 +98,7 @@ NAV_GROUPS = [
     ("Monitoring", [
         ("Violations", "panel-violations"),
         ("Violation Logging", "panel-violation-logging"),
+        ("Metrics", "panel-metrics"),
         ("Logs", "panel-logs"),
     ]),
     ("Permissions", [
@@ -192,6 +193,8 @@ HELP_DOCS = {
         "[bold]Sections:[/bold]\n"
         "  [bold]Violations[/bold] — Browse, filter, and approve recent "
         "security violations\n"
+        "  [bold]Metrics[/bold] — Violation statistics, trends, and "
+        "breakdowns by type, severity, and action\n"
         "  [bold]Logs[/bold] — View AI Guardian's runtime log output"
     ),
     "Configuration": (
@@ -508,6 +511,28 @@ HELP_DOCS = {
         "  secret_redaction, prompt_injection, jailbreak_detected,\n"
         "  ssrf_blocked, config_file_exfil, pii_detected\n\n"
         "[bold]Note:[/bold] Empty type selection logs all types."
+    ),
+    "panel-metrics": (
+        "[bold]Violation Metrics[/bold]\n\n"
+        "Aggregate statistics and trends computed from the violation "
+        "log.\n\n"
+        "[bold]Sections:[/bold]\n"
+        "  [bold]Summary[/bold] — Total, resolved, unresolved, and "
+        "session counts\n"
+        "  [bold]By Type[/bold] — Breakdown by violation type with "
+        "percentages\n"
+        "  [bold]By Severity[/bold] — Distribution across severity "
+        "levels\n"
+        "  [bold]By Action[/bold] — Block, redact, warn, log-only "
+        "counts\n"
+        "  [bold]Top Files[/bold] — Most frequently violated file "
+        "paths\n"
+        "  [bold]Top Tools[/bold] — Tools with the most violations\n"
+        "  [bold]Daily Trend[/bold] — Violations per day bar chart\n\n"
+        "[bold]Time range:[/bold]\n"
+        "  Use the 7d / 30d / All buttons to change the window.\n"
+        "  The log retains entries based on the configured\n"
+        "  retention_days (default: 30 days)"
     ),
     "panel-logs": (
         "[bold]Runtime Logs[/bold]\n\n"
@@ -992,6 +1017,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-violation-logging"):
                     from ai_guardian.tui.violation_logging import ViolationLoggingContent
                     yield ViolationLoggingContent()
+
+                with Container(id="panel-metrics"):
+                    from ai_guardian.tui.metrics_panel import MetricsContent
+                    yield MetricsContent()
 
                 with Container(id="panel-logs"):
                     from ai_guardian.tui.logs import LogsContent
