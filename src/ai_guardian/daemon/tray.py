@@ -105,7 +105,6 @@ class DaemonTray:
             pystray.MenuItem("Violations", self._on_open_violations),
             pystray.MenuItem("Metrics", self._on_open_metrics),
             pystray.MenuItem("Daemon", self._on_open_daemon),
-            pystray.MenuItem("Reload Config", self._on_reload_config),
             pystray.MenuItem(
                 lambda _: f"Mode: {self._current_mode}",
                 pystray.Menu(
@@ -392,15 +391,6 @@ class DaemonTray:
                         break
         except Exception as e:
             logger.debug(f"Failed to open console: {e}")
-
-    def _on_reload_config(self, icon, item):
-        """Request daemon to reload its configuration file."""
-        try:
-            from ai_guardian.daemon.client import send_reload_config
-            send_reload_config()
-            logger.info("Config reload requested from tray menu")
-        except Exception as e:
-            logger.debug(f"Config reload failed: {e}")
 
     def _on_pause(self, minutes):
         """Pause scanning for a specified duration (called from menu = main thread)."""
