@@ -17,6 +17,7 @@ import fnmatch
 import hashlib
 import json
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 import os
 import subprocess
@@ -1474,12 +1475,25 @@ def _finding_fingerprint(finding_type: str, detail: str) -> str:
 
     Args:
         finding_type: Category such as "pii" or "secret"
-        detail: Type-specific detail (e.g. "SSN:078-05-1120" or error string)
+        detail: Type-specific detail (e.g. "SSN:078-05-1120" or rule_id)
 
     Returns:
         First 16 hex chars of SHA-256 digest.
     """
     return hashlib.sha256(f"{finding_type}:{detail}".encode()).hexdigest()[:16]
+
+
+def _extract_secret_type_from_error(error_msg: str) -> str:
+    """Extract the secret type (rule_id) from a scanner error message.
+
+    The error message contains a line like "Secret Type: aws-access-token".
+    We extract just the rule_id for stable fingerprinting, since the full
+    error message includes temp file paths that change every invocation.
+    """
+    match = re.search(r"Secret Type:\s*(.+)", error_msg)
+    if match:
+        return match.group(1).strip()
+    return "unknown"
 
 
 def _extract_text_from_transcript_line(line_data: dict) -> str:
@@ -1646,7 +1660,7 @@ def scan_transcript_incremental(
                 allowlist_patterns=secret_allowlist
             )
             if has_secrets and secret_error:
-                fp = _finding_fingerprint("secret", secret_error)
+                fp = _finding_fingerprint("secret", _extract_secret_type_from_error(secret_error))
                 if fp not in seen:
                     warning_msg = (
                         f"\n{'='*70}\n"

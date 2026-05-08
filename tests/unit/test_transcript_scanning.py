@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from ai_guardian import (
+    _extract_secret_type_from_error,
     _extract_text_from_transcript_line,
     _finding_fingerprint,
     _get_transcript_path,
@@ -884,6 +885,159 @@ class TestSelfReferentialLoopFix(unittest.TestCase):
         seen = _load_seen_findings()
         self.assertIn(str(transcript), seen)
         self.assertTrue(len(seen[str(transcript)]) > 0)
+
+
+class TestExtractSecretTypeFromError(unittest.TestCase):
+    """Test rule_id extraction from scanner error messages (Issue #487)."""
+
+    def test_extracts_rule_id_from_standard_error(self):
+        error = (
+            "\n======\n"
+            "Secret Type: aws-access-token\n"
+            "Location: /tmp/aiguardian_abc123_transcript:5\n"
+            "Scanner: gitleaks\n"
+        )
+        result = _extract_secret_type_from_error(error)
+        self.assertEqual(result, "aws-access-token")
+
+    def test_extracts_rule_id_with_spaces(self):
+        error = "Secret Type:   generic-api-key  \nLocation: /tmp/file:1\n"
+        result = _extract_secret_type_from_error(error)
+        self.assertEqual(result, "generic-api-key")
+
+    def test_returns_unknown_when_no_match(self):
+        error = "Some scanner error without secret type info"
+        result = _extract_secret_type_from_error(error)
+        self.assertEqual(result, "unknown")
+
+    def test_returns_unknown_for_empty_string(self):
+        result = _extract_secret_type_from_error("")
+        self.assertEqual(result, "unknown")
+
+    def test_extracts_from_multi_engine_strategy_error(self):
+        error = (
+            "\n======\n"
+            "Secret Type: stripe-api-key\n"
+            "Protection: Secret Scanning (first-match strategy)\n"
+        )
+        result = _extract_secret_type_from_error(error)
+        self.assertEqual(result, "stripe-api-key")
+
+
+class TestSecretFingerprintStability(unittest.TestCase):
+    """Regression: secret fingerprint must be stable across invocations (Issue #487).
+
+    The bug: fingerprint used the full error message which included the temp
+    file path — a path that changes every invocation. This caused the same
+    secret to be re-flagged on every prompt.
+    """
+
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_same_secret_different_temp_paths_not_reflagged(self, mock_gitleaks):
+        """Same rule_id with different temp file paths must produce the same fingerprint."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        # Initialize position
+        scan_transcript_incremental(str(transcript))
+
+        # --- Scan 1: Secret detected with temp path A ---
+        line1 = json.dumps({"text": "export KEY=AKIAIOSFODNN7EXAMPLE"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        error_scan1 = (
+            "\n======\n"
+            "Secret Type: aws-access-token\n"
+            "Location: /tmp/aiguardian_AAA_transcript:1\n"
+            "Scanner: gitleaks\n"
+            "======\n"
+        )
+        mock_gitleaks.return_value = (True, error_scan1)
+        result1 = scan_transcript_incremental(str(transcript))
+        self.assertTrue(len(result1) > 0, "First scan should detect secret")
+
+        # --- Scan 2: Same secret, different temp path in error ---
+        line2 = json.dumps({"text": "The key AKIAIOSFODNN7EXAMPLE was found"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        mock_gitleaks.reset_mock()
+        error_scan2 = (
+            "\n======\n"
+            "Secret Type: aws-access-token\n"
+            "Location: /tmp/aiguardian_BBB_transcript:1\n"
+            "Scanner: gitleaks\n"
+            "======\n"
+        )
+        mock_gitleaks.return_value = (True, error_scan2)
+
+        result2 = scan_transcript_incremental(str(transcript))
+        self.assertEqual(result2, [], "Same secret type with different temp path must NOT be re-flagged")
+
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_different_secret_types_still_flagged(self, mock_gitleaks):
+        """Different rule_ids should still be flagged even after dedup."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        scan_transcript_incremental(str(transcript))
+
+        # --- Scan 1: AWS key ---
+        line1 = json.dumps({"text": "export KEY=AKIAIOSFODNN7EXAMPLE"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        error1 = "Secret Type: aws-access-token\nLocation: /tmp/aiguardian_AAA:1\n"
+        mock_gitleaks.return_value = (True, error1)
+        result1 = scan_transcript_incremental(str(transcript))
+        self.assertTrue(len(result1) > 0, "First secret type should be flagged")
+
+        # --- Scan 2: Different secret type ---
+        line2 = json.dumps({"text": "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        mock_gitleaks.reset_mock()
+        error2 = "Secret Type: github-pat\nLocation: /tmp/aiguardian_BBB:1\n"
+        mock_gitleaks.return_value = (True, error2)
+        result2 = scan_transcript_incremental(str(transcript))
+        self.assertTrue(len(result2) > 0, "Different secret type should be flagged")
+
+    @mock.patch('ai_guardian.check_secrets_with_gitleaks')
+    def test_fallback_error_without_secret_type(self, mock_gitleaks):
+        """Error message without 'Secret Type:' line should still fingerprint (as 'unknown')."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text("")
+
+        scan_transcript_incremental(str(transcript))
+
+        line1 = json.dumps({"text": "export KEY=AKIAIOSFODNN7EXAMPLE"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line1)
+
+        mock_gitleaks.return_value = (True, "Secret detected")
+        result1 = scan_transcript_incremental(str(transcript))
+        self.assertTrue(len(result1) > 0, "Should still detect and warn")
+
+        # Second scan with same fallback error should be deduped
+        line2 = json.dumps({"text": "Another secret line"}) + "\n"
+        with open(str(transcript), 'a') as f:
+            f.write(line2)
+
+        mock_gitleaks.reset_mock()
+        mock_gitleaks.return_value = (True, "Secret detected again")
+        result2 = scan_transcript_incremental(str(transcript))
+        self.assertEqual(result2, [], "Same 'unknown' type should be deduped")
 
 
 if __name__ == '__main__':
