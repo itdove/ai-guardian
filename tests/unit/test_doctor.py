@@ -179,38 +179,18 @@ class TestCheckPatternServer:
         result = doctor.check_pattern_server()
         assert result.status == CheckStatus.SKIP
 
-    def test_fresh_cache(self, _isolate_config_dir, tmp_path):
+    def test_configured(self, _isolate_config_dir, tmp_path):
         config_path = _isolate_config_dir / "ai-guardian.json"
         config_path.write_text(json.dumps({
             "secret_scanning": {
                 "pattern_server": {"url": "https://example.com/patterns"}
             }
         }))
-        cache_dir = Path(os.environ["AI_GUARDIAN_CACHE_DIR"])
-        cache_file = cache_dir / "patterns.toml"
-        cache_file.write_text("[patterns]\ntest = true\n")
 
         doctor = Doctor()
         result = doctor.check_pattern_server()
         assert result.status == CheckStatus.PASS
-
-    def test_stale_cache(self, _isolate_config_dir, tmp_path):
-        config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com/patterns"}
-            }
-        }))
-        cache_dir = Path(os.environ["AI_GUARDIAN_CACHE_DIR"])
-        cache_file = cache_dir / "patterns.toml"
-        cache_file.write_text("[patterns]\ntest = true\n")
-        old_time = time.time() - (8 * 86400)
-        os.utime(cache_file, (old_time, old_time))
-
-        doctor = Doctor()
-        result = doctor.check_pattern_server()
-        assert result.status == CheckStatus.WARN
-        assert "stale" in result.message.lower()
+        assert "Configured" in result.message
 
 
 class TestCheckHooks:
@@ -476,6 +456,274 @@ class TestCheckConfigConsistency:
         assert result.status in (CheckStatus.PASS, CheckStatus.SKIP)
 
 
+# --- Pattern server check tests (Issue #493) ---
+
+
+class TestCheckPsCachePath:
+    def _write_ps_config(self, config_dir):
+        config_path = config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {
+                "pattern_server": {"url": "https://example.com/patterns"}
+            }
+        }))
+
+    def test_skip_no_config(self, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_ps_cache_path()
+        assert result.status == CheckStatus.SKIP
+
+    def test_writable(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        doctor = Doctor()
+        result = doctor.check_ps_cache_path()
+        assert result.status == CheckStatus.PASS
+        assert "writable" in result.message
+
+    def test_not_writable(self, _isolate_config_dir, tmp_path):
+        self._write_ps_config(_isolate_config_dir)
+        ro_dir = tmp_path / "readonly_cache"
+        ro_dir.mkdir()
+        ro_dir.chmod(0o444)
+        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=ro_dir):
+            doctor = Doctor()
+            result = doctor.check_ps_cache_path()
+        ro_dir.chmod(0o755)
+        assert result.status == CheckStatus.FAIL
+        assert "not writable" in result.message
+
+    def test_missing_dir(self, _isolate_config_dir, tmp_path):
+        self._write_ps_config(_isolate_config_dir)
+        missing = tmp_path / "nonexistent"
+        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+            doctor = Doctor()
+            result = doctor.check_ps_cache_path()
+        assert result.status == CheckStatus.FAIL
+        assert "does not exist" in result.message
+
+    def test_custom_cache_path(self, _isolate_config_dir, tmp_path):
+        cache_file = tmp_path / "custom" / "patterns.toml"
+        cache_file.parent.mkdir(parents=True)
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {
+                "pattern_server": {
+                    "url": "https://example.com",
+                    "cache": {"path": str(cache_file)}
+                }
+            }
+        }))
+        doctor = Doctor()
+        result = doctor.check_ps_cache_path()
+        assert result.status == CheckStatus.PASS
+
+
+class TestCheckPsAuth:
+    def _write_ps_config(self, config_dir, auth=None):
+        ps = {"url": "https://example.com/patterns"}
+        if auth is not None:
+            ps["auth"] = auth
+        config_path = config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {"pattern_server": ps}
+        }))
+
+    def test_skip_no_config(self, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_ps_auth()
+        assert result.status == CheckStatus.SKIP
+
+    def test_skip_no_auth(self, _isolate_config_dir):
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {
+                "pattern_server": {"url": "https://example.com"}
+            }
+        }))
+        doctor = Doctor()
+        result = doctor.check_ps_auth()
+        assert result.status == CheckStatus.SKIP
+
+    def test_token_in_env(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir, auth={
+            "method": "bearer",
+            "token_env": "AI_GUARDIAN_TEST_TOKEN_493",
+        })
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_TEST_TOKEN_493": "secret"}):
+            doctor = Doctor()
+            result = doctor.check_ps_auth()
+        assert result.status == CheckStatus.PASS
+        assert "AI_GUARDIAN_TEST_TOKEN_493" in result.message
+
+    def test_token_in_file(self, _isolate_config_dir, tmp_path):
+        token_file = tmp_path / "token"
+        token_file.write_text("my-token")
+        self._write_ps_config(_isolate_config_dir, auth={
+            "method": "bearer",
+            "token_env": "AI_GUARDIAN_NONEXIST_TOKEN",
+            "token_file": str(token_file),
+        })
+        doctor = Doctor()
+        result = doctor.check_ps_auth()
+        assert result.status == CheckStatus.PASS
+        assert "Token found" in result.message
+
+    def test_no_token(self, _isolate_config_dir, tmp_path):
+        self._write_ps_config(_isolate_config_dir, auth={
+            "method": "bearer",
+            "token_env": "AI_GUARDIAN_NONEXIST_TOKEN",
+            "token_file": str(tmp_path / "nonexistent"),
+        })
+        doctor = Doctor()
+        result = doctor.check_ps_auth()
+        assert result.status == CheckStatus.FAIL
+        assert "not set" in result.message.lower()
+
+
+class TestCheckPsUrl:
+    def _write_ps_config(self, config_dir, url="https://example.com"):
+        config_path = config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {
+                "pattern_server": {
+                    "url": url,
+                    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+                }
+            }
+        }))
+
+    def test_skip_no_config(self, _isolate_config_dir):
+        doctor = Doctor(check_connectivity=True)
+        result = doctor.check_ps_url()
+        assert result.status == CheckStatus.SKIP
+
+    def test_skip_no_connectivity_flag(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        doctor = Doctor(check_connectivity=False)
+        result = doctor.check_ps_url()
+        assert result.status == CheckStatus.SKIP
+        assert "check-connectivity" in result.message
+
+    def test_success(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '[[rules]]\nid = "test"\n'
+        with mock.patch("requests.get", return_value=mock_resp):
+            doctor = Doctor(check_connectivity=True)
+            result = doctor.check_ps_url()
+        assert result.status == CheckStatus.PASS
+        assert "200 OK" in result.message
+
+    def test_timeout(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        import requests
+        with mock.patch("requests.get", side_effect=requests.exceptions.Timeout()):
+            doctor = Doctor(check_connectivity=True)
+            result = doctor.check_ps_url()
+        assert result.status == CheckStatus.WARN
+        assert "timeout" in result.message.lower()
+
+    def test_unauthorized(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 401
+        with mock.patch("requests.get", return_value=mock_resp):
+            doctor = Doctor(check_connectivity=True)
+            result = doctor.check_ps_url()
+        assert result.status == CheckStatus.FAIL
+        assert "401" in result.message
+
+    def test_connection_error(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        import requests
+        with mock.patch("requests.get", side_effect=requests.exceptions.ConnectionError()):
+            doctor = Doctor(check_connectivity=True)
+            result = doctor.check_ps_url()
+        assert result.status == CheckStatus.FAIL
+        assert "Connection failed" in result.message
+
+    def test_http_rejected(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir, url="http://insecure.example.com")
+        doctor = Doctor(check_connectivity=True)
+        result = doctor.check_ps_url()
+        assert result.status == CheckStatus.FAIL
+        assert "HTTP not allowed" in result.message
+
+
+class TestCheckPsCacheFreshness:
+    def _write_ps_config(self, config_dir, cache_path=None, refresh_hours=12, expire_hours=168):
+        ps = {
+            "url": "https://example.com",
+            "cache": {
+                "refresh_interval_hours": refresh_hours,
+                "expire_after_hours": expire_hours,
+            }
+        }
+        if cache_path:
+            ps["cache"]["path"] = cache_path
+        config_path = config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {"pattern_server": ps}
+        }))
+
+    def test_skip_no_config(self, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_ps_cache_freshness()
+        assert result.status == CheckStatus.SKIP
+
+    def test_fresh_cache(self, _isolate_config_dir):
+        cache_dir = Path(os.environ["AI_GUARDIAN_CACHE_DIR"])
+        cache_file = cache_dir / "patterns.toml"
+        cache_file.write_text('[[rules]]\nid = "test"\n')
+        self._write_ps_config(_isolate_config_dir)
+        doctor = Doctor()
+        result = doctor.check_ps_cache_freshness()
+        assert result.status == CheckStatus.PASS
+        assert "1 rules" in result.message
+
+    def test_stale_cache(self, _isolate_config_dir):
+        cache_dir = Path(os.environ["AI_GUARDIAN_CACHE_DIR"])
+        cache_file = cache_dir / "patterns.toml"
+        cache_file.write_text('[[rules]]\nid = "test"\n')
+        old_time = time.time() - (2 * 86400)  # 2 days old (> 12h refresh)
+        os.utime(cache_file, (old_time, old_time))
+        self._write_ps_config(_isolate_config_dir)
+        doctor = Doctor()
+        result = doctor.check_ps_cache_freshness()
+        assert result.status == CheckStatus.WARN
+        assert "stale" in result.message.lower()
+
+    def test_expired_cache(self, _isolate_config_dir):
+        cache_dir = Path(os.environ["AI_GUARDIAN_CACHE_DIR"])
+        cache_file = cache_dir / "patterns.toml"
+        cache_file.write_text('[[rules]]\nid = "test"\n')
+        old_time = time.time() - (10 * 86400)  # 10 days old (> 7 day expiry)
+        os.utime(cache_file, (old_time, old_time))
+        self._write_ps_config(_isolate_config_dir)
+        doctor = Doctor()
+        result = doctor.check_ps_cache_freshness()
+        assert result.status == CheckStatus.FAIL
+        assert "expired" in result.message.lower()
+
+    def test_no_cache_file(self, _isolate_config_dir):
+        self._write_ps_config(_isolate_config_dir)
+        doctor = Doctor()
+        result = doctor.check_ps_cache_freshness()
+        assert result.status == CheckStatus.WARN
+        assert "No cached patterns" in result.message
+
+    def test_custom_cache_path(self, _isolate_config_dir, tmp_path):
+        cache_file = tmp_path / "custom" / "my-patterns.toml"
+        cache_file.parent.mkdir(parents=True)
+        cache_file.write_text('[[rules]]\nid = "r1"\n[[rules]]\nid = "r2"\n')
+        self._write_ps_config(_isolate_config_dir, cache_path=str(cache_file))
+        doctor = Doctor()
+        result = doctor.check_ps_cache_freshness()
+        assert result.status == CheckStatus.PASS
+        assert "2 rules" in result.message
+
+
 # --- Output formatter tests ---
 
 
@@ -621,7 +869,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 11
+        assert len(report.checks) == 15
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
