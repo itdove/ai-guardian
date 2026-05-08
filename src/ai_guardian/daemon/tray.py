@@ -103,6 +103,7 @@ class DaemonTray:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Console", self._on_open_console),
             pystray.MenuItem("Violations", self._on_open_violations),
+            pystray.MenuItem("Metrics", self._on_open_metrics),
             pystray.MenuItem("Daemon", self._on_open_daemon),
             pystray.MenuItem("Reload Config", self._on_reload_config),
             pystray.MenuItem(
@@ -329,6 +330,10 @@ class DaemonTray:
     def _on_open_violations(self, icon, item):
         """Launch the console directly to the Violations panel."""
         self._launch_console("panel-violations")
+
+    def _on_open_metrics(self, icon, item):
+        """Launch the console directly to the Metrics panel."""
+        self._launch_console("panel-metrics")
 
     def _on_open_daemon(self, icon, item):
         """Launch the console directly to the Daemon panel."""
