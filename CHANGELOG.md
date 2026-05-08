@@ -71,6 +71,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MCP allow rule blocked when action defaults to block** (Issue #495)
+  - Root cause: stale daemon process not loading updated permission rules
+  - Added debug logging to `_find_permission_rules()` for diagnosing permission issues
+  - Added MCP-specific warning when no rules found for MCP tools
+  - Added logging of loaded rule count after config merge
+  - Fixed stale `enforcement` field name in test (now `action`)
+  - Added regression tests for MCP allow rules with all action modes (block/warn/log-only/default)
+  - Added UX contract tests documenting expected behavior
+
 - **Flaky test: concurrent file access race in HookContextManager** (pre-existing)
   - Added `fcntl.flock` file locking around the read-modify-write cycle in `_save_to_file`
   - Changed `_write_file` to use atomic write (temp file + rename) to prevent corrupted JSON on concurrent writes
