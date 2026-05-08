@@ -1136,6 +1136,44 @@ class TestCreateDefaultConfig:
         assert config['permissions']['enabled'] is False
         assert len(config['permissions']['rules']) == 0
 
+    def test_default_config_omits_absolute_cache_path(self, tmp_path):
+        """Test that generated config does not contain absolute cache paths (issue #492)."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=False, dry_run=False)
+
+            assert success is True
+
+            with open(config_file) as f:
+                config = json.load(f)
+
+            cache = config['secret_scanning']['pattern_server']['cache']
+            assert 'path' not in cache, (
+                "cache.path should not be in default config; "
+                "let get_cache_dir() resolve it at runtime"
+            )
+
+    def test_default_config_template_no_absolute_paths(self):
+        """Test that _get_default_config_template has no absolute paths in cache."""
+        from ai_guardian.setup import _get_default_config_template
+
+        config = _get_default_config_template(permissive=False)
+        cache = config['secret_scanning']['pattern_server']['cache']
+        assert 'path' not in cache
+
+    def test_existing_config_with_absolute_cache_path_still_works(self, tmp_path):
+        """Test backward compat: existing configs with absolute cache.path still load."""
+        from ai_guardian.config_utils import get_cache_dir
+
+        abs_path = str(get_cache_dir() / "patterns.toml")
+        cache_config = {"path": abs_path, "refresh_interval_hours": 12}
+        from pathlib import Path
+        resolved = Path(cache_config.get("path", str(get_cache_dir() / "patterns.toml"))).expanduser()
+        assert resolved == Path(abs_path).expanduser()
+
     def test_create_default_config_with_schema(self, tmp_path):
         """Test that default config includes schema reference."""
         from ai_guardian.setup import create_default_config

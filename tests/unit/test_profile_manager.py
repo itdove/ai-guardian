@@ -111,11 +111,12 @@ class TestLoadProfile:
         assert config["$schema"].startswith("file://")
         assert "__SCHEMA_URI__" not in config["$schema"]
 
-    def test_load_replaces_cache_placeholder(self):
+    def test_cache_omits_path_for_runtime_resolution(self):
         config = load_profile("@standard")
-        cache_path = config["secret_scanning"]["pattern_server"]["cache"]["path"]
-        assert "__CACHE_DIR__" not in cache_path
-        assert "patterns.toml" in cache_path
+        cache = config["secret_scanning"]["pattern_server"]["cache"]
+        assert "path" not in cache, (
+            "cache.path should not be in profile; get_cache_dir() resolves at runtime"
+        )
 
     def test_standard_matches_default_template(self):
         from ai_guardian.setup import _get_default_config_template

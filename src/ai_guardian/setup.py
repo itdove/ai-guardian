@@ -853,7 +853,6 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
                 "patterns_endpoint": "/patterns/gitleaks/8.27.0",
                 "warn_on_failure": True,
                 "cache": {
-                    "path": str(get_cache_dir() / "patterns.toml"),
                     "refresh_interval_hours": 12,
                     "expire_after_hours": 168
                 }
