@@ -81,6 +81,14 @@ except ImportError:
     HAS_SCANNER_ENGINE = False
     logging.debug("scanner engine modules not available - using legacy gitleaks only")
 
+# Import annotation processor
+try:
+    from ai_guardian.annotations import process_annotations
+    HAS_ANNOTATIONS = True
+except ImportError:
+    HAS_ANNOTATIONS = False
+    logging.debug("annotations module not available")
+
 # Configure logging - will be disabled for Cursor hooks
 # Custom log record factory to add version to all log records
 _old_factory = logging.getLogRecordFactory()
@@ -1341,6 +1349,24 @@ def _load_transcript_scanning_config():
     return config.get("transcript_scanning", _DEFAULTS), None
 
 
+def _load_annotations_config():
+    """
+    Load annotations configuration from ai-guardian.json.
+
+    Returns defaults (enabled=True) when the annotations section is absent.
+
+    Returns:
+        tuple: (config_dict, error_message or None)
+    """
+    _DEFAULTS = {"enabled": True}
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return _DEFAULTS, error_msg
+    if config is None:
+        return _DEFAULTS, None
+    return config.get("annotations", _DEFAULTS), None
+
+
 def _get_on_scan_error_action() -> str:
     """
     Load the global on_scan_error setting from ai-guardian.json.
@@ -1895,6 +1921,41 @@ def _is_ai_guardian_test_file(file_path):
         return True
 
     return False
+
+
+def _annotation_hint(error_message: str, file_path: Optional[str] = None, annotations_config: Optional[Dict] = None) -> str:
+    """Append annotation suppression hint to error messages for file content scans."""
+    if not error_message or not file_path:
+        return error_message
+
+    from ai_guardian.annotations import (
+        INLINE_MARKER, BLOCK_BEGIN_MARKER, BLOCK_END_MARKER,
+        DEFAULT_SECRET_ALIASES, _build_alias_lists,
+    )
+
+    inline_allow_aliases, secret_aliases, block_begin_aliases, block_end_aliases = _build_alias_lists(annotations_config)
+
+    # Build inline all-violation examples
+    all_markers = [INLINE_MARKER] + inline_allow_aliases
+    all_examples = "  or  ".join(f"# {m}" for m in all_markers)
+
+    # Build inline secrets-only examples
+    secret_examples = "  or  ".join(f"# {m}" for m in secret_aliases)
+
+    # Build block examples
+    begin_markers = [BLOCK_BEGIN_MARKER] + block_begin_aliases
+    end_markers = [BLOCK_END_MARKER] + block_end_aliases
+    block_example = f"# {begin_markers[0]} ... # {end_markers[0]}"
+
+    lines = [
+        "\n\n\U0001f4a1 To suppress this finding, add an inline annotation:",
+        f"  Secrets + PII:    {all_examples}",
+    ]
+    if secret_aliases:
+        lines.append(f"  Secrets only:     {secret_examples}")
+    lines.append(f"  Multi-line block: {block_example}")
+
+    return error_message + "\n".join(lines)
 
 
 def _extract_context_snippet(text: str, line_number: int, max_chars: int = 200) -> Optional[str]:
@@ -3096,6 +3157,36 @@ def process_hook_data(hook_data, daemon_state=None):
 
             logging.info(f"Scanning {tool_identifier} output for secrets...")
 
+            # Apply annotation suppression for file-reading tools (Issue #481)
+            # If PreToolUse was a file read, annotations in the output should be honored
+            # to prevent blocking/redaction of suppressed lines
+            post_annotations_config = None
+            post_secret_content = None
+            post_all_suppressed = set()
+            post_secret_suppressed = set()
+            original_tool_output = tool_output
+            if HAS_ANNOTATIONS and pretool_ctx and pretool_ctx.get("file_path") and tool_output:
+                post_annotations_config, _ = _load_annotations_config()
+                if post_annotations_config and is_feature_enabled(
+                    post_annotations_config.get("enabled"),
+                    datetime.now(timezone.utc),
+                    default=True
+                ):
+                    post_all_suppressed, post_secret_suppressed, _, _ = process_annotations(
+                        tool_output, file_path=pretool_ctx.get("file_path"),
+                        config=post_annotations_config
+                    )
+                    if post_all_suppressed or post_secret_suppressed:
+                        from ai_guardian.annotations import apply_suppressions
+                        tool_output = apply_suppressions(tool_output, post_all_suppressed)
+                        post_secret_content = apply_suppressions(
+                            tool_output, post_secret_suppressed
+                        )
+                        logging.info(
+                            f"PostToolUse: annotation suppression applied "
+                            f"({len(post_all_suppressed)} all, {len(post_secret_suppressed)} secrets-only)"
+                        )
+
             # Load secret scanning config for ignore lists
             secret_config, config_error = _load_secret_scanning_config()
 
@@ -3141,8 +3232,10 @@ def process_hook_data(hook_data, daemon_state=None):
                 has_secrets = False
                 error_message = None
             else:
+                # Use secret-suppressed content if annotations produced one
+                post_scan_content = post_secret_content if post_secret_content is not None else tool_output
                 has_secrets, error_message = check_secrets_with_gitleaks(
-                    tool_output, f"{tool_identifier}_output",
+                    post_scan_content, f"{tool_identifier}_output",
                     context=post_secret_ctx,
                     tool_name=tool_identifier,
                     ignore_files=ignore_files,
@@ -3190,6 +3283,16 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         redacted_text = result['redacted_text']
                         redactions = result['redactions']
+
+                        # Restore original content on annotation-suppressed lines
+                        if post_all_suppressed or post_secret_suppressed:
+                            all_post_suppressed = post_all_suppressed | post_secret_suppressed
+                            redacted_lines = redacted_text.splitlines()
+                            original_lines = original_tool_output.splitlines()
+                            for idx in all_post_suppressed:
+                                if 0 <= idx < len(redacted_lines) and idx < len(original_lines):
+                                    redacted_lines[idx] = original_lines[idx]
+                            redacted_text = "\n".join(redacted_lines)
 
                         # Log redaction event
                         logging.warning(f"Redacted {len(redactions)} secret(s) from {tool_identifier} output")
@@ -3341,6 +3444,14 @@ def process_hook_data(hook_data, daemon_state=None):
                                                  error_message=pii_warning)
                             return result
                         elif pii_action == 'redact':
+                            # Restore original content on annotation-suppressed lines
+                            if post_all_suppressed:
+                                pii_redacted_lines = redacted_text.splitlines()
+                                pii_original_lines = original_tool_output.splitlines()
+                                for idx in post_all_suppressed:
+                                    if 0 <= idx < len(pii_redacted_lines) and idx < len(pii_original_lines):
+                                        pii_redacted_lines[idx] = pii_original_lines[idx]
+                                redacted_text = "\n".join(pii_redacted_lines)
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning, modified_output=redacted_text)
                             result["_warning"] = True
@@ -3518,6 +3629,62 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.info(f"Scanning file '{filename}' ({file_path}) for secrets...")
                 else:
                     logging.info(f"Scanning file '{filename}' for secrets...")
+
+                # Apply annotation-based suppression (Issue #481)
+                # Only for file content (PreToolUse/beforeReadFile), never for prompts or PostToolUse
+                secret_content_to_scan = None
+                pii_content_to_scan = None
+                annotations_config = None
+                if HAS_ANNOTATIONS and content_to_scan:
+                    annotations_config, ann_config_error = _load_annotations_config()
+                    if ann_config_error:
+                        warning_messages.append(ann_config_error)
+
+                    if annotations_config and is_feature_enabled(
+                        annotations_config.get("enabled"),
+                        datetime.now(timezone.utc),
+                        default=True
+                    ):
+                        content_all_sup, content_secret_sup, ann_suppressions, ann_warnings = process_annotations(
+                            content_to_scan, file_path=file_path, config=annotations_config
+                        )
+
+                        if ann_suppressions:
+                            # content_to_scan stays ORIGINAL for prompt injection, jailbreak, config exfil
+                            # Suppressed content only used for secrets and PII scanners
+                            pii_content_to_scan = content_all_sup
+                            secret_content_to_scan = content_secret_sup
+
+                            # Log suppressions for audit trail
+                            if HAS_VIOLATION_LOGGER:
+                                try:
+                                    violation_logger = ViolationLogger()
+                                    ann_ctx = {
+                                        "ide_type": ide_type.value,
+                                        "hook_event": hook_event,
+                                        "file_path": file_path,
+                                    }
+                                    if hook_tool_use_id:
+                                        ann_ctx["tool_use_id"] = hook_tool_use_id
+                                    if hook_session_id:
+                                        ann_ctx["session_id"] = hook_session_id
+                                    violation_logger.log_violation(
+                                        violation_type="annotation_suppressed",
+                                        blocked={
+                                            "file_path": file_path,
+                                            "suppressions": ann_suppressions,
+                                            "total_lines_suppressed": sum(
+                                                len(s.get("lines", [])) for s in ann_suppressions
+                                            ),
+                                        },
+                                        context=ann_ctx,
+                                        severity="info",
+                                    )
+                                except Exception as e:
+                                    logging.debug(f"Failed to log annotation suppression: {e}")
+
+                        for w in ann_warnings:
+                            warning_messages.append(w)
             else:
                 # Non-file-reading tool (Bash, Write, Edit, etc.)
                 # These tools don't read files in PreToolUse, so no content to scan here
@@ -3558,6 +3725,9 @@ def process_hook_data(hook_data, daemon_state=None):
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             logging.info("Scanning user prompt for secrets...")
+            secret_content_to_scan = None  # No annotation processing for prompts
+            pii_content_to_scan = None
+            annotations_config = None
 
         # Check for prompt injection BEFORE scanning for secrets
         if HAS_PROMPT_INJECTION:
@@ -3727,8 +3897,10 @@ def process_hook_data(hook_data, daemon_state=None):
                 pre_secret_ctx["tool_use_id"] = hook_tool_use_id
             if hook_session_id:
                 pre_secret_ctx["session_id"] = hook_session_id
+            # Use secret-suppressed content if annotation processing produced one
+            secret_scan_content = secret_content_to_scan if secret_content_to_scan is not None else content_to_scan
             has_secrets, error_message = check_secrets_with_gitleaks(
-                content_to_scan, filename,
+                secret_scan_content, filename,
                 context=pre_secret_ctx,
                 file_path=file_path,
                 tool_name=tool_identifier,
@@ -3743,7 +3915,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning)
+                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning)
                 return result
 
             # No secrets found, allow operation
@@ -3772,7 +3944,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                 if should_scan_pii:
                     logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
-                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(content_to_scan, pii_config)
+                    pii_scan_content = pii_content_to_scan if pii_content_to_scan is not None else content_to_scan
+                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config)
                     if has_pii:
                         pii_action = pii_config.get('action', 'block')
                         pii_types = list(set(r['type'] for r in pii_redactions))
@@ -3807,9 +3980,9 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                            final_error = pii_warning
+                            final_error = _annotation_hint(pii_warning, file_path, annotations_config)
                             if combined_warning:
-                                final_error = f"{combined_warning}\n\n{pii_warning}"
+                                final_error = f"{combined_warning}\n\n{final_error}"
                             result = format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event)
                             return result

@@ -961,12 +961,25 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
         },
 
+        "_comment_annotations": "Inline annotation suppression for secrets and PII (NEW in v1.8.0, Issue #481). "
+                                "Hardcoded: ai-guardian:allow (inline), ai-guardian:begin-allow/end-allow (block). "
+                                "Configurable aliases: inline_allow (secrets+PII), inline_allow_secrets (secrets only). "
+                                "Prompt injection, jailbreak, config exfil always scanned. "
+                                "Set enabled to false for strict compliance environments.",
+        "annotations": {
+            "enabled": True,
+            "inline_allow": [],
+            "inline_allow_secrets": ["gitleaks:allow"],
+            "block_begin": [],
+            "block_end": [],
+        },
+
         "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
         "violation_logging": {
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed"]
         },
         "_comment_daemon": "Background daemon for faster hook processing. Modes: 'auto' (default, daemon with fallback), 'local' (per-process, CI/CD), 'daemon' (require daemon, for testing). Override with AI_GUARDIAN_DAEMON_MODE env var.",
         "daemon": {
