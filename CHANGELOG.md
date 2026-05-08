@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Project-level .aiguardignore.toml** (Issue #497)
+  - Per-project `ignore_files` via `.aiguardignore.toml` in project root
+  - Global `[allowlist]` paths apply to all scanners
+  - Per-scanner sections: `[secret_scanning]`, `[scan_pii]`, `[prompt_injection]`, `[config_file_scanning]`
+  - Consistent with `.gitleaks.toml` allowlist structure
+  - Merged with JSON config `ignore_files` (both sources apply)
+  - Cached with mtime-based invalidation for performance
+
 - **Health Check (Doctor) panel in Console** (Issue #502)
   - New panel under Tools section displaying all `ai-guardian doctor` checks
   - Color-coded pass/warn/fail/skip indicators with expandable details
