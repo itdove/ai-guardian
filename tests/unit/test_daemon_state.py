@@ -228,6 +228,10 @@ class TestStats:
         assert stats["warning_count"] == 0
         assert stats["log_only_count"] == 0
         assert stats["violation_count"] == 0
+        assert stats["critical_count"] == 0
+        assert stats["warning_severity_count"] == 0
+        assert stats["last_block_type"] is None
+        assert stats["last_block_seconds_ago"] is None
         assert stats["active_contexts"] == 0
         assert stats["paused"] is False
         assert "uptime_seconds" in stats
@@ -248,6 +252,42 @@ class TestStats:
         assert stats["warning_count"] == 2
         assert stats["log_only_count"] == 1
         assert stats["violation_count"] == 4  # 1 + 2 + 1
+
+    def test_severity_counts(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.record_blocked()
+        state.record_blocked()
+        state.record_warning()
+
+        stats = state.get_stats()
+        assert stats["critical_count"] == 2
+        assert stats["warning_severity_count"] == 1
+
+    def test_last_block_tracking(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.record_blocked(violation_type="secret_detected")
+
+        stats = state.get_stats()
+        assert stats["last_block_type"] == "secret_detected"
+        assert stats["last_block_seconds_ago"] is not None
+        assert stats["last_block_seconds_ago"] < 2.0
+
+    def test_last_block_updated_on_new_block(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.record_blocked(violation_type="secret_detected")
+        state.record_blocked(violation_type="prompt_injection")
+
+        stats = state.get_stats()
+        assert stats["last_block_type"] == "prompt_injection"
+
+    def test_blocked_without_violation_type(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.record_blocked()
+
+        stats = state.get_stats()
+        assert stats["last_block_type"] is None
+        assert stats["last_block_seconds_ago"] is not None
+        assert stats["critical_count"] == 1
 
 
 class TestThreadSafety:
