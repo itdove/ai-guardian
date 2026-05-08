@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Health Check (Doctor) panel in Console** (Issue #502)
+  - New panel under Tools section displaying all `ai-guardian doctor` checks
+  - Color-coded pass/warn/fail/skip indicators with expandable details
+  - Auto-refresh on navigation, manual refresh button
+  - Fix Issues button with confirmation dialog for auto-fixable problems
+  - Reuses existing Doctor class — same checks as the CLI
+
 - **Pattern server doctor checks** (Issue #493)
   - `ai-guardian doctor` now checks pattern server cache path writability
   - Checks auth token availability (env var or token file)

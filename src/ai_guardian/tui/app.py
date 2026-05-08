@@ -135,6 +135,7 @@ NAV_GROUPS = [
     ("Tools", [
         ("Regex Tester", "panel-regex-tester"),
         ("Hook Simulator", "panel-hook-simulator"),
+        ("Health Check", "panel-health-check"),
     ]),
 ]
 
@@ -219,7 +220,9 @@ HELP_DOCS = {
         "  [bold]Regex Tester[/bold] — Interactively test regex "
         "patterns with ReDoS validation and config integration\n"
         "  [bold]Hook Simulator[/bold] — Test detection rules against "
-        "simulated hook events without triggering real hooks"
+        "simulated hook events without triggering real hooks\n"
+        "  [bold]Health Check[/bold] — System health checks "
+        "(ai-guardian doctor) with auto-fix support"
     ),
     # Panel-level help
     "panel-security-dashboard": (
@@ -658,6 +661,26 @@ HELP_DOCS = {
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]r[/bold]  Clear and reset the simulator"
     ),
+    "panel-health-check": (
+        "[bold]Health Check (Doctor)[/bold]\n\n"
+        "Verify your AI Guardian setup is working correctly. "
+        "Displays the same checks as 'ai-guardian doctor' CLI.\n\n"
+        "[bold]Checks performed:[/bold]\n"
+        "  - Config file validity and schema\n"
+        "  - Scanner engines installed\n"
+        "  - Pattern server connectivity and cache\n"
+        "  - IDE hooks configured\n"
+        "  - State and cache directories\n"
+        "  - Permissions and directory rules\n"
+        "  - Console dependencies\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Auto-refresh when navigating to the panel\n"
+        "  - Color-coded pass/warn/fail/skip indicators\n"
+        "  - Click to expand check details and fix hints\n"
+        "  - Fix Issues button for auto-fixable problems\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Refresh health checks"
+    ),
 }
 
 
@@ -1061,6 +1084,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-hook-simulator"):
                     from ai_guardian.tui.hook_simulator import HookSimulatorContent
                     yield HookSimulatorContent()
+
+                with Container(id="panel-health-check"):
+                    from ai_guardian.tui.health_check import HealthCheckContent
+                    yield HealthCheckContent()
 
         yield Footer()
 
