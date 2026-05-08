@@ -433,8 +433,15 @@
       "description": "Secret redaction configuration (NEW in v1.5.0). Redacts secrets from tool outputs instead of blocking them entirely, providing defense-in-depth while allowing work to continue. Part of Phase 4: Hermes Security Patterns integration.",
       "properties": {
         "enabled": {
-          "type": "boolean",
-          "description": "Enable secret redaction for tool outputs",
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
           "default": true
         },
         "action": {
@@ -513,8 +520,15 @@
       "description": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for personally identifiable information such as SSNs, credit card numbers, phone numbers, emails, passport numbers, and IBANs.",
       "properties": {
         "enabled": {
-          "type": "boolean",
-          "description": "Enable PII detection across all hooks (UserPromptSubmit, PreToolUse, PostToolUse)",
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
           "default": true
         },
         "pii_types": {
@@ -1157,8 +1171,15 @@
       "description": "Violation logging configuration (NEW in v1.1.0). Logs blocked operations to JSONL file for audit and review.",
       "properties": {
         "enabled": {
-          "type": "boolean",
-          "description": "Enable violation logging",
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
           "default": true
         },
         "max_entries": {
