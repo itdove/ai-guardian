@@ -145,8 +145,18 @@ def _get_sanitized_log() -> tuple:
         return "", 0
 
 
-def prepare_bundle() -> Dict[str, Any]:
+def prepare_bundle(
+    *,
+    include_log: bool = True,
+    include_violations: bool = True,
+    output_path: Optional[str] = None,
+) -> Dict[str, Any]:
     """Prepare a sanitized support bundle for user review.
+
+    Args:
+        include_log: Include the sanitized ai-guardian.log file.
+        include_violations: Include the sanitized violations.json file.
+        output_path: If provided, copy bundle files to this directory.
 
     Returns dict with bundle_id, temp_path, destination, and file list.
     """
@@ -192,27 +202,28 @@ def prepare_bundle() -> Dict[str, Any]:
         logger.debug("Bundle config error: %s", e)
 
     # 2. Violations (sanitized)
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    if include_violations:
+        try:
+            from ai_guardian.violation_logger import ViolationLogger
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(limit=100)
-        sanitized, count = _sanitize_violations(violations)
-        (temp_dir / "violations.json").write_text(json.dumps(sanitized, indent=2))
-        files_info.append(
-            {
-                "name": "violations.json",
-                "sanitized": count > 0,
-                "redactions": count,
-                "note": (
-                    f"{count} file paths and content redacted"
-                    if count
-                    else "No sensitive data found"
-                ),
-            }
-        )
-    except Exception as e:
-        logger.debug("Bundle violations error: %s", e)
+            vl = ViolationLogger()
+            violations = vl.get_recent_violations(limit=100)
+            sanitized, count = _sanitize_violations(violations)
+            (temp_dir / "violations.json").write_text(json.dumps(sanitized, indent=2))
+            files_info.append(
+                {
+                    "name": "violations.json",
+                    "sanitized": count > 0,
+                    "redactions": count,
+                    "note": (
+                        f"{count} file paths and content redacted"
+                        if count
+                        else "No sensitive data found"
+                    ),
+                }
+            )
+        except Exception as e:
+            logger.debug("Bundle violations error: %s", e)
 
     # 3. Metrics (aggregate only)
     try:
@@ -277,22 +288,36 @@ def prepare_bundle() -> Dict[str, Any]:
         logger.debug("Bundle system info error: %s", e)
 
     # 6. Full log (sanitized)
-    try:
-        log_text, count = _get_sanitized_log()
-        if log_text:
-            (temp_dir / "ai-guardian.log").write_text(log_text)
-            files_info.append(
-                {
-                    "name": "ai-guardian.log",
-                    "sanitized": count > 0,
-                    "redactions": count,
-                    "note": (
-                        f"Full log, {count} items redacted" if count else "Full log"
-                    ),
-                }
-            )
-    except Exception as e:
-        logger.debug("Bundle log error: %s", e)
+    if include_log:
+        try:
+            log_text, count = _get_sanitized_log()
+            if log_text:
+                (temp_dir / "ai-guardian.log").write_text(log_text)
+                files_info.append(
+                    {
+                        "name": "ai-guardian.log",
+                        "sanitized": count > 0,
+                        "redactions": count,
+                        "note": (
+                            f"Full log, {count} items redacted"
+                            if count
+                            else "Full log"
+                        ),
+                    }
+                )
+        except Exception as e:
+            logger.debug("Bundle log error: %s", e)
+
+    # Copy to output_path if requested
+    actual_output = str(temp_dir)
+    if output_path:
+        out = Path(output_path).expanduser()
+        out.mkdir(parents=True, exist_ok=True)
+        for item in temp_dir.iterdir():
+            if item.name == ".ai-read-deny":
+                continue
+            shutil.copy2(item, out / item.name)
+        actual_output = str(out)
 
     _active_bundles[bundle_id] = {
         "temp_path": str(temp_dir),
@@ -302,11 +327,163 @@ def prepare_bundle() -> Dict[str, Any]:
         "files": files_info,
     }
 
-    return {
+    _persist_bundle_ref(bundle_id, _active_bundles[bundle_id])
+
+    result = {
         "bundle_id": bundle_id,
         "temp_path": str(temp_dir),
         "destination": destination,
         "files": files_info,
+    }
+    if output_path:
+        result["output_path"] = actual_output
+    return result
+
+
+def _persist_bundle_ref(bundle_id: str, bundle_info: Dict) -> None:
+    """Write last-prepared bundle reference to state dir for cross-process use."""
+    try:
+        from ai_guardian.config_utils import get_state_dir
+
+        state_dir = get_state_dir()
+        state_dir.mkdir(parents=True, exist_ok=True)
+        ref_path = state_dir / "last-support-bundle.json"
+        ref_path.write_text(
+            json.dumps(
+                {
+                    "bundle_id": bundle_id,
+                    "temp_path": bundle_info["temp_path"],
+                    "destination": bundle_info["destination"],
+                    "created": bundle_info["created"],
+                    "ttl_minutes": bundle_info.get("ttl_minutes", 30),
+                    "files": bundle_info.get("files", []),
+                },
+                indent=2,
+            )
+        )
+    except Exception as e:
+        logger.debug("Failed to persist bundle ref: %s", e)
+
+
+def _load_last_bundle() -> Optional[str]:
+    """Load the last prepared bundle from the persisted reference.
+
+    Returns bundle_id if found and still valid, None otherwise.
+    """
+    try:
+        from ai_guardian.config_utils import get_state_dir
+
+        ref_path = get_state_dir() / "last-support-bundle.json"
+        if not ref_path.exists():
+            return None
+
+        with open(ref_path, "r") as f:
+            ref = json.load(f)
+
+        bundle_id = ref.get("bundle_id", "")
+        temp_path = Path(ref.get("temp_path", ""))
+
+        if not temp_path.exists():
+            return None
+
+        created = datetime.fromisoformat(ref["created"])
+        age_minutes = (datetime.now(timezone.utc) - created).total_seconds() / 60
+        ttl = ref.get("ttl_minutes", 30)
+        if age_minutes > ttl:
+            return None
+
+        if bundle_id not in _active_bundles:
+            _active_bundles[bundle_id] = ref
+
+        return bundle_id
+    except Exception as e:
+        logger.debug("Failed to load last bundle: %s", e)
+        return None
+
+
+def _load_bundle_from_path(bundle_path: str) -> Optional[str]:
+    """Register an existing bundle directory in _active_bundles.
+
+    Returns the bundle_id, or None if the path is invalid or empty.
+    """
+    path = Path(bundle_path).expanduser()
+    if not path.is_dir():
+        return None
+
+    files = [f for f in path.iterdir() if f.name != ".ai-read-deny"]
+    if not files:
+        return None
+
+    dir_name = path.name
+    if dir_name.startswith("support-") and len(dir_name) > 8:
+        bundle_id = dir_name
+    else:
+        bundle_id = f"support-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
+
+    support_config = _get_support_config()
+    destination = support_config.get("export_destination", "")
+    if not destination:
+        from ai_guardian.config_utils import get_state_dir
+
+        destination = str(get_state_dir() / "support-bundles")
+
+    files_info = [
+        {"name": f.name, "sanitized": False, "redactions": 0, "note": "pre-existing"}
+        for f in files
+    ]
+
+    _active_bundles[bundle_id] = {
+        "temp_path": str(path),
+        "destination": destination,
+        "created": datetime.now(timezone.utc).isoformat(),
+        "ttl_minutes": 1440,
+        "files": files_info,
+    }
+    return bundle_id
+
+
+def _get_bundle_status() -> Dict[str, Any]:
+    """Get support bundle configuration and status information."""
+    support_config = _get_support_config()
+    destination = support_config.get("export_destination", "")
+
+    if not destination:
+        from ai_guardian.config_utils import get_state_dir
+
+        destination = str(get_state_dir() / "support-bundles")
+
+    if destination.startswith("s3://"):
+        dest_type = "s3"
+    elif destination:
+        dest_type = "local"
+    else:
+        dest_type = "none"
+
+    auth = support_config.get("auth", {})
+    auth_method = auth.get("method", "none")
+    token_env = auth.get("token_env", "")
+    auth_configured = bool(
+        auth_method == "env" and token_env and os.environ.get(token_env)
+    )
+
+    pending = []
+    for bid, info in _active_bundles.items():
+        pending.append(
+            {
+                "bundle_id": bid,
+                "created": info.get("created", ""),
+                "file_count": len(info.get("files", [])),
+                "temp_path": info.get("temp_path", ""),
+            }
+        )
+
+    return {
+        "destination": destination,
+        "destination_type": dest_type,
+        "auth_method": auth_method,
+        "auth_configured": auth_configured,
+        "bundle_ttl_minutes": support_config.get("bundle_ttl_minutes", 30),
+        "pending_bundles": pending,
     }
 
 
@@ -432,3 +609,127 @@ def _cleanup_bundle(bundle_id: str) -> None:
         if temp_path.exists():
             shutil.rmtree(temp_path, ignore_errors=True)
         del _active_bundles[bundle_id]
+
+
+# --- CLI formatters ---
+
+
+def _format_prepare_human(result: Dict[str, Any]) -> str:
+    """Format prepare_bundle result for terminal output."""
+    lines = []
+    path = result.get("output_path", result["temp_path"])
+    lines.append(f"Support bundle prepared at: {path}")
+    lines.append("")
+    lines.append("Files:")
+    for f in result["files"]:
+        marker = f"⚠️  {f['redactions']} items redacted" if f["redactions"] else "clean"
+        lines.append(f"  {f['name']:25s} — {marker}")
+    lines.append("")
+    lines.append("Review the files, then run:")
+    lines.append("  ai-guardian support send")
+    return "\n".join(lines)
+
+
+def _format_send_human(result: Dict[str, Any]) -> str:
+    """Format send_bundle result for terminal output."""
+    if result["status"] == "sent":
+        return f"✓ Sent: {result.get('message', result.get('destination', ''))}"
+    return f"✗ {result.get('message', 'Send failed')}"
+
+
+def _format_status_human(status: Dict[str, Any]) -> str:
+    """Format bundle status for terminal output."""
+    lines = [
+        "ai-guardian support status",
+        "",
+        f"  Destination:     {status['destination']} ({status['destination_type']})",
+        f"  Auth:            {status['auth_method']}"
+        + (" ✓" if status["auth_configured"] else ""),
+        f"  Bundle TTL:      {status['bundle_ttl_minutes']} minutes",
+        f"  Pending bundles: {len(status['pending_bundles'])}",
+    ]
+    for b in status["pending_bundles"]:
+        lines.append(f"    {b['bundle_id']} ({b['file_count']} files) at {b['temp_path']}")
+    return "\n".join(lines)
+
+
+# --- CLI entry point ---
+
+
+def support_command(args) -> int:
+    """Handle the 'ai-guardian support' CLI command."""
+    import sys
+
+    cmd = getattr(args, "support_command", None)
+
+    if cmd == "prepare":
+        result = prepare_bundle(
+            include_log=not getattr(args, "no_log", False),
+            include_violations=not getattr(args, "no_violations", False),
+            output_path=getattr(args, "output", None),
+        )
+        if getattr(args, "json", False):
+            print(json.dumps(result, indent=2))
+        else:
+            print(_format_prepare_human(result))
+        return 0
+
+    if cmd == "send":
+        bundle_id = None
+
+        if getattr(args, "prepare", False):
+            result = prepare_bundle()
+            bundle_id = result["bundle_id"]
+            if not getattr(args, "json", False):
+                print(_format_prepare_human(result))
+                print()
+        elif getattr(args, "bundle", None):
+            bundle_id = _load_bundle_from_path(args.bundle)
+            if not bundle_id:
+                print(
+                    f"Error: '{args.bundle}' is not a valid bundle directory.",
+                    file=sys.stderr,
+                )
+                return 1
+        else:
+            bundle_id = _load_last_bundle()
+            if not bundle_id:
+                print(
+                    "Error: No pending bundle found.\n"
+                    "Run 'ai-guardian support prepare' first, or use "
+                    "'ai-guardian support send --prepare'.",
+                    file=sys.stderr,
+                )
+                return 1
+
+        if not getattr(args, "yes", False):
+            if not sys.stdin.isatty():
+                print(
+                    "Error: Cannot prompt for confirmation in non-interactive mode. "
+                    "Use --yes to skip.",
+                    file=sys.stderr,
+                )
+                return 1
+            dest = _active_bundles.get(bundle_id, {}).get("destination", "")
+            answer = input(f"Send bundle to {dest}? [y/N] ").strip().lower()
+            if answer not in ("y", "yes"):
+                print("Cancelled.")
+                return 1
+
+        send_result = send_bundle(bundle_id)
+        if getattr(args, "json", False):
+            print(json.dumps(send_result, indent=2))
+        else:
+            print(_format_send_human(send_result))
+        return 0 if send_result.get("status") == "sent" else 1
+
+    if cmd == "status":
+        status = _get_bundle_status()
+        if getattr(args, "json", False):
+            print(json.dumps(status, indent=2))
+        else:
+            print(_format_status_human(status))
+        return 0
+
+    print("Usage: ai-guardian support {prepare|send|status}", file=sys.stderr)
+    return 1

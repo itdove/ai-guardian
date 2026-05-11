@@ -4998,6 +4998,78 @@ def main():
         mcp_sub.add_parser("disable", help="Disable MCP security advisor server")
         mcp_sub.add_parser("status", help="Show MCP server status")
 
+        # Support bundle subcommand (Issue #511)
+        support_parser = subparsers.add_parser(
+            "support",
+            help="Manage support bundles for troubleshooting"
+        )
+        support_sub = support_parser.add_subparsers(
+            dest="support_command", help="Support commands"
+        )
+
+        # support prepare
+        support_prepare_parser = support_sub.add_parser(
+            "prepare",
+            help="Prepare a sanitized support bundle for review"
+        )
+        support_prepare_parser.add_argument(
+            "--output", "-o",
+            metavar="PATH",
+            help="Save bundle to this directory instead of a temp directory"
+        )
+        support_prepare_parser.add_argument(
+            "--no-log",
+            action="store_true",
+            help="Exclude the ai-guardian.log file from the bundle"
+        )
+        support_prepare_parser.add_argument(
+            "--no-violations",
+            action="store_true",
+            help="Exclude the violations.json file from the bundle"
+        )
+        support_prepare_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output bundle info as JSON"
+        )
+
+        # support send
+        support_send_parser = support_sub.add_parser(
+            "send",
+            help="Send a prepared support bundle to the configured destination"
+        )
+        support_send_parser.add_argument(
+            "--prepare",
+            action="store_true",
+            help="Prepare and send in one step (with confirmation unless --yes)"
+        )
+        support_send_parser.add_argument(
+            "--yes", "-y",
+            action="store_true",
+            help="Skip confirmation prompt"
+        )
+        support_send_parser.add_argument(
+            "--bundle",
+            metavar="PATH",
+            help="Path to a previously prepared bundle directory"
+        )
+        support_send_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output result as JSON"
+        )
+
+        # support status
+        support_status_parser = support_sub.add_parser(
+            "status",
+            help="Show support bundle configuration and pending bundles"
+        )
+        support_status_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -5354,6 +5426,20 @@ def main():
         # Handle mcp enable/disable/status command (Issue #477)
         if args.command == "mcp":
             return _handle_mcp_command(args)
+
+        # Handle support command (Issue #511)
+        if args.command == "support":
+            try:
+                from ai_guardian.support_bundle import support_command
+                return support_command(args)
+            except ImportError as e:
+                print(f"Error: Support bundle module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running support command: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
 
         # If no subcommand, just return (version was handled)
         return 0
