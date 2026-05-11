@@ -6,13 +6,16 @@ Automatically configures IDE hooks for Claude Code and Cursor,
 with support for remote configuration URLs.
 """
 
+import contextlib
+import io
 import json
+import logging
 import os
 import subprocess
 import sys
 from importlib.resources import files
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
 
@@ -176,7 +179,7 @@ class IDESetup:
 
     def __init__(self):
         """Initialize IDE setup manager."""
-        pass
+        self._last_merged_config: Optional[Dict] = None
 
     def verify_gitleaks_installed(self) -> Tuple[bool, str]:
         """
@@ -489,6 +492,8 @@ class IDESetup:
                 merged_config["userPromptSubmitted"] = ide_config["hooks"]["userPromptSubmitted"]
                 merged_config["preToolUse"] = ide_config["hooks"]["preToolUse"]
                 # Fall through to common config-write path (don't return early)
+
+            self._last_merged_config = merged_config
 
             if dry_run:
                 # Show what would be changed
@@ -1428,7 +1433,7 @@ def setup_hooks(
         auto_install_hooks: If True, allow automatic hook installation (default: False for safety)
         uninstall_hooks: If True, remove AI Guardian pre-commit hooks
         install_scanner: Optional scanner name to install (gitleaks, betterleaks, or leaktk)
-        json_output: If True, output only raw JSON (for --create-config)
+        json_output: If True, output only clean JSON (suppresses all log text)
         profile: Optional security profile to apply (use with create_config)
         save_profile: Optional name to save current config as a custom profile
         list_profiles: If True, list available security profiles
@@ -1436,6 +1441,19 @@ def setup_hooks(
     Returns:
         bool: True if successful, False otherwise
     """
+    # JSON output mode: clean JSON only, no log text (Issue #518)
+    if json_output and not list_profiles and not save_profile:
+        return _setup_hooks_json_output(
+            ide_type=ide_type,
+            dry_run=dry_run,
+            force=force,
+            create_config=create_config,
+            permissive=permissive,
+            profile=profile,
+            mcp=mcp,
+            no_mcp=no_mcp,
+        )
+
     setup = IDESetup()
 
     # Handle profile listing if requested
@@ -1535,15 +1553,14 @@ def setup_hooks(
     # Handle default config creation if requested
     if create_config:
         success, message = create_default_config(
-            permissive=permissive, dry_run=dry_run, json_output=json_output,
+            permissive=permissive, dry_run=dry_run, json_output=False,
             profile=profile,
         )
         print(message)
         if not success:
             return False
         # If only creating config (no IDE setup or remote config), return early
-        # --json implies early return (output only the config JSON)
-        if json_output or (ide_type is None and not remote_config_url and not migrate_pattern_server):
+        if ide_type is None and not remote_config_url and not migrate_pattern_server:
             return success
 
     # Handle pattern_server migration if requested
@@ -1640,9 +1657,120 @@ def setup_hooks(
     return success
 
 
+def _setup_hooks_json_output(
+    ide_type: Optional[str] = None,
+    dry_run: bool = False,
+    force: bool = False,
+    create_config: bool = False,
+    permissive: bool = False,
+    profile: Optional[str] = None,
+    mcp: Optional[bool] = None,
+    no_mcp: Optional[bool] = None,
+) -> bool:
+    """Run setup and output results as clean JSON with no log text (Issue #518)."""
+    setup = IDESetup()
+    result: Dict[str, Any] = {"success": True, "dry_run": dry_run}
+
+    # Handle ai-guardian config creation
+    if create_config:
+        if profile:
+            from ai_guardian.profile_manager import load_profile, ProfileNotFoundError
+            try:
+                ag_config = load_profile(profile)
+            except (ProfileNotFoundError, json.JSONDecodeError) as e:
+                print(json.dumps({"success": False, "error": str(e)}, indent=2))
+                return False
+        else:
+            ag_config = _get_default_config_template(permissive)
+
+        result["ai_guardian_config"] = ag_config
+
+        if not dry_run:
+            config_dir = get_config_dir()
+            config_path = config_dir / "ai-guardian.json"
+            if config_path.exists():
+                print(json.dumps({
+                    "success": False,
+                    "error": f"Config already exists: {config_path}",
+                }, indent=2))
+                return False
+            config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(ag_config, f, indent=2)
+                f.write("\n")
+
+    # Auto-detect IDE if not specified
+    if ide_type is None:
+        detected_ides = setup.list_detected_ides()
+        if not detected_ides:
+            if create_config:
+                print(json.dumps(result, indent=2))
+                return True
+            print(json.dumps({
+                "success": False,
+                "error": "No IDE detected. Specify --ide flag.",
+            }, indent=2))
+            return False
+        elif len(detected_ides) == 1:
+            ide_type = detected_ides[0]
+        else:
+            if create_config:
+                print(json.dumps(result, indent=2))
+                return True
+            print(json.dumps({
+                "success": False,
+                "error": (
+                    f"Multiple IDEs detected: {', '.join(detected_ides)}. "
+                    "Specify --ide flag."
+                ),
+            }, indent=2))
+            return False
+
+    if ide_type not in setup.IDE_CONFIGS:
+        print(json.dumps({
+            "success": False,
+            "error": f"Unknown IDE type: {ide_type}",
+        }, indent=2))
+        return False
+
+    result["ide"] = ide_type
+    result["config_path"] = str(Path(setup.get_config_path(ide_type)).expanduser())
+
+    # Run IDE hook setup with all print output suppressed
+    _devnull = io.StringIO()
+    with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
+        success, message = setup.setup_ide_hooks(
+            ide_type, dry_run=dry_run, force=force,
+        )
+
+    result["success"] = success
+    if success and setup._last_merged_config is not None:
+        result["hooks"] = setup._last_merged_config
+    elif not success:
+        result["error"] = message
+
+    # Handle MCP server setup (run if --mcp/--no-mcp passed)
+    if success and (mcp or no_mcp):
+        with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
+            _handle_mcp_setup(
+                setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run,
+            )
+
+    # Always include MCP server config in JSON output (unless --no-mcp)
+    if success and not no_mcp:
+        mcp_ide = _MCP_IDE_CONFIGS.get(ide_type, {})
+        mcp_path = mcp_ide.get("config_file", "")
+        result["mcp_config_path"] = str(Path(mcp_path).expanduser()) if mcp_path else None
+        result["mcp_servers"] = {"ai-guardian": dict(_MCP_SERVER_ENTRY)}
+
+    print(json.dumps(result, indent=2))
+    return result.get("success", False)
+
+
 # MCP config locations per IDE
 _MCP_IDE_CONFIGS = {
     "claude": {
+        "config_file": "~/.claude.json",
         "config_key": "mcpServers",
         "skill_dir": ".claude/skills",
     },
@@ -1684,12 +1812,7 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
         print(f"  MCP: IDE '{ide_type}' not supported for MCP server")
         return
 
-    # For Claude, MCP config goes in the same settings.json
-    # For Cursor, it goes in a separate mcp.json
-    if ide_type == "claude":
-        config_path = setup.get_config_path(ide_type)
-    else:
-        config_path = Path(mcp_ide.get("config_file", "")).expanduser()
+    config_path = Path(mcp_ide.get("config_file", "")).expanduser()
 
     if dry_run:
         print(f"  MCP: Would add ai-guardian MCP server to {config_path}")
@@ -1744,10 +1867,7 @@ def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) ->
     if not mcp_ide:
         return
 
-    if ide_type == "claude":
-        config_path = setup.get_config_path(ide_type)
-    else:
-        config_path = Path(mcp_ide.get("config_file", "")).expanduser()
+    config_path = Path(mcp_ide.get("config_file", "")).expanduser()
 
     if dry_run:
         print(f"  MCP: Would remove ai-guardian MCP server from {config_path}")
