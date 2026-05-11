@@ -233,6 +233,39 @@ class MCPServersContent(Container):
         margin: 0 1 0 0;
     }
 
+    #proactive-label {
+        margin: 1 0 0 0;
+    }
+
+    #proactive-level {
+        margin: 0 0 1 0;
+        width: 50;
+    }
+
+    #support-section {
+        border: solid $primary;
+        margin: 1 0;
+        padding: 1;
+        background: $panel;
+    }
+
+    #support-section Static {
+        margin: 0 0 0 0;
+    }
+
+    #support-section Input {
+        margin: 0 0 1 0;
+    }
+
+    #support-actions {
+        margin: 1 0 0 0;
+        height: auto;
+    }
+
+    #support-actions Button {
+        margin: 0 1 0 0;
+    }
+
     .empty-state {
         margin: 2;
         padding: 2;
@@ -255,6 +288,40 @@ class MCPServersContent(Container):
     def compose(self) -> ComposeResult:
         """Compose the MCP servers tab content."""
         yield Static("[bold]MCP Server Permissions[/bold]", id="mcp-header")
+
+        # MCP Security Advisor toggle (Issue #477)
+        with Horizontal(id="mcp-actions"):
+            yield Static("MCP Security Advisor: ", id="mcp-toggle-label")
+            yield Button("Enable", id="mcp-toggle", variant="success")
+
+        # Proactive level selector (Issue #477)
+        yield Static("Proactive Level:", id="proactive-label")
+        yield Select(
+            [
+                ("low — check only when asked", "low"),
+                ("medium — check unfamiliar paths/commands", "medium"),
+                ("high — check everything", "high"),
+            ],
+            value="low",
+            id="proactive-level",
+        )
+
+        # Support Bundle config (Issue #477)
+        with Container(id="support-section"):
+            yield Static("[bold]Support Bundle Export[/bold]")
+            yield Static("[dim]Destination for sanitized diagnostic bundles (local path or s3://...)[/dim]")
+            yield Input(
+                placeholder="e.g., ~/support-bundles or s3://bucket/prefix/",
+                id="support-destination",
+            )
+            yield Static("[dim]Bundle TTL (minutes before auto-expiry):[/dim]")
+            yield Input(
+                placeholder="30",
+                id="support-ttl",
+            )
+            with Horizontal(id="support-actions"):
+                yield Button("Save", id="support-save", variant="primary")
+
         yield Static(
             "[dim]Manage MCP server tool permissions (e.g., mcp__notebooklm-mcp__*). "
             "Press 'a' to add new permission.[/dim]",
@@ -264,7 +331,10 @@ class MCPServersContent(Container):
         yield VerticalScroll(id="mcp-list")
 
     def on_mount(self) -> None:
-        """Load permissions when mounted."""
+        """Load permissions, MCP toggle, proactive level, and support config when mounted."""
+        self._update_mcp_toggle()
+        self._load_proactive_level()
+        self._load_support_config()
         self.load_permissions()
 
     def refresh_content(self) -> None:
@@ -315,12 +385,163 @@ class MCPServersContent(Container):
         """Handle button presses (only edit/delete on permission cards)."""
         button_id = event.button.id
 
-        if button_id and button_id.startswith("edit-"):
+        if button_id == "mcp-toggle":
+            self._toggle_mcp_server()
+        elif button_id == "support-save":
+            self._save_support_config()
+        elif button_id and button_id.startswith("edit-"):
             idx = int(button_id.replace("edit-", ""))
             self.edit_permission(idx)
         elif button_id and button_id.startswith("delete-"):
             idx = int(button_id.replace("delete-", ""))
             self.delete_permission(idx)
+
+    def _toggle_mcp_server(self) -> None:
+        """Toggle MCP security advisor server enabled/disabled."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if "mcp_server" not in config:
+            config["mcp_server"] = {}
+        new_state = not config["mcp_server"].get("enabled", False)
+        config["mcp_server"]["enabled"] = new_state
+
+        config_dir.mkdir(parents=True, exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+            f.write("\n")
+
+        state = "enabled" if new_state else "disabled"
+        self.app.notify(f"MCP Security Advisor: {state}", severity="information")
+        self._update_mcp_toggle()
+
+    def _update_mcp_toggle(self) -> None:
+        """Update the MCP toggle button state from config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+        enabled = False
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                enabled = config.get("mcp_server", {}).get("enabled", False)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        try:
+            button = self.query_one("#mcp-toggle", Button)
+            if enabled:
+                button.label = "Disable"
+                button.variant = "error"
+            else:
+                button.label = "Enable"
+                button.variant = "success"
+        except Exception:
+            pass
+
+    def _load_proactive_level(self) -> None:
+        """Load proactive level from config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+        level = "low"
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                level = config.get("mcp_server", {}).get("proactive_level", "low")
+            except (json.JSONDecodeError, OSError):
+                pass
+        try:
+            select = self.query_one("#proactive-level", Select)
+            select.value = level
+        except Exception:
+            pass
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Handle proactive level change."""
+        if event.select.id == "proactive-level" and event.value != Select.BLANK:
+            config_dir = get_config_dir()
+            config_path = config_dir / "ai-guardian.json"
+            config = {}
+            if config_path.exists():
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    pass
+            if "mcp_server" not in config:
+                config["mcp_server"] = {}
+            config["mcp_server"]["proactive_level"] = event.value
+            config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2)
+                f.write("\n")
+            self.app.notify(f"Proactive level: {event.value}", severity="information")
+
+    def _load_support_config(self) -> None:
+        """Load support config values into the input fields."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+        support = {}
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                support = config.get("support", {})
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        try:
+            dest_input = self.query_one("#support-destination", Input)
+            dest_input.value = support.get("export_destination", "")
+            ttl_input = self.query_one("#support-ttl", Input)
+            ttl_val = support.get("bundle_ttl_minutes", 30)
+            ttl_input.value = str(ttl_val)
+        except Exception:
+            pass
+
+    def _save_support_config(self) -> None:
+        """Save support config from input fields."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if "support" not in config:
+            config["support"] = {}
+
+        try:
+            dest_input = self.query_one("#support-destination", Input)
+            config["support"]["export_destination"] = dest_input.value.strip()
+
+            ttl_input = self.query_one("#support-ttl", Input)
+            try:
+                config["support"]["bundle_ttl_minutes"] = int(ttl_input.value.strip() or "30")
+            except ValueError:
+                config["support"]["bundle_ttl_minutes"] = 30
+        except Exception:
+            pass
+
+        config_dir.mkdir(parents=True, exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+            f.write("\n")
+
+        self.app.notify("Support bundle config saved", severity="information")
 
     def action_add_permission(self) -> None:
         """Add new MCP permission (triggered by 'a' key)."""

@@ -988,6 +988,17 @@ All detailed documentation lives in the `docs/` folder:
 
 ---
 
+## New Feature Checklist
+
+When adding any new feature, check:
+
+- [ ] **MCP tool** — Is it read-only/query? Would AI benefit from calling it? → Add MCP tool in `mcp_server.py` + update skill
+- [ ] **Tray menu** — Does it produce a quick status or count? → Add to tray in `daemon/tray.py`
+- [ ] **Console panel** — Does it have configurable settings? → Add Console UI in `tui/`
+- [ ] **CLI command** — Does it need a standalone command? → Add to CLI in `__init__.py`
+
+---
+
 ## Common Tasks
 
 ### Adding a New Feature

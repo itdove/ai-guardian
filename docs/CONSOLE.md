@@ -426,9 +426,17 @@ Patterns can have expiration timestamps for temporary permissions:
 
 ### 4. 🔌 MCP Servers
 
-Manage MCP (Model Context Protocol) server permissions.
+Manage MCP server permissions and the AI Guardian MCP security advisor.
 
-#### Overview
+#### AI Guardian MCP Security Advisor
+
+This panel includes controls for ai-guardian's own MCP server:
+
+- **Enable/Disable toggle**: Turn the MCP security advisor on/off without restarting the IDE
+- **Proactive Level**: `low` (default) / `medium` / `high` — controls how often the AI uses proactive security checks. See [MCP Server docs](MCP_SERVER.md).
+- **Support Bundle**: Configure the export destination and TTL for sanitized diagnostic bundles
+
+#### MCP Server Permissions
 
 **Purpose:** Controls which **TOOLS** (MCP servers) the AI can invoke.
 

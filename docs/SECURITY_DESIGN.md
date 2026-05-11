@@ -5,11 +5,13 @@ AI Guardian's security architecture is built on defense-in-depth principles with
 ## Architecture Principles
 
 - **Defense in Depth**: One layer in a multi-layered security strategy
+- **Three-layer model**: MCP advisor (proactive, optional) → Skill instructions (guidance) → Hooks (enforcement, mandatory)
 - **Fail-open**: If scanning errors occur, allows operation (availability over security)
 - **In-memory scanning**: Uses `/dev/shm` on Linux for performance
 - **Secure cleanup**: Overwrites temp files before deletion
 - **No logging**: Secrets are never logged or stored
 - **Privacy-first**: Heuristic detection runs locally, no external calls
+- **MCP security boundary**: MCP tools expose yes/no decisions only — never rules, patterns, or allowlists (see [MCP Server](MCP_SERVER.md))
 
 ## Self-Protecting Security Architecture
 

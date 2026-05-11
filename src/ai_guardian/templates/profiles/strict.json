@@ -193,5 +193,19 @@
     }
   },
   "_comment_on_scan_error": "Global behavior when a scanner encounters an error. Strict profile: fail-closed (block on error).",
-  "on_scan_error": "block"
+  "on_scan_error": "block",
+  "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Toggle via Console, tray, or CLI: ai-guardian mcp enable/disable. (NEW in v1.7.0, Issue #477)",
+  "mcp_server": {
+    "enabled": false,
+    "proactive_level": "high"
+  },
+  "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path or S3 URI. (NEW in v1.7.0, Issue #477)",
+  "support": {
+    "export_destination": "",
+    "auth": {
+      "method": "none",
+      "token_env": ""
+    },
+    "bundle_ttl_minutes": 30
+  }
 }

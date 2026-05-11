@@ -1137,8 +1137,10 @@ class ToolPolicyChecker:
         if tool_name == "Skill":
             return True
 
-        # MCP tools require explicit allow
+        # MCP tools require explicit allow — except ai-guardian's own MCP server
         if tool_name.startswith("mcp__"):
+            if tool_name.startswith("mcp__ai-guardian__"):
+                return False
             return True
 
         # Built-in tools allowed by default

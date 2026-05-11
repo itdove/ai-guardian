@@ -1456,6 +1456,60 @@
       "enum": ["allow", "block"],
       "description": "Global behavior when a scanner encounters an error (exception, unavailable, network issue). 'allow' (default): log warning, allow operation to proceed (fail-open). 'block': block the operation if any scanner fails (fail-closed, for strict compliance). NEW in v1.7.0.",
       "default": "allow"
+    },
+    "mcp_server": {
+      "type": "object",
+      "description": "MCP (Model Context Protocol) security advisor server settings. The MCP server exposes read-only security tools that AI agents can use proactively.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable or disable the MCP security advisor server. When disabled, all MCP tools return a 'disabled' status. Toggle via Console, tray menu, or CLI: ai-guardian mcp enable/disable."
+        },
+        "proactive_level": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "default": "low",
+          "description": "How aggressively the AI should use proactive security checks. 'low' (default): only check when user asks or after a block. 'medium': check unfamiliar paths and suspicious commands. 'high': check every file access and command. Higher levels add latency and token usage."
+        }
+      },
+      "additionalProperties": false
+    },
+    "support": {
+      "type": "object",
+      "description": "Support bundle export settings. Allows AI agents to prepare sanitized diagnostic bundles for troubleshooting, with user approval before sending.",
+      "properties": {
+        "export_destination": {
+          "type": "string",
+          "description": "Destination for support bundles. Local path (e.g., '~/support-bundles') or S3 URI (e.g., 's3://bucket/prefix/'). Default: XDG state directory (~/.local/state/ai-guardian/support-bundles/). Preconfigured by admin — agent cannot override.",
+          "default": ""
+        },
+        "auth": {
+          "type": "object",
+          "description": "Authentication for the export destination.",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["env", "none"],
+              "default": "none",
+              "description": "Auth method: 'env' reads token from environment variable, 'none' for unauthenticated."
+            },
+            "token_env": {
+              "type": "string",
+              "default": "",
+              "description": "Environment variable name containing the auth token (when method='env')."
+            }
+          },
+          "additionalProperties": false
+        },
+        "bundle_ttl_minutes": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "description": "Minutes before a prepared bundle auto-expires. Prevents stale bundles from being sent."
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

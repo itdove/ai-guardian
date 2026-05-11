@@ -52,6 +52,8 @@ class DaemonTray:
         self._pause_timer = None
         self._status = "running"
         self._current_mode = self._read_mode_from_config()
+        self._mcp_enabled = self._read_mcp_from_config()
+        self._proactive_level = self._read_proactive_level()
 
     def start(self):
         """Start tray icon in a background thread."""
@@ -154,6 +156,39 @@ class DaemonTray:
                         "daemon",
                         lambda _, __: self._on_change_mode("daemon"),
                         checked=lambda _: self._current_mode == "daemon",
+                        radio=True,
+                    ),
+                ),
+            ),
+            pystray.MenuItem(
+                lambda _: f"MCP: {'Enabled' if self._mcp_enabled else 'Disabled'}",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        lambda _: "Enabled" if self._mcp_enabled else "Enable",
+                        lambda _, __: self._on_toggle_mcp(),
+                        checked=lambda _: self._mcp_enabled,
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(
+                        lambda _: f"Proactive: {self._proactive_level}",
+                        None, enabled=False,
+                    ),
+                    pystray.MenuItem(
+                        "Proactive: low",
+                        lambda _, __: self._on_change_proactive("low"),
+                        checked=lambda _: self._proactive_level == "low",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "Proactive: medium",
+                        lambda _, __: self._on_change_proactive("medium"),
+                        checked=lambda _: self._proactive_level == "medium",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "Proactive: high",
+                        lambda _, __: self._on_change_proactive("high"),
+                        checked=lambda _: self._proactive_level == "high",
                         radio=True,
                     ),
                 ),
@@ -380,6 +415,88 @@ class DaemonTray:
         except Exception:
             pass
         return "auto"
+
+    def _on_toggle_mcp(self):
+        """Toggle MCP server enable/disable in config file."""
+        try:
+            import json
+            from ai_guardian.config_utils import get_config_dir
+
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+            else:
+                config = {}
+
+            if "mcp_server" not in config:
+                config["mcp_server"] = {}
+            new_state = not config["mcp_server"].get("enabled", False)
+            config["mcp_server"]["enabled"] = new_state
+
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(
+                json.dumps(config, indent=2) + "\n", encoding="utf-8"
+            )
+            self._mcp_enabled = new_state
+            state = "enabled" if new_state else "disabled"
+            logger.info(f"MCP server {state}")
+        except Exception as e:
+            logger.debug(f"Failed to toggle MCP: {e}")
+
+    @staticmethod
+    def _read_mcp_from_config():
+        """Read current MCP server enabled state from config file."""
+        try:
+            import json
+            from ai_guardian.config_utils import get_config_dir
+
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                return config.get("mcp_server", {}).get("enabled", False)
+        except Exception:
+            pass
+        return False
+
+    def _on_change_proactive(self, level):
+        """Change MCP proactive check level in config file."""
+        try:
+            import json
+            from ai_guardian.config_utils import get_config_dir
+
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+            else:
+                config = {}
+
+            if "mcp_server" not in config:
+                config["mcp_server"] = {}
+            config["mcp_server"]["proactive_level"] = level
+
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(
+                json.dumps(config, indent=2) + "\n", encoding="utf-8"
+            )
+            self._proactive_level = level
+            logger.info(f"MCP proactive level changed to '{level}'")
+        except Exception as e:
+            logger.debug(f"Failed to change proactive level: {e}")
+
+    @staticmethod
+    def _read_proactive_level():
+        """Read current MCP proactive level from config file."""
+        try:
+            import json
+            from ai_guardian.config_utils import get_config_dir
+
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                return config.get("mcp_server", {}).get("proactive_level", "low")
+        except Exception:
+            pass
+        return "medium"
 
     def _on_open_violations(self, icon, item):
         """Launch the console directly to the Violations panel."""

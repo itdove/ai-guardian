@@ -805,5 +805,29 @@
   "_comment_on_scan_error": "NEW in v1.7.0: Global behavior when a scanner encounters an error (Issue #461)",
   "_comment_on_scan_error2": "'allow' (default): log warning, allow operation (fail-open, for developer productivity)",
   "_comment_on_scan_error3": "'block': block operation if any scanner fails (fail-closed, for strict compliance)",
-  "on_scan_error": "allow"
+  "on_scan_error": "allow",
+
+  "_comment_mcp_server": "MCP (Model Context Protocol) security advisor server (NEW in v1.7.0, Issue #477)",
+  "_comment_mcp_server2": "Exposes read-only security tools that AI agents can use proactively",
+  "_comment_mcp_server3": "The AI checks security BEFORE acting — instead of being blocked and retrying",
+  "_comment_mcp_server4": "Toggle via Console, tray menu, or CLI: ai-guardian mcp enable/disable",
+  "_comment_mcp_server5": "Install: ai-guardian setup --ide claude --mcp",
+  "mcp_server": {
+    "enabled": false,
+    "proactive_level": "low"
+  },
+
+  "_comment_support": "Support bundle export (NEW in v1.7.0, Issue #477)",
+  "_comment_support2": "Allows AI agents to prepare sanitized diagnostic bundles for troubleshooting",
+  "_comment_support3": "Two-step process: prepare (sanitize + review) then send (with user approval)",
+  "_comment_support4": "Destination preconfigured by admin — agent cannot override",
+  "_comment_support5": "Local path or S3 URI. S3 requires boto3: pip install boto3",
+  "support": {
+    "export_destination": "",
+    "auth": {
+      "method": "none",
+      "token_env": ""
+    },
+    "bundle_ttl_minutes": 30
+  }
 }
