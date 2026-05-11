@@ -1,6 +1,7 @@
 """Tests for scanner execution strategies."""
 
 import unittest
+from ai_guardian.scanners.engine_builder import _build_engine_config
 from ai_guardian.scanners.strategies import (
     FirstMatchStrategy,
     AnyMatchStrategy,
@@ -490,6 +491,67 @@ class TestStrategyRegistry(unittest.TestCase):
 
         self.assertIn("Unknown strategy", str(cm.exception))
         self.assertIn("unknown-strategy", str(cm.exception))
+
+
+class TestPerEngineConfigPathResolution(unittest.TestCase):
+    """Test that strategies resolve config_path per-engine (Issue #519)."""
+
+    def test_first_match_per_engine_config_path(self):
+        """FirstMatch should pass per-engine resolved config_path."""
+        received = []
+
+        def tracking_fn(engine_config, source_file, report_file, config_path):
+            received.append({"engine": engine_config.type, "config_path": config_path})
+            return ScanResult(
+                has_secrets=False, secrets=[], engine=engine_config.type,
+            )
+
+        gitleaks = _build_engine_config("gitleaks")
+        betterleaks_null = _build_engine_config({
+            "type": "betterleaks", "pattern_server": None,
+        })
+
+        strategy = FirstMatchStrategy()
+        strategy.execute(
+            engine_configs=[gitleaks, betterleaks_null],
+            scanner_fn=tracking_fn,
+            source_file="/tmp/src.txt",
+            report_file_prefix="/tmp/report",
+            config_path="/tmp/global.toml",
+            context={"filename": "test.py"},
+        )
+
+        self.assertEqual(len(received), 2)
+        self.assertIn("global.toml", received[0]["config_path"])
+        self.assertIsNone(received[1]["config_path"])
+
+    def test_any_match_per_engine_config_path(self):
+        """AnyMatch should pass per-engine resolved config_path."""
+        received = []
+
+        def tracking_fn(engine_config, source_file, report_file, config_path):
+            received.append({"engine": engine_config.type, "config_path": config_path})
+            return ScanResult(
+                has_secrets=False, secrets=[], engine=engine_config.type,
+            )
+
+        gitleaks = _build_engine_config("gitleaks")
+        trufflehog = _build_engine_config("trufflehog")
+
+        strategy = AnyMatchStrategy()
+        strategy.execute(
+            engine_configs=[gitleaks, trufflehog],
+            scanner_fn=tracking_fn,
+            source_file="/tmp/src.txt",
+            report_file_prefix="/tmp/report",
+            config_path="/tmp/global.toml",
+            context={"filename": "test.py"},
+        )
+
+        self.assertEqual(len(received), 2)
+        by_engine = {r["engine"]: r["config_path"] for r in received}
+        self.assertIn("global.toml", by_engine["gitleaks"])
+        self.assertIsNone(by_engine["trufflehog"])
 
 
 if __name__ == '__main__':

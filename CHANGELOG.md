@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Per-engine pattern_server config in scanning flow** (Issue #519)
+  - Engines can now override the global pattern server via per-engine `pattern_server` config
+  - `pattern_server: null` disables patterns for that engine (uses built-in rules)
+  - `pattern_server: { url: "..." }` fetches engine-specific patterns from a dedicated server
+  - No override (key absent) uses the global pattern server (backward compatible)
+  - Added `resolve_engine_config_path()` helper centralizing config_path resolution logic
+  - Execution strategies (first-match, any-match, consensus) now resolve config_path per-engine
+  - Replaces inline engine-type filtering in `__init__.py` with centralized resolver
+
 ### Fixed
 
 - **Portable cache path in generated config** (Issue #492)
