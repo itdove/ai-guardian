@@ -111,6 +111,19 @@ IMMUTABLE_DENY_PATTERNS = {
         "**/.ai-read-deny",
     ],
 
+    "Read": [
+        # Config files - block reading security rules, patterns, allowlists (Issue #512)
+        "*ai-guardian.json",
+        "*/.config/ai-guardian/*",
+        "*/.ai-guardian.json",
+
+        # State files - block reading violations, logs, scanning state (Issue #512)
+        "*/.local/state/ai-guardian/*",
+
+        # Cache files - block reading cached patterns and regex (Issue #512)
+        "*/.cache/ai-guardian/*",
+    ],
+
     "Bash": [
         # Block commands that could modify protected files
         # Dev source patterns removed (Issue #369) - redundant with git/PR workflow
@@ -189,6 +202,19 @@ IMMUTABLE_DENY_PATTERNS = {
         "*chattr*.ai-read-deny*",      # Block: chattr .ai-read-deny
         "*vim*.ai-read-deny*",         # Block: vim .ai-read-deny
         "*nano*.ai-read-deny*",        # Block: nano .ai-read-deny
+
+        # Block reading ai-guardian config/state/cache via Bash (Issue #512)
+        # Prevents agent from reading security rules, patterns, violations, logs
+        "*cat*/.config/ai-guardian/*",
+        "*cat*/.local/state/ai-guardian/*",
+        "*cat*/.cache/ai-guardian/*",
+        "*cat*ai-guardian.json*",
+        "*grep*/.config/ai-guardian/*",
+        "*grep*/.local/state/ai-guardian/*",
+        "*head*ai-guardian.log*",
+        "*tail*ai-guardian.log*",
+        "*less*ai-guardian.json*",
+        "*more*ai-guardian.json*",
     ],
 
     "PowerShell": [
@@ -278,6 +304,15 @@ IMMUTABLE_DENY_PATTERNS = {
         "*rm *.cursor/hooks.json*", "*del *.cursor/hooks.json*",
         "*rm *.ai-read-deny*", "*del *.ai-read-deny*",
         "*mv *.ai-read-deny*", "*move *.ai-read-deny*",
+
+        # Block reading ai-guardian config/state/cache via PowerShell (Issue #512)
+        "*Get-Content*/.config/ai-guardian/*", "*Get-Content*.config\\ai-guardian\\*",
+        "*Get-Content*/.local/state/ai-guardian/*", "*Get-Content*.local\\state\\ai-guardian\\*",
+        "*Get-Content*/.cache/ai-guardian/*", "*Get-Content*.cache\\ai-guardian\\*",
+        "*Get-Content*ai-guardian.json*",
+        "*Select-String*/.config/ai-guardian/*", "*Select-String*.config\\ai-guardian\\*",
+        "*Select-String*/.local/state/ai-guardian/*", "*Select-String*.local\\state\\ai-guardian\\*",
+        "*type*ai-guardian.json*",
     ]
 }
 
@@ -1301,11 +1336,12 @@ class ToolPolicyChecker:
             value_label = "File Path"
             protection_context = "file path"
 
-        # First, check if this is a config file (these are NEVER source files)
+        # First, check if this is a config/state/cache file (these are NEVER source files)
         config_patterns = [
             "*ai-guardian.json",
             "*/.ai-guardian.json",
             "*/.config/ai-guardian/*",
+            "*/.local/state/ai-guardian/*",
             "*/.cache/ai-guardian/*",
             "*/.claude/settings.json",
             "*/.claude/hooks.json",
@@ -1314,6 +1350,14 @@ class ToolPolicyChecker:
             "*/Cursor/hooks.json",
         ]
         is_config_file = any(fnmatch.fnmatch(check_value, p) for p in config_patterns)
+
+        # Detect state files specifically (for Read-specific messaging)
+        state_patterns = ["*/.local/state/ai-guardian/*"]
+        is_state_file = any(fnmatch.fnmatch(check_value, p) for p in state_patterns)
+
+        # Detect cache files specifically (for Read-specific messaging)
+        cache_file_patterns = ["*/.cache/ai-guardian/*"]
+        is_cache_file = any(fnmatch.fnmatch(check_value, p) for p in cache_file_patterns)
 
         # Check if this is ai-guardian source code (development or pip-installed)
         # ONLY if it's NOT a config file
@@ -1370,8 +1414,12 @@ class ToolPolicyChecker:
             display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
             msg += f"Pattern: {display_pattern}\n"
 
-        # Why blocked section - varies by type
+        # Why blocked section - varies by type and tool
         msg += "\nWhy blocked: "
+
+        is_read_operation = tool_name == "Read" or (tool_name == "Bash" and any(
+            cmd in check_value for cmd in ["cat ", "grep ", "head ", "tail ", "less ", "more "]
+        ))
 
         if is_source_file:
             msg += "This file is part of the pip-installed ai-guardian package.\n"
@@ -1379,6 +1427,16 @@ class ToolPolicyChecker:
         elif is_marker_file:
             msg += "This is a directory protection marker file (.ai-read-deny).\n"
             msg += "Modifying marker files would bypass directory protection.\n"
+        elif is_config_file and is_read_operation:
+            if is_state_file:
+                msg += "This file contains ai-guardian security state (violations, logs, scanning data).\n"
+                msg += "Reading it exposes detection results that could help craft evasion attacks.\n"
+            elif is_cache_file:
+                msg += "This file contains cached security patterns and regex.\n"
+                msg += "Reading it exposes detection logic that could help craft evasion attacks.\n"
+            else:
+                msg += "This file contains ai-guardian security configuration.\n"
+                msg += "Reading it exposes security rules, patterns, and allowlists to the agent.\n"
         elif is_config_file:
             msg += "This is an ai-guardian or IDE hook configuration file.\n"
             msg += "Modifying these files could disable security protections.\n"
@@ -1393,7 +1451,7 @@ class ToolPolicyChecker:
         msg += "\nThis operation has been blocked for security.\n"
         msg += "DO NOT attempt to bypass this protection - it prevents security control tampering.\n"
 
-        # Recommendations section - varies by type
+        # Recommendations section - varies by type and tool
         msg += "\nRecommendation:\n"
 
         if is_source_file:
@@ -1407,6 +1465,12 @@ class ToolPolicyChecker:
             msg += "- .ai-read-deny markers enforce directory protection\n"
             msg += "- To remove directory protection, delete .ai-read-deny manually\n"
             msg += "- This cannot be done by AI agents (intentional security design)\n"
+        elif is_config_file and is_read_operation:
+            msg += "- Use ai-guardian MCP tools to query security status safely:\n"
+            msg += "  - get_config() returns feature status (no rule details)\n"
+            msg += "  - get_violations() returns metadata (no pattern internals)\n"
+            msg += "  - doctor() returns health check results\n"
+            msg += "- Users can access files directly via terminal, editor, or CLI\n"
         elif is_config_file:
             msg += "- Configuration files must be edited manually (not by AI agents)\n"
             msg += "- Use your text editor to modify these files\n"

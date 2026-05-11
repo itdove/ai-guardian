@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Self-Protection: Block Agent Read Access** (Issue #512)
+  - Read tool blocked for all ai-guardian config, state, and cache files
+  - Bash cat/grep/head/tail/less/more blocked for same files
+  - PowerShell Get-Content/Select-String blocked for same files
+  - Immutable — cannot be overridden by user config
+  - MCP server remains the approved way for agent to query security data
+  - Doctor check (`check_self_protection`) verifies read protection is active
 - **Per-engine pattern_server config in scanning flow** (Issue #519)
   - Engines can now override the global pattern server via per-engine `pattern_server` config
   - `pattern_server: null` disables patterns for that engine (uses built-in rules)

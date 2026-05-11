@@ -106,6 +106,7 @@ class Doctor:
             self.check_directory_rules,
             self.check_console_deps,
             self.check_config_consistency,
+            self.check_self_protection,
         ]
         for check_fn in checks:
             try:
@@ -981,6 +982,46 @@ class Doctor:
             message="Schema defaults consistent",
         )
 
+    def check_self_protection(self) -> CheckResult:
+        """Verify immutable patterns protect config/state/cache from agent Read access."""
+        from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+
+        issues = []
+
+        read_patterns = IMMUTABLE_DENY_PATTERNS.get("Read", [])
+        if not read_patterns:
+            issues.append("No Read patterns defined")
+        else:
+            for required in [
+                "*/.config/ai-guardian/*",
+                "*/.local/state/ai-guardian/*",
+                "*/.cache/ai-guardian/*",
+            ]:
+                if required not in read_patterns:
+                    issues.append(f"Missing Read pattern: {required}")
+
+        bash_patterns = IMMUTABLE_DENY_PATTERNS.get("Bash", [])
+        for required in [
+            "*cat*/.config/ai-guardian/*",
+            "*cat*/.local/state/ai-guardian/*",
+        ]:
+            if required not in bash_patterns:
+                issues.append(f"Missing Bash pattern: {required}")
+
+        if issues:
+            return CheckResult(
+                name="self_protection",
+                status=CheckStatus.FAIL,
+                message=f"{len(issues)} gap(s) in agent read protection",
+                detail="\n".join(f"  - {i}" for i in issues),
+            )
+
+        return CheckResult(
+            name="self_protection",
+            status=CheckStatus.PASS,
+            message="Config, state, cache read-protected from agent",
+        )
+
 
 # --- Output formatters ---
 
@@ -1016,6 +1057,7 @@ _CHECK_DISPLAY_NAMES = {
     "directory_rules": "Directory rules",
     "console_deps": "Console deps",
     "config_consistency": "Config consistency",
+    "self_protection": "Self-protection",
 }
 
 

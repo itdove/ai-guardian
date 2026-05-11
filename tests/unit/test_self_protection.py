@@ -1411,6 +1411,382 @@ class SelfProtectionTest(TestCase):
         self.assertTrue(is_allowed, "Editing documentation file mentioning ai-guardian should be allowed")
         self.assertIsNone(error_msg)
 
+    # ========================================================================
+    # Test: AI cannot read ai-guardian config/state/cache files (Issue #512)
+    # ========================================================================
+
+    def test_read_blocks_user_config_file(self):
+        """AI cannot read ~/.config/ai-guardian/ai-guardian.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of ai-guardian config should be blocked")
+        self.assertIsNotNone(error_msg, "Error message should be provided")
+        self.assertIn("Protection:", error_msg)
+
+    def test_read_blocks_project_config_file(self):
+        """AI cannot read project .ai-guardian.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/my-project/.ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of project config should be blocked")
+
+    def test_read_blocks_config_directory(self):
+        """AI cannot read files in ~/.config/ai-guardian/"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.config/ai-guardian/profiles/default.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of config directory files should be blocked")
+
+    def test_read_blocks_state_directory(self):
+        """AI cannot read ~/.local/state/ai-guardian/violations.jsonl"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.local/state/ai-guardian/violations.jsonl"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of state directory should be blocked")
+
+    def test_read_blocks_state_log(self):
+        """AI cannot read ~/.local/state/ai-guardian/ai-guardian.log"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.local/state/ai-guardian/ai-guardian.log"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of ai-guardian log should be blocked")
+
+    def test_read_blocks_state_transcript_positions(self):
+        """AI cannot read ~/.local/state/ai-guardian/transcript_positions.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.local/state/ai-guardian/transcript_positions.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of transcript positions should be blocked")
+
+    def test_read_blocks_cache_directory(self):
+        """AI cannot read ~/.cache/ai-guardian/patterns.toml"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.cache/ai-guardian/patterns.toml"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Read of cache directory should be blocked")
+
+    def test_read_allows_normal_files(self):
+        """AI can read normal project files"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/my-project/src/main.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Read of normal files should be allowed")
+        self.assertIsNone(error_msg)
+
+    def test_read_allows_development_source(self):
+        """Contributors can read ai-guardian development source code"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__init__.py"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertTrue(is_allowed, "Read of development source should be allowed")
+        self.assertIsNone(error_msg)
+
+    # ========================================================================
+    # Test: AI cannot read config/state/cache via Bash (Issue #512)
+    # ========================================================================
+
+    def test_bash_blocks_cat_config(self):
+        """AI cannot use cat to read ai-guardian config"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "cat ~/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash cat on config should be blocked")
+
+    def test_bash_blocks_cat_state(self):
+        """AI cannot use cat to read violations log"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "cat ~/.local/state/ai-guardian/violations.jsonl"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash cat on state files should be blocked")
+
+    def test_bash_blocks_cat_cache(self):
+        """AI cannot use cat to read cached patterns"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "cat ~/.cache/ai-guardian/patterns.toml"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash cat on cache should be blocked")
+
+    def test_bash_blocks_cat_any_ai_guardian_json(self):
+        """AI cannot use cat to read any ai-guardian.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "cat ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash cat on ai-guardian.json should be blocked")
+
+    def test_bash_blocks_grep_config(self):
+        """AI cannot use grep to search ai-guardian config"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "grep -i 'allow' ~/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash grep on config should be blocked")
+
+    def test_bash_blocks_grep_state(self):
+        """AI cannot use grep to search violations log"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "grep 'secret' ~/.local/state/ai-guardian/violations.jsonl"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash grep on state files should be blocked")
+
+    def test_bash_blocks_head_log(self):
+        """AI cannot use head to read ai-guardian log"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "head -50 ~/.local/state/ai-guardian/ai-guardian.log"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash head on log should be blocked")
+
+    def test_bash_blocks_tail_log(self):
+        """AI cannot use tail to follow ai-guardian log"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "tail -f ~/.local/state/ai-guardian/ai-guardian.log"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash tail on log should be blocked")
+
+    def test_bash_blocks_less_config(self):
+        """AI cannot use less to read ai-guardian config"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "less ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash less on config should be blocked")
+
+    def test_bash_blocks_more_config(self):
+        """AI cannot use more to read ai-guardian config"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {
+                    "command": "more ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed, "Bash more on config should be blocked")
+
+    # ========================================================================
+    # Test: Read error message mentions MCP alternative (Issue #512)
+    # ========================================================================
+
+    def test_read_error_message_mentions_mcp_alternative(self):
+        """Read error message should suggest MCP tools as safe alternative"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("MCP tools", error_msg)
+        self.assertIn("get_config()", error_msg)
+        self.assertIn("get_violations()", error_msg)
+        self.assertIn("doctor()", error_msg)
+
+    def test_read_error_message_for_state_file(self):
+        """Read error message for state files should mention violations/logs"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.local/state/ai-guardian/violations.jsonl"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("security state", error_msg)
+        self.assertIn("detection results", error_msg)
+
+    def test_read_error_message_for_cache_file(self):
+        """Read error message for cache files should mention patterns"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Read",
+                "input": {
+                    "file_path": "/home/user/.cache/ai-guardian/patterns.toml"
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("cached security patterns", error_msg)
+        self.assertIn("detection logic", error_msg)
+
 
 if __name__ == '__main__':
     import unittest
