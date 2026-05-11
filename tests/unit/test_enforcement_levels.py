@@ -114,45 +114,44 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
 class SecretScanningEnforcementTest(unittest.TestCase):
     """Test secret scanning (always blocks when secrets found)"""
 
-    @patch('ai_guardian.subprocess.run')
-    def test_secret_always_blocks(self, mock_run):
+    @patch('ai_guardian.run_single_engine')
+    @patch('ai_guardian.select_all_engines')
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    def test_secret_always_blocks(self, mock_load_config,
+                                   mock_select_engine, mock_select_all,
+                                   mock_run_single):
         """Secret scanning always blocks when secrets are found (no log mode)"""
         from ai_guardian import check_secrets_with_gitleaks
+        from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
-        # Mock Gitleaks finding a secret
-        mock_result = MagicMock()
-        mock_result.returncode = 42  # Secrets found
-        mock_result.stdout = ""
-        mock_result.stderr = ""
-        mock_run.return_value = mock_result
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            import json
-            json.dump([{
-                "RuleID": "aws-access-key",
-                "File": "test.txt",
-                "StartLine": 1,
-                "Match": "AKIAIOSFODNN7EXAMPLE"
-            }], f)
-            report_file = f.name
+        mock_engine = MagicMock()
+        mock_engine.type = "gitleaks"
+        mock_engine.file_patterns = None
+        mock_engine.ignore_files = None
+        mock_select_engine.return_value = mock_engine
+        mock_select_all.return_value = [mock_engine]
 
-        try:
-            with patch('tempfile.NamedTemporaryFile') as mock_temp:
-                mock_temp.return_value.__enter__.return_value.name = '/tmp/test'
-                with patch('ai_guardian.tempfile.NamedTemporaryFile') as mock_report:
-                    mock_report.return_value.__enter__.return_value.name = report_file
+        # Mock run_single_engine to find a secret
+        mock_run_single.return_value = ScanResult(
+            has_secrets=True,
+            secrets=[SecretMatch(rule_id="aws-access-key", description="AWS Key",
+                                file="test.txt", line_number=1, engine="gitleaks")],
+            engine="gitleaks",
+            scan_time_ms=10.0,
+        )
 
-                    has_secrets, error_msg = check_secrets_with_gitleaks(
-                        "AKIAIOSFODNN7EXAMPLE"
-                    )
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "AKIAIOSFODNN7EXAMPLE"
+        )
 
-            # Should always be blocked
-            self.assertTrue(has_secrets, "Secrets should always block")
-            self.assertIsNotNone(error_msg)
-            self.assertIn("🛡️", error_msg)
-        finally:
-            if os.path.exists(report_file):
-                os.unlink(report_file)
+        # Should always be blocked
+        self.assertTrue(has_secrets, "Secrets should always block")
+        self.assertIsNotNone(error_msg)
+        self.assertIn("🛡️", error_msg)
 
 
 class PromptInjectionEnforcementTest(unittest.TestCase):

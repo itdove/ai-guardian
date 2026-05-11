@@ -93,6 +93,88 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
         self.assertIn("No scanners available", result.error)
 
 
+class TestFirstMatchFallthroughBehavior(unittest.TestCase):
+    """Test FirstMatchStrategy falls through to next engine when no secrets found (Issue #523)."""
+
+    def test_first_engine_clean_second_finds_secrets(self):
+        """Bug #523: betterleaks finds nothing, gitleaks finds AWS key."""
+        engines = [_make_engine("betterleaks"), _make_engine("gitleaks")]
+        scanner_fn = _make_scanner_fn({
+            "betterleaks": ScanResult(
+                has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=15.0
+            ),
+            "gitleaks": ScanResult(
+                has_secrets=True,
+                secrets=[SecretMatch(rule_id="aws-access-token", description="AWS Access Key", file="t.txt", line_number=1, engine="gitleaks")],
+                engine="gitleaks",
+                scan_time_ms=25.0,
+            ),
+        })
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertTrue(result.has_secrets)
+        self.assertEqual(result.engine, "gitleaks")
+        self.assertEqual(result.secrets[0].rule_id, "aws-access-token")
+
+    def test_all_engines_clean_returns_clean(self):
+        """All engines find nothing → returns clean result (not error)."""
+        engines = [_make_engine("betterleaks"), _make_engine("gitleaks")]
+        scanner_fn = _make_scanner_fn({
+            "betterleaks": ScanResult(has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0),
+            "gitleaks": ScanResult(has_secrets=False, secrets=[], engine="gitleaks", scan_time_ms=10.0),
+        })
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertFalse(result.has_secrets)
+        self.assertEqual(len(result.secrets), 0)
+        self.assertIsNone(result.error)
+
+    def test_unavailable_then_clean_then_finds(self):
+        """First unavailable, second clean, third finds secrets."""
+        engines = [_make_engine("missing"), _make_engine("betterleaks"), _make_engine("gitleaks")]
+        scanner_fn = _make_scanner_fn({
+            "missing": ScanResult(has_secrets=False, secrets=[], engine="missing", error="Binary not found: missing"),
+            "betterleaks": ScanResult(has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0),
+            "gitleaks": ScanResult(
+                has_secrets=True,
+                secrets=[SecretMatch(rule_id="aws-key", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                engine="gitleaks",
+                scan_time_ms=20.0,
+            ),
+        })
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertTrue(result.has_secrets)
+        self.assertEqual(result.engine, "gitleaks")
+
+    def test_first_finds_secrets_does_not_run_second(self):
+        """First engine finds secrets → stops immediately."""
+        call_log = []
+
+        def tracking_scanner_fn(engine_config, source_file, report_file, config_path=None):
+            call_log.append(engine_config.type)
+            if engine_config.type == "betterleaks":
+                return ScanResult(
+                    has_secrets=True,
+                    secrets=[SecretMatch(rule_id="secret", description="Secret", file="t.txt", line_number=1, engine="betterleaks")],
+                    engine="betterleaks",
+                )
+            return ScanResult(has_secrets=False, secrets=[], engine=engine_config.type)
+
+        engines = [_make_engine("betterleaks"), _make_engine("gitleaks")]
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, tracking_scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertTrue(result.has_secrets)
+        self.assertEqual(call_log, ["betterleaks"])
+
+
 class TestAnyMatchStrategyExecute(unittest.TestCase):
     """Test AnyMatchStrategy.execute() with scanner function."""
 

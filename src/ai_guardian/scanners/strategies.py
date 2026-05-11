@@ -97,10 +97,12 @@ class ExecutionStrategy(ABC):
 
 class FirstMatchStrategy(ExecutionStrategy):
     """
-    Use first available scanner, fall back if unavailable.
+    Try scanners in order, use the first one that finds secrets.
 
     This is the default strategy, maintaining backward compatibility.
-    Tries scanners in order, using the first one that succeeds.
+    Tries each scanner in order until one finds secrets. If a scanner
+    is unavailable (binary not found), it is skipped. If a scanner
+    runs but finds no secrets, the next scanner is tried.
     """
 
     def execute(
@@ -115,6 +117,8 @@ class FirstMatchStrategy(ExecutionStrategy):
         filename = context.get("filename", "") if context else ""
         engines = self._filter_engines_for_file(engine_configs, filename)
 
+        last_clean_result = None
+
         for engine_config in engines:
             report_file = f"{report_file_prefix}_{engine_config.type}.json"
             logging.info(f"FirstMatchStrategy: trying engine {engine_config.type}")
@@ -127,12 +131,25 @@ class FirstMatchStrategy(ExecutionStrategy):
                 logging.warning(f"Engine {engine_config.type} unavailable, trying next")
                 continue
 
+            if result.has_secrets:
+                logging.info(
+                    f"Strategy 'first-match' complete: engine={engine_config.type} "
+                    f"duration_ms={result.scan_time_ms:.1f} "
+                    f"has_secrets=True"
+                )
+                return result
+
             logging.info(
-                f"Strategy 'first-match' complete: engine={engine_config.type} "
-                f"duration_ms={result.scan_time_ms:.1f} "
-                f"has_secrets={result.has_secrets}"
+                f"Engine {engine_config.type} found no secrets, trying next engine"
             )
-            return result
+            last_clean_result = result
+
+        if last_clean_result is not None:
+            logging.info(
+                f"Strategy 'first-match' complete: all engines clean "
+                f"(last={last_clean_result.engine})"
+            )
+            return last_clean_result
 
         return ScanResult(
             has_secrets=False,
