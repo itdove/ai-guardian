@@ -161,6 +161,21 @@ Sanitized files include: config (tokens redacted), violations (paths truncated),
 
 Default destination: `~/.local/state/ai-guardian/support-bundles/`. Configure via `support.export_destination` (local path or `s3://bucket/prefix/`).
 
+### CLI Alternative
+
+The same prepare/send workflow is available via the CLI for direct use without an AI agent:
+
+```bash
+ai-guardian support prepare                    # Prepare bundle, show file summary
+ai-guardian support send                       # Send last prepared bundle (with confirmation)
+ai-guardian support send --prepare --yes       # One-shot: prepare + send (for CI)
+ai-guardian support status                     # Show destination, auth, pending bundles
+ai-guardian support prepare --output ./bundle  # Save to specific directory
+ai-guardian support prepare --no-log           # Exclude log file
+```
+
+Both interfaces share the same underlying logic — same sanitization, same destinations, same bundle format.
+
 ## Configuration
 
 ```json

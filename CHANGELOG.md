@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Support bundle CLI command** (Issue #511)
+  - `ai-guardian support prepare` — create sanitized bundle in temp dir for review
+  - `ai-guardian support send` — send prepared bundle to configured destination
+  - `ai-guardian support status` — show export destination, auth, and pending bundles
+  - Options: `--output PATH`, `--no-log`, `--no-violations`, `--json`, `--prepare`, `--yes`, `--bundle PATH`
+  - One-shot mode: `ai-guardian support send --prepare --yes` for CI/automation
+  - Shares underlying logic with MCP tools (`prepare_support_bundle`, `send_support_bundle`)
+  - Cross-process support: bundle ref persisted to state dir so `prepare` and `send` work in separate terminals
+
 - **MCP security advisor server** (Issue #477)
   - MCP server with 12 read-only security tools for AI agents via stdio transport
   - Security check tools: `check_path`, `check_command`, `check_mcp_trust`, `sanitize_text`, `check_annotations`
