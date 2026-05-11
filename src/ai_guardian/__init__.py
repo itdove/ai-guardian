@@ -149,8 +149,13 @@ logging.basicConfig(
 # Global logger instance
 logger = logging.getLogger(__name__)
 
-# Log version at startup (suppress for sanitize/mcp-server — stdio must be clean)
-if "sanitize" not in sys.argv and "mcp-server" not in sys.argv:
+# Log version at startup (suppress for sanitize/mcp-server/setup --json — stdio must be clean)
+_suppress_logging = (
+    "sanitize" in sys.argv
+    or "mcp-server" in sys.argv
+    or ("setup" in sys.argv and "--json" in sys.argv)
+)
+if not _suppress_logging:
     logger.info(f"AI Guardian v{__version__} initialized")
     logger.info(f"Python {sys.version.split()[0]}")
     import platform

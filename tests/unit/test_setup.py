@@ -1374,3 +1374,210 @@ class TestSetupHooksProfiles:
         assert success is False
         captured = capsys.readouterr()
         assert "--profile requires --create-config" in captured.err
+
+
+class TestSetupJsonOutput:
+    """Test that setup --json outputs clean JSON with no log text (Issue #518)."""
+
+    def test_json_output_ide_explicit(self, tmp_path, capsys):
+        """setup --ide claude --json outputs parseable JSON only."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance._last_merged_config = {"hooks": {"PreToolUse": []}}
+
+            success = setup_hooks(
+                ide_type="claude", json_output=True, interactive=False,
+            )
+
+        assert success is True
+        captured = capsys.readouterr()
+        # stdout must be valid JSON
+        result = json.loads(captured.out)
+        assert result["success"] is True
+        assert result["ide"] == "claude"
+        assert "hooks" in result
+        # No log text on stderr
+        assert "AI Guardian" not in captured.err
+        assert "initialized" not in captured.err
+
+    def test_json_output_ide_dry_run(self, tmp_path, capsys):
+        """setup --ide claude --json --dry-run outputs clean JSON."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+            mock_instance.setup_ide_hooks.return_value = (
+                True, "[DRY RUN] Would configure..."
+            )
+            mock_instance._last_merged_config = {
+                "hooks": {"PreToolUse": [{"type": "command", "command": "ai-guardian"}]}
+            }
+
+            success = setup_hooks(
+                ide_type="claude", json_output=True, dry_run=True,
+            )
+
+        assert success is True
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["success"] is True
+        assert result["dry_run"] is True
+        assert "hooks" in result
+        # No human-readable messages mixed in
+        assert "[DRY RUN]" not in captured.out.split("{", 1)[0]
+
+    def test_json_output_no_log_text(self, tmp_path, capsys):
+        """stdout contains only JSON — no version banner, no progress messages."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance._last_merged_config = {"hooks": {}}
+
+            setup_hooks(
+                ide_type="claude", json_output=True, interactive=False,
+            )
+
+        captured = capsys.readouterr()
+        # First non-whitespace char must be '{'
+        stripped = captured.out.strip()
+        assert stripped.startswith("{"), f"Output starts with non-JSON: {stripped[:80]}"
+        assert stripped.endswith("}")
+        # Must be valid JSON
+        json.loads(stripped)
+
+    def test_json_output_includes_mcp(self, tmp_path, capsys):
+        """setup --ide claude --json always includes MCP server config."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance._last_merged_config = {"hooks": {}}
+
+            setup_hooks(
+                ide_type="claude", json_output=True, interactive=False,
+            )
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "mcp_servers" in result
+        assert "ai-guardian" in result["mcp_servers"]
+        assert result["mcp_servers"]["ai-guardian"]["command"] == "ai-guardian"
+        assert result["mcp_servers"]["ai-guardian"]["args"] == ["mcp-server"]
+
+    def test_json_output_no_mcp_excludes_mcp(self, tmp_path, capsys):
+        """setup --ide claude --no-mcp --json excludes MCP server config."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance._last_merged_config = {"hooks": {}}
+
+            with mock.patch("ai_guardian.setup._handle_mcp_setup"):
+                setup_hooks(
+                    ide_type="claude", json_output=True, interactive=False,
+                    no_mcp=True,
+                )
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "mcp_servers" not in result
+
+    def test_json_output_with_create_config(self, tmp_path, capsys):
+        """setup --ide claude --create-config --json includes ai_guardian_config."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance._last_merged_config = {"hooks": {}}
+
+            with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
+                setup_hooks(
+                    ide_type="claude", json_output=True, interactive=False,
+                    create_config=True,
+                )
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["success"] is True
+        assert "ai_guardian_config" in result
+        assert "hooks" in result
+
+    def test_json_output_error_invalid_ide(self, capsys):
+        """setup --ide invalid --json outputs JSON error."""
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+
+            success = setup_hooks(
+                ide_type="invalid", json_output=True, interactive=False,
+            )
+
+        assert success is False
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["success"] is False
+        assert "error" in result
+
+    def test_json_output_error_no_ide_detected(self, capsys):
+        """setup --json with no IDE detected outputs JSON error."""
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = []
+
+            success = setup_hooks(json_output=True, interactive=False)
+
+        assert success is False
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["success"] is False
+        assert "No IDE detected" in result["error"]
+
+    def test_json_output_create_config_only(self, tmp_path, capsys):
+        """--json --create-config (without --ide) uses consistent JSON format."""
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = []
+
+            with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
+                success = setup_hooks(
+                    create_config=True, json_output=True, interactive=False,
+                )
+
+        assert success is True
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["success"] is True
+        assert "ai_guardian_config" in result
+        assert "$schema" in result["ai_guardian_config"]
