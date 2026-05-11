@@ -19,12 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Self-Protection: Block Agent Read Access** (Issue #512)
+  - Read tool blocked for all ai-guardian config, state, and cache files
+  - Bash cat/grep/head/tail/less/more blocked for same files
+  - PowerShell Get-Content/Select-String blocked for same files
+  - Immutable — cannot be overridden by user config
+  - MCP server remains the approved way for agent to query security data
+  - Doctor check (`check_self_protection`) verifies read protection is active
+
 - **GCS bucket support for support bundle export** (Issue #513)
   - `gs://bucket-name/prefix/` destination format supported in config
   - Auto-detects Google Application Default Credentials (Vertex AI or `gcloud auth application-default login`)
   - Falls back to `gcloud auth print-access-token` CLI
   - No additional dependencies required (uses GCS REST API directly)
-
 - **Per-engine pattern_server config in scanning flow** (Issue #519)
   - Engines can now override the global pattern server via per-engine `pattern_server` config
   - `pattern_server: null` disables patterns for that engine (uses built-in rules)
