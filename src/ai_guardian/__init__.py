@@ -2743,7 +2743,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     engine_config=engine_config,
                     source_file=tmp_file_path,
                     report_file=report_file,
-                    config_path=str(Path(gitleaks_config_path).absolute()) if gitleaks_config_path else None
+                    config_path=str(Path(gitleaks_config_path).absolute()) if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk")) else None
                 )
             else:
                 # Legacy fallback: hardcoded gitleaks command
@@ -2835,6 +2835,21 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 }
                     except Exception as e:
                         logging.debug(f"Failed to parse scanner JSON report: {e}")
+
+                # Exit code 1 fallback (Issue #411) indicated secrets but parser
+                # found no actual findings. This happens when a scanner crashes
+                # (e.g., betterleaks receiving incompatible gitleaks config) —
+                # don't false-positive (Issue #520).
+                # Only apply for the fallback case (exit 1 != expected exit code);
+                # when the scanner's own secrets_found_exit_code matched, trust it.
+                if (not secret_details
+                        and (not scan_result or not scan_result.get("has_secrets"))
+                        and result.returncode != expected_secrets_code):
+                    logging.warning(
+                        f"Scanner exit code {result.returncode} indicated secrets but "
+                        f"parser found no findings — treating as clean scan (Issue #520)"
+                    )
+                    return False, None
 
                 # Filter findings through allowlist patterns (Issue #357)
                 if allowlist_patterns and secret_details:

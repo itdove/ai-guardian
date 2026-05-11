@@ -104,6 +104,45 @@ class TestRunSingleEngine(unittest.TestCase):
         os.unlink(report)
 
     @patch('ai_guardian.scanners.executor.subprocess.run')
+    def test_betterleaks_exit_code_1_no_findings_returns_clean(self, mock_run):
+        """Test betterleaks exit code 1 with no findings returns clean (Issue #520).
+
+        When betterleaks crashes (e.g., incompatible config), it exits 1 but
+        produces no report. The parser should find no findings and return clean.
+        """
+        report = self._make_report_file()
+        # Empty report — betterleaks crashed before writing findings
+        with open(report, 'w') as f:
+            json.dump([], f)
+
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout='',
+            stderr='FTL failed to compile CEL filters'
+        )
+
+        config = ENGINE_PRESETS["betterleaks"]
+        result = run_single_engine(config, "/tmp/test.txt", report)
+
+        self.assertFalse(result.has_secrets)
+        self.assertEqual(len(result.secrets), 0)
+        os.unlink(report)
+
+    @patch('ai_guardian.scanners.executor.subprocess.run')
+    def test_betterleaks_exit_code_1_missing_report_returns_clean(self, mock_run):
+        """Test betterleaks exit code 1 with missing report file (Issue #520)."""
+        report = "/tmp/nonexistent_report_520.json"
+
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout='',
+            stderr='FTL failed to compile CEL filters'
+        )
+
+        config = ENGINE_PRESETS["betterleaks"]
+        result = run_single_engine(config, "/tmp/test.txt", report)
+
+        self.assertFalse(result.has_secrets)
+
+    @patch('ai_guardian.scanners.executor.subprocess.run')
     def test_trufflehog_stdout_redirect(self, mock_run):
         """Test TruffleHog output is written from stdout to report file."""
         report = self._make_report_file()

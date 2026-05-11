@@ -159,16 +159,18 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian.get_parser')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.subprocess.run')
     def test_gitleaks_exit_code_1_not_treated_as_success(
-        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+        self, mock_run, mock_load_config, mock_get_parser,
+        mock_build_command, mock_select_engine
     ):
-        """Exit code 1 from gitleaks must NOT be treated as success (Issue #411).
+        """Exit code 1 from gitleaks with findings must block (Issue #411).
 
         Gitleaks exit code 1 is its default 'secrets found' code when --exit-code
-        is not specified or not honored. Treating it as success silently bypasses
-        secret detection.
+        is not specified or not honored. When actual findings exist in the report,
+        the operation must be blocked.
         """
         mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
 
@@ -180,6 +182,15 @@ class TestScannerEngineIntegration(unittest.TestCase):
         mock_select_engine.return_value = mock_engine
 
         mock_build_command.return_value = ["gitleaks", "detect", "..."]
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {
+            "has_secrets": True,
+            "findings": [{"rule_id": "generic-api-key", "file": "test.txt",
+                          "line_number": 1, "end_line": 1, "description": "API Key"}],
+            "total_findings": 1
+        }
+        mock_get_parser.return_value = mock_parser
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -276,12 +287,15 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian.get_parser')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.subprocess.run')
+    @patch('ai_guardian._gitleaks_cfg.load_gitleaks_allowlist', return_value=None)
     def test_betterleaks_exit_code_1_not_treated_as_success(
-        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+        self, mock_gl_allowlist, mock_run, mock_load_config, mock_get_parser,
+        mock_build_command, mock_select_engine
     ):
-        """Exit code 1 from betterleaks must also be treated as secrets found (Issue #411)."""
+        """Exit code 1 from betterleaks with findings must block (Issue #411)."""
         mock_load_config.return_value = ({"engines": ["betterleaks"]}, None)
 
         mock_engine = MagicMock()
@@ -292,6 +306,15 @@ class TestScannerEngineIntegration(unittest.TestCase):
         mock_select_engine.return_value = mock_engine
 
         mock_build_command.return_value = ["betterleaks", "dir", "..."]
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {
+            "has_secrets": True,
+            "findings": [{"rule_id": "generic-api-key", "file": "test.txt",
+                          "line_number": 1, "end_line": 1, "description": "Key"}],
+            "total_findings": 1
+        }
+        mock_get_parser.return_value = mock_parser
 
         mock_result = MagicMock()
         mock_result.returncode = 1
