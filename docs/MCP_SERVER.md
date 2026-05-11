@@ -35,12 +35,6 @@ Add to `~/.claude.json` (or `~/.claude/settings.json`):
 }
 ```
 
-Then enable:
-
-```bash
-ai-guardian mcp enable
-```
-
 ### Via uvx (no install needed)
 
 ```json
@@ -64,18 +58,12 @@ ai-guardian mcp enable
 
 ## Enable / Disable
 
-The MCP server can be toggled without restarting the IDE. When disabled, all tools return `{"status": "disabled"}`.
+The MCP server is controlled by IDE config. Install/uninstall via:
 
 ```bash
-# CLI
-ai-guardian mcp enable
-ai-guardian mcp disable
-ai-guardian mcp status
+ai-guardian setup --ide claude --mcp      # Install
+ai-guardian setup --ide claude --no-mcp   # Uninstall
 ```
-
-Also available via:
-- **Tray menu**: MCP submenu → Enabled checkbox
-- **Console**: MCP Servers panel → Enable/Disable button
 
 ## Proactive Level
 
@@ -181,7 +169,6 @@ Both interfaces share the same underlying logic — same sanitization, same dest
 ```json
 {
   "mcp_server": {
-    "enabled": false,
     "proactive_level": "low"
   },
   "support": {

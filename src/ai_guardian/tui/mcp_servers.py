@@ -289,11 +289,6 @@ class MCPServersContent(Container):
         """Compose the MCP servers tab content."""
         yield Static("[bold]MCP Server Permissions[/bold]", id="mcp-header")
 
-        # MCP Security Advisor toggle (Issue #477)
-        with Horizontal(id="mcp-actions"):
-            yield Static("MCP Security Advisor: ", id="mcp-toggle-label")
-            yield Button("Enable", id="mcp-toggle", variant="success")
-
         # Proactive level selector (Issue #477)
         yield Static("Proactive Level:", id="proactive-label")
         yield Select(
@@ -331,8 +326,7 @@ class MCPServersContent(Container):
         yield VerticalScroll(id="mcp-list")
 
     def on_mount(self) -> None:
-        """Load permissions, MCP toggle, proactive level, and support config when mounted."""
-        self._update_mcp_toggle()
+        """Load permissions, proactive level, and support config when mounted."""
         self._load_proactive_level()
         self._load_support_config()
         self.load_permissions()
@@ -385,9 +379,7 @@ class MCPServersContent(Container):
         """Handle button presses (only edit/delete on permission cards)."""
         button_id = event.button.id
 
-        if button_id == "mcp-toggle":
-            self._toggle_mcp_server()
-        elif button_id == "support-save":
+        if button_id == "support-save":
             self._save_support_config()
         elif button_id and button_id.startswith("edit-"):
             idx = int(button_id.replace("edit-", ""))
@@ -395,57 +387,6 @@ class MCPServersContent(Container):
         elif button_id and button_id.startswith("delete-"):
             idx = int(button_id.replace("delete-", ""))
             self.delete_permission(idx)
-
-    def _toggle_mcp_server(self) -> None:
-        """Toggle MCP security advisor server enabled/disabled."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        config = {}
-        if config_path.exists():
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        if "mcp_server" not in config:
-            config["mcp_server"] = {}
-        new_state = not config["mcp_server"].get("enabled", False)
-        config["mcp_server"]["enabled"] = new_state
-
-        config_dir.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
-            f.write("\n")
-
-        state = "enabled" if new_state else "disabled"
-        self.app.notify(f"MCP Security Advisor: {state}", severity="information")
-        self._update_mcp_toggle()
-
-    def _update_mcp_toggle(self) -> None:
-        """Update the MCP toggle button state from config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        enabled = False
-        if config_path.exists():
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                enabled = config.get("mcp_server", {}).get("enabled", False)
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        try:
-            button = self.query_one("#mcp-toggle", Button)
-            if enabled:
-                button.label = "Disable"
-                button.variant = "error"
-            else:
-                button.label = "Enable"
-                button.variant = "success"
-        except Exception:
-            pass
 
     def _load_proactive_level(self) -> None:
         """Load proactive level from config."""

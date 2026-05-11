@@ -193,9 +193,8 @@
   },
   "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
   "on_scan_error": "allow",
-  "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Toggle via Console, tray, or CLI: ai-guardian mcp enable/disable. (NEW in v1.7.0, Issue #477)",
+  "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
   "mcp_server": {
-    "enabled": false,
     "proactive_level": "low"
   },
   "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path or S3 URI. (NEW in v1.7.0, Issue #477)",

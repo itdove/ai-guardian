@@ -14,7 +14,6 @@ Usage:
 Issue #477
 """
 
-import functools
 import json
 import logging
 import sys
@@ -29,14 +28,6 @@ try:
     HAS_MCP = True
 except ImportError:
     HAS_MCP = False
-
-DISABLED_RESPONSE = {
-    "status": "disabled",
-    "message": (
-        "AI Guardian MCP is disabled. "
-        "Enable via Console, tray, or: ai-guardian mcp enable"
-    ),
-}
 
 
 def _load_mcp_config() -> Dict:
@@ -56,11 +47,6 @@ def _load_mcp_config() -> Dict:
         return {}
 
 
-def _is_mcp_enabled() -> bool:
-    """Check if MCP server is enabled in config. Re-reads on every call."""
-    mcp_config = _load_mcp_config()
-    return mcp_config.get("enabled", False)
-
 
 def _load_full_config() -> Optional[Dict]:
     """Load full ai-guardian.json config."""
@@ -77,17 +63,6 @@ def _load_full_config() -> Optional[Dict]:
     except Exception:
         return None
 
-
-def _disabled_check(func):
-    """Decorator that returns disabled response when MCP is disabled."""
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if not _is_mcp_enabled():
-            return DISABLED_RESPONSE
-        return func(*args, **kwargs)
-
-    return wrapper
 
 
 def _load_skill_instructions() -> str:
@@ -122,7 +97,7 @@ def create_server() -> "FastMCP":
     # ─── Security Check Tools (proactive) ─────────────────────────
 
     @server.tool()
-    @_disabled_check
+
     def check_path(path: str) -> Dict[str, str]:
         """Check if a file path is protected by directory rules. Call before Read/Write/Edit on unfamiliar paths. Returns allowed/denied/not_found so you can distinguish between protected paths and missing files."""
         try:
@@ -146,7 +121,7 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to check path"}
 
     @server.tool()
-    @_disabled_check
+
     def check_command(command: str) -> Dict[str, str]:
         """Check if a Bash command would be blocked. Call before running commands with URLs or file paths. Results are advisory — hooks provide enforcement."""
         try:
@@ -177,7 +152,7 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to check command"}
 
     @server.tool()
-    @_disabled_check
+
     def check_mcp_trust(server_name: str) -> Dict[str, str]:
         """Check if an MCP server is trusted based on permission rules. Call before suggesting MCP server usage."""
         try:
@@ -197,7 +172,7 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to check MCP trust"}
 
     @server.tool()
-    @_disabled_check
+
     def sanitize_text(text: str) -> Dict[str, Any]:
         """Redact secrets and PII from text. Call before outputting potentially sensitive content."""
         try:
@@ -218,7 +193,7 @@ def create_server() -> "FastMCP":
             return {"sanitized_text": text, "redaction_count": 0, "types": []}
 
     @server.tool()
-    @_disabled_check
+
     def check_annotations(file_path: str) -> Dict[str, Any]:
         """Verify all begin/end-allow annotation pairs are matched in a file. Call after editing files with ai-guardian annotations."""
         try:
@@ -240,7 +215,7 @@ def create_server() -> "FastMCP":
     # ─── Information Tools (query) ────────────────────────────────
 
     @server.tool()
-    @_disabled_check
+
     def get_violations(
         violation_type: Optional[str] = None,
         limit: int = 20,
@@ -277,7 +252,7 @@ def create_server() -> "FastMCP":
             return {"violations": [], "count": 0}
 
     @server.tool()
-    @_disabled_check
+
     def get_config() -> Dict[str, Any]:
         """Get current security posture summary. Returns feature enabled/disabled status only — no rules, patterns, or allowlists. Re-reads config on every call to reflect changes."""
         try:
@@ -309,7 +284,7 @@ def create_server() -> "FastMCP":
             features["action_mode"] = action
 
             mcp_section = config.get("mcp_server", {})
-            features["mcp_server"] = mcp_section.get("enabled", False)
+            features["mcp_server"] = True
             features["proactive_level"] = mcp_section.get("proactive_level", "low")
 
             return {"features": features}
@@ -318,7 +293,7 @@ def create_server() -> "FastMCP":
             return {"features": {}}
 
     @server.tool()
-    @_disabled_check
+
     def get_scanner_status() -> Dict[str, Any]:
         """Get installed scanner engines and their versions."""
         try:
@@ -340,7 +315,7 @@ def create_server() -> "FastMCP":
             return {"scanners": [], "count": 0}
 
     @server.tool()
-    @_disabled_check
+
     def get_scanner_supported() -> Dict[str, Any]:
         """Get all supported scanner engines that can be installed."""
         try:
@@ -352,7 +327,7 @@ def create_server() -> "FastMCP":
             return {"scanners": []}
 
     @server.tool()
-    @_disabled_check
+
     def get_patterns_list() -> Dict[str, Any]:
         """Get active detection pattern categories and counts. Returns category names and pattern counts only — no regex patterns."""
         try:
@@ -371,7 +346,7 @@ def create_server() -> "FastMCP":
             return {"categories": {}}
 
     @server.tool()
-    @_disabled_check
+
     def get_metrics(since_days: Optional[int] = None) -> Dict[str, Any]:
         """Get violation statistics and trends. Optionally filter to last N days."""
         try:
@@ -391,7 +366,7 @@ def create_server() -> "FastMCP":
             return {"total_violations": 0, "by_type": {}, "by_severity": {}}
 
     @server.tool()
-    @_disabled_check
+
     def doctor() -> Dict[str, Any]:
         """Run health check on ai-guardian setup. Returns check results with pass/warn/fail status."""
         try:
@@ -425,7 +400,7 @@ def create_server() -> "FastMCP":
     # ─── Support Bundle Tools ─────────────────────────────────────
 
     @server.tool()
-    @_disabled_check
+
     def prepare_support_bundle() -> Dict[str, Any]:
         """Prepare a sanitized support bundle for review. Creates a temp directory (protected by .ai-read-deny) with sanitized copies of config, violations, metrics, doctor results, system info, and log. IMPORTANT: After calling this, you MUST (1) show the temp_path so the user can review and delete unwanted files, (2) present the file list with redaction counts, and (3) wait for the user to confirm before calling send_support_bundle. Only the user can access the temp directory — do not try to read or delete files in it."""
         try:
@@ -437,7 +412,7 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": f"Failed to prepare bundle: {e}"}
 
     @server.tool()
-    @_disabled_check
+
     def send_support_bundle(bundle_id: str) -> Dict[str, Any]:
         """Send a previously prepared support bundle to the preconfigured destination. Only call after the user has reviewed the temp directory, deleted any unwanted files, and explicitly approved sending. After sending, tell the user to contact support and give them the bundle_id as their reference number."""
         try:

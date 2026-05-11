@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`mcp_server.enabled` config flag** (Issue #516)
+  - MCP server presence is controlled by IDE config (`.claude/settings.json`), not ai-guardian config
+  - Removed `enabled` property from schema, example config, setup defaults, and template profiles
+  - Removed `_is_mcp_enabled`, `_disabled_check` decorator, and `DISABLED_RESPONSE` from MCP server
+  - Removed `ai-guardian mcp enable/disable/status` CLI subcommands
+  - Removed MCP enable/disable toggle from Console TUI and tray menu
+  - `ai-guardian setup --mcp` / `--no-mcp` remains the install/uninstall mechanism
+
 ### Added
 
 - **Per-engine pattern_server config in scanning flow** (Issue #519)
