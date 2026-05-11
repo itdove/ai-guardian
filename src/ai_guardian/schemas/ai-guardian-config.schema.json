@@ -1461,11 +1461,6 @@
       "type": "object",
       "description": "MCP (Model Context Protocol) security advisor server settings. The MCP server exposes read-only security tools that AI agents can use proactively.",
       "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable or disable the MCP security advisor server. When disabled, all MCP tools return a 'disabled' status. Toggle via Console, tray menu, or CLI: ai-guardian mcp enable/disable."
-        },
         "proactive_level": {
           "type": "string",
           "enum": ["low", "medium", "high"],

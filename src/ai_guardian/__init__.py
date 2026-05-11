@@ -4571,59 +4571,6 @@ def _handle_daemon_command(args):
         return 1
 
 
-def _handle_mcp_command(args):
-    """Handle mcp enable/disable/status subcommands (Issue #477)."""
-    cmd = getattr(args, "mcp_command", None)
-
-    if cmd in ("enable", "disable"):
-        enabled = cmd == "enable"
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        config = {}
-        if config_path.exists():
-            try:
-                with open(config_path, "r") as f:
-                    config = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        if "mcp_server" not in config:
-            config["mcp_server"] = {}
-        config["mcp_server"]["enabled"] = enabled
-
-        config_dir.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-
-        state = "enabled" if enabled else "disabled"
-        print(f"MCP security advisor server: {state}")
-        if enabled:
-            print("AI agents can now use ai-guardian security tools proactively.")
-        else:
-            print("MCP tools will return 'disabled' status until re-enabled.")
-        return 0
-
-    elif cmd == "status":
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        enabled = False
-        if config_path.exists():
-            try:
-                with open(config_path, "r") as f:
-                    config = json.load(f)
-                enabled = config.get("mcp_server", {}).get("enabled", False)
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        state = "enabled" if enabled else "disabled"
-        print(f"MCP security advisor server: {state}")
-        return 0
-
-    else:
-        print("Usage: ai-guardian mcp {enable|disable|status}")
-        return 1
-
 
 def main():
     """Main entry point for the hook."""
@@ -5158,18 +5105,6 @@ def main():
             help="Start MCP security advisor server (stdio transport)"
         )
 
-        # MCP enable/disable subcommand (Issue #477)
-        mcp_parser = subparsers.add_parser(
-            "mcp",
-            help="Enable or disable the MCP security advisor server"
-        )
-        mcp_sub = mcp_parser.add_subparsers(
-            dest="mcp_command", help="MCP commands"
-        )
-        mcp_sub.add_parser("enable", help="Enable MCP security advisor server")
-        mcp_sub.add_parser("disable", help="Disable MCP security advisor server")
-        mcp_sub.add_parser("status", help="Show MCP server status")
-
         # Support bundle subcommand (Issue #511)
         support_parser = subparsers.add_parser(
             "support",
@@ -5594,10 +5529,6 @@ def main():
                     file=sys.stderr,
                 )
                 return 1
-
-        # Handle mcp enable/disable/status command (Issue #477)
-        if args.command == "mcp":
-            return _handle_mcp_command(args)
 
         # Handle support command (Issue #511)
         if args.command == "support":

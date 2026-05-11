@@ -1020,9 +1020,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
         "on_scan_error": "allow",
 
-        "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Toggle via Console, tray, or CLI: ai-guardian mcp enable/disable. (NEW in v1.7.0, Issue #477)",
+        "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
         "mcp_server": {
-            "enabled": False,
             "proactive_level": "low",
         },
 
@@ -1839,26 +1838,6 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
         f.write("\n")
 
     print(f"  MCP: Added ai-guardian MCP server to {config_path}")
-
-    # Enable MCP in ai-guardian config
-    from ai_guardian.config_utils import get_config_dir
-    ag_config_path = get_config_dir() / "ai-guardian.json"
-    ag_config = {}
-    if ag_config_path.exists():
-        try:
-            with open(ag_config_path, "r") as f:
-                ag_config = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
-    if "mcp_server" not in ag_config:
-        ag_config["mcp_server"] = {}
-    ag_config["mcp_server"]["enabled"] = True
-    ag_config_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(ag_config_path, "w") as f:
-        json.dump(ag_config, f, indent=2)
-        f.write("\n")
-
-    print("  MCP: Enabled MCP server in ai-guardian config")
 
 
 def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -> None:

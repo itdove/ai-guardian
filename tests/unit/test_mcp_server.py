@@ -1,14 +1,12 @@
 """
 Unit tests for MCP server module.
 
-Tests all 14 tools, 3 resources, security filtering, and enable/disable toggle.
+Tests all 14 tools, 3 resources, and security filtering.
 Requires Python >= 3.10 (MCP SDK dependency).
 """
 
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock, patch
@@ -21,76 +19,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 from ai_guardian.mcp_server import (
-    _is_mcp_enabled,
     _load_mcp_config,
     create_server,
-    DISABLED_RESPONSE,
 )
-
-
-# ─── Fixtures ─────────────────────────────────────────────────
-
-
-@pytest.fixture
-def mcp_config_dir(tmp_path):
-    """Create a temp config dir with MCP enabled."""
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    config = {"mcp_server": {"enabled": True}}
-    (config_dir / "ai-guardian.json").write_text(json.dumps(config))
-    with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
-        yield config_dir
-
-
-@pytest.fixture
-def mcp_disabled_dir(tmp_path):
-    """Create a temp config dir with MCP disabled."""
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    config = {"mcp_server": {"enabled": False}}
-    (config_dir / "ai-guardian.json").write_text(json.dumps(config))
-    with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
-        yield config_dir
-
-
-# ─── Enable/Disable Toggle Tests ─────────────────────────────
-
-
-class TestMCPEnableDisable:
-    """Test runtime enable/disable toggle."""
-
-    def test_disabled_by_default(self):
-        """MCP is disabled when no config exists."""
-        assert _is_mcp_enabled() is False
-
-    def test_enabled_when_configured(self, mcp_config_dir):
-        """MCP is enabled when config says so."""
-        assert _is_mcp_enabled() is True
-
-    def test_disabled_when_configured(self, mcp_disabled_dir):
-        """MCP is disabled when config says so."""
-        assert _is_mcp_enabled() is False
-
-    def test_tools_return_disabled_when_off(self, mcp_disabled_dir):
-        """All tools return disabled response when MCP is off."""
-        server = create_server()
-        tools = server._tool_manager._tools
-        for name, tool in tools.items():
-            result = tool.fn()
-            assert result == DISABLED_RESPONSE, f"Tool {name} didn't return disabled"
-
-    def test_config_reread_on_every_call(self, tmp_path):
-        """Config is re-read on every tool call (no caching)."""
-        config_dir = tmp_path / "config"
-        config_dir.mkdir()
-        config_path = config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({"mcp_server": {"enabled": False}}))
-
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
-            assert _is_mcp_enabled() is False
-
-            config_path.write_text(json.dumps({"mcp_server": {"enabled": True}}))
-            assert _is_mcp_enabled() is True
 
 
 # ─── Security Check Tool Tests ────────────────────────────────
@@ -99,9 +30,8 @@ class TestMCPEnableDisable:
 class TestCheckPath:
     """Test check_path tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_allowed_path(self, mock_checker_cls, mock_enabled, tmp_path):
+    def test_allowed_path(self, mock_checker_cls, tmp_path):
         safe_file = tmp_path / "safe_file.py"
         safe_file.write_text("print('hello')")
         mock_checker = MagicMock()
@@ -113,9 +43,8 @@ class TestCheckPath:
         result = tool.fn(path=str(safe_file))
         assert result["status"] == "allowed"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_denied_path(self, mock_checker_cls, mock_enabled, tmp_path):
+    def test_denied_path(self, mock_checker_cls, tmp_path):
         denied_file = tmp_path / "secret.txt"
         denied_file.write_text("secret")
         mock_checker = MagicMock()
@@ -127,16 +56,14 @@ class TestCheckPath:
         result = tool.fn(path=str(denied_file))
         assert result["status"] == "denied"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
-    def test_not_found_path(self, mock_enabled):
+    def test_not_found_path(self):
         server = create_server()
         tool = server._tool_manager._tools["check_path"]
         result = tool.fn(path="/nonexistent/path/file.py")
         assert result["status"] == "not_found"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_no_rule_details_exposed(self, mock_checker_cls, mock_enabled, tmp_path):
+    def test_no_rule_details_exposed(self, mock_checker_cls, tmp_path):
         """Response must not contain rule details, patterns, or paths."""
         secret_file = tmp_path / "secret.txt"
         secret_file.write_text("secret")
@@ -155,9 +82,8 @@ class TestCheckPath:
 class TestCheckCommand:
     """Test check_command tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_allowed_command(self, mock_checker_cls, mock_enabled):
+    def test_allowed_command(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (True, None, "Bash")
         mock_checker_cls.return_value = mock_checker
@@ -167,9 +93,8 @@ class TestCheckCommand:
         result = tool.fn(command="ls -la")
         assert result["status"] == "allowed"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_blocked_with_reason(self, mock_checker_cls, mock_enabled):
+    def test_blocked_with_reason(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (False, "Secret detected in command", "Bash")
         mock_checker_cls.return_value = mock_checker
@@ -180,9 +105,8 @@ class TestCheckCommand:
         assert result["status"] == "blocked"
         assert result["reason"] == "secret_detected"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_ssrf_reason(self, mock_checker_cls, mock_enabled):
+    def test_ssrf_reason(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (False, "SSRF protection blocked this URL", "Bash")
         mock_checker_cls.return_value = mock_checker
@@ -197,9 +121,8 @@ class TestCheckCommand:
 class TestCheckMCPTrust:
     """Test check_mcp_trust tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_trusted_server(self, mock_checker_cls, mock_enabled):
+    def test_trusted_server(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (True, None, "mcp__myserver__test")
         mock_checker_cls.return_value = mock_checker
@@ -209,9 +132,8 @@ class TestCheckMCPTrust:
         result = tool.fn(server_name="myserver")
         assert result["status"] == "trusted"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
-    def test_untrusted_server(self, mock_checker_cls, mock_enabled):
+    def test_untrusted_server(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (False, "MCP server blocked", "mcp__evil__test")
         mock_checker_cls.return_value = mock_checker
@@ -225,9 +147,8 @@ class TestCheckMCPTrust:
 class TestSanitizeText:
     """Test sanitize_text tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.sanitizer.sanitize_text")
-    def test_sanitizes_secrets(self, mock_sanitize, mock_enabled):
+    def test_sanitizes_secrets(self, mock_sanitize):
         mock_sanitize.return_value = {
             "sanitized_text": "token is [REDACTED]",
             "redactions": [{"type": "api_key"}],
@@ -241,9 +162,8 @@ class TestSanitizeText:
         assert result["redaction_count"] == 1
         assert "secrets" in result["types"]
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.sanitizer.sanitize_text")
-    def test_no_redaction_details(self, mock_sanitize, mock_enabled):
+    def test_no_redaction_details(self, mock_sanitize):
         """Response must not expose what was redacted (only type counts)."""
         mock_sanitize.return_value = {
             "sanitized_text": "[REDACTED]",
@@ -262,8 +182,7 @@ class TestSanitizeText:
 class TestCheckAnnotations:
     """Test check_annotations tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
-    def test_valid_annotations(self, mock_enabled, tmp_path):
+    def test_valid_annotations(self, tmp_path):
         test_file = tmp_path / "test.py"
         test_file.write_text(
             "# ai-guardian:begin-allow secrets\n"
@@ -277,8 +196,7 @@ class TestCheckAnnotations:
         assert result["valid"] is True
         assert result["warnings"] == []
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
-    def test_file_not_found(self, mock_enabled):
+    def test_file_not_found(self):
         server = create_server()
         tool = server._tool_manager._tools["check_annotations"]
         result = tool.fn(file_path="/nonexistent/file.py")
@@ -292,9 +210,8 @@ class TestCheckAnnotations:
 class TestGetViolations:
     """Test get_violations tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.violation_logger.ViolationLogger")
-    def test_returns_filtered_violations(self, mock_vl_cls, mock_enabled):
+    def test_returns_filtered_violations(self, mock_vl_cls):
         mock_vl = MagicMock()
         mock_vl.get_recent_violations.return_value = [
             {
@@ -321,15 +238,14 @@ class TestGetViolations:
 class TestGetConfig:
     """Test get_config tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.mcp_server._load_full_config")
-    def test_returns_feature_booleans(self, mock_config, mock_enabled):
+    def test_returns_feature_booleans(self, mock_config):
         mock_config.return_value = {
             "secret_scanning": {"enabled": True},
             "prompt_injection": {"enabled": False},
             "scan_pii": {"enabled": True},
             "action": "warn",
-            "mcp_server": {"enabled": True},
+            "mcp_server": {"proactive_level": "low"},
         }
 
         server = create_server()
@@ -340,9 +256,8 @@ class TestGetConfig:
         assert features["prompt_injection"] is False
         assert features["action_mode"] == "warn"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.mcp_server._load_full_config")
-    def test_no_rules_or_patterns_exposed(self, mock_config, mock_enabled):
+    def test_no_rules_or_patterns_exposed(self, mock_config):
         """Config response must not contain regex patterns, allowlists, or deny rules."""
         mock_config.return_value = {
             "secret_scanning": {"enabled": True, "allowlist_patterns": ["test.*"]},
@@ -367,9 +282,8 @@ class TestGetConfig:
 class TestGetScannerStatus:
     """Test get_scanner_status tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.scanner_manager.ScannerManager")
-    def test_returns_installed_scanners(self, mock_sm_cls, mock_enabled):
+    def test_returns_installed_scanners(self, mock_sm_cls):
         from ai_guardian.scanner_manager import InstalledScanner
         mock_sm = MagicMock()
         mock_sm.list_installed.return_value = [
@@ -388,8 +302,7 @@ class TestGetScannerStatus:
 class TestGetScannerSupported:
     """Test get_scanner_supported tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
-    def test_returns_supported_list(self, mock_enabled):
+    def test_returns_supported_list(self):
         server = create_server()
         tool = server._tool_manager._tools["get_scanner_supported"]
         result = tool.fn()
@@ -400,9 +313,8 @@ class TestGetScannerSupported:
 class TestGetPatternsList:
     """Test get_patterns_list tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.pattern_lister.PatternLister")
-    def test_returns_counts_only(self, mock_pl_cls, mock_enabled):
+    def test_returns_counts_only(self, mock_pl_cls):
         mock_cat = MagicMock()
         mock_cat.name = "Prompt Injection"
         mock_group = MagicMock()
@@ -417,9 +329,8 @@ class TestGetPatternsList:
         result = tool.fn()
         assert result["categories"]["Prompt Injection"] == 15
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.pattern_lister.PatternLister")
-    def test_no_regex_exposed(self, mock_pl_cls, mock_enabled):
+    def test_no_regex_exposed(self, mock_pl_cls):
         """Pattern counts only, no regex patterns."""
         mock_cat = MagicMock()
         mock_cat.name = "Test"
@@ -441,9 +352,8 @@ class TestGetPatternsList:
 class TestGetMetrics:
     """Test get_metrics tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.metrics.MetricsComputer")
-    def test_returns_metrics(self, mock_mc_cls, mock_enabled):
+    def test_returns_metrics(self, mock_mc_cls):
         mock_report = MagicMock()
         mock_report.total_violations = 10
         mock_report.by_type = {"secret_detected": 5, "prompt_injection": 5}
@@ -464,9 +374,8 @@ class TestGetMetrics:
 class TestDoctor:
     """Test doctor tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.doctor.Doctor")
-    def test_returns_check_results(self, mock_doc_cls, mock_enabled):
+    def test_returns_check_results(self, mock_doc_cls):
         from ai_guardian.doctor import CheckResult, CheckStatus, DoctorReport
         mock_report = DoctorReport(
             checks=[
@@ -493,10 +402,9 @@ class TestDoctor:
 class TestResources:
     """Test MCP resources."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.mcp_server._load_full_config")
     @patch("ai_guardian.scanner_manager.ScannerManager")
-    def test_security_posture_resource(self, mock_sm_cls, mock_config, mock_enabled):
+    def test_security_posture_resource(self, mock_sm_cls, mock_config):
         mock_config.return_value = {"secret_scanning": {"enabled": True}}
         mock_sm = MagicMock()
         mock_sm.list_installed.return_value = []
@@ -519,9 +427,8 @@ class TestResources:
             mock_path_cls.cwd.return_value = tmp_path
             server = create_server()
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.violation_logger.ViolationLogger")
-    def test_recent_violations_resource(self, mock_vl_cls, mock_enabled):
+    def test_recent_violations_resource(self, mock_vl_cls):
         mock_vl = MagicMock()
         mock_vl.get_recent_violations.return_value = []
         mock_vl_cls.return_value = mock_vl
@@ -541,9 +448,8 @@ class TestResources:
 class TestPrepareSupportBundle:
     """Test prepare_support_bundle tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.support_bundle.prepare_bundle")
-    def test_returns_bundle_info(self, mock_prepare, mock_enabled):
+    def test_returns_bundle_info(self, mock_prepare):
         mock_prepare.return_value = {
             "bundle_id": "support-20260509-abc123",
             "temp_path": "/tmp/ai-guardian-support-abc123",
@@ -565,9 +471,8 @@ class TestPrepareSupportBundle:
 class TestSendSupportBundle:
     """Test send_support_bundle tool."""
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.support_bundle.send_bundle")
-    def test_send_with_valid_id(self, mock_send, mock_enabled):
+    def test_send_with_valid_id(self, mock_send):
         mock_send.return_value = {
             "status": "sent",
             "destination": "~/support-bundles/support-20260509-abc123",
@@ -579,9 +484,8 @@ class TestSendSupportBundle:
         result = tool.fn(bundle_id="support-20260509-abc123")
         assert result["status"] == "sent"
 
-    @patch("ai_guardian.mcp_server._is_mcp_enabled", return_value=True)
     @patch("ai_guardian.support_bundle.send_bundle")
-    def test_send_with_invalid_id(self, mock_send, mock_enabled):
+    def test_send_with_invalid_id(self, mock_send):
         mock_send.return_value = {
             "status": "error",
             "message": "Bundle 'invalid' not found or expired.",
