@@ -27,6 +27,7 @@ _active_bundles: Dict[str, Dict[str, Any]] = {}
 def _get_support_config() -> Dict:
     """Load support config from ai-guardian.json."""
     from ai_guardian.config_utils import get_config_dir
+
     config_path = get_config_dir() / "ai-guardian.json"
     if not config_path.exists():
         config_path = Path.cwd() / ".ai-guardian.json"
@@ -43,12 +44,19 @@ def _get_support_config() -> Dict:
 def _sanitize_config(config: Dict) -> tuple:
     """Sanitize config by redacting sensitive values. Returns (sanitized, redaction_count)."""
     import copy
+
     sanitized = copy.deepcopy(config)
     redactions = 0
 
     sensitive_keys = {
-        "token", "api_key", "password", "secret", "auth_token",
-        "token_env", "url", "remote_config_url",
+        "token",
+        "api_key",
+        "password",
+        "secret",
+        "auth_token",
+        "token_env",
+        "url",
+        "remote_config_url",
     }
 
     def _redact(obj, path=""):
@@ -75,6 +83,7 @@ def _sanitize_config(config: Dict) -> tuple:
 def _sanitize_violations(violations: List[Dict]) -> tuple:
     """Sanitize violation entries. Returns (sanitized_list, redaction_count)."""
     import copy
+
     sanitized = []
     redactions = 0
 
@@ -105,6 +114,7 @@ def _get_system_info() -> Dict:
     """Collect non-sensitive system information."""
     import platform
     from ai_guardian import __version__
+
     return {
         "ai_guardian_version": __version__,
         "python_version": platform.python_version(),
@@ -117,6 +127,7 @@ def _get_system_info() -> Dict:
 def _get_sanitized_log() -> tuple:
     """Get sanitized full ai-guardian log. Returns (text, redaction_count)."""
     from ai_guardian.config_utils import get_state_dir
+
     log_path = get_state_dir() / "ai-guardian.log"
     if not log_path.exists():
         return "", 0
@@ -125,6 +136,7 @@ def _get_sanitized_log() -> tuple:
         text = log_path.read_text(errors="replace")
 
         from ai_guardian.sanitizer import sanitize_text
+
         result = sanitize_text(text)
         redactions = result.get("stats", {}).get("total", 0)
         return result.get("sanitized_text", text), redactions
@@ -142,6 +154,7 @@ def prepare_bundle() -> Dict[str, Any]:
     destination = support_config.get("export_destination", "")
     if not destination:
         from ai_guardian.config_utils import get_state_dir
+
         destination = str(get_state_dir() / "support-bundles")
     ttl = support_config.get("bundle_ttl_minutes", 30)
 
@@ -156,40 +169,55 @@ def prepare_bundle() -> Dict[str, Any]:
     # 1. Config (sanitized)
     try:
         from ai_guardian.config_utils import get_config_dir
+
         config_path = get_config_dir() / "ai-guardian.json"
         if config_path.exists():
             with open(config_path, "r") as f:
                 raw_config = json.load(f)
             sanitized, count = _sanitize_config(raw_config)
             (temp_dir / "config.json").write_text(json.dumps(sanitized, indent=2))
-            files_info.append({
-                "name": "config.json",
-                "sanitized": count > 0,
-                "redactions": count,
-                "note": f"{count} sensitive values redacted" if count else "No sensitive data found",
-            })
+            files_info.append(
+                {
+                    "name": "config.json",
+                    "sanitized": count > 0,
+                    "redactions": count,
+                    "note": (
+                        f"{count} sensitive values redacted"
+                        if count
+                        else "No sensitive data found"
+                    ),
+                }
+            )
     except Exception as e:
         logger.debug("Bundle config error: %s", e)
 
     # 2. Violations (sanitized)
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(limit=100)
         sanitized, count = _sanitize_violations(violations)
         (temp_dir / "violations.json").write_text(json.dumps(sanitized, indent=2))
-        files_info.append({
-            "name": "violations.json",
-            "sanitized": count > 0,
-            "redactions": count,
-            "note": f"{count} file paths and content redacted" if count else "No sensitive data found",
-        })
+        files_info.append(
+            {
+                "name": "violations.json",
+                "sanitized": count > 0,
+                "redactions": count,
+                "note": (
+                    f"{count} file paths and content redacted"
+                    if count
+                    else "No sensitive data found"
+                ),
+            }
+        )
     except Exception as e:
         logger.debug("Bundle violations error: %s", e)
 
     # 3. Metrics (aggregate only)
     try:
         from ai_guardian.metrics import MetricsComputer
+
         mc = MetricsComputer(since_days=30)
         report = mc.compute()
         metrics = {
@@ -200,28 +228,36 @@ def prepare_bundle() -> Dict[str, Any]:
             "unresolved": report.unresolved_count,
         }
         (temp_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
-        files_info.append({
-            "name": "metrics.json",
-            "sanitized": False,
-            "redactions": 0,
-            "note": "Aggregate stats only, no sensitive data",
-        })
+        files_info.append(
+            {
+                "name": "metrics.json",
+                "sanitized": False,
+                "redactions": 0,
+                "note": "Aggregate stats only, no sensitive data",
+            }
+        )
     except Exception as e:
         logger.debug("Bundle metrics error: %s", e)
 
     # 4. Doctor (health check)
     try:
         from ai_guardian.doctor import Doctor
+
         doc = Doctor()
         report = doc.run_all()
-        checks = [{"name": c.name, "status": c.status.value, "message": c.message} for c in report.checks]
+        checks = [
+            {"name": c.name, "status": c.status.value, "message": c.message}
+            for c in report.checks
+        ]
         (temp_dir / "doctor.json").write_text(json.dumps({"checks": checks}, indent=2))
-        files_info.append({
-            "name": "doctor.json",
-            "sanitized": False,
-            "redactions": 0,
-            "note": "Health check results",
-        })
+        files_info.append(
+            {
+                "name": "doctor.json",
+                "sanitized": False,
+                "redactions": 0,
+                "note": "Health check results",
+            }
+        )
     except Exception as e:
         logger.debug("Bundle doctor error: %s", e)
 
@@ -229,12 +265,14 @@ def prepare_bundle() -> Dict[str, Any]:
     try:
         info = _get_system_info()
         (temp_dir / "system-info.json").write_text(json.dumps(info, indent=2))
-        files_info.append({
-            "name": "system-info.json",
-            "sanitized": False,
-            "redactions": 0,
-            "note": "Python version, platform, ai-guardian version",
-        })
+        files_info.append(
+            {
+                "name": "system-info.json",
+                "sanitized": False,
+                "redactions": 0,
+                "note": "Python version, platform, ai-guardian version",
+            }
+        )
     except Exception as e:
         logger.debug("Bundle system info error: %s", e)
 
@@ -243,12 +281,16 @@ def prepare_bundle() -> Dict[str, Any]:
         log_text, count = _get_sanitized_log()
         if log_text:
             (temp_dir / "ai-guardian.log").write_text(log_text)
-            files_info.append({
-                "name": "ai-guardian.log",
-                "sanitized": count > 0,
-                "redactions": count,
-                "note": f"Full log, {count} items redacted" if count else "Full log",
-            })
+            files_info.append(
+                {
+                    "name": "ai-guardian.log",
+                    "sanitized": count > 0,
+                    "redactions": count,
+                    "note": (
+                        f"Full log, {count} items redacted" if count else "Full log"
+                    ),
+                }
+            )
     except Exception as e:
         logger.debug("Bundle log error: %s", e)
 
@@ -274,7 +316,10 @@ def send_bundle(bundle_id: str) -> Dict[str, Any]:
     Only works with a valid bundle_id from prepare_bundle().
     """
     if bundle_id not in _active_bundles:
-        return {"status": "error", "message": f"Bundle '{bundle_id}' not found or expired. Prepare a new bundle first."}
+        return {
+            "status": "error",
+            "message": f"Bundle '{bundle_id}' not found or expired. Prepare a new bundle first.",
+        }
 
     bundle = _active_bundles[bundle_id]
     temp_path = Path(bundle["temp_path"])
@@ -282,7 +327,10 @@ def send_bundle(bundle_id: str) -> Dict[str, Any]:
 
     if not temp_path.exists():
         del _active_bundles[bundle_id]
-        return {"status": "error", "message": "Bundle temp directory no longer exists. Prepare a new bundle."}
+        return {
+            "status": "error",
+            "message": "Bundle temp directory no longer exists. Prepare a new bundle.",
+        }
 
     # Check TTL
     created = datetime.fromisoformat(bundle["created"])
@@ -290,7 +338,10 @@ def send_bundle(bundle_id: str) -> Dict[str, Any]:
     ttl = bundle.get("ttl_minutes", 30)
     if age_minutes > ttl:
         _cleanup_bundle(bundle_id)
-        return {"status": "error", "message": f"Bundle expired ({ttl} min TTL). Prepare a new bundle."}
+        return {
+            "status": "error",
+            "message": f"Bundle expired ({ttl} min TTL). Prepare a new bundle.",
+        }
 
     try:
         if destination.startswith("s3://"):
@@ -303,7 +354,10 @@ def send_bundle(bundle_id: str) -> Dict[str, Any]:
                 "message": "No export destination configured. Add 'support.export_destination' to ai-guardian.json.",
             }
         else:
-            return {"status": "error", "message": f"Unsupported destination: {destination}"}
+            return {
+                "status": "error",
+                "message": f"Unsupported destination: {destination}",
+            }
     finally:
         _cleanup_bundle(bundle_id)
 
@@ -319,7 +373,11 @@ def _send_to_local(bundle_id: str, temp_path: Path, destination: str) -> Dict:
             continue
         shutil.copy2(item, bundle_dest / item.name)
 
-    return {"status": "sent", "destination": str(bundle_dest), "message": f"Bundle copied to {bundle_dest}"}
+    return {
+        "status": "sent",
+        "destination": str(bundle_dest),
+        "message": f"Bundle copied to {bundle_dest}",
+    }
 
 
 def _send_to_s3(bundle_id: str, temp_path: Path, destination: str) -> Dict:
@@ -330,7 +388,7 @@ def _send_to_s3(bundle_id: str, temp_path: Path, destination: str) -> Dict:
         return {
             "status": "error",
             "message": "S3 upload requires boto3. Install with: pip install boto3. "
-                       f"Bundle files are available at: {temp_path}",
+            f"Bundle files are available at: {temp_path}",
         }
 
     support_config = _get_support_config()
@@ -361,7 +419,10 @@ def _send_to_s3(bundle_id: str, temp_path: Path, destination: str) -> Dict:
             "message": f"{uploaded} files uploaded to S3",
         }
     except Exception as e:
-        return {"status": "error", "message": f"S3 upload failed: {e}. Bundle files at: {temp_path}"}
+        return {
+            "status": "error",
+            "message": f"S3 upload failed: {e}. Bundle files at: {temp_path}",
+        }
 
 
 def _cleanup_bundle(bundle_id: str) -> None:

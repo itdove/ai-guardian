@@ -182,8 +182,8 @@ Default destination: `~/.local/state/ai-guardian/support-bundles/`. Configure vi
 
 ## Requirements
 
-- Python >=3.10 (MCP SDK requirement)
-- `mcp>=1.8.0` package (included in ai-guardian dependencies)
+- **Direct install** (`ai-guardian mcp-server`): Python >=3.10 (MCP SDK requirement). ai-guardian itself still supports Python 3.9 for all other features (hooks, CLI, Console, scanning).
+- **Via uvx** (`uvx ai-guardian mcp-server`): No Python version requirement — uvx manages its own environment. This is the recommended method for users on Python 3.9.
 - For S3 export: `pip install boto3`
 
 ## Skill Instructions

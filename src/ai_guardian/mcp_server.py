@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from mcp.server.fastmcp import FastMCP
+
     HAS_MCP = True
 except ImportError:
     HAS_MCP = False
@@ -41,6 +42,7 @@ DISABLED_RESPONSE = {
 def _load_mcp_config() -> Dict:
     """Load ai-guardian.json and return the mcp_server section."""
     from ai_guardian.config_utils import get_config_dir
+
     config_path = get_config_dir() / "ai-guardian.json"
     if not config_path.exists():
         config_path = Path.cwd() / ".ai-guardian.json"
@@ -63,6 +65,7 @@ def _is_mcp_enabled() -> bool:
 def _load_full_config() -> Optional[Dict]:
     """Load full ai-guardian.json config."""
     from ai_guardian.config_utils import get_config_dir
+
     config_path = get_config_dir() / "ai-guardian.json"
     if not config_path.exists():
         config_path = Path.cwd() / ".ai-guardian.json"
@@ -77,11 +80,13 @@ def _load_full_config() -> Optional[Dict]:
 
 def _disabled_check(func):
     """Decorator that returns disabled response when MCP is disabled."""
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if not _is_mcp_enabled():
             return DISABLED_RESPONSE
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -89,14 +94,17 @@ def _load_skill_instructions() -> str:
     """Load skill instructions to send during MCP initialization."""
     try:
         from importlib.resources import files as pkg_files
-        skill_file = pkg_files("ai_guardian") / "skills" / "ai-guardian-security" / "SKILL.md"
+
+        skill_file = (
+            pkg_files("ai_guardian") / "skills" / "ai-guardian-security" / "SKILL.md"
+        )
         if hasattr(skill_file, "read_text"):
             content = skill_file.read_text()
             # Strip YAML frontmatter
             if content.startswith("---"):
                 end = content.find("---", 3)
                 if end != -1:
-                    content = content[end + 3:].strip()
+                    content = content[end + 3 :].strip()
             return content
     except Exception:
         pass
@@ -109,11 +117,7 @@ def _load_skill_instructions() -> str:
 
 def create_server() -> "FastMCP":
     """Create and configure the MCP server with all tools and resources."""
-    server = FastMCP(
-        "ai-guardian",
-        instructions=_load_skill_instructions(),
-        description="AI Guardian security advisor — read-only security checks and information",
-    )
+    server = FastMCP("ai-guardian", instructions=_load_skill_instructions())
 
     # ─── Security Check Tools (proactive) ─────────────────────────
 
@@ -127,6 +131,7 @@ def create_server() -> "FastMCP":
                 return {"status": "not_found"}
 
             from ai_guardian.tool_policy import ToolPolicyChecker
+
             checker = ToolPolicyChecker()
             hook_data = {
                 "tool_name": "Write",
@@ -146,6 +151,7 @@ def create_server() -> "FastMCP":
         """Check if a Bash command would be blocked. Call before running commands with URLs or file paths. Results are advisory — hooks provide enforcement."""
         try:
             from ai_guardian.tool_policy import ToolPolicyChecker
+
             checker = ToolPolicyChecker()
             hook_data = {
                 "tool_name": "Bash",
@@ -176,6 +182,7 @@ def create_server() -> "FastMCP":
         """Check if an MCP server is trusted based on permission rules. Call before suggesting MCP server usage."""
         try:
             from ai_guardian.tool_policy import ToolPolicyChecker
+
             checker = ToolPolicyChecker()
             hook_data = {
                 "tool_name": f"mcp__{server_name}__test",
@@ -195,12 +202,14 @@ def create_server() -> "FastMCP":
         """Redact secrets and PII from text. Call before outputting potentially sensitive content."""
         try:
             from ai_guardian.sanitizer import sanitize_text as _sanitize
+
             result = _sanitize(text)
             return {
                 "sanitized_text": result.get("sanitized_text", text),
                 "redaction_count": result.get("stats", {}).get("total", 0),
                 "types": [
-                    k for k, v in result.get("stats", {}).items()
+                    k
+                    for k, v in result.get("stats", {}).items()
                     if k != "total" and isinstance(v, int) and v > 0
                 ],
             }
@@ -214,6 +223,7 @@ def create_server() -> "FastMCP":
         """Verify all begin/end-allow annotation pairs are matched in a file. Call after editing files with ai-guardian annotations."""
         try:
             from ai_guardian.annotations import process_annotations
+
             path = Path(file_path)
             if not path.exists():
                 return {"valid": False, "warnings": [f"File not found: {file_path}"]}
@@ -238,6 +248,7 @@ def create_server() -> "FastMCP":
         """Get recent security violations. Filter by type (secret_detected, prompt_injection, directory_blocking, tool_permission, ssrf_blocked, config_file_exfil, pii_detected, jailbreak_detected)."""
         try:
             from ai_guardian.violation_logger import ViolationLogger
+
             vl = ViolationLogger()
             violations = vl.get_recent_violations(
                 limit=min(limit, 100),
@@ -253,7 +264,8 @@ def create_server() -> "FastMCP":
                     "type": v.get("violation_type", ""),
                     "severity": v.get("severity", ""),
                     "tool": v.get("context", {}).get("tool_name", ""),
-                    "file": blocked.get("file_path", "") or v.get("context", {}).get("file_path", ""),
+                    "file": blocked.get("file_path", "")
+                    or v.get("context", {}).get("file_path", ""),
                     "action": "blocked" if v.get("blocked") else "logged",
                 }
                 if blocked.get("line_number"):
@@ -270,13 +282,19 @@ def create_server() -> "FastMCP":
         """Get current security posture summary. Returns feature enabled/disabled status only — no rules, patterns, or allowlists. Re-reads config on every call to reflect changes."""
         try:
             from ai_guardian.config_utils import is_feature_enabled
+
             config = _load_full_config() or {}
             features = {}
 
             feature_keys = [
-                "secret_scanning", "scan_pii", "prompt_injection",
-                "config_scanning", "violation_logging", "ssrf_protection",
-                "secret_redaction", "transcript_scanning",
+                "secret_scanning",
+                "scan_pii",
+                "prompt_injection",
+                "config_scanning",
+                "violation_logging",
+                "ssrf_protection",
+                "secret_redaction",
+                "transcript_scanning",
             ]
             for key in feature_keys:
                 section = config.get(key, {})
@@ -305,6 +323,7 @@ def create_server() -> "FastMCP":
         """Get installed scanner engines and their versions."""
         try:
             from ai_guardian.scanner_manager import ScannerManager
+
             sm = ScannerManager()
             installed = sm.list_installed()
             scanners = [
@@ -326,6 +345,7 @@ def create_server() -> "FastMCP":
         """Get all supported scanner engines that can be installed."""
         try:
             from ai_guardian.scanner_manager import ScannerManager
+
             return {"scanners": list(ScannerManager.SUPPORTED_SCANNERS)}
         except Exception as e:
             logger.error("get_scanner_supported error: %s", e)
@@ -337,6 +357,7 @@ def create_server() -> "FastMCP":
         """Get active detection pattern categories and counts. Returns category names and pattern counts only — no regex patterns."""
         try:
             from ai_guardian.pattern_lister import PatternLister
+
             lister = PatternLister()
             categories = lister.get_categories()
             result = {}
@@ -355,6 +376,7 @@ def create_server() -> "FastMCP":
         """Get violation statistics and trends. Optionally filter to last N days."""
         try:
             from ai_guardian.metrics import MetricsComputer
+
             mc = MetricsComputer(since_days=since_days)
             report = mc.compute()
             return {
@@ -374,6 +396,7 @@ def create_server() -> "FastMCP":
         """Run health check on ai-guardian setup. Returns check results with pass/warn/fail status."""
         try:
             from ai_guardian.doctor import Doctor
+
             doc = Doctor()
             report = doc.run_all()
             checks = []
@@ -407,6 +430,7 @@ def create_server() -> "FastMCP":
         """Prepare a sanitized support bundle for review. Creates a temp directory (protected by .ai-read-deny) with sanitized copies of config, violations, metrics, doctor results, system info, and log. IMPORTANT: After calling this, you MUST (1) show the temp_path so the user can review and delete unwanted files, (2) present the file list with redaction counts, and (3) wait for the user to confirm before calling send_support_bundle. Only the user can access the temp directory — do not try to read or delete files in it."""
         try:
             from ai_guardian.support_bundle import prepare_bundle
+
             return prepare_bundle()
         except Exception as e:
             logger.error("prepare_support_bundle error: %s", e)
@@ -418,6 +442,7 @@ def create_server() -> "FastMCP":
         """Send a previously prepared support bundle to the preconfigured destination. Only call after the user has reviewed the temp directory, deleted any unwanted files, and explicitly approved sending. After sending, tell the user to contact support and give them the bundle_id as their reference number."""
         try:
             from ai_guardian.support_bundle import send_bundle
+
             return send_bundle(bundle_id)
         except Exception as e:
             logger.error("send_support_bundle error: %s", e)
@@ -445,13 +470,15 @@ def create_server() -> "FastMCP":
         try:
             from ai_guardian.config_utils import get_config_dir
             import os
+
             cwd = Path.cwd()
             protected = []
             for root, dirs, files in os.walk(cwd):
                 if ".ai-read-deny" in files:
                     protected.append(str(Path(root).relative_to(cwd)))
                 dirs[:] = [
-                    d for d in dirs
+                    d
+                    for d in dirs
                     if d not in {".git", "node_modules", "__pycache__", ".venv", "venv"}
                 ]
             return json.dumps({"protected_directories": protected})

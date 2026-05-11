@@ -1,17 +1,24 @@
 """
 Unit tests for MCP server module.
 
-Tests all 12 tools, 3 resources, security filtering, and enable/disable toggle.
+Tests all 14 tools, 3 resources, security filtering, and enable/disable toggle.
+Requires Python >= 3.10 (MCP SDK dependency).
 """
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason="MCP SDK requires Python >= 3.10",
+)
 
 from ai_guardian.mcp_server import (
     _is_mcp_enabled,
