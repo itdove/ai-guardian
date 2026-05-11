@@ -360,6 +360,99 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
         self.assertEqual(result[0].line_number, 5)
 
 
+class TestFirstMatchStrategyExecute(unittest.TestCase):
+    """Test FirstMatchStrategy.execute() fallthrough behavior."""
+
+    def _make_engine(self, engine_type):
+        """Create a minimal engine config for testing."""
+        from unittest.mock import MagicMock
+        engine = MagicMock()
+        engine.type = engine_type
+        engine.file_patterns = None
+        engine.ignore_files = None
+        return engine
+
+    def test_tries_next_engine_when_no_secrets_found(self):
+        """Bug #523: first engine finds nothing, second finds secrets."""
+        engines = [self._make_engine("betterleaks"), self._make_engine("gitleaks")]
+
+        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+            if engine_config.type == "betterleaks":
+                return ScanResult(has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0)
+            return ScanResult(
+                has_secrets=True,
+                secrets=[SecretMatch(rule_id="aws-access-token", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                engine="gitleaks",
+                scan_time_ms=20.0,
+            )
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertTrue(result.has_secrets)
+        self.assertEqual(result.engine, "gitleaks")
+        self.assertEqual(len(result.secrets), 1)
+
+    def test_returns_clean_when_all_engines_clean(self):
+        """All engines find nothing → returns clean result."""
+        engines = [self._make_engine("betterleaks"), self._make_engine("gitleaks")]
+
+        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+            return ScanResult(has_secrets=False, secrets=[], engine=engine_config.type, scan_time_ms=10.0)
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertFalse(result.has_secrets)
+        self.assertEqual(len(result.secrets), 0)
+        self.assertNotEqual(result.engine, "none")
+
+    def test_stops_at_first_engine_with_secrets(self):
+        """First engine finds secrets → returns immediately without running second."""
+        call_log = []
+        engines = [self._make_engine("gitleaks"), self._make_engine("trufflehog")]
+
+        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+            call_log.append(engine_config.type)
+            if engine_config.type == "gitleaks":
+                return ScanResult(
+                    has_secrets=True,
+                    secrets=[SecretMatch(rule_id="aws-key", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                    engine="gitleaks",
+                    scan_time_ms=10.0,
+                )
+            return ScanResult(has_secrets=False, secrets=[], engine=engine_config.type)
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertTrue(result.has_secrets)
+        self.assertEqual(result.engine, "gitleaks")
+        self.assertEqual(call_log, ["gitleaks"])
+
+    def test_skips_unavailable_then_tries_remaining(self):
+        """First engine unavailable, second clean, third finds secrets."""
+        engines = [self._make_engine("missing"), self._make_engine("betterleaks"), self._make_engine("gitleaks")]
+
+        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+            if engine_config.type == "missing":
+                return ScanResult(has_secrets=False, secrets=[], engine="missing", error="Binary not found: missing")
+            if engine_config.type == "betterleaks":
+                return ScanResult(has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0)
+            return ScanResult(
+                has_secrets=True,
+                secrets=[SecretMatch(rule_id="aws-key", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                engine="gitleaks",
+                scan_time_ms=20.0,
+            )
+
+        strategy = FirstMatchStrategy()
+        result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
+
+        self.assertTrue(result.has_secrets)
+        self.assertEqual(result.engine, "gitleaks")
+
+
 class TestStrategyRegistry(unittest.TestCase):
     """Test strategy registry and factory."""
 

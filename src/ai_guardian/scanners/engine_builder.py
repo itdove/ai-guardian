@@ -194,6 +194,75 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
     )
 
 
+def select_all_engines(engines_config: List[Any]) -> List[EngineConfig]:
+    """
+    Select all available engines from configuration list.
+
+    Unlike select_engine() which returns only the first available,
+    this returns ALL available engines for multi-engine strategies
+    (any-match, consensus, first-match fallthrough).
+
+    Args:
+        engines_config: List of engine specifications
+
+    Returns:
+        List of available EngineConfig objects
+
+    Raises:
+        RuntimeError: If no engines are available
+    """
+    available = []
+    for engine_spec in engines_config:
+        if isinstance(engine_spec, str):
+            if engine_spec not in ENGINE_PRESETS:
+                logging.warning(f"Unknown engine preset: {engine_spec}")
+                continue
+            engine_config = ENGINE_PRESETS[engine_spec]
+        else:
+            engine_type = engine_spec.get("type")
+            if engine_type in ENGINE_PRESETS:
+                engine_config = copy.deepcopy(ENGINE_PRESETS[engine_type])
+                if "binary" in engine_spec:
+                    engine_config.binary = engine_spec["binary"]
+                if "extra_flags" in engine_spec:
+                    engine_config.extra_flags = engine_spec["extra_flags"]
+                if "config_flag" in engine_spec:
+                    engine_config.config_flag = engine_spec["config_flag"]
+            elif engine_type == "custom":
+                engine_config = EngineConfig(
+                    type="custom",
+                    binary=engine_spec["binary"],
+                    command_template=engine_spec["command_template"],
+                    config_flag=engine_spec.get("config_flag"),
+                    extra_flags=engine_spec.get("extra_flags"),
+                    success_exit_code=engine_spec.get("success_exit_code", 0),
+                    secrets_found_exit_code=engine_spec.get("secrets_found_exit_code", 1),
+                    output_parser=engine_spec.get("output_format", "gitleaks")
+                )
+            else:
+                logging.warning(f"Unknown engine type: {engine_type}")
+                continue
+
+        if shutil.which(engine_config.binary):
+            logging.info(f"Found available scanner engine: {engine_config.type}")
+            available.append(engine_config)
+        else:
+            logging.warning(
+                f"Scanner '{engine_config.type}' (binary: {engine_config.binary}) "
+                f"not available, skipping"
+            )
+
+    if not available:
+        raise RuntimeError(
+            "No secret scanner found. Install one of:\n"
+            "  • Gitleaks: brew install gitleaks\n"
+            "  • BetterLeaks: brew install betterleaks\n"
+            "  • LeakTK: brew install leaktk/tap/leaktk"
+        )
+
+    return available
+
+
 def build_scanner_command(
     engine_config: EngineConfig,
     source_file: str,

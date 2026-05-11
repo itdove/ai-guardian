@@ -71,8 +71,10 @@ except ImportError:
 
 # Import scanner engine modules for flexible scanner support
 try:
-    from ai_guardian.scanners.engine_builder import select_engine, build_scanner_command
+    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command
     from ai_guardian.scanners.output_parsers import get_parser
+    from ai_guardian.scanners.strategies import get_strategy, ScanResult as StrategyScanResult, SecretMatch
+    from ai_guardian.scanners.executor import run_single_engine
     HAS_SCANNER_ENGINE = True
 except ImportError:
     HAS_SCANNER_ENGINE = False
@@ -2316,6 +2318,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
             # Priority 2: Scanner Engines (if pattern server not used)
             engine_config = None
+            execution_strategy_name = "first-match"
+            consensus_threshold = 2
+            _all_available_engines = None
             if not gitleaks_config_path and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config, _ = _load_secret_scanning_config()
@@ -2323,6 +2328,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                     # Select first available engine (logs warnings for unavailable ones)
                     engine_config = select_engine(engines_list)
+
+                    # For first-match strategy, get all available engines for fallthrough
+                    _all_available_engines = None
+                    if execution_strategy_name == "first-match" and len(engines_list) > 1:
+                        try:
+                            _all_available_engines = select_all_engines(engines_list)
+                        except RuntimeError:
+                            pass  # Only primary engine available
 
                     # Log context about why we're using scanner engines
                     if pattern_server_attempted:
@@ -2379,13 +2392,204 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             ) as rf:
                 report_file = rf.name
 
+            # Multi-engine strategy execution path (any-match, consensus)
+            # For these strategies, run all engines via the strategy framework
+            # and return the combined result directly.
+            if (execution_strategy_name in ("first-match", "any-match", "consensus")
+                    and HAS_SCANNER_ENGINE and not gitleaks_config_path):
+                try:
+                    all_engines = select_all_engines(engines_list)
+                    strategy_kwargs = {}
+                    if execution_strategy_name == "consensus":
+                        strategy_kwargs["threshold"] = consensus_threshold
+                    strategy = get_strategy(execution_strategy_name, **strategy_kwargs)
+
+                    strategy_result = strategy.execute(
+                        engine_configs=all_engines,
+                        scanner_fn=run_single_engine,
+                        source_file=tmp_file_path,
+                        report_file_prefix=report_file.replace('.json', ''),
+                        config_path=None,
+                        context={"filename": filename}
+                    )
+
+                    if strategy_result.has_secrets and strategy_result.secrets:
+                        # Apply allowlist filtering
+                        if allowlist_patterns:
+                            from ai_guardian import allowlist_utils
+                            compiled_allowlist = allowlist_utils.compile_allowlist(allowlist_patterns)
+                            if compiled_allowlist:
+                                content_str = content if isinstance(content, str) else str(content)
+                                content_lines = content_str.splitlines()
+                                all_allowlisted = True
+                                for secret in strategy_result.secrets:
+                                    line_num = secret.line_number
+                                    if line_num > 0 and line_num <= len(content_lines):
+                                        if not allowlist_utils.check_allowlist(content_lines[line_num - 1], compiled_allowlist):
+                                            all_allowlisted = False
+                                            break
+                                    else:
+                                        all_allowlisted = False
+                                        break
+                                if all_allowlisted:
+                                    logging.info("All strategy findings matched allowlist — skipping")
+                                    return False, None
+
+                        # Apply .gitleaks.toml allowlist filtering (Issue #488)
+                        if _gitleaks_allowlist and strategy_result.secrets:
+                            content_str = content if isinstance(content, str) else str(content)
+                            gl_lines = content_str.splitlines()
+                            findings_dicts = [
+                                {"rule_id": s.rule_id, "line_number": s.line_number, "file": s.file}
+                                for s in strategy_result.secrets
+                            ]
+                            remaining = _gitleaks_cfg.filter_findings(
+                                findings_dicts, gl_lines, file_path, _gitleaks_allowlist
+                            )
+                            if not remaining:
+                                logging.info("All strategy findings matched .gitleaks.toml allowlist — skipping")
+                                return False, None
+
+                        first_secret = strategy_result.secrets[0]
+                        secret_details = {
+                            "rule_id": first_secret.rule_id,
+                            "file": first_secret.file or filename,
+                            "line_number": first_secret.line_number,
+                            "end_line": first_secret.end_line or 0,
+                            "commit": first_secret.commit or "N/A",
+                            "total_findings": len(strategy_result.secrets)
+                        }
+
+                        scanner_name = strategy_result.engine
+                        error_msg = (
+                            f"\n{'='*70}\n"
+                            f"🛡️ Secret Detected\n"
+                            f"{'='*70}\n\n"
+                            f"Protection: Secret Scanning ({execution_strategy_name} strategy)\n"
+                            f"Secret Type: {secret_details['rule_id']}\n"
+                        )
+                        if secret_details.get('line_number'):
+                            error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
+                        else:
+                            error_msg += f"Location: {secret_details['file']}\n"
+                        error_msg += (
+                            f"Scanner: {scanner_name}\n"
+                            f"Patterns: Built-in Defaults\n"
+                            f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
+                            f"and be accessed by unauthorized users.\n\n"
+                            f"This operation has been blocked for security.\n"
+                            f"Please remove the sensitive information and try again.\n\n"
+                            f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+                            f"Recommendation:\n"
+                            f"  • Move secrets to environment variables\n"
+                            f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
+                            f"  • Add to .gitignore if in config file\n"
+                            f"  • Never commit secrets to git\n"
+                            f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
+                            f"⚠️  Secret value NOT shown in this message for security\n\n"
+                            f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+                            f"Section: secret_scanning.enabled\n"
+                            f"{'='*70}\n"
+                        )
+
+                        _log_secret_detection_violation(file_path or filename, context, secret_details,
+                                                        hook_context=context)
+                        logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
+                        return True, error_msg
+
+                    # No secrets found — check for engine errors that need user attention
+                    if strategy_result.error:
+                        error_lower = (strategy_result.error or "").lower()
+
+                        # Auth errors → block (user can fix credentials)
+                        is_auth_error = any(kw in error_lower for kw in
+                                            ['401', '403', 'unauthorized', 'forbidden',
+                                             'authentication failed', 'bad credentials',
+                                             'invalid token', 'access denied'])
+                        if is_auth_error:
+                            error_msg = (
+                                f"\n{'='*70}\n"
+                                f"🚨 BLOCKED BY POLICY\n"
+                                f"🔒 AUTHENTICATION ERROR\n"
+                                f"{'='*70}\n\n"
+                                f"Scanner authentication failed.\n"
+                                f"\nError: {strategy_result.error[:200]}\n"
+                                "\nThis operation has been blocked for security.\n\n"
+                                "DO NOT attempt to bypass this protection - fix the authentication issue.\n\n"
+                                "If using pattern-servers:\n"
+                                "  1. Check your authentication token is valid\n"
+                                "  2. Update token: export AI_GUARDIAN_PATTERN_TOKEN='your-token'\n"
+                                "  3. Or disable pattern-servers in ~/.config/ai-guardian/ai-guardian.json\n\n"
+                                "If NOT using pattern-servers:\n"
+                                "  1. Check ~/.gitleaks.toml configuration\n"
+                                "  2. Try: gitleaks version (to verify installation)\n"
+                                f"{'='*70}\n"
+                            )
+                            return True, error_msg
+
+                        # Network errors → warn but allow (fail-open)
+                        is_network_error = any(kw in error_lower for kw in
+                                               ['connection', 'timeout', 'network',
+                                                'unreachable', 'dial tcp', 'no route'])
+                        if is_network_error:
+                            warning_msg = (
+                                f"\n{'='*70}\n"
+                                f"⚠️  SECRET SCANNING WARNING\n"
+                                f"{'='*70}\n"
+                                f"Scanner error: {strategy_result.error[:200]}\n"
+                                "\n💡 Network or server issue detected.\n"
+                                "   If using pattern-servers, the server may be temporarily unavailable.\n"
+                                "   You can disable pattern-servers in ~/.config/ai-guardian/ai-guardian.json\n"
+                                "\nOperation will continue, but secret scanning may not be functioning.\n"
+                                f"{'='*70}\n"
+                            )
+                            print(warning_msg, file=sys.stderr)
+                            on_error = _get_on_scan_error_action()
+                            if on_error == "block":
+                                return True, warning_msg + "\nOperation BLOCKED (on_scan_error=block)."
+                            return False, None
+
+                        # Binary not found → warn but allow (fail-open)
+                        if "not found" in error_lower or "no scanners" in error_lower:
+                            scanner_name = engines_list[0] if engines_list else "gitleaks"
+                            warning_msg = (
+                                f"\n{'='*70}\n"
+                                f"⚠️  SECRET SCANNING DISABLED\n"
+                                f"{'='*70}\n\n"
+                                f"Gitleaks binary not found.\n"
+                                f"Secret scanning will not run until Gitleaks is installed.\n\n"
+                                f"Install with:\n"
+                                f"  brew install {scanner_name}  (macOS)\n"
+                                f"\nOperation will continue without secret scanning.\n"
+                                f"{'='*70}\n"
+                            )
+                            print(warning_msg, file=sys.stderr)
+                            return False, None
+
+                    return False, None
+
+                except RuntimeError as e:
+                    logging.warning(f"Multi-engine strategy failed: {e}")
+                    return False, str(e)
+                except Exception as e:
+                    logging.error(f"Unexpected error in multi-engine strategy: {e}")
+                    return False, None
+
             # If we have pattern server config, select engine for using it
             # (engine_config already set above if using scanner defaults)
             if gitleaks_config_path and not engine_config and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config, _ = _load_secret_scanning_config()
                     engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
+                    execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     engine_config = select_engine(engines_list)
+
+                    # For first-match: get all engines for fallthrough (Issue #523)
+                    if execution_strategy_name == "first-match" and len(engines_list) > 1:
+                        try:
+                            _all_available_engines = select_all_engines(engines_list)
+                        except RuntimeError:
+                            pass
                 except RuntimeError as e:
                     # No scanner found - warn (allow operation to continue)
                     # Path 2: Pattern server succeeded but no engine to run patterns
@@ -2619,7 +2823,73 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 return True, error_msg
 
             elif result.returncode in expected_success_codes:
-                # No secrets found
+                # No secrets found by primary engine.
+                # For first-match: try remaining engines (Issue #523)
+                if (execution_strategy_name == "first-match"
+                        and _all_available_engines
+                        and len(_all_available_engines) > 1):
+                    remaining = [e for e in _all_available_engines
+                                 if e.type != engine_config.type]
+                    if remaining:
+                        logging.info(
+                            f"Engine {engine_config.type} found no secrets, "
+                            f"trying remaining engines: {[e.type for e in remaining]}"
+                        )
+                        strategy = get_strategy("first-match")
+                        fallback_result = strategy.execute(
+                            engine_configs=remaining,
+                            scanner_fn=run_single_engine,
+                            source_file=tmp_file_path,
+                            report_file_prefix=report_file.replace('.json', ''),
+                            config_path=str(Path(gitleaks_config_path).absolute()) if (gitleaks_config_path and remaining[0].type in ("gitleaks", "leaktk")) else None,
+                            context={"filename": filename}
+                        )
+                        if fallback_result.has_secrets and fallback_result.secrets:
+                            first_secret = fallback_result.secrets[0]
+                            secret_details = {
+                                "rule_id": first_secret.rule_id,
+                                "file": first_secret.file or filename,
+                                "line_number": first_secret.line_number,
+                                "end_line": first_secret.end_line or 0,
+                                "commit": first_secret.commit or "N/A",
+                                "total_findings": len(fallback_result.secrets)
+                            }
+                            scanner_name = fallback_result.engine
+                            error_msg = (
+                                f"\n{'='*70}\n"
+                                f"🛡️ Secret Detected\n"
+                                f"{'='*70}\n\n"
+                                f"Protection: Secret Scanning (first-match fallthrough)\n"
+                                f"Secret Type: {secret_details['rule_id']}\n"
+                            )
+                            if secret_details.get('line_number'):
+                                error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
+                            else:
+                                error_msg += f"Location: {secret_details['file']}\n"
+                            error_msg += (
+                                f"Scanner: {scanner_name}\n"
+                                f"Patterns: {'Pattern Server' if gitleaks_config_path else 'Built-in Defaults'}\n"
+                                f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
+                                f"and be accessed by unauthorized users.\n\n"
+                                f"This operation has been blocked for security.\n"
+                                f"Please remove the sensitive information and try again.\n\n"
+                                f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+                                f"Recommendation:\n"
+                                f"  • Move secrets to environment variables\n"
+                                f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
+                                f"  • Add to .gitignore if in config file\n"
+                                f"  • Never commit secrets to git\n"
+                                f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
+                                f"⚠️  Secret value NOT shown in this message for security\n\n"
+                                f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+                                f"Section: secret_scanning.enabled\n"
+                                f"{'='*70}\n"
+                            )
+                            _log_secret_detection_violation(file_path or filename, context, secret_details,
+                                                            hook_context=context)
+                            logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
+                            return True, error_msg
+
                 return False, None
 
             else:

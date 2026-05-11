@@ -846,7 +846,7 @@ Easy to add new engines as they emerge:
 |----------|---------------------|---------------|
 | **Maximum security** (catch everything) | `any-match` | Run all engines, block if ANY finds secrets |
 | **Reduce false positives** (dev productivity) | `consensus` (threshold: 2) | Block only if 2+ engines agree |
-| **Single preferred engine** (simplest) | `first-match` | Use one engine, fallback if unavailable |
+| **Single preferred engine** (simplest) | `first-match` | Try engines in order, use first that finds secrets |
 | **Testing new engine** | `first-match` with log mode | Primary blocks, new engine logs only |
 | **Compliance requirement** (dual scanning) | `any-match` | Run 2 specific engines |
 | **Performance critical** | `first-match` | Use fastest engine (Gitleaks) |
