@@ -1025,7 +1025,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "proactive_level": "low",
         },
 
-        "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path or S3 URI. (NEW in v1.7.0, Issue #477)",
+        "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path, S3 URI, or GCS URI (gs://bucket-name/). (NEW in v1.7.0, Issue #477)",
         "support": {
             "export_destination": "",
             "auth": {

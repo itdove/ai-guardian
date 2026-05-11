@@ -16,7 +16,10 @@ from ai_guardian.support_bundle import (
     _sanitize_violations,
     _get_system_info,
     _get_bundle_status,
+    _get_gcs_token_from_adc,
+    _get_gcs_token_from_gcloud,
     _load_bundle_from_path,
+    _send_to_gcs,
     prepare_bundle,
     send_bundle,
     support_command,
@@ -409,3 +412,216 @@ class TestSupportCommand:
         assert result == 1
         captured = capsys.readouterr()
         assert "usage" in captured.err.lower() or "support" in captured.err.lower()
+
+
+class TestGCSDestinationType:
+    """Test GCS destination type detection."""
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_gcs_destination_type(self, mock_config):
+        mock_config.return_value = {"export_destination": "gs://my-bucket"}
+        status = _get_bundle_status()
+        assert status["destination_type"] == "gcs"
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_gcs_destination_with_trailing_slash(self, mock_config):
+        mock_config.return_value = {"export_destination": "gs://my-bucket/"}
+        status = _get_bundle_status()
+        assert status["destination_type"] == "gcs"
+
+
+class TestGCSTokenFromADC:
+    """Test ADC credential discovery."""
+
+    @patch("ai_guardian.support_bundle.urlopen")
+    def test_reads_authorized_user_credentials(self, mock_urlopen, tmp_path):
+        creds_file = tmp_path / "adc.json"
+        creds_file.write_text(json.dumps({
+            "type": "authorized_user",
+            "client_id": "test-client-id",
+            "client_secret": "test-client-secret",
+            "refresh_token": "test-refresh-token",
+        }))
+
+        mock_response = MagicMock()
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.read.return_value = json.dumps({"access_token": "test-token-123"}).encode()
+        mock_urlopen.return_value = mock_response
+
+        with patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": str(creds_file)}):
+            token = _get_gcs_token_from_adc()
+
+        assert token == "test-token-123"
+
+    def test_returns_none_when_no_credentials(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("pathlib.Path.exists", return_value=False):
+                token = _get_gcs_token_from_adc()
+        assert token is None
+
+    def test_skips_non_authorized_user_type(self, tmp_path):
+        creds_file = tmp_path / "service-account.json"
+        creds_file.write_text(json.dumps({
+            "type": "service_account",
+            "project_id": "test-project",
+        }))
+
+        with patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": str(creds_file)}):
+            token = _get_gcs_token_from_adc()
+
+        assert token is None
+
+
+class TestGCSTokenFromGcloud:
+    """Test gcloud CLI fallback."""
+
+    @patch("subprocess.run")
+    def test_returns_token_from_gcloud(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="gcloud-token-456\n")
+        token = _get_gcs_token_from_gcloud()
+        assert token == "gcloud-token-456"
+        mock_run.assert_called_once_with(
+            ["gcloud", "auth", "print-access-token"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+
+    @patch("subprocess.run", side_effect=FileNotFoundError("gcloud not found"))
+    def test_returns_none_when_gcloud_missing(self, mock_run):
+        token = _get_gcs_token_from_gcloud()
+        assert token is None
+
+    @patch("subprocess.run")
+    def test_returns_none_for_empty_output(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="")
+        token = _get_gcs_token_from_gcloud()
+        assert token is None
+
+
+class TestSendToGCS:
+    """Test GCS upload."""
+
+    def _make_bundle_dir(self, tmp_path):
+        bundle_dir = tmp_path / "bundle"
+        bundle_dir.mkdir()
+        (bundle_dir / ".ai-read-deny").touch()
+        (bundle_dir / "config.json").write_text('{"test": true}')
+        (bundle_dir / "system-info.json").write_text('{"version": "1.0"}')
+        return bundle_dir
+
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value="test-token")
+    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
+    @patch("ai_guardian.support_bundle.urlopen")
+    def test_upload_success(self, mock_urlopen, mock_config, mock_adc, tmp_path):
+        bundle_dir = self._make_bundle_dir(tmp_path)
+
+        mock_response = MagicMock()
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.read.return_value = b"{}"
+        mock_urlopen.return_value = mock_response
+
+        result = _send_to_gcs(
+            "support-20260511-abc123", bundle_dir,
+            "gs://my-bucket/ai-guardian/support/config-bundle/"
+        )
+
+        assert result["status"] == "sent"
+        assert "gs://my-bucket/" in result["destination"]
+        assert "support-20260511-abc123" in result["destination"]
+        assert "2 files uploaded" in result["message"]
+        assert mock_urlopen.call_count == 2
+
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value="test-token")
+    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
+    @patch("ai_guardian.support_bundle.urlopen")
+    def test_upload_uses_correct_object_path(self, mock_urlopen, mock_config, mock_adc, tmp_path):
+        bundle_dir = tmp_path / "bundle"
+        bundle_dir.mkdir()
+        (bundle_dir / "config.json").write_text('{"test": true}')
+
+        mock_response = MagicMock()
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.read.return_value = b"{}"
+        mock_urlopen.return_value = mock_response
+
+        _send_to_gcs(
+            "support-20260511-abc123", bundle_dir,
+            "gs://my-bucket/ai-guardian/support/config-bundle"
+        )
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "ai-guardian%2Fsupport%2Fconfig-bundle%2Fsupport-20260511-abc123%2Fconfig.json" in request.full_url
+
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value=None)
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_gcloud", return_value=None)
+    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
+    def test_no_credentials_error(self, mock_config, mock_gcloud, mock_adc, tmp_path):
+        bundle_dir = self._make_bundle_dir(tmp_path)
+
+        result = _send_to_gcs("support-20260511-abc123", bundle_dir, "gs://my-bucket/prefix/")
+
+        assert result["status"] == "error"
+        assert "credentials" in result["message"].lower()
+        assert "gcloud auth" in result["message"]
+
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value=None)
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_gcloud", return_value=None)
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_config_token_env_fallback(self, mock_config, mock_gcloud, mock_adc, tmp_path):
+        mock_config.return_value = {"auth": {"token_env": "MY_GCS_TOKEN"}}
+        bundle_dir = self._make_bundle_dir(tmp_path)
+
+        with patch("ai_guardian.support_bundle.urlopen") as mock_urlopen:
+            mock_response = MagicMock()
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            mock_response.read.return_value = b"{}"
+            mock_urlopen.return_value = mock_response
+
+            with patch.dict(os.environ, {"MY_GCS_TOKEN": "env-token-789"}):
+                result = _send_to_gcs("support-20260511-abc123", bundle_dir, "gs://my-bucket/prefix/")
+
+        assert result["status"] == "sent"
+
+    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value="test-token")
+    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
+    @patch("ai_guardian.support_bundle.urlopen")
+    def test_http_error(self, mock_urlopen, mock_config, mock_adc, tmp_path):
+        bundle_dir = self._make_bundle_dir(tmp_path)
+
+        from urllib.error import HTTPError
+        mock_urlopen.side_effect = HTTPError(
+            url="https://storage.googleapis.com/...",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=None,
+        )
+
+        result = _send_to_gcs("support-20260511-abc123", bundle_dir, "gs://my-bucket/prefix/")
+
+        assert result["status"] == "error"
+        assert "403" in result["message"]
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_send_bundle_routes_to_gcs(self, mock_config, tmp_path):
+        mock_config.return_value = {
+            "export_destination": "gs://test-bucket/ai-guardian/support/config-bundle/",
+            "bundle_ttl_minutes": 30,
+        }
+
+        bundle = prepare_bundle()
+        bundle_id = bundle["bundle_id"]
+
+        with patch("ai_guardian.support_bundle._send_to_gcs") as mock_gcs:
+            mock_gcs.return_value = {"status": "sent", "destination": "gs://test-bucket/...", "message": "ok"}
+            result = send_bundle(bundle_id)
+
+        assert mock_gcs.called
+        assert result["status"] == "sent"

@@ -820,9 +820,13 @@
   "_comment_support2": "Allows AI agents to prepare sanitized diagnostic bundles for troubleshooting",
   "_comment_support3": "Two-step process: prepare (sanitize + review) then send (with user approval)",
   "_comment_support4": "Destination preconfigured by admin — agent cannot override",
-  "_comment_support5": "Local path or S3 URI. S3 requires boto3: pip install boto3",
+  "_comment_support5": "Local path, S3 URI (requires boto3), or GCS URI (gs://bucket-name/prefix/). GCS uses Application Default Credentials or gcloud CLI — no extra dependencies.",
+  "_comment_support_gcs_example": "GCS with Vertex AI (auto-detect credentials): export_destination = gs://company-bucket/ai-guardian/support/config-bundle/",
+  "_comment_support_gcs_vertex": "Vertex AI users: credentials are auto-detected from GOOGLE_APPLICATION_CREDENTIALS or ~/.config/gcloud/application_default_credentials.json — set auth.method to 'none'",
+  "_comment_support_gcs_manual": "Non-Vertex users: run 'gcloud auth application-default login' or set GOOGLE_APPLICATION_CREDENTIALS to a service account key file",
   "support": {
     "export_destination": "",
+    "_comment_export_destination_examples": "Local: ~/support-bundles | S3: s3://bucket/prefix/ | GCS+Vertex: gs://company-bucket/ai-guardian/support/config-bundle/",
     "auth": {
       "method": "none",
       "token_env": ""
