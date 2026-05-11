@@ -15,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Set, Tuple, Callable
 
+from ai_guardian.scanners.engine_builder import resolve_engine_config_path
+
 
 @dataclass
 class SecretMatch:
@@ -123,8 +125,9 @@ class FirstMatchStrategy(ExecutionStrategy):
             report_file = f"{report_file_prefix}_{engine_config.type}.json"
             logging.info(f"FirstMatchStrategy: trying engine {engine_config.type}")
 
+            resolved_path = resolve_engine_config_path(engine_config, config_path)
             result = scanner_fn(
-                engine_config, source_file, report_file, config_path
+                engine_config, source_file, report_file, resolved_path
             )
 
             if result.error and "not found" in (result.error or "").lower():
@@ -229,8 +232,9 @@ class AnyMatchStrategy(ExecutionStrategy):
             futures = {}
             for engine_config in engines:
                 report_file = f"{report_file_prefix}_{engine_config.type}.json"
+                resolved_path = resolve_engine_config_path(engine_config, config_path)
                 future = pool.submit(
-                    scanner_fn, engine_config, source_file, report_file, config_path
+                    scanner_fn, engine_config, source_file, report_file, resolved_path
                 )
                 futures[future] = engine_config.type
 

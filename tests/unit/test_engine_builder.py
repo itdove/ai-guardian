@@ -16,8 +16,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ai_guardian.scanners.engine_builder import (
     EngineConfig,
     ENGINE_PRESETS,
+    PATTERN_SERVER_UNSET,
     select_engine,
-    build_scanner_command
+    build_scanner_command,
+    resolve_engine_config_path,
+    _build_engine_config,
 )
 
 
@@ -288,6 +291,137 @@ class TestBuildScannerCommand(unittest.TestCase):
             self.assertNotIn("{source_file}", arg)
             self.assertNotIn("{report_file}", arg)
             self.assertNotIn("{config_path}", arg)
+
+
+class TestPatternServerSentinel(unittest.TestCase):
+    """Tests for PATTERN_SERVER_UNSET sentinel and per-engine pattern_server."""
+
+    def test_preset_engines_have_unset_sentinel(self):
+        """Built-in engine presets should have PATTERN_SERVER_UNSET as default."""
+        for name, config in ENGINE_PRESETS.items():
+            self.assertIs(
+                config.pattern_server, PATTERN_SERVER_UNSET,
+                f"Preset '{name}' should have PATTERN_SERVER_UNSET default"
+            )
+
+    def test_string_engine_spec_has_unset_sentinel(self):
+        """Engine from string spec should have PATTERN_SERVER_UNSET."""
+        config = _build_engine_config("gitleaks")
+        self.assertIs(config.pattern_server, PATTERN_SERVER_UNSET)
+
+    def test_dict_engine_with_null_pattern_server(self):
+        """Dict engine with pattern_server: null should have None."""
+        config = _build_engine_config({
+            "type": "betterleaks",
+            "pattern_server": None
+        })
+        self.assertIsNone(config.pattern_server)
+
+    def test_dict_engine_with_pattern_server_url(self):
+        """Dict engine with pattern_server URL should preserve the config."""
+        ps_config = {"url": "https://patterns.example.com"}
+        config = _build_engine_config({
+            "type": "gitleaks",
+            "pattern_server": ps_config
+        })
+        self.assertEqual(config.pattern_server, ps_config)
+
+    def test_dict_engine_without_pattern_server_key(self):
+        """Dict engine without pattern_server key should keep UNSET."""
+        config = _build_engine_config({
+            "type": "betterleaks",
+            "extra_flags": ["--verbose"]
+        })
+        self.assertIs(config.pattern_server, PATTERN_SERVER_UNSET)
+
+
+class TestResolveEngineConfigPath(unittest.TestCase):
+    """Tests for resolve_engine_config_path()."""
+
+    def test_unset_gitleaks_uses_global(self):
+        """Gitleaks with UNSET pattern_server should use global config_path."""
+        config = _build_engine_config("gitleaks")
+        result = resolve_engine_config_path(config, "/tmp/patterns.toml")
+        self.assertIsNotNone(result)
+        self.assertIn("patterns.toml", result)
+
+    def test_unset_leaktk_uses_global(self):
+        """LeakTK with UNSET pattern_server should use global config_path."""
+        config = _build_engine_config("leaktk")
+        result = resolve_engine_config_path(config, "/tmp/patterns.toml")
+        self.assertIsNotNone(result)
+
+    def test_unset_betterleaks_no_global(self):
+        """Betterleaks with UNSET pattern_server should NOT use global (incompatible engine)."""
+        config = _build_engine_config("betterleaks")
+        result = resolve_engine_config_path(config, "/tmp/patterns.toml")
+        self.assertIsNone(result)
+
+    def test_unset_trufflehog_no_global(self):
+        """TruffleHog with UNSET pattern_server should NOT use global."""
+        config = _build_engine_config("trufflehog")
+        result = resolve_engine_config_path(config, "/tmp/patterns.toml")
+        self.assertIsNone(result)
+
+    def test_null_pattern_server_disables_config(self):
+        """Explicit null pattern_server should return None regardless of global."""
+        config = _build_engine_config({
+            "type": "gitleaks",
+            "pattern_server": None
+        })
+        result = resolve_engine_config_path(config, "/tmp/patterns.toml")
+        self.assertIsNone(result)
+
+    def test_null_pattern_server_betterleaks(self):
+        """Betterleaks with explicit null → None."""
+        config = _build_engine_config({
+            "type": "betterleaks",
+            "pattern_server": None
+        })
+        result = resolve_engine_config_path(config, "/tmp/patterns.toml")
+        self.assertIsNone(result)
+
+    @patch('ai_guardian.pattern_server.PatternServerClient')
+    def test_per_engine_pattern_server_url(self, mock_client_cls):
+        """Per-engine pattern_server with URL should fetch engine-specific patterns."""
+        mock_client = MagicMock()
+        mock_client.get_patterns_path.return_value = "/tmp/engine_patterns.toml"
+        mock_client_cls.return_value = mock_client
+
+        config = _build_engine_config({
+            "type": "gitleaks",
+            "pattern_server": {"url": "https://patterns.example.com"}
+        })
+        result = resolve_engine_config_path(config, "/tmp/global_patterns.toml")
+        self.assertIn("engine_patterns.toml", result)
+        mock_client_cls.assert_called_once_with({"url": "https://patterns.example.com"})
+
+    @patch('ai_guardian.pattern_server.PatternServerClient')
+    def test_per_engine_pattern_server_fetch_fails(self, mock_client_cls):
+        """Per-engine pattern_server fetch failure should return None."""
+        mock_client_cls.side_effect = Exception("Connection refused")
+
+        config = _build_engine_config({
+            "type": "gitleaks",
+            "pattern_server": {"url": "https://unreachable.example.com"}
+        })
+        result = resolve_engine_config_path(config, "/tmp/global.toml")
+        self.assertIsNone(result)
+
+    def test_no_global_config_path(self):
+        """UNSET pattern_server with no global → None."""
+        config = _build_engine_config("gitleaks")
+        result = resolve_engine_config_path(config, None)
+        self.assertIsNone(result)
+
+    def test_empty_pattern_server_dict_no_url(self):
+        """Per-engine pattern_server dict without url key → None."""
+        config = _build_engine_config({
+            "type": "gitleaks",
+            "pattern_server": {"cache_hours": 24}
+        })
+        result = resolve_engine_config_path(config, "/tmp/global.toml")
+        self.assertIsNone(result)
 
 
 if __name__ == '__main__':

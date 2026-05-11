@@ -17,6 +17,26 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+class _PatternServerUnset:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __deepcopy__(self, memo):
+        return self
+
+    def __copy__(self):
+        return self
+
+    def __repr__(self):
+        return "PATTERN_SERVER_UNSET"
+
+
+PATTERN_SERVER_UNSET = _PatternServerUnset()
+
 
 @dataclass
 class EngineConfig:
@@ -45,7 +65,7 @@ class EngineConfig:
     secrets_found_exit_code: int = 42
     output_parser: str = "gitleaks"
     ignore_files: Optional[List[str]] = None
-    pattern_server: Optional[Dict[str, Any]] = None
+    pattern_server: Any = field(default_factory=lambda: PATTERN_SERVER_UNSET)
     file_patterns: Optional[List[str]] = None
     requires_consent: bool = False
     api_key_env: Optional[str] = None
@@ -396,3 +416,55 @@ def build_scanner_command(
         cmd.extend(engine_config.extra_flags)
 
     return cmd
+
+
+_CONFIG_COMPATIBLE_ENGINES = frozenset(("gitleaks", "leaktk"))
+
+
+def resolve_engine_config_path(
+    engine_config: EngineConfig,
+    global_config_path: Optional[str] = None
+) -> Optional[str]:
+    """
+    Resolve the effective config_path for an engine, considering per-engine
+    pattern_server overrides.
+
+    Priority:
+      1. Per-engine pattern_server explicitly set to null → None (use built-in rules)
+      2. Per-engine pattern_server with URL → fetch engine-specific patterns
+      3. No per-engine override → use global_config_path (for compatible engines)
+
+    Args:
+        engine_config: Engine configuration (may have per-engine pattern_server)
+        global_config_path: Global pattern server config path (from top-level config)
+
+    Returns:
+        Resolved config_path string, or None
+    """
+    if engine_config.pattern_server is not PATTERN_SERVER_UNSET:
+        if engine_config.pattern_server is None:
+            return None
+
+        ps_config = engine_config.pattern_server
+        if isinstance(ps_config, dict) and ps_config.get("url"):
+            try:
+                from ai_guardian.pattern_server import PatternServerClient
+                client = PatternServerClient(ps_config)
+                path = client.get_patterns_path()
+                if path:
+                    return str(Path(path).absolute())
+            except Exception as e:
+                logging.warning(
+                    f"Per-engine pattern server failed for {engine_config.type}: {e}"
+                )
+            return None
+
+        return None
+
+    if not global_config_path:
+        return None
+
+    if engine_config.type in _CONFIG_COMPATIBLE_ENGINES:
+        return str(Path(global_config_path).absolute())
+
+    return None

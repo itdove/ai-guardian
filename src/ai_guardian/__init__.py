@@ -85,7 +85,7 @@ except ImportError:
 
 # Import scanner engine modules for flexible scanner support
 try:
-    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command
+    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command, resolve_engine_config_path
     from ai_guardian.scanners.output_parsers import get_parser
     from ai_guardian.scanners.strategies import get_strategy, ScanResult as StrategyScanResult, SecretMatch
     from ai_guardian.scanners.executor import run_single_engine
@@ -2623,7 +2623,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         scanner_fn=run_single_engine,
                         source_file=tmp_file_path,
                         report_file_prefix=report_file.replace('.json', ''),
-                        config_path=None,
+                        config_path=gitleaks_config_path,
                         context={"filename": filename}
                     )
 
@@ -2829,7 +2829,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     engine_config=engine_config,
                     source_file=tmp_file_path,
                     report_file=report_file,
-                    config_path=str(Path(gitleaks_config_path).absolute()) if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk")) else None
+                    config_path=resolve_engine_config_path(engine_config, gitleaks_config_path)
                 )
             else:
                 # Legacy fallback: hardcoded gitleaks command
@@ -3078,7 +3078,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             scanner_fn=run_single_engine,
                             source_file=tmp_file_path,
                             report_file_prefix=report_file.replace('.json', ''),
-                            config_path=str(Path(gitleaks_config_path).absolute()) if (gitleaks_config_path and remaining[0].type in ("gitleaks", "leaktk")) else None,
+                            config_path=gitleaks_config_path,
                             context={"filename": filename}
                         )
                         if fallback_result.has_secrets and fallback_result.secrets:
