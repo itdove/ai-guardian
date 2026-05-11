@@ -1476,7 +1476,7 @@
       "properties": {
         "export_destination": {
           "type": "string",
-          "description": "Destination for support bundles. Local path (e.g., '~/support-bundles') or S3 URI (e.g., 's3://bucket/prefix/'). Default: XDG state directory (~/.local/state/ai-guardian/support-bundles/). Preconfigured by admin — agent cannot override.",
+          "description": "Destination for support bundles. Local path (e.g., '~/support-bundles'), S3 URI (e.g., 's3://bucket/prefix/'), or GCS URI (e.g., 'gs://bucket-name/'). Default: XDG state directory (~/.local/state/ai-guardian/support-bundles/). Preconfigured by admin — agent cannot override.",
           "default": ""
         },
         "auth": {

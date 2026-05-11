@@ -13,11 +13,15 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
 
@@ -454,6 +458,8 @@ def _get_bundle_status() -> Dict[str, Any]:
 
     if destination.startswith("s3://"):
         dest_type = "s3"
+    elif destination.startswith("gs://"):
+        dest_type = "gcs"
     elif destination:
         dest_type = "local"
     else:
@@ -523,6 +529,8 @@ def send_bundle(bundle_id: str) -> Dict[str, Any]:
     try:
         if destination.startswith("s3://"):
             return _send_to_s3(bundle_id, temp_path, destination)
+        elif destination.startswith("gs://"):
+            return _send_to_gcs(bundle_id, temp_path, destination)
         elif destination.startswith("/") or destination.startswith("~"):
             return _send_to_local(bundle_id, temp_path, destination)
         elif not destination:
@@ -599,6 +607,142 @@ def _send_to_s3(bundle_id: str, temp_path: Path, destination: str) -> Dict:
         return {
             "status": "error",
             "message": f"S3 upload failed: {e}. Bundle files at: {temp_path}",
+        }
+
+
+def _get_gcs_token_from_adc() -> Optional[str]:
+    """Get GCS access token from Application Default Credentials.
+
+    Checks GOOGLE_APPLICATION_CREDENTIALS env var first, then the default
+    gcloud ADC path. Only supports authorized_user credential type
+    (no external JWT library needed).
+    """
+    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    if not creds_path:
+        default_path = (
+            Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+        )
+        if default_path.exists():
+            creds_path = str(default_path)
+
+    if not creds_path or not Path(creds_path).exists():
+        return None
+
+    try:
+        with open(creds_path) as f:
+            creds = json.load(f)
+
+        if creds.get("type") != "authorized_user":
+            return None
+
+        from urllib.parse import urlencode
+
+        token_uri = "https://oauth2.googleapis.com/token"
+        data = urlencode(
+            {
+                "client_id": creds["client_id"],
+                "client_secret": creds["client_secret"],
+                "refresh_token": creds["refresh_token"],
+                "grant_type": "refresh_token",
+            }
+        ).encode("utf-8")
+
+        req = Request(token_uri, data=data, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+
+        with urlopen(req, timeout=10) as response:
+            token_response = json.loads(response.read())
+            return token_response.get("access_token")
+    except Exception:
+        return None
+
+
+def _get_gcs_token_from_gcloud() -> Optional[str]:
+    """Get GCS access token via gcloud CLI fallback."""
+    try:
+        result = subprocess.run(
+            ["gcloud", "auth", "print-access-token"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        token = result.stdout.strip()
+        return token if token else None
+    except Exception:
+        return None
+
+
+def _send_to_gcs(bundle_id: str, temp_path: Path, destination: str) -> Dict:
+    """Upload bundle to GCS using the JSON API."""
+    support_config = _get_support_config()
+    auth = support_config.get("auth", {})
+
+    parts = destination.replace("gs://", "").split("/", 1)
+    bucket = parts[0]
+    prefix = parts[1].strip("/") if len(parts) > 1 else ""
+    object_prefix = f"{prefix}/{bundle_id}".strip("/")
+
+    # Resolve access token: ADC → gcloud CLI → config token_env
+    access_token = _get_gcs_token_from_adc()
+
+    if not access_token:
+        access_token = _get_gcs_token_from_gcloud()
+
+    if not access_token:
+        token_env = auth.get("token_env", "")
+        if token_env and os.environ.get(token_env):
+            access_token = os.environ[token_env]
+
+    if not access_token:
+        return {
+            "status": "error",
+            "message": (
+                "GCS upload requires Google Cloud credentials. Either:\n"
+                "  1. Run: gcloud auth application-default login\n"
+                "  2. Set GOOGLE_APPLICATION_CREDENTIALS env var\n"
+                "  3. Configure auth.token_env in ai-guardian.json\n"
+                f"Bundle files are available at: {temp_path}"
+            ),
+        }
+
+    try:
+        uploaded = 0
+        for item in temp_path.iterdir():
+            if item.name == ".ai-read-deny":
+                continue
+
+            object_name = f"{object_prefix}/{item.name}"
+            url = (
+                f"https://storage.googleapis.com/upload/storage/v1/b/"
+                f"{quote(bucket, safe='')}/o"
+                f"?uploadType=media&name={quote(object_name, safe='')}"
+            )
+
+            file_data = item.read_bytes()
+            req = Request(url, data=file_data, method="POST")
+            req.add_header("Authorization", f"Bearer {access_token}")
+            req.add_header("Content-Type", "application/octet-stream")
+            req.add_header("Content-Length", str(len(file_data)))
+
+            with urlopen(req, timeout=30) as response:
+                response.read()
+            uploaded += 1
+
+        return {
+            "status": "sent",
+            "destination": f"gs://{bucket}/{object_prefix}/",
+            "message": f"{uploaded} files uploaded to GCS",
+        }
+    except HTTPError as e:
+        return {
+            "status": "error",
+            "message": f"GCS upload failed (HTTP {e.code}). Bundle files at: {temp_path}",
+        }
+    except (URLError, OSError) as e:
+        return {
+            "status": "error",
+            "message": f"GCS upload failed: {e}. Bundle files at: {temp_path}",
         }
 
 
