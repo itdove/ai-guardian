@@ -470,6 +470,10 @@ Result: 🛡️ Attack stopped at Layer 2
 
 Multiple layers ensure protection even if one layer has a gap.
 
+### MCP Server Auto-Allow
+
+AI Guardian's own MCP server tools (`mcp__ai-guardian__*`) are automatically allowed — they don't need explicit permission rules. All other MCP servers require explicit allow rules. The MCP server provides an additional **proactive** layer: the AI can check security before acting via `check_path`, `check_command`, etc. See [MCP Server](MCP_SERVER.md).
+
 ---
 
 ## Best Practices
@@ -527,6 +531,7 @@ Tool Policy checking is **extremely fast**:
 - [Credential Exfiltration](security/CREDENTIAL_EXFILTRATION.md) - Config file security
 - [Prompt Injection](security/PROMPT_INJECTION.md) - Instruction override protection
 - [Configuration Guide](CONFIGURATION.md) - Policy configuration details
+- [MCP Server](MCP_SERVER.md) - Proactive security checks via MCP tools
 
 ---
 

@@ -149,8 +149,8 @@ logging.basicConfig(
 # Global logger instance
 logger = logging.getLogger(__name__)
 
-# Log version at startup (suppress for sanitize command — stdout must be clean)
-if "sanitize" not in sys.argv:
+# Log version at startup (suppress for sanitize/mcp-server — stdio must be clean)
+if "sanitize" not in sys.argv and "mcp-server" not in sys.argv:
     logger.info(f"AI Guardian v{__version__} initialized")
     logger.info(f"Python {sys.version.split()[0]}")
     import platform
@@ -2692,7 +2692,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             f"{'='*70}\n"
                         )
 
-                        _log_secret_detection_violation(filename, context, secret_details,
+                        _log_secret_detection_violation(file_path or filename, context, secret_details,
                                                         hook_context=context)
                         logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
                         return True, error_msg
@@ -2943,7 +2943,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 )
 
                 # Log secret detection violation with details
-                _log_secret_detection_violation(filename, context, secret_details,
+                _log_secret_detection_violation(file_path or filename, context, secret_details,
                                                 hook_context=context)
 
                 # Always block - secret scanning does not support "log" mode
@@ -4399,6 +4399,60 @@ def _handle_daemon_command(args):
         return 1
 
 
+def _handle_mcp_command(args):
+    """Handle mcp enable/disable/status subcommands (Issue #477)."""
+    cmd = getattr(args, "mcp_command", None)
+
+    if cmd in ("enable", "disable"):
+        enabled = cmd == "enable"
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if "mcp_server" not in config:
+            config["mcp_server"] = {}
+        config["mcp_server"]["enabled"] = enabled
+
+        config_dir.mkdir(parents=True, exist_ok=True)
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+
+        state = "enabled" if enabled else "disabled"
+        print(f"MCP security advisor server: {state}")
+        if enabled:
+            print("AI agents can now use ai-guardian security tools proactively.")
+        else:
+            print("MCP tools will return 'disabled' status until re-enabled.")
+        return 0
+
+    elif cmd == "status":
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+        enabled = False
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    config = json.load(f)
+                enabled = config.get("mcp_server", {}).get("enabled", False)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        state = "enabled" if enabled else "disabled"
+        print(f"MCP security advisor server: {state}")
+        return 0
+
+    else:
+        print("Usage: ai-guardian mcp {enable|disable|status}")
+        return 1
+
+
 def main():
     """Main entry point for the hook."""
     # If arguments are provided, handle them
@@ -4505,6 +4559,18 @@ def main():
             "--list-profiles",
             action="store_true",
             help="List available security profiles (built-in and custom)"
+        )
+        setup_parser.add_argument(
+            "--mcp",
+            action="store_true",
+            default=None,
+            help="Install MCP security advisor server for AI security awareness (opt-in)"
+        )
+        setup_parser.add_argument(
+            "--no-mcp",
+            action="store_true",
+            default=None,
+            help="Remove MCP security advisor server configuration"
         )
 
         # Violations subcommand
@@ -4914,6 +4980,24 @@ def main():
         daemon_sub.add_parser("status", help="Show daemon status")
         daemon_sub.add_parser("restart", help="Restart daemon")
 
+        # MCP server subcommand (Issue #477)
+        subparsers.add_parser(
+            "mcp-server",
+            help="Start MCP security advisor server (stdio transport)"
+        )
+
+        # MCP enable/disable subcommand (Issue #477)
+        mcp_parser = subparsers.add_parser(
+            "mcp",
+            help="Enable or disable the MCP security advisor server"
+        )
+        mcp_sub = mcp_parser.add_subparsers(
+            dest="mcp_command", help="MCP commands"
+        )
+        mcp_sub.add_parser("enable", help="Enable MCP security advisor server")
+        mcp_sub.add_parser("disable", help="Disable MCP security advisor server")
+        mcp_sub.add_parser("status", help="Show MCP server status")
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -4936,6 +5020,8 @@ def main():
                 profile=args.profile,
                 save_profile=args.save_profile,
                 list_profiles=args.list_profiles,
+                mcp=args.mcp if args.mcp else None,
+                no_mcp=args.no_mcp if args.no_mcp else None,
             )
             return 0 if success else 1
 
@@ -5251,6 +5337,23 @@ def main():
 
         if args.command == "daemon":
             return _handle_daemon_command(args)
+
+        # Handle mcp-server command (Issue #477)
+        if args.command == "mcp-server":
+            try:
+                from ai_guardian.mcp_server import run_mcp_server
+                return run_mcp_server()
+            except ImportError as e:
+                print(
+                    f"Error: MCP server not available. "
+                    f"Requires Python >=3.10 and mcp package: {e}",
+                    file=sys.stderr,
+                )
+                return 1
+
+        # Handle mcp enable/disable/status command (Issue #477)
+        if args.command == "mcp":
+            return _handle_mcp_command(args)
 
         # If no subcommand, just return (version was handled)
         return 0

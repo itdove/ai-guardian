@@ -1014,6 +1014,22 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
 
         "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
         "on_scan_error": "allow",
+
+        "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Toggle via Console, tray, or CLI: ai-guardian mcp enable/disable. (NEW in v1.7.0, Issue #477)",
+        "mcp_server": {
+            "enabled": False,
+            "proactive_level": "low",
+        },
+
+        "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path or S3 URI. (NEW in v1.7.0, Issue #477)",
+        "support": {
+            "export_destination": "",
+            "auth": {
+                "method": "none",
+                "token_env": "",
+            },
+            "bundle_ttl_minutes": 30,
+        },
     }
 
     return config
@@ -1393,6 +1409,8 @@ def setup_hooks(
     profile: Optional[str] = None,
     save_profile: Optional[str] = None,
     list_profiles: bool = False,
+    mcp: Optional[bool] = None,
+    no_mcp: Optional[bool] = None,
 ) -> bool:
     """
     Setup IDE hooks with optional remote config and default config creation.
@@ -1615,4 +1633,144 @@ def setup_hooks(
     success, message = setup.setup_ide_hooks(ide_type, dry_run=dry_run, force=force)
     print(message)
 
+    # Handle MCP server installation (Issue #477)
+    if success and (mcp or no_mcp):
+        _handle_mcp_setup(setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run)
+
     return success
+
+
+# MCP config locations per IDE
+_MCP_IDE_CONFIGS = {
+    "claude": {
+        "config_key": "mcpServers",
+        "skill_dir": ".claude/skills",
+    },
+    "cursor": {
+        "config_file": "~/.cursor/mcp.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".cursor/skills",
+    },
+    "copilot": {
+        "config_key": "mcpServers",
+        "skill_dir": ".github/skills",
+    },
+}
+
+_MCP_SERVER_ENTRY = {
+    "command": "ai-guardian",
+    "args": ["mcp-server"],
+}
+
+
+def _handle_mcp_setup(
+    setup: IDESetup,
+    ide_type: str,
+    mcp: Optional[bool] = None,
+    no_mcp: Optional[bool] = None,
+    dry_run: bool = False,
+) -> None:
+    """Install or remove MCP server config for an IDE."""
+    if no_mcp:
+        _remove_mcp_config(setup, ide_type, dry_run)
+    elif mcp:
+        _install_mcp_config(setup, ide_type, dry_run)
+
+
+def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -> None:
+    """Add MCP server entry to IDE config and enable in ai-guardian config."""
+    mcp_ide = _MCP_IDE_CONFIGS.get(ide_type)
+    if not mcp_ide:
+        print(f"  MCP: IDE '{ide_type}' not supported for MCP server")
+        return
+
+    # For Claude, MCP config goes in the same settings.json
+    # For Cursor, it goes in a separate mcp.json
+    if ide_type == "claude":
+        config_path = setup.get_config_path(ide_type)
+    else:
+        config_path = Path(mcp_ide.get("config_file", "")).expanduser()
+
+    if dry_run:
+        print(f"  MCP: Would add ai-guardian MCP server to {config_path}")
+        return
+
+    # Read or create config file
+    config = {}
+    if config_path.exists():
+        try:
+            with open(config_path, "r") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Add MCP server entry
+    key = mcp_ide["config_key"]
+    if key not in config:
+        config[key] = {}
+    config[key]["ai-guardian"] = _MCP_SERVER_ENTRY
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+        f.write("\n")
+
+    print(f"  MCP: Added ai-guardian MCP server to {config_path}")
+
+    # Enable MCP in ai-guardian config
+    from ai_guardian.config_utils import get_config_dir
+    ag_config_path = get_config_dir() / "ai-guardian.json"
+    ag_config = {}
+    if ag_config_path.exists():
+        try:
+            with open(ag_config_path, "r") as f:
+                ag_config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    if "mcp_server" not in ag_config:
+        ag_config["mcp_server"] = {}
+    ag_config["mcp_server"]["enabled"] = True
+    ag_config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(ag_config_path, "w") as f:
+        json.dump(ag_config, f, indent=2)
+        f.write("\n")
+
+    print("  MCP: Enabled MCP server in ai-guardian config")
+
+
+def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -> None:
+    """Remove MCP server entry from IDE config."""
+    mcp_ide = _MCP_IDE_CONFIGS.get(ide_type)
+    if not mcp_ide:
+        return
+
+    if ide_type == "claude":
+        config_path = setup.get_config_path(ide_type)
+    else:
+        config_path = Path(mcp_ide.get("config_file", "")).expanduser()
+
+    if dry_run:
+        print(f"  MCP: Would remove ai-guardian MCP server from {config_path}")
+        return
+
+    if not config_path.exists():
+        print("  MCP: No config file found, nothing to remove")
+        return
+
+    try:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
+
+    key = mcp_ide["config_key"]
+    if key in config and "ai-guardian" in config[key]:
+        del config[key]["ai-guardian"]
+        if not config[key]:
+            del config[key]
+        with open(config_path, "w") as f:
+            json.dump(config, f, indent=2)
+            f.write("\n")
+        print(f"  MCP: Removed ai-guardian MCP server from {config_path}")
+    else:
+        print("  MCP: ai-guardian MCP server not found in config")

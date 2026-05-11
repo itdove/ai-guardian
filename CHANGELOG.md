@@ -18,6 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP security advisor server** (Issue #477)
+  - MCP server with 12 read-only security tools for AI agents via stdio transport
+  - Security check tools: `check_path`, `check_command`, `check_mcp_trust`, `sanitize_text`, `check_annotations`
+  - Information tools: `get_violations`, `get_config`, `get_scanner_status`, `get_scanner_supported`, `get_patterns_list`, `get_metrics`, `doctor`
+  - 3 MCP resources: `security-posture`, `protected-paths`, `recent-violations`
+  - Security-limited responses: yes/no answers only, no rule/pattern/allowlist exposure
+  - Runtime enable/disable via config flag (no IDE restart needed)
+  - CLI: `ai-guardian mcp-server` (start), `ai-guardian mcp enable/disable/status` (toggle)
+  - Setup: `ai-guardian setup --mcp` / `--no-mcp` (opt-in, installs MCP config + skill)
+  - Tray menu MCP toggle
+  - Console MCP enable/disable button
+  - AI security awareness skill (`ai-guardian-security`) teaches AI when to use each tool
+  - Support bundle export: `prepare_support_bundle` + `send_support_bundle` (sanitized diagnostics with user approval)
+  - New dependency: `mcp>=1.8.0` (Python >=3.10 only, MIT license)
+
 - **Tray menu status submenu with stats** (Issue #508)
   - Main menu header shows "● AI Guardian — Running/Paused" with status submenu
   - Submenu displays: Requests, Blocked (with percentage), Warned, Logged counts

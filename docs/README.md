@@ -34,6 +34,12 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Permissions Comparison](PERMISSIONS_COMPARISON.md) | ai-guardian vs settings.json permissions |
 | [Violation Logging](VIOLATION_LOGGING.md) | JSON audit trail of blocked operations |
 
+## AI Security Awareness
+
+| Document | Description |
+|----------|-------------|
+| [MCP Server](MCP_SERVER.md) | MCP security advisor server — tools, setup, proactive levels, support bundles |
+
 ## IDE Integration
 
 | Document | Description |

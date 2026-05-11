@@ -41,6 +41,7 @@ You're done! ai-guardian now protects against secrets, prompt injection, SSRF, a
 | Pre-commit Hook | Scan staged files for secrets before commit | [docs/PRE_COMMIT.md](docs/PRE_COMMIT.md) |
 | Inline Annotations | Suppress false positives with `ai-guardian:allow` and block annotations | [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) |
 | Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) |
+| MCP Security Advisor | Read-only security tools for AI agents (proactive checks) | [docs/MCP_SERVER.md](docs/MCP_SERVER.md) |
 
 ## Default Behavior (No Configuration File)
 
@@ -89,10 +90,11 @@ ai-guardian setup --ide claude       # Claude Code
 ai-guardian setup --ide cursor       # Cursor IDE
 ai-guardian setup --ide copilot      # GitHub Copilot
 ai-guardian setup --dry-run          # Preview changes
+ai-guardian setup --ide claude --mcp # Enable MCP security advisor (opt-in)
 ai-guardian setup --remote-config-url https://example.com/policy.json
 ```
 
-Run `ai-guardian setup` after upgrading to get the latest hooks. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed setup options including remote configuration and hook ordering.
+Run `ai-guardian setup` after upgrading to get the latest hooks. Use `--mcp` to enable the MCP security advisor server — the AI can then check security proactively before acting. See [docs/MCP_SERVER.md](docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for other setup options.
 
 ## Action Modes
 
@@ -126,7 +128,9 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for per-feature action mode c
 ```
 User prompt / Tool use
        |
-  [AI Guardian Hook]
+  [MCP Advisor] -----> AI checks proactively (optional)
+       |
+  [AI Guardian Hook] -- Enforcement (mandatory)
        |
   MCP/Skill check --> Not allowed? --> BLOCK
        |
@@ -139,7 +143,7 @@ User prompt / Tool use
   ALLOW --> Send to AI / Execute tool
 ```
 
-PostToolUse hooks scan tool outputs using the same pipeline. See [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) for full architecture.
+The MCP advisor lets the AI check *before* acting (advisory). Hooks enforce *during* execution (mandatory). PostToolUse hooks scan tool outputs using the same pipeline. See [docs/MCP_SERVER.md](docs/MCP_SERVER.md) for the MCP server and [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) for full architecture.
 
 ## Environment Variables
 
