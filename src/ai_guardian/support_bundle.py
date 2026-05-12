@@ -189,10 +189,10 @@ def prepare_bundle(
             with open(config_path, "r") as f:
                 raw_config = json.load(f)
             sanitized, count = _sanitize_config(raw_config)
-            (temp_dir / "config.json").write_text(json.dumps(sanitized, indent=2))
+            (temp_dir / "ai-guardian.json").write_text(json.dumps(sanitized, indent=2))
             files_info.append(
                 {
-                    "name": "config.json",
+                    "name": "ai-guardian.json",
                     "sanitized": count > 0,
                     "redactions": count,
                     "note": (
@@ -213,10 +213,10 @@ def prepare_bundle(
             vl = ViolationLogger()
             violations = vl.get_recent_violations(limit=100)
             sanitized, count = _sanitize_violations(violations)
-            (temp_dir / "violations.json").write_text(json.dumps(sanitized, indent=2))
+            (temp_dir / "violations.jsonl").write_text(json.dumps(sanitized, indent=2))
             files_info.append(
                 {
-                    "name": "violations.json",
+                    "name": "violations.jsonl",
                     "sanitized": count > 0,
                     "redactions": count,
                     "note": (

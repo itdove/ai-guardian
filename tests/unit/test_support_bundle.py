@@ -188,7 +188,7 @@ class TestPrepareBundleFlags:
         mock_config.return_value = {"export_destination": "~/support"}
         result = prepare_bundle(include_violations=False)
         file_names = [f["name"] for f in result["files"]]
-        assert "violations.json" not in file_names
+        assert "violations.jsonl" not in file_names
         assert "system-info.json" in file_names
         _cleanup_bundle(result["bundle_id"])
 
@@ -209,7 +209,7 @@ class TestPrepareBundleFlags:
         result = prepare_bundle(include_log=False, include_violations=False)
         file_names = [f["name"] for f in result["files"]]
         assert "ai-guardian.log" not in file_names
-        assert "violations.json" not in file_names
+        assert "violations.jsonl" not in file_names
         assert "system-info.json" in file_names
         _cleanup_bundle(result["bundle_id"])
 
@@ -243,7 +243,7 @@ class TestLoadBundleFromPath:
         mock_config.return_value = {}
         bundle_dir = tmp_path / "support-20260511-test1234"
         bundle_dir.mkdir()
-        (bundle_dir / "config.json").write_text("{}")
+        (bundle_dir / "ai-guardian.json").write_text("{}")
         bundle_id = _load_bundle_from_path(str(bundle_dir))
         assert bundle_id == "support-20260511-test1234"
         _cleanup_bundle(bundle_id)
@@ -508,7 +508,7 @@ class TestSendToGCS:
         bundle_dir = tmp_path / "bundle"
         bundle_dir.mkdir()
         (bundle_dir / ".ai-read-deny").touch()
-        (bundle_dir / "config.json").write_text('{"test": true}')
+        (bundle_dir / "ai-guardian.json").write_text('{"test": true}')
         (bundle_dir / "system-info.json").write_text('{"version": "1.0"}')
         return bundle_dir
 
@@ -541,7 +541,7 @@ class TestSendToGCS:
     def test_upload_uses_correct_object_path(self, mock_urlopen, mock_config, mock_adc, tmp_path):
         bundle_dir = tmp_path / "bundle"
         bundle_dir.mkdir()
-        (bundle_dir / "config.json").write_text('{"test": true}')
+        (bundle_dir / "ai-guardian.json").write_text('{"test": true}')
 
         mock_response = MagicMock()
         mock_response.__enter__ = MagicMock(return_value=mock_response)
@@ -556,7 +556,7 @@ class TestSendToGCS:
 
         call_args = mock_urlopen.call_args
         request = call_args[0][0]
-        assert "ai-guardian%2Fsupport%2Fconfig-bundle%2Fsupport-20260511-abc123%2Fconfig.json" in request.full_url
+        assert "ai-guardian%2Fsupport%2Fconfig-bundle%2Fsupport-20260511-abc123%2Fai-guardian.json" in request.full_url
 
     @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value=None)
     @patch("ai_guardian.support_bundle._get_gcs_token_from_gcloud", return_value=None)
