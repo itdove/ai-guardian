@@ -487,6 +487,41 @@ class TestCheckGnomeTraySupport:
         assert "gnome-extensions" in result.message
 
 
+class TestCheckTerminalEmulator:
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Darwin")
+    def test_skip_non_linux(self, _mock_sys, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_terminal_emulator()
+        assert result.status == CheckStatus.SKIP
+        assert "Not Linux" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-terminal")
+    def test_pass_terminal_found(self, _mock_which, _mock_sys, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_terminal_emulator()
+        assert result.status == CheckStatus.PASS
+        assert "gnome-terminal" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    @mock.patch("ai_guardian.doctor.shutil.which", side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None)
+    def test_pass_kgx_found(self, _mock_which, _mock_sys, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_terminal_emulator()
+        assert result.status == CheckStatus.PASS
+        assert "kgx" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    @mock.patch("ai_guardian.doctor.shutil.which", return_value=None)
+    def test_warn_none_found(self, _mock_which, _mock_sys, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_terminal_emulator()
+        assert result.status == CheckStatus.WARN
+        assert "No supported terminal" in result.message
+        assert result.fix_hint is not None
+        assert "dnf install" in result.fix_hint
+
+
 class TestCheckConsoleDeps:
     def test_all_present(self, _isolate_config_dir):
         doctor = Doctor()
@@ -924,7 +959,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 18
+        assert len(report.checks) == 19
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):

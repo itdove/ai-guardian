@@ -110,6 +110,7 @@ class Doctor:
             self.check_directory_rules,
             self.check_console_deps,
             self.check_gnome_tray_support,
+            self.check_terminal_emulator,
             self.check_config_consistency,
             self.check_self_protection,
         ]
@@ -1101,6 +1102,35 @@ class Doctor:
             ),
         )
 
+    def check_terminal_emulator(self) -> CheckResult:
+        """Check if a supported terminal emulator is installed (Linux only)."""
+        if platform.system() != "Linux":
+            return CheckResult(
+                name="terminal_emulator",
+                status=CheckStatus.SKIP,
+                message="Not Linux",
+            )
+
+        supported = [
+            "gnome-terminal", "kgx", "konsole",
+            "xfce4-terminal", "xterm",
+        ]
+        found = [t for t in supported if shutil.which(t)]
+
+        if found:
+            return CheckResult(
+                name="terminal_emulator",
+                status=CheckStatus.PASS,
+                message=f"{found[0]} found",
+            )
+
+        return CheckResult(
+            name="terminal_emulator",
+            status=CheckStatus.WARN,
+            message="No supported terminal found — tray Console won't work",
+            fix_hint="sudo dnf install gnome-terminal   # or: sudo apt install gnome-terminal",
+        )
+
     def check_self_protection(self) -> CheckResult:
         """Verify immutable patterns protect config/state/cache from agent Read access."""
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
@@ -1176,6 +1206,7 @@ _CHECK_DISPLAY_NAMES = {
     "directory_rules": "Directory rules",
     "console_deps": "Console deps",
     "gnome_tray": "System tray",
+    "terminal_emulator": "Terminal emulator",
     "config_consistency": "Config consistency",
     "self_protection": "Self-protection",
 }

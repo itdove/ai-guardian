@@ -299,6 +299,20 @@ class TestCrossPlatform:
                     args = mock_popen.call_args[0][0]
                     assert "gnome-terminal" in args[0]
 
+    def test_console_launch_linux_kgx_fallback(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Linux"):
+            with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    mock_popen.assert_called_once()
+                    args = mock_popen.call_args[0][0]
+                    assert args[0] == "kgx"
+
     def test_console_launch_windows(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},

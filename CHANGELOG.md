@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Terminal emulator support for tray Console on Linux** (Issue #553)
+  - Added `kgx` (GNOME Console, Fedora 44+ default) to the terminal fallback chain
+  - `ai-guardian doctor` checks for a supported terminal emulator on Linux
+  - Documentation: terminal emulator requirement listed in docs/CONSOLE.md
+
 - **GNOME AppIndicator Detection** (Issue #552)
   - `ai-guardian doctor` detects GNOME without AppIndicator extension and shows fix command
   - Daemon logs warning when tray icon cannot start on GNOME (no longer silent)
