@@ -131,7 +131,8 @@ class TestBackwardCompatibility(unittest.TestCase):
 
         self.assertIn("global.toml", resolve_engine_config_path(gitleaks, global_path))
         self.assertIsNone(resolve_engine_config_path(betterleaks_disabled, global_path))
-        self.assertIn("global.toml", resolve_engine_config_path(leaktk, global_path))
+        # leaktk has no config_flag — legacy pattern server not passed (#529)
+        self.assertIsNone(resolve_engine_config_path(leaktk, global_path))
 
 
 class TestPerEnginePatternServerFetch(unittest.TestCase):
@@ -169,6 +170,110 @@ class TestPerEnginePatternServerFetch(unittest.TestCase):
         })
         result = resolve_engine_config_path(config, "/tmp/global.toml")
         self.assertIsNone(result)
+
+
+class TestConfigFlagGuard(unittest.TestCase):
+    """Issue #529: engines without config_flag never receive pattern server config."""
+
+    def test_engines_without_config_flag_get_none(self):
+        """Engines with config_flag=None should not receive global config."""
+        for engine_type in ("leaktk", "trufflehog", "detect-secrets", "gitguardian"):
+            config = _build_engine_config(engine_type)
+            if config is None:
+                continue
+            result = resolve_engine_config_path(config, "/tmp/global.toml")
+            self.assertIsNone(
+                result,
+                f"{engine_type} has config_flag={config.config_flag} "
+                f"but received global config"
+            )
+
+    def test_gitleaks_receives_global_config(self):
+        """Gitleaks (has config_flag) should receive global config."""
+        config = _build_engine_config("gitleaks")
+        result = resolve_engine_config_path(config, "/tmp/global.toml")
+        self.assertIsNotNone(result)
+        self.assertIn("global.toml", result)
+
+    def test_betterleaks_without_override_gets_none(self):
+        """Betterleaks is not in _CONFIG_COMPATIBLE_ENGINES despite having config_flag."""
+        config = _build_engine_config("betterleaks")
+        result = resolve_engine_config_path(config, "/tmp/global.toml")
+        self.assertIsNone(result)
+
+
+class TestDescribePatterns(unittest.TestCase):
+    """Issue #529: verify _describe_patterns returns correct message per engine."""
+
+    def setUp(self):
+        from ai_guardian import _describe_patterns
+        self.describe = _describe_patterns
+
+    def test_gitleaks_with_legacy_pattern_server(self):
+        """Gitleaks + legacy pattern server → LeakTK Pattern Server message."""
+        config = _build_engine_config("gitleaks")
+        pattern_config = {"url": "https://patterns.example.com"}
+        result = self.describe(config, "/tmp/patterns.toml", "pattern server", pattern_config)
+        self.assertIn("LeakTK Pattern Server", result)
+        self.assertIn("patterns.example.com", result)
+
+    def test_betterleaks_with_legacy_pattern_server_loaded(self):
+        """Betterleaks should show built-in rules even when legacy PS is loaded."""
+        config = _build_engine_config("betterleaks")
+        pattern_config = {"url": "https://patterns.example.com"}
+        # resolved_config_path is None because betterleaks doesn't use legacy PS
+        result = self.describe(config, None, "pattern server", pattern_config)
+        self.assertIn("Built-in betterleaks rules", result)
+        self.assertNotIn("LeakTK", result)
+
+    def test_leaktk_built_in_rules(self):
+        """LeakTK shows built-in rules (no legacy PS compat)."""
+        config = _build_engine_config("leaktk")
+        result = self.describe(config, None, None, None)
+        self.assertIn("Built-in leaktk rules", result)
+
+    def test_trufflehog_built_in_rules(self):
+        """TruffleHog shows built-in rules."""
+        config = _build_engine_config("trufflehog")
+        result = self.describe(config, None, None, None)
+        self.assertIn("Built-in trufflehog rules", result)
+
+    def test_gitleaks_project_config(self):
+        """Gitleaks + project config → shows config path."""
+        config = _build_engine_config("gitleaks")
+        result = self.describe(config, "/project/.gitleaks.toml", "project config", None)
+        self.assertIn("/project/.gitleaks.toml", result)
+
+    def test_gitleaks_defaults(self):
+        """Gitleaks without any config → built-in rules."""
+        config = _build_engine_config("gitleaks")
+        result = self.describe(config, None, "gitleaks defaults", None)
+        self.assertIn("Built-in gitleaks rules", result)
+
+    def test_per_engine_pattern_server_override(self):
+        """Engine with per-engine pattern_server shows engine-specific message."""
+        config = _build_engine_config({
+            "type": "betterleaks",
+            "pattern_server": {"url": "https://bl-patterns.example.com"}
+        })
+        result = self.describe(config, "/cache/bl.toml", "pattern server", None)
+        self.assertIn("betterleaks Pattern Server", result)
+        self.assertIn("bl-patterns.example.com", result)
+
+    def test_per_engine_pattern_server_null(self):
+        """Engine with pattern_server: null → built-in rules."""
+        config = _build_engine_config({
+            "type": "gitleaks",
+            "pattern_server": None,
+        })
+        result = self.describe(config, None, "pattern server", {"url": "https://x.com"})
+        self.assertIn("Built-in gitleaks rules", result)
+        self.assertNotIn("LeakTK", result)
+
+    def test_no_engine_config_fallback(self):
+        """None engine_config falls back to gitleaks."""
+        result = self.describe(None, None, None, None)
+        self.assertIn("Built-in gitleaks rules", result)
 
 
 if __name__ == '__main__':

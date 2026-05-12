@@ -345,11 +345,11 @@ class TestResolveEngineConfigPath(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn("patterns.toml", result)
 
-    def test_unset_leaktk_uses_global(self):
-        """LeakTK with UNSET pattern_server should use global config_path."""
+    def test_unset_leaktk_no_global(self):
+        """LeakTK with UNSET pattern_server should NOT use global (no config_flag, #529)."""
         config = _build_engine_config("leaktk")
         result = resolve_engine_config_path(config, "/tmp/patterns.toml")
-        self.assertIsNotNone(result)
+        self.assertIsNone(result)
 
     def test_unset_betterleaks_no_global(self):
         """Betterleaks with UNSET pattern_server should NOT use global (incompatible engine)."""

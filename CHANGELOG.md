@@ -43,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Legacy pattern server config no longer passed to non-gitleaks engines** (Issue #529)
+  - Legacy `secret_scanning.pattern_server` config only passed to gitleaks (the only engine that uses gitleaks TOML)
+  - Removed leaktk from `_CONFIG_COMPATIBLE_ENGINES` (leaktk auto-manages patterns, has no config_flag)
+  - Added `config_flag` guard in `resolve_engine_config_path()` — engines without config_flag never receive pattern server config
+  - "Patterns:" message now accurately reflects which patterns each engine uses (e.g., "Built-in betterleaks rules" instead of "LeakTK Pattern Server")
+  - Per-engine pattern server takes priority over legacy pattern server in message display
+
 - **Portable cache path in generated config** (Issue #492)
   - `setup --create-config` no longer generates absolute paths for `cache.path`
   - Cache path is resolved at runtime via `get_cache_dir()` (respects `AI_GUARDIAN_CACHE_DIR`, `XDG_CACHE_HOME`, or defaults to `~/.cache/ai-guardian`)
