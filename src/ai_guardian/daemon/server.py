@@ -354,7 +354,7 @@ class DaemonServer:
             from ai_guardian.daemon.tray import DaemonTray, is_tray_available
 
             if not is_tray_available():
-                logger.debug("System tray not available")
+                logger.info("System tray not available (run 'ai-guardian doctor' for details)")
                 return
 
             self._tray = DaemonTray(
@@ -377,7 +377,7 @@ class DaemonServer:
             from ai_guardian.daemon.tray import DaemonTray, is_tray_available
 
             if not is_tray_available():
-                logger.debug("System tray not available, running headless")
+                logger.info("System tray not available, running headless (run 'ai-guardian doctor' for details)")
                 # Block on shutdown event instead so daemon doesn't exit
                 self._shutdown_event.wait()
                 return

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **GNOME AppIndicator Detection** (Issue #552)
+  - `ai-guardian doctor` detects GNOME without AppIndicator extension and shows fix command
+  - Daemon logs warning when tray icon cannot start on GNOME (no longer silent)
+  - Documentation: GNOME setup steps in docs/CONSOLE.md and README requirements
+
 - **Directory Scanning MCP Tools** (Issue #544)
   - `scan_directory` tool returns violation summary (counts, file paths, types — no secret values)
   - `scan_directory_report` tool generates detailed report in temp directory for user review
