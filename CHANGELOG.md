@@ -24,6 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed MCP enable/disable toggle from Console TUI and tray menu
   - `ai-guardian setup --mcp` / `--no-mcp` remains the install/uninstall mechanism
 
+### Changed
+
+- **Deprecate `secret_scanning.pattern_server` — migrate to per-engine** (Issue #530)
+  - Global `secret_scanning.pattern_server` is deprecated (gitleaks-specific but implied all engines)
+  - Per-engine format is now canonical: `engines[{"type": "gitleaks", "pattern_server": {...}}]`
+  - Deprecation warning logged when global format detected
+  - `ai-guardian doctor` warns about deprecated format (`check_global_pattern_server`)
+  - `ai-guardian doctor --fix` auto-migrates to per-engine format
+  - `ai-guardian setup --migrate-pattern-server` handles full migration chain (root → global → per-engine)
+  - Enhanced per-engine `pattern_server` schema to match full global schema (auth, cache, immutable, etc.)
+  - Example config updated to show per-engine pattern_server as the documented format
+  - Legacy format still works (backward compatible); removal planned for v2.0.0
+
 ### Added
 
 - **Self-Protection: Block Agent Read Access** (Issue #512)

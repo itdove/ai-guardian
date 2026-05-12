@@ -160,7 +160,7 @@
       "disabled_until": "2026-04-13T16:00:00Z",
       "reason": "Testing with known-safe example secrets"
     },
-    "_pattern_server_comment": "NEW in v1.7.0: pattern_server nested under secret_scanning (was at root level)",
+    "_pattern_server_comment": "DEPRECATED: pattern_server at this level is deprecated (Issue #530). Use per-engine format in engines[] instead. Run: ai-guardian setup --migrate-pattern-server",
     "_comment_allowlist": "Regex patterns for known-safe secret values to ignore (for false positives). Unlike ignore_files which skips entire files, this lets you keep scanning but exclude specific known-safe values. Complements inline '# gitleaks:allow' for cases where you cannot modify the source file.",
     "allowlist_patterns": [],
     "_allowlist_examples": [
@@ -168,70 +168,83 @@
       "EXAMPLE_API_KEY_[A-Z0-9]+",
       {"pattern": "sk_test_temp_[A-Za-z0-9]+", "valid_until": "2026-06-01T00:00:00Z"}
     ],
-    "pattern_server": {
-      "_comment": "Optional: Enhanced secret detection patterns from a pattern server",
-      "_comment2": "This is an ADVANCED feature - most users should use default Gitleaks patterns",
-      "_comment3": "Presence of this section = enabled. To disable: set to null or remove entirely.",
-      "_comment4": "Cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults",
-      "_usage": "Remove this entire 'pattern_server' section if you don't need it (will use defaults)",
-      "_immutable_example_remote_config": {
-        "_comment": "In remote config: Enforce custom pattern server that cannot be overridden",
-        "url": "https://company.com/patterns",
-        "immutable": true,
-        "_explanation": "Enterprise pattern server - local configs cannot disable or override"
-      },
-      "url": null,
-      "_url_comment": "Set to your pattern server URL to enable",
-      "_url_examples": {
-        "_leaktk": "https://raw.githubusercontent.com (free, community-maintained patterns)",
-        "_enterprise": "https://patterns.security.redhat.com (enterprise custom patterns)"
-      },
-      "_leaktk_example_config": {
-        "_comment": "RECOMMENDED: Use LeakTK community patterns (free, no auth required)",
-        "url": "https://raw.githubusercontent.com",
-        "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
-        "cache": {
-          "refresh_interval_hours": 12,
-          "expire_after_hours": 168
-        },
-        "_benefits": [
-          "Free and public (no authentication required)",
-          "Regularly updated by the community",
-          "104+ detection rules",
-          "Compatible with gitleaks"
-        ],
-        "_reference": "https://github.com/leaktk/patterns"
-      },
-      "patterns_endpoint": "/patterns/gitleaks/8.18.1",
-      "warn_on_failure": true,
-      "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",
-      "auth": {
-        "method": "bearer",
-        "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
-        "token_file": "~/.config/ai-guardian/pattern-token",
-        "_comment": "Token auth: Set env var OR save to token_file (pick one method)",
-        "_comment2": "Get token from your pattern server's web interface",
-        "_comment3": "Default token_env is AI_GUARDIAN_PATTERN_TOKEN for ALL pattern server sections",
-        "_comment4": "Override token_env per section when using multiple servers with different credentials",
-        "_multi_server_example": {
-          "_comment": "Example: separate token for secret scanning patterns",
-          "method": "bearer",
-          "token_env": "AI_GUARDIAN_SECRET_PATTERNS_TOKEN"
-        }
-      },
-      "cache": {
-        "path": "~/.cache/ai-guardian/patterns.toml",
-        "refresh_interval_hours": 12,
-        "expire_after_hours": 168,
-        "_comment": "Patterns auto-refresh every 12h, expire after 7 days"
-      }
-    },
-    "_engines_comment": "NEW in v1.7.0: Multi-engine support with execution strategies",
+    "_engines_comment": "Multi-engine support with execution strategies and per-engine pattern servers",
     "_engines_comment2": "Configure multiple scanner engines with different strategies for combining results",
-    "engines": ["gitleaks"],
+    "_engines_comment3": "pattern_server is now per-engine (Issue #530) — put it inside the engine object",
+    "engines": [
+      {
+        "type": "gitleaks",
+        "_comment": "Pattern server config is per-engine (canonical format since v1.7.x)",
+        "pattern_server": {
+          "_comment": "Optional: Enhanced secret detection patterns from a pattern server",
+          "_comment2": "This is an ADVANCED feature - most users should use default Gitleaks patterns",
+          "_comment3": "Presence of this section = enabled. To disable: set to null or remove entirely.",
+          "_comment4": "Cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults",
+          "_usage": "Remove this entire 'pattern_server' section if you don't need it (will use defaults)",
+          "_immutable_example_remote_config": {
+            "_comment": "In remote config: Enforce custom pattern server that cannot be overridden",
+            "url": "https://company.com/patterns",
+            "immutable": true,
+            "_explanation": "Enterprise pattern server - local configs cannot disable or override"
+          },
+          "url": null,
+          "_url_comment": "Set to your pattern server URL to enable",
+          "_url_examples": {
+            "_leaktk": "https://raw.githubusercontent.com (free, community-maintained patterns)",
+            "_enterprise": "https://patterns.security.redhat.com (enterprise custom patterns)"
+          },
+          "_leaktk_example_config": {
+            "_comment": "RECOMMENDED: Use LeakTK community patterns (free, no auth required)",
+            "url": "https://raw.githubusercontent.com",
+            "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0",
+            "cache": {
+              "refresh_interval_hours": 12,
+              "expire_after_hours": 168
+            },
+            "_benefits": [
+              "Free and public (no authentication required)",
+              "Regularly updated by the community",
+              "104+ detection rules",
+              "Compatible with gitleaks"
+            ],
+            "_reference": "https://github.com/leaktk/patterns"
+          },
+          "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+          "warn_on_failure": true,
+          "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",
+          "auth": {
+            "method": "bearer",
+            "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
+            "token_file": "~/.config/ai-guardian/pattern-token",
+            "_comment": "Token auth: Set env var OR save to token_file (pick one method)",
+            "_comment2": "Get token from your pattern server's web interface",
+            "_comment3": "Default token_env is AI_GUARDIAN_PATTERN_TOKEN for ALL pattern server sections",
+            "_comment4": "Override token_env per section when using multiple servers with different credentials",
+            "_multi_server_example": {
+              "_comment": "Example: separate token for secret scanning patterns",
+              "method": "bearer",
+              "token_env": "AI_GUARDIAN_SECRET_PATTERNS_TOKEN"
+            }
+          },
+          "cache": {
+            "path": "~/.cache/ai-guardian/patterns.toml",
+            "refresh_interval_hours": 12,
+            "expire_after_hours": 168,
+            "_comment": "Patterns auto-refresh every 12h, expire after 7 days"
+          }
+        }
+      }
+    ],
     "_engines_examples": {
       "_simple": ["gitleaks"],
       "_multi_engine": ["gitleaks", "trufflehog"],
+      "_with_per_engine_pattern_server": [
+        {
+          "type": "gitleaks",
+          "pattern_server": {"url": "https://raw.githubusercontent.com", "patterns_endpoint": "/leaktk/patterns/main/target/patterns/gitleaks/8.27.0"}
+        },
+        "betterleaks"
+      ],
       "_with_per_engine_config": [
         "gitleaks",
         {
