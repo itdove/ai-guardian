@@ -136,6 +136,7 @@ NAV_GROUPS = [
         ("Regex Tester", "panel-regex-tester"),
         ("Hook Simulator", "panel-hook-simulator"),
         ("Engine Tester", "panel-engine-tester"),
+        ("Directory Scan", "panel-directory-scan"),
         ("Health Check", "panel-health-check"),
     ]),
 ]
@@ -224,6 +225,8 @@ HELP_DOCS = {
         "simulated hook events without triggering real hooks\n"
         "  [bold]Engine Tester[/bold] — Test strings against individual "
         "scanner engines to compare detection results\n"
+        "  [bold]Directory Scan[/bold] — Scan directories for security "
+        "issues with interactive results and export\n"
         "  [bold]Health Check[/bold] — System health checks "
         "(ai-guardian doctor) with auto-fix support"
     ),
@@ -680,6 +683,22 @@ HELP_DOCS = {
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]r[/bold]  Clear and reset the tester"
     ),
+    "panel-directory-scan": (
+        "[bold]Directory Scan[/bold]\n\n"
+        "Scan directories for security issues — secrets, SSRF patterns, "
+        "Unicode attacks, and config file threats.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Enter a directory path and click Scan\n"
+        "  - Toggle config-files-only mode for targeted scanning\n"
+        "  - Results show file, line, rule ID, and message\n"
+        "  - Color-coded severity (red = error, yellow = warning)\n"
+        "  - Export results to JSON or SARIF format\n\n"
+        "[bold]CLI equivalent:[/bold]\n"
+        "  ai-guardian scan [path]\n"
+        "  ai-guardian scan --sarif-output results.sarif\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Clear results"
+    ),
     "panel-health-check": (
         "[bold]Health Check (Doctor)[/bold]\n\n"
         "Verify your AI Guardian setup is working correctly. "
@@ -1107,6 +1126,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-engine-tester"):
                     from ai_guardian.tui.engine_tester import EngineTesterContent
                     yield EngineTesterContent()
+
+                with Container(id="panel-directory-scan"):
+                    from ai_guardian.tui.directory_scan import DirectoryScanContent
+                    yield DirectoryScanContent()
 
                 with Container(id="panel-health-check"):
                     from ai_guardian.tui.health_check import HealthCheckContent
