@@ -17,8 +17,10 @@ Issue #477
 import json
 import logging
 import sys
+import tempfile
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,37 @@ def _load_skill_instructions() -> str:
         "check_command before running sensitive commands, sanitize_text before outputting "
         "sensitive content. Tools are advisory — hooks provide enforcement."
     )
+
+
+_BLOCKED_SYSTEM_DIRS = (
+    "/etc", "/sys", "/proc", "/dev", "/boot", "/sbin",
+    "/private/etc",
+)
+
+
+def _validate_scan_path(path: str) -> Tuple[bool, str, Optional[Path]]:
+    """Validate a path for directory scanning.
+
+    Returns (is_valid, error_message, resolved_path).
+    Blocks system directories and non-existent paths.
+    """
+    try:
+        resolved = Path(path).resolve()
+    except Exception:
+        return False, f"Invalid path: {path}", None
+
+    if not resolved.exists():
+        return False, f"Path does not exist: {path}", None
+
+    if not resolved.is_dir():
+        return False, f"Path is not a directory: {path}", None
+
+    resolved_str = str(resolved)
+    for blocked in _BLOCKED_SYSTEM_DIRS:
+        if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
+            return False, f"Scanning system directories is not allowed: {path}", None
+
+    return True, "", resolved
 
 
 def create_server() -> "FastMCP":
@@ -422,6 +455,116 @@ def create_server() -> "FastMCP":
         except Exception as e:
             logger.error("send_support_bundle error: %s", e)
             return {"status": "error", "message": f"Failed to send bundle: {e}"}
+
+    # ─── Scanning Tools ──────────────────────────────────────────
+
+    @server.tool()
+
+    def scan_directory(path: str = ".", recursive: bool = True) -> Dict[str, Any]:
+        """Scan a directory for secrets, PII, and security issues.
+        Returns summary only — no actual secret/PII values."""
+        try:
+            valid, err, resolved = _validate_scan_path(path)
+            if not valid:
+                return {"status": "error", "message": err}
+
+            from ai_guardian.scanner import FileScanner
+
+            config = _load_full_config() or {}
+            scanner = FileScanner(config=config)
+
+            start_ms = time.monotonic_ns() // 1_000_000
+            findings = scanner.scan_directory(path=str(resolved))
+            elapsed_ms = (time.monotonic_ns() // 1_000_000) - start_ms
+
+            by_type: Dict[str, int] = {}
+            files_with_violations: List[Dict[str, Any]] = []
+            for f in findings:
+                rule = f.get("rule_id", "unknown")
+                by_type[rule] = by_type.get(rule, 0) + 1
+                entry: Dict[str, Any] = {
+                    "file": f.get("file_path", ""),
+                    "type": rule,
+                    "rule": rule,
+                }
+                if f.get("line_number"):
+                    entry["line"] = f["line_number"]
+                files_with_violations.append(entry)
+
+            file_count = len(scanner._discover_files(
+                resolved, None, None, False
+            )) if resolved.is_dir() else 1
+
+            return {
+                "scanned_files": file_count,
+                "violations": len(findings),
+                "by_type": by_type,
+                "files_with_violations": files_with_violations,
+                "scan_time_ms": elapsed_ms,
+            }
+        except Exception as e:
+            logger.error("scan_directory error: %s", e)
+            return {"status": "error", "message": "Unable to scan directory"}
+
+    @server.tool()
+
+    def scan_directory_report(
+        path: str = ".", format: str = "json"
+    ) -> Dict[str, Any]:
+        """Generate a detailed scan report in a temp directory for user review.
+
+        Args:
+            path: Directory to scan
+            format: json or sarif
+
+        Returns:
+            Path to report file (user reviews directly — AI doesn't see content)
+        """
+        try:
+            valid, err, resolved = _validate_scan_path(path)
+            if not valid:
+                return {"status": "error", "message": err}
+
+            if format not in ("json", "sarif"):
+                return {
+                    "status": "error",
+                    "message": f"Unsupported format: {format}. Use 'json' or 'sarif'.",
+                }
+
+            from ai_guardian.scanner import FileScanner
+
+            config = _load_full_config() or {}
+            scanner = FileScanner(config=config)
+            findings = scanner.scan_directory(path=str(resolved))
+
+            report_dir = tempfile.mkdtemp(prefix="ai-guardian-scan-report-")
+
+            if format == "sarif":
+                from ai_guardian import __version__
+                from ai_guardian.sarif_formatter import SARIFFormatter
+
+                formatter = SARIFFormatter(version=__version__)
+                report_file = str(Path(report_dir) / "scan-results.sarif")
+                formatter.write_sarif_file(
+                    findings, report_file, scan_path=str(resolved)
+                )
+            else:
+                report_file = str(Path(report_dir) / "scan-results.json")
+                with open(report_file, "w", encoding="utf-8") as f:
+                    json.dump(findings, f, indent=2)
+
+            return {
+                "report_path": report_file,
+                "violations": len(findings),
+                "format": format,
+                "message": f"Detailed report generated. Review at: {report_dir}/",
+            }
+        except Exception as e:
+            logger.error("scan_directory_report error: %s", e)
+            return {
+                "status": "error",
+                "message": "Unable to generate scan report",
+            }
 
     # ─── Resources ────────────────────────────────────────────────
 

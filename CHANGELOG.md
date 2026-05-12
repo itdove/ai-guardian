@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Directory Scanning MCP Tools** (Issue #544)
+  - `scan_directory` tool returns violation summary (counts, file paths, types — no secret values)
+  - `scan_directory_report` tool generates detailed report in temp directory for user review
+  - Two-step flow: AI sees summary only, user reviews detailed report directly
+  - Path validation blocks system directories
+  - Supports JSON and SARIF output formats
+
 - **Engine Tester** (Issue #542)
   - CLI command `ai-guardian engine-test` to test strings against individual scanner engines
   - Flags: `--engine NAME`, `--all`, `--compare`, `--pattern-server`, `--json`
