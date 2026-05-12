@@ -30,11 +30,11 @@ class TestEngineTesterImport:
         assert "Engine Tester" in HELP_DOCS["Tools"]
 
     def test_engine_tester_position_in_tools(self):
-        """Engine Tester appears between Hook Simulator and Health Check."""
+        """Engine Tester appears between Hook Simulator and Directory Scan."""
         for name, items in NAV_GROUPS:
             if name == "Tools":
                 panel_ids = [pid for _, pid in items]
                 idx = panel_ids.index("panel-engine-tester")
                 assert panel_ids[idx - 1] == "panel-hook-simulator"
-                assert panel_ids[idx + 1] == "panel-health-check"
+                assert panel_ids[idx + 1] == "panel-directory-scan"
                 break
