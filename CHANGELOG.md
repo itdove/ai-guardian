@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Support bundle keeps original file names** (Issue #543)
+  - `ai-guardian.json` no longer renamed to `config.json` in the bundle
+  - `violations.jsonl` no longer renamed to `violations.json` in the bundle
+
 ### Fixed
 
 - **First-match fallthrough blocked by guard clause and wrong config_path** (Issue #538)
