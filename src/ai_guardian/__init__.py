@@ -10,7 +10,7 @@ AI Guardian provides multi-layered protection for AI IDE interactions:
 Automatically detects IDE type and uses appropriate response format.
 """
 
-__version__ = "1.6.2"
+__version__ = "1.6.3"
 
 import argparse
 import fnmatch
@@ -2435,21 +2435,6 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     logging.info("All strategy findings matched allowlist — skipping")
                                     return False, None
 
-                        # Apply .gitleaks.toml allowlist filtering (Issue #488)
-                        if _gitleaks_allowlist and strategy_result.secrets:
-                            content_str = content if isinstance(content, str) else str(content)
-                            gl_lines = content_str.splitlines()
-                            findings_dicts = [
-                                {"rule_id": s.rule_id, "line_number": s.line_number, "file": s.file}
-                                for s in strategy_result.secrets
-                            ]
-                            remaining = _gitleaks_cfg.filter_findings(
-                                findings_dicts, gl_lines, file_path, _gitleaks_allowlist
-                            )
-                            if not remaining:
-                                logging.info("All strategy findings matched .gitleaks.toml allowlist — skipping")
-                                return False, None
-
                         first_secret = strategy_result.secrets[0]
                         secret_details = {
                             "rule_id": first_secret.rule_id,
@@ -2744,11 +2729,77 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             return False, None
 
                 # Guard: exit code said secrets but report is empty/unparseable (Issue #532)
+                # Don't return immediately — fall through to first-match fallthrough (Issue #523)
                 if secret_details is None and (scan_result is None or not scan_result.get('has_secrets')):
                     logging.warning(
                         f"Scanner exited with secrets-found code ({result.returncode}) "
                         f"but produced no findings — treating as clean"
                     )
+                    # Try remaining engines via first-match fallthrough
+                    if (execution_strategy_name == "first-match"
+                            and _all_available_engines
+                            and len(_all_available_engines) > 1):
+                        remaining = [e for e in _all_available_engines
+                                     if e.type != engine_config.type]
+                        if remaining:
+                            logging.info(
+                                f"Engine {engine_config.type} found no secrets, "
+                                f"trying remaining engines: {[e.type for e in remaining]}"
+                            )
+                            strategy = get_strategy("first-match")
+                            fallback_result = strategy.execute(
+                                engine_configs=remaining,
+                                scanner_fn=run_single_engine,
+                                source_file=tmp_file_path,
+                                report_file_prefix=report_file.replace('.json', ''),
+                                config_path=None,
+                                context={"filename": filename}
+                            )
+                            if fallback_result.has_secrets and fallback_result.secrets:
+                                first_secret = fallback_result.secrets[0]
+                                secret_details = {
+                                    "rule_id": first_secret.rule_id,
+                                    "file": first_secret.file or filename,
+                                    "line_number": first_secret.line_number,
+                                    "end_line": first_secret.end_line or 0,
+                                    "commit": first_secret.commit or "N/A",
+                                    "total_findings": len(fallback_result.secrets)
+                                }
+                                scanner_name = fallback_result.engine
+                                error_msg = (
+                                    f"\n{'='*70}\n"
+                                    f"🛡️ Secret Detected\n"
+                                    f"{'='*70}\n\n"
+                                    f"Protection: Secret Scanning (first-match fallthrough)\n"
+                                    f"Secret Type: {secret_details['rule_id']}\n"
+                                )
+                                if secret_details.get('line_number'):
+                                    error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
+                                else:
+                                    error_msg += f"Location: {secret_details['file']}\n"
+                                error_msg += (
+                                    f"Scanner: {scanner_name}\n"
+                                    f"Patterns: Built-in Defaults\n"
+                                    f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
+                                    f"and be accessed by unauthorized users.\n\n"
+                                    f"This operation has been blocked for security.\n"
+                                    f"Please remove the sensitive information and try again.\n\n"
+                                    f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+                                    f"Recommendation:\n"
+                                    f"  • Move secrets to environment variables\n"
+                                    f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
+                                    f"  • Add to .gitignore if in config file\n"
+                                    f"  • Never commit secrets to git\n"
+                                    f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
+                                    f"⚠️  Secret value NOT shown in this message for security\n\n"
+                                    f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+                                    f"Section: secret_scanning.enabled\n"
+                                    f"{'='*70}\n"
+                                )
+                                _log_secret_detection_violation(file_path or filename, context, secret_details,
+                                                                hook_context=context)
+                                logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
+                                return True, error_msg
                     return False, None
 
                 # Build error message with details if available
@@ -2841,7 +2892,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             scanner_fn=run_single_engine,
                             source_file=tmp_file_path,
                             report_file_prefix=report_file.replace('.json', ''),
-                            config_path=str(Path(gitleaks_config_path).absolute()) if (gitleaks_config_path and remaining[0].type in ("gitleaks", "leaktk")) else None,
+                            config_path=None,
                             context={"filename": filename}
                         )
                         if fallback_result.has_secrets and fallback_result.secrets:

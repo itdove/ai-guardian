@@ -139,14 +139,14 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNone(error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.select_all_engines')
     @patch('ai_guardian.run_single_engine')
     @patch('ai_guardian._load_secret_scanning_config')
     def test_gitleaks_exit_code_1_not_treated_as_success(
         self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        mock_select_all, mock_select_engine, mock_pattern_config
     ):
         """Exit code 1 from gitleaks must NOT be treated as success (Issue #411).
 
@@ -156,6 +156,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
         """
         from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
+        mock_pattern_config.return_value = None
         mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
 
         mock_engine = MagicMock()
@@ -183,18 +184,19 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNotNone(error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.select_all_engines')
     @patch('ai_guardian.run_single_engine')
     @patch('ai_guardian._load_secret_scanning_config')
     def test_gitleaks_exit_code_42_blocks_operation(
         self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        mock_select_all, mock_select_engine, mock_pattern_config
     ):
         """Exit code 42 (custom) from gitleaks must be treated as secrets found."""
         from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
+        mock_pattern_config.return_value = None
         mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
 
         mock_engine = MagicMock()
@@ -266,18 +268,19 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNone(error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian._load_pattern_server_config')
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.select_all_engines')
     @patch('ai_guardian.run_single_engine')
     @patch('ai_guardian._load_secret_scanning_config')
     def test_betterleaks_exit_code_1_not_treated_as_success(
         self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        mock_select_all, mock_select_engine, mock_pattern_config
     ):
         """Exit code 1 from betterleaks with findings must block (Issue #411)."""
         from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
+        mock_pattern_config.return_value = None
         mock_load_config.return_value = ({"engines": ["betterleaks"]}, None)
 
         mock_engine = MagicMock()

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-05-11
+
+### Fixed
+
+- **first-match strategy now tries all engines until one finds secrets** (Issue #523, cherry-picked from main)
+  - With `engines: ["betterleaks", "gitleaks"]`, ai-guardian previously stopped after the first engine even if it found nothing — gitleaks never ran
+  - `first-match` now correctly means "first engine that **finds** secrets", trying each engine in order
+  - Secrets that betterleaks misses (stricter patterns) are now caught by gitleaks as a fallback
+  - All execution strategies (first-match, any-match, consensus) now route through the strategy framework
+  - Added `executor.py` module and `select_all_engines()` for multi-engine support on the release-1.6 branch
+
 ## [1.6.2] - 2026-05-11
 
 ### Fixed

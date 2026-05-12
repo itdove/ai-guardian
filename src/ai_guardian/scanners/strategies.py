@@ -87,9 +87,10 @@ class ExecutionStrategy(ABC):
         """
         applicable = []
         for engine in engines:
-            if engine.file_patterns is None:
+            patterns = getattr(engine, 'file_patterns', None)
+            if patterns is None:
                 applicable.append(engine)
-            elif any(fnmatch.fnmatch(filename, pat) for pat in engine.file_patterns):
+            elif any(fnmatch.fnmatch(filename, pat) for pat in patterns):
                 applicable.append(engine)
 
         return applicable if applicable else engines

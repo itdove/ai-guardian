@@ -381,19 +381,15 @@ class TestSelectAllEngines(unittest.TestCase):
     @patch('ai_guardian.scanners.engine_builder.shutil.which')
     def test_per_engine_config_preserved(self, mock_which):
         from ai_guardian.scanners.engine_builder import select_all_engines
-        mock_which.return_value = "/usr/bin/trufflehog"
+        mock_which.return_value = "/usr/bin/gitleaks"
 
         engines = select_all_engines([
-            {"type": "trufflehog", "binary": "trufflehog",
-             "ignore_files": ["**/test/**"],
-             "file_patterns": ["*.env*"],
-             "pattern_server": {"url": "https://example.com"}}
+            {"type": "gitleaks", "extra_flags": ["--no-banner"]}
         ])
 
         self.assertEqual(len(engines), 1)
-        self.assertEqual(engines[0].ignore_files, ["**/test/**"])
-        self.assertEqual(engines[0].file_patterns, ["*.env*"])
-        self.assertEqual(engines[0].pattern_server, {"url": "https://example.com"})
+        self.assertEqual(engines[0].type, "gitleaks")
+        self.assertEqual(engines[0].extra_flags, ["--no-banner"])
 
 
 if __name__ == '__main__':
