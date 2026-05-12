@@ -15,7 +15,7 @@ from io import StringIO
 from unittest.mock import patch as mock_patch
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, ScrollableContainer
+from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Input, Button, Select, TextArea
 
 
@@ -241,7 +241,7 @@ class HookSimulatorContent(ScrollableContainer):
         with Container(id="sim-input-section", classes="sim-section"):
             yield Static("Input", classes="sim-section-title")
 
-            with Horizontal(classes="sim-row"):
+            with Vertical(classes="sim-row"):
                 yield Static("Hook Event", classes="sim-label")
                 yield Select(
                     HOOK_EVENTS,
@@ -251,7 +251,7 @@ class HookSimulatorContent(ScrollableContainer):
                 )
 
             with Container(id="sim-tool-section"):
-                with Horizontal(classes="sim-row"):
+                with Vertical(classes="sim-row"):
                     yield Static("Tool", classes="sim-label")
                     yield Select(
                         TOOL_OPTIONS,
@@ -274,17 +274,20 @@ class HookSimulatorContent(ScrollableContainer):
             )
             yield TextArea(id="sim-content-area")
 
-            with Horizontal(id="sim-action-row", classes="sim-row"):
-                yield Button(
-                    "Run Simulation",
-                    variant="primary",
-                    id="sim-run-btn",
-                )
+            with Vertical(classes="sim-row"):
+                yield Static("IDE Format", classes="sim-label")
                 yield Select(
                     IDE_OPTIONS,
                     value="claude",
                     id="sim-ide-select",
                     allow_blank=False,
+                )
+
+            with Horizontal(id="sim-action-row", classes="sim-row"):
+                yield Button(
+                    "Run Simulation",
+                    variant="primary",
+                    id="sim-run-btn",
                 )
 
         with Container(id="sim-results-section", classes="sim-section"):

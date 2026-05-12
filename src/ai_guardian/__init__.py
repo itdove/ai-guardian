@@ -5276,6 +5276,41 @@ def main():
             help="Output as JSON"
         )
 
+        # Engine test subcommand (Issue #542)
+        engine_test_parser = subparsers.add_parser(
+            "engine-test",
+            help="Test strings against scanner engines"
+        )
+        engine_test_parser.add_argument(
+            "--engine",
+            choices=[
+                "gitleaks", "betterleaks", "leaktk", "trufflehog",
+                "detect-secrets", "secretlint", "gitguardian",
+            ],
+            help="Test against a specific engine"
+        )
+        engine_test_parser.add_argument(
+            "--all",
+            action="store_true",
+            dest="all_engines",
+            help="Test against all installed engines"
+        )
+        engine_test_parser.add_argument(
+            "--compare",
+            action="store_true",
+            help="Show comparison table across all engines"
+        )
+        engine_test_parser.add_argument(
+            "--pattern-server",
+            action="store_true",
+            help="Use pattern server configuration (if configured)"
+        )
+        engine_test_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output results as JSON"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -5639,6 +5674,20 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error running support command: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle engine-test command (Issue #542)
+        if args.command == "engine-test":
+            try:
+                from ai_guardian.engine_tester import engine_test_command
+                return engine_test_command(args)
+            except ImportError as e:
+                print(f"Error: Engine tester module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running engine test: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1
