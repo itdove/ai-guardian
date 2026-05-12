@@ -157,12 +157,14 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNone(error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.get_parser')
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.build_scanner_command')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.subprocess.run')
     def test_gitleaks_exit_code_1_not_treated_as_success(
-        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+        self, mock_run, mock_load_config, mock_build_command, mock_select_engine,
+        mock_get_parser
     ):
         """Exit code 1 from gitleaks must NOT be treated as success (Issue #411).
 
@@ -181,6 +183,16 @@ class TestScannerEngineIntegration(unittest.TestCase):
 
         mock_build_command.return_value = ["gitleaks", "detect", "..."]
 
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {
+            "has_secrets": True,
+            "findings": [{"rule_id": "aws-access-key", "file": "test.txt",
+                          "line_number": 1, "end_line": 1, "description": "AWS Access Key",
+                          "commit": "N/A"}],
+            "total_findings": 1
+        }
+        mock_get_parser.return_value = mock_parser
+
         mock_result = MagicMock()
         mock_result.returncode = 1
         mock_result.stdout = ""
@@ -196,12 +208,14 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNotNone(error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.get_parser')
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.build_scanner_command')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.subprocess.run')
     def test_gitleaks_exit_code_42_blocks_operation(
-        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+        self, mock_run, mock_load_config, mock_build_command, mock_select_engine,
+        mock_get_parser
     ):
         """Exit code 42 (custom) from gitleaks must be treated as secrets found."""
         mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
@@ -214,6 +228,16 @@ class TestScannerEngineIntegration(unittest.TestCase):
         mock_select_engine.return_value = mock_engine
 
         mock_build_command.return_value = ["gitleaks", "detect", "..."]
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {
+            "has_secrets": True,
+            "findings": [{"rule_id": "aws-access-key", "file": "test.txt",
+                          "line_number": 1, "end_line": 1, "description": "AWS Access Key",
+                          "commit": "N/A"}],
+            "total_findings": 1
+        }
+        mock_get_parser.return_value = mock_parser
 
         mock_result = MagicMock()
         mock_result.returncode = 42
@@ -274,12 +298,14 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNone(error_msg)
 
     @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.get_parser')
     @patch('ai_guardian.select_engine')
     @patch('ai_guardian.build_scanner_command')
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.subprocess.run')
     def test_betterleaks_exit_code_1_not_treated_as_success(
-        self, mock_run, mock_load_config, mock_build_command, mock_select_engine
+        self, mock_run, mock_load_config, mock_build_command, mock_select_engine,
+        mock_get_parser
     ):
         """Exit code 1 from betterleaks must also be treated as secrets found (Issue #411)."""
         mock_load_config.return_value = ({"engines": ["betterleaks"]}, None)
@@ -292,6 +318,16 @@ class TestScannerEngineIntegration(unittest.TestCase):
         mock_select_engine.return_value = mock_engine
 
         mock_build_command.return_value = ["betterleaks", "dir", "..."]
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {
+            "has_secrets": True,
+            "findings": [{"rule_id": "aws-access-key", "file": "test.txt",
+                          "line_number": 1, "end_line": 1, "description": "AWS Access Key",
+                          "commit": "N/A"}],
+            "total_findings": 1
+        }
+        mock_get_parser.return_value = mock_parser
 
         mock_result = MagicMock()
         mock_result.returncode = 1

@@ -2539,6 +2539,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             logging.info("All secret findings matched allowlist patterns — skipping")
                             return False, None
 
+                # Guard: exit code said secrets but report is empty/unparseable (Issue #532)
+                if secret_details is None and (scan_result is None or not scan_result.get('has_secrets')):
+                    logging.warning(
+                        f"Scanner exited with secrets-found code ({result.returncode}) "
+                        f"but produced no findings — treating as clean"
+                    )
+                    return False, None
+
                 # Build error message with details if available
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
                 error_msg = (
