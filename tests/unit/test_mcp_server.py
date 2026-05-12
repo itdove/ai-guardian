@@ -1,7 +1,7 @@
 """
 Unit tests for MCP server module.
 
-Tests all 14 tools, 3 resources, and security filtering.
+Tests all 16 tools, 3 resources, and security filtering.
 Requires Python >= 3.10 (MCP SDK dependency).
 """
 
@@ -20,6 +20,7 @@ pytestmark = pytest.mark.skipif(
 
 from ai_guardian.mcp_server import (
     _load_mcp_config,
+    _validate_scan_path,
     create_server,
 )
 
@@ -497,6 +498,200 @@ class TestSendSupportBundle:
         assert result["status"] == "error"
 
 
+# ─── Path Validation Tests ───────────────────────────────────
+
+
+class TestValidateScanPath:
+    """Test _validate_scan_path helper."""
+
+    def test_valid_directory(self, tmp_path):
+        valid, err, resolved = _validate_scan_path(str(tmp_path))
+        assert valid is True
+        assert err == ""
+        assert resolved == tmp_path.resolve()
+
+    def test_nonexistent_path(self):
+        valid, err, _ = _validate_scan_path("/nonexistent/path/abc123")
+        assert valid is False
+        assert "does not exist" in err
+
+    def test_file_not_directory(self, tmp_path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello")
+        valid, err, _ = _validate_scan_path(str(f))
+        assert valid is False
+        assert "not a directory" in err
+
+    def test_blocks_etc(self):
+        valid, err, _ = _validate_scan_path("/etc")
+        assert valid is False
+        assert "not allowed" in err
+
+    def test_blocks_sys(self):
+        valid, err, _ = _validate_scan_path("/dev")
+        assert valid is False
+        assert "not allowed" in err
+
+
+# ─── Scanning Tool Tests ─────────────────────────────────────
+
+
+class TestScanDirectory:
+    """Test scan_directory tool."""
+
+    def test_scan_empty_directory(self, tmp_path):
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory"]
+        result = tool.fn(path=str(tmp_path))
+        assert result["violations"] == 0
+        assert result["scanned_files"] >= 0
+        assert "scan_time_ms" in result
+
+    @patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.scanner.FileScanner._discover_files")
+    @patch("ai_guardian.mcp_server._load_full_config")
+    def test_scan_with_findings(self, mock_config, mock_discover, mock_scan, tmp_path):
+        mock_config.return_value = {}
+        mock_discover.return_value = [tmp_path / "a.py", tmp_path / "b.py"]
+        mock_scan.return_value = [
+            {
+                "rule_id": "SECRET-001",
+                "message": "Secret detected",
+                "file_path": "a.py",
+                "line_number": 10,
+                "snippet": "password = 'super_secret_value'",
+            },
+            {
+                "rule_id": "SSRF-001",
+                "message": "SSRF detected",
+                "file_path": "b.py",
+                "line_number": 5,
+            },
+        ]
+
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory"]
+        result = tool.fn(path=str(tmp_path))
+
+        assert result["violations"] == 2
+        assert result["by_type"]["SECRET-001"] == 1
+        assert result["by_type"]["SSRF-001"] == 1
+        assert len(result["files_with_violations"]) == 2
+        assert result["files_with_violations"][0]["file"] == "a.py"
+
+    @patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.scanner.FileScanner._discover_files")
+    @patch("ai_guardian.mcp_server._load_full_config")
+    def test_no_secret_values_exposed(self, mock_config, mock_discover, mock_scan, tmp_path):
+        """Response must not contain actual secret/snippet values."""
+        mock_config.return_value = {}
+        mock_discover.return_value = []
+        mock_scan.return_value = [
+            {
+                "rule_id": "SECRET-001",
+                "message": "API key found",
+                "file_path": "config.py",
+                "line_number": 42,
+                "snippet": "api_key = 'AKIAIOSFODNN7EXAMPLE'",
+            },
+        ]
+
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory"]
+        result = tool.fn(path=str(tmp_path))
+
+        result_str = json.dumps(result)
+        assert "AKIAIOSFODNN7EXAMPLE" not in result_str
+        assert "snippet" not in result_str
+        assert "api_key" not in result_str
+
+    def test_system_path_blocked(self):
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory"]
+        result = tool.fn(path="/etc")
+        assert result["status"] == "error"
+        assert "not allowed" in result["message"]
+
+    def test_nonexistent_path(self):
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory"]
+        result = tool.fn(path="/nonexistent/path/xyz")
+        assert result["status"] == "error"
+        assert "does not exist" in result["message"]
+
+
+class TestScanDirectoryReport:
+    """Test scan_directory_report tool."""
+
+    @patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.mcp_server._load_full_config")
+    def test_generates_json_report(self, mock_config, mock_scan, tmp_path):
+        mock_config.return_value = {}
+        mock_scan.return_value = [
+            {"rule_id": "SECRET-001", "message": "Secret", "file_path": "a.py"},
+        ]
+
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory_report"]
+        result = tool.fn(path=str(tmp_path), format="json")
+
+        assert result["violations"] == 1
+        assert result["format"] == "json"
+        assert result["report_path"].endswith("scan-results.json")
+        assert Path(result["report_path"]).exists()
+
+    @patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.mcp_server._load_full_config")
+    def test_generates_sarif_report(self, mock_config, mock_scan, tmp_path):
+        mock_config.return_value = {}
+        mock_scan.return_value = []
+
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory_report"]
+        result = tool.fn(path=str(tmp_path), format="sarif")
+
+        assert result["format"] == "sarif"
+        assert result["report_path"].endswith("scan-results.sarif")
+        assert Path(result["report_path"]).exists()
+
+    @patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.mcp_server._load_full_config")
+    def test_report_path_only_no_content(self, mock_config, mock_scan, tmp_path):
+        """Response must contain path but not the report content."""
+        mock_config.return_value = {}
+        mock_scan.return_value = [
+            {
+                "rule_id": "SECRET-001",
+                "message": "Secret",
+                "file_path": "a.py",
+                "snippet": "password = 'supersecret123'",
+            },
+        ]
+
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory_report"]
+        result = tool.fn(path=str(tmp_path))
+
+        result_str = json.dumps(result)
+        assert "supersecret123" not in result_str
+        assert "snippet" not in result_str
+        assert "report_path" in result
+
+    def test_system_path_blocked(self):
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory_report"]
+        result = tool.fn(path="/etc")
+        assert result["status"] == "error"
+        assert "not allowed" in result["message"]
+
+    def test_unsupported_format(self, tmp_path):
+        server = create_server()
+        tool = server._tool_manager._tools["scan_directory_report"]
+        result = tool.fn(path=str(tmp_path), format="xml")
+        assert result["status"] == "error"
+        assert "Unsupported format" in result["message"]
+
+
 # ─── Server Creation Tests ────────────────────────────────────
 
 
@@ -507,7 +702,7 @@ class TestServerCreation:
         server = create_server()
         assert server is not None
 
-    def test_server_has_14_tools(self):
+    def test_server_has_16_tools(self):
         server = create_server()
         tools = server._tool_manager._tools
         expected = {
@@ -517,6 +712,7 @@ class TestServerCreation:
             "get_scanner_supported", "get_patterns_list",
             "get_metrics", "doctor",
             "prepare_support_bundle", "send_support_bundle",
+            "scan_directory", "scan_directory_report",
         }
         assert expected == set(tools.keys()), f"Missing: {expected - set(tools.keys())}, Extra: {set(tools.keys()) - expected}"
 

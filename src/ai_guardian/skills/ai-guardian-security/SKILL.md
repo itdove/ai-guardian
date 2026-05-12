@@ -5,7 +5,8 @@ description: >
   Use this skill whenever you have access to ai-guardian MCP tools (check_path,
   check_command, check_mcp_trust, sanitize_text, check_annotations, get_violations,
   get_config, get_scanner_status, get_scanner_supported, get_patterns_list,
-  get_metrics, doctor, prepare_support_bundle, send_support_bundle). Activate when:
+  get_metrics, doctor, prepare_support_bundle, send_support_bundle,
+  scan_directory, scan_directory_report). Activate when:
   accessing files in unfamiliar directories, running commands with URLs or credentials,
   outputting potentially sensitive text, editing files with ai-guardian annotations,
   when the user asks about security status, violations, scanners, or configuration,
@@ -66,6 +67,7 @@ Security config can change at any time (via Console, tray, CLI, or file edit). W
 | "How many violations?" | `get_metrics(since_days=7)` |
 | "What scanners do I have?" | `get_scanner_status()` and `get_scanner_supported()` |
 | "What patterns are checked?" | `get_patterns_list()` |
+| "Scan this project" | `scan_directory()` — summary first, offer report if violations found |
 
 ### Presenting violation details
 
@@ -78,6 +80,18 @@ When showing violations to the user, always include the file path and line numbe
 ### Explaining doctor results
 
 When `doctor()` returns checks with `"warn"` or `"fail"` status, explain the issue to the user using the `message`, `detail`, and `fix_hint` fields. If `fixable` is `true`, let the user know they can auto-fix it by running `ai-guardian doctor --fix` in their terminal. Do not run the fix command yourself — it modifies configuration and the user should decide.
+
+## Scanning the Project
+
+When the user asks to check the project for security issues:
+
+1. Call `scan_directory()` — get a summary (counts, file paths, violation types — no secret values)
+2. Report the summary to the user: "Found X violations in Y files"
+3. Ask: "Want me to generate a detailed report for review?"
+4. If yes — call `scan_directory_report()` — tell user the report file path
+5. **NEVER read the report file yourself** — it contains actual secret/PII values
+
+The report is written to a temp directory. The user reviews it directly at the file path you provide.
 
 ## Annotation Protection
 
