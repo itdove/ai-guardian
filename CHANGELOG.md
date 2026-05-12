@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Engine Tester** (Issue #542)
+  - CLI command `ai-guardian engine-test` to test strings against individual scanner engines
+  - Flags: `--engine NAME`, `--all`, `--compare`, `--pattern-server`, `--json`
+  - Console panel under Tools for interactive engine testing with comparison view
+  - Side-by-side engine comparison shows which engines detect a secret and which miss it
+
 ### Changed
 
 - **Support bundle keeps original file names** (Issue #543)

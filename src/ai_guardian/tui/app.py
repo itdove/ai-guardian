@@ -135,6 +135,7 @@ NAV_GROUPS = [
     ("Tools", [
         ("Regex Tester", "panel-regex-tester"),
         ("Hook Simulator", "panel-hook-simulator"),
+        ("Engine Tester", "panel-engine-tester"),
         ("Health Check", "panel-health-check"),
     ]),
 ]
@@ -221,6 +222,8 @@ HELP_DOCS = {
         "patterns with ReDoS validation and config integration\n"
         "  [bold]Hook Simulator[/bold] — Test detection rules against "
         "simulated hook events without triggering real hooks\n"
+        "  [bold]Engine Tester[/bold] — Test strings against individual "
+        "scanner engines to compare detection results\n"
         "  [bold]Health Check[/bold] — System health checks "
         "(ai-guardian doctor) with auto-fix support"
     ),
@@ -661,6 +664,22 @@ HELP_DOCS = {
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]r[/bold]  Clear and reset the simulator"
     ),
+    "panel-engine-tester": (
+        "[bold]Engine Tester[/bold]\n\n"
+        "Test arbitrary text against individual secret scanner engines "
+        "to see which engines detect secrets and what rules they match.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Select any installed scanner engine from the dropdown\n"
+        "  - Enter multi-line test text (paste API keys, tokens, etc.)\n"
+        "  - Toggle pattern server configuration on/off\n"
+        "  - View per-engine results: rule ID, line number, scan time\n"
+        "  - Test All Engines for side-by-side comparison\n\n"
+        "[bold]CLI equivalent:[/bold]\n"
+        "  echo 'text' | ai-guardian engine-test --engine gitleaks\n"
+        "  echo 'text' | ai-guardian engine-test --compare\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Clear and reset the tester"
+    ),
     "panel-health-check": (
         "[bold]Health Check (Doctor)[/bold]\n\n"
         "Verify your AI Guardian setup is working correctly. "
@@ -1084,6 +1103,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-hook-simulator"):
                     from ai_guardian.tui.hook_simulator import HookSimulatorContent
                     yield HookSimulatorContent()
+
+                with Container(id="panel-engine-tester"):
+                    from ai_guardian.tui.engine_tester import EngineTesterContent
+                    yield EngineTesterContent()
 
                 with Container(id="panel-health-check"):
                     from ai_guardian.tui.health_check import HealthCheckContent
