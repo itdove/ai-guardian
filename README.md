@@ -161,6 +161,7 @@ Each detection feature (`secret_scanning`, `secret_redaction`, `ssrf_protection`
 
 - **Python 3.9+**
 - **Scanner engine**: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, or gitguardian
+- **GNOME Linux**: AppIndicator extension for system tray icon ([setup steps](docs/CONSOLE.md#getting-started))
 
 See [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) for installation instructions.
 

@@ -16,6 +16,9 @@ import enum
 import json
 import logging
 import os
+import platform
+import shutil
+import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -106,6 +109,7 @@ class Doctor:
             self.check_permissions,
             self.check_directory_rules,
             self.check_console_deps,
+            self.check_gnome_tray_support,
             self.check_config_consistency,
             self.check_self_protection,
         ]
@@ -1044,6 +1048,59 @@ class Doctor:
             message="Schema defaults consistent",
         )
 
+    def check_gnome_tray_support(self) -> CheckResult:
+        """Check if GNOME has AppIndicator extension for system tray icon."""
+        if platform.system() != "Linux":
+            return CheckResult(
+                name="gnome_tray",
+                status=CheckStatus.SKIP,
+                message="Not Linux",
+            )
+
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+        if "GNOME" not in desktop.upper():
+            return CheckResult(
+                name="gnome_tray",
+                status=CheckStatus.SKIP,
+                message=f"Not GNOME ({desktop or 'unknown'})",
+            )
+
+        if not shutil.which("gnome-extensions"):
+            return CheckResult(
+                name="gnome_tray",
+                status=CheckStatus.SKIP,
+                message="gnome-extensions command not found",
+            )
+
+        try:
+            result = subprocess.run(
+                ["gnome-extensions", "list", "--enabled"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if "appindicatorsupport@rgcjonas.gmail.com" in result.stdout:
+                return CheckResult(
+                    name="gnome_tray",
+                    status=CheckStatus.PASS,
+                    message="AppIndicator extension enabled",
+                )
+        except (subprocess.TimeoutExpired, OSError):
+            return CheckResult(
+                name="gnome_tray",
+                status=CheckStatus.SKIP,
+                message="Could not query GNOME extensions",
+            )
+
+        return CheckResult(
+            name="gnome_tray",
+            status=CheckStatus.WARN,
+            message="GNOME detected — AppIndicator extension required for tray icon",
+            fix_hint=(
+                "sudo dnf install gnome-shell-extension-appindicator.noarch && "
+                "log out/in, then: gnome-extensions enable "
+                "appindicatorsupport@rgcjonas.gmail.com"
+            ),
+        )
+
     def check_self_protection(self) -> CheckResult:
         """Verify immutable patterns protect config/state/cache from agent Read access."""
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
@@ -1118,6 +1175,7 @@ _CHECK_DISPLAY_NAMES = {
     "permissions": "Permissions",
     "directory_rules": "Directory rules",
     "console_deps": "Console deps",
+    "gnome_tray": "System tray",
     "config_consistency": "Config consistency",
     "self_protection": "Self-protection",
 }

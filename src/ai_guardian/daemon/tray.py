@@ -24,13 +24,51 @@ def is_tray_available():
     """Check if system tray can be displayed (dependencies + display)."""
     if not HAS_PYSTRAY:
         return False
-    # Check for display availability (headless servers have no display)
     import os
+    import platform
     if os.environ.get("DISPLAY") is None and os.environ.get("WAYLAND_DISPLAY") is None:
-        import platform
         if platform.system() == "Linux":
             return False
+    if platform.system() == "Linux" and not _check_gnome_appindicator():
+        return False
     return True
+
+
+def _check_gnome_appindicator():
+    """Check if GNOME has the AppIndicator extension enabled.
+
+    Returns True if not GNOME, or if the extension is enabled.
+    Returns False if GNOME is detected without the extension.
+    """
+    import os
+    import shutil
+    import subprocess
+
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    if "GNOME" not in desktop.upper():
+        return True
+
+    if not shutil.which("gnome-extensions"):
+        return True
+
+    try:
+        result = subprocess.run(
+            ["gnome-extensions", "list", "--enabled"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if "appindicatorsupport@rgcjonas.gmail.com" in result.stdout:
+            return True
+    except (subprocess.TimeoutExpired, OSError):
+        return True
+
+    logger.warning(
+        "GNOME detected but AppIndicator extension not enabled — "
+        "tray icon will not appear. Fix: "
+        "sudo dnf install gnome-shell-extension-appindicator.noarch && "
+        "log out/in, then: gnome-extensions enable "
+        "appindicatorsupport@rgcjonas.gmail.com"
+    )
+    return False
 
 
 class DaemonTray:

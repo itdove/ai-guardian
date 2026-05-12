@@ -432,6 +432,61 @@ class TestCheckDirectoryRules:
         assert result.status == CheckStatus.WARN
 
 
+class TestCheckGnomeTraySupport:
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Darwin")
+    def test_skip_non_linux(self, _mock_sys, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_gnome_tray_support()
+        assert result.status == CheckStatus.SKIP
+        assert "Not Linux" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    def test_skip_non_gnome(self, _mock_sys, _isolate_config_dir):
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}):
+            doctor = Doctor()
+            result = doctor.check_gnome_tray_support()
+        assert result.status == CheckStatus.SKIP
+        assert "KDE" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions")
+    def test_pass_extension_enabled(self, _mock_which, _mock_sys, _isolate_config_dir):
+        mock_result = mock.MagicMock()
+        mock_result.stdout = (
+            "user-theme@gnome-shell-extensions.gcampax.github.com\n"
+            "appindicatorsupport@rgcjonas.gmail.com\n"
+        )
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
+            with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
+                doctor = Doctor()
+                result = doctor.check_gnome_tray_support()
+        assert result.status == CheckStatus.PASS
+        assert "AppIndicator extension enabled" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions")
+    def test_warn_extension_missing(self, _mock_which, _mock_sys, _isolate_config_dir):
+        mock_result = mock.MagicMock()
+        mock_result.stdout = "user-theme@gnome-shell-extensions.gcampax.github.com\n"
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
+            with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
+                doctor = Doctor()
+                result = doctor.check_gnome_tray_support()
+        assert result.status == CheckStatus.WARN
+        assert "AppIndicator" in result.message
+        assert result.fix_hint is not None
+        assert "dnf install" in result.fix_hint
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
+    @mock.patch("ai_guardian.doctor.shutil.which", return_value=None)
+    def test_skip_no_gnome_extensions_cmd(self, _mock_which, _mock_sys, _isolate_config_dir):
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
+            doctor = Doctor()
+            result = doctor.check_gnome_tray_support()
+        assert result.status == CheckStatus.SKIP
+        assert "gnome-extensions" in result.message
+
+
 class TestCheckConsoleDeps:
     def test_all_present(self, _isolate_config_dir):
         doctor = Doctor()
@@ -869,7 +924,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 17
+        assert len(report.checks) == 18
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
