@@ -14,7 +14,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from ai_guardian.scanner_manager import ScannerManager
 from ai_guardian.scanners.engine_builder import (
     ENGINE_PRESETS,
     _build_engine_config,
@@ -36,9 +35,37 @@ class EngineTestResult:
 
 
 def get_available_engines() -> List[str]:
-    """Return names of all installed scanner engines."""
-    manager = ScannerManager()
-    return [s.name for s in manager.list_installed()]
+    """Return engine names from the user's config, plus the default.
+
+    Reads ``secret_scanning.engines`` from ``ai-guardian.json``.  Each
+    entry can be a plain string (``"gitleaks"``) or a dict with a
+    ``type`` key.  The default engine (``"gitleaks"``) is appended if
+    not already present so there is always at least one entry.
+    """
+    try:
+        from ai_guardian import _load_secret_scanning_config
+
+        scanner_config, _ = _load_secret_scanning_config()
+        raw = (
+            scanner_config.get("engines", ["gitleaks"])
+            if scanner_config
+            else ["gitleaks"]
+        )
+    except Exception:
+        raw = ["gitleaks"]
+
+    seen: set = set()
+    names: List[str] = []
+    for entry in raw:
+        name = entry.get("type") if isinstance(entry, dict) else str(entry)
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+
+    if "gitleaks" not in seen:
+        names.append("gitleaks")
+
+    return names
 
 
 def test_engine(
@@ -119,7 +146,7 @@ def test_all_engines(
     text: str,
     use_pattern_server: bool = False,
 ) -> List[EngineTestResult]:
-    """Test *text* against every installed scanner engine."""
+    """Test *text* against every configured scanner engine."""
     engines = get_available_engines()
     if not engines:
         return []
@@ -127,6 +154,72 @@ def test_all_engines(
         test_engine(name, text, use_pattern_server=use_pattern_server)
         for name in engines
     ]
+
+
+def get_configured_strategy() -> str:
+    """Return the execution strategy name from the user's config."""
+    try:
+        from ai_guardian import _load_secret_scanning_config
+
+        scanner_config, _ = _load_secret_scanning_config()
+        if scanner_config:
+            return scanner_config.get("execution_strategy", "first-match")
+    except Exception:
+        pass
+    return "first-match"
+
+
+@dataclass
+class StrategyVerdict:
+    """Combined result from running a strategy across engines."""
+
+    strategy: str
+    blocked: bool
+    total_engines: int
+    engines_with_secrets: int
+    consensus_threshold: Optional[int] = None
+
+
+def apply_strategy(
+    strategy_name: str,
+    results: List[EngineTestResult],
+) -> StrategyVerdict:
+    """Apply an execution strategy to a set of per-engine results.
+
+    This does not re-run the scanners — it interprets the existing
+    per-engine results as the chosen strategy would.
+    """
+    engines_with_secrets = sum(1 for r in results if r.found)
+    total = len(results)
+
+    if strategy_name == "first-match":
+        blocked = any(r.found for r in results)
+    elif strategy_name == "any-match":
+        blocked = any(r.found for r in results)
+    elif strategy_name == "consensus":
+        try:
+            from ai_guardian import _load_secret_scanning_config
+            cfg, _ = _load_secret_scanning_config()
+            threshold = (cfg or {}).get("consensus_threshold", 2)
+        except Exception:
+            threshold = 2
+        blocked = engines_with_secrets >= threshold
+        return StrategyVerdict(
+            strategy=strategy_name,
+            blocked=blocked,
+            total_engines=total,
+            engines_with_secrets=engines_with_secrets,
+            consensus_threshold=threshold,
+        )
+    else:
+        blocked = any(r.found for r in results)
+
+    return StrategyVerdict(
+        strategy=strategy_name,
+        blocked=blocked,
+        total_engines=total,
+        engines_with_secrets=engines_with_secrets,
+    )
 
 
 # ---------------------------------------------------------------------------

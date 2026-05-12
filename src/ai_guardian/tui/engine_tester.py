@@ -9,7 +9,7 @@ import logging
 import threading
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, ScrollableContainer
+from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Button, Select, TextArea, Checkbox
 
 
@@ -17,7 +17,7 @@ class EngineTesterContent(ScrollableContainer):
     """Interactive engine tester for comparing scanner engine detection."""
 
     CSS = """
-    EngineTesterContent {
+    HookSimulatorContent, EngineTesterContent {
         overflow-x: hidden;
     }
 
@@ -72,6 +72,16 @@ class EngineTesterContent(ScrollableContainer):
     }
     """
 
+    # Placeholder used at compose time; replaced with real engines in on_mount
+    _PLACEHOLDER_OPTIONS = [("(loading...)", "__loading__")]
+
+    _STRATEGY_OPTIONS = [
+        ("From config", "__config__"),
+        ("first-match", "first-match"),
+        ("any-match", "any-match"),
+        ("consensus", "consensus"),
+    ]
+
     def compose(self) -> ComposeResult:
         yield Static(
             "[bold]Engine Tester[/bold]  "
@@ -82,14 +92,22 @@ class EngineTesterContent(ScrollableContainer):
         with Container(id="et-input-section", classes="et-section"):
             yield Static("Input", classes="et-section-title")
 
-            with Horizontal(classes="et-row"):
-                yield Static("Engine", classes="et-label")
+            with Vertical(classes="et-row"):
+                yield Static("Engine")
                 yield Select(
-                    [],
-                    value=Select.BLANK,
+                    self._PLACEHOLDER_OPTIONS,
+                    value="__loading__",
                     id="et-engine-select",
-                    allow_blank=True,
-                    prompt="Select engine...",
+                    allow_blank=False,
+                )
+
+            with Vertical(classes="et-row"):
+                yield Static("Strategy")
+                yield Select(
+                    self._STRATEGY_OPTIONS,
+                    value="__config__",
+                    id="et-strategy-select",
+                    allow_blank=False,
                 )
 
             yield Static(
@@ -123,10 +141,9 @@ class EngineTesterContent(ScrollableContainer):
             yield Static("", id="et-details")
 
     def on_mount(self) -> None:
-        for widget_id in ("#et-input-section", "#et-results-section"):
-            self.query_one(widget_id).styles.height = "auto"
         self.query_one("#et-results-section").display = False
         self._populate_engines()
+        self._populate_strategy()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "et-run-btn":
@@ -136,6 +153,7 @@ class EngineTesterContent(ScrollableContainer):
 
     def refresh_content(self) -> None:
         self._populate_engines()
+        self._populate_strategy()
         self._clear_results()
 
     def action_refresh(self) -> None:
@@ -145,18 +163,37 @@ class EngineTesterContent(ScrollableContainer):
     # Internal
     # ------------------------------------------------------------------
 
-    def _populate_engines(self):
+    @staticmethod
+    def _get_engine_options():
         try:
             from ai_guardian.engine_tester import get_available_engines
             engines = get_available_engines()
         except Exception:
             engines = []
+        return [(name, name) for name in engines]
 
+    def _populate_engines(self):
+        options = self._get_engine_options()
         select = self.query_one("#et-engine-select", Select)
-        options = [(name, name) for name in engines]
         select.set_options(options)
-        if engines:
-            select.value = engines[0]
+        if options:
+            select.value = options[0][1]
+
+    def _populate_strategy(self):
+        try:
+            from ai_guardian.engine_tester import get_configured_strategy
+            cfg_strategy = get_configured_strategy()
+        except Exception:
+            cfg_strategy = "first-match"
+        options = [
+            (f"From config ({cfg_strategy})", "__config__"),
+            ("first-match", "first-match"),
+            ("any-match", "any-match"),
+            ("consensus", "consensus"),
+        ]
+        select = self.query_one("#et-strategy-select", Select)
+        select.set_options(options)
+        select.value = "__config__"
 
     def _clear_results(self):
         self.query_one("#et-results-section").display = False
@@ -169,6 +206,16 @@ class EngineTesterContent(ScrollableContainer):
     def _use_pattern_server(self):
         return self.query_one("#et-pattern-server", Checkbox).value
 
+    def _get_strategy(self) -> str:
+        val = self.query_one("#et-strategy-select", Select).value
+        if val == "__config__":
+            try:
+                from ai_guardian.engine_tester import get_configured_strategy
+                return get_configured_strategy()
+            except Exception:
+                return "first-match"
+        return val
+
     def _show_running(self, label: str):
         section = self.query_one("#et-results-section")
         section.display = True
@@ -177,11 +224,26 @@ class EngineTesterContent(ScrollableContainer):
         )
         self.query_one("#et-details", Static).update("")
 
+    @staticmethod
+    def _suppress_logging():
+        """Temporarily raise log level to avoid stdout noise in the TUI."""
+        prev = logging.root.level
+        logging.disable(logging.CRITICAL)
+        return prev
+
+    @staticmethod
+    def _restore_logging(prev):
+        logging.disable(logging.NOTSET)
+        logging.root.setLevel(prev)
+
     def _run_single(self):
         sel = self.query_one("#et-engine-select", Select)
         engine = sel.value
-        if engine is Select.BLANK:
-            self._show_error("Select an engine first.")
+        if engine is Select.BLANK or engine == "__none__":
+            self._show_error(
+                "No engine available. Install one with: "
+                "ai-guardian scanner install gitleaks"
+            )
             return
 
         text = self._get_input()
@@ -193,12 +255,15 @@ class EngineTesterContent(ScrollableContainer):
         use_ps = self._use_pattern_server()
 
         def worker():
+            prev = self._suppress_logging()
             try:
                 from ai_guardian.engine_tester import test_engine
                 result = test_engine(engine, text, use_pattern_server=use_ps)
                 self.app.call_from_thread(self._display_single, result)
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
+            finally:
+                self._restore_logging(prev)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -208,16 +273,23 @@ class EngineTesterContent(ScrollableContainer):
             self._show_error("Enter text to test.")
             return
 
+        strategy = self._get_strategy()
         self._show_running("all engines")
         use_ps = self._use_pattern_server()
 
         def worker():
+            prev = self._suppress_logging()
             try:
-                from ai_guardian.engine_tester import test_all_engines
+                from ai_guardian.engine_tester import test_all_engines, apply_strategy
                 results = test_all_engines(text, use_pattern_server=use_ps)
-                self.app.call_from_thread(self._display_comparison, results)
+                verdict = apply_strategy(strategy, results)
+                self.app.call_from_thread(
+                    self._display_comparison, results, verdict
+                )
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
+            finally:
+                self._restore_logging(prev)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -234,7 +306,10 @@ class EngineTesterContent(ScrollableContainer):
             return
 
         if result.found:
-            status = f"[red]FOUND ({len(result.secrets)} secret{'s' if len(result.secrets) != 1 else ''})[/red]"
+            status = (
+                f"[red]FOUND ({len(result.secrets)} secret"
+                f"{'s' if len(result.secrets) != 1 else ''})[/red]"
+            )
         else:
             status = "[green]NOT FOUND[/green]"
 
@@ -254,7 +329,7 @@ class EngineTesterContent(ScrollableContainer):
             lines.append("  " + "  ".join(parts))
         self.query_one("#et-details", Static).update("\n".join(lines))
 
-    def _display_comparison(self, results):
+    def _display_comparison(self, results, verdict=None):
         section = self.query_one("#et-results-section")
         section.display = True
 
@@ -277,7 +352,8 @@ class EngineTesterContent(ScrollableContainer):
                 count = len(r.secrets)
                 rules = ", ".join(s.rule_id for s in r.secrets if s.rule_id)
                 status = (
-                    f"[red]FOUND[/red] {count} secret{'s' if count != 1 else ''}"
+                    f"[red]FOUND[/red] {count} secret"
+                    f"{'s' if count != 1 else ''}"
                     f"  [dim]{rules}[/dim]"
                 )
             else:
@@ -286,6 +362,24 @@ class EngineTesterContent(ScrollableContainer):
             lines.append(
                 f"  [bold]{r.engine:<14}[/bold] {status}  "
                 f"[dim]({r.scan_time_ms:.0f}ms)[/dim]"
+            )
+
+        if verdict:
+            lines.append("")
+            lines.append("─" * 50)
+            decision = (
+                "[red]BLOCKED[/red]" if verdict.blocked
+                else "[green]ALLOWED[/green]"
+            )
+            detail = (
+                f"{verdict.engines_with_secrets}/{verdict.total_engines} "
+                f"engines found secrets"
+            )
+            if verdict.consensus_threshold is not None:
+                detail += f" (threshold: {verdict.consensus_threshold})"
+            lines.append(
+                f"  [bold]Strategy:[/bold] {verdict.strategy}  →  "
+                f"{decision}  [dim]({detail})[/dim]"
             )
 
         self.query_one("#et-details", Static).update("\n".join(lines))

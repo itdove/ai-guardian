@@ -15,10 +15,13 @@ import pytest
 
 from ai_guardian.engine_tester import (
     EngineTestResult,
+    StrategyVerdict,
+    apply_strategy,
     engine_test_command,
     format_comparison,
     format_result,
     get_available_engines,
+    get_configured_strategy,
     test_all_engines as _test_all_engines,
     test_engine as _test_engine,
 )
@@ -67,30 +70,43 @@ def _scan_result_error(engine="trufflehog", msg="Binary not found: trufflehog"):
     )
 
 
-class _FakeInstalled:
-    def __init__(self, name):
-        self.name = name
-
-
 # ---------------------------------------------------------------------------
 # get_available_engines
 # ---------------------------------------------------------------------------
 
 class TestGetAvailableEngines:
 
-    @patch("ai_guardian.engine_tester.ScannerManager")
-    def test_returns_installed(self, mock_cls):
-        mock_cls.return_value.list_installed.return_value = [
-            _FakeInstalled("gitleaks"),
-            _FakeInstalled("betterleaks"),
-        ]
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_returns_configured_engines(self, mock_cfg):
+        mock_cfg.return_value = ({"engines": ["betterleaks", "gitleaks"]}, None)
         result = get_available_engines()
-        assert result == ["gitleaks", "betterleaks"]
+        assert result == ["betterleaks", "gitleaks"]
 
-    @patch("ai_guardian.engine_tester.ScannerManager")
-    def test_empty_when_none(self, mock_cls):
-        mock_cls.return_value.list_installed.return_value = []
-        assert get_available_engines() == []
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_dict_entries(self, mock_cfg):
+        mock_cfg.return_value = (
+            {"engines": [{"type": "betterleaks"}, {"type": "gitleaks"}]},
+            None,
+        )
+        result = get_available_engines()
+        assert result == ["betterleaks", "gitleaks"]
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_default_gitleaks_when_no_config(self, mock_cfg):
+        mock_cfg.return_value = (None, None)
+        assert get_available_engines() == ["gitleaks"]
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_default_gitleaks_appended_if_missing(self, mock_cfg):
+        mock_cfg.return_value = ({"engines": ["betterleaks"]}, None)
+        result = get_available_engines()
+        assert result == ["betterleaks", "gitleaks"]
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_no_duplicate_gitleaks(self, mock_cfg):
+        mock_cfg.return_value = ({"engines": ["gitleaks", "betterleaks"]}, None)
+        result = get_available_engines()
+        assert result.count("gitleaks") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -280,3 +296,70 @@ class TestEngineTestCommand:
         )
         rc = engine_test_command(self._make_args(engine="gitleaks"))
         assert rc == 1
+
+
+# ---------------------------------------------------------------------------
+# Strategy
+# ---------------------------------------------------------------------------
+
+class TestGetConfiguredStrategy:
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_returns_configured(self, mock_cfg):
+        mock_cfg.return_value = ({"execution_strategy": "any-match"}, None)
+        assert get_configured_strategy() == "any-match"
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_defaults_to_first_match(self, mock_cfg):
+        mock_cfg.return_value = ({}, None)
+        assert get_configured_strategy() == "first-match"
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_no_config(self, mock_cfg):
+        mock_cfg.return_value = (None, None)
+        assert get_configured_strategy() == "first-match"
+
+
+class TestApplyStrategy:
+
+    def _results(self, found_engines):
+        """Create results where named engines found secrets."""
+        return [
+            EngineTestResult(name, name in found_engines, [_make_secret()] if name in found_engines else [], 40)
+            for name in ["gitleaks", "betterleaks", "leaktk"]
+        ]
+
+    def test_first_match_blocks_on_any(self):
+        v = apply_strategy("first-match", self._results({"gitleaks"}))
+        assert v.blocked is True
+        assert v.strategy == "first-match"
+
+    def test_first_match_allows_when_clean(self):
+        v = apply_strategy("first-match", self._results(set()))
+        assert v.blocked is False
+
+    def test_any_match_blocks_on_any(self):
+        v = apply_strategy("any-match", self._results({"betterleaks"}))
+        assert v.blocked is True
+
+    def test_any_match_allows_when_clean(self):
+        v = apply_strategy("any-match", self._results(set()))
+        assert v.blocked is False
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_consensus_blocks_at_threshold(self, mock_cfg):
+        mock_cfg.return_value = ({"consensus_threshold": 2}, None)
+        v = apply_strategy("consensus", self._results({"gitleaks", "betterleaks"}))
+        assert v.blocked is True
+        assert v.consensus_threshold == 2
+
+    @patch("ai_guardian._load_secret_scanning_config")
+    def test_consensus_allows_below_threshold(self, mock_cfg):
+        mock_cfg.return_value = ({"consensus_threshold": 2}, None)
+        v = apply_strategy("consensus", self._results({"gitleaks"}))
+        assert v.blocked is False
+
+    def test_verdict_counts(self):
+        v = apply_strategy("any-match", self._results({"gitleaks", "leaktk"}))
+        assert v.total_engines == 3
+        assert v.engines_with_secrets == 2
