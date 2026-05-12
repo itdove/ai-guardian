@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Suppress Gtk-CRITICAL warning on Fedora GNOME** (Issue #555)
+  - Redirect stderr during tray initialization to suppress harmless `gtk_widget_get_scale_factor` assertion
+  - Stderr restored immediately after GTK init completes via pystray setup callback
+  - Linux-only; no-op on macOS and Windows
+
 - **First-match fallthrough blocked by guard clause and wrong config_path** (Issue #538)
   - Guard clause (Issue #532) now falls through to remaining engines instead of returning immediately
   - Fallthrough engines use `config_path=None` (their own default rules) instead of pattern server config
