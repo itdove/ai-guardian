@@ -418,7 +418,7 @@ def build_scanner_command(
     return cmd
 
 
-_CONFIG_COMPATIBLE_ENGINES = frozenset(("gitleaks", "leaktk"))
+_CONFIG_COMPATIBLE_ENGINES = frozenset(("gitleaks",))
 
 
 def resolve_engine_config_path(
@@ -464,7 +464,7 @@ def resolve_engine_config_path(
     if not global_config_path:
         return None
 
-    if engine_config.type in _CONFIG_COMPATIBLE_ENGINES:
+    if engine_config.type in _CONFIG_COMPATIBLE_ENGINES and engine_config.config_flag:
         return str(Path(global_config_path).absolute())
 
     return None

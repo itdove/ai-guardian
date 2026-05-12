@@ -85,7 +85,7 @@ except ImportError:
 
 # Import scanner engine modules for flexible scanner support
 try:
-    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command, resolve_engine_config_path
+    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command, resolve_engine_config_path, PATTERN_SERVER_UNSET
     from ai_guardian.scanners.output_parsers import get_parser
     from ai_guardian.scanners.strategies import get_strategy, ScanResult as StrategyScanResult, SecretMatch
     from ai_guardian.scanners.executor import run_single_engine
@@ -2384,6 +2384,26 @@ def _count_gitleaks_patterns(config_path):
 
 
 
+def _describe_patterns(engine_config, resolved_config_path, config_source, pattern_config):
+    """Return a user-facing description of which patterns a scanner engine uses."""
+    engine_type = engine_config.type if engine_config else "gitleaks"
+
+    if HAS_SCANNER_ENGINE and engine_config and engine_config.pattern_server is not PATTERN_SERVER_UNSET:
+        if engine_config.pattern_server is None:
+            return f"Built-in {engine_type} rules"
+        ps = engine_config.pattern_server
+        if isinstance(ps, dict) and ps.get("url"):
+            return f"{engine_type} Pattern Server ({ps['url']})"
+        return f"Built-in {engine_type} rules"
+
+    if resolved_config_path and config_source == "pattern server" and pattern_config:
+        return f"LeakTK Pattern Server ({pattern_config.get('url', 'N/A')})"
+    if resolved_config_path and config_source == "project config":
+        return f"{resolved_config_path}"
+
+    return f"Built-in {engine_type} rules"
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
                                 ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
@@ -2688,7 +2708,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             error_msg += f"Location: {secret_details['file']}\n"
                         error_msg += (
                             f"Scanner: {scanner_name}\n"
-                            f"Patterns: Built-in Defaults\n"
+                            f"Patterns: Built-in {scanner_name} rules\n"
                             f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
                             f"and be accessed by unauthorized users.\n\n"
                             f"This operation has been blocked for security.\n"
@@ -2823,13 +2843,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     return False, None
 
             # Build scanner command
+            resolved_config_path = None
             if engine_config and HAS_SCANNER_ENGINE:
                 # Use flexible engine builder (Issue #154)
+                resolved_config_path = resolve_engine_config_path(engine_config, gitleaks_config_path)
                 cmd = build_scanner_command(
                     engine_config=engine_config,
                     source_file=tmp_file_path,
                     report_file=report_file,
-                    config_path=resolve_engine_config_path(engine_config, gitleaks_config_path)
+                    config_path=resolved_config_path
                 )
             else:
                 # Legacy fallback: hardcoded gitleaks command
@@ -3010,12 +3032,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 # Add scanner information
                 error_msg += f"Scanner: {scanner_name}\n"
 
-                if config_source == "pattern server" and pattern_config:
-                    error_msg += f"Patterns: LeakTK Pattern Server ({pattern_config.get('url', 'N/A')})\n"
-                elif config_source == "project config" and gitleaks_config_path:
-                    error_msg += f"Patterns: {gitleaks_config_path}\n"
-                elif config_source == "gitleaks defaults":
-                    error_msg += "Patterns: Built-in Defaults (100+ rules)\n"
+                pattern_config_for_msg = pattern_config if HAS_PATTERN_SERVER else None
+                error_msg += f"Patterns: {_describe_patterns(engine_config, resolved_config_path, config_source, pattern_config_for_msg)}\n"
 
                 error_msg += (
                     f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
@@ -3092,6 +3110,16 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "total_findings": len(fallback_result.secrets)
                             }
                             scanner_name = fallback_result.engine
+                            fallback_engine_config = next(
+                                (e for e in remaining if e.type == scanner_name), None
+                            )
+                            fallback_resolved = resolve_engine_config_path(
+                                fallback_engine_config, gitleaks_config_path
+                            ) if fallback_engine_config else None
+                            fallback_pattern_desc = _describe_patterns(
+                                fallback_engine_config, fallback_resolved,
+                                config_source, pattern_config if HAS_PATTERN_SERVER else None
+                            )
                             error_msg = (
                                 f"\n{'='*70}\n"
                                 f"🛡️ Secret Detected\n"
@@ -3105,7 +3133,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 error_msg += f"Location: {secret_details['file']}\n"
                             error_msg += (
                                 f"Scanner: {scanner_name}\n"
-                                f"Patterns: {'Pattern Server' if gitleaks_config_path else 'Built-in Defaults'}\n"
+                                f"Patterns: {fallback_pattern_desc}\n"
                                 f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
                                 f"and be accessed by unauthorized users.\n\n"
                                 f"This operation has been blocked for security.\n"
