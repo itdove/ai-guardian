@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **First-match fallthrough blocked by guard clause and wrong config_path** (Issue #538)
+  - Guard clause (Issue #532) now falls through to remaining engines instead of returning immediately
+  - Fallthrough engines use `config_path=None` (their own default rules) instead of pattern server config
+  - Private keys detected when betterleaks misses but gitleaks catches via fallthrough
+
 ### Removed
 
 - **`mcp_server.enabled` config flag** (Issue #516)

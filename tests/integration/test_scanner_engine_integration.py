@@ -302,5 +302,226 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNotNone(error_msg)
 
 
+class TestGuardClauseFallthrough(unittest.TestCase):
+    """Tests for Issue #538: guard clause must fall through to remaining engines.
+
+    The guard clause path is only reached when a pattern server sets
+    gitleaks_config_path, which forces the code through the single-engine
+    subprocess path (not the multi-engine strategy framework).
+    """
+
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.HAS_PATTERN_SERVER', True)
+    @patch('ai_guardian.PatternServerClient')
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.resolve_engine_config_path')
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.select_all_engines')
+    @patch('ai_guardian.run_single_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian.subprocess.run')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_guard_clause_falls_through_to_gitleaks(
+        self, mock_load_config, mock_subprocess, mock_get_parser,
+        mock_build_cmd, mock_run_single,
+        mock_select_all, mock_select_engine, mock_resolve_config,
+        mock_pattern_config, mock_pattern_client_cls
+    ):
+        """Guard clause (empty findings) must try remaining engines, not return immediately.
+
+        Scenario: pattern server provides config, betterleaks exits 1 with no
+        findings (incompatible config), guard clause should fall through and
+        gitleaks should detect the secret.
+        """
+        from ai_guardian.scanners.strategies import ScanResult, SecretMatch
+
+        mock_pattern_config.return_value = {"url": "https://example.com/patterns", "version": "1.0"}
+        mock_client = MagicMock()
+        mock_client.get_patterns_path.return_value = "/tmp/pattern_server.toml"
+        mock_pattern_client_cls.return_value = mock_client
+
+        mock_load_config.return_value = (
+            {"engines": ["betterleaks", "gitleaks"],
+             "execution_strategy": "first-match"}, None
+        )
+
+        mock_bl_engine = MagicMock()
+        mock_bl_engine.type = "betterleaks"
+        mock_bl_engine.file_patterns = None
+        mock_bl_engine.ignore_files = None
+        mock_bl_engine.output_parser = "gitleaks"
+        mock_bl_engine.secrets_found_exit_code = 42
+        mock_bl_engine.success_exit_code = 0
+
+        mock_gl_engine = MagicMock()
+        mock_gl_engine.type = "gitleaks"
+        mock_gl_engine.file_patterns = None
+        mock_gl_engine.ignore_files = None
+
+        mock_select_engine.return_value = mock_bl_engine
+        mock_select_all.return_value = [mock_bl_engine, mock_gl_engine]
+        mock_resolve_config.return_value = "/tmp/pattern_server.toml"
+        mock_build_cmd.return_value = ["betterleaks", "detect", "..."]
+
+        mock_subprocess.return_value = MagicMock(
+            returncode=1, stderr="FTL failed to compile CEL filters"
+        )
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {"has_secrets": False, "findings": [], "total_findings": 0}
+        mock_get_parser.return_value = mock_parser
+
+        mock_run_single.return_value = ScanResult(
+            has_secrets=True,
+            secrets=[SecretMatch(
+                rule_id="private-key", description="Private Key",
+                file="test.txt", line_number=1, engine="gitleaks"
+            )],
+            engine="gitleaks", scan_time_ms=15.0
+        )
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----",
+            filename="test.txt"
+        )
+
+        self.assertTrue(has_secrets, "Gitleaks should catch the secret via guard clause fallthrough (Issue #538)")
+        self.assertIn("Secret Detected", error_msg)
+        self.assertIn("first-match fallthrough", error_msg)
+        mock_run_single.assert_called()
+
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.HAS_PATTERN_SERVER', True)
+    @patch('ai_guardian.PatternServerClient')
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.resolve_engine_config_path')
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.select_all_engines')
+    @patch('ai_guardian.run_single_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian.subprocess.run')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_guard_clause_returns_clean_when_no_remaining_engines(
+        self, mock_load_config, mock_subprocess, mock_get_parser,
+        mock_build_cmd, mock_run_single,
+        mock_select_all, mock_select_engine, mock_resolve_config,
+        mock_pattern_config, mock_pattern_client_cls
+    ):
+        """Guard clause with single engine returns clean (no fallthrough possible)."""
+        mock_pattern_config.return_value = {"url": "https://example.com/patterns", "version": "1.0"}
+        mock_client = MagicMock()
+        mock_client.get_patterns_path.return_value = "/tmp/pattern_server.toml"
+        mock_pattern_client_cls.return_value = mock_client
+
+        mock_load_config.return_value = (
+            {"engines": ["betterleaks"],
+             "execution_strategy": "first-match"}, None
+        )
+
+        mock_bl_engine = MagicMock()
+        mock_bl_engine.type = "betterleaks"
+        mock_bl_engine.file_patterns = None
+        mock_bl_engine.ignore_files = None
+        mock_bl_engine.output_parser = "gitleaks"
+        mock_bl_engine.secrets_found_exit_code = 42
+        mock_bl_engine.success_exit_code = 0
+
+        mock_select_engine.return_value = mock_bl_engine
+        mock_select_all.return_value = [mock_bl_engine]
+        mock_resolve_config.return_value = "/tmp/pattern_server.toml"
+        mock_build_cmd.return_value = ["betterleaks", "detect", "..."]
+
+        mock_subprocess.return_value = MagicMock(
+            returncode=1, stderr="FTL failed to compile CEL filters"
+        )
+
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {"has_secrets": False, "findings": [], "total_findings": 0}
+        mock_get_parser.return_value = mock_parser
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "clean content", filename="test.txt"
+        )
+
+        self.assertFalse(has_secrets, "Single engine with no findings should return clean")
+        self.assertIsNone(error_msg)
+        mock_run_single.assert_not_called()
+
+    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.select_engine')
+    @patch('ai_guardian.select_all_engines')
+    @patch('ai_guardian.run_single_engine')
+    @patch('ai_guardian.build_scanner_command')
+    @patch('ai_guardian.get_parser')
+    @patch('ai_guardian.subprocess.run')
+    @patch('ai_guardian._load_secret_scanning_config')
+    def test_fallthrough_uses_none_config_path(
+        self, mock_load_config, mock_subprocess, mock_get_parser,
+        mock_build_cmd, mock_run_single,
+        mock_select_all, mock_select_engine, mock_pattern_config
+    ):
+        """Fallthrough engines must use config_path=None (their own default rules).
+
+        When no pattern server is configured, the code enters the multi-engine
+        strategy path. The strategy framework's fallthrough must also pass
+        config_path=None.
+        """
+        from ai_guardian.scanners.strategies import ScanResult, SecretMatch
+
+        mock_pattern_config.return_value = None
+        mock_load_config.return_value = (
+            {"engines": ["betterleaks", "gitleaks"],
+             "execution_strategy": "first-match"}, None
+        )
+
+        mock_bl_engine = MagicMock()
+        mock_bl_engine.type = "betterleaks"
+        mock_bl_engine.file_patterns = None
+        mock_bl_engine.ignore_files = None
+        mock_bl_engine.output_parser = "gitleaks"
+        mock_bl_engine.secrets_found_exit_code = 42
+        mock_bl_engine.success_exit_code = 0
+
+        mock_gl_engine = MagicMock()
+        mock_gl_engine.type = "gitleaks"
+        mock_gl_engine.file_patterns = None
+        mock_gl_engine.ignore_files = None
+
+        mock_select_engine.return_value = mock_bl_engine
+        mock_select_all.return_value = [mock_bl_engine, mock_gl_engine]
+
+        config_paths_received = []
+
+        def tracking_run_single(engine_config, source_file, report_file, config_path=None):
+            config_paths_received.append(config_path)
+            if engine_config.type == "gitleaks":
+                return ScanResult(
+                    has_secrets=True,
+                    secrets=[SecretMatch(
+                        rule_id="private-key", description="Private Key",
+                        file="test.txt", line_number=1, engine="gitleaks"
+                    )],
+                    engine="gitleaks", scan_time_ms=15.0
+                )
+            return ScanResult(
+                has_secrets=False, secrets=[], engine="betterleaks",
+                scan_time_ms=10.0
+            )
+
+        mock_run_single.side_effect = tracking_run_single
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----",
+            filename="test.txt"
+        )
+
+        self.assertTrue(has_secrets)
+        for cp in config_paths_received:
+            self.assertIsNone(cp, f"Engine received config_path={cp}, expected None (Issue #538)")
+
+
 if __name__ == '__main__':
     unittest.main()
