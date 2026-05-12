@@ -199,6 +199,23 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertIn("Network or server issue", stderr_output, "Should mention network issue")
         self.assertIn("continue", stderr_output.lower(), "Should indicate operation continues")
 
+    @patch('subprocess.run')
+    def test_check_secrets_empty_report_not_blocked(self, mock_run):
+        """Test that exit code 1 with empty report does not block (Issue #532)"""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stderr = ""
+        mock_result.stdout = ""
+        mock_run.return_value = mock_result
+
+        content = "This is some clean content"
+        has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
+            content, "test.txt"
+        )
+
+        self.assertFalse(has_secrets, "Empty report with exit code 1 should not block")
+        self.assertIsNone(error_msg, "Should not return error message for empty report")
+
     @patch('ai_guardian._load_secret_scanning_config')
     @patch('ai_guardian.check_secrets_with_gitleaks')
     def test_process_hook_input_clean_prompt(self, mock_check_secrets, mock_load_config):
