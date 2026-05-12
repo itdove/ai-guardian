@@ -262,6 +262,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
   - Action changes auto-save to config and stay in sync between global settings and individual panels
 
+## [1.6.2] - 2026-05-11
+
+### Fixed
+
+- **Betterleaks JSON parse failure no longer treated as secret detected** (Issue #532)
+  - When betterleaks returns malformed JSON output, the scanner now correctly reports "no secrets found" instead of treating the parse error as a secret detection
+  - Prevents false-positive security blocks caused by scanner output parsing failures
+
 ## [1.6.1] - 2026-05-06
 
 ### Fixed
@@ -1403,7 +1411,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/itdove/ai-guardian/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/itdove/ai-guardian/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/itdove/ai-guardian/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/itdove/ai-guardian/compare/v1.5.0...v1.5.1
