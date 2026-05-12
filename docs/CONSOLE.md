@@ -59,6 +59,19 @@ Unlike command-line flags, the Console requires you to physically see and click 
 
    Run `ai-guardian doctor` to check whether the extension is detected.
 
+5. **Linux terminal emulator**: The tray **Console** menu item opens the Console in a terminal window. A supported terminal emulator must be installed: `gnome-terminal`, `kgx` (GNOME Console), `konsole`, `xfce4-terminal`, or `xterm`. Fedora 44+ ships `kgx` by default, which is supported. If none is found, install one:
+
+   ```bash
+   # Fedora / RHEL
+   sudo dnf install gnome-terminal
+
+   # Ubuntu / Debian
+   sudo apt install gnome-terminal
+
+   # Verify
+   ai-guardian doctor   # "Terminal emulator" check should show PASS
+   ```
+
 ### Launching the Console
 
 ```bash

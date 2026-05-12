@@ -539,6 +539,7 @@ class DaemonTray:
             else:
                 for term, args in [
                     ("gnome-terminal", ["--maximize", "--"]),
+                    ("kgx", ["-e"]),
                     ("konsole", ["--fullscreen", "-e"]),
                     ("xfce4-terminal", ["--maximize", "-e"]),
                     ("xterm", ["-maximized", "-e"]),
