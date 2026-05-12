@@ -199,12 +199,27 @@
                     "description": "Per-engine glob patterns for files to skip scanning. Merged with global ignore_files. Use when one engine has more false positives on certain file types (e.g., TruffleHog on test fixtures)."
                   },
                   "pattern_server": {
-                    "type": "object",
-                    "description": "Per-engine pattern server override. Overrides the global pattern_server for this engine only. Useful when different engines need different pattern formats.",
+                    "type": ["object", "null"],
+                    "description": "Per-engine pattern server configuration. The canonical location for pattern server config (replaces the deprecated global secret_scanning.pattern_server). Set to null to explicitly disable pattern server for this engine.",
+                    "additionalProperties": true,
                     "properties": {
-                      "url": {"type": "string", "description": "Pattern server URL for this engine"},
-                      "auth_token_env": {"type": "string", "description": "Environment variable containing auth token"},
-                      "cache_hours": {"type": "integer", "description": "Cache duration in hours", "default": 24}
+                      "enabled": {
+                        "oneOf": [
+                          {"type": "boolean"},
+                          {"$ref": "#/definitions/time_based_feature"}
+                        ],
+                        "default": true
+                      },
+                      "url": {"type": ["string", "null"], "description": "Pattern server base URL"},
+                      "patterns_endpoint": {"type": "string", "description": "Endpoint path for patterns (appended to url)", "default": "/patterns/gitleaks/8.18.1"},
+                      "warn_on_failure": {"type": "boolean", "description": "Show warning when pattern server fails", "default": true},
+                      "immutable": {"type": "boolean", "description": "If true, local configs cannot override this pattern_server", "default": false},
+                      "auth": {
+                        "$ref": "#/definitions/pattern_server_auth"
+                      },
+                      "cache": {
+                        "$ref": "#/definitions/pattern_server_cache"
+                      }
                     }
                   },
                   "file_patterns": {
@@ -344,7 +359,8 @@
         },
         "pattern_server": {
           "type": ["object", "null"],
-          "description": "OPTIONAL/ADVANCED: Enhanced secret detection patterns from a pattern server (NEW in v1.7.0: nested under secret_scanning). Configure this section to use enterprise patterns instead of Gitleaks defaults. Uses the 'enabled' field to control active state. Supports cascade/fallback: pattern server → project .gitleaks.toml → Gitleaks defaults.",
+          "description": "DEPRECATED: Move to per-engine format: secret_scanning.engines[].pattern_server. This global location only applies to gitleaks but implies all engines. Supported for backward compatibility; will be removed in v2.0.0. Run: ai-guardian setup --migrate-pattern-server",
+          "deprecated": true,
           "additionalProperties": true,
           "properties": {
             "enabled": {

@@ -93,6 +93,7 @@ class Doctor:
         checks = [
             self.check_config_file,
             self.check_deprecated_fields,
+            self.check_global_pattern_server,
             self.check_scanners,
             self.check_pattern_server,
             self.check_ps_cache_path,
@@ -224,6 +225,58 @@ class Doctor:
             message="No deprecated fields",
         )
 
+    def check_global_pattern_server(self) -> CheckResult:
+        """Check for deprecated global secret_scanning.pattern_server (Issue #530)."""
+        self._ensure_config()
+        if self._config is None:
+            return CheckResult(
+                name="global_pattern_server",
+                status=CheckStatus.PASS,
+                message="No config loaded",
+            )
+
+        ss = self._config.get("secret_scanning", {})
+        if isinstance(ss, dict) and "pattern_server" in ss:
+            ps = ss["pattern_server"]
+            if ps is not None:
+                if self.fix:
+                    try:
+                        from ai_guardian.setup import Setup
+                        setup = Setup()
+                        success, msg = setup.check_and_migrate_pattern_server(
+                            dry_run=False, interactive=False
+                        )
+                        if success:
+                            return CheckResult(
+                                name="global_pattern_server",
+                                status=CheckStatus.PASS,
+                                message="Migrated to per-engine format",
+                                fixable=True,
+                                fixed=True,
+                            )
+                    except Exception as e:
+                        return CheckResult(
+                            name="global_pattern_server",
+                            status=CheckStatus.WARN,
+                            message=f"Migration failed: {e}",
+                            fixable=True,
+                        )
+
+                return CheckResult(
+                    name="global_pattern_server",
+                    status=CheckStatus.WARN,
+                    message="Deprecated: secret_scanning.pattern_server is global but only applies to gitleaks",
+                    detail="Move to per-engine format: secret_scanning.engines[].pattern_server",
+                    fix_hint="Run: ai-guardian doctor --fix  (or ai-guardian setup --migrate-pattern-server)",
+                    fixable=True,
+                )
+
+        return CheckResult(
+            name="global_pattern_server",
+            status=CheckStatus.PASS,
+            message="No global pattern_server (or using per-engine format)",
+        )
+
     def check_scanners(self) -> CheckResult:
         try:
             from ai_guardian.scanner_manager import ScannerManager
@@ -262,15 +315,24 @@ class Doctor:
         )
 
     def _get_ps_config(self) -> Optional[Dict]:
-        """Extract pattern server config from loaded config (new or old location)."""
+        """Extract pattern server config (per-engine, global, or root-level)."""
         self._ensure_config()
         if not self._config:
             return None
         ss = self._config.get("secret_scanning", {})
-        if isinstance(ss, dict) and "pattern_server" in ss:
-            ps = ss["pattern_server"]
-            if isinstance(ps, dict) and ps.get("url"):
-                return ps
+        if isinstance(ss, dict):
+            # Priority 1: per-engine pattern_server
+            for engine_spec in ss.get("engines", []):
+                if isinstance(engine_spec, dict):
+                    ps = engine_spec.get("pattern_server")
+                    if isinstance(ps, dict) and ps.get("url"):
+                        return ps
+            # Priority 2: global secret_scanning.pattern_server (deprecated)
+            if "pattern_server" in ss:
+                ps = ss["pattern_server"]
+                if isinstance(ps, dict) and ps.get("url"):
+                    return ps
+        # Priority 3: root-level pattern_server (deprecated)
         if "pattern_server" in self._config:
             ps = self._config["pattern_server"]
             if isinstance(ps, dict) and ps.get("url"):

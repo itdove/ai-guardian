@@ -1196,9 +1196,22 @@ def _load_pattern_server_config():
             config = json.load(f)
 
         # Priority 1: NEW location (v1.7.0+) - secret_scanning.pattern_server
+        # DEPRECATED in v1.7.x — use per-engine pattern_server instead (Issue #530)
         secret_scanning = config.get("secret_scanning", {})
         if "pattern_server" in secret_scanning:
             pattern_config = secret_scanning["pattern_server"]
+
+            logging.warning(
+                "DEPRECATED: 'secret_scanning.pattern_server' is a global setting "
+                "but only applies to gitleaks. Move to per-engine format:\n"
+                "  \"secret_scanning\": {\n"
+                "    \"engines\": [\n"
+                "      {\"type\": \"gitleaks\", \"pattern_server\": {...}}\n"
+                "    ]\n"
+                "  }\n"
+                "Run: ai-guardian setup --migrate-pattern-server\n"
+                "Global pattern_server support will be removed in v2.0.0."
+            )
 
             # Handle explicit null (backward compat: disabled)
             if pattern_config is None:
@@ -4694,7 +4707,7 @@ def main():
         setup_parser.add_argument(
             "--migrate-pattern-server",
             action="store_true",
-            help="Migrate old root-level pattern_server config to new nested structure (v1.7.0+)"
+            help="Migrate pattern_server config to per-engine format (moves global to engines[].pattern_server)"
         )
         setup_parser.add_argument(
             "--dry-run",

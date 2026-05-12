@@ -553,40 +553,61 @@ class IDESetup:
 
     def migrate_pattern_server_config(self, config: Dict) -> Tuple[bool, Dict]:
         """
-        Migrate old root-level pattern_server config to new nested structure.
+        Migrate pattern_server config to per-engine format (Issue #530).
 
-        NEW in v1.7.0: pattern_server should be nested under secret_scanning.
+        Two-stage migration:
+          Stage 1: root pattern_server → secret_scanning.pattern_server
+          Stage 2: secret_scanning.pattern_server → engines[].pattern_server
 
         Args:
             config: Configuration dictionary to migrate
 
         Returns:
             tuple: (migrated: bool, updated_config: dict)
-                - migrated: True if migration was performed, False if no migration needed
-                - updated_config: Migrated configuration
         """
-        # Check if old root-level pattern_server exists
-        if "pattern_server" not in config:
-            return False, config
+        migrated = False
 
-        # Check if already migrated (nested under secret_scanning)
-        secret_scanning = config.get("secret_scanning", {})
-        if "pattern_server" in secret_scanning:
-            # Already has new structure, remove old root-level one
-            old_pattern_server = config.pop("pattern_server")
-            return True, config
+        # Stage 1: root pattern_server → secret_scanning.pattern_server
+        if "pattern_server" in config:
+            root_ps = config.pop("pattern_server")
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
+            ss = config["secret_scanning"]
+            if "pattern_server" not in ss:
+                ss["pattern_server"] = root_ps
+            migrated = True
 
-        # Perform migration: move to secret_scanning.pattern_server
-        old_pattern_server = config.pop("pattern_server")
+        # Stage 2: secret_scanning.pattern_server → per-engine
+        ss = config.get("secret_scanning", {})
+        if isinstance(ss, dict) and "pattern_server" in ss:
+            ps_config = ss.pop("pattern_server")
+            migrated = True
 
-        # Ensure secret_scanning section exists
-        if "secret_scanning" not in config:
-            config["secret_scanning"] = {}
+            if ps_config is None:
+                return migrated, config
 
-        # Move pattern_server under secret_scanning, preserving enabled field as-is
-        config["secret_scanning"]["pattern_server"] = old_pattern_server
+            engines = ss.get("engines", ["gitleaks"])
+            inserted = False
+            for i, engine_spec in enumerate(engines):
+                is_gitleaks_str = isinstance(engine_spec, str) and engine_spec == "gitleaks"
+                is_gitleaks_dict = isinstance(engine_spec, dict) and engine_spec.get("type") == "gitleaks"
 
-        return True, config
+                if is_gitleaks_str:
+                    engines[i] = {"type": "gitleaks", "pattern_server": ps_config}
+                    inserted = True
+                    break
+                elif is_gitleaks_dict:
+                    if "pattern_server" not in engine_spec:
+                        engine_spec["pattern_server"] = ps_config
+                    inserted = True
+                    break
+
+            if not inserted:
+                engines.insert(0, {"type": "gitleaks", "pattern_server": ps_config})
+
+            ss["engines"] = engines
+
+        return migrated, config
 
     def setup_remote_config(self, url: str, dry_run: bool = False) -> Tuple[bool, str]:
         """
@@ -662,7 +683,11 @@ class IDESetup:
         interactive: bool = True
     ) -> Tuple[bool, str]:
         """
-        Check for old pattern_server config and offer to migrate.
+        Check for deprecated pattern_server config and migrate to per-engine format.
+
+        Handles both:
+        - Root-level pattern_server (deprecated in v1.7.0)
+        - secret_scanning.pattern_server (deprecated in v1.7.x, Issue #530)
 
         Args:
             dry_run: If True, show what would be changed without applying
@@ -672,37 +697,31 @@ class IDESetup:
             tuple: (success: bool, message: str)
         """
         try:
-            # Get config path
             config_dir = get_config_dir()
             config_path = config_dir / "ai-guardian.json"
 
-            # Check if config exists
             if not config_path.exists():
                 return True, "No ai-guardian.json found - nothing to migrate"
 
-            # Load config
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             except json.JSONDecodeError as e:
                 return False, f"Invalid JSON in {config_path}: {e}"
 
-            # Check if migration needed
             migrated, updated_config = self.migrate_pattern_server_config(config)
 
             if not migrated:
-                return True, "✓ Configuration already using new structure (v1.7.0+)"
+                return True, "✓ Configuration already using per-engine pattern_server format"
 
-            # Show what will change
-            message = f"Found deprecated pattern_server configuration at root level.\n"
-            message += f"Will migrate to new structure (v1.7.0+): secret_scanning.pattern_server\n\n"
+            message = "Found deprecated pattern_server configuration.\n"
+            message += "Will migrate to per-engine format: secret_scanning.engines[].pattern_server\n\n"
 
             if dry_run:
                 message += f"[DRY RUN] Would update {config_path}:\n"
                 message += json.dumps(updated_config, indent=2)
                 return True, message
 
-            # Confirm with user if interactive
             if interactive:
                 print(message)
                 print(f"Config file: {config_path}")
@@ -713,22 +732,19 @@ class IDESetup:
                 except KeyboardInterrupt:
                     return False, "\nMigration cancelled"
 
-            # Create backup
             backup_path = self.backup_config(config_path)
             if backup_path:
                 print(f"✓ Backup created: {backup_path}", file=sys.stderr)
 
-            # Write migrated config
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(updated_config, f, indent=2)
-                f.write('\n')  # Add trailing newline
+                f.write('\n')
 
             message = f"✓ Successfully migrated pattern_server configuration\n"
             message += f"  Config file: {config_path}\n"
             message += f"  Backup: {backup_path}\n"
             message += f"\n  Changes:\n"
-            message += f"  • Moved pattern_server from root level to secret_scanning.pattern_server\n"
-            message += f"  • Removed deprecated 'enabled' field (presence = enabled)\n"
+            message += f"  • Moved pattern_server to per-engine format (engines[].pattern_server)\n"
 
             return True, message
 
