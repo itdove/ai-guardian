@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Security instruction injection via systemMessage** (Issue #580)
+  - Injects never-bypass security rules into AI context on every UserPromptSubmit hook
+  - Uses generic language — does not name specific bypass mechanisms or config files
+  - Configurable via `security_instructions.inject_on_prompt` (default: enabled)
+  - Supports time-based disabling for temporary development work
+  - Updated SKILL.md and MCP server to remove specific bypass mechanism names
+
 - **Terminal emulator support for tray Console on Linux** (Issue #553)
   - Added `kgx` (GNOME Console, Fedora 44+ default) to the terminal fallback chain
   - `ai-guardian doctor` checks for a supported terminal emulator on Linux

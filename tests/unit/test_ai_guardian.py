@@ -274,9 +274,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             response = ai_guardian.process_hook_input()
 
         self.assertEqual(response["exit_code"], 0, "Clean prompt should return exit code 0")
-        # UserPromptSubmit now returns empty JSON for allow
+        # UserPromptSubmit returns JSON — may contain systemMessage with security rules (#580)
         output = json.loads(response["output"])
-        self.assertEqual(output, {}, "Clean prompt should return empty JSON")
+        self.assertTrue(
+            output == {} or "systemMessage" in output,
+            "Clean prompt should return empty JSON or JSON with systemMessage"
+        )
         mock_check_secrets.assert_called_once()
 
     @patch('ai_guardian._load_secret_scanning_config')

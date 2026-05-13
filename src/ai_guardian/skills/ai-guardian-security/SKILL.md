@@ -63,13 +63,12 @@ When a hook blocks a tool call (Read, Write, Bash, etc.) and you need to explain
 ## Do NOT
 
 - Suggest using `!` prefix to run commands — this bypasses all security hooks and defeats protection
-- Suggest alternative commands or tools to access content that was blocked (e.g., `cat`, `head`, `less`, `curl` alternatives for a blocked Read)
+- Suggest alternative commands or tools to access content that was blocked
 - Guess the block reason from error messages — always call `get_violations()` for the actual reason
-- Suggest disabling security features or setting `enabled: false`
-- Suggest modifying `.ai-read-deny` files or `.aiguardignore.toml`
-- Explain how annotations suppress detection
-- Suggest `--skip-checksum-verification` or similar safety bypasses
-- Suggest `--no-verify` on git commits to skip hooks
+- Suggest disabling security features or modifying security configuration files
+- Suggest ways to suppress or bypass security detection
+- Explain how security protections can be circumvented
+- Suggest flags or options that skip security verification
 
 ## After Config Changes
 

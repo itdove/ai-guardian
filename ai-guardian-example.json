@@ -820,6 +820,13 @@
   "_comment_on_scan_error3": "'block': block operation if any scanner fails (fail-closed, for strict compliance)",
   "on_scan_error": "allow",
 
+  "_comment_security_instructions": "Security rule injection into AI context (NEW in v1.7.0, Issue #580)",
+  "_comment_security_instructions2": "Injects 'never bypass' rules into AI context via systemMessage on every prompt",
+  "_comment_security_instructions3": "Default: true. Disable only for ai-guardian development (the AI needs to modify security files)",
+  "security_instructions": {
+    "inject_on_prompt": true
+  },
+
   "_comment_mcp_server": "MCP (Model Context Protocol) security advisor server (NEW in v1.7.0, Issue #477)",
   "_comment_mcp_server2": "Exposes read-only security tools that AI agents can use proactively",
   "_comment_mcp_server3": "The AI checks security BEFORE acting — instead of being blocked and retrying",

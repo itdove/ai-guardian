@@ -159,6 +159,7 @@ class ConfigDisplay:
             ("prompt_injection", "Prompt Injection Detection"),
             ("ssrf_protection", "SSRF Protection"),
             ("config_file_scanning", "Config File Scanning"),
+            ("security_instructions", "Security Instructions"),
         ]
 
         for section_key, section_title in sections:

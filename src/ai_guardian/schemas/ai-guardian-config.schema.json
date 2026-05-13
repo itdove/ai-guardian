@@ -1473,6 +1473,25 @@
       "description": "Global behavior when a scanner encounters an error (exception, unavailable, network issue). 'allow' (default): log warning, allow operation to proceed (fail-open). 'block': block the operation if any scanner fails (fail-closed, for strict compliance). NEW in v1.7.0.",
       "default": "allow"
     },
+    "security_instructions": {
+      "type": "object",
+      "description": "Security instruction injection into AI context (NEW in v1.7.0, Issue #580). When enabled, security rules are injected via systemMessage on every UserPromptSubmit hook response. These rules instruct the AI to never bypass, disable, or work around security protections. Default: enabled.",
+      "properties": {
+        "inject_on_prompt": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
     "mcp_server": {
       "type": "object",
       "description": "MCP (Model Context Protocol) security advisor server settings. The MCP server exposes read-only security tools that AI agents can use proactively.",
