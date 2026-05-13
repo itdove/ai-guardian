@@ -3,12 +3,12 @@ name: ai-guardian-security
 description: >
   AI security advisor — proactive security checks via ai-guardian MCP tools.
   Use this skill whenever you have access to ai-guardian MCP tools (check_path,
-  check_command, check_mcp_trust, sanitize_text, check_annotations, get_violations,
+  check_command, check_mcp_trust, sanitize_text, get_violations,
   get_config, get_scanner_status, get_scanner_supported, get_patterns_list,
   get_metrics, doctor, prepare_support_bundle, send_support_bundle,
   scan_directory, scan_directory_report). Activate when:
   accessing files in unfamiliar directories, running commands with URLs or credentials,
-  outputting potentially sensitive text, editing files with ai-guardian annotations,
+  outputting potentially sensitive text,
   when the user asks about security status, violations, scanners, or configuration,
   or when the user wants to send diagnostic information to support.
 user-invocable: false
@@ -35,8 +35,6 @@ Everything in **low**, plus:
 - `check_path` when accessing files **outside the current project** or in unfamiliar directories
 - `check_command` when a command contains something that **looks like a credential or internal URL**
 - `check_mcp_trust` when suggesting an MCP server the user hasn't used before
-- `check_annotations` after editing files with ai-guardian annotations
-
 No need to check routine operations (`ls`, `git status`, `pytest`, project files).
 
 ### high — Check everything
@@ -92,15 +90,6 @@ When the user asks to check the project for security issues:
 5. **NEVER read the report file yourself** — it contains actual secret/PII values
 
 The report is written to a temp directory. The user reviews it directly at the file path you provide.
-
-## Annotation Protection
-
-Annotations like `ai-guardian:begin-allow` / `ai-guardian:end-allow` exist because the code between them needs them — they suppress specific security checks for that block (e.g., test fixtures containing fake secrets).
-
-- Do not remove annotations while leaving the protected code in place. The code will start triggering security violations without them.
-- If you're deleting a block of code, remove the annotations along with it.
-- Do not remove an inline `ai-guardian:allow` comment unless also removing the line it's on.
-- After any edit to annotated files, call `check_annotations(file_path)` to catch orphaned pairs.
 
 ## Sending Support Information
 
