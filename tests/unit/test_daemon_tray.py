@@ -4,7 +4,12 @@ from unittest import mock
 
 import pytest
 
-from ai_guardian.daemon.tray import DaemonTray, is_tray_available
+from ai_guardian.daemon.tray import (
+    DaemonTray,
+    is_tray_available,
+    _suppress_gtk_stderr,
+    _restore_stderr,
+)
 
 
 class TestIsTrayAvailable:
@@ -400,3 +405,34 @@ class TestDaemonTrayIcon:
         if result is not None:
             from pathlib import Path
             assert Path(result).exists()
+
+
+class TestSuppressGtkStderr:
+    def test_returns_none_on_non_linux(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            assert _suppress_gtk_stderr() is None
+
+    def test_returns_fd_on_linux(self):
+        import os
+        with mock.patch("platform.system", return_value="Linux"):
+            saved_fd = _suppress_gtk_stderr()
+            assert saved_fd is not None
+            _restore_stderr(saved_fd)
+
+    def test_restore_with_none_is_noop(self):
+        _restore_stderr(None)
+
+    def test_roundtrip_preserves_stderr(self):
+        import os
+        import sys
+        with mock.patch("platform.system", return_value="Linux"):
+            original_fd = os.dup(2)
+            try:
+                saved_fd = _suppress_gtk_stderr()
+                assert saved_fd is not None
+                _restore_stderr(saved_fd)
+                # stderr should still work
+                sys.stderr.write("")
+                sys.stderr.flush()
+            finally:
+                os.close(original_fd)

@@ -20,6 +20,33 @@ except Exception:
     HAS_PYSTRAY = False
 
 
+def _suppress_gtk_stderr():
+    """Redirect stderr fd to suppress C-level GTK warnings during init."""
+    import platform
+    if platform.system() != "Linux":
+        return None
+    try:
+        import os
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        saved_fd = os.dup(2)
+        os.dup2(devnull_fd, 2)
+        os.close(devnull_fd)
+        return saved_fd
+    except OSError:
+        return None
+
+
+def _restore_stderr(saved_fd):
+    """Restore stderr after GTK init completes."""
+    if saved_fd is not None:
+        try:
+            import os
+            os.dup2(saved_fd, 2)
+            os.close(saved_fd)
+        except OSError:
+            pass
+
+
 def is_tray_available():
     """Check if system tray can be displayed (dependencies + display)."""
     if not HAS_PYSTRAY:
@@ -246,7 +273,8 @@ class DaemonTray:
             "ai-guardian", self._create_icon(), "AI Guardian", menu
         )
         self._start_stats_refresh()
-        self._icon.run()
+        saved_fd = _suppress_gtk_stderr()
+        self._icon.run(setup=lambda icon: _restore_stderr(saved_fd))
 
     def _create_icon(self):
         """Create tray icon from the project's shield image with status tint."""
