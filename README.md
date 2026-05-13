@@ -16,11 +16,29 @@ AI Guardian provides comprehensive protection for AI IDE interactions through mu
 
 ```bash
 pip install ai-guardian
-ai-guardian setup --install-scanner --ide claude
-ai-guardian scanner list
+ai-guardian setup --ide claude --create-config --mcp --install-scanner
 ```
 
-You're done! ai-guardian now protects against secrets, prompt injection, SSRF, and config exfiltration.
+This single command:
+- Installs a scanner engine (gitleaks)
+- Creates `ai-guardian.json` config with secure defaults
+- Installs IDE hooks (PreToolUse, PostToolUse, UserPromptSubmit)
+- Sets up the MCP security advisor for AI-aware protection
+
+### Security Profiles
+
+Choose a profile that matches your environment:
+
+```bash
+ai-guardian setup --ide claude --create-config --profile @minimal --mcp --install-scanner
+ai-guardian setup --ide claude --create-config --profile @strict --mcp --install-scanner
+```
+
+| Profile | Secrets | PII | Prompt Injection | SSRF |
+|---------|---------|-----|------------------|------|
+| @minimal | block | warn | low | warn |
+| @standard (default) | block | block | medium | block |
+| @strict | block | block | high | block |
 
 ## Features
 

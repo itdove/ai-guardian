@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Quick Start updated with one-liner setup and profiles** (Issue #566)
+  - Single command now includes `--create-config`, `--mcp`, and `--install-scanner`
+  - Added security profile comparison table (@minimal, @standard, @strict)
+
 ### Fixed
 
 - **Tray icon invisible on macOS** (Issue #564)
