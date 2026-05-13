@@ -80,6 +80,21 @@ class SARIFFormatter:
                 "precision": "high"
             }
         },
+        "PII-001": {
+            "id": "PII-001",
+            "name": "PIIDetected",
+            "shortDescription": {"text": "Personally identifiable information detected"},
+            "fullDescription": {
+                "text": "Detects personally identifiable information (PII) including social security numbers, "
+                       "credit card numbers, phone numbers, email addresses, passport numbers, and IBANs."
+            },
+            "helpUri": "https://github.com/itdove/ai-guardian#pii-detection",
+            "defaultConfiguration": {"level": "warning"},
+            "properties": {
+                "tags": ["security", "pii", "privacy"],
+                "precision": "high"
+            }
+        },
         "PROMPT-INJECTION-001": {
             "id": "PROMPT-INJECTION-001",
             "name": "PromptInjection",
@@ -403,4 +418,38 @@ def create_secret_finding(
         "line_number": line_number,
         "snippet": snippet,
         "details": {"secret_type": secret_type}
+    }
+
+
+def create_pii_finding(
+    pii_type: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    snippet: Optional[str] = None
+) -> Dict[str, Any]:
+    return {
+        "rule_id": "PII-001",
+        "level": "warning",
+        "message": f"PII detected: {pii_type}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "snippet": snippet,
+        "details": {"pii_type": pii_type}
+    }
+
+
+def create_prompt_injection_finding(
+    description: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    snippet: Optional[str] = None
+) -> Dict[str, Any]:
+    return {
+        "rule_id": "PROMPT-INJECTION-001",
+        "level": "warning",
+        "message": f"Prompt injection detected: {description}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "snippet": snippet,
+        "details": {"description": description}
     }
