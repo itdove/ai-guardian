@@ -745,6 +745,23 @@ class TestServerCreation:
         }
         assert expected == set(tools.keys()), f"Missing: {expected - set(tools.keys())}, Extra: {set(tools.keys()) - expected}"
 
+    def test_skill_instructions_contain_violation_guidance(self):
+        """Skill instructions must tell the AI to call get_violations() for block reasons."""
+        from ai_guardian.mcp_server import _load_skill_instructions
+
+        instructions = _load_skill_instructions()
+        assert "get_violations" in instructions
+        assert "Do NOT" in instructions
+
+    def test_skill_instructions_no_bypass_content(self):
+        """Skill instructions must not teach bypass methods."""
+        from ai_guardian.mcp_server import _load_skill_instructions
+
+        instructions = _load_skill_instructions()
+        assert "! cat" not in instructions
+        assert "! curl" not in instructions
+        assert "! head" not in instructions
+
     def test_server_has_3_resources(self):
         server = create_server()
         resources = server._resource_manager._resources

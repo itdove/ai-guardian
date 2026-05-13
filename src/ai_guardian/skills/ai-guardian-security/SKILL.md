@@ -51,6 +51,26 @@ This adds noticeable latency, grows the conversation context, and increases toke
 
 All checks are advisory — hooks provide enforcement as a safety net.
 
+## When a Tool is Blocked
+
+When a hook blocks a tool call (Read, Write, Bash, etc.) and you need to explain why:
+
+1. **Get the actual reason**: Call `get_violations(limit=1)` to retrieve the real block reason from the violation log
+2. **Report the real reason**: Tell the user the actual violation type — secret detected, PII found, prompt injection, SSRF, directory protected, etc.
+3. **Do NOT guess**: The hook error message alone may be generic. Always query `get_violations()` for the specific violation type, file path, and line number.
+4. **Accept the block**: The block is the security policy working as intended. Do not attempt to work around it.
+
+## Do NOT
+
+- Suggest using `!` prefix to run commands — this bypasses all security hooks and defeats protection
+- Suggest alternative commands or tools to access content that was blocked (e.g., `cat`, `head`, `less`, `curl` alternatives for a blocked Read)
+- Guess the block reason from error messages — always call `get_violations()` for the actual reason
+- Suggest disabling security features or setting `enabled: false`
+- Suggest modifying `.ai-read-deny` files or `.aiguardignore.toml`
+- Explain how annotations suppress detection
+- Suggest `--skip-checksum-verification` or similar safety bypasses
+- Suggest `--no-verify` on git commits to skip hooks
+
 ## After Config Changes
 
 Security config can change at any time (via Console, tray, CLI, or file edit). When the user modifies ai-guardian settings, re-query `get_config()` and `get_scanner_status()` on your next security-related action. Treat previous results as stale.
