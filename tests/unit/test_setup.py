@@ -1150,10 +1150,15 @@ class TestCreateDefaultConfig:
             with open(config_file) as f:
                 config = json.load(f)
 
-            cache = config['secret_scanning']['pattern_server']['cache']
+            engines = config['secret_scanning']['engines']
+            gitleaks = next(e for e in engines if isinstance(e, dict) and e.get('type') == 'gitleaks')
+            cache = gitleaks['pattern_server']['cache']
             assert 'path' not in cache, (
                 "cache.path should not be in default config; "
                 "let get_cache_dir() resolve it at runtime"
+            )
+            assert 'pattern_server' not in config['secret_scanning'], (
+                "Top-level pattern_server is deprecated; must use per-engine format"
             )
 
     def test_default_config_template_no_absolute_paths(self):
@@ -1161,8 +1166,35 @@ class TestCreateDefaultConfig:
         from ai_guardian.setup import _get_default_config_template
 
         config = _get_default_config_template(permissive=False)
-        cache = config['secret_scanning']['pattern_server']['cache']
+        engines = config['secret_scanning']['engines']
+        gitleaks = next(e for e in engines if isinstance(e, dict) and e.get('type') == 'gitleaks')
+        cache = gitleaks['pattern_server']['cache']
         assert 'path' not in cache
+
+    def test_default_config_uses_per_engine_pattern_server(self):
+        """Test that default config uses per-engine pattern_server, not legacy format (issue #558)."""
+        from ai_guardian.setup import _get_default_config_template
+
+        config = _get_default_config_template(permissive=False)
+        ss = config['secret_scanning']
+
+        assert 'pattern_server' not in ss, (
+            "Top-level secret_scanning.pattern_server is deprecated; "
+            "use per-engine format instead"
+        )
+
+        engines = ss['engines']
+        assert len(engines) == 1
+        engine = engines[0]
+        assert isinstance(engine, dict)
+        assert engine['type'] == 'gitleaks'
+        assert 'pattern_server' in engine
+        ps = engine['pattern_server']
+        assert ps['url'] == 'https://raw.githubusercontent.com/leaktk/patterns/main/target'
+        assert ps['patterns_endpoint'] == '/patterns/gitleaks/8.27.0'
+        assert ps['warn_on_failure'] is True
+        assert ps['cache']['refresh_interval_hours'] == 12
+        assert ps['cache']['expire_after_hours'] == 168
 
     def test_existing_config_with_absolute_cache_path_still_works(self, tmp_path):
         """Test backward compat: existing configs with absolute cache.path still load."""

@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`setup --create-config` generates per-engine pattern_server format** (Issue #558)
+  - Default config and security profiles (@minimal, @standard, @strict) now use the per-engine format
+  - Pattern server config is nested inside the gitleaks engine object, not at the top level
+  - Existing legacy configs still work via backward-compatible migration (#530)
+
 - **Suppress Gtk-CRITICAL warning on Fedora GNOME** (Issue #555)
   - Redirect stderr during tray initialization to suppress harmless `gtk_widget_get_scale_factor` assertion
   - Stderr restored immediately after GTK init completes via pystray setup callback

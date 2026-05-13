@@ -113,9 +113,31 @@ class TestLoadProfile:
 
     def test_cache_omits_path_for_runtime_resolution(self):
         config = load_profile("@standard")
-        cache = config["secret_scanning"]["pattern_server"]["cache"]
+        engines = config["secret_scanning"]["engines"]
+        gitleaks = next(e for e in engines if isinstance(e, dict) and e.get("type") == "gitleaks")
+        cache = gitleaks["pattern_server"]["cache"]
         assert "path" not in cache, (
             "cache.path should not be in profile; get_cache_dir() resolves at runtime"
+        )
+
+    @pytest.mark.parametrize("profile_name", ["@minimal", "@standard", "@strict"])
+    def test_profiles_use_per_engine_pattern_server(self, profile_name):
+        """All built-in profiles must use per-engine pattern_server, not legacy format (issue #558)."""
+        config = load_profile(profile_name)
+        ss = config["secret_scanning"]
+
+        assert "pattern_server" not in ss, (
+            f"{profile_name}: top-level secret_scanning.pattern_server is deprecated"
+        )
+
+        engines = ss["engines"]
+        gitleaks = next(
+            (e for e in engines if isinstance(e, dict) and e.get("type") == "gitleaks"),
+            None,
+        )
+        assert gitleaks is not None, f"{profile_name}: missing gitleaks engine dict"
+        assert "pattern_server" in gitleaks, (
+            f"{profile_name}: gitleaks engine must have per-engine pattern_server"
         )
 
     def test_standard_matches_default_template(self):
