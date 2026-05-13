@@ -228,7 +228,7 @@ def create_server() -> "FastMCP":
     @server.tool()
 
     def check_annotations(file_path: str) -> Dict[str, Any]:
-        """Verify all begin/end-allow annotation pairs are matched in a file. Call after editing files with ai-guardian annotations."""
+        """Verify ai-guardian annotation pairs are matched in a file. Results are advisory — hooks provide enforcement."""
         try:
             from ai_guardian.annotations import process_annotations
 
@@ -273,6 +273,8 @@ def create_server() -> "FastMCP":
             )
             filtered = []
             for v in violations:
+                if v.get("violation_type") == "annotation_suppressed":
+                    continue
                 blocked = v.get("blocked", {})
                 if not isinstance(blocked, dict):
                     blocked = {}
@@ -444,7 +446,7 @@ def create_server() -> "FastMCP":
     @server.tool()
 
     def prepare_support_bundle() -> Dict[str, Any]:
-        """Prepare a sanitized support bundle for review. Creates a temp directory (protected by .ai-read-deny) with sanitized copies of config, violations, metrics, doctor results, system info, and log. IMPORTANT: After calling this, you MUST (1) show the temp_path so the user can review and delete unwanted files, (2) present the file list with redaction counts, and (3) wait for the user to confirm before calling send_support_bundle. Only the user can access the temp directory — do not try to read or delete files in it."""
+        """Prepare a sanitized support bundle for review. Creates a protected temp directory with sanitized copies of config, violations, metrics, doctor results, system info, and log. IMPORTANT: After calling this, you MUST (1) show the temp_path so the user can review and delete unwanted files, (2) present the file list with redaction counts, and (3) wait for the user to confirm before calling send_support_bundle. Only the user can access the temp directory — do not try to read or delete files in it."""
         try:
             from ai_guardian.support_bundle import prepare_bundle
 
@@ -594,7 +596,7 @@ def create_server() -> "FastMCP":
 
     @server.resource("ai-guardian://protected-paths")
     def protected_paths() -> str:
-        """List of directories with .ai-read-deny markers (paths only, no glob rules)."""
+        """List of protected directories (paths only, no rules)."""
         try:
             from ai_guardian.config_utils import get_config_dir
             import os

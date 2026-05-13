@@ -235,6 +235,35 @@ class TestGetViolations:
         assert "context" not in v
         assert "blocked" not in v
 
+    @patch("ai_guardian.violation_logger.ViolationLogger")
+    def test_filters_annotation_suppressed(self, mock_vl_cls):
+        """annotation_suppressed violations must not be exposed to the AI."""
+        mock_vl = MagicMock()
+        mock_vl.get_recent_violations.return_value = [
+            {
+                "timestamp": "2026-05-08T10:00:00Z",
+                "violation_type": "annotation_suppressed",
+                "severity": "info",
+                "blocked": {},
+                "context": {"tool_name": "Read"},
+            },
+            {
+                "timestamp": "2026-05-08T10:01:00Z",
+                "violation_type": "secret_detected",
+                "severity": "critical",
+                "blocked": {},
+                "context": {"tool_name": "Write"},
+            },
+        ]
+        mock_vl_cls.return_value = mock_vl
+
+        server = create_server()
+        tool = server._tool_manager._tools["get_violations"]
+        result = tool.fn()
+        assert result["count"] == 1
+        assert result["violations"][0]["type"] == "secret_detected"
+        assert all(v["type"] != "annotation_suppressed" for v in result["violations"])
+
 
 class TestGetConfig:
     """Test get_config tool."""
