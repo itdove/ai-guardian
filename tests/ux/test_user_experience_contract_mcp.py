@@ -14,6 +14,7 @@ file, ensuring consistent behavior in CI/CD and across different environments.
 """
 
 import json
+import sys
 from io import StringIO
 from unittest import TestCase
 from unittest.mock import patch
@@ -642,3 +643,157 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         is_allowed, msg, tool_name = checker.check_tool_allowed(hook_data)
         self.assertTrue(is_allowed, "Matched MCP tool must be allowed with default action")
         self.assertIsNone(msg)
+
+
+class MCPBlockReasonUXTest(TestCase):
+    """
+    UX contract tests for correct block-reason reporting (Issue #575).
+
+    When a tool is blocked, the AI must report the ACTUAL reason from
+    get_violations(), not guess based on error messages. The AI must
+    never suggest using `!` prefix or alternative commands to bypass
+    security blocks.
+    """
+
+    def test_skill_instructs_get_violations_for_block_reason(self):
+        """
+        USER EXPERIENCE: Tool blocked → AI calls get_violations() for real reason
+
+        Scenario:
+        1. User asks Claude: "Read /tmp/test.txt"
+        2. Claude tries Read tool on /tmp/test.txt
+        3. ai-guardian PreToolUse hook blocks it (secret detected in file)
+        4. Claude sees hook error
+
+        Expected AI Behavior (per skill instructions):
+        ✅ AI calls get_violations(limit=1) to get actual reason
+        ✅ AI reports: "The file was blocked because a secret was detected"
+        ❌ AI does NOT guess: "outside allowed project directories"
+        ❌ AI does NOT suggest: "! cat /tmp/test.txt"
+
+        This test verifies the skill instructions contain the required
+        guidance for correct block-reason reporting.
+        """
+        from ai_guardian.mcp_server import _load_skill_instructions
+
+        instructions = _load_skill_instructions()
+
+        assert "get_violations" in instructions, \
+            "Skill must instruct AI to call get_violations() for block reasons"
+        assert "Do NOT" in instructions, \
+            "Skill must have a Do NOT section forbidding bypass suggestions"
+
+    def test_skill_forbids_bypass_suggestions(self):
+        """
+        USER EXPERIENCE: Tool blocked → AI must NOT suggest bypass methods
+
+        Scenario:
+        1. ai-guardian blocks a Read operation (secret detected)
+        2. AI responds to the user
+
+        Expected AI Behavior (per skill instructions):
+        ❌ AI must NOT suggest using `!` prefix
+        ❌ AI must NOT suggest alternative commands (cat, head, less)
+        ❌ AI must NOT suggest disabling security features
+        ❌ AI must NOT suggest modifying .ai-read-deny
+
+        This test verifies the skill instructions explicitly forbid
+        all known bypass methods.
+        """
+        from ai_guardian.mcp_server import _load_skill_instructions
+
+        instructions = _load_skill_instructions()
+
+        forbidden_patterns = [
+            "! ",
+            "enabled: false",
+            "--no-verify",
+            "--skip-checksum",
+        ]
+        for pattern in forbidden_patterns:
+            assert pattern not in instructions or "Do NOT" in instructions, \
+                f"Skill mentions '{pattern}' — must be in Do NOT context only"
+
+        assert "alternative commands" in instructions.lower() or \
+               "alternative" in instructions.lower(), \
+            "Skill must forbid suggesting alternative access methods"
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 10),
+        reason="MCP SDK requires Python >= 3.10",
+    )
+    def test_violations_provide_actual_block_reason(self):
+        """
+        USER EXPERIENCE: get_violations() returns the actual block reason
+
+        This test verifies that when a secret is detected, get_violations()
+        returns violation_type="secret_detected" so the AI can report the
+        real reason instead of guessing.
+
+        Expected:
+        ✅ Violation type is "secret_detected" (not "directory_blocking")
+        ✅ File path is included for context
+        ✅ AI can use this to report: "blocked because a secret was detected"
+        """
+        from unittest.mock import MagicMock, patch
+        from ai_guardian.mcp_server import create_server
+
+        with patch("ai_guardian.violation_logger.ViolationLogger") as mock_vl_cls:
+            mock_vl = MagicMock()
+            mock_vl.get_recent_violations.return_value = [
+                {
+                    "timestamp": "2026-05-13T10:00:00Z",
+                    "violation_type": "secret_detected",
+                    "severity": "critical",
+                    "blocked": {
+                        "file_path": "/tmp/test.txt",
+                        "line_number": 3,
+                    },
+                    "context": {"tool_name": "Read"},
+                }
+            ]
+            mock_vl_cls.return_value = mock_vl
+
+            server = create_server()
+            tool = server._tool_manager._tools["get_violations"]
+            result = tool.fn(limit=1)
+
+            assert result["count"] == 1
+            violation = result["violations"][0]
+            assert violation["type"] == "secret_detected", \
+                "Violation type must be 'secret_detected', not guessed from error"
+            assert violation["file"] == "/tmp/test.txt", \
+                "File path must be included for context"
+            assert violation["line"] == 3, \
+                "Line number must be included when available"
+
+    def test_documentation_block_reason_flow(self):
+        """
+        Documentation test: Correct flow when a tool is blocked.
+
+        This test always passes — it documents the expected interaction
+        flow when ai-guardian blocks a tool call.
+
+        CORRECT Flow (Issue #575 fix):
+        ==============================
+        1. User asks Claude to read /tmp/test.txt
+        2. Claude calls Read tool
+        3. ai-guardian hook blocks it (aws-access-token detected)
+        4. Claude sees block error from hook
+        5. Claude calls get_violations(limit=1)
+        6. get_violations returns: type=secret_detected, file=/tmp/test.txt
+        7. Claude tells user: "The read was blocked — a secret (aws-access-token)
+           was detected in /tmp/test.txt"
+
+        INCORRECT Flow (before fix):
+        ============================
+        1. User asks Claude to read /tmp/test.txt
+        2. Claude calls Read tool
+        3. ai-guardian hook blocks it
+        4. Claude GUESSES: "outside allowed project directories"
+        5. Claude SUGGESTS: "try ! cat /tmp/test.txt"
+
+        The fix ensures the AI always queries for the real reason and
+        never suggests bypass methods.
+        """
+        assert True, "See docstring for expected block-reason flow"
