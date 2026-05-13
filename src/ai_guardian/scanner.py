@@ -44,10 +44,30 @@ try:
         create_unicode_finding,
         create_config_finding,
         create_secret_finding,
+        create_pii_finding,
+        create_prompt_injection_finding,
     )
     HAS_SARIF = True
 except ImportError:
     HAS_SARIF = False
+
+try:
+    from ai_guardian import check_secrets_with_gitleaks
+    HAS_SECRET_SCANNER = True
+except ImportError:
+    HAS_SECRET_SCANNER = False
+
+try:
+    from ai_guardian import _scan_for_pii
+    HAS_PII_SCANNER = True
+except ImportError:
+    HAS_PII_SCANNER = False
+
+try:
+    from ai_guardian.prompt_injection import check_prompt_injection
+    HAS_PROMPT_INJECTION = True
+except ImportError:
+    HAS_PROMPT_INJECTION = False
 
 
 logger = logging.getLogger(__name__)
@@ -299,9 +319,17 @@ class FileScanner:
             if self.unicode_detector:
                 self._check_unicode_attacks(relative_path, content)
 
-            # Note: Secret scanning (Phase 4) is typically done via gitleaks
-            # which runs as a separate process. We could integrate it here
-            # in the future if needed.
+            # Check for secrets (Phase 4)
+            if HAS_SECRET_SCANNER:
+                self._check_secrets(relative_path, content, str(file_path))
+
+            # Check for PII
+            if HAS_PII_SCANNER:
+                self._check_pii(relative_path, content)
+
+            # Check for prompt injection
+            if HAS_PROMPT_INJECTION:
+                self._check_prompt_injection(relative_path, content)
 
         except Exception as e:
             if self.verbose:
@@ -426,6 +454,78 @@ class FileScanner:
 
         except Exception as e:
             logger.debug(f"Error checking Unicode attacks: {e}")
+
+    def _check_secrets(self, file_path: str, content: str, absolute_path: str) -> None:
+        """Check for secrets using gitleaks/betterleaks."""
+        try:
+            secret_config = self.config.get("secret_scanning", {})
+            if not secret_config.get("enabled", True):
+                return
+
+            has_secrets, error_message = check_secrets_with_gitleaks(
+                content,
+                filename=os.path.basename(file_path),
+                file_path=absolute_path,
+                allowlist_patterns=secret_config.get("allowlist_patterns"),
+            )
+
+            if has_secrets and error_message:
+                finding = create_secret_finding(
+                    secret_type="secret",
+                    file_path=file_path,
+                )
+                self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [SECRET] {error_message.splitlines()[0] if error_message else 'Secret detected'}")
+        except Exception as e:
+            logger.debug(f"Error checking secrets: {e}")
+
+    def _check_pii(self, file_path: str, content: str) -> None:
+        """Check for personally identifiable information."""
+        try:
+            pii_config = self.config.get("scan_pii", {})
+            if not pii_config.get("enabled", True):
+                return
+
+            has_pii, _redacted, redactions, _warning = _scan_for_pii(content, pii_config)
+
+            if has_pii and redactions:
+                pii_types_found = sorted({r.get("type", "unknown") for r in redactions})
+                for pii_type in pii_types_found:
+                    finding = create_pii_finding(
+                        pii_type=pii_type,
+                        file_path=file_path,
+                    )
+                    self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [PII] {len(redactions)} PII item(s) found: {', '.join(pii_types_found)}")
+        except Exception as e:
+            logger.debug(f"Error checking PII: {e}")
+
+    def _check_prompt_injection(self, file_path: str, content: str) -> None:
+        """Check for prompt injection patterns."""
+        try:
+            injection_config = self.config.get("prompt_injection", {})
+            if not injection_config.get("enabled", True):
+                return
+
+            _should_block, error_message, detected = check_prompt_injection(
+                content,
+                config=injection_config,
+                file_path=file_path,
+                source_type="file_content",
+            )
+
+            if detected and error_message:
+                finding = create_prompt_injection_finding(
+                    description=error_message.splitlines()[0] if error_message else "Prompt injection detected",
+                    file_path=file_path,
+                )
+                self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [PROMPT-INJECTION] {error_message.splitlines()[0] if error_message else 'Detected'}")
+        except Exception as e:
+            logger.debug(f"Error checking prompt injection: {e}")
 
 
 def scan_command(args) -> int:
