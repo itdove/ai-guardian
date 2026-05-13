@@ -3553,7 +3553,8 @@ def process_hook_data(hook_data, daemon_state=None):
             # Check if secret scanning is enabled (respect disabled_until)
             if secret_config and not is_feature_enabled(
                 secret_config.get("enabled", True),
-                secret_config.get("disabled_until")
+                datetime.now(timezone.utc),
+                default=True
             ):
                 logging.info("Secret scanning is disabled - skipping PostToolUse scan")
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
@@ -4374,6 +4375,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             warning_messages.append(pii_warning)
                         elif pii_action == 'log-only':
                             log_only_count += 1
+                        else:
+                            logging.warning(f"Unknown PII action '{pii_action}', allowing through")
 
         # Transcript scanning for secrets and PII (Issue #430, #442)
         # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
@@ -4605,7 +4608,7 @@ def _handle_daemon_command(args):
 
     elif cmd == "status":
         from ai_guardian.daemon.client import is_daemon_running, send_status_request
-        from ai_guardian.daemon.server import get_pid_path, get_socket_path
+        from ai_guardian.daemon import get_pid_path, get_socket_path
 
         if not is_daemon_running():
             print("ai-guardian daemon: not running")

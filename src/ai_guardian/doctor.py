@@ -1193,6 +1193,7 @@ _RESET = "\033[0m"
 _CHECK_DISPLAY_NAMES = {
     "config_file": "Config file",
     "deprecated_fields": "Deprecated fields",
+    "global_pattern_server": "Global pattern server",
     "scanners": "Scanners",
     "pattern_server": "Pattern server",
     "ps_cache_path": "PS cache path",

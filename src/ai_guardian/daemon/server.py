@@ -17,7 +17,7 @@ import threading
 import time
 from pathlib import Path
 
-from ai_guardian.config_utils import get_state_dir
+from ai_guardian.daemon import get_pid_path, get_socket_path
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
@@ -29,16 +29,6 @@ from ai_guardian.daemon.state import DaemonState
 logger = logging.getLogger(__name__)
 
 IDLE_CHECK_INTERVAL = 60  # seconds
-
-
-def get_socket_path():
-    """Get the Unix socket path for daemon IPC."""
-    return get_state_dir() / "daemon.sock"
-
-
-def get_pid_path():
-    """Get the PID file path for daemon process tracking."""
-    return get_state_dir() / "daemon.pid"
 
 
 def _is_pid_alive(pid):
@@ -324,6 +314,7 @@ class DaemonServer:
         if self._use_tcp and self._tcp_port:
             pid_info["port"] = self._tcp_port
         pid_path.write_text(json.dumps(pid_info))
+        os.chmod(str(pid_path), 0o600)
 
     def _cleanup_stale(self):
         """Clean up stale socket and PID files from crashed daemon."""

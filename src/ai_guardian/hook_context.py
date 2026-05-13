@@ -9,7 +9,11 @@ and retrieving them during PostToolUse processing, enabling:
 - Audit trail correlation via tool_use_id
 """
 
-import fcntl
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
 import json
 import logging
 import os
@@ -18,6 +22,8 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Dict, Optional
+
+from ai_guardian.config_utils import get_state_dir
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +45,9 @@ class HookContextManager:
 
         if not daemon_state and session_id:
             safe_id = self._sanitize_session_id(session_id)
-            self._context_file = Path(f"/tmp/ai-guardian-{safe_id}.json")
+            state_dir = get_state_dir()
+            state_dir.mkdir(parents=True, exist_ok=True)
+            self._context_file = state_dir / f"hook-context-{safe_id}.json"
 
     @staticmethod
     def _sanitize_session_id(session_id: str) -> str:
@@ -134,7 +142,8 @@ class HookContextManager:
         try:
             lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
             try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                if HAS_FCNTL:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX)
                 data = self._read_file() or {}
                 data[tool_use_id] = {
                     "context": context,
@@ -142,7 +151,8 @@ class HookContextManager:
                 }
                 return self._write_file(data)
             finally:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                if HAS_FCNTL:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
                 os.close(lock_fd)
         except OSError as e:
             logger.debug(f"Failed to acquire lock for save: {e}")

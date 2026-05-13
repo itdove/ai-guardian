@@ -202,7 +202,7 @@ class DaemonPanelContent(Static):
     def _refresh_status(self):
         try:
             from ai_guardian.daemon.client import is_daemon_running, send_status_request
-            from ai_guardian.daemon.server import get_socket_path, get_pid_path
+            from ai_guardian.daemon import get_socket_path, get_pid_path
 
             if not is_daemon_running():
                 self.daemon_status = "[red]Not running[/red]"
