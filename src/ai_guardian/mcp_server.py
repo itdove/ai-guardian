@@ -235,6 +235,15 @@ def create_server() -> "FastMCP":
             path = Path(file_path)
             if not path.exists():
                 return {"valid": False, "warnings": [f"File not found: {file_path}"]}
+            resolved = path.resolve()
+            from ai_guardian.config_utils import get_config_dir, get_state_dir, get_cache_dir
+            protected_dirs = (get_config_dir(), get_state_dir(), get_cache_dir())
+            for pdir in protected_dirs:
+                try:
+                    resolved.relative_to(pdir)
+                    return {"valid": False, "warnings": ["Path is protected"]}
+                except ValueError:
+                    pass
             content = path.read_text(errors="replace")
             _, _, _, warnings = process_annotations(content, file_path)
             return {
@@ -538,6 +547,7 @@ def create_server() -> "FastMCP":
             findings = scanner.scan_directory(path=str(resolved))
 
             report_dir = tempfile.mkdtemp(prefix="ai-guardian-scan-report-")
+            (Path(report_dir) / ".ai-read-deny").touch()
 
             if format == "sarif":
                 from ai_guardian import __version__

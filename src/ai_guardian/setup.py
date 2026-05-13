@@ -1457,6 +1457,8 @@ def setup_hooks(
         profile: Optional security profile to apply (use with create_config)
         save_profile: Optional name to save current config as a custom profile
         list_profiles: If True, list available security profiles
+        mcp: If True, enable MCP server configuration
+        no_mcp: If True, disable MCP server configuration
 
     Returns:
         bool: True if successful, False otherwise
@@ -1579,11 +1581,11 @@ def setup_hooks(
         print(message)
         if not config_success:
             # Only fail if create_config was the sole operation requested
-            if ide_type is None and not remote_config_url and not migrate_pattern_server:
+            if ide_type is None and not remote_config_url and not migrate_pattern_server and not mcp and not no_mcp:
                 return False
         else:
             # If only creating config (no IDE setup or remote config), return early
-            if ide_type is None and not remote_config_url and not migrate_pattern_server:
+            if ide_type is None and not remote_config_url and not migrate_pattern_server and not mcp and not no_mcp:
                 return config_success
 
     # Handle pattern_server migration if requested

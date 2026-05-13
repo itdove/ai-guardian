@@ -18,7 +18,8 @@ from ai_guardian.daemon.protocol import (
     make_shutdown,
     make_status_request,
 )
-from ai_guardian.daemon.server import DaemonServer, get_pid_path, get_socket_path
+from ai_guardian.daemon import get_pid_path, get_socket_path
+from ai_guardian.daemon.server import DaemonServer
 
 
 @pytest.fixture

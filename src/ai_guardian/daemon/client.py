@@ -9,13 +9,14 @@ import json
 import logging
 import os
 import platform
+import shlex
 import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-from ai_guardian.config_utils import get_state_dir
+from ai_guardian.daemon import get_pid_path, get_socket_path
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
@@ -27,16 +28,6 @@ from ai_guardian.daemon.protocol import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_socket_path():
-    """Get the Unix socket path for daemon IPC."""
-    return get_state_dir() / "daemon.sock"
-
-
-def get_pid_path():
-    """Get the PID file path for daemon process tracking."""
-    return get_state_dir() / "daemon.pid"
 
 
 def is_daemon_running():
@@ -191,7 +182,7 @@ def start_daemon_background():
         if platform.system() == "Darwin":
             # On macOS, use osascript to launch with GUI session access
             # so the system tray icon can attach to the menu bar
-            cmd_str = " ".join(daemon_cmd)
+            cmd_str = " ".join(shlex.quote(arg) for arg in daemon_cmd)
             script = f'do shell script "{cmd_str} &> /dev/null &"'
             subprocess.Popen(
                 ["osascript", "-e", script],
