@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **MCP scan_directory no longer returns file paths** (Issue #582)
+  - Response now contains counts only: `scanned_files`, `violations`, `by_type`, `scan_time_ms`
+  - Prevents AI from using scan results to create allowlist/ignore bypass rules
+  - File-level details remain available via CLI output or `scan_directory_report` (temp dir for user review)
+
 ### Changed
 
 - **Quick Start updated with one-liner setup and profiles** (Issue #566)

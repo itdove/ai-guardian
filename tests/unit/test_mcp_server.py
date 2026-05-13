@@ -607,14 +607,13 @@ class TestScanDirectory:
         assert result["violations"] == 2
         assert result["by_type"]["SECRET-001"] == 1
         assert result["by_type"]["SSRF-001"] == 1
-        assert len(result["files_with_violations"]) == 2
-        assert result["files_with_violations"][0]["file"] == "a.py"
+        assert "files_with_violations" not in result
 
     @patch("ai_guardian.scanner.FileScanner.scan_directory")
     @patch("ai_guardian.scanner.FileScanner._discover_files")
     @patch("ai_guardian.mcp_server._load_full_config")
     def test_no_secret_values_exposed(self, mock_config, mock_discover, mock_scan, tmp_path):
-        """Response must not contain actual secret/snippet values."""
+        """Response must not contain actual secret/snippet values or file paths."""
         mock_config.return_value = {}
         mock_discover.return_value = []
         mock_scan.return_value = [
@@ -635,6 +634,8 @@ class TestScanDirectory:
         assert "AKIAIOSFODNN7EXAMPLE" not in result_str
         assert "snippet" not in result_str
         assert "api_key" not in result_str
+        assert "config.py" not in result_str
+        assert "files_with_violations" not in result_str
 
     def test_system_path_blocked(self):
         server = create_server()
