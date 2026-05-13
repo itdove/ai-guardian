@@ -64,7 +64,11 @@ class SchemaDefaults:
             if part in props:
                 node = props[part]
             else:
-                return None
+                defs = node.get("definitions", {})
+                if part in defs:
+                    node = defs[part]
+                else:
+                    return None
         return node
 
     def get_default(self, dotted_path: str) -> Any:

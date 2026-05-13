@@ -168,6 +168,26 @@ class TestSchemaDefaults(unittest.TestCase):
         sd = SchemaDefaults.get()
         assert sd.get_default("secret_scanning.execution_strategy") == "first-match"
 
+    def test_daemon_client_timeout_default(self):
+        sd = SchemaDefaults.get()
+        assert sd.get_default("daemon.client_timeout_seconds") == 2.0
+
+    def test_daemon_idle_timeout_default(self):
+        sd = SchemaDefaults.get()
+        assert sd.get_default("daemon.idle_timeout_minutes") == 30
+
+    def test_daemon_mode_default(self):
+        sd = SchemaDefaults.get()
+        assert sd.get_default("daemon.mode") == "auto"
+
+    def test_definitions_console_default(self):
+        sd = SchemaDefaults.get()
+        assert sd.get_default("console.editor_theme") == "monokai"
+
+    def test_definitions_support_default(self):
+        sd = SchemaDefaults.get()
+        assert sd.get_default("support.bundle_ttl_minutes") == 30
+
 
 class TestSelectOptionsWithDefault(unittest.TestCase):
     """Tests for select_options_with_default helper."""
