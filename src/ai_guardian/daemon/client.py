@@ -101,20 +101,23 @@ def send_hook_request(hook_data, timeout=2.0):
         return None
 
 
-def send_shutdown():
+def send_shutdown(timeout=2.0):
     """Send shutdown request to the daemon.
+
+    Args:
+        timeout: Connection + response timeout in seconds
 
     Returns:
         bool: True if shutdown was acknowledged
     """
     try:
-        sock = _connect(timeout=2.0)
+        sock = _connect(timeout=timeout)
         if sock is None:
             return False
 
         try:
             sock.sendall(encode_message(make_shutdown()))
-            response = decode_message(sock, timeout=2.0)
+            response = decode_message(sock, timeout=timeout)
             return response.get("type") == "response"
         finally:
             sock.close()
@@ -122,20 +125,23 @@ def send_shutdown():
         return False
 
 
-def send_status_request():
+def send_status_request(timeout=2.0):
     """Request daemon status/stats.
+
+    Args:
+        timeout: Connection + response timeout in seconds
 
     Returns:
         dict or None: Daemon stats, or None on failure
     """
     try:
-        sock = _connect(timeout=2.0)
+        sock = _connect(timeout=timeout)
         if sock is None:
             return None
 
         try:
             sock.sendall(encode_message(make_status_request()))
-            response = decode_message(sock, timeout=2.0)
+            response = decode_message(sock, timeout=timeout)
             if response.get("type") == "response":
                 return response.get("data")
             return None
@@ -145,20 +151,23 @@ def send_status_request():
         return None
 
 
-def send_reload_config():
+def send_reload_config(timeout=2.0):
     """Request daemon to reload its configuration.
+
+    Args:
+        timeout: Connection + response timeout in seconds
 
     Returns:
         bool: True if reload was acknowledged
     """
     try:
-        sock = _connect(timeout=2.0)
+        sock = _connect(timeout=timeout)
         if sock is None:
             return False
 
         try:
             sock.sendall(encode_message(make_reload_config()))
-            response = decode_message(sock, timeout=2.0)
+            response = decode_message(sock, timeout=timeout)
             return response.get("type") == "response"
         finally:
             sock.close()
