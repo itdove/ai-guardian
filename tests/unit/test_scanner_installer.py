@@ -154,8 +154,7 @@ class TestScannerInstaller:
     @mock.patch("shutil.which")
     @mock.patch("subprocess.run")
     def test_install_via_package_manager_apt(self, mock_run, mock_which):
-        """Test installation via apt-get (Linux)."""
-        # Mock platform detection and apt availability
+        """Test installation via apt-get (Linux) for a repo-available scanner."""
         with mock.patch("platform.system", return_value="Linux"):
             mock_which.side_effect = lambda cmd: (
                 "/usr/bin/apt-get" if cmd == "apt-get" else None
@@ -163,13 +162,83 @@ class TestScannerInstaller:
             mock_run.return_value = mock.Mock(returncode=0)
 
             installer = ScannerInstaller()
-            success = installer.install_via_package_manager("gitleaks")
+            # Use a scanner name NOT in DOWNLOAD_ONLY_LINUX
+            success = installer.install_via_package_manager("future-scanner")
 
             assert success
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             assert "apt-get" in args
             assert "install" in args
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_install_via_package_manager_dnf(self, mock_run, mock_which):
+        """Test installation via dnf (Fedora/RHEL)."""
+        with mock.patch("platform.system", return_value="Linux"):
+            mock_which.side_effect = lambda cmd: (
+                "/usr/bin/dnf" if cmd == "dnf" else None
+            )
+            mock_run.return_value = mock.Mock(returncode=0)
+
+            installer = ScannerInstaller()
+            success = installer.install_via_package_manager("future-scanner")
+
+            assert success
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            assert "dnf" in args
+            assert "install" in args
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_install_via_package_manager_dnf_preferred_over_yum(self, mock_run, mock_which):
+        """Test that dnf is preferred over yum when both are available."""
+        with mock.patch("platform.system", return_value="Linux"):
+            mock_which.side_effect = lambda cmd: {
+                "dnf": "/usr/bin/dnf",
+                "yum": "/usr/bin/yum",
+            }.get(cmd)
+            mock_run.return_value = mock.Mock(returncode=0)
+
+            installer = ScannerInstaller()
+            success = installer.install_via_package_manager("future-scanner")
+
+            assert success
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            assert "dnf" in args
+            assert "yum" not in args
+
+    @mock.patch("shutil.which")
+    def test_install_via_package_manager_skips_download_only_on_linux(self, mock_which):
+        """Test that download-only scanners skip Linux package managers entirely."""
+        with mock.patch("platform.system", return_value="Linux"):
+            mock_which.side_effect = lambda cmd: (
+                "/usr/bin/dnf" if cmd == "dnf" else None
+            )
+
+            installer = ScannerInstaller()
+            for scanner in ["gitleaks", "betterleaks", "leaktk", "trufflehog"]:
+                result = installer.install_via_package_manager(scanner)
+                assert not result, f"{scanner} should skip Linux package managers"
+
+    @mock.patch("ai_guardian.scanner_installer.os.access")
+    def test_init_fallback_when_dir_exists_not_writable(self, mock_access):
+        """Test fallback to ~/.local/bin when /usr/local/bin exists but is not writable."""
+        mock_access.return_value = False
+
+        original_mkdir = Path.mkdir
+
+        def mkdir_side_effect(self, *args, **kwargs):
+            if str(self) == "/usr/local/bin":
+                return None
+            return original_mkdir(self, *args, **kwargs)
+
+        with mock.patch.object(Path, "mkdir", mkdir_side_effect):
+            with mock.patch.object(Path, "exists", return_value=True):
+                installer = ScannerInstaller()
+                assert installer.install_dir == Path.home() / ".local" / "bin"
 
     def test_install_unsupported_scanner(self):
         """Test that installing unsupported scanner raises ValueError."""

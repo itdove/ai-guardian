@@ -70,6 +70,10 @@ class ScannerInstaller:
         "gitguardian": "Proprietary (free tier)",
     }
 
+    # Scanners NOT available via Linux distro package managers (apt/dnf/yum).
+    # These are Go/Rust/Node binaries distributed via GitHub releases only.
+    DOWNLOAD_ONLY_LINUX = {"gitleaks", "betterleaks", "leaktk", "trufflehog", "secretlint", "gitguardian"}
+
     def __init__(self, install_dir: Optional[Path] = None):
         """
         Initialize scanner installer.
@@ -89,7 +93,8 @@ class ScannerInstaller:
             else:
                 try:
                     default_dir.mkdir(parents=True, exist_ok=True)
-                    self.install_dir = default_dir
+                    if os.access(default_dir, os.W_OK):
+                        self.install_dir = default_dir
                 except PermissionError:
                     pass
 
@@ -294,7 +299,20 @@ class ScannerInstaller:
                 )
                 return result.returncode == 0
             elif system == "linux":
-                if shutil.which("apt-get"):
+                if scanner_name in self.DOWNLOAD_ONLY_LINUX:
+                    logger.debug(
+                        f"{scanner_name} is not available via Linux package managers, skipping"
+                    )
+                    return False
+                if shutil.which("dnf"):
+                    logger.info(f"Installing {scanner_name} via dnf...")
+                    result = subprocess.run(
+                        ["sudo", "dnf", "install", "-y", scanner_name],
+                        capture_output=True,
+                        timeout=300,
+                    )
+                    return result.returncode == 0
+                elif shutil.which("apt-get"):
                     logger.info(f"Installing {scanner_name} via apt-get...")
                     result = subprocess.run(
                         ["sudo", "apt-get", "install", "-y", scanner_name],
