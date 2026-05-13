@@ -495,18 +495,9 @@ def create_server() -> "FastMCP":
             elapsed_ms = (time.monotonic_ns() // 1_000_000) - start_ms
 
             by_type: Dict[str, int] = {}
-            files_with_violations: List[Dict[str, Any]] = []
             for f in findings:
                 rule = f.get("rule_id", "unknown")
                 by_type[rule] = by_type.get(rule, 0) + 1
-                entry: Dict[str, Any] = {
-                    "file": f.get("file_path", ""),
-                    "type": rule,
-                    "rule": rule,
-                }
-                if f.get("line_number"):
-                    entry["line"] = f["line_number"]
-                files_with_violations.append(entry)
 
             file_count = len(scanner._discover_files(
                 resolved, None, None, False
@@ -516,7 +507,6 @@ def create_server() -> "FastMCP":
                 "scanned_files": file_count,
                 "violations": len(findings),
                 "by_type": by_type,
-                "files_with_violations": files_with_violations,
                 "scan_time_ms": elapsed_ms,
             }
         except Exception as e:
