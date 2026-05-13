@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`setup --create-config` failure no longer blocks `--mcp` and `--ide` setup** (Issue #561)
+  - When config already exists, `--create-config` failure is treated as a warning if other setup steps were also requested
+  - `--create-config` alone still fails as expected when config already exists
+  - Both normal and JSON output paths fixed
+
 - **`setup --create-config` generates per-engine pattern_server format** (Issue #558)
   - Default config and security profiles (@minimal, @standard, @strict) now use the per-engine format
   - Pattern server config is nested inside the gitleaks engine object, not at the top level
