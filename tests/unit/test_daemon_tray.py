@@ -407,6 +407,49 @@ class TestDaemonTrayIcon:
             assert Path(result).exists()
 
 
+class TestRunPlatformBranching:
+    """Verify _run() only passes setup= callback on Linux (issue #564)."""
+
+    def test_run_on_linux_uses_setup_callback(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
+             mock.patch("platform.system", return_value="Linux"), \
+             mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=42) as mock_suppress:
+            mock_pystray.Icon.return_value = mock_icon
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.MenuItem = mock.MagicMock()
+            tray._start_stats_refresh = mock.MagicMock()
+            tray._create_icon = mock.MagicMock()
+            tray._run()
+            mock_icon.run.assert_called_once()
+            _, kwargs = mock_icon.run.call_args
+            assert "setup" in kwargs
+
+    def test_run_on_macos_no_setup_callback(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
+             mock.patch("platform.system", return_value="Darwin"):
+            mock_pystray.Icon.return_value = mock_icon
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.MenuItem = mock.MagicMock()
+            tray._start_stats_refresh = mock.MagicMock()
+            tray._create_icon = mock.MagicMock()
+            tray._run()
+            mock_icon.run.assert_called_once()
+            _, kwargs = mock_icon.run.call_args
+            assert "setup" not in kwargs
+
+
 class TestSuppressGtkStderr:
     def test_returns_none_on_non_linux(self):
         with mock.patch("platform.system", return_value="Darwin"):

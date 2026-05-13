@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Tray icon invisible on macOS** (Issue #564)
+  - GTK stderr suppression (`setup=` callback) from #555 broke pystray's AppKit backend
+  - Fix: only pass `setup=` callback on Linux where GTK warnings occur
+
 ### Added
 
 - **Terminal emulator support for tray Console on Linux** (Issue #553)

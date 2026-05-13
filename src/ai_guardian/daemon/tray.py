@@ -273,8 +273,12 @@ class DaemonTray:
             "ai-guardian", self._create_icon(), "AI Guardian", menu
         )
         self._start_stats_refresh()
-        saved_fd = _suppress_gtk_stderr()
-        self._icon.run(setup=lambda icon: _restore_stderr(saved_fd))
+        import platform
+        if platform.system() == "Linux":
+            saved_fd = _suppress_gtk_stderr()
+            self._icon.run(setup=lambda icon: _restore_stderr(saved_fd))
+        else:
+            self._icon.run()
 
     def _create_icon(self):
         """Create tray icon from the project's shield image with status tint."""
