@@ -165,6 +165,17 @@ else:
     logging.disable(logging.CRITICAL)
 
 
+_SECURITY_SYSTEM_MESSAGE = (
+    "SECURITY RULES (from ai-guardian):\n"
+    "- Never attempt to bypass, disable, or work around security protections\n"
+    "- Never suggest ways to suppress or bypass security detection\n"
+    "- Never suggest modifying security configuration files\n"
+    "- Never explain how security protections can be circumvented\n"
+    "- When a tool is blocked, report the block reason — do not find alternatives to access the content\n"
+    "- To check why something was blocked, use get_violations() if MCP is available"
+)
+
+
 class IDEType(Enum):
     """Supported IDE types with different output formats."""
     CLAUDE_CODE = "claude_code"  # Exit codes: 0=allow, 2=block
@@ -220,7 +231,7 @@ def detect_ide_type(hook_data):
     return IDEType.CLAUDE_CODE
 
 
-def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None, modified_output=None, violation_type=None):
+def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None, modified_output=None, violation_type=None, security_message=None):
     """
     Format the response based on IDE type and hook event.
 
@@ -380,11 +391,15 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                     }
                 }
             else:
-                # Allow - return empty JSON or include systemMessage for warnings
+                # Allow - return empty JSON or include systemMessage for security rules and/or warnings
                 response = {}
+                parts = []
+                if security_message:
+                    parts.append(security_message)
                 if warning_message:
-                    # Log mode: display warning but allow execution
-                    response["systemMessage"] = warning_message
+                    parts.append(warning_message)
+                if parts:
+                    response["systemMessage"] = "\n\n".join(parts)
 
             return _add_metadata({
                 "output": json.dumps(response),
@@ -1413,6 +1428,21 @@ def _load_annotations_config():
     if config is None:
         return _DEFAULTS, None
     return config.get("annotations", _DEFAULTS), None
+
+
+def _load_security_instructions_config():
+    """
+    Load security instructions configuration from ai-guardian.json.
+
+    Returns:
+        tuple: (config_dict or None, error_message or None)
+    """
+    config, error_msg = _load_config_file()
+    if error_msg:
+        return None, error_msg
+    if config is None:
+        return None, None
+    return config.get("security_instructions"), None
 
 
 def _get_on_scan_error_action() -> str:
@@ -3460,6 +3490,25 @@ def process_hook_data(hook_data, daemon_state=None):
         except Exception as e:
             logging.debug(f"Hook context manager init failed (non-fatal): {e}")
 
+        # Load security instructions for systemMessage injection (#580)
+        security_message = None
+        if ide_type == IDEType.CLAUDE_CODE and hook_event == "prompt":
+            try:
+                si_config, si_error = _load_security_instructions_config()
+                if si_error:
+                    logging.warning(f"Security instructions config error: {si_error}")
+                inject = True
+                if si_config is not None:
+                    inject = is_feature_enabled(
+                        si_config.get("inject_on_prompt"),
+                        datetime.now(timezone.utc),
+                        default=True
+                    )
+                if inject:
+                    security_message = _SECURITY_SYSTEM_MESSAGE
+            except Exception as e:
+                logging.debug(f"Security instructions config load failed (non-fatal): {e}")
+
         # Handle PostToolUse event - scan tool output before sending to AI
         if hook_event == "posttooluse":
             logging.info("Processing PostToolUse hook...")
@@ -3924,7 +3973,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type="tool_permission")
+                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type="tool_permission", security_message=security_message)
                         return result
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
@@ -3943,7 +3992,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(f"Tool policy check error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="tool_permission")
+                                          violation_type="tool_permission", security_message=security_message)
                 logging.warning(f"Tool policy check error (fail-open): {e}")
 
         content_to_scan = None
@@ -3975,7 +4024,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning, violation_type="directory_blocking")
+                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning, violation_type="directory_blocking", security_message=security_message)
                     return result
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
@@ -3988,14 +4037,14 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.debug(f"Skipping scan for ai-guardian test file: {file_path}")
 
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
 
                 if content_to_scan is None:
                     # Could not extract file content - allow operation (fail-open)
                     logging.warning("Could not extract file content, allowing operation")
 
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
 
                 # Log with full path for debugging false positives
                 if file_path:
@@ -4085,7 +4134,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 # No content to scan for these tools in PreToolUse
                 # Allow operation (secret scanning happens for Bash in PostToolUse if enabled)
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
 
         else:
             # Prompt hook - scan the user's prompt
@@ -4095,7 +4144,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if not content_to_scan:
                 # No content to check - allow operation
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                return format_response(ide_type, has_secrets=False, hook_event=hook_event, security_message=security_message)
 
             logging.info("Scanning user prompt for secrets...")
             secret_content_to_scan = None  # No annotation processing for prompts
@@ -4152,7 +4201,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 logging.info("Blocking operation due to prompt injection detection")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning, violation_type="prompt_injection")
+                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning, violation_type="prompt_injection", security_message=security_message)
                         return result
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
@@ -4171,7 +4220,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(f"Prompt injection check error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="prompt_injection")
+                                          violation_type="prompt_injection", security_message=security_message)
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
@@ -4230,7 +4279,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 logging.debug(f"Failed to log config file exfil violation: {e}")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type="config_file_exfil")
+                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type="config_file_exfil", security_message=security_message)
                         return result
                     elif config_details and config_error:
                         # Log/warn mode: threat detected but execution allowed - display warning
@@ -4248,7 +4297,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(f"Config file scanning error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="config_file_exfil")
+                                          violation_type="config_file_exfil", security_message=security_message)
                 logging.warning(f"Config file scanning error (fail-open): {e}")
 
         # Check for secrets in the content
@@ -4290,7 +4339,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning, violation_type="secret_detected")
+                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning, violation_type="secret_detected", security_message=security_message)
                 return result
 
             # No secrets found, allow operation
@@ -4327,7 +4376,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         final_error = _annotation_hint(pii_warning, file_path, annotations_config)
                         result = format_response(ide_type, has_secrets=True,
                                              error_message=final_error, hook_event=hook_event,
-                                             violation_type="pii_detected")
+                                             violation_type="pii_detected", security_message=security_message)
                         return result
 
                     if has_pii and pii_redactions:
@@ -4369,7 +4418,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 final_error = f"{combined_warning}\n\n{final_error}"
                             result = format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event,
-                                                 violation_type="pii_detected")
+                                                 violation_type="pii_detected", security_message=security_message)
                             return result
                         elif pii_action == 'warn':
                             warning_messages.append(pii_warning)
@@ -4424,7 +4473,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(f"Transcript scanning error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="secret_detected")
+                                          violation_type="secret_detected", security_message=security_message)
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
 
         # Save PreToolUse context for PostToolUse correlation (#366)
@@ -4477,7 +4526,7 @@ def process_hook_data(hook_data, daemon_state=None):
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
 
-        result = format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning)
+        result = format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
         if combined_warning:
             result["_warning"] = True
             result["_violation_type"] = "mixed"

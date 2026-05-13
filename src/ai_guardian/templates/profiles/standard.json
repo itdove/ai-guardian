@@ -196,6 +196,10 @@
   },
   "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
   "on_scan_error": "allow",
+  "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on every UserPromptSubmit so the AI always has 'never bypass' instructions. Disable only for ai-guardian development. (NEW in v1.7.0, Issue #580)",
+  "security_instructions": {
+    "inject_on_prompt": true
+  },
   "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
   "mcp_server": {
     "proactive_level": "low"

@@ -6,7 +6,7 @@ Exposes security check tools and information queries via the Model Context
 Protocol (MCP). The AI can inspect everything, change nothing.
 
 Principle: MCP server is a security advisor, not a security map.
-It says yes/no — doesn't expose rules, patterns, or allowlists.
+It says yes/no — doesn't expose security rule details.
 
 Usage:
     ai-guardian mcp-server              # Start via stdio transport
@@ -298,7 +298,7 @@ def create_server() -> "FastMCP":
     @server.tool()
 
     def get_config() -> Dict[str, Any]:
-        """Get current security posture summary. Returns feature enabled/disabled status only — no rules, patterns, or allowlists. Re-reads config on every call to reflect changes."""
+        """Get current security posture summary. Returns feature enabled/disabled status only — no security rule details. Re-reads config on every call to reflect changes."""
         try:
             from ai_guardian.config_utils import is_feature_enabled
 
@@ -323,6 +323,12 @@ def create_server() -> "FastMCP":
                     features[key] = bool(section) if section is not None else True
 
             features["permissions"] = config.get("permissions", {}).get("enabled", True)
+
+            si_section = config.get("security_instructions", {})
+            features["security_instructions"] = is_feature_enabled(
+                si_section.get("inject_on_prompt") if isinstance(si_section, dict) else None,
+                default=True
+            )
 
             action = config.get("action", "block")
             features["action_mode"] = action

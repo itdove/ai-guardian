@@ -274,6 +274,7 @@ class TestGetConfig:
             "secret_scanning": {"enabled": True},
             "prompt_injection": {"enabled": False},
             "scan_pii": {"enabled": True},
+            "security_instructions": {"inject_on_prompt": True},
             "action": "warn",
             "mcp_server": {"proactive_level": "low"},
         }
@@ -284,6 +285,7 @@ class TestGetConfig:
         features = result["features"]
         assert features["secret_scanning"] is True
         assert features["prompt_injection"] is False
+        assert features["security_instructions"] is True
         assert features["action_mode"] == "warn"
 
     @patch("ai_guardian.mcp_server._load_full_config")
