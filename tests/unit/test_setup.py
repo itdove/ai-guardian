@@ -1110,6 +1110,85 @@ class TestCreateDefaultConfig:
             assert success is True
             assert config_file.exists()
 
+    def test_create_config_exists_does_not_block_ide_hooks(self, tmp_path):
+        """Test --create-config failure (config exists) does not block --ide hook setup (Issue #561)."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{}')
+        ide_config_file = tmp_path / 'settings.json'
+
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {
+                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+                success = setup_hooks(
+                    ide_type='claude',
+                    create_config=True,
+                    permissive=False,
+                    dry_run=False,
+                    interactive=False
+                )
+
+                assert success is True
+                mock_instance.setup_ide_hooks.assert_called_once()
+
+    def test_create_config_exists_does_not_block_mcp(self, tmp_path):
+        """Test --create-config failure (config exists) does not block --mcp installation (Issue #561)."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{}')
+        ide_config_file = tmp_path / 'settings.json'
+
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {
+                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+
+            with mock.patch('ai_guardian.setup._handle_mcp_setup') as mock_mcp:
+                with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+                    success = setup_hooks(
+                        ide_type='claude',
+                        create_config=True,
+                        permissive=False,
+                        dry_run=False,
+                        interactive=False,
+                        mcp=True,
+                    )
+
+                    assert success is True
+                    mock_instance.setup_ide_hooks.assert_called_once()
+                    mock_mcp.assert_called_once()
+
+    def test_create_config_only_fails_when_exists(self, tmp_path):
+        """Test --create-config alone still fails when config exists (Issue #561)."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{}')
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success = setup_hooks(
+                ide_type=None,
+                remote_config_url=None,
+                create_config=True,
+                permissive=False,
+                dry_run=False,
+                interactive=False,
+            )
+
+            assert success is False
+
     def test_get_default_config_template_secure(self):
         """Test _get_default_config_template returns secure config by default."""
         from ai_guardian.setup import _get_default_config_template

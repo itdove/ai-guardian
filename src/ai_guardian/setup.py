@@ -1572,16 +1572,19 @@ def setup_hooks(
 
     # Handle default config creation if requested
     if create_config:
-        success, message = create_default_config(
+        config_success, message = create_default_config(
             permissive=permissive, dry_run=dry_run, json_output=False,
             profile=profile,
         )
         print(message)
-        if not success:
-            return False
-        # If only creating config (no IDE setup or remote config), return early
-        if ide_type is None and not remote_config_url and not migrate_pattern_server:
-            return success
+        if not config_success:
+            # Only fail if create_config was the sole operation requested
+            if ide_type is None and not remote_config_url and not migrate_pattern_server:
+                return False
+        else:
+            # If only creating config (no IDE setup or remote config), return early
+            if ide_type is None and not remote_config_url and not migrate_pattern_server:
+                return config_success
 
     # Handle pattern_server migration if requested
     if migrate_pattern_server:
@@ -1709,15 +1712,18 @@ def _setup_hooks_json_output(
             config_dir = get_config_dir()
             config_path = config_dir / "ai-guardian.json"
             if config_path.exists():
-                print(json.dumps({
-                    "success": False,
-                    "error": f"Config already exists: {config_path}",
-                }, indent=2))
-                return False
-            config_dir.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(ag_config, f, indent=2)
-                f.write("\n")
+                if ide_type is None:
+                    print(json.dumps({
+                        "success": False,
+                        "error": f"Config already exists: {config_path}",
+                    }, indent=2))
+                    return False
+                result["config_warning"] = f"Config already exists: {config_path}"
+            else:
+                config_dir.mkdir(parents=True, exist_ok=True)
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(ag_config, f, indent=2)
+                    f.write("\n")
 
     # Auto-detect IDE if not specified
     if ide_type is None:
