@@ -858,7 +858,21 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "allowlist_patterns": [],
             "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
-            "engines": ["gitleaks"],
+            "engines": [
+                {
+                    "type": "gitleaks",
+                    "binary": "gitleaks",
+                    "pattern_server": {
+                        "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
+                        "patterns_endpoint": "/patterns/gitleaks/8.27.0",
+                        "warn_on_failure": True,
+                        "cache": {
+                            "refresh_interval_hours": 12,
+                            "expire_after_hours": 168
+                        }
+                    }
+                }
+            ],
             "_comment_strategy": "Strategies: first-match (default), any-match (block if ANY finds secrets), consensus (block only if N agree)",
             "execution_strategy": "first-match",
             "consensus_threshold": 2,
@@ -868,16 +882,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "_comment_incremental": "Incremental scanning: only scan files whose content changed (v1.7.0+, requires cache_results)",
             "incremental": False,
             "_comment_audit": "Audit logging: log all scan operations for compliance (v1.7.0+)",
-            "audit_logging": False,
-            "pattern_server": {
-                "url": "https://raw.githubusercontent.com/leaktk/patterns/main/target",
-                "patterns_endpoint": "/patterns/gitleaks/8.27.0",
-                "warn_on_failure": True,
-                "cache": {
-                    "refresh_interval_hours": 12,
-                    "expire_after_hours": 168
-                }
-            }
+            "audit_logging": False
         },
 
         "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
