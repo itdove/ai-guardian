@@ -417,7 +417,7 @@ class TestRunPlatformBranching:
             pause_callback=lambda mins: None,
         )
         mock_icon = mock.MagicMock()
-        with mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray, \
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
              mock.patch("platform.system", return_value="Linux"), \
              mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=42) as mock_suppress:
             mock_pystray.Icon.return_value = mock_icon
@@ -437,7 +437,7 @@ class TestRunPlatformBranching:
             pause_callback=lambda mins: None,
         )
         mock_icon = mock.MagicMock()
-        with mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray, \
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
              mock.patch("platform.system", return_value="Darwin"):
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
