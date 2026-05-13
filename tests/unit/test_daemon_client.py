@@ -137,6 +137,67 @@ class TestStartDaemonBackground:
                 assert not start_daemon_background()
 
 
+class TestClientTimeout:
+    """Tests for _get_client_timeout() config reading."""
+
+    def test_default_when_no_config(self):
+        from ai_guardian import _get_client_timeout
+
+        with mock.patch("ai_guardian._load_config_file", return_value=(None, None)):
+            assert _get_client_timeout() == 2.0
+
+    def test_reads_from_config(self):
+        from ai_guardian import _get_client_timeout
+
+        config = {"daemon": {"client_timeout_seconds": 5.0}}
+        with mock.patch("ai_guardian._load_config_file", return_value=(config, None)):
+            assert _get_client_timeout() == 5.0
+
+    def test_clamped_low(self):
+        from ai_guardian import _get_client_timeout
+
+        config = {"daemon": {"client_timeout_seconds": 0.1}}
+        with mock.patch("ai_guardian._load_config_file", return_value=(config, None)):
+            assert _get_client_timeout() == 0.5
+
+    def test_clamped_high(self):
+        from ai_guardian import _get_client_timeout
+
+        config = {"daemon": {"client_timeout_seconds": 99.0}}
+        with mock.patch("ai_guardian._load_config_file", return_value=(config, None)):
+            assert _get_client_timeout() == 10.0
+
+    def test_invalid_type_returns_default(self):
+        from ai_guardian import _get_client_timeout
+
+        config = {"daemon": {"client_timeout_seconds": "not a number"}}
+        with mock.patch("ai_guardian._load_config_file", return_value=(config, None)):
+            assert _get_client_timeout() == 2.0
+
+    def test_missing_daemon_section(self):
+        from ai_guardian import _get_client_timeout
+
+        with mock.patch("ai_guardian._load_config_file", return_value=({}, None)):
+            assert _get_client_timeout() == 2.0
+
+    def test_hook_forwarding_passes_config_timeout(self):
+        config = {"daemon": {"client_timeout_seconds": 3.5, "mode": "auto"}}
+        with mock.patch("ai_guardian._load_config_file", return_value=(config, None)):
+            with mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=True
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.client.send_hook_request",
+                    return_value={"output": None, "exit_code": 0},
+                ) as mock_send:
+                    from ai_guardian import _get_client_timeout
+
+                    mock_send({"prompt": "test"}, timeout=_get_client_timeout())
+                    mock_send.assert_called_once_with(
+                        {"prompt": "test"}, timeout=3.5
+                    )
+
+
 class TestTCPConnection:
     def test_tcp_connect_reads_port_from_pid(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))

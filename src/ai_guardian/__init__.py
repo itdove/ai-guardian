@@ -4543,6 +4543,27 @@ def _get_daemon_mode():
     return "auto"
 
 
+def _get_client_timeout():
+    """Get daemon client timeout from config.
+
+    Returns:
+        float: Timeout in seconds (default 2.0, range 0.5-10.0)
+    """
+    try:
+        config, _ = _load_config_file()
+        if config:
+            daemon_config = config.get("daemon", {})
+            timeout = daemon_config.get("client_timeout_seconds", 2.0)
+            try:
+                timeout = float(timeout)
+            except (TypeError, ValueError):
+                return 2.0
+            return max(0.5, min(10.0, timeout))
+    except Exception:
+        pass
+    return 2.0
+
+
 def _set_daemon_mode_in_config(mode):
     """Update daemon mode in the config file."""
     try:
@@ -4599,7 +4620,7 @@ def _handle_daemon_command(args):
             print("ai-guardian daemon is not running (mode set to 'local')")
             return 0
 
-        if send_shutdown():
+        if send_shutdown(timeout=_get_client_timeout()):
             print("ai-guardian daemon stopped (mode set to 'local')")
             return 0
         else:
@@ -4614,7 +4635,7 @@ def _handle_daemon_command(args):
             print("ai-guardian daemon: not running")
             return 1
 
-        stats = send_status_request()
+        stats = send_status_request(timeout=_get_client_timeout())
         if stats:
             uptime = stats.get("uptime_seconds", 0)
             hours = int(uptime // 3600)
@@ -4655,7 +4676,7 @@ def _handle_daemon_command(args):
         from ai_guardian.daemon.client import is_daemon_running, send_shutdown
 
         if is_daemon_running():
-            send_shutdown()
+            send_shutdown(timeout=_get_client_timeout())
             import time
             time.sleep(0.5)
 
@@ -5724,7 +5745,7 @@ def main():
 
             if is_daemon_running():
                 logging.info("Daemon is running, forwarding hook request")
-                response = send_hook_request(hook_data)
+                response = send_hook_request(hook_data, timeout=_get_client_timeout())
                 if response is not None:
                     logging.info("Daemon processed hook request")
                 elif daemon_mode == "daemon":
