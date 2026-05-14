@@ -572,7 +572,7 @@ class TestJailbreakViolationLogging(unittest.TestCase):
         original = ai_guardian.HAS_VIOLATION_LOGGER
         ai_guardian.HAS_VIOLATION_LOGGER = True
         try:
-            with patch('ai_guardian.ViolationLogger') as MockLogger:
+            with patch('ai_guardian.hook_processing.ViolationLogger') as MockLogger:
                 mock_instance = MagicMock()
                 MockLogger.return_value = mock_instance
 
@@ -597,7 +597,7 @@ class TestJailbreakViolationLogging(unittest.TestCase):
         original = ai_guardian.HAS_VIOLATION_LOGGER
         ai_guardian.HAS_VIOLATION_LOGGER = True
         try:
-            with patch('ai_guardian.ViolationLogger') as MockLogger:
+            with patch('ai_guardian.hook_processing.ViolationLogger') as MockLogger:
                 mock_instance = MagicMock()
                 MockLogger.return_value = mock_instance
 

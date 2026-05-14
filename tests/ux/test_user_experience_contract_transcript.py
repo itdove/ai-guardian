@@ -39,12 +39,12 @@ class TranscriptScanningUserExperienceTests(TestCase):
     6. Missing transcript_path is handled gracefully
     """
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_prompt_injection_config')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_transcript_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
     def test_user_prompt_with_transcript_secret_warns_but_allows(
         self, mock_ts_config, mock_pii_config, mock_pi_config,
         mock_secret_config, mock_gitleaks, mock_pii
@@ -109,11 +109,11 @@ class TranscriptScanningUserExperienceTests(TestCase):
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_prompt_injection_config')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_transcript_scanning_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
     def test_user_prompt_clean_transcript_no_warning(
         self, mock_ts_config, mock_pii_config, mock_pi_config,
         mock_secret_config, mock_gitleaks
@@ -161,11 +161,11 @@ class TranscriptScanningUserExperienceTests(TestCase):
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_prompt_injection_config')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_transcript_scanning_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
     def test_user_prompt_transcript_scanning_disabled(
         self, mock_ts_config, mock_pii_config, mock_pi_config,
         mock_secret_config, mock_gitleaks
@@ -194,7 +194,7 @@ class TranscriptScanningUserExperienceTests(TestCase):
                 "transcript_path": transcript_path,
             }
 
-            with patch('ai_guardian.scan_transcript_incremental') as mock_scan:
+            with patch('ai_guardian.hook_processing.scan_transcript_incremental') as mock_scan:
                 with patch('sys.stdin', StringIO(json.dumps(hook_data))):
                     result = ai_guardian.process_hook_input()
 
@@ -203,11 +203,11 @@ class TranscriptScanningUserExperienceTests(TestCase):
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_prompt_injection_config')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_transcript_scanning_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
     def test_user_prompt_no_transcript_path_field(
         self, mock_ts_config, mock_pii_config, mock_pi_config,
         mock_secret_config, mock_gitleaks
@@ -242,12 +242,12 @@ class TranscriptScanningUserExperienceTests(TestCase):
         # CONTRACT: No blocking, no errors
         assert "decision" not in response or response.get("decision") != "block"
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_prompt_injection_config')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_transcript_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
     def test_user_prompt_transcript_pii_warns_but_allows(
         self, mock_ts_config, mock_pii_config, mock_pi_config,
         mock_secret_config, mock_gitleaks, mock_pii

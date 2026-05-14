@@ -21,10 +21,10 @@ import ai_guardian
 class PIIPostToolUseIgnoreToolsTests(TestCase):
     """Test that PostToolUse PII scanning respects ignore_tools (Issue #355)."""
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_posttooluse_pii_ignored_tool_skips_scan(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: Tool in ignore_tools list -> PII scan SKIPPED
@@ -65,10 +65,10 @@ class PIIPostToolUseIgnoreToolsTests(TestCase):
         assert output.get('decision') != 'block', "Ignored tool should not be blocked"
         mock_scan.assert_not_called()
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_posttooluse_pii_wildcard_ignore_tools(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: Tool matches wildcard ignore_tools pattern -> PII scan SKIPPED
@@ -109,10 +109,10 @@ class PIIPostToolUseIgnoreToolsTests(TestCase):
         assert output.get('decision') != 'block', "Wildcard-ignored tool should not be blocked"
         mock_scan.assert_not_called()
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_posttooluse_pii_non_matching_tool_still_scans(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: Tool NOT in ignore_tools list -> PII scan runs normally
@@ -162,10 +162,10 @@ class PIIPostToolUseIgnoreToolsTests(TestCase):
 class PIIPostToolUseIgnoreFilesTests(TestCase):
     """Test that PostToolUse PII scanning respects ignore_files (Issue #355)."""
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_posttooluse_pii_ignored_file_skips_scan(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: File matching ignore_files in PostToolUse -> PII scan SKIPPED
@@ -206,10 +206,10 @@ class PIIPostToolUseIgnoreFilesTests(TestCase):
         assert output.get('decision') != 'block', "Ignored file should not be blocked in PostToolUse"
         mock_scan.assert_not_called()
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_posttooluse_pii_non_matching_file_still_scans(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: File NOT matching ignore_files -> PII scan runs
@@ -258,9 +258,9 @@ class PIIPostToolUseIgnoreFilesTests(TestCase):
 class PIIPreToolUseIgnoreToolsTests(TestCase):
     """Test that PreToolUse PII scanning respects ignore_tools (Issue #355)."""
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_pretooluse_pii_ignored_tool_skips_scan(self, mock_ss, mock_gitleaks, mock_pii):
         """
         USER EXPERIENCE: Tool in ignore_tools list -> PII scan SKIPPED on PreToolUse
@@ -305,11 +305,11 @@ class PIIPreToolUseIgnoreToolsTests(TestCase):
         finally:
             os.unlink(tmp_path)
 
-    @patch('ai_guardian._load_config_file')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    def test_pretooluse_pii_skill_composite_ignored(self, mock_ss, mock_gitleaks, mock_pii, mock_config):
+    @patch('ai_guardian.hook_processing._load_permissions_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    def test_pretooluse_pii_skill_composite_ignored(self, mock_ss, mock_gitleaks, mock_pii, mock_perms):
         """
         USER EXPERIENCE: Skill:* wildcard in ignore_tools -> PII scan SKIPPED
 
@@ -330,9 +330,7 @@ class PIIPreToolUseIgnoreToolsTests(TestCase):
             'ignore_files': [],
             'ignore_tools': ['Skill:*']
         }, None)
-        mock_config.return_value = ({
-            'permissions': {'enabled': False}
-        }, None)
+        mock_perms.return_value = ({'enabled': False}, None)
 
         hook_data = {
             "hook_event_name": "PreToolUse",
@@ -354,10 +352,10 @@ class PIIPreToolUseIgnoreToolsTests(TestCase):
 class PIIIgnoreRegressionTests(TestCase):
     """Regression tests: PII detection still works with empty ignore lists."""
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_no_ignore_patterns_still_detects_pii(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: Empty ignore lists -> PII still detected and blocked
@@ -408,10 +406,10 @@ class PIIIgnoreRegressionTests(TestCase):
         )
         assert is_blocked, f"PII should be blocked with empty ignore lists: {output}"
 
-    @patch('ai_guardian._scan_for_pii')
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_posttooluse_both_ignore_tools_and_files(self, mock_ss, mock_gitleaks, mock_pii, mock_scan):
         """
         USER EXPERIENCE: Either ignore_tools or ignore_files match -> PII scan SKIPPED

@@ -1,0 +1,1130 @@
+"""
+CLI entry point for AI Guardian.
+
+Contains the main() function with argparse setup and all subcommand handlers.
+"""
+
+import argparse
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+
+from ai_guardian import __version__
+from ai_guardian.config_utils import get_config_dir
+
+from ai_guardian.config_loaders import (
+    _load_config_file,
+    _load_pattern_server_config,
+    _load_secret_scanning_config,
+)
+
+from ai_guardian.response_format import format_response, IDEType
+
+from ai_guardian.hook_processing import (
+    process_hook_data,
+    process_hook_input,
+    check_secrets_with_gitleaks,
+    _scan_for_pii,
+    _handle_violations_command,
+    _describe_patterns,
+    _count_gitleaks_patterns,
+    _get_daemon_mode,
+    _get_client_timeout,
+    _set_daemon_mode_in_config,
+    _handle_daemon_command,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def main():
+    """Main entry point for the hook."""
+    # If arguments are provided, handle them
+    if len(sys.argv) > 1:
+        parser = argparse.ArgumentParser(
+            prog="ai-guardian",
+            description="AI IDE security hook for blocking directories and scanning secrets",
+        )
+        parser.add_argument(
+            "--version",
+            "-v",
+            action="version",
+            version=f"ai-guardian {__version__}",
+        )
+
+        # Add subcommands
+        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+        # Setup subcommand
+        setup_parser = subparsers.add_parser(
+            "setup",
+            help="Setup IDE hooks with optional remote config"
+        )
+        setup_parser.add_argument(
+            "--ide",
+            choices=["claude", "cursor", "copilot"],
+            help="Specify IDE type (auto-detected if not provided)"
+        )
+        setup_parser.add_argument(
+            "--remote-config-url",
+            metavar="URL",
+            help="Remote configuration URL to add"
+        )
+        setup_parser.add_argument(
+            "--migrate-pattern-server",
+            action="store_true",
+            help="Migrate pattern_server config to per-engine format (moves global to engines[].pattern_server)"
+        )
+        setup_parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would be changed without applying"
+        )
+        setup_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite existing hooks"
+        )
+        setup_parser.add_argument(
+            "--yes",
+            "-y",
+            action="store_true",
+            help="Skip confirmation prompts"
+        )
+        setup_parser.add_argument(
+            "--create-config",
+            action="store_true",
+            help="Create default ai-guardian.json config file"
+        )
+        setup_parser.add_argument(
+            "--permissive",
+            action="store_true",
+            help="Use permissive config (permissions disabled, all tools allowed)"
+        )
+        setup_parser.add_argument(
+            "--pre-commit",
+            action="store_true",
+            help="Install pre-commit hooks for git workflow"
+        )
+        setup_parser.add_argument(
+            "--auto-install-hooks",
+            action="store_true",
+            help="Allow automatic hook installation (default: show instructions only)"
+        )
+        setup_parser.add_argument(
+            "--uninstall-hooks",
+            action="store_true",
+            help="Remove AI Guardian pre-commit hooks"
+        )
+        setup_parser.add_argument(
+            "--install-scanner",
+            nargs="?",
+            const="gitleaks",
+            choices=["gitleaks", "betterleaks", "leaktk"],
+            help="Install scanner engine (default: gitleaks)"
+        )
+        setup_parser.add_argument(
+            "--json",
+            action="store_true",
+            dest="json_output",
+            help="Output only raw JSON config (use with --create-config)"
+        )
+        setup_parser.add_argument(
+            "--profile",
+            metavar="PROFILE",
+            help="Security profile to apply: @minimal, @standard, @strict, custom name, or file path (use with --create-config)"
+        )
+        setup_parser.add_argument(
+            "--save-profile",
+            metavar="NAME",
+            help="Save current config as a named custom profile"
+        )
+        setup_parser.add_argument(
+            "--list-profiles",
+            action="store_true",
+            help="List available security profiles (built-in and custom)"
+        )
+        setup_parser.add_argument(
+            "--mcp",
+            action="store_true",
+            default=None,
+            help="Install MCP security advisor server for AI security awareness (opt-in)"
+        )
+        setup_parser.add_argument(
+            "--no-mcp",
+            action="store_true",
+            default=None,
+            help="Remove MCP security advisor server configuration"
+        )
+
+        # Violations subcommand
+        violations_parser = subparsers.add_parser(
+            "violations",
+            help="View and manage violation log"
+        )
+        violations_parser.add_argument(
+            "--type",
+            choices=["tool_permission", "directory_blocking", "secret_detected", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"],
+            help="Filter by violation type"
+        )
+        violations_parser.add_argument(
+            "--limit",
+            type=int,
+            default=10,
+            help="Number of violations to show (default: 10)"
+        )
+        violations_parser.add_argument(
+            "--clear",
+            action="store_true",
+            help="Clear all violations from log"
+        )
+        violations_parser.add_argument(
+            "--export",
+            metavar="FILE",
+            help="Export violations to JSON file"
+        )
+        violations_parser.add_argument(
+            "--yes", "-y",
+            action="store_true",
+            help="Skip confirmation prompt (for non-interactive use)"
+        )
+
+        # Metrics subcommand (Issue #469)
+        metrics_parser = subparsers.add_parser(
+            "metrics",
+            help="Show violation statistics and trends"
+        )
+        metrics_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+        metrics_parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="Export filtered violations as CSV"
+        )
+        metrics_parser.add_argument(
+            "--since",
+            default="30d",
+            help="Time range: Nd for days (e.g. 30d) or ISO date (e.g. 2026-05-01). Default: 30d"
+        )
+        metrics_parser.add_argument(
+            "--type",
+            choices=[
+                "tool_permission", "directory_blocking", "secret_detected",
+                "secret_redaction", "prompt_injection", "jailbreak_detected",
+                "ssrf_blocked", "config_file_exfil", "pii_detected",
+                "secret_in_transcript", "pii_in_transcript",
+            ],
+            help="Filter by violation type"
+        )
+
+        # Console subcommand (primary)
+        console_parser = subparsers.add_parser(
+            "console",
+            help="Launch interactive console for configuration management"
+        )
+        console_parser.add_argument(
+            "--panel",
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+        )
+
+        # TUI subcommand (alias for console, kept for backward compatibility)
+        tui_parser = subparsers.add_parser(
+            "tui",
+            help="Launch interactive console (alias for ai-guardian console)"
+        )
+        tui_parser.add_argument(
+            "--panel",
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+        )
+
+        # Scan subcommand
+        scan_parser = subparsers.add_parser(
+            "scan",
+            help="Scan repository files for security issues"
+        )
+        scan_parser.add_argument(
+            "path",
+            nargs="?",
+            default=".",
+            help="Path to scan (file or directory, default: current directory)"
+        )
+        scan_parser.add_argument(
+            "--config",
+            metavar="FILE",
+            help="Path to ai-guardian.json config file"
+        )
+        scan_parser.add_argument(
+            "--include",
+            action="append",
+            metavar="PATTERN",
+            help="File patterns to include (glob style, can be specified multiple times)"
+        )
+        scan_parser.add_argument(
+            "--exclude",
+            action="append",
+            metavar="PATTERN",
+            help="File patterns to exclude (glob style, can be specified multiple times)"
+        )
+        scan_parser.add_argument(
+            "--config-only",
+            action="store_true",
+            help="Only scan AI config files (CLAUDE.md, AGENTS.md, etc.)"
+        )
+        scan_parser.add_argument(
+            "--sarif-output",
+            metavar="FILE",
+            help="Write SARIF format output to file (for CI/CD integration)"
+        )
+        scan_parser.add_argument(
+            "--json-output",
+            metavar="FILE",
+            help="Write JSON format output to file"
+        )
+        scan_parser.add_argument(
+            "--exit-code",
+            action="store_true",
+            help="Exit with code 1 if security issues found (for CI/CD)"
+        )
+        scan_parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Enable verbose output"
+        )
+
+        # Show-config subcommand (NEW in v1.5.0)
+        show_config_parser = subparsers.add_parser(
+            "show-config",
+            help="Display effective configuration with source attribution"
+        )
+        show_config_parser.add_argument(
+            "--feature",
+            choices=["ssrf", "secrets", "unicode", "config-scanner", "all"],
+            default="all",
+            help="Which feature to show (default: all)"
+        )
+        show_config_parser.add_argument(
+            "--show-sources",
+            action="store_true",
+            help="Show source attribution (IMMUTABLE, SERVER, DEFAULT, LOCAL_CONFIG)"
+        )
+        show_config_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+        show_config_parser.add_argument(
+            "--config",
+            metavar="FILE",
+            help="Path to ai-guardian.json config file (default: auto-detect)"
+        )
+
+        # Config subcommand (NEW in v1.8.0, Issue #144)
+        config_parser = subparsers.add_parser(
+            "config",
+            help="Configuration management (show merged config, preview auto-rules)"
+        )
+        config_sub = config_parser.add_subparsers(dest="config_command", help="Config commands")
+
+        # config show
+        config_show_parser = config_sub.add_parser("show", help="Display merged configuration")
+        config_show_parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Include auto-generated rules marked [GENERATED]"
+        )
+        config_show_parser.add_argument(
+            "--section",
+            metavar="NAME",
+            help="Show specific section only (e.g., permissions, directory_rules)"
+        )
+        config_show_parser.add_argument(
+            "--preview-auto-rules",
+            action="store_true",
+            help="Preview what auto-generation would create (without enabling)"
+        )
+        config_show_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output configuration as JSON"
+        )
+
+        # Scanner subcommand (NEW in v1.6.0)
+        scanner_parser = subparsers.add_parser(
+            "scanner",
+            help="Manage scanner engines (install, list, info)"
+        )
+        scanner_sub = scanner_parser.add_subparsers(dest="scanner_command", help="Scanner commands")
+
+        # scanner list
+        scanner_list_parser = scanner_sub.add_parser("list", help="List installed scanners")
+        scanner_list_parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Show installation paths"
+        )
+        scanner_list_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # scanner install
+        scanner_install_parser = scanner_sub.add_parser("install", help="Install a scanner")
+        scanner_install_parser.add_argument(
+            "name",
+            choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
+            help="Scanner to install"
+        )
+        scanner_install_parser.add_argument(
+            "--version",
+            help="Install specific version (e.g., 8.30.1)"
+        )
+        scanner_install_parser.add_argument(
+            "--use-pinned",
+            action="store_true",
+            help="Use version from pyproject.toml (tested with this ai-guardian release)"
+        )
+        scanner_install_parser.add_argument(
+            "--path",
+            type=Path,
+            help="Custom installation directory (default: /usr/local/bin, fallback: ~/.local/bin)"
+        )
+
+        # scanner info
+        scanner_info_parser = scanner_sub.add_parser("info", help="Show scanner details")
+        scanner_info_parser.add_argument(
+            "name",
+            choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
+            help="Scanner to show info for"
+        )
+        scanner_info_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # scanner supported
+        scanner_supported_parser = scanner_sub.add_parser(
+            "supported",
+            help="List all supported scanners with versions and repos"
+        )
+        scanner_supported_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # Pattern-servers subcommand
+        pattern_servers_parser = subparsers.add_parser(
+            "pattern-servers",
+            help="Pattern server management"
+        )
+        pattern_servers_sub = pattern_servers_parser.add_subparsers(
+            dest="pattern_servers_command",
+            help="Pattern server commands"
+        )
+
+        # pattern-servers supported
+        ps_supported_parser = pattern_servers_sub.add_parser(
+            "supported",
+            help="List all supported pattern servers"
+        )
+        ps_supported_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # Patterns subcommand (NEW in v1.9.0, Issue #337)
+        patterns_parser = subparsers.add_parser(
+            "patterns",
+            help="List detection patterns across the system"
+        )
+        patterns_sub = patterns_parser.add_subparsers(
+            dest="patterns_command",
+            help="Pattern commands"
+        )
+
+        # patterns list
+        patterns_list_parser = patterns_sub.add_parser(
+            "list",
+            help="List all detection pattern categories"
+        )
+        patterns_list_parser.add_argument(
+            "--verbose", "-v",
+            action="store_true",
+            help="Show individual pattern breakdowns"
+        )
+        patterns_list_parser.add_argument(
+            "--category",
+            metavar="NAME",
+            help="Filter by category name (e.g., prompt_injection, scan_pii, ssrf)"
+        )
+        patterns_list_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # Sanitize subcommand (Issue #443)
+        sanitize_parser = subparsers.add_parser(
+            "sanitize",
+            help="Redact secrets, PII, and threats from text"
+        )
+        sanitize_parser.add_argument(
+            "input",
+            nargs="?",
+            help="File to sanitize (reads stdin if omitted)"
+        )
+        sanitize_parser.add_argument(
+            "--no-secrets",
+            action="store_true",
+            help="Skip secret redaction"
+        )
+        sanitize_parser.add_argument(
+            "--no-pii",
+            action="store_true",
+            help="Skip PII redaction"
+        )
+        sanitize_parser.add_argument(
+            "--no-threats",
+            action="store_true",
+            help="Skip prompt injection and unicode attack neutralization"
+        )
+        sanitize_parser.add_argument(
+            "--summary",
+            action="store_true",
+            help="Print redaction summary to stderr"
+        )
+        sanitize_parser.add_argument(
+            "--exit-code",
+            action="store_true",
+            help="Exit with code 1 if redactions were made (for CI/CD)"
+        )
+
+        # Doctor subcommand (Issue #475)
+        doctor_parser = subparsers.add_parser(
+            "doctor",
+            help="Check ai-guardian installation health"
+        )
+        doctor_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output results as JSON"
+        )
+        doctor_parser.add_argument(
+            "--fix",
+            action="store_true",
+            help="Auto-fix issues that can be safely fixed"
+        )
+        doctor_parser.add_argument(
+            "--quiet",
+            action="store_true",
+            help="Exit codes only (0=ok, 1=warnings, 2=errors)"
+        )
+        doctor_parser.add_argument(
+            "--check-connectivity",
+            action="store_true",
+            help="Include network connectivity checks (pattern server)"
+        )
+
+        # Daemon subcommand
+        daemon_parser = subparsers.add_parser(
+            "daemon",
+            help="Manage the background daemon service"
+        )
+        daemon_sub = daemon_parser.add_subparsers(
+            dest="daemon_command", help="Daemon commands"
+        )
+        daemon_start_parser = daemon_sub.add_parser(
+            "start", help="Start daemon"
+        )
+        daemon_start_parser.add_argument(
+            "--background", "-b",
+            action="store_true",
+            help="Start daemon in background (detached)"
+        )
+        daemon_start_parser.add_argument(
+            "--idle-timeout",
+            type=int,
+            default=None,
+            help="Idle timeout in minutes (default: from config or 30)"
+        )
+        daemon_start_parser.add_argument(
+            "--no-tray",
+            action="store_true",
+            help="Disable system tray icon"
+        )
+        daemon_sub.add_parser("stop", help="Stop running daemon")
+        daemon_sub.add_parser("status", help="Show daemon status")
+        daemon_sub.add_parser("restart", help="Restart daemon")
+
+        # MCP server subcommand (Issue #477)
+        subparsers.add_parser(
+            "mcp-server",
+            help="Start MCP security advisor server (stdio transport)"
+        )
+
+        # Support bundle subcommand (Issue #511)
+        support_parser = subparsers.add_parser(
+            "support",
+            help="Manage support bundles for troubleshooting"
+        )
+        support_sub = support_parser.add_subparsers(
+            dest="support_command", help="Support commands"
+        )
+
+        # support prepare
+        support_prepare_parser = support_sub.add_parser(
+            "prepare",
+            help="Prepare a sanitized support bundle for review"
+        )
+        support_prepare_parser.add_argument(
+            "--output", "-o",
+            metavar="PATH",
+            help="Save bundle to this directory instead of a temp directory"
+        )
+        support_prepare_parser.add_argument(
+            "--no-log",
+            action="store_true",
+            help="Exclude the ai-guardian.log file from the bundle"
+        )
+        support_prepare_parser.add_argument(
+            "--no-violations",
+            action="store_true",
+            help="Exclude the violations.json file from the bundle"
+        )
+        support_prepare_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output bundle info as JSON"
+        )
+
+        # support send
+        support_send_parser = support_sub.add_parser(
+            "send",
+            help="Send a prepared support bundle to the configured destination"
+        )
+        support_send_parser.add_argument(
+            "--prepare",
+            action="store_true",
+            help="Prepare and send in one step (with confirmation unless --yes)"
+        )
+        support_send_parser.add_argument(
+            "--yes", "-y",
+            action="store_true",
+            help="Skip confirmation prompt"
+        )
+        support_send_parser.add_argument(
+            "--bundle",
+            metavar="PATH",
+            help="Path to a previously prepared bundle directory"
+        )
+        support_send_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output result as JSON"
+        )
+
+        # support status
+        support_status_parser = support_sub.add_parser(
+            "status",
+            help="Show support bundle configuration and pending bundles"
+        )
+        support_status_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as JSON"
+        )
+
+        # Engine test subcommand (Issue #542)
+        engine_test_parser = subparsers.add_parser(
+            "engine-test",
+            help="Test strings against scanner engines"
+        )
+        engine_test_parser.add_argument(
+            "--engine",
+            choices=[
+                "gitleaks", "betterleaks", "leaktk", "trufflehog",
+                "detect-secrets", "secretlint", "gitguardian",
+            ],
+            help="Test against a specific engine"
+        )
+        engine_test_parser.add_argument(
+            "--all",
+            action="store_true",
+            dest="all_engines",
+            help="Test against all installed engines"
+        )
+        engine_test_parser.add_argument(
+            "--compare",
+            action="store_true",
+            help="Show comparison table across all engines"
+        )
+        engine_test_parser.add_argument(
+            "--pattern-server",
+            action="store_true",
+            help="Use pattern server configuration (if configured)"
+        )
+        engine_test_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output results as JSON"
+        )
+
+        args = parser.parse_args()
+
+        # Handle setup command
+        if args.command == "setup":
+            from ai_guardian.setup import setup_hooks
+            success = setup_hooks(
+                ide_type=args.ide,
+                remote_config_url=args.remote_config_url,
+                dry_run=args.dry_run,
+                force=args.force,
+                interactive=not args.yes,
+                migrate_pattern_server=args.migrate_pattern_server,
+                create_config=args.create_config,
+                permissive=args.permissive,
+                pre_commit=args.pre_commit,
+                auto_install_hooks=args.auto_install_hooks,
+                uninstall_hooks=args.uninstall_hooks,
+                install_scanner=args.install_scanner,
+                json_output=args.json_output,
+                profile=args.profile,
+                save_profile=args.save_profile,
+                list_profiles=args.list_profiles,
+                mcp=args.mcp if args.mcp else None,
+                no_mcp=args.no_mcp if args.no_mcp else None,
+            )
+            return 0 if success else 1
+
+        # Handle violations command
+        if args.command == "violations":
+            if HAS_VIOLATION_LOGGER:
+                return _handle_violations_command(args)
+            else:
+                print("Error: violation_logger module not available", file=sys.stderr)
+                return 1
+
+        # Handle metrics command (Issue #469)
+        if args.command == "metrics":
+            try:
+                from ai_guardian.metrics import metrics_command
+                return metrics_command(args)
+            except ImportError as e:
+                print(f"Error: Metrics module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running metrics: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle tui/console command
+        if args.command in ("tui", "console"):
+            try:
+                from ai_guardian.tui import AIGuardianTUI
+                app = AIGuardianTUI()
+                initial_panel = getattr(args, "panel", None)
+                if initial_panel:
+                    app.initial_panel = initial_panel
+                app.run()
+                return 0
+            except ImportError as e:
+                print(f"Error: Console dependencies not available. Install with: pip install ai-guardian", file=sys.stderr)
+                print(f"Details: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running console: {e}", file=sys.stderr)
+                return 1
+
+        # Handle scan command
+        if args.command == "scan":
+            try:
+                from ai_guardian.scanner import scan_command
+                return scan_command(args)
+            except ImportError as e:
+                print(f"Error: Scanner module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running scan: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle show-config command (NEW in v1.5.0)
+        if args.command == "show-config":
+            try:
+                from ai_guardian.config_inspector import ConfigInspector
+
+                # Load config
+                if args.config:
+                    config_path = Path(args.config)
+                    if config_path.exists():
+                        config = json.loads(config_path.read_text())
+                    else:
+                        print(f"Error: Config file not found: {config_path}", file=sys.stderr)
+                        return 1
+                else:
+                    # Try to find config in default locations
+                    config_candidates = [
+                        Path.cwd() / "ai-guardian.json",
+                        Path.cwd() / ".ai-guardian.json",
+                        Path.home() / ".config" / "ai-guardian" / "ai-guardian.json",
+                    ]
+                    config_path = None
+                    for candidate in config_candidates:
+                        if candidate.exists():
+                            config_path = candidate
+                            break
+
+                    if config_path:
+                        config = json.loads(config_path.read_text())
+                    else:
+                        # No config found, use empty config (show defaults)
+                        config = {}
+
+                inspector = ConfigInspector(config)
+
+                # Output format
+                if args.json:
+                    print(inspector.export_json())
+                else:
+                    # Display specific feature or all
+                    if args.feature == "ssrf":
+                        print(inspector.show_ssrf_config(show_sources=args.show_sources))
+                    elif args.feature == "secrets":
+                        print(inspector.show_secret_config(show_sources=args.show_sources))
+                    elif args.feature == "unicode":
+                        print(inspector.show_unicode_config(show_sources=args.show_sources))
+                    elif args.feature == "config-scanner":
+                        print(inspector.show_config_scanner_config(show_sources=args.show_sources))
+                    else:  # all
+                        print(inspector.show_all(show_sources=args.show_sources))
+
+                return 0
+            except ImportError as e:
+                print(f"Error: Config inspector module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error displaying configuration: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle config command (NEW in v1.8.0, Issue #144)
+        if args.command == "config":
+            try:
+                from ai_guardian.config_display import ConfigDisplay
+
+                if args.config_command is None:
+                    config_parser.print_help()
+                    return 1
+
+                if args.config_command == "show":
+                    display = ConfigDisplay()
+                    output = display.show(
+                        show_all=args.all,
+                        section=args.section,
+                        preview_auto_rules=args.preview_auto_rules,
+                        output_json=args.json
+                    )
+                    print(output)
+                    return 0
+                else:
+                    print(f"Unknown config command: {args.config_command}", file=sys.stderr)
+                    return 1
+
+            except ImportError as e:
+                print(f"Error: Config display module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error displaying configuration: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle scanner command (NEW in v1.6.0)
+        if args.command == "scanner":
+            try:
+                from ai_guardian.scanner_installer import ScannerInstaller
+                from ai_guardian.scanner_manager import ScannerManager
+
+                if args.scanner_command == "list":
+                    manager = ScannerManager()
+                    if args.json:
+                        print(manager.get_scanner_list_json())
+                    else:
+                        manager.print_scanner_list(verbose=args.verbose)
+                    return 0
+
+                elif args.scanner_command == "install":
+                    # Create installer with custom path if provided
+                    install_dir = args.path if hasattr(args, 'path') and args.path else None
+                    installer = ScannerInstaller(install_dir=install_dir)
+
+                    print(f"Installing {args.name}...")
+                    success = installer.install(
+                        args.name,
+                        version=args.version,
+                        use_pinned=args.use_pinned
+                    )
+
+                    if success:
+                        # Verify installation
+                        if installer.verify_installation(args.name):
+                            print(f"\n✓ {args.name} is ready to use")
+
+                            # Show suggestion to update config
+                            print(f"\nRecommended: Update your configuration to use {args.name}")
+                            print(f"\nAdd to ~/.config/ai-guardian/ai-guardian.json:")
+                            print('{')
+                            print('  "secret_scanning": {')
+                            print('    "enabled": true,')
+                            print(f'    "engines": ["{args.name}"]')
+                            print('  }')
+                            print('}')
+                        else:
+                            print(f"\n⚠ Installation completed but {args.name} verification failed")
+                            print(f"Make sure ~/.local/bin is in your PATH")
+                            return 1
+                        return 0
+                    else:
+                        print(f"\n✗ Failed to install {args.name}")
+                        return 1
+
+                elif args.scanner_command == "info":
+                    manager = ScannerManager()
+                    if args.json:
+                        print(manager.get_scanner_info_json(args.name))
+                    else:
+                        manager.print_scanner_info(args.name)
+                    return 0
+
+                elif args.scanner_command == "supported":
+                    manager = ScannerManager()
+                    if args.json:
+                        print(manager.get_supported_scanners_json())
+                    else:
+                        manager.print_supported_scanners()
+                    return 0
+
+                else:
+                    # No scanner subcommand provided
+                    scanner_parser.print_help()
+                    return 1
+
+            except Exception as e:
+                print(f"Error managing scanner: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle pattern-servers command
+        if args.command == "pattern-servers":
+            try:
+                from ai_guardian.scanner_manager import ScannerManager
+
+                if args.pattern_servers_command is None:
+                    pattern_servers_parser.print_help()
+                    return 1
+
+                if args.pattern_servers_command == "supported":
+                    manager = ScannerManager()
+                    if args.json:
+                        print(manager.get_pattern_servers_json())
+                    else:
+                        manager.print_pattern_servers()
+                    return 0
+
+                else:
+                    pattern_servers_parser.print_help()
+                    return 1
+
+            except Exception as e:
+                print(f"Error managing pattern servers: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle patterns command (NEW in v1.9.0, Issue #337)
+        if args.command == "patterns":
+            try:
+                from ai_guardian.pattern_lister import PatternLister
+
+                if args.patterns_command is None:
+                    patterns_parser.print_help()
+                    return 1
+
+                if args.patterns_command == "list":
+                    config, _ = _load_config_file()
+                    lister = PatternLister(config=config)
+                    if args.json:
+                        print(lister.get_pattern_list_json(
+                            category=args.category
+                        ))
+                    else:
+                        lister.print_pattern_list(
+                            verbose=args.verbose,
+                            category=args.category
+                        )
+                    return 0
+
+                else:
+                    patterns_parser.print_help()
+                    return 1
+
+            except Exception as e:
+                print(f"Error listing patterns: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle sanitize command (Issue #443)
+        if args.command == "sanitize":
+            try:
+                from ai_guardian.sanitizer import sanitize_command
+                return sanitize_command(args)
+            except ImportError as e:
+                print(f"Error: Sanitizer module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running sanitize: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle doctor command (Issue #475)
+        if args.command == "doctor":
+            try:
+                from ai_guardian.doctor import doctor_command
+                return doctor_command(args)
+            except ImportError as e:
+                print(f"Error: Doctor module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running doctor: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        if args.command == "daemon":
+            return _handle_daemon_command(args)
+
+        # Handle mcp-server command (Issue #477)
+        if args.command == "mcp-server":
+            try:
+                from ai_guardian.mcp_server import run_mcp_server
+                return run_mcp_server()
+            except ImportError as e:
+                print(
+                    f"Error: MCP server not available. "
+                    f"Requires Python >=3.10 and mcp package: {e}",
+                    file=sys.stderr,
+                )
+                return 1
+
+        # Handle support command (Issue #511)
+        if args.command == "support":
+            try:
+                from ai_guardian.support_bundle import support_command
+                return support_command(args)
+            except ImportError as e:
+                print(f"Error: Support bundle module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running support command: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle engine-test command (Issue #542)
+        if args.command == "engine-test":
+            try:
+                from ai_guardian.engine_tester import engine_test_command
+                return engine_test_command(args)
+            except ImportError as e:
+                print(f"Error: Engine tester module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running engine test: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # If no subcommand, just return (version was handled)
+        return 0
+
+    # No arguments - run as hook (read from stdin)
+    daemon_mode = _get_daemon_mode()
+    hook_data = None
+    response = None
+    stdin_consumed = False
+
+    if daemon_mode in ("auto", "daemon"):
+        try:
+            from ai_guardian.daemon.client import (
+                is_daemon_running,
+                send_hook_request,
+                start_daemon_background,
+            )
+
+            stdin_content = sys.stdin.read()
+            stdin_consumed = True
+            hook_data = json.loads(stdin_content)
+
+            if not is_daemon_running():
+                logging.info("Daemon not running, starting...")
+                started = start_daemon_background()
+                if not started:
+                    logging.warning("Failed to start daemon")
+
+            if is_daemon_running():
+                logging.info("Daemon is running, forwarding hook request")
+                response = send_hook_request(hook_data, timeout=_get_client_timeout())
+                if response is not None:
+                    logging.info("Daemon processed hook request")
+                elif daemon_mode == "daemon":
+                    logging.error("Daemon returned no response (daemon mode)")
+                else:
+                    logging.warning("Daemon returned no response, falling back to direct")
+            else:
+                if daemon_mode == "daemon":
+                    logging.error("Daemon unavailable (daemon mode)")
+                else:
+                    logging.info("Daemon unavailable, falling back to direct")
+        except Exception as e:
+            if daemon_mode == "daemon":
+                logging.error(f"Daemon client error (daemon mode, no fallback): {e}")
+            else:
+                logging.info(f"Daemon client error, falling back to direct: {e}")
+
+    if response is None:
+        if daemon_mode == "daemon":
+            logging.error("Daemon mode: failed to process via daemon, allowing through (fail-open)")
+        if hook_data is not None:
+            response = process_hook_data(hook_data)
+        elif stdin_consumed:
+            response = {"output": None, "exit_code": 0}
+        else:
+            response = process_hook_input()
+
+    # Output JSON to stdout if needed (for Cursor)
+    if response.get("output"):
+        print(response["output"], flush=True)  # Force flush for Cursor
+        sys.stdout.flush()  # Explicit flush for compatibility
+
+    # Exit with appropriate code
+    sys.exit(response["exit_code"])
+
+
+if __name__ == "__main__":
+    main()

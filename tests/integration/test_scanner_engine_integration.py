@@ -19,9 +19,9 @@ from ai_guardian import check_secrets_with_gitleaks
 class TestScannerEngineIntegration(unittest.TestCase):
     """Tests for scanner engine integration."""
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_scanner_not_found_warns(self, mock_load_config, mock_select_engine):
         """Test that missing scanner warns instead of blocking (Issue #343)."""
         # Mock configuration with leaktk
@@ -51,11 +51,11 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIn("No secret scanning available", error_msg, "Should use context-aware title")
         self.assertIn("['leaktk']", error_msg, "Should list tried engines")
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_scanner_engine_used_when_available(
         self, mock_load_config, mock_run_single,
         mock_select_all, mock_select_engine
@@ -92,8 +92,8 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets)
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', False)
-    @patch('ai_guardian.subprocess.run')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', False)
+    @patch('ai_guardian.hook_processing.subprocess.run')
     def test_legacy_fallback_when_scanner_engine_unavailable(self, mock_run):
         """Test that legacy gitleaks is used when scanner engine module unavailable."""
         # Mock gitleaks run (no secrets)
@@ -117,9 +117,9 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets)
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_unexpected_error_fails_open(self, mock_load_config, mock_select_engine):
         """Test that unexpected errors fail open (allow operation)."""
         # Mock configuration
@@ -138,11 +138,11 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets, "Should fail open on unexpected errors")
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_gitleaks_exit_code_1_not_treated_as_success(
         self, mock_load_config, mock_run_single,
         mock_select_all, mock_select_engine
@@ -181,11 +181,11 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertTrue(has_secrets, "Exit code 1 from gitleaks must mean secrets found, not success (Issue #411)")
         self.assertIsNotNone(error_msg)
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_gitleaks_exit_code_42_blocks_operation(
         self, mock_load_config, mock_run_single,
         mock_select_all, mock_select_engine
@@ -220,12 +220,12 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertIsNotNone(error_msg)
         self.assertIn("Secret Detected", error_msg)
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.build_scanner_command')
-    @patch('ai_guardian.get_parser')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian.subprocess.run')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.build_scanner_command')
+    @patch('ai_guardian.hook_processing.get_parser')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.subprocess.run')
     def test_gitleaks_exit_code_0_allows_operation(
         self, mock_run, mock_load_config, mock_get_parser,
         mock_build_command, mock_select_engine
@@ -263,11 +263,11 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets, "Exit code 0 should allow the operation")
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_betterleaks_exit_code_1_not_treated_as_success(
         self, mock_load_config, mock_run_single,
         mock_select_all, mock_select_engine
@@ -310,18 +310,18 @@ class TestGuardClauseFallthrough(unittest.TestCase):
     subprocess path (not the multi-engine strategy framework).
     """
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.HAS_PATTERN_SERVER', True)
-    @patch('ai_guardian.PatternServerClient')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.resolve_engine_config_path')
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian.build_scanner_command')
-    @patch('ai_guardian.get_parser')
-    @patch('ai_guardian.subprocess.run')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.HAS_PATTERN_SERVER', True)
+    @patch('ai_guardian.hook_processing.PatternServerClient')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.resolve_engine_config_path')
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.build_scanner_command')
+    @patch('ai_guardian.hook_processing.get_parser')
+    @patch('ai_guardian.hook_processing.subprocess.run')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_guard_clause_falls_through_to_gitleaks(
         self, mock_load_config, mock_subprocess, mock_get_parser,
         mock_build_cmd, mock_run_single,
@@ -391,18 +391,18 @@ class TestGuardClauseFallthrough(unittest.TestCase):
         self.assertIn("first-match fallthrough", error_msg)
         mock_run_single.assert_called()
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.HAS_PATTERN_SERVER', True)
-    @patch('ai_guardian.PatternServerClient')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.resolve_engine_config_path')
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian.build_scanner_command')
-    @patch('ai_guardian.get_parser')
-    @patch('ai_guardian.subprocess.run')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing.HAS_PATTERN_SERVER', True)
+    @patch('ai_guardian.hook_processing.PatternServerClient')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.resolve_engine_config_path')
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.build_scanner_command')
+    @patch('ai_guardian.hook_processing.get_parser')
+    @patch('ai_guardian.hook_processing.subprocess.run')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_guard_clause_returns_clean_when_no_remaining_engines(
         self, mock_load_config, mock_subprocess, mock_get_parser,
         mock_build_cmd, mock_run_single,
@@ -449,15 +449,15 @@ class TestGuardClauseFallthrough(unittest.TestCase):
         self.assertIsNone(error_msg)
         mock_run_single.assert_not_called()
 
-    @patch('ai_guardian.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.select_engine')
-    @patch('ai_guardian.select_all_engines')
-    @patch('ai_guardian.run_single_engine')
-    @patch('ai_guardian.build_scanner_command')
-    @patch('ai_guardian.get_parser')
-    @patch('ai_guardian.subprocess.run')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.select_engine')
+    @patch('ai_guardian.hook_processing.select_all_engines')
+    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.build_scanner_command')
+    @patch('ai_guardian.hook_processing.get_parser')
+    @patch('ai_guardian.hook_processing.subprocess.run')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_fallthrough_uses_none_config_path(
         self, mock_load_config, mock_subprocess, mock_get_parser,
         mock_build_cmd, mock_run_single,

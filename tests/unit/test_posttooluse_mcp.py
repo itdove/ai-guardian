@@ -21,8 +21,8 @@ from tests.fixtures import attack_constants
 class PostToolUseSecretScanningTests(TestCase):
     """Test secret scanning in tool outputs"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_bash_output_with_secret_blocked(self, mock_pattern_config, mock_redaction_config):
         """
         Verify secrets in Bash output are blocked.
@@ -54,8 +54,8 @@ class PostToolUseSecretScanningTests(TestCase):
         # Verify secret was redacted from output
         output_text = response.get("modified_output", response.get("output", ""))
         assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_read_output_with_secret_blocked(self, mock_pattern_config, mock_redaction_config):
         """
         Verify secrets in Read tool output are redacted.
@@ -91,8 +91,8 @@ class PostToolUseSecretScanningTests(TestCase):
         output_text = response.get("modified_output", response.get("content", ""))
         assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_bash_clean_output_allowed(self, mock_pattern_config, mock_redaction_config):
         """
         Verify clean Bash output is allowed.
@@ -179,8 +179,8 @@ class PostToolUseContentScanningTests(TestCase):
     not a PostToolUse concern (tool output to AI).
     """
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_bash_output_with_potential_injection_allowed(self, mock_pattern_config, mock_redaction_config):
         """
         Verify tool output with injection-like patterns is allowed.
@@ -213,8 +213,8 @@ class PostToolUseContentScanningTests(TestCase):
         assert response.get('decision') != 'block', \
             "Tool output with injection-like text should be allowed (not user input)"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_read_file_with_commands_allowed(self, mock_pattern_config, mock_redaction_config):
         """
         Verify file content with commands is allowed.
@@ -246,8 +246,8 @@ class PostToolUseContentScanningTests(TestCase):
         assert response.get('decision') != 'block', \
             "File content with commands should be allowed"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_normal_code_file_allowed(self, mock_pattern_config, mock_redaction_config):
         """
         Verify normal code files are allowed.
@@ -289,8 +289,8 @@ if __name__ == "__main__":
 class PostToolUseMCPToolTests(TestCase):
     """Test PostToolUse with MCP tool responses"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_mcp_response_with_secret_allowed_by_default(self, mock_pattern_config, mock_redaction_config):
         """
         Verify MCP tool responses are scanned if output is extracted.
@@ -389,8 +389,8 @@ class PostToolUseMCPToolTests(TestCase):
 class PostToolUseRedactionTests(TestCase):
     """Test secret redaction in tool outputs"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_redaction_mode_replaces_secrets(self, mock_pattern_config, mock_redaction_config):
         """
         Verify redaction mode replaces secrets in output.
@@ -434,8 +434,8 @@ class PostToolUseRedactionTests(TestCase):
 class PostToolUseCombinedTests(TestCase):
     """Test combined scenarios in PostToolUse"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_multiple_threats_in_output(self, mock_pattern_config, mock_redaction_config):
         """
         Verify output with multiple threats is blocked.

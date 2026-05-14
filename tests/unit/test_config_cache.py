@@ -34,7 +34,7 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
 
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -52,7 +52,7 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
 
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -77,7 +77,7 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps({"key": "value1"}))
 
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -94,7 +94,7 @@ class TestConfigCache(unittest.TestCase):
     def test_cache_handles_no_config_file(self):
         """When no config file exists, (None, None) is cached."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -112,7 +112,7 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text("{bad json")
 
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -135,7 +135,7 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps(config_data))
 
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -169,7 +169,7 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps(config_data))
 
-            with patch('ai_guardian.get_config_dir', return_value=Path("/nonexistent")):
+            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
