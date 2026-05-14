@@ -104,6 +104,7 @@ NAV_GROUPS = [
     ("Permissions", [
         ("Skills", "panel-skills"),
         ("MCP Servers", "panel-mcp"),
+        ("MCP Security", "panel-mcp-security"),
         ("Permissions Discovery", "panel-permissions-discovery"),
         ("Directory Rules", "panel-directory-rules"),
     ]),
@@ -164,6 +165,8 @@ HELP_DOCS = {
         "Code skills (slash commands)\n"
         "  [bold]MCP Servers[/bold] — Manage permissions for MCP server "
         "tool invocations\n"
+        "  [bold]MCP Security[/bold] — Audit MCP server configurations "
+        "for credential exposure and supply chain risks\n"
         "  [bold]Permissions Discovery[/bold] — Review tool calls that "
         "don't match any existing rule\n"
         "  [bold]Directory Rules[/bold] — Control which file paths "
@@ -285,6 +288,23 @@ HELP_DOCS = {
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]a[/bold]  Add permission\n"
         "  [bold]r[/bold]  Refresh list"
+    ),
+    "panel-mcp-security": (
+        "[bold]MCP Security Audit[/bold]\n\n"
+        "Audit MCP server configurations for security issues.\n\n"
+        "[bold]Checks performed:[/bold]\n"
+        "  - Credential env vars passed to untrusted servers\n"
+        "  - npx -y running unvetted packages (auto-install)\n"
+        "  - Unpinned package versions\n"
+        "  - Suspicious URLs and raw IP addresses\n\n"
+        "[bold]Trust model:[/bold]\n"
+        "  MCP servers with matching allow rules in permissions.rules\n"
+        "  are trusted. Others are flagged for credential exposure.\n\n"
+        "[bold]Deep scanning:[/bold]\n"
+        "  For source code analysis, use CLI:\n"
+        "  ai-guardian mcp scan [server-name]\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Refresh audit results"
     ),
     "panel-permissions-discovery": (
         "[bold]Permissions Discovery[/bold]\n\n"
@@ -1022,6 +1042,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-mcp"):
                     from ai_guardian.tui.mcp_servers import MCPServersContent
                     yield MCPServersContent()
+
+                with Container(id="panel-mcp-security"):
+                    from ai_guardian.tui.mcp_security import MCPSecurityContent
+                    yield MCPSecurityContent()
 
                 with Container(id="panel-permissions-discovery"):
                     from ai_guardian.tui.permissions_discovery import PermissionsDiscoveryContent

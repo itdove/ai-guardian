@@ -110,6 +110,7 @@ Click on tab headers to switch between tabs:
 - **📋 Violations**
 - **🎯 Skills**
 - **🔌 MCP Servers**
+- **🔒 MCP Security**
 - **🔒 Secrets**
 - **🛡️ Prompt Injection**
 - **🌐 Remote Configs**
@@ -549,6 +550,40 @@ MCP server names follow the format: `mcp__<server>__<tool>`
 2. **Avoid global wildcards**: Don't use `mcp__*` unless absolutely necessary
 3. **Review violations**: Check Violations tab for blocked MCP calls before allowing
 4. **Time-limit dangerous tools**: Use time-based patterns for risky operations
+
+---
+
+### 4b. 🔒 MCP Security
+
+Audit MCP server configurations for security issues. This panel performs static analysis of your IDE's MCP server definitions to detect potential risks.
+
+#### What It Checks
+
+| Check | Severity | Description |
+|-------|----------|-------------|
+| Credential exposure | Critical | Credential env vars (KEY, TOKEN, SECRET, PASSWORD) passed to untrusted servers |
+| npx auto-install | Medium | `npx -y` auto-installs packages without review on untrusted servers |
+| Unpinned versions | Medium | Packages without version pins (e.g., `uvx pkg` instead of `uvx pkg@1.2.3`) |
+| Suspicious URLs | High | Raw IPs, localhost, ngrok/tunneling services in server args |
+
+#### Trust Model
+
+Trust is derived from `permissions.rules` — the same rules you configure in the **MCP Servers** tab:
+- **Trusted**: Servers with a matching `allow` rule can receive credentials without warning
+- **Untrusted**: Servers without an `allow` rule trigger credential exposure warnings
+
+#### How to Use
+
+The panel runs automatically when opened. Click **Run Audit** to refresh results.
+
+For deep source code scanning (outbound HTTP calls, sensitive file reads, subprocess execution), use the CLI:
+
+```bash
+ai-guardian mcp scan              # Scan all servers
+ai-guardian mcp scan server-name  # Scan specific server
+ai-guardian mcp audit             # Config-only audit (same as Console panel)
+ai-guardian mcp list              # List servers with trust status
+```
 
 ---
 

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP server security scanning** (Issue #468)
+  - `ai-guardian mcp list` — list MCP servers with trust status
+  - `ai-guardian mcp audit` — config audit for credential exposure, unpinned packages, npx auto-install, suspicious URLs
+  - `ai-guardian mcp scan [server]` — deep source code scan for outbound HTTP, sensitive file reads, subprocess calls, base64 exfiltration, environment variable harvesting
+  - Console panel "MCP Security" under Permissions group
+  - Trust derived from `permissions.rules` — no separate config needed
+
 - **Daemon session state persistence** (Issue #592)
   - Persist security injection tracking across daemon restarts
   - Write-behind with debounced writes (2-second delay) to avoid excessive I/O

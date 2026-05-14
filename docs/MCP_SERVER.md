@@ -189,6 +189,52 @@ Both interfaces share the same underlying logic — same sanitization, same dest
 - For S3 export: `pip install boto3`
 - For GCS export: Google Application Default Credentials (`gcloud auth application-default login`) or `GOOGLE_APPLICATION_CREDENTIALS` env var. No extra packages needed.
 
+## MCP Security Scanning
+
+Audit MCP server configurations and source code for security issues. This is separate from the MCP security *advisor* server above — scanning is a CLI/Console feature for reviewing the security of your MCP server setup.
+
+### CLI Commands
+
+```bash
+ai-guardian mcp list              # List servers with trust status
+ai-guardian mcp audit             # Config audit (credential exposure, npx -y, unpinned packages)
+ai-guardian mcp scan              # Deep source code scan (all servers)
+ai-guardian mcp scan server-name  # Deep scan specific server
+```
+
+### Trust Model
+
+Trust is derived from `permissions.rules` — MCP servers with a matching `allow` rule are trusted. No separate trust configuration needed.
+
+| MCP Server | Permission | Has credentials | Result |
+|---|---|---|---|
+| `mcp-atlassian` | allow | Yes | OK — trusted, needs credentials |
+| `unknown-server` | not listed | Yes | **Warning** — untrusted server receiving credentials |
+| `unknown-server` | not listed | No | OK — no credentials at risk |
+
+### Config Audit Checks
+
+| Check | Severity | Description |
+|-------|----------|-------------|
+| Credential exposure | Critical | Credential env vars (KEY, TOKEN, SECRET, PASSWORD) on untrusted servers |
+| npx auto-install | Medium | `npx -y` auto-installs packages without review |
+| Unpinned versions | Medium | Packages without version pins (`pkg` instead of `pkg@1.2.3`) |
+| Suspicious URLs | High | Raw IPs, localhost, ngrok/tunneling services |
+
+### Deep Source Scan Checks
+
+| Check | Severity | Description |
+|-------|----------|-------------|
+| Outbound HTTP | Medium | `requests.get()`, `fetch()`, `axios` calls |
+| Sensitive file reads | High | Access to `~/.ssh`, `~/.aws`, `/etc/shadow` |
+| Subprocess/exec | High | `subprocess.run()`, `os.system()`, `eval()` |
+| Base64 encoding | Medium | `base64.b64encode()`, `btoa()` (exfiltration pattern) |
+| Environment harvesting | High | `dict(os.environ)`, `os.environ.copy()` |
+
+### Console Panel
+
+The MCP Security panel is available in the Console under **Permissions > MCP Security**. It shows the same config audit results as `ai-guardian mcp audit`.
+
 ## Skill Instructions
 
 The MCP server automatically loads skill instructions (from the bundled `SKILL.md`) during the MCP initialize handshake. The AI receives these instructions when the server connects — no separate skill installation needed.
