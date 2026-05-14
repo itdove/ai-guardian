@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Performance**: Cache config file reads across `_load_*_config()` calls (Issue #569)
+  - Single file read per hook invocation instead of 4-6 redundant reads
+  - Uses mtime-based invalidation for automatic cache refresh
+  - Refactored `_load_pattern_server_config()` to use shared `_load_config_file()` cache
+
 ## [1.7.0] - 2026-05-13
 
 ### Added
