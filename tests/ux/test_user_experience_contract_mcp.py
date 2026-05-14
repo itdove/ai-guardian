@@ -93,9 +93,9 @@ class MCPUserExperienceContractTests(TestCase):
         # USER DOES NOT SEE: Permission prompt (operation blocked before prompt)
         # OPERATION: Denied, notebook not created, tool not executed
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_secret_in_mcp_output(self, mock_pattern_config, mock_redaction_config, mock_scan_config):
         """
         USER EXPERIENCE: Secret in MCP output → Currently NOT scanned by default.
@@ -163,7 +163,7 @@ class MCPUserExperienceContractTests(TestCase):
         # FUTURE IMPROVEMENT: Implement MCP output extraction in extract_tool_result()
         # to enable secret scanning and redaction for MCP tool responses
 
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_ssrf_in_mcp_parameter(self, mock_pattern_config):
         """
         USER EXPERIENCE: SSRF attempt in MCP parameter → DENIED immediately.
@@ -319,7 +319,7 @@ class MCPUserExperienceContractTests(TestCase):
         # USER CHOOSES: Allow or Deny
         # OPERATION: Proceeds only if user approves
 
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_comparison_threat_vs_clean_mcp(self, mock_pattern_config):
         """
         USER EXPERIENCE COMPARISON: Threat vs Clean MCP operations.
@@ -552,8 +552,8 @@ class MCPAllowRuleActionModesUXTest(TestCase):
     not for tools that match.
     """
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_mcp_allow_action_block(self, mock_pattern_config, mock_scan_config):
         """
         USER EXPERIENCE: MCP allow rule with action=block → matched tools ALLOWED
@@ -599,8 +599,8 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         self.assertTrue(is_allowed, "Matched MCP tool must be allowed even with action=block")
         self.assertIsNone(msg, "No warning for explicitly allowed tools")
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_mcp_allow_no_action_field(self, mock_pattern_config, mock_scan_config):
         """
         USER EXPERIENCE: MCP allow rule with no action field → matched tools ALLOWED

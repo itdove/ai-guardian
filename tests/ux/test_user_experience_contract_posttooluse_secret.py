@@ -24,11 +24,11 @@ class PostToolUseSecretBlockingTests(TestCase):
     Tests verifying PostToolUse correctly blocks secrets when redaction is disabled.
     """
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_posttooluse_blocks_secret_when_redaction_disabled(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
@@ -67,11 +67,11 @@ class PostToolUseSecretBlockingTests(TestCase):
         assert output.get('decision') == 'block', \
             f"PostToolUse must BLOCK secrets when redaction is disabled, got: {output}"
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_posttooluse_redacts_secret_when_redaction_enabled(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
@@ -119,11 +119,11 @@ class PostToolUseSecretBlockingTests(TestCase):
         assert 'FAKE_TEST_SECRET_VALUE_1234' not in updated, \
             "Redacted output must not contain the raw secret"
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_posttooluse_blocks_when_redaction_config_missing(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
@@ -160,11 +160,11 @@ class PostToolUseSecretBlockingTests(TestCase):
         assert output.get('decision') != 'block', \
             "When redaction config is None (default enabled=True), should redact not block"
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_posttooluse_blocks_when_redaction_config_error(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
@@ -202,11 +202,11 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
     PostToolUse secret detection with redaction disabled.
     """
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_posttooluse_secret_blocked_no_redaction(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
@@ -269,11 +269,11 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         assert response['hookSpecificOutput']['hookEventName'] == 'PostToolUse', \
             "Must identify hook event as PostToolUse"
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_posttooluse_secret_redacted_with_redaction(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
@@ -346,11 +346,11 @@ class GitleaksAllowGuidanceTests(TestCase):
     on the SAME line as the secret, not on a preceding line.
     """
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_block_message_says_end_of_line(
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):

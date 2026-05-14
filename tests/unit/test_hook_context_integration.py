@@ -19,9 +19,9 @@ from ai_guardian.hook_context import HookContextManager
 class TestPreToolUseContextSaving:
     """Verify PreToolUse saves context for PostToolUse to retrieve."""
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_pretooluse_saves_context_with_file_path(
         self, mock_redaction, mock_pattern, mock_secret, tmp_path
     ):
@@ -55,9 +55,9 @@ class TestPreToolUseContextSaving:
         assert ctx["tool_name"] == "Read"
         assert "scan_results" in ctx
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_pretooluse_non_file_tool_saves_context(
         self, mock_redaction, mock_pattern, mock_secret, tmp_path
     ):
@@ -91,9 +91,9 @@ class TestPreToolUseContextSaving:
 class TestPostToolUseContextLoading:
     """Verify PostToolUse loads and uses PreToolUse context."""
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_posttooluse_skips_scan_when_pretool_clean(
         self, mock_redaction, mock_pattern, mock_secret, tmp_path
     ):
@@ -128,7 +128,7 @@ class TestPostToolUseContextLoading:
         }
 
         # Mock gitleaks to track if it's called
-        with patch('ai_guardian.check_secrets_with_gitleaks') as mock_gitleaks:
+        with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks') as mock_gitleaks:
             mock_gitleaks.return_value = (False, None)
             result = ai_guardian.process_hook_data(hook_data, daemon_state=state)
 
@@ -136,9 +136,9 @@ class TestPostToolUseContextLoading:
             # Gitleaks should NOT be called because PreToolUse already scanned clean
             mock_gitleaks.assert_not_called()
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_posttooluse_scans_normally_without_pretool_context(
         self, mock_redaction, mock_pattern, mock_secret, tmp_path
     ):
@@ -158,7 +158,7 @@ class TestPostToolUseContextLoading:
             "tool_response": {"output": "clean output"},
         }
 
-        with patch('ai_guardian.check_secrets_with_gitleaks') as mock_gitleaks:
+        with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks') as mock_gitleaks:
             mock_gitleaks.return_value = (False, None)
             result = ai_guardian.process_hook_data(hook_data, daemon_state=state)
 
@@ -170,10 +170,10 @@ class TestPostToolUseContextLoading:
 class TestIgnoreFilesConsistency:
     """Verify ignore_files is consistent between PreToolUse and PostToolUse."""
 
-    @patch('ai_guardian._load_pii_config')
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_posttooluse_skips_when_ignore_files_matched(
         self, mock_redaction, mock_pattern, mock_secret, mock_pii, tmp_path
     ):
@@ -207,7 +207,7 @@ class TestIgnoreFilesConsistency:
             "tool_response": {"output": "sensitive data here"},
         }
 
-        with patch('ai_guardian.check_secrets_with_gitleaks') as mock_gitleaks:
+        with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks') as mock_gitleaks:
             mock_gitleaks.return_value = (False, None)
             result = ai_guardian.process_hook_data(hook_data, daemon_state=state)
 
@@ -218,9 +218,9 @@ class TestIgnoreFilesConsistency:
 class TestDaemonModeRoundTrip:
     """Test full round-trip through DaemonState."""
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_daemon_state_correlates_pre_and_post(
         self, mock_redaction, mock_pattern, mock_secret, tmp_path
     ):
@@ -262,9 +262,9 @@ class TestDaemonModeRoundTrip:
             "tool_response": {"output": "x = 1"},
         }
 
-        with patch('ai_guardian._load_secret_scanning_config') as mock_secret2:
+        with patch('ai_guardian.hook_processing._load_secret_scanning_config') as mock_secret2:
             mock_secret2.return_value = ({"enabled": True}, None)
-            with patch('ai_guardian.check_secrets_with_gitleaks') as mock_gitleaks:
+            with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks') as mock_gitleaks:
                 mock_gitleaks.return_value = (False, None)
                 result2 = ai_guardian.process_hook_data(post_hook, daemon_state=state)
 
@@ -276,9 +276,9 @@ class TestDaemonModeRoundTrip:
 class TestGracefulFallback:
     """Verify PostToolUse works normally when context is unavailable."""
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_no_daemon_state_no_session_id(
         self, mock_redaction, mock_pattern, mock_secret
     ):
@@ -293,16 +293,16 @@ class TestGracefulFallback:
             "tool_response": {"output": "hello world"},
         }
 
-        with patch('ai_guardian.check_secrets_with_gitleaks') as mock_gitleaks:
+        with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks') as mock_gitleaks:
             mock_gitleaks.return_value = (False, None)
             result = ai_guardian.process_hook_data(hook_data)
 
             assert result["exit_code"] == 0
             mock_gitleaks.assert_called_once()
 
-    @patch('ai_guardian._load_secret_scanning_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     def test_context_manager_init_failure_handled(
         self, mock_redaction, mock_pattern, mock_secret
     ):
@@ -320,7 +320,7 @@ class TestGracefulFallback:
         }
 
         with patch('ai_guardian.hook_context.HookContextManager.__init__', side_effect=Exception("init failed")):
-            with patch('ai_guardian.check_secrets_with_gitleaks') as mock_gitleaks:
+            with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks') as mock_gitleaks:
                 mock_gitleaks.return_value = (False, None)
                 result = ai_guardian.process_hook_data(hook_data)
 

@@ -18,8 +18,8 @@ import ai_guardian
 class HookInputParsingTests(TestCase):
     """Test hook input parsing and validation"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_valid_json_processed(self, mock_pattern_config, mock_redaction_config):
         """Verify valid JSON hook data is processed"""
         mock_pattern_config.return_value = None
@@ -36,8 +36,8 @@ class HookInputParsingTests(TestCase):
         assert result is not None
         assert 'exit_code' in result
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_userpromptsubmit_hook_processing(self, mock_pattern_config, mock_redaction_config):
         """Test UserPromptSubmit hook is processed"""
         mock_pattern_config.return_value = None
@@ -53,8 +53,8 @@ class HookInputParsingTests(TestCase):
 
         assert result['exit_code'] == 0, "Normal prompt should be allowed"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_pretooluse_hook_processing(self, mock_pattern_config, mock_redaction_config):
         """Test PreToolUse hook is processed"""
         mock_pattern_config.return_value = None
@@ -71,8 +71,8 @@ class HookInputParsingTests(TestCase):
 
         assert result['exit_code'] == 0, "Normal Bash command should be allowed"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_posttooluse_hook_processing(self, mock_pattern_config, mock_redaction_config):
         """Test PostToolUse hook is processed"""
         mock_pattern_config.return_value = None
@@ -95,8 +95,8 @@ class HookInputParsingTests(TestCase):
 class HookToolResponseExtractionTests(TestCase):
     """Test tool response extraction for different tools"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_bash_output_extraction(self, mock_pattern_config, mock_redaction_config):
         """Verify Bash output is extracted correctly"""
         mock_pattern_config.return_value = None
@@ -115,8 +115,8 @@ class HookToolResponseExtractionTests(TestCase):
 
         assert result['exit_code'] == 0
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_read_content_extraction(self, mock_pattern_config, mock_redaction_config):
         """Verify Read file content is extracted correctly"""
         mock_pattern_config.return_value = None
@@ -135,8 +135,8 @@ class HookToolResponseExtractionTests(TestCase):
 
         assert result['exit_code'] == 0
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_mcp_tool_response_extraction(self, mock_pattern_config, mock_redaction_config):
         """Verify MCP tool responses are handled"""
         mock_pattern_config.return_value = None
@@ -156,8 +156,8 @@ class HookToolResponseExtractionTests(TestCase):
 
         assert result['exit_code'] == 0
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_tool_with_no_scannable_output(self, mock_pattern_config, mock_redaction_config):
         """Verify tools with no scannable output are skipped"""
         mock_pattern_config.return_value = None
@@ -187,8 +187,8 @@ class PreToolUsePermissionTests(TestCase):
     don't get auto-approved when clean.
     """
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_pretooluse_no_permission_override_for_edit_claude_code(self, mock_pattern_config, mock_redaction_config):
         """Verify PreToolUse does NOT auto-approve Edit operations (Claude Code)"""
         mock_pattern_config.return_value = None
@@ -224,9 +224,9 @@ class PreToolUsePermissionTests(TestCase):
         assert response == {} or 'systemMessage' in response, \
             "Response should be empty or only contain systemMessage (warnings)"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.detect_ide_type')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.detect_ide_type')
     def test_pretooluse_no_permission_override_for_edit_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
         """Verify PreToolUse does NOT auto-approve Edit operations (GitHub Copilot)"""
         mock_pattern_config.return_value = None
@@ -260,8 +260,8 @@ class PreToolUsePermissionTests(TestCase):
         # Also check that response is empty (no auto-approve)
         assert response == {}, f"Response should be empty but got: {response}"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_pretooluse_no_permission_override_for_write_claude_code(self, mock_pattern_config, mock_redaction_config):
         """Verify PreToolUse does NOT auto-approve Write operations (Claude Code)"""
         mock_pattern_config.return_value = None
@@ -294,9 +294,9 @@ class PreToolUsePermissionTests(TestCase):
         assert response == {} or 'systemMessage' in response, \
             "Response should be empty or only contain systemMessage (warnings)"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.detect_ide_type')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.detect_ide_type')
     def test_pretooluse_no_permission_override_for_write_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
         """Verify PreToolUse does NOT auto-approve Write operations (GitHub Copilot)"""
         mock_pattern_config.return_value = None

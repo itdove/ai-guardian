@@ -20,8 +20,8 @@ from tests.fixtures.mock_mcp_server import create_hook_data
 class PreToolUseNoAutoApproveTests(TestCase):
     """Integration tests: PreToolUse doesn't auto-approve clean operations"""
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_edit_operation_no_auto_approve_claude_code(self, mock_pattern_config, mock_redaction_config):
         """
         Verify Edit operations don't auto-approve when clean (Claude Code).
@@ -66,9 +66,9 @@ class PreToolUseNoAutoApproveTests(TestCase):
         assert response == {} or 'systemMessage' in response, \
             f"Response should be empty or only warnings, got: {response}"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.detect_ide_type')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.detect_ide_type')
     def test_edit_operation_no_auto_approve_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
         """
         Verify Edit operations don't auto-approve when clean (GitHub Copilot).
@@ -111,8 +111,8 @@ class PreToolUseNoAutoApproveTests(TestCase):
         # Response should be empty
         assert response == {}, f"Response should be empty, got: {response}"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_write_operation_no_auto_approve_claude_code(self, mock_pattern_config, mock_redaction_config):
         """
         Verify Write operations don't auto-approve when clean (Claude Code).
@@ -149,9 +149,9 @@ class PreToolUseNoAutoApproveTests(TestCase):
         assert response == {} or 'systemMessage' in response, \
             f"Response should be empty or only warnings, got: {response}"
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.detect_ide_type')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.detect_ide_type')
     def test_write_operation_no_auto_approve_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
         """
         Verify Write operations don't auto-approve when clean (GitHub Copilot).
@@ -185,8 +185,8 @@ class PreToolUseNoAutoApproveTests(TestCase):
 
         assert response == {}, f"Response should be empty, got: {response}"
 
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_read_with_secret_still_denies(self, mock_config, mock_check_secrets):
         """
         Verify PreToolUse still DENIES when secrets ARE detected.
@@ -225,8 +225,8 @@ class PreToolUseNoAutoApproveTests(TestCase):
             import os
             os.unlink(temp_path)
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_e2e_edit_workflow_user_sees_prompt(self, mock_pattern_config, mock_redaction_config):
         """
         End-to-end test: User workflow with Edit tool.

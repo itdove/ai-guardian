@@ -74,7 +74,7 @@ class TestBashDirectoryRules(unittest.TestCase):
         stdin_input = json.dumps(hook_data)
 
         with patch('sys.stdin', StringIO(stdin_input)):
-            with patch('ai_guardian.check_secrets_with_gitleaks', return_value=(False, None)):
+            with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks', return_value=(False, None)):
                 response = process_hook_input()
 
         # Should allow the operation (no directory blocking)
@@ -103,8 +103,8 @@ class TestBashDirectoryRules(unittest.TestCase):
         stdin_input = json.dumps(hook_data)
 
         with patch('sys.stdin', StringIO(stdin_input)):
-            with patch('ai_guardian.check_secrets_with_gitleaks', return_value=(False, None)):
-                with patch('ai_guardian.ToolPolicyChecker') as mock_policy:
+            with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks', return_value=(False, None)):
+                with patch('ai_guardian.hook_processing.ToolPolicyChecker') as mock_policy:
                     # Mock policy checker to return allowed
                     mock_policy.return_value.check_tool_allowed.return_value = (True, None, "Bash")
                     response = process_hook_input()
@@ -148,7 +148,7 @@ class TestBashDirectoryRules(unittest.TestCase):
             }
 
             with patch('sys.stdin', StringIO(stdin_input)):
-                with patch('ai_guardian.ToolPolicyChecker') as mock_policy_cls:
+                with patch('ai_guardian.hook_processing.ToolPolicyChecker') as mock_policy_cls:
                     mock_policy = mock_policy_cls.return_value
                     mock_policy.config = mock_config
                     mock_policy.check_tool_allowed.return_value = (True, None, "Read")
@@ -174,8 +174,8 @@ class TestBashDirectoryRules(unittest.TestCase):
             stdin_input_bash = json.dumps(hook_data_bash)
 
             with patch('sys.stdin', StringIO(stdin_input_bash)):
-                with patch('ai_guardian.check_secrets_with_gitleaks', return_value=(False, None)):
-                    with patch('ai_guardian.ToolPolicyChecker') as mock_policy:
+                with patch('ai_guardian.hook_processing.check_secrets_with_gitleaks', return_value=(False, None)):
+                    with patch('ai_guardian.hook_processing.ToolPolicyChecker') as mock_policy:
                         mock_policy.return_value.check_tool_allowed.return_value = (True, None, "Bash")
                         response_bash = process_hook_input()
 

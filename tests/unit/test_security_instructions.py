@@ -139,9 +139,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         import shutil
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_injected_on_first_prompt(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
@@ -162,9 +162,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         self.assertIn("systemMessage", output)
         self.assertIn("SECURITY RULES", output["systemMessage"])
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_not_injected_on_second_prompt(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
@@ -189,9 +189,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         output2 = json.loads(result2['output'])
         self.assertNotIn("systemMessage", output2)
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_reinjected_after_block(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
@@ -223,9 +223,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         self.assertIn("systemMessage", output3)
         self.assertIn("SECURITY RULES", output3["systemMessage"])
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_not_injected_when_disabled(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
@@ -245,9 +245,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         output = json.loads(result['output'])
         self.assertEqual(output, {})
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_not_injected_for_pretooluse(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
@@ -269,10 +269,10 @@ class TestProcessHookDataSecurityMessage(TestCase):
         output = json.loads(result['output'])
         self.assertNotIn("SECURITY RULES", json.dumps(output))
 
-    @patch('ai_guardian.detect_ide_type')
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.detect_ide_type')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_not_injected_for_cursor(
         self, mock_pattern_config, mock_redaction_config, mock_si_config, mock_ide_type
     ):
@@ -291,9 +291,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         output = json.loads(result['output'])
         self.assertNotIn("SECURITY RULES", json.dumps(output))
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_on_empty_prompt(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
@@ -314,9 +314,9 @@ class TestProcessHookDataSecurityMessage(TestCase):
         self.assertIn("systemMessage", output)
         self.assertIn("SECURITY RULES", output["systemMessage"])
 
-    @patch('ai_guardian._load_security_instructions_config')
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_different_sessions_each_get_first_injection(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):

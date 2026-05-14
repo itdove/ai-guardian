@@ -28,8 +28,8 @@ class UserExperienceContractTests(TestCase):
     in Claude Code's PreToolUse hook.
     """
 
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_user_experience_read_with_secret(self, mock_config, mock_check_secrets):
         """
         USER EXPERIENCE: Read with secret → DENIED immediately, no prompt shown.
@@ -96,8 +96,8 @@ class UserExperienceContractTests(TestCase):
             import os
             os.unlink(temp_path)
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_user_experience_edit_without_secret(self, mock_pattern_config, mock_redaction_config):
         """
         USER EXPERIENCE: Edit without secret → Permission prompt shown (if configured).
@@ -156,10 +156,10 @@ class UserExperienceContractTests(TestCase):
         # USER CHOOSES: Allow or Deny
         # OPERATION: Proceeds only if user approves
 
-    @patch('ai_guardian._load_secret_redaction_config')
-    @patch('ai_guardian._load_pattern_server_config')
-    @patch('ai_guardian.check_secrets_with_gitleaks')
-    @patch('ai_guardian._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_user_experience_comparison_secret_vs_clean(self, mock_scan_config, mock_check_secrets,
                                                         mock_pattern_config, mock_redaction_config):
         """

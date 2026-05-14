@@ -319,7 +319,7 @@ class TestMergeAiguardignore:
     def test_no_aiguardignore_module(self):
         from ai_guardian import _merge_aiguardignore
 
-        with patch("ai_guardian.HAS_AIGUARDIGNORE", False):
+        with patch("ai_guardian.hook_processing.HAS_AIGUARDIGNORE", False):
             result = _merge_aiguardignore(None, "secret_scanning")
             assert result is None
 
