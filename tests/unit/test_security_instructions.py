@@ -1,11 +1,14 @@
 """
-Test security instructions injection via systemMessage on every prompt.
+Test security instructions injection via systemMessage.
 
-Issue #580: Inject never-bypass rules via systemMessage on every UserPromptSubmit.
+Issue #580: Inject never-bypass rules via systemMessage.
+Issue #584: Inject only on first prompt per session + after blocks.
 """
 
 import json
+import tempfile
 from io import StringIO
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -123,29 +126,102 @@ class TestFormatResponseSecurityMessage(TestCase):
 class TestProcessHookDataSecurityMessage(TestCase):
     """Integration tests for security message injection in process_hook_data."""
 
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.state_patcher = patch(
+            "ai_guardian.session_state.get_state_dir",
+            return_value=Path(self.tmpdir),
+        )
+        self.state_patcher.start()
+
+    def tearDown(self):
+        self.state_patcher.stop()
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
     @patch('ai_guardian._load_security_instructions_config')
     @patch('ai_guardian._load_secret_redaction_config')
     @patch('ai_guardian._load_pattern_server_config')
-    def test_security_message_injected_on_clean_prompt(
+    def test_security_message_injected_on_first_prompt(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
-        """Clean prompt with default config includes security message in systemMessage."""
+        """First prompt with default config includes security message."""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
         mock_si_config.return_value = (None, None)
 
         hook_data = {
             "hook_event_name": "UserPromptSubmit",
+            "session_id": "test-session-first",
             "prompt": "What is the capital of France?"
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
-            result = ai_guardian.process_hook_input()
-
+        result = ai_guardian.process_hook_data(hook_data)
         self.assertEqual(result['exit_code'], 0)
         output = json.loads(result['output'])
         self.assertIn("systemMessage", output)
         self.assertIn("SECURITY RULES", output["systemMessage"])
+
+    @patch('ai_guardian._load_security_instructions_config')
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_security_message_not_injected_on_second_prompt(
+        self, mock_pattern_config, mock_redaction_config, mock_si_config
+    ):
+        """Second prompt in same session should NOT get security message."""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+        mock_si_config.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "test-session-second",
+            "prompt": "Hello"
+        }
+
+        # First prompt: injects
+        result1 = ai_guardian.process_hook_data(hook_data)
+        output1 = json.loads(result1['output'])
+        self.assertIn("SECURITY RULES", output1.get("systemMessage", ""))
+
+        # Second prompt: should NOT inject
+        result2 = ai_guardian.process_hook_data(hook_data)
+        output2 = json.loads(result2['output'])
+        self.assertNotIn("systemMessage", output2)
+
+    @patch('ai_guardian._load_security_instructions_config')
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_security_message_reinjected_after_block(
+        self, mock_pattern_config, mock_redaction_config, mock_si_config
+    ):
+        """After a block event, next prompt should re-inject security message."""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+        mock_si_config.return_value = (None, None)
+
+        session_id = "test-session-reinject"
+        hook_data = {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": session_id,
+            "prompt": "Hello"
+        }
+
+        # First prompt: injects
+        result1 = ai_guardian.process_hook_data(hook_data)
+        output1 = json.loads(result1['output'])
+        self.assertIn("SECURITY RULES", output1.get("systemMessage", ""))
+
+        # Simulate a block by marking reinject via SessionStateManager
+        from ai_guardian.session_state import SessionStateManager
+        mgr = SessionStateManager()
+        mgr.mark_security_reinject(session_id)
+
+        # Next prompt: should re-inject
+        result3 = ai_guardian.process_hook_data(hook_data)
+        output3 = json.loads(result3['output'])
+        self.assertIn("systemMessage", output3)
+        self.assertIn("SECURITY RULES", output3["systemMessage"])
 
     @patch('ai_guardian._load_security_instructions_config')
     @patch('ai_guardian._load_secret_redaction_config')
@@ -160,12 +236,11 @@ class TestProcessHookDataSecurityMessage(TestCase):
 
         hook_data = {
             "hook_event_name": "UserPromptSubmit",
+            "session_id": "test-session-disabled",
             "prompt": "What is the capital of France?"
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
-            result = ai_guardian.process_hook_input()
-
+        result = ai_guardian.process_hook_data(hook_data)
         self.assertEqual(result['exit_code'], 0)
         output = json.loads(result['output'])
         self.assertEqual(output, {})
@@ -189,9 +264,7 @@ class TestProcessHookDataSecurityMessage(TestCase):
             }
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
-            result = ai_guardian.process_hook_input()
-
+        result = ai_guardian.process_hook_data(hook_data)
         self.assertEqual(result['exit_code'], 0)
         output = json.loads(result['output'])
         self.assertNotIn("SECURITY RULES", json.dumps(output))
@@ -214,9 +287,7 @@ class TestProcessHookDataSecurityMessage(TestCase):
             "prompt": "What is the capital of France?"
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
-            result = ai_guardian.process_hook_input()
-
+        result = ai_guardian.process_hook_data(hook_data)
         output = json.loads(result['output'])
         self.assertNotIn("SECURITY RULES", json.dumps(output))
 
@@ -226,20 +297,41 @@ class TestProcessHookDataSecurityMessage(TestCase):
     def test_security_message_on_empty_prompt(
         self, mock_pattern_config, mock_redaction_config, mock_si_config
     ):
-        """Empty prompt still gets security message injection."""
+        """Empty prompt still gets security message injection on first call."""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
         mock_si_config.return_value = (None, None)
 
         hook_data = {
             "hook_event_name": "UserPromptSubmit",
+            "session_id": "test-session-empty",
             "prompt": ""
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
-            result = ai_guardian.process_hook_input()
-
+        result = ai_guardian.process_hook_data(hook_data)
         self.assertEqual(result['exit_code'], 0)
         output = json.loads(result['output'])
         self.assertIn("systemMessage", output)
         self.assertIn("SECURITY RULES", output["systemMessage"])
+
+    @patch('ai_guardian._load_security_instructions_config')
+    @patch('ai_guardian._load_secret_redaction_config')
+    @patch('ai_guardian._load_pattern_server_config')
+    def test_different_sessions_each_get_first_injection(
+        self, mock_pattern_config, mock_redaction_config, mock_si_config
+    ):
+        """Each new session should get security message on its first prompt."""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+        mock_si_config.return_value = (None, None)
+
+        for session_id in ["session-a", "session-b", "session-c"]:
+            hook_data = {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": session_id,
+                "prompt": "Hello"
+            }
+            result = ai_guardian.process_hook_data(hook_data)
+            output = json.loads(result['output'])
+            self.assertIn("SECURITY RULES", output.get("systemMessage", ""),
+                          f"Session {session_id} should get security rules on first prompt")

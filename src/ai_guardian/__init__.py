@@ -3490,7 +3490,8 @@ def process_hook_data(hook_data, daemon_state=None):
         except Exception as e:
             logging.debug(f"Hook context manager init failed (non-fatal): {e}")
 
-        # Load security instructions for systemMessage injection (#580)
+        # Load security instructions for systemMessage injection (#580, #584)
+        # Inject only on first prompt per session + after blocks (not every prompt)
         security_message = None
         if ide_type == IDEType.CLAUDE_CODE and hook_event == "prompt":
             try:
@@ -3505,7 +3506,19 @@ def process_hook_data(hook_data, daemon_state=None):
                         default=True
                     )
                 if inject:
-                    security_message = _SECURITY_SYSTEM_MESSAGE
+                    try:
+                        from ai_guardian.session_state import SessionStateManager, derive_session_key
+                        session_key = derive_session_key(hook_data)
+                        state_mgr = SessionStateManager(daemon_state=daemon_state)
+                        if state_mgr.should_inject_security(session_key):
+                            security_message = _SECURITY_SYSTEM_MESSAGE
+                            state_mgr.mark_security_injected(session_key)
+                            logging.info(f"Security rules injected for session {session_key[:16]}...")
+                        else:
+                            logging.info(f"Security rules already injected for session {session_key[:16]}..., skipping")
+                    except Exception as e:
+                        logging.debug(f"Session state check failed, injecting as fallback: {e}")
+                        security_message = _SECURITY_SYSTEM_MESSAGE
             except Exception as e:
                 logging.debug(f"Security instructions config load failed (non-fatal): {e}")
 
@@ -4557,7 +4570,18 @@ def process_hook_input():
     try:
         stdin_content = sys.stdin.read()
         hook_data = json.loads(stdin_content)
-        return process_hook_data(hook_data)
+        result = process_hook_data(hook_data)
+
+        # Mark session for security re-injection after blocks (#584)
+        if result.get("_blocked"):
+            try:
+                from ai_guardian.session_state import SessionStateManager, derive_session_key
+                key = derive_session_key(hook_data)
+                SessionStateManager().mark_security_reinject(key)
+            except Exception:
+                pass
+
+        return result
     except json.JSONDecodeError as e:
         logging.error(f"Failed to parse hook input: {e}")
         return {"output": None, "exit_code": 0}
