@@ -96,31 +96,14 @@
     "ignore_files": [],
     "additional_patterns": []
   },
-  "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",
+  "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins. Strict: no catch-all allow, explicit allow required for each tool.",
   "permissions": {
     "enabled": true,
     "auto_directory_rules": {
       "enabled": false,
       "allow_symlinks": true
     },
-    "rules": [
-      {
-        "_comment": "Skills - Blocked by default. Add allow rules via Console.",
-        "matcher": "Skill",
-        "mode": "deny",
-        "patterns": [
-          "*"
-        ]
-      },
-      {
-        "_comment": "MCP Servers - Blocked by default. Add allow rules via Console.",
-        "matcher": "mcp__*",
-        "mode": "deny",
-        "patterns": [
-          "*"
-        ]
-      }
-    ]
+    "rules": []
   },
   "_comment_permissions_directories": "OPTIONAL/ADVANCED: Auto-discover tool permissions from directories/GitHub repos. Scans for permission files and merges discovered rules into permissions.rules. Most users should use remote_configs instead.",
   "_permissions_directories_example": [

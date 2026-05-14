@@ -947,25 +947,46 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_patterns": []
         },
 
-        "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run",
+        "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins.",
         "permissions": {
             "enabled": not permissive,
             "auto_directory_rules": {
                 "enabled": False,
                 "allow_symlinks": True
             },
-            "rules": [] if permissive else [
+            "rules": [
                 {
-                    "_comment": "Skills - Blocked by default. Add allow rules via Console.",
-                    "matcher": "Skill",
-                    "mode": "deny",
+                    "_comment": "Allow all tools — minimal profile has no restrictions",
+                    "matcher": "*",
+                    "mode": "allow",
+                    "patterns": ["*"]
+                }
+            ] if permissive else [
+                {
+                    "_comment": "Allow all tools by default (built-in tools like Bash, Read, Write, Edit)",
+                    "matcher": "*",
+                    "mode": "allow",
                     "patterns": ["*"]
                 },
                 {
-                    "_comment": "MCP Servers - Blocked by default. Add allow rules via Console.",
+                    "_comment": "Warn on unknown MCP servers (new servers allowed with warning)",
                     "matcher": "mcp__*",
                     "mode": "deny",
+                    "patterns": ["*"],
+                    "action": "warn"
+                },
+                {
+                    "_comment": "Allow ai-guardian MCP server (no warning needed)",
+                    "matcher": "mcp__ai-guardian__*",
+                    "mode": "allow",
                     "patterns": ["*"]
+                },
+                {
+                    "_comment": "Warn on unknown Skills",
+                    "matcher": "Skill",
+                    "mode": "deny",
+                    "patterns": ["*"],
+                    "action": "warn"
                 }
             ]
         },

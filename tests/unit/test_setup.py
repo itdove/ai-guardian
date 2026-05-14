@@ -974,7 +974,7 @@ class TestCreateDefaultConfig:
             assert config['prompt_injection']['enabled'] is True
             assert 'permissions' in config
             assert config['permissions']['enabled'] is True
-            assert len(config['permissions']['rules']) == 2  # Skill and MCP deny rules
+            assert len(config['permissions']['rules']) == 4  # catch-all allow + MCP deny(warn) + ai-guardian allow + Skill deny(warn)
 
     def test_create_default_config_permissive(self, tmp_path):
         """Test creating permissive config."""
@@ -995,7 +995,7 @@ class TestCreateDefaultConfig:
                 config = json.load(f)
 
             assert config['permissions']['enabled'] is False
-            assert len(config['permissions']['rules']) == 0  # No deny rules in permissive mode
+            assert len(config['permissions']['rules']) == 1  # catch-all allow rule in permissive mode
 
     def test_create_default_config_already_exists(self, tmp_path):
         """Test creating config when file already exists."""
@@ -1198,11 +1198,15 @@ class TestCreateDefaultConfig:
         assert config['secret_scanning']['enabled'] is True
         assert config['prompt_injection']['enabled'] is True
         assert config['permissions']['enabled'] is True
-        assert len(config['permissions']['rules']) == 2
-        assert config['permissions']['rules'][0]['matcher'] == 'Skill'
-        assert config['permissions']['rules'][0]['mode'] == 'deny'
+        assert len(config['permissions']['rules']) == 4
+        assert config['permissions']['rules'][0]['matcher'] == '*'
+        assert config['permissions']['rules'][0]['mode'] == 'allow'
         assert config['permissions']['rules'][1]['matcher'] == 'mcp__*'
         assert config['permissions']['rules'][1]['mode'] == 'deny'
+        assert config['permissions']['rules'][2]['matcher'] == 'mcp__ai-guardian__*'
+        assert config['permissions']['rules'][2]['mode'] == 'allow'
+        assert config['permissions']['rules'][3]['matcher'] == 'Skill'
+        assert config['permissions']['rules'][3]['mode'] == 'deny'
 
     def test_get_default_config_template_permissive(self):
         """Test _get_default_config_template returns permissive config."""
@@ -1213,7 +1217,9 @@ class TestCreateDefaultConfig:
         assert config['secret_scanning']['enabled'] is True
         assert config['prompt_injection']['enabled'] is True
         assert config['permissions']['enabled'] is False
-        assert len(config['permissions']['rules']) == 0
+        assert len(config['permissions']['rules']) == 1
+        assert config['permissions']['rules'][0]['matcher'] == '*'
+        assert config['permissions']['rules'][0]['mode'] == 'allow'
 
     def test_default_config_omits_absolute_cache_path(self, tmp_path):
         """Test that generated config does not contain absolute cache paths (issue #492)."""

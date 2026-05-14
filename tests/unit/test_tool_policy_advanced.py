@@ -66,21 +66,21 @@ class ToolPolicyRuleMatchingTests(TestCase):
 class ToolPolicyRuleOrderingTests(TestCase):
     """Test rule ordering and priority"""
 
-    def test_first_matching_rule_wins(self):
-        """Test that first matching rule takes precedence"""
+    def test_last_matching_rule_wins(self):
+        """Test that last matching rule takes precedence (Issue #595)"""
         config = {
             "permissions": {
                 "enabled": True,
                 "rules": [
                     {
-                        "matcher": "tool_name",
-                        "mode": "allow",
-                        "patterns": ["Bash"]
+                        "matcher": "Bash",
+                        "mode": "deny",
+                        "patterns": ["*"]
                     },
                     {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["Bash"]
+                        "matcher": "Bash",
+                        "mode": "allow",
+                        "patterns": ["*"]
                     }
                 ]
             }
@@ -90,30 +90,33 @@ class ToolPolicyRuleOrderingTests(TestCase):
         hook_data = create_hook_data(tool_name="Bash", tool_input={"command": "ls"})
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
-        assert allowed, "First rule (allow) should take precedence"
+        assert allowed, "Last rule (allow) should take precedence"
 
     def test_no_matching_rule_default_behavior(self):
-        """Test default behavior when no rule matches"""
+        """Test default behavior when no rule matches — MCP/Skills blocked, built-in allowed"""
         config = {
             "permissions": {
                 "enabled": True,
                 "rules": [
                     {
-                        "matcher": "tool_name",
+                        "matcher": "Bash",
                         "mode": "deny",
-                        "patterns": ["Bash"]
+                        "patterns": ["*"]
                     }
                 ]
             }
         }
-
         policy_checker = ToolPolicyChecker(config=config)
-        hook_data = create_hook_data(tool_name="Read", tool_input={})
 
+        # MCP tools without matching rules are blocked (restricted)
+        hook_data = create_hook_data(tool_name="mcp__test__tool", tool_input={})
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
-        # With only deny rules and no allow rules, tools not in deny list are denied by default
-        # This is fail-safe behavior
-        assert not allowed, "No matching allow rule should result in denial"
+        assert not allowed, "MCP tool with no matching rule should be blocked"
+
+        # Built-in tools without matching rules are allowed
+        hook_data = create_hook_data(tool_name="Read", tool_input={"file_path": "/tmp/test"})
+        allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
+        assert allowed, "Built-in tool with no matching rule should be allowed"
 
 
 class ToolPolicyConfigVariationsTests(TestCase):
@@ -141,7 +144,7 @@ class ToolPolicyConfigVariationsTests(TestCase):
         assert allowed, "Disabled permissions should allow all tools"
 
     def test_empty_rules_list(self):
-        """Test configuration with empty rules list"""
+        """Test configuration with empty rules list — built-in tools still allowed"""
         config = {
             "permissions": {
                 "enabled": True,
@@ -150,11 +153,10 @@ class ToolPolicyConfigVariationsTests(TestCase):
         }
 
         policy_checker = ToolPolicyChecker(config=config)
-        hook_data = create_hook_data(tool_name="Bash", tool_input={})
+        hook_data = create_hook_data(tool_name="Bash", tool_input={"command": "ls"})
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
-        # Empty rules: default to allow
-        assert allowed, "Empty rules should default to allow"
+        assert allowed, "Built-in tools should be allowed even with empty rules"
 
     def test_no_permissions_config(self):
         """Test with no permissions configuration"""
