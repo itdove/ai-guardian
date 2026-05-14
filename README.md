@@ -260,6 +260,3 @@ Apache 2.0 - see [LICENSE](LICENSE) file for details.
 - [LeakTK](https://github.com/leaktk/patterns) - Community secret detection patterns
 - [Hermes Security Patterns](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) - Security research
 
----
-
-Private Repository - Will be made public after testing
