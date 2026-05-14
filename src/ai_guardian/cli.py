@@ -572,6 +572,26 @@ def main():
             help="Start MCP security advisor server (stdio transport)"
         )
 
+        # MCP security scanning subcommand (Issue #468)
+        mcp_parser = subparsers.add_parser(
+            "mcp",
+            help="MCP server security: audit configs, scan source code, list servers"
+        )
+        mcp_sub = mcp_parser.add_subparsers(dest="mcp_command", help="MCP commands")
+
+        mcp_list_parser = mcp_sub.add_parser("list", help="List MCP servers with trust status")
+        mcp_list_parser.add_argument("--verbose", "-v", action="store_true", help="Show env vars and args")
+        mcp_list_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+        mcp_audit_parser = mcp_sub.add_parser("audit", help="Audit MCP server configurations (fast)")
+        mcp_audit_parser.add_argument("--json", action="store_true", help="Output as JSON")
+        mcp_audit_parser.add_argument("--exit-code", action="store_true", help="Exit 1 if findings found")
+
+        mcp_scan_parser = mcp_sub.add_parser("scan", help="Deep scan MCP server source code")
+        mcp_scan_parser.add_argument("server", nargs="?", help="Server name to scan (default: all)")
+        mcp_scan_parser.add_argument("--json", action="store_true", help="Output as JSON")
+        mcp_scan_parser.add_argument("--exit-code", action="store_true", help="Exit 1 if findings found")
+
         # Support bundle subcommand (Issue #511)
         support_parser = subparsers.add_parser(
             "support",
@@ -1030,6 +1050,69 @@ def main():
                     f"Requires Python >=3.10 and mcp package: {e}",
                     file=sys.stderr,
                 )
+                return 1
+
+        # Handle mcp command (Issue #468)
+        if args.command == "mcp":
+            try:
+                from ai_guardian.mcp_audit import MCPAuditor
+
+                if not hasattr(args, "mcp_command") or args.mcp_command is None:
+                    mcp_parser.print_help()
+                    return 1
+
+                auditor = MCPAuditor()
+                servers = auditor.discover_servers()
+
+                if args.mcp_command == "list":
+                    if args.json:
+                        print(auditor.get_server_list_json(servers))
+                    else:
+                        auditor.print_server_list(servers, verbose=args.verbose)
+                    return 0
+
+                elif args.mcp_command == "audit":
+                    report = auditor.audit_config(servers)
+                    if args.json:
+                        print(auditor.get_audit_report_json(report))
+                    else:
+                        auditor.print_audit_report(report)
+                    if args.exit_code and report.findings:
+                        return 1
+                    return 0
+
+                elif args.mcp_command == "scan":
+                    targets = servers
+                    if args.server:
+                        targets = [s for s in servers if s.name == args.server]
+                        if not targets:
+                            print(f"Server not found: {args.server}", file=sys.stderr)
+                            print(f"Available servers: {', '.join(s.name for s in servers)}", file=sys.stderr)
+                            return 1
+
+                    all_reports = []
+                    for server in targets:
+                        report = auditor.scan_source(server)
+                        if report:
+                            all_reports.append(report)
+                        else:
+                            print(f"Source not found for '{server.name}' (command: {server.command})")
+
+                    if args.json:
+                        json_data = [json.loads(auditor.get_scan_report_json(r)) for r in all_reports]
+                        print(json.dumps(json_data, indent=2))
+                    else:
+                        for report in all_reports:
+                            auditor.print_scan_report(report)
+
+                    if args.exit_code and any(r.findings for r in all_reports):
+                        return 1
+                    return 0
+
+            except Exception as e:
+                print(f"Error running MCP command: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
                 return 1
 
         # Handle support command (Issue #511)

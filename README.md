@@ -60,6 +60,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | Inline Annotations | Suppress false positives with `ai-guardian:allow` and block annotations | [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) |
 | Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) |
 | MCP Security Advisor | Read-only security tools for AI agents (proactive checks) | [docs/MCP_SERVER.md](docs/MCP_SERVER.md) |
+| MCP Security Scanning | Audit MCP server configs and source code for supply chain risks | [docs/MCP_SERVER.md](docs/MCP_SERVER.md#mcp-security-scanning) |
 
 ## Default Behavior (No Configuration File)
 

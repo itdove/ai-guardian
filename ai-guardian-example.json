@@ -836,6 +836,12 @@
     "proactive_level": "low"
   },
 
+  "_comment_mcp_audit": "MCP server security scanning (NEW in v1.8.0, Issue #468)",
+  "_comment_mcp_audit2": "Run 'ai-guardian mcp list' to see servers with trust status",
+  "_comment_mcp_audit3": "Run 'ai-guardian mcp audit' for config checks (credential exposure, npx -y, unpinned packages)",
+  "_comment_mcp_audit4": "Run 'ai-guardian mcp scan' for deep source code analysis",
+  "_comment_mcp_audit5": "Trust derived from permissions.rules — no separate config needed",
+
   "_comment_support": "Support bundle export (NEW in v1.7.0, Issue #477)",
   "_comment_support2": "Allows AI agents to prepare sanitized diagnostic bundles for troubleshooting",
   "_comment_support3": "Two-step process: prepare (sanitize + review) then send (with user approval)",

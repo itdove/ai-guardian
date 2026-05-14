@@ -39,6 +39,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | Document | Description |
 |----------|-------------|
 | [MCP Server](MCP_SERVER.md) | MCP security advisor server — tools, setup, proactive levels, support bundles |
+| [MCP Security Scanning](MCP_SERVER.md#mcp-security-scanning) | Audit MCP server configs and source code for credential exposure, supply chain risks |
 
 ## IDE Integration
 
