@@ -7,165 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
-
-- **MCP scan_directory no longer returns file paths** (Issue #582)
-  - Response now contains counts only: `scanned_files`, `violations`, `by_type`, `scan_time_ms`
-  - Prevents AI from using scan results to create allowlist/ignore bypass rules
-  - File-level details remain available via CLI output or `scan_directory_report` (temp dir for user review)
-
-### Changed
-
-- **Security rules injected only on first prompt + after blocks** (Issue #584)
-  - Previously injected `_SECURITY_SYSTEM_MESSAGE` via `systemMessage` on every `UserPromptSubmit`
-  - Now injects only on the first prompt per session and re-injects after any block event
-  - Adds `SessionStateManager` with dual-mode support: in-memory (daemon) and file-based (local)
-  - Session state included in support bundle for diagnostics
-  - Reduces token overhead in long conversations
-
-- **Quick Start updated with one-liner setup and profiles** (Issue #566)
-  - Single command now includes `--create-config`, `--mcp`, and `--install-scanner`
-  - Added security profile comparison table (@minimal, @standard, @strict)
-
-### Fixed
-
-- **Tray icon invisible on macOS** (Issue #564)
-  - GTK stderr suppression (`setup=` callback) from #555 broke pystray's AppKit backend
-  - Fix: only pass `setup=` callback on Linux where GTK warnings occur
-
 ### Added
 
-- **Security instruction injection via systemMessage** (Issue #580)
-  - Injects never-bypass security rules into AI context on every UserPromptSubmit hook
-  - Uses generic language — does not name specific bypass mechanisms or config files
-  - Configurable via `security_instructions.inject_on_prompt` (default: enabled)
-  - Supports time-based disabling for temporary development work
-  - Updated SKILL.md and MCP server to remove specific bypass mechanism names
-
-- **Terminal emulator support for tray Console on Linux** (Issue #553)
-  - Added `kgx` (GNOME Console, Fedora 44+ default) to the terminal fallback chain
-  - `ai-guardian doctor` checks for a supported terminal emulator on Linux
-  - Documentation: terminal emulator requirement listed in docs/CONSOLE.md
-
-- **GNOME AppIndicator Detection** (Issue #552)
-  - `ai-guardian doctor` detects GNOME without AppIndicator extension and shows fix command
-  - Daemon logs warning when tray icon cannot start on GNOME (no longer silent)
-  - Documentation: GNOME setup steps in docs/CONSOLE.md and README requirements
-
-- **Directory Scanning MCP Tools** (Issue #544)
-  - `scan_directory` tool returns violation summary (counts, file paths, types — no secret values)
-  - `scan_directory_report` tool generates detailed report in temp directory for user review
-  - Two-step flow: AI sees summary only, user reviews detailed report directly
-  - Path validation blocks system directories
-  - Supports JSON and SARIF output formats
-
-- **Engine Tester** (Issue #542)
-  - CLI command `ai-guardian engine-test` to test strings against individual scanner engines
-  - Flags: `--engine NAME`, `--all`, `--compare`, `--pattern-server`, `--json`
-  - Console panel under Tools for interactive engine testing with comparison view
-  - Side-by-side engine comparison shows which engines detect a secret and which miss it
-
-### Changed
-
-- **Support bundle keeps original file names** (Issue #543)
-  - `ai-guardian.json` no longer renamed to `config.json` in the bundle
-  - `violations.jsonl` no longer renamed to `violations.json` in the bundle
-
-### Fixed
-
-- **`setup --create-config` failure no longer blocks `--mcp` and `--ide` setup** (Issue #561)
-  - When config already exists, `--create-config` failure is treated as a warning if other setup steps were also requested
-  - `--create-config` alone still fails as expected when config already exists
-  - Both normal and JSON output paths fixed
-
-- **`setup --create-config` generates per-engine pattern_server format** (Issue #558)
-  - Default config and security profiles (@minimal, @standard, @strict) now use the per-engine format
-  - Pattern server config is nested inside the gitleaks engine object, not at the top level
-  - Existing legacy configs still work via backward-compatible migration (#530)
-
-- **Suppress Gtk-CRITICAL warning on Fedora GNOME** (Issue #555)
-  - Redirect stderr during tray initialization to suppress harmless `gtk_widget_get_scale_factor` assertion
-  - Stderr restored immediately after GTK init completes via pystray setup callback
-  - Linux-only; no-op on macOS and Windows
-
-- **First-match fallthrough blocked by guard clause and wrong config_path** (Issue #538)
-  - Guard clause (Issue #532) now falls through to remaining engines instead of returning immediately
-  - Fallthrough engines use `config_path=None` (their own default rules) instead of pattern server config
-  - Private keys detected when betterleaks misses but gitleaks catches via fallthrough
-
-### Removed
-
-- **`mcp_server.enabled` config flag** (Issue #516)
-  - MCP server presence is controlled by IDE config (`.claude/settings.json`), not ai-guardian config
-  - Removed `enabled` property from schema, example config, setup defaults, and template profiles
-  - Removed `_is_mcp_enabled`, `_disabled_check` decorator, and `DISABLED_RESPONSE` from MCP server
-  - Removed `ai-guardian mcp enable/disable/status` CLI subcommands
-  - Removed MCP enable/disable toggle from Console TUI and tray menu
-  - `ai-guardian setup --mcp` / `--no-mcp` remains the install/uninstall mechanism
-
-### Changed
-
-- **Deprecate `secret_scanning.pattern_server` — migrate to per-engine** (Issue #530)
-  - Global `secret_scanning.pattern_server` is deprecated (gitleaks-specific but implied all engines)
-  - Per-engine format is now canonical: `engines[{"type": "gitleaks", "pattern_server": {...}}]`
-  - Deprecation warning logged when global format detected
-  - `ai-guardian doctor` warns about deprecated format (`check_global_pattern_server`)
-  - `ai-guardian doctor --fix` auto-migrates to per-engine format
-  - `ai-guardian setup --migrate-pattern-server` handles full migration chain (root → global → per-engine)
-  - Enhanced per-engine `pattern_server` schema to match full global schema (auth, cache, immutable, etc.)
-  - Example config updated to show per-engine pattern_server as the documented format
-  - Legacy format still works (backward compatible); removal planned for v2.0.0
-
-### Added
-
-- **Self-Protection: Block Agent Read Access** (Issue #512)
-  - Read tool blocked for all ai-guardian config, state, and cache files
-  - Bash cat/grep/head/tail/less/more blocked for same files
-  - PowerShell Get-Content/Select-String blocked for same files
-  - Immutable — cannot be overridden by user config
-  - MCP server remains the approved way for agent to query security data
-  - Doctor check (`check_self_protection`) verifies read protection is active
-
-- **GCS bucket support for support bundle export** (Issue #513)
-  - `gs://bucket-name/prefix/` destination format supported in config
-  - Auto-detects Google Application Default Credentials (Vertex AI or `gcloud auth application-default login`)
-  - Falls back to `gcloud auth print-access-token` CLI
-  - No additional dependencies required (uses GCS REST API directly)
-- **Per-engine pattern_server config in scanning flow** (Issue #519)
-  - Engines can now override the global pattern server via per-engine `pattern_server` config
-  - `pattern_server: null` disables patterns for that engine (uses built-in rules)
-  - `pattern_server: { url: "..." }` fetches engine-specific patterns from a dedicated server
-  - No override (key absent) uses the global pattern server (backward compatible)
-  - Added `resolve_engine_config_path()` helper centralizing config_path resolution logic
-  - Execution strategies (first-match, any-match, consensus) now resolve config_path per-engine
-  - Replaces inline engine-type filtering in `__init__.py` with centralized resolver
-
-### Fixed
-
-- **Legacy pattern server config no longer passed to non-gitleaks engines** (Issue #529)
-  - Legacy `secret_scanning.pattern_server` config only passed to gitleaks (the only engine that uses gitleaks TOML)
-  - Removed leaktk from `_CONFIG_COMPATIBLE_ENGINES` (leaktk auto-manages patterns, has no config_flag)
-  - Added `config_flag` guard in `resolve_engine_config_path()` — engines without config_flag never receive pattern server config
-  - "Patterns:" message now accurately reflects which patterns each engine uses (e.g., "Built-in betterleaks rules" instead of "LeakTK Pattern Server")
-  - Per-engine pattern server takes priority over legacy pattern server in message display
-
-- **Portable cache path in generated config** (Issue #492)
-  - `setup --create-config` no longer generates absolute paths for `cache.path`
-  - Cache path is resolved at runtime via `get_cache_dir()` (respects `AI_GUARDIAN_CACHE_DIR`, `XDG_CACHE_HOME`, or defaults to `~/.cache/ai-guardian`)
-  - Config is now portable across machines and containers
-  - Existing configs with absolute `cache.path` values continue to work (backward compatible)
-  - All built-in profiles (`@minimal`, `@standard`, `@strict`) updated
-
-### Added
-
-- **Support bundle CLI command** (Issue #511)
-  - `ai-guardian support prepare` — create sanitized bundle in temp dir for review
-  - `ai-guardian support send` — send prepared bundle to configured destination
-  - `ai-guardian support status` — show export destination, auth, and pending bundles
-  - Options: `--output PATH`, `--no-log`, `--no-violations`, `--json`, `--prepare`, `--yes`, `--bundle PATH`
-  - One-shot mode: `ai-guardian support send --prepare --yes` for CI/automation
-  - Shares underlying logic with MCP tools (`prepare_support_bundle`, `send_support_bundle`)
-  - Cross-process support: bundle ref persisted to state dir so `prepare` and `send` work in separate terminals
+- **Daemon service architecture** (Issue #367, Phases 1-3)
+  - Long-running daemon process for faster hook processing (~1-5ms vs ~50-100ms per-invocation)
+  - Three modes: `"auto"` (default, daemon with local fallback), `"local"` (per-process, for CI/CD), `"daemon"` (require daemon, for testing/compliance)
+  - Unix domain socket IPC on macOS/Linux, TCP localhost fallback on Windows
+  - In-memory cross-hook state sharing between PreToolUse and PostToolUse via `tool_use_id`
+  - Config auto-reload: mtime check per-request + periodic SHA256 checksum verification
+  - Compiled regex pattern caching in memory (invalidated on config change)
+  - Lazy daemon start: first hook call in `auto` mode starts daemon in background
+  - Idle timeout auto-stop (default 30 minutes, configurable)
+  - CLI commands: `ai-guardian daemon start|stop|status|restart`
+  - System tray icon with status indicator and Pause/Resume menu (pystray + Pillow included as dependencies)
+  - Graceful shutdown on SIGTERM/SIGINT with socket/PID file cleanup
+  - New config section: `daemon` with `mode`, `idle_timeout_minutes`, `client_timeout_seconds`, `tray.enabled`
+  - Environment variable override: `AI_GUARDIAN_DAEMON_MODE=local` for CI/CD
+  - Extracted `process_hook_data()` for direct dict-based hook processing (daemon and direct mode)
 
 - **MCP security advisor server** (Issue #477)
   - MCP server with 12 read-only security tools for AI agents via stdio transport
@@ -182,45 +40,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support bundle export: `prepare_support_bundle` + `send_support_bundle` (sanitized diagnostics with user approval)
   - New dependency: `mcp>=1.8.0` (Python >=3.10 only, MIT license)
 
-- **Tray menu status submenu with stats** (Issue #508)
-  - Main menu header shows "● AI Guardian — Running/Paused" with status submenu
-  - Submenu displays: Requests, Blocked (with percentage), Warned, Logged counts
-  - Violations grouped by severity: Critical (blocked) and Warning (warned)
-  - Last block type and time-ago display (e.g., "secret_detected 2m ago")
-  - All stats from daemon in-memory counters (fast, no file I/O)
-  - Numbers formatted with commas for readability
-  - No subjective labels — numbers only
+- **Security instruction injection via systemMessage** (Issue #580)
+  - Injects never-bypass security rules into AI context on every UserPromptSubmit hook
+  - Uses generic language — does not name specific bypass mechanisms or config files
+  - Configurable via `security_instructions.inject_on_prompt` (default: enabled)
+  - Supports time-based disabling for temporary development work
+  - Updated SKILL.md and MCP server to remove specific bypass mechanism names
 
-- **Project-level .aiguardignore.toml** (Issue #497)
-  - Per-project `ignore_files` via `.aiguardignore.toml` in project root
-  - Global `[allowlist]` paths apply to all scanners
-  - Per-scanner sections: `[secret_scanning]`, `[scan_pii]`, `[prompt_injection]`, `[config_file_scanning]`
-  - Consistent with `.gitleaks.toml` allowlist structure
-  - Merged with JSON config `ignore_files` (both sources apply)
-  - Cached with mtime-based invalidation for performance
+- **Self-Protection: Block Agent Read Access** (Issue #512)
+  - Read tool blocked for all ai-guardian config, state, and cache files
+  - Bash cat/grep/head/tail/less/more blocked for same files
+  - PowerShell Get-Content/Select-String blocked for same files
+  - Immutable — cannot be overridden by user config
+  - MCP server remains the approved way for agent to query security data
+  - Doctor check (`check_self_protection`) verifies read protection is active
 
-- **Health Check (Doctor) panel in Console** (Issue #502)
-  - New panel under Tools section displaying all `ai-guardian doctor` checks
-  - Color-coded pass/warn/fail/skip indicators with expandable details
-  - Auto-refresh on navigation, manual refresh button
-  - Fix Issues button with confirmation dialog for auto-fixable problems
-  - Reuses existing Doctor class — same checks as the CLI
+- **Multi-engine execution strategies** (Issue #250, Phase 3)
+  - Execution strategy support: `first-match` (default), `any-match` (block if ANY engine finds secrets), `consensus` (block only if N engines agree)
+  - Parallel engine execution via ThreadPoolExecutor for `any-match` and `consensus` strategies
+  - Smart deduplication across engines (prefers verified secrets, highest confidence)
+  - Per-engine configuration: `ignore_files`, `pattern_server`, `file_patterns`
+  - File type routing: route different file types to specialized engines (e.g., `.env` → TruffleHog, `.py` → Gitleaks)
+  - Structured scan metrics logging (engine, duration, findings count)
+  - New `run_single_engine()` executor for reusable single-engine subprocess execution
+  - New `select_all_engines()` for multi-engine strategies
+  - Console "Engine Configuration" panel with JSON editor for engines and strategy dropdown
+  - 30 new tests (92% coverage for scanners module)
 
-- **Pattern server doctor checks** (Issue #493)
-  - `ai-guardian doctor` now checks pattern server cache path writability
-  - Checks auth token availability (env var or token file)
-  - Checks pattern server URL reachability (with `--check-connectivity`)
-  - Checks cache freshness against configured refresh/expiry thresholds
-  - Each failure includes actionable fix instructions
+- **Result caching and incremental scanning** (Issue #250, Phase 3)
+  - `ScanResultCache`: File-based cache for scan results keyed by content hash + engine type + config hash
+  - Configurable TTL (`cache_ttl_hours`, default 24h) with automatic expiry
+  - `FileStateTracker`: Track file states for incremental scanning — skip unchanged files
+  - Cache integrates transparently with `run_single_engine()` and all execution strategies
+  - Config: `"cache_results": true, "cache_ttl_hours": 24, "incremental": true`
 
-- **Project .gitleaks.toml allowlist support** (Issue #488)
-  - ai-guardian reads `.gitleaks.toml` from the project root and applies its allowlist rules
-  - Works with all scanner engines (gitleaks, betterleaks, leaktk, etc.)
-  - Supports global allowlists: `paths`, `regexes`, `stopwords`
-  - Supports per-rule allowlists via `[[rules]]` sections
-  - Path-based early skip (before scanning) and finding-level post-scan filtering
-  - Cached with mtime-based invalidation for performance
-  - Does not conflict with ai-guardian's own `allowlist_patterns` config
+- **Secretlint integration** (Issue #250, Phase 3)
+  - New `secretlint` engine preset (MIT license, Node.js-based, plugin architecture)
+  - `SecretlintOutputParser` for JSON output (array and newline-delimited formats)
+  - Rule ID normalization (extracts short name from `@secretlint/secretlint-rule-*` chains)
+  - Install: `npm install -g @secretlint/secretlint-rule-preset-recommend`
+
+- **GitGuardian integration** (Issue #250, Phase 3)
+  - New `gitguardian` engine preset (ggshield CLI, 350+ secret types)
+  - `GitGuardianOutputParser` with verified secret support (`validity: "valid_data"`)
+  - Consent mechanism for cloud engines: `ai-guardian engine consent gitguardian`
+  - API key validation via `GITGUARDIAN_API_KEY` environment variable
+  - Cloud service warning in Console and documentation
+  - License: Proprietary (free tier for individuals)
+
+- **Enterprise features** (Issue #250, Phase 3)
+  - Remote engine configuration: fetch engine config from remote URL with caching
+  - Merge strategies: remote engines prepended to local (or replace with `immutable: true`)
+  - Audit logging: JSONL at `~/.local/state/ai-guardian/scan-audit.jsonl`
+  - Compliance reporting: generate reports for HIPAA, PCI-DSS, SOC2 frameworks
+  - Export audit data for external audits
+
+- **Per-engine pattern_server config in scanning flow** (Issue #519)
+  - Engines can now override the global pattern server via per-engine `pattern_server` config
+  - `pattern_server: null` disables patterns for that engine (uses built-in rules)
+  - `pattern_server: { url: "..." }` fetches engine-specific patterns from a dedicated server
+  - No override (key absent) uses the global pattern server (backward compatible)
+  - Added `resolve_engine_config_path()` helper centralizing config_path resolution logic
+  - Execution strategies (first-match, any-match, consensus) now resolve config_path per-engine
+  - Replaces inline engine-type filtering in `__init__.py` with centralized resolver
+
+- **Directory Scanning MCP Tools** (Issue #544)
+  - `scan_directory` tool returns violation summary (counts and types only — no file paths or secret values)
+  - `scan_directory_report` tool generates detailed report in temp directory for user review
+  - Two-step flow: AI sees summary only, user reviews detailed report directly
+  - Path validation blocks system directories
+  - Supports JSON and SARIF output formats
+
+- **Engine Tester** (Issue #542)
+  - CLI command `ai-guardian engine-test` to test strings against individual scanner engines
+  - Flags: `--engine NAME`, `--all`, `--compare`, `--pattern-server`, `--json`
+  - Console panel under Tools for interactive engine testing with comparison view
+  - Side-by-side engine comparison shows which engines detect a secret and which miss it
 
 - **Security profile templates** (Issue #466)
   - Built-in profiles: `@minimal` (personal, low friction), `@standard` (team, moderate), `@strict` (enterprise SOC2/compliance)
@@ -270,6 +165,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - TUI: "Correlated" button shows the paired PreToolUse/PostToolUse violation
   - Fail-safe: if context unavailable, PostToolUse processes normally (no regression)
 
+- **Support bundle CLI command** (Issue #511)
+  - `ai-guardian support prepare` — create sanitized bundle in temp dir for review
+  - `ai-guardian support send` — send prepared bundle to configured destination
+  - `ai-guardian support status` — show export destination, auth, and pending bundles
+  - Options: `--output PATH`, `--no-log`, `--no-violations`, `--json`, `--prepare`, `--yes`, `--bundle PATH`
+  - One-shot mode: `ai-guardian support send --prepare --yes` for CI/automation
+  - Shares underlying logic with MCP tools (`prepare_support_bundle`, `send_support_bundle`)
+  - Cross-process support: bundle ref persisted to state dir so `prepare` and `send` work in separate terminals
+
+- **GCS bucket support for support bundle export** (Issue #513)
+  - `gs://bucket-name/prefix/` destination format supported in config
+  - Auto-detects Google Application Default Credentials (Vertex AI or `gcloud auth application-default login`)
+  - Falls back to `gcloud auth print-access-token` CLI
+  - No additional dependencies required (uses GCS REST API directly)
+
+- **Project-level .aiguardignore.toml** (Issue #497)
+  - Per-project `ignore_files` via `.aiguardignore.toml` in project root
+  - Global `[allowlist]` paths apply to all scanners
+  - Per-scanner sections: `[secret_scanning]`, `[scan_pii]`, `[prompt_injection]`, `[config_file_scanning]`
+  - Consistent with `.gitleaks.toml` allowlist structure
+  - Merged with JSON config `ignore_files` (both sources apply)
+  - Cached with mtime-based invalidation for performance
+
+- **Project .gitleaks.toml allowlist support** (Issue #488)
+  - ai-guardian reads `.gitleaks.toml` from the project root and applies its allowlist rules
+  - Works with all scanner engines (gitleaks, betterleaks, leaktk, etc.)
+  - Supports global allowlists: `paths`, `regexes`, `stopwords`
+  - Supports per-rule allowlists via `[[rules]]` sections
+  - Path-based early skip (before scanning) and finding-level post-scan filtering
+  - Cached with mtime-based invalidation for performance
+  - Does not conflict with ai-guardian's own `allowlist_patterns` config
+
+- **Health Check (Doctor) panel in Console** (Issue #502)
+  - New panel under Tools section displaying all `ai-guardian doctor` checks
+  - Color-coded pass/warn/fail/skip indicators with expandable details
+  - Auto-refresh on navigation, manual refresh button
+  - Fix Issues button with confirmation dialog for auto-fixable problems
+  - Reuses existing Doctor class — same checks as the CLI
+
+- **Pattern server doctor checks** (Issue #493)
+  - `ai-guardian doctor` now checks pattern server cache path writability
+  - Checks auth token availability (env var or token file)
+  - Checks pattern server URL reachability (with `--check-connectivity`)
+  - Checks cache freshness against configured refresh/expiry thresholds
+  - Each failure includes actionable fix instructions
+
+- **Tray menu status submenu with stats** (Issue #508)
+  - Main menu header shows "● AI Guardian — Running/Paused" with status submenu
+  - Submenu displays: Requests, Blocked (with percentage), Warned, Logged counts
+  - Violations grouped by severity: Critical (blocked) and Warning (warned)
+  - Last block type and time-ago display (e.g., "secret_detected 2m ago")
+  - All stats from daemon in-memory counters (fast, no file I/O)
+  - Numbers formatted with commas for readability
+  - No subjective labels — numbers only
+
+- **Terminal emulator support for tray Console on Linux** (Issue #553)
+  - Added `kgx` (GNOME Console, Fedora 44+ default) to the terminal fallback chain
+  - `ai-guardian doctor` checks for a supported terminal emulator on Linux
+  - Documentation: terminal emulator requirement listed in docs/CONSOLE.md
+
+- **GNOME AppIndicator Detection** (Issue #552)
+  - `ai-guardian doctor` detects GNOME without AppIndicator extension and shows fix command
+  - Daemon logs warning when tray icon cannot start on GNOME (no longer silent)
+  - Documentation: GNOME setup steps in docs/CONSOLE.md and README requirements
+
+- **Action field dropdowns in Console Global Settings** (Issue #447)
+  - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
+  - Action changes auto-save to config and stay in sync between global settings and individual panels
+
 - **Documentation: pre-commit hook** (Issue #467)
   - Added pre-commit hook entry to README features table
   - Created `docs/PRE_COMMIT.md` covering `ai-guardian setup --pre-commit`, direct git hook, and pre-commit framework installation methods
@@ -282,22 +246,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example config showing different tokens per pattern server
   - Updated `docs/PATTERN_SERVER.md`, `ai-guardian-example.json`, and `README.md`
 
-### Fixed
-
-- **MCP allow rule blocked when action defaults to block** (Issue #495)
-  - Root cause: stale daemon process not loading updated permission rules
-  - Added debug logging to `_find_permission_rules()` for diagnosing permission issues
-  - Added MCP-specific warning when no rules found for MCP tools
-  - Added logging of loaded rule count after config merge
-  - Fixed stale `enforcement` field name in test (now `action`)
-  - Added regression tests for MCP allow rules with all action modes (block/warn/log-only/default)
-  - Added UX contract tests documenting expected behavior
-
-- **Flaky test: concurrent file access race in HookContextManager** (pre-existing)
-  - Added `fcntl.flock` file locking around the read-modify-write cycle in `_save_to_file`
-  - Changed `_write_file` to use atomic write (temp file + rename) to prevent corrupted JSON on concurrent writes
-
 ### Changed
+
+- **Security rules injected only on first prompt + after blocks** (Issue #584)
+  - Previously injected `_SECURITY_SYSTEM_MESSAGE` via `systemMessage` on every `UserPromptSubmit`
+  - Now injects only on the first prompt per session and re-injects after any block event
+  - Adds `SessionStateManager` with dual-mode support: in-memory (daemon) and file-based (local)
+  - Session state included in support bundle for diagnostics
+  - Reduces token overhead in long conversations
+
+- **Deprecate `secret_scanning.pattern_server` — migrate to per-engine** (Issue #530)
+  - Global `secret_scanning.pattern_server` is deprecated (gitleaks-specific but implied all engines)
+  - Per-engine format is now canonical: `engines[{"type": "gitleaks", "pattern_server": {...}}]`
+  - Deprecation warning logged when global format detected
+  - `ai-guardian doctor` warns about deprecated format (`check_global_pattern_server`)
+  - `ai-guardian doctor --fix` auto-migrates to per-engine format
+  - `ai-guardian setup --migrate-pattern-server` handles full migration chain (root → global → per-engine)
+  - Enhanced per-engine `pattern_server` schema to match full global schema (auth, cache, immutable, etc.)
+  - Example config updated to show per-engine pattern_server as the documented format
+  - Legacy format still works (backward compatible); removal planned for v2.0.0
+
+- **Quick Start updated with one-liner setup and profiles** (Issue #566)
+  - Single command now includes `--create-config`, `--mcp`, and `--install-scanner`
+  - Added security profile comparison table (@minimal, @standard, @strict)
 
 - **Simplified README to ~230 lines** (Issue #454)
   - Moved detailed documentation to `docs/` folder with links
@@ -306,67 +277,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added documentation guidelines to AGENTS.md (README ~300 line limit)
   - No information lost — all content accessible via docs/ links
 
-### Added
+- **Support bundle keeps original file names** (Issue #543)
+  - `ai-guardian.json` no longer renamed to `config.json` in the bundle
+  - `violations.jsonl` no longer renamed to `violations.json` in the bundle
 
-- **Daemon service architecture** (Issue #367, Phases 1-3)
-  - Long-running daemon process for faster hook processing (~1-5ms vs ~50-100ms per-invocation)
-  - Three modes: `"auto"` (default, daemon with local fallback), `"local"` (per-process, for CI/CD), `"daemon"` (require daemon, for testing/compliance)
-  - Unix domain socket IPC on macOS/Linux, TCP localhost fallback on Windows
-  - In-memory cross-hook state sharing between PreToolUse and PostToolUse via `tool_use_id`
-  - Config auto-reload: mtime check per-request + periodic SHA256 checksum verification
-  - Compiled regex pattern caching in memory (invalidated on config change)
-  - Lazy daemon start: first hook call in `auto` mode starts daemon in background
-  - Idle timeout auto-stop (default 30 minutes, configurable)
-  - CLI commands: `ai-guardian daemon start|stop|status|restart`
-  - System tray icon with status indicator and Pause/Resume menu (pystray + Pillow included as dependencies)
-  - Graceful shutdown on SIGTERM/SIGINT with socket/PID file cleanup
-  - New config section: `daemon` with `mode`, `idle_timeout_minutes`, `client_timeout_seconds`, `tray.enabled`
-  - Environment variable override: `AI_GUARDIAN_DAEMON_MODE=local` for CI/CD
-  - Extracted `process_hook_data()` for direct dict-based hook processing (daemon and direct mode)
+### Removed
 
-- **Multi-engine execution strategies** (Issue #250, Phase 3)
-  - Execution strategy support: `first-match` (default), `any-match` (block if ANY engine finds secrets), `consensus` (block only if N engines agree)
-  - Parallel engine execution via ThreadPoolExecutor for `any-match` and `consensus` strategies
-  - Smart deduplication across engines (prefers verified secrets, highest confidence)
-  - Per-engine configuration: `ignore_files`, `pattern_server`, `file_patterns`
-  - File type routing: route different file types to specialized engines (e.g., `.env` → TruffleHog, `.py` → Gitleaks)
-  - Structured scan metrics logging (engine, duration, findings count)
-  - New `run_single_engine()` executor for reusable single-engine subprocess execution
-  - New `select_all_engines()` for multi-engine strategies
-  - Console "Engine Configuration" panel with JSON editor for engines and strategy dropdown
-  - 30 new tests (92% coverage for scanners module)
-
-- **Result caching and incremental scanning** (Issue #250, Phase 3)
-  - `ScanResultCache`: File-based cache for scan results keyed by content hash + engine type + config hash
-  - Configurable TTL (`cache_ttl_hours`, default 24h) with automatic expiry
-  - `FileStateTracker`: Track file states for incremental scanning — skip unchanged files
-  - Cache integrates transparently with `run_single_engine()` and all execution strategies
-  - Config: `"cache_results": true, "cache_ttl_hours": 24, "incremental": true`
-
-- **Secretlint integration** (Issue #250, Phase 3)
-  - New `secretlint` engine preset (MIT license, Node.js-based, plugin architecture)
-  - `SecretlintOutputParser` for JSON output (array and newline-delimited formats)
-  - Rule ID normalization (extracts short name from `@secretlint/secretlint-rule-*` chains)
-  - Install: `npm install -g @secretlint/secretlint-rule-preset-recommend`
-
-- **GitGuardian integration** (Issue #250, Phase 3)
-  - New `gitguardian` engine preset (ggshield CLI, 350+ secret types)
-  - `GitGuardianOutputParser` with verified secret support (`validity: "valid_data"`)
-  - Consent mechanism for cloud engines: `ai-guardian engine consent gitguardian`
-  - API key validation via `GITGUARDIAN_API_KEY` environment variable
-  - Cloud service warning in Console and documentation
-  - License: Proprietary (free tier for individuals)
-
-- **Enterprise features** (Issue #250, Phase 3)
-  - Remote engine configuration: fetch engine config from remote URL with caching
-  - Merge strategies: remote engines prepended to local (or replace with `immutable: true`)
-  - Audit logging: JSONL at `~/.local/state/ai-guardian/scan-audit.jsonl`
-  - Compliance reporting: generate reports for HIPAA, PCI-DSS, SOC2 frameworks
-  - Export audit data for external audits
-
-- **Action field dropdowns in Console Global Settings** (Issue #447)
-  - Global Settings panel now shows action dropdowns (block/warn/log-only) for Prompt Injection, PII Detection, SSRF Protection, and Config File Scanning
-  - Action changes auto-save to config and stay in sync between global settings and individual panels
+- **`mcp_server.enabled` config flag** (Issue #516)
+  - MCP server presence is controlled by IDE config (`.claude/settings.json`), not ai-guardian config
+  - Removed `enabled` property from schema, example config, setup defaults, and template profiles
+  - Removed `_is_mcp_enabled`, `_disabled_check` decorator, and `DISABLED_RESPONSE` from MCP server
+  - Removed `ai-guardian mcp enable/disable/status` CLI subcommands
+  - Removed MCP enable/disable toggle from Console TUI and tray menu
+  - `ai-guardian setup --mcp` / `--no-mcp` remains the install/uninstall mechanism
 
 ## [1.6.2] - 2026-05-11
 
@@ -804,7 +727,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JSON Schema Missing Definitions** (Issue #239)
   - **Fix**: Added missing `pattern_server_auth` and `pattern_server_cache` definitions to schema
   - **Problem**: Schema referenced definitions that didn't exist, causing validation failures for pattern_server configurations
-  - **Root Cause**: When pattern_server was refactored from root-level to nested under each feature in v1.7.0, the auth/cache structures were not extracted into reusable definitions
+  - **Root Cause**: When pattern_server was refactored from root-level to nested under each feature, the auth/cache structures were not extracted into reusable definitions
   - **Impact**: Schema validation now succeeds for configs using pattern_server with auth/cache in:
     - `secret_redaction.pattern_server`
     - `prompt_injection.unicode_detection.pattern_server`
@@ -950,9 +873,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `tests/test_hook_processing.py`: Added `PreToolUsePermissionTests` class with 4 unit tests
     - `tests/test_pretooluse_no_auto_approve.py`: Added 6 integration tests (NEW FILE)
     - `tests/test_ai_guardian.py`: Updated 3 tests to expect correct behavior
-
-### Added
-
 
 ### Added
 
