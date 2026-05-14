@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Daemon session state persistence** (Issue #592)
+  - Persist security injection tracking across daemon restarts
+  - Write-behind with debounced writes (2-second delay) to avoid excessive I/O
+  - Atomic file writes with secure permissions (0600) for crash safety
+  - Auto-prune sessions older than 24 hours on load and persist
+  - State file: `~/.local/state/ai-guardian/daemon_sessions.json`
+  - Flush pending state on daemon shutdown for clean exit
+
 ### Changed
 
 - **Performance**: Cache config file reads across `_load_*_config()` calls (Issue #569)

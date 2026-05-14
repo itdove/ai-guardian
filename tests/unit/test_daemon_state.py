@@ -322,3 +322,142 @@ class TestThreadSafety:
             t.join(timeout=5)
 
         assert not errors, f"Thread safety errors: {errors}"
+
+
+class TestSessionPersistence:
+    def _make_state(self, tmp_path):
+        sessions_file = tmp_path / "daemon_sessions.json"
+        return DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=sessions_file,
+        )
+
+    def test_sessions_persisted_to_file(self, tmp_path):
+        state = self._make_state(tmp_path)
+        state.mark_security_injected("sess-1")
+        state.flush_sessions()
+
+        sessions_file = tmp_path / "daemon_sessions.json"
+        assert sessions_file.exists()
+        data = json.loads(sessions_file.read_text())
+        assert data["version"] == 1
+        assert "sess-1" in data["sessions"]
+        assert data["sessions"]["sess-1"]["security_injected"] is True
+        assert data["sessions"]["sess-1"]["security_reinject"] is False
+
+    def test_sessions_restored_on_init(self, tmp_path):
+        sessions_file = tmp_path / "daemon_sessions.json"
+        sessions_file.write_text(json.dumps({
+            "sessions": {
+                "sess-a": {
+                    "security_injected": True,
+                    "security_reinject": False,
+                    "last_activity": time.time(),
+                }
+            },
+            "version": 1,
+        }))
+
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=sessions_file,
+        )
+        assert not state.should_inject_security("sess-a")
+
+    def test_sessions_pruned_on_load(self, tmp_path):
+        sessions_file = tmp_path / "daemon_sessions.json"
+        sessions_file.write_text(json.dumps({
+            "sessions": {
+                "old-sess": {
+                    "security_injected": True,
+                    "security_reinject": False,
+                    "last_activity": time.time() - 90000,  # >24h ago
+                },
+                "recent-sess": {
+                    "security_injected": True,
+                    "security_reinject": False,
+                    "last_activity": time.time(),
+                },
+            },
+            "version": 1,
+        }))
+
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=sessions_file,
+        )
+        assert state.should_inject_security("old-sess")  # pruned, so True
+        assert not state.should_inject_security("recent-sess")  # loaded
+
+    def test_sessions_pruned_on_persist(self, tmp_path):
+        state = self._make_state(tmp_path)
+        state.mark_security_injected("recent-sess")
+        # Manually insert an old entry
+        with state._lock:
+            state._security_injected_sessions.add("old-sess")
+            state._session_last_activity["old-sess"] = time.time() - 90000
+
+        state._sessions_dirty = True
+        state.flush_sessions()
+
+        sessions_file = tmp_path / "daemon_sessions.json"
+        data = json.loads(sessions_file.read_text())
+        assert "recent-sess" in data["sessions"]
+        assert "old-sess" not in data["sessions"]
+
+    def test_persist_not_called_immediately(self, tmp_path):
+        state = self._make_state(tmp_path)
+        state.mark_security_injected("sess-1")
+        sessions_file = tmp_path / "daemon_sessions.json"
+        assert not sessions_file.exists()  # debounce hasn't fired yet
+
+    def test_flush_forces_write(self, tmp_path):
+        state = self._make_state(tmp_path)
+        state.mark_security_injected("sess-1")
+        state.flush_sessions()
+
+        sessions_file = tmp_path / "daemon_sessions.json"
+        assert sessions_file.exists()
+
+    def test_reinject_flag_persisted(self, tmp_path):
+        sessions_file = tmp_path / "daemon_sessions.json"
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=sessions_file,
+        )
+        state.mark_security_injected("sess-r")
+        state.mark_security_reinject("sess-r")
+        state.flush_sessions()
+
+        state2 = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=sessions_file,
+        )
+        assert state2.should_inject_security("sess-r")  # reinject flag
+
+    def test_corrupt_file_handled_gracefully(self, tmp_path):
+        sessions_file = tmp_path / "daemon_sessions.json"
+        sessions_file.write_text("{invalid json")
+
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=sessions_file,
+        )
+        assert state.should_inject_security("any-session")
+
+    def test_missing_file_handled(self, tmp_path):
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=tmp_path / "nonexistent_sessions.json",
+        )
+        assert state.should_inject_security("any-session")
+
+    def test_atomic_write_permissions(self, tmp_path):
+        state = self._make_state(tmp_path)
+        state.mark_security_injected("sess-perm")
+        state.flush_sessions()
+
+        sessions_file = tmp_path / "daemon_sessions.json"
+        file_stat = os.stat(sessions_file)
+        mode = file_stat.st_mode & 0o777
+        assert mode == 0o600

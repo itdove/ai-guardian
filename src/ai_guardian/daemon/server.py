@@ -114,6 +114,12 @@ class DaemonServer:
         self._shutdown_event.set()
         logger.info("Daemon shutting down...")
 
+        # Flush pending session state to disk before cleanup (#592)
+        try:
+            self.state.flush_sessions()
+        except Exception as e:
+            logger.debug(f"Error flushing session state: {e}")
+
         # Close server socket to unblock accept()
         if self._server_socket:
             try:
