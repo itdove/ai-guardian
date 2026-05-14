@@ -1129,15 +1129,32 @@ def _merge_aiguardignore(scanner_config, scanner_type):
     return result
 
 
+_config_cache = None
+_config_cache_mtime = None
+_config_cache_path = None
+
+
+def _clear_config_cache():
+    """Clear the config file cache, forcing a re-read on next call."""
+    global _config_cache, _config_cache_mtime, _config_cache_path
+    _config_cache = None
+    _config_cache_mtime = None
+    _config_cache_path = None
+
+
 def _load_config_file():
     """
     Load ai-guardian.json configuration file with detailed error reporting.
+
+    Uses mtime-based caching to avoid redundant file reads when multiple
+    _load_*_config() functions are called within the same hook invocation.
 
     Returns:
         tuple: (config_dict or None, error_message or None)
             - config_dict: Parsed configuration if successful
             - error_message: User-friendly error message if failed, suitable for systemMessage
     """
+    global _config_cache, _config_cache_mtime, _config_cache_path
     try:
         # Try user global config first
         config_dir = get_config_dir()
@@ -1148,13 +1165,34 @@ def _load_config_file():
             config_path = Path.cwd() / ".ai-guardian.json"
 
         if not config_path.exists():
-            # No config file found - not an error, just use defaults
-            return None, None
+            if _config_cache_path is None and _config_cache is not None:
+                return _config_cache
+            _config_cache = (None, None)
+            _config_cache_mtime = None
+            _config_cache_path = None
+            return _config_cache
+
+        # Check mtime-based cache
+        try:
+            current_mtime = config_path.stat().st_mtime
+        except OSError:
+            current_mtime = None
+
+        if (
+            _config_cache is not None
+            and _config_cache_path == config_path
+            and _config_cache_mtime is not None
+            and current_mtime == _config_cache_mtime
+        ):
+            return _config_cache
 
         try:
             with open(config_path, 'r') as f:
                 config = json.load(f)
-            return config, None
+            _config_cache = (config, None)
+            _config_cache_mtime = current_mtime
+            _config_cache_path = config_path
+            return _config_cache
 
         except json.JSONDecodeError as e:
             error_msg = (
@@ -1164,7 +1202,10 @@ def _load_config_file():
             )
             logging.error(f"JSON parse error in {config_path}: {e}")
             print(error_msg, file=sys.stderr)
-            return None, error_msg
+            _config_cache = (None, error_msg)
+            _config_cache_mtime = current_mtime
+            _config_cache_path = config_path
+            return _config_cache
 
         except Exception as e:
             error_msg = (
@@ -1173,7 +1214,10 @@ def _load_config_file():
                 f"Using default configuration."
             )
             logging.error(f"Error reading config {config_path}: {e}")
-            return None, error_msg
+            _config_cache = (None, error_msg)
+            _config_cache_mtime = current_mtime
+            _config_cache_path = config_path
+            return _config_cache
 
     except Exception as e:
         # Unexpected error in config path resolution
@@ -1196,19 +1240,9 @@ def _load_pattern_server_config():
             - dict if configured (presence = enabled)
     """
     try:
-        # Try user global config first
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        if not config_path.exists():
-            # Try project local config
-            config_path = Path.cwd() / ".ai-guardian.json"
-
-        if not config_path.exists():
+        config, error_msg = _load_config_file()
+        if error_msg or config is None:
             return None
-
-        with open(config_path, 'r') as f:
-            config = json.load(f)
 
         # Priority 1: NEW location (v1.7.0+) - secret_scanning.pattern_server
         # DEPRECATED in v1.7.x — use per-engine pattern_server instead (Issue #530)
