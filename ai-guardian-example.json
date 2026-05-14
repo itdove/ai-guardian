@@ -820,8 +820,8 @@
   "_comment_on_scan_error3": "'block': block operation if any scanner fails (fail-closed, for strict compliance)",
   "on_scan_error": "allow",
 
-  "_comment_security_instructions": "Security rule injection into AI context (NEW in v1.7.0, Issue #580)",
-  "_comment_security_instructions2": "Injects 'never bypass' rules into AI context via systemMessage on every prompt",
+  "_comment_security_instructions": "Security rule injection into AI context (v1.7.0 #580, v1.8.0 #584)",
+  "_comment_security_instructions2": "Injects 'never bypass' rules via systemMessage on first prompt per session + re-injects after blocks",
   "_comment_security_instructions3": "Default: true. Disable only for ai-guardian development (the AI needs to modify security files)",
   "security_instructions": {
     "inject_on_prompt": true

@@ -264,6 +264,10 @@ class DaemonServer:
         violation_type = result.get("_violation_type")
         if exit_code != 0 or result.get("_blocked"):
             self.state.record_blocked(violation_type=violation_type)
+            # Mark session for security re-injection on next prompt (#584)
+            session_key = hook_data.get("session_id") or hook_data.get("transcript_path")
+            if session_key:
+                self.state.mark_security_reinject(session_key)
         elif result.get("_warning"):
             self.state.record_warning()
         elif result.get("_log_only"):

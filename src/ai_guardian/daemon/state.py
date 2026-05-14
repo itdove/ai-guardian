@@ -67,6 +67,10 @@ class DaemonState:
         self._paused = False
         self._paused_until = 0.0  # monotonic timestamp, 0 = not time-limited
 
+        # Security injection tracking (#584)
+        self._security_injected_sessions = set()
+        self._security_reinject_sessions = set()
+
         # Initial config load
         self._reload_config()
 
@@ -128,6 +132,35 @@ class DaemonState:
                 del self._hook_contexts[key]
             if expired:
                 logger.debug(f"Cleaned up {len(expired)} expired hook contexts")
+
+    # --- Security injection tracking (#584) ---
+
+    def should_inject_security(self, session_key):
+        """Check if security rules should be injected for this session.
+
+        Returns True on first prompt or if re-injection is flagged.
+        """
+        if not session_key:
+            return True
+        with self._lock:
+            if session_key in self._security_reinject_sessions:
+                return True
+            return session_key not in self._security_injected_sessions
+
+    def mark_security_injected(self, session_key):
+        """Mark that security rules have been injected for this session."""
+        if not session_key:
+            return
+        with self._lock:
+            self._security_injected_sessions.add(session_key)
+            self._security_reinject_sessions.discard(session_key)
+
+    def mark_security_reinject(self, session_key):
+        """Flag session for security re-injection on next prompt."""
+        if not session_key:
+            return
+        with self._lock:
+            self._security_reinject_sessions.add(session_key)
 
     # --- Config caching with auto-reload ---
 

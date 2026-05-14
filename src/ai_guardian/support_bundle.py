@@ -312,6 +312,27 @@ def prepare_bundle(
         except Exception as e:
             logger.debug("Bundle log error: %s", e)
 
+    # 7. Session state (injection tracking)
+    try:
+        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.session_state import STATE_FILENAME
+
+        state_path = get_state_dir() / STATE_FILENAME
+        if state_path.exists():
+            raw = json.loads(state_path.read_text(encoding="utf-8"))
+            (temp_dir / STATE_FILENAME).write_text(json.dumps(raw, indent=2))
+            session_count = len(raw.get("sessions", {}))
+            files_info.append(
+                {
+                    "name": STATE_FILENAME,
+                    "sanitized": False,
+                    "redactions": 0,
+                    "note": f"Session injection state ({session_count} sessions)",
+                }
+            )
+    except Exception as e:
+        logger.debug("Bundle session state error: %s", e)
+
     # Copy to output_path if requested
     actual_output = str(temp_dir)
     if output_path:

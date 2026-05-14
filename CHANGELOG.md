@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Security rules injected only on first prompt + after blocks** (Issue #584)
+  - Previously injected `_SECURITY_SYSTEM_MESSAGE` via `systemMessage` on every `UserPromptSubmit`
+  - Now injects only on the first prompt per session and re-injects after any block event
+  - Adds `SessionStateManager` with dual-mode support: in-memory (daemon) and file-based (local)
+  - Session state included in support bundle for diagnostics
+  - Reduces token overhead in long conversations
+
 - **Quick Start updated with one-liner setup and profiles** (Issue #566)
   - Single command now includes `--create-config`, `--mcp`, and `--install-scanner`
   - Added security profile comparison table (@minimal, @standard, @strict)

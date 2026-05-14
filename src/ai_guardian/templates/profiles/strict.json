@@ -197,7 +197,7 @@
   },
   "_comment_on_scan_error": "Global behavior when a scanner encounters an error. Strict profile: fail-closed (block on error).",
   "on_scan_error": "block",
-  "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on every UserPromptSubmit so the AI always has 'never bypass' instructions. Disable only for ai-guardian development. (NEW in v1.7.0, Issue #580)",
+  "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on first UserPromptSubmit per session and re-injected after blocks. Disable only for ai-guardian development. (v1.7.0 #580, v1.8.0 #584)",
   "security_instructions": {
     "inject_on_prompt": true
   },
