@@ -10,24 +10,29 @@ import json
 import logging
 import os
 import re
+import stat
+import tempfile
 import threading
 import time
 from pathlib import Path
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_state_dir
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONTEXT_TTL = 300.0  # 5 minutes
 DEFAULT_IDLE_TIMEOUT = 1800.0  # 30 minutes
 CONFIG_CHECKSUM_INTERVAL = 60.0  # check checksum every 60s
+SESSION_TTL = 86400  # 24 hours
+PERSIST_DEBOUNCE = 2.0  # seconds before writing to disk
+DAEMON_SESSIONS_FILENAME = "daemon_sessions.json"
 
 
 class DaemonState:
     """Thread-safe in-memory state for the daemon process."""
 
     def __init__(self, config_path=None, idle_timeout=DEFAULT_IDLE_TIMEOUT,
-                 context_ttl=DEFAULT_CONTEXT_TTL):
+                 context_ttl=DEFAULT_CONTEXT_TTL, sessions_file=None):
         self._lock = threading.Lock()
 
         # Cross-hook correlation: "session_id:tool_use_id" -> PreToolUse data
@@ -71,12 +76,25 @@ class DaemonState:
         self._security_injected_sessions = set()
         self._security_reinject_sessions = set()
 
+        # Session persistence (#592)
+        self._sessions_file = sessions_file or self._default_sessions_path()
+        self._session_last_activity = {}  # session_key -> unix timestamp
+        self._sessions_dirty = False
+        self._debounce_timer = None
+
         # Initial config load
         self._reload_config()
+
+        # Load persisted session state
+        self._load_sessions()
 
     @staticmethod
     def _default_config_path():
         return get_config_dir() / "ai-guardian.json"
+
+    @staticmethod
+    def _default_sessions_path():
+        return get_state_dir() / DAEMON_SESSIONS_FILENAME
 
     # --- Cross-hook correlation ---
 
@@ -154,6 +172,8 @@ class DaemonState:
         with self._lock:
             self._security_injected_sessions.add(session_key)
             self._security_reinject_sessions.discard(session_key)
+            self._session_last_activity[session_key] = time.time()
+        self._schedule_persist()
 
     def mark_security_reinject(self, session_key):
         """Flag session for security re-injection on next prompt."""
@@ -161,6 +181,8 @@ class DaemonState:
             return
         with self._lock:
             self._security_reinject_sessions.add(session_key)
+            self._session_last_activity[session_key] = time.time()
+        self._schedule_persist()
 
     # --- Config caching with auto-reload ---
 
@@ -409,3 +431,110 @@ class DaemonState:
             return 0.0
         remaining = self._paused_until - time.monotonic()
         return max(0.0, remaining)
+
+    # --- Session persistence (#592) ---
+
+    def _load_sessions(self):
+        """Load persisted session state from disk on startup."""
+        try:
+            if not self._sessions_file or not self._sessions_file.exists():
+                return
+            content = self._sessions_file.read_text(encoding="utf-8")
+            if not content.strip():
+                return
+            data = json.loads(content)
+            sessions = data.get("sessions", {})
+
+            now = time.time()
+            for key, entry in sessions.items():
+                last_activity = entry.get("last_activity", 0)
+                if now - last_activity > SESSION_TTL:
+                    continue
+                if entry.get("security_injected", False):
+                    self._security_injected_sessions.add(key)
+                if entry.get("security_reinject", False):
+                    self._security_reinject_sessions.add(key)
+                self._session_last_activity[key] = last_activity
+
+            loaded = len(self._security_injected_sessions)
+            logger.info(f"Loaded {loaded} persisted session(s) from {self._sessions_file}")
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Could not load persisted sessions: {e}")
+
+    def _schedule_persist(self):
+        """Schedule a debounced write of session state to disk."""
+        with self._lock:
+            self._sessions_dirty = True
+            if self._debounce_timer is not None:
+                self._debounce_timer.cancel()
+            self._debounce_timer = threading.Timer(
+                PERSIST_DEBOUNCE, self._persist_sessions
+            )
+            self._debounce_timer.daemon = True
+            self._debounce_timer.start()
+
+    def _persist_sessions(self):
+        """Write current session state to disk (called by debounce timer)."""
+        with self._lock:
+            if not self._sessions_dirty:
+                return
+            self._sessions_dirty = False
+            data = self._build_sessions_dict_locked()
+
+        self._write_sessions_file(data)
+
+    def flush_sessions(self):
+        """Force-write pending session state to disk (for clean shutdown)."""
+        with self._lock:
+            if self._debounce_timer is not None:
+                self._debounce_timer.cancel()
+                self._debounce_timer = None
+            if not self._sessions_dirty:
+                return
+            self._sessions_dirty = False
+            data = self._build_sessions_dict_locked()
+
+        self._write_sessions_file(data)
+
+    def _build_sessions_dict_locked(self):
+        """Build serializable session dict (must be called with lock held)."""
+        now = time.time()
+        sessions = {}
+        all_keys = self._security_injected_sessions | self._security_reinject_sessions
+        for key in all_keys:
+            last_activity = self._session_last_activity.get(key, now)
+            if now - last_activity > SESSION_TTL:
+                continue
+            sessions[key] = {
+                "security_injected": key in self._security_injected_sessions,
+                "security_reinject": key in self._security_reinject_sessions,
+                "last_activity": last_activity,
+            }
+        return {"sessions": sessions, "version": 1}
+
+    def _write_sessions_file(self, data):
+        """Atomic write of session data to disk."""
+        if not self._sessions_file:
+            return
+        try:
+            parent = self._sessions_file.parent
+            parent.mkdir(parents=True, exist_ok=True)
+            content = json.dumps(data)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(parent), prefix=".daemon-sess-", suffix=".tmp"
+            )
+            closed = False
+            try:
+                os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+                os.write(fd, content.encode("utf-8"))
+                os.close(fd)
+                closed = True
+                os.rename(tmp_path, str(self._sessions_file))
+            except BaseException:
+                if not closed:
+                    os.close(fd)
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
+        except OSError as e:
+            logger.debug(f"Error writing daemon sessions: {e}")
