@@ -634,24 +634,28 @@ class ToolPolicyChecker:
                         return False, error_msg, tool_name
 
             # PRIORITY 2: Check user-configured permissions
-            # Find all matching permission rules
+            # Skip if permissions are disabled
+            permissions_config = self.config.get("permissions", {})
+            if isinstance(permissions_config, dict) and not is_feature_enabled(
+                permissions_config.get("enabled"), datetime.now(timezone.utc), default=True
+            ):
+                logger.info(f"✓ Tool '{tool_name}' allowed (permissions disabled)")
+                return True, None, tool_name
+
+            # Find all matching permission rules (evaluated in order, last match wins)
             permission_rules = self._find_permission_rules(tool_name)
 
             if not permission_rules:
-                # No rules found - check if this tool type requires explicit allow
-                if self._requires_explicit_allow(tool_name):
+                # No matching rules — check tool type
+                if self._is_restricted_tool(tool_name):
+                    # MCP tools and Skills require explicit allow
                     logger.warning(f"Tool '{tool_name}' requires explicit permission but no rule found")
-
-                    # Check default action (block by default when no rules)
-                    # For tools requiring explicit allow, we block by default
                     error_msg = self._format_deny_message(
                         tool_name,
                         "no permission rule",
                         None,
                         tool_value=check_value if check_value else tool_name
                     )
-
-                    # Log violation
                     self._log_violation(
                         tool_name=tool_name,
                         check_value=check_value if check_value else tool_name,
@@ -659,150 +663,128 @@ class ToolPolicyChecker:
                         matcher=tool_name,
                         hook_data=hook_data
                     )
-
                     return False, error_msg, tool_name
 
-                # No rule and doesn't require explicit allow - allow by default
+                # Built-in tools allowed by default when no rules target them
                 logger.info(f"✓ Tool '{tool_name}' is allowed by default (no matching rule)")
                 return True, None, tool_name
 
-            # Extract the value to check against patterns
-            check_value = self._extract_check_value(tool_name, tool_input, permission_rules[0]["matcher"])
-            if check_value is None:
-                logger.warning(f"Could not extract value to check for tool '{tool_name}'")
+            # Expand legacy rules (action on allow rules → split into allow + deny)
+            expanded_rules = self._expand_legacy_permission_rules(permission_rules)
+
+            # Evaluate rules in order, last match wins (same as directory_rules)
+            final_decision = None  # "allow" or "deny"
+            final_action = "block"  # Only meaningful for deny: block/warn/log-only
+            matched_pattern = None
+            matched_matcher = None
+            is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
+
+            for rule in expanded_rules:
+                mode = rule.get("mode")
+                patterns = rule.get("patterns", [])
+
+                # Legacy format support
+                if mode is None:
+                    allow_patterns = rule.get("allow", [])
+                    deny_patterns = rule.get("deny", [])
+                    if allow_patterns:
+                        mode = "allow"
+                        patterns = allow_patterns
+                    elif deny_patterns:
+                        mode = "deny"
+                        patterns = deny_patterns
+                    else:
+                        continue
+
+                if mode not in ("allow", "deny"):
+                    continue
+
+                # Extract the value to check against this rule's patterns
+                rule_check_value = self._extract_check_value(tool_name, tool_input, rule.get("matcher", tool_name))
+                if rule_check_value is None:
+                    continue
+
+                # Check if check_value matches any pattern in this rule
+                pattern_matched = False
+                for pattern_entry in patterns:
+                    pattern_str = self._extract_pattern_string(pattern_entry)
+                    if is_file_path_tool and "**" in pattern_str:
+                        matches = Path(rule_check_value).match(pattern_str)
+                    else:
+                        matches = fnmatch.fnmatch(rule_check_value, pattern_str)
+
+                    if matches:
+                        pattern_matched = True
+                        final_decision = mode
+                        final_action = rule.get("action", "block") if mode == "deny" else "allow"
+                        matched_pattern = pattern_str
+                        matched_matcher = rule.get("matcher")
+                        logger.debug(f"Rule matched: matcher={matched_matcher}, mode={mode}, pattern={pattern_str} (last-match-wins, continuing)")
+                        break  # Break inner pattern loop, continue outer rule loop
+
+                # Legacy backward compat: allow rule with action field
+                # When no pattern matched but _legacy_fallback_action is set,
+                # apply it as a deny decision (the old "not in allow list" behavior)
+                if not pattern_matched and rule.get("_legacy_fallback_action"):
+                    fallback_action = rule["_legacy_fallback_action"]
+                    final_decision = "deny"
+                    final_action = fallback_action
+                    matched_pattern = "not in allow list"
+                    matched_matcher = rule.get("matcher")
+                    logger.debug(f"Legacy fallback: matcher={matched_matcher}, action={fallback_action}")
+
+            # Apply final decision
+            if final_decision == "allow":
+                logger.info(f"✓ Tool '{tool_name}' allowed by rule (matcher={matched_matcher}, pattern={matched_pattern})")
                 return True, None, tool_name
 
-            logger.debug(f"Checking value '{check_value}' against {len(permission_rules)} rule(s)")
-
-            # First pass: check all deny rules (deny wins)
-            for rule in permission_rules:
-                mode = rule.get("mode")
-                patterns = rule.get("patterns", [])
-                action = rule.get("action", "block")  # Default to block
-
-                # Legacy format support
-                if mode is None:
-                    patterns = rule.get("deny", [])
-                    mode = "deny" if patterns else None
-
-                if mode == "deny":
-                    # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
-                    is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
-                    for pattern_entry in patterns:
-                        # Extract pattern string from entry (supports both str and dict formats)
-                        pattern_str = self._extract_pattern_string(pattern_entry)
-                        # For file path tools with ** patterns: use Path.match()
-                        # Otherwise: use fnmatch to match patterns within command strings or simple globs
-                        if is_file_path_tool and "**" in pattern_str:
-                            matches = Path(check_value).match(pattern_str)
-                        else:
-                            matches = fnmatch.fnmatch(check_value, pattern_str)
-
-                        if matches:
-                            # Log violation
-                            self._log_violation(
-                                tool_name=tool_name,
-                                check_value=check_value,
-                                reason=f"matched deny pattern: {pattern_str}",
-                                matcher=rule["matcher"],
-                                hook_data=hook_data
-                            )
-
-                            # Check action
-                            if action == "warn":
-                                logger.warning(f"Policy violation (warn mode): {tool_name} - {pattern_str} - execution allowed")
-                                # Continue execution - logged for audit
-                                # Return warning message to display to user via systemMessage
-                                display_name = self._format_tool_display_name(tool_name, tool_input)
-                                warn_msg = f"⚠️  Policy violation (warn mode): {display_name} matched deny pattern - execution allowed"
-                                return True, warn_msg, tool_name
-                            elif action == "log-only":
-                                logger.warning(f"Policy violation (log-only mode): {tool_name} - {pattern_str} - execution allowed (silent)")
-                                # Continue execution - logged for audit, NO warning to user
-                                return True, None, tool_name
-                            else:
-                                # Block execution
-                                logger.error(f"Tool '{tool_name}' matched deny pattern: {pattern_str}")
-                                error_msg = self._format_deny_message(
-                                    tool_name,
-                                    f"matched deny pattern: {pattern_str}",
-                                    rule["matcher"],
-                                    tool_value=check_value
-                                )
-                                return False, error_msg, tool_name
-
-            # Second pass: check allow rules
-            has_allow_rules = False
-            for rule in permission_rules:
-                mode = rule.get("mode")
-                patterns = rule.get("patterns", [])
-
-                # Legacy format support
-                if mode is None:
-                    patterns = rule.get("allow", [])
-                    mode = "allow" if patterns else None
-
-                if mode == "allow":
-                    has_allow_rules = True
-                    # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
-                    is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
-                    for pattern_entry in patterns:
-                        # Extract pattern string from entry (supports both str and dict formats)
-                        pattern_str = self._extract_pattern_string(pattern_entry)
-                        # For file path tools with ** patterns: use Path.match()
-                        # Otherwise: use fnmatch to match patterns within command strings or simple globs
-                        if is_file_path_tool and "**" in pattern_str:
-                            matches = Path(check_value).match(pattern_str)
-                        else:
-                            matches = fnmatch.fnmatch(check_value, pattern_str)
-
-                        if matches:
-                            logger.info(f"✓ Tool '{tool_name}' matched allow pattern: {pattern_str}")
-                            return True, None, tool_name
-
-            # If we have allow rules but no match, deny (or warn)
-            if has_allow_rules:
-                # Format tool details for logging
-                tool_details = self._format_tool_log_details(tool_name, tool_input)
-                logger.warning(f"Tool '{tool_name}'{tool_details} not in allow list")
-
-                # Check enforcement level from the first allow rule
-                action = permission_rules[0].get("action", "block")
-
-                # Log violation
+            if final_decision == "deny":
                 self._log_violation(
                     tool_name=tool_name,
-                    check_value=check_value,
-                    reason="not in allow list",
-                    matcher=permission_rules[0]["matcher"],
+                    check_value=check_value if check_value else tool_name,
+                    reason=f"matched deny pattern: {matched_pattern}",
+                    matcher=matched_matcher,
                     hook_data=hook_data
                 )
 
-                # Check action
-                if action == "warn":
-                    logger.warning(f"Policy violation (warn mode): {tool_name}{tool_details} not in allow list - execution allowed")
-                    # Continue execution - logged for audit
-                    # Return warning message to display to user via systemMessage
+                if final_action == "warn":
+                    logger.warning(f"Policy violation (warn mode): {tool_name} - {matched_pattern} - execution allowed")
                     display_name = self._format_tool_display_name(tool_name, tool_input)
-                    warn_msg = f"⚠️  Policy violation (warn mode): {display_name} not in allow list - execution allowed"
+                    warn_msg = f"⚠️  Policy violation (warn mode): {display_name} matched deny pattern - execution allowed"
                     return True, warn_msg, tool_name
-                elif action == "log-only":
-                    logger.warning(f"Policy violation (log-only mode): {tool_name}{tool_details} not in allow list - execution allowed (silent)")
-                    # Continue execution - logged for audit, NO warning to user
+                elif final_action == "log-only":
+                    logger.warning(f"Policy violation (log-only mode): {tool_name} - {matched_pattern} - execution allowed (silent)")
                     return True, None, tool_name
                 else:
-                    # Block execution
-                    logger.error(f"Tool '{tool_name}'{tool_details} not in allow list")
+                    logger.error(f"Tool '{tool_name}' blocked by deny rule: {matched_pattern}")
                     error_msg = self._format_deny_message(
                         tool_name,
-                        "not in allow list",
-                        permission_rules[0]["matcher"],
-                        tool_value=check_value
+                        f"matched deny pattern: {matched_pattern}",
+                        matched_matcher,
+                        tool_value=check_value if check_value else tool_name
                     )
                     return False, error_msg, tool_name
 
-            # No allow rules - allow by default (already passed deny check)
-            logger.info(f"✓ Tool '{tool_name}' is allowed (no allow patterns in rules)")
+            # No rule matched any pattern — check tool type
+            if self._is_restricted_tool(tool_name):
+                logger.warning(f"Tool '{tool_name}' has no matching pattern in rules — blocked")
+                error_msg = self._format_deny_message(
+                    tool_name,
+                    "not in allow list",
+                    None,
+                    tool_value=check_value if check_value else tool_name
+                )
+                self._log_violation(
+                    tool_name=tool_name,
+                    check_value=check_value if check_value else tool_name,
+                    reason="not in allow list",
+                    matcher=tool_name,
+                    hook_data=hook_data
+                )
+                return False, error_msg, tool_name
+
+            # Built-in tool with rules that matched by matcher but no pattern matched
+            logger.info(f"✓ Tool '{tool_name}' allowed (no matching pattern in rules)")
             return True, None, tool_name
 
         except Exception as e:
@@ -1056,6 +1038,37 @@ class ToolPolicyChecker:
 
         return valid_patterns
 
+    def _expand_legacy_permission_rules(self, rules: List[Dict]) -> List[Dict]:
+        """
+        Process legacy permission rules with action on allow rules.
+
+        Old format (deprecated): mode=allow + action=warn meant "allow listed patterns,
+        warn on non-matches". The action field is stripped from allow rules (it's only
+        meaningful on deny rules). The action is stored as _legacy_fallback_action for
+        use when no pattern matches after all rules are evaluated.
+
+        Args:
+            rules: List of matching permission rules
+
+        Returns:
+            list: Processed list with clean allow/deny semantics
+        """
+        processed = []
+        for rule in rules:
+            mode = rule.get("mode")
+            action = rule.get("action")
+
+            if mode == "allow" and action and action != "block":
+                logger.info(f"Deprecated: action '{action}' on allow rule (matcher={rule.get('matcher')}). "
+                            f"Prefer separate deny rule with action instead.")
+                clean_rule = {k: v for k, v in rule.items() if k != "action"}
+                clean_rule["_legacy_fallback_action"] = action
+                processed.append(clean_rule)
+            else:
+                processed.append(rule)
+
+        return processed
+
     def _find_permission_rules(self, tool_name: str) -> List[Dict]:
         """
         Find all permission rules that match the tool name.
@@ -1169,30 +1182,20 @@ class ToolPolicyChecker:
         # MCP and other tools: use tool_name directly
         return tool_name
 
-    def _requires_explicit_allow(self, tool_name: str) -> bool:
+    def _is_restricted_tool(self, tool_name: str) -> bool:
         """
-        Check if a tool requires explicit allow list entry.
+        Check if a tool type is restricted (requires explicit allow rule).
 
-        Skills and MCP tools require explicit approval.
-        Built-in tools are allowed by default.
-
-        Args:
-            tool_name: Name of the tool
-
-        Returns:
-            bool: True if requires explicit allow
+        Skills and MCP tools (except ai-guardian's own) are restricted.
+        Built-in tools (Bash, Read, Write, Edit, etc.) are allowed by default
+        when no permission rule targets them.
         """
-        # Skills require explicit allow
         if tool_name == "Skill":
             return True
-
-        # MCP tools require explicit allow — except ai-guardian's own MCP server
         if tool_name.startswith("mcp__"):
             if tool_name.startswith("mcp__ai-guardian__"):
                 return False
             return True
-
-        # Built-in tools allowed by default
         return False
 
     def _format_deny_message(self, tool_name: str, reason: str, matcher: Optional[str], tool_value: Optional[str] = None) -> str:

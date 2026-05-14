@@ -1245,26 +1245,26 @@
   "definitions": {
     "permission_rule": {
       "type": "object",
-      "required": ["matcher", "mode", "patterns"],
-      "description": "Permission rule defining allow/deny patterns for a specific tool matcher",
+      "required": ["matcher", "mode"],
+      "description": "Permission rule defining allow/deny patterns for a specific tool matcher. Rules are evaluated in order, last match wins (same as directory_rules). Use broad-to-specific ordering: allow all, then deny categories, then allow specific tools.",
       "properties": {
         "matcher": {
           "type": "string",
-          "description": "Tool name pattern to match (e.g., 'Skill', 'mcp__*', 'Bash', 'Write', 'Read')"
+          "description": "Tool name pattern to match (e.g., 'Skill', 'mcp__*', 'Bash', 'Write', 'Read', '*' for all)"
         },
         "mode": {
           "type": "string",
           "enum": ["allow", "deny"],
-          "description": "Permission mode: 'allow' creates an allow-list, 'deny' creates a deny-list"
+          "description": "Permission mode: 'allow' allows the tool, 'deny' denies the tool. action field only applies to deny rules."
         },
         "patterns": {
           "type": "array",
-          "description": "List of patterns to allow/deny. Supports simple strings or time-based objects with valid_until.",
+          "description": "List of patterns to match against tool-specific values (skill name, command, file path, or tool name for MCP). Defaults to ['*'] if omitted.",
           "items": {
             "oneOf": [
               {
                 "type": "string",
-                "description": "Simple string pattern (e.g., 'daf-*', '*rm -rf*')"
+                "description": "Simple string pattern (e.g., 'daf-*', '*rm -rf*', '*')"
               },
               {
                 "$ref": "#/definitions/time_based_pattern"
@@ -1275,7 +1275,7 @@
         "action": {
           "type": "string",
           "enum": ["block", "warn", "log-only"],
-          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
+          "description": "Action when deny rule matches (v1.7.0+): 'block' prevents execution (default), 'warn' logs violation and shows warning but allows execution, 'log-only' logs silently. Only meaningful on mode=deny rules.",
           "default": "block"
         },
         "immutable": {

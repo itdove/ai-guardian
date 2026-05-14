@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - State file: `~/.local/state/ai-guardian/daemon_sessions.json`
   - Flush pending state on daemon shutdown for clean exit
 
+### Fixed
+
+- **Bug: unlisted MCP servers always blocked** (Issue #595, AAP-75435)
+  - Switch permission rules to last-match-wins evaluation (consistent with directory_rules)
+  - Rules evaluated in order: broad allow → category deny → specific allow
+  - `mode: deny` supports `action: block|warn|log-only` (default: block)
+  - New unlisted MCP servers warned instead of blocked with standard profile
+  - Backward compatible: old `action` on `mode: allow` rules still works (deprecated)
+  - Updated @minimal, @standard, @strict profile defaults
+  - Updated default config templates with layered permission rules
+
 ### Changed
 
 - **Performance**: Cache config file reads across `_load_*_config()` calls (Issue #569)
