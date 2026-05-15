@@ -48,7 +48,8 @@ _file_handler.setFormatter(logging.Formatter(
 
 # Suppress stderr banner when --json is requested (keep file logging)
 _stderr_handler = logging.StreamHandler(sys.stderr)
-if "--json" in sys.argv:
+_is_tui_mode = any(cmd in sys.argv for cmd in ("console", "tui"))
+if "--json" in sys.argv or _is_tui_mode:
     _stderr_handler.setLevel(logging.WARNING)
 
 # Configure root logger with both stderr and file handlers
