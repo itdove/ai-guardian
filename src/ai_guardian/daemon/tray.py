@@ -537,21 +537,33 @@ class DaemonTray:
         Args:
             panel: Optional panel ID to open (e.g., 'panel-violations')
         """
+        import os
+        import shlex
         import subprocess
+        import sys
         import platform
         import shutil
 
         executable = shutil.which("ai-guardian")
-        cmd_str = f"{executable} console" if executable else "python -m ai_guardian console"
+        if executable:
+            executable = os.path.abspath(executable)
+            cmd_parts = [executable, "console"]
+        else:
+            cmd_parts = [sys.executable, "-m", "ai_guardian", "console"]
         if panel:
-            cmd_str += f" --panel {panel}"
+            cmd_parts.extend(["--panel", panel])
+
+        cmd_str = " ".join(shlex.quote(p) for p in cmd_parts)
+        logger.debug("Console launch cmd: %s", cmd_str)
 
         try:
             system = platform.system()
             if system == "Darwin":
                 script = (
                     'tell application "Terminal"\n'
-                    f'    set currentTab to do script "{cmd_str}"\n'
+                    '    set currentTab to do script ""\n'
+                    '    delay 2\n'
+                    f'    do script "{cmd_str}" in currentTab\n'
                     '    activate\n'
                     '    set zoomed of front window to true\n'
                     '    repeat\n'
@@ -577,7 +589,7 @@ class DaemonTray:
                     ("xterm", ["-maximized", "-e"]),
                 ]:
                     if shutil.which(term):
-                        subprocess.Popen([term] + args + cmd_str.split())
+                        subprocess.Popen([term] + args + cmd_parts)
                         break
         except Exception as e:
             logger.debug(f"Failed to open console: {e}")

@@ -318,6 +318,56 @@ class TestCrossPlatform:
                     args = mock_popen.call_args[0][0]
                     assert args[0] == "kgx"
 
+    def test_console_launch_macos(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    mock_popen.assert_called_once()
+                    script = mock_popen.call_args[0][0][2]
+                    assert "osascript" in mock_popen.call_args[0][0][0]
+                    assert 'do script ""' in script
+                    assert "delay 2" in script
+                    assert '/usr/local/bin/ai-guardian console' in script
+
+    def test_console_launch_macos_deferred_command(self):
+        """Command is sent after shell init to avoid interactive prompts (issue #599)."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    script = mock_popen.call_args[0][0][2]
+                    lines = script.split("\n")
+                    do_script_lines = [l.strip() for l in lines if "do script" in l]
+                    assert len(do_script_lines) == 2
+                    assert do_script_lines[0] == 'set currentTab to do script ""'
+                    assert "in currentTab" in do_script_lines[1]
+
+    def test_console_launch_macos_fallback_sys_executable(self):
+        """Falls back to sys.executable when shutil.which returns None."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value=None):
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    with mock.patch("subprocess.Popen") as mock_popen:
+                        tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                        script = mock_popen.call_args[0][0][2]
+                        assert "/usr/bin/python3 -m ai_guardian console" in script
+
     def test_console_launch_windows(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
