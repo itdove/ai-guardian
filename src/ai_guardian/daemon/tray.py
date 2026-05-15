@@ -276,7 +276,8 @@ class DaemonTray:
         import platform
         if platform.system() == "Linux":
             saved_fd = _suppress_gtk_stderr()
-            self._icon.run(setup=lambda icon: _restore_stderr(saved_fd))
+            threading.Timer(2.0, _restore_stderr, args=[saved_fd]).start()
+            self._icon.run()
         else:
             self._icon.run()
 

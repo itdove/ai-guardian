@@ -458,9 +458,10 @@ class TestDaemonTrayIcon:
 
 
 class TestRunPlatformBranching:
-    """Verify _run() only passes setup= callback on Linux (issue #564)."""
+    """Verify _run() never passes setup= callback (issue #564, #602)."""
 
-    def test_run_on_linux_uses_setup_callback(self):
+    def test_run_on_linux_no_setup_callback(self):
+        """setup= breaks icon visibility on newer GNOME (issue #602)."""
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
@@ -469,7 +470,8 @@ class TestRunPlatformBranching:
         mock_icon = mock.MagicMock()
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
              mock.patch("platform.system", return_value="Linux"), \
-             mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=42) as mock_suppress:
+             mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=42), \
+             mock.patch("ai_guardian.daemon.tray.threading") as mock_threading:
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
             mock_pystray.MenuItem = mock.MagicMock()
@@ -478,7 +480,11 @@ class TestRunPlatformBranching:
             tray._run()
             mock_icon.run.assert_called_once()
             _, kwargs = mock_icon.run.call_args
-            assert "setup" in kwargs
+            assert "setup" not in kwargs
+            mock_threading.Timer.assert_called_once_with(
+                2.0, _restore_stderr, args=[42]
+            )
+            mock_threading.Timer.return_value.start.assert_called_once()
 
     def test_run_on_macos_no_setup_callback(self):
         tray = DaemonTray(

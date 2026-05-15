@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Bug: GNOME system tray icon not visible after AppIndicator extension install** (Issue #602)
+  - pystray `setup=` callback prevents icon from appearing on newer GNOME/GTK
+  - Replace with timer-based stderr restore so icon displays correctly
+
 - **Bug: Console startup prints MCP permission check messages to terminal** (Issue #600)
   - Suppress stderr logging (INFO/DEBUG) when running `ai-guardian console` or `ai-guardian tui`
   - File logging remains at full verbosity for debugging
