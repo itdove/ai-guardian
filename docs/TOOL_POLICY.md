@@ -56,6 +56,40 @@ Result: 🚨 BLOCKED - Command not executed
 
 ---
 
+## Default Security Posture
+
+AI Guardian uses a **deny-by-default** policy for MCP servers and Skills. Built-in tools are allowed because hooks scan their input and output. MCP servers and Skills bypass this scanning, so they require explicit permission.
+
+| Tool Type | Default | Why |
+|---|---|---|
+| Built-in (Bash, Read, Write, Edit, WebFetch) | Allowed | Hooks scan input/output for secrets, PII, SSRF, prompt injection |
+| MCP servers | **Blocked** | Third-party code that may bypass hook scanning |
+| Skills | **Blocked** | Can override AI behavior and instructions |
+| ai-guardian MCP tools | Allowed | Auto-allowed (own security tools) |
+
+To allow an MCP server or Skill, add an explicit allow rule in your `permissions` config:
+
+```json
+{
+  "permissions": [
+    {
+      "matcher": "mcp__my-server__*",
+      "mode": "allow",
+      "patterns": ["*"]
+    },
+    {
+      "matcher": "Skill",
+      "mode": "allow",
+      "patterns": ["my-skill"]
+    }
+  ]
+}
+```
+
+See [Configuration Guide](CONFIGURATION.md) for full details on `permissions.rules`.
+
+---
+
 ## What You're Protected Against
 
 ### 1. Destructive Commands

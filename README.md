@@ -25,6 +25,8 @@ This single command:
 - Installs IDE hooks (PreToolUse, PostToolUse, UserPromptSubmit)
 - Sets up the MCP security advisor for AI-aware protection
 
+> **MCP servers and Skills are blocked by default.** Built-in tools (Bash, Read, Write, Edit) are allowed and scanned by hooks, but MCP servers and Skills require explicit allow rules. See [Tool Policy](docs/TOOL_POLICY.md#default-security-posture) for why and how to allow them.
+
 ### Security Profiles
 
 Choose a profile that matches your environment:
@@ -76,7 +78,9 @@ ai-guardian provides protection **immediately** with zero configuration:
 | Immutable file protection | Enabled | Cannot be disabled |
 | `.ai-read-deny` markers | Enabled | Always respected |
 | Violation logging | Enabled | Logs to `~/.local/state/ai-guardian/violations.jsonl` |
-| Tool/Skill permissions | Allow all | Configure `permissions` to restrict |
+| Built-in tool permissions | Allowed | Bash, Read, Write, Edit — protected by hooks |
+| MCP server permissions | **Blocked** | Require explicit allow rules (third-party code) |
+| Skill permissions | **Blocked** | Require explicit allow rules (can override AI behavior) |
 | Directory rules | Allow all | Configure `directory_rules` to restrict |
 
 ## Configuration
