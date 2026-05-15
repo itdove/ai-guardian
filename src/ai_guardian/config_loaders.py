@@ -11,7 +11,13 @@ import logging
 import sys
 from pathlib import Path
 
-from ai_guardian.config_utils import get_config_dir, is_feature_enabled
+from ai_guardian.config_utils import (
+    get_config_dir,
+    get_project_config_path,
+    _clear_project_config_cache,
+    deep_merge,
+    is_feature_enabled,
+)
 
 try:
     from ai_guardian import aiguardignore as _aiguardignore_cfg
@@ -37,21 +43,40 @@ def _merge_aiguardignore(scanner_config, scanner_type):
 
 
 _config_cache = None
-_config_cache_mtime = None
-_config_cache_path = None
+_config_cache_global_mtime = None
+_config_cache_project_mtime = None
+_config_cache_global_path = None
+_config_cache_project_path = None
 
 
 def _clear_config_cache():
     """Clear the config file cache, forcing a re-read on next call."""
-    global _config_cache, _config_cache_mtime, _config_cache_path
+    global _config_cache, _config_cache_global_mtime, _config_cache_project_mtime
+    global _config_cache_global_path, _config_cache_project_path
     _config_cache = None
-    _config_cache_mtime = None
-    _config_cache_path = None
+    _config_cache_global_mtime = None
+    _config_cache_project_mtime = None
+    _config_cache_global_path = None
+    _config_cache_project_path = None
+    _clear_project_config_cache()
+
+
+def _get_mtime(path):
+    """Get file mtime, or None if the file doesn't exist."""
+    try:
+        return path.stat().st_mtime if path and path.exists() else None
+    except OSError:
+        return None
 
 
 def _load_config_file():
     """
-    Load ai-guardian.json configuration file with detailed error reporting.
+    Load ai-guardian.json configuration with project-level overlay.
+
+    Loads the global config from ``~/.config/ai-guardian/ai-guardian.json``
+    and, if present, merges a project-level ``ai-guardian.json`` from the
+    repository root on top of it.  Project config wins for non-immutable,
+    non-global-only fields.
 
     Uses mtime-based caching to avoid redundant file reads when multiple
     _load_*_config() functions are called within the same hook invocation.
@@ -59,71 +84,126 @@ def _load_config_file():
     Returns:
         tuple: (config_dict or None, error_message or None)
     """
-    global _config_cache, _config_cache_mtime, _config_cache_path
+    global _config_cache, _config_cache_global_mtime, _config_cache_project_mtime
+    global _config_cache_global_path, _config_cache_project_path
+
     try:
+        # Resolve paths
         config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        global_path = config_dir / "ai-guardian.json"
 
-        if not config_path.exists():
-            config_path = Path.cwd() / ".ai-guardian.json"
+        if not global_path.exists():
+            global_path = None
 
-        if not config_path.exists():
-            if _config_cache_path is None and _config_cache is not None:
-                return _config_cache
+        project_path = get_project_config_path()
+
+        # Legacy fallback: if no global AND no project config, try CWD/.ai-guardian.json
+        # DEPRECATED: will be removed in v2.0.0 — use .ai-guardian/ai-guardian.json instead
+        if global_path is None and project_path is None:
+            legacy_path = Path.cwd() / ".ai-guardian.json"
+            if legacy_path.exists():
+                logging.warning(
+                    "DEPRECATED: Using legacy '.ai-guardian.json' in project root. "
+                    "Move to '.ai-guardian/ai-guardian.json' instead. "
+                    "Legacy support will be removed in v2.0.0."
+                )
+                global_path = legacy_path
+
+        # No config files at all
+        if global_path is None and project_path is None:
             _config_cache = (None, None)
-            _config_cache_mtime = None
-            _config_cache_path = None
+            _config_cache_global_mtime = None
+            _config_cache_project_mtime = None
+            _config_cache_global_path = None
+            _config_cache_project_path = None
             return _config_cache
 
-        try:
-            current_mtime = config_path.stat().st_mtime
-        except OSError:
-            current_mtime = None
+        # Check mtime cache
+        global_mtime = _get_mtime(global_path)
+        project_mtime = _get_mtime(project_path)
 
         if (
             _config_cache is not None
-            and _config_cache_path == config_path
-            and _config_cache_mtime is not None
-            and current_mtime == _config_cache_mtime
+            and _config_cache_global_path == global_path
+            and _config_cache_project_path == project_path
+            and _config_cache_global_mtime == global_mtime
+            and _config_cache_project_mtime == project_mtime
         ):
             return _config_cache
 
-        try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            _config_cache = (config, None)
-            _config_cache_mtime = current_mtime
-            _config_cache_path = config_path
-            return _config_cache
+        # Load global config
+        global_config = None
+        if global_path:
+            global_config, error_msg = _load_json_config(global_path)
+            if error_msg:
+                _config_cache = (None, error_msg)
+                _config_cache_global_mtime = global_mtime
+                _config_cache_project_mtime = project_mtime
+                _config_cache_global_path = global_path
+                _config_cache_project_path = project_path
+                return _config_cache
 
-        except json.JSONDecodeError as e:
-            error_msg = (
-                f"⚠️  Configuration Error: Failed to parse {config_path}\n"
-                f"JSON Error: {e.msg} (line {e.lineno}, column {e.colno})\n"
-                f"Using default configuration. Please fix the config file."
-            )
-            logging.error(f"JSON parse error in {config_path}: {e}")
-            print(error_msg, file=sys.stderr)
-            _config_cache = (None, error_msg)
-            _config_cache_mtime = current_mtime
-            _config_cache_path = config_path
-            return _config_cache
+        # Load project config
+        project_config = None
+        if project_path:
+            project_config, error_msg = _load_json_config(project_path)
+            if error_msg:
+                logger.warning(f"Ignoring invalid project config: {error_msg}")
+                project_config = None
 
-        except Exception as e:
-            error_msg = (
-                f"⚠️  Configuration Error: Failed to read {config_path}\n"
-                f"Error: {str(e)}\n"
-                f"Using default configuration."
+        # Merge (use `is not None` — empty dict {} is a valid config)
+        if global_config is not None and project_config is not None:
+            logger.debug(
+                f"Config merge: global={global_path}, project={project_path}"
             )
-            logging.error(f"Error reading config {config_path}: {e}")
-            _config_cache = (None, error_msg)
-            _config_cache_mtime = current_mtime
-            _config_cache_path = config_path
-            return _config_cache
+            effective = deep_merge(global_config, project_config)
+        elif global_config is not None:
+            effective = global_config
+        elif project_config is not None:
+            effective = project_config
+        else:
+            effective = None
+
+        _config_cache = (effective, None)
+        _config_cache_global_mtime = global_mtime
+        _config_cache_project_mtime = project_mtime
+        _config_cache_global_path = global_path
+        _config_cache_project_path = project_path
+        return _config_cache
 
     except Exception as e:
         error_msg = f"⚠️  Configuration Error: {str(e)}"
         logging.error(f"Unexpected error loading config: {e}")
+        return None, error_msg
+
+
+def _load_json_config(config_path):
+    """
+    Load and parse a single JSON config file.
+
+    Returns:
+        tuple: (config_dict or None, error_message or None)
+    """
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config, None
+    except json.JSONDecodeError as e:
+        error_msg = (
+            f"⚠️  Configuration Error: Failed to parse {config_path}\n"
+            f"JSON Error: {e.msg} (line {e.lineno}, column {e.colno})\n"
+            f"Using default configuration. Please fix the config file."
+        )
+        logging.error(f"JSON parse error in {config_path}: {e}")
+        print(error_msg, file=sys.stderr)
+        return None, error_msg
+    except Exception as e:
+        error_msg = (
+            f"⚠️  Configuration Error: Failed to read {config_path}\n"
+            f"Error: {str(e)}\n"
+            f"Using default configuration."
+        )
+        logging.error(f"Error reading config {config_path}: {e}")
         return None, error_msg
 
 

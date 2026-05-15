@@ -337,6 +337,10 @@ def create_server() -> "FastMCP":
             features["mcp_server"] = True
             features["proactive_level"] = mcp_section.get("proactive_level", "low")
 
+            from ai_guardian.config_utils import get_project_config_path
+            project_path = get_project_config_path()
+            features["project_config"] = str(project_path) if project_path else None
+
             return {"features": features}
         except Exception as e:
             logger.error("get_config error: %s", e)

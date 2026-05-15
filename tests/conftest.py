@@ -28,11 +28,17 @@ def _isolate_config_dir(tmp_path):
     state_dir.mkdir(parents=True, exist_ok=True)
     cache_dir = tmp_path / "auto_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
+    # Set a non-existent path to prevent discovery of real project configs
+    project_config_sentinel = str(tmp_path / "no_project_config.json")
     with mock.patch.dict(os.environ, {
         "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
         "AI_GUARDIAN_STATE_DIR": str(state_dir),
         "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
+        "AI_GUARDIAN_PROJECT_CONFIG": project_config_sentinel,
     }):
+        # Clear caches so tests don't see stale state
+        from ai_guardian.config_loaders import _clear_config_cache
+        _clear_config_cache()
         yield config_dir
 
 

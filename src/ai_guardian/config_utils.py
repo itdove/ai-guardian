@@ -5,14 +5,225 @@ Configuration utilities for ai-guardian.
 Shared utilities for configuration directory resolution and timestamp handling.
 """
 
+import copy
 import logging
 import os
 import re
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Dict, FrozenSet, List, Optional, Set
 
 logger = logging.getLogger(__name__)
+
+# Sections that only make sense at the user/system level.
+# Project-level configs cannot override these.
+GLOBAL_ONLY_SECTIONS: FrozenSet[str] = frozenset({
+    "daemon",
+    "mcp_server",
+    "support",
+    "security_instructions",
+    "on_scan_error",
+    "remote_configs",
+})
+
+_project_config_path_cache: Optional[Path] = None
+_project_config_path_cached = False
+
+
+def _clear_project_config_cache():
+    """Clear the project config path cache."""
+    global _project_config_path_cache, _project_config_path_cached
+    _project_config_path_cache = None
+    _project_config_path_cached = False
+
+
+def get_project_config_path() -> Optional[Path]:
+    """
+    Get project-level ai-guardian.json path.
+
+    Discovery order:
+    1. AI_GUARDIAN_PROJECT_CONFIG env var (explicit override for testing/CI)
+    2. Git repo root / ai-guardian.json
+    3. CWD / ai-guardian.json (fallback if not in git repo)
+
+    Returns:
+        Path to project config if it exists, None otherwise.
+    """
+    global _project_config_path_cache, _project_config_path_cached
+
+    if _project_config_path_cached:
+        return _project_config_path_cache
+
+    result = _discover_project_config_path()
+    _project_config_path_cache = result
+    _project_config_path_cached = True
+    return result
+
+
+def _discover_project_config_path() -> Optional[Path]:
+    """Internal discovery logic for project config path."""
+    env_path = os.environ.get("AI_GUARDIAN_PROJECT_CONFIG")
+    if env_path:
+        p = Path(env_path).expanduser()
+        if p.exists():
+            logger.debug(f"Project config from env: {p}")
+            return p
+        logger.debug(f"AI_GUARDIAN_PROJECT_CONFIG set but file not found: {p}")
+        return None
+
+    project_root = _find_git_root()
+    if project_root:
+        # New location (.ai-guardian/ directory)
+        new_path = project_root / ".ai-guardian" / "ai-guardian.json"
+        if new_path.exists():
+            logger.debug(f"Project config at git root: {new_path}")
+            return new_path
+        # Legacy location (bare file at root) — deprecated
+        legacy_path = project_root / "ai-guardian.json"
+        if legacy_path.exists():
+            logger.warning(
+                "DEPRECATED: Project config at '%s'. "
+                "Move to '.ai-guardian/ai-guardian.json'. "
+                "Legacy support will be removed in v2.0.0.", legacy_path
+            )
+            return legacy_path
+
+    # CWD fallback — new location first, then legacy
+    cwd_new = Path.cwd() / ".ai-guardian" / "ai-guardian.json"
+    if cwd_new.exists():
+        logger.debug(f"Project config at CWD: {cwd_new}")
+        return cwd_new
+    cwd_legacy = Path.cwd() / "ai-guardian.json"
+    if cwd_legacy.exists():
+        logger.warning(
+            "DEPRECATED: Project config at '%s'. "
+            "Move to '.ai-guardian/ai-guardian.json'. "
+            "Legacy support will be removed in v2.0.0.", cwd_legacy
+        )
+        return cwd_legacy
+
+    return None
+
+
+def _find_git_root() -> Optional[Path]:
+    """Find the root of the current git repository."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return Path(result.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return None
+
+
+def deep_merge(
+    base: Dict,
+    override: Dict,
+    global_only_sections: Optional[FrozenSet[str]] = None,
+) -> Dict:
+    """
+    Deep merge override config on top of base config.
+
+    Rules:
+    - Dicts: recursively merge
+    - Lists: concatenate (override items appended to base)
+    - Scalars: override wins
+    - Keys in global_only_sections are skipped from override
+    - ``immutable`` in base sections controls what project configs can override:
+      - ``true``: entire section is locked
+      - ``["field1", "field2"]``: only listed fields are locked
+
+    Returns:
+        New merged dict (inputs are not mutated).
+    """
+    if global_only_sections is None:
+        global_only_sections = GLOBAL_ONLY_SECTIONS
+
+    result = copy.deepcopy(base)
+
+    for key, value in override.items():
+        if key.startswith("_"):
+            continue
+
+        if key in global_only_sections:
+            logger.debug(f"Project config: skipping global-only section '{key}'")
+            continue
+
+        # Check immutable constraints from the base section
+        section_locked, locked_fields = _get_immutable_info(base.get(key))
+
+        if section_locked:
+            logger.debug(f"Project config: section '{key}' is immutable, skipping entirely")
+            continue
+
+        if key in result:
+            if isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = _deep_merge_section(
+                    result[key], value, locked_fields,
+                )
+            elif isinstance(result[key], list) and isinstance(value, list):
+                result[key] = result[key] + value
+            else:
+                result[key] = copy.deepcopy(value)
+        else:
+            result[key] = copy.deepcopy(value)
+
+    return result
+
+
+def _get_immutable_info(section) -> tuple:
+    """
+    Extract immutable constraints from a config section.
+
+    Returns:
+        (section_locked: bool, locked_fields: list or None)
+        - section_locked=True means entire section cannot be overridden
+        - locked_fields is a list of field names that cannot be overridden
+    """
+    if not isinstance(section, dict):
+        return False, None
+    immutable = section.get("immutable")
+    if immutable is True:
+        return True, None
+    if isinstance(immutable, list):
+        return False, immutable
+    return False, None
+
+
+def _deep_merge_section(
+    base: Dict,
+    override: Dict,
+    locked_fields: Optional[List[str]] = None,
+) -> Dict:
+    """Recursively merge a config section, respecting locked fields."""
+    result = copy.deepcopy(base)
+
+    for key, value in override.items():
+        if key.startswith("_"):
+            continue
+
+        if key == "immutable":
+            continue
+
+        if locked_fields and key in locked_fields:
+            logger.debug(f"Project config: immutable field '{key}' cannot be overridden")
+            continue
+
+        if key in result:
+            if isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = _deep_merge_section(result[key], value, None)
+            elif isinstance(result[key], list) and isinstance(value, list):
+                result[key] = result[key] + value
+            else:
+                result[key] = copy.deepcopy(value)
+        else:
+            result[key] = copy.deepcopy(value)
+
+    return result
 
 
 def get_config_dir() -> Path:

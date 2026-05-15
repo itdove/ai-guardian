@@ -102,8 +102,10 @@ from ai_guardian.response_format import (  # noqa: F401
 # --- config_loaders.py ---
 from ai_guardian.config_loaders import (  # noqa: F401
     _config_cache,
-    _config_cache_mtime,
-    _config_cache_path,
+    _config_cache_global_mtime,
+    _config_cache_project_mtime,
+    _config_cache_global_path,
+    _config_cache_project_path,
     _merge_aiguardignore,
     _clear_config_cache,
     _load_config_file,

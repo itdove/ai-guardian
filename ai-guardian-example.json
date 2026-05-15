@@ -25,6 +25,12 @@
   "_comment22": "  ai-guardian setup --create-config --profile @standard  (team, moderate security)",
   "_comment23": "  ai-guardian setup --create-config --profile @strict    (enterprise SOC2/compliance)",
   "_comment24": "  ai-guardian setup --list-profiles                      (list all profiles)",
+  "_comment25": "",
+  "_comment26": "🔗 PROJECT-LEVEL OVERLAY (NEW in v1.8.0):",
+  "_comment27": "  Place .ai-guardian/ai-guardian.json at repo root to override per-project.",
+  "_comment28": "  Project config merges on top of this global config.",
+  "_comment29": "  Use immutable arrays in sections to prevent project override.",
+  "_comment30": "  Global-only sections (daemon, mcp_server, support, etc.) cannot be overridden.",
 
   "permissions": {
     "_comment": "Tool permission enforcement - WHERE THE RULES LIVE",
@@ -153,6 +159,8 @@
     "_comment": "NEW in v1.4.0: Secret scanning with Gitleaks control",
     "_comment2": "Controls whether secret scanning is performed",
     "_comment3": "Supports both boolean (permanent) and time-based (temporary) formats",
+    "_comment_immutable": "immutable prevents project-level configs from overriding these fields",
+    "immutable": ["enabled"],
     "enabled": true,
     "_simple_format": "true (boolean - permanent enable/disable)",
     "_extended_format_example": {

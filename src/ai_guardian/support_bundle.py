@@ -205,6 +205,38 @@ def prepare_bundle(
     except Exception as e:
         logger.debug("Bundle config error: %s", e)
 
+    # 1b. Project config (sanitized) — Issue #594
+    try:
+        from ai_guardian.config_utils import get_project_config_path
+
+        project_path = get_project_config_path()
+        if project_path and project_path.exists():
+            with open(project_path, "r") as f:
+                raw_project = json.load(f)
+            sanitized, count = _sanitize_config(raw_project)
+            bundle_subdir = temp_dir / ".ai-guardian"
+            bundle_subdir.mkdir(exist_ok=True)
+            (bundle_subdir / "ai-guardian.json").write_text(
+                json.dumps(sanitized, indent=2)
+            )
+            files_info.append(
+                {
+                    "name": ".ai-guardian/ai-guardian.json",
+                    "sanitized": count > 0,
+                    "redactions": count,
+                    "note": (
+                        f"Project config from {project_path} — "
+                        + (
+                            f"{count} sensitive values redacted"
+                            if count
+                            else "No sensitive data found"
+                        )
+                    ),
+                }
+            )
+    except Exception as e:
+        logger.debug("Bundle project config error: %s", e)
+
     # 2. Violations (sanitized)
     if include_violations:
         try:

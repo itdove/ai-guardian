@@ -31,7 +31,12 @@ except ImportError:
     Draft7Validator = None
     JsonSchemaValidationError = None
 
-from ai_guardian.config_utils import get_config_dir, is_expired, is_feature_enabled
+from ai_guardian.config_utils import (
+    get_config_dir,
+    get_project_config_path,
+    is_expired,
+    is_feature_enabled,
+)
 
 # Import violation logger
 try:
@@ -1795,10 +1800,18 @@ class ToolPolicyChecker:
 
         if project_path:
             logger.debug(f"Using project path from environment: {project_path}")
-            config_path = Path(project_path) / "ai-guardian.json"
+            new_path = Path(project_path) / ".ai-guardian" / "ai-guardian.json"
+            if new_path.exists():
+                config_path = new_path
+            else:
+                config_path = Path(project_path) / "ai-guardian.json"
         else:
-            config_path = Path.cwd() / "ai-guardian.json"
-            logger.debug(f"Using current working directory: {Path.cwd()}")
+            discovered = get_project_config_path()
+            if discovered:
+                config_path = discovered
+            else:
+                config_path = Path.cwd() / "ai-guardian.json"
+            logger.debug(f"Project config path: {config_path}")
 
         config = self._load_json_file(config_path, "project local")
         return config, config_path if config else None

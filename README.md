@@ -61,6 +61,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) |
 | MCP Security Advisor | Read-only security tools for AI agents (proactive checks) | [docs/MCP_SERVER.md](docs/MCP_SERVER.md) |
 | MCP Security Scanning | Audit MCP server configs and source code for supply chain risks | [docs/MCP_SERVER.md](docs/MCP_SERVER.md#mcp-security-scanning) |
+| Project Config Overlay | Per-repo config with immutable fields and global-only section protection | [docs/CONFIGURATION.md](docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180) |
 
 ## Default Behavior (No Configuration File)
 
@@ -96,10 +97,10 @@ ai-guardian setup --list-profiles                           # List available pro
 
 ### Configuration Locations (Precedence Order)
 
-1. **Project config** (highest): `./.ai-guardian.json`
-2. **User config**: `~/.config/ai-guardian/ai-guardian.json`
-3. **Remote configs**: Fetched from URLs in `remote_configs`
-4. **Defaults**: Built-in defaults
+1. **User config**: `~/.config/ai-guardian/ai-guardian.json` (base)
+2. **Project config**: `.ai-guardian/ai-guardian.json` (merged on top of user config, see [docs](docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180))
+3. **Remote configs** (highest, permissions only): Fetched from URLs in `remote_configs`
+4. **Defaults**: Built-in defaults when no config exists
 
 ## Setup Command
 

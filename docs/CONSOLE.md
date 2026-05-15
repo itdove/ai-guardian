@@ -97,11 +97,25 @@ The Console will launch in your terminal with a tab-based interface.
 | `q` | Quit the Console |
 | `Escape` | Go back to previous screen / Close modal |
 | `r` | Refresh current screen |
+| `p` | Switch to Project scope (shown when in Global scope) |
+| `g` | Switch to Global scope (shown when in Project scope) |
 | `Arrow keys` | Navigate between UI elements |
 | `Tab` | Move to next focusable element |
 | `Shift+Tab` | Move to previous focusable element |
 | `Enter` | Activate button / Select option |
 | `Space` | Toggle checkbox / Activate button |
+
+### Config Scope Toggle (NEW in v1.8.0)
+
+Press `p` to switch to **Project** scope or `g` to switch back to **Global** scope. The current scope is shown in the header bar and the footer shows only the available toggle key.
+
+- **Global scope** (default): Edit `~/.config/ai-guardian/ai-guardian.json`
+- **Project scope**: Edit `.ai-guardian/ai-guardian.json` at the repo root
+
+In Project scope:
+- Global-only sections (daemon, MCP server, support) are disabled
+- Fields marked `immutable` in the global config are locked
+- The header shows `[Project]` to indicate the active scope
 
 ### Tab Navigation
 

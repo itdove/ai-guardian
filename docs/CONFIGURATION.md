@@ -17,14 +17,42 @@ This is where most users configure AI Guardian. It contains:
 - SSRF protection rules
 - Remote config URLs (user-defined)
 
-### 2. Local Project Configuration
+### 2. Project-Level Config Overlay (NEW in v1.8.0)
 
-**Location**: `~/.ai-guardian.json` (in project directory)
+**Location**: `.ai-guardian/ai-guardian.json` in the repository root
 
-Project-specific overrides that apply only to the current directory. Useful for:
-- Project-specific tool allowlists
-- Custom directory rules
-- Development settings
+A project-level config that merges on top of the global config. Discovered via git root, then CWD. Commit the `.ai-guardian/` directory to version control so the whole team shares the same scanning rules.
+
+**Discovery order**:
+1. `AI_GUARDIAN_PROJECT_CONFIG` env var (explicit override)
+2. Git repo root / `.ai-guardian/ai-guardian.json`
+3. CWD / `.ai-guardian/ai-guardian.json`
+
+**What can be overridden**: Prompt injection, secret scanning, PII, SSRF, permissions, directory rules, annotations, and more.
+
+**Global-only sections** (cannot be overridden): `daemon`, `mcp_server`, `support`, `security_instructions`, `on_scan_error`, `remote_configs`.
+
+**Immutable fields**: Add `immutable` to sections in the global config to lock fields from project override:
+
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "immutable": ["enabled"],
+    "action": "block"
+  }
+}
+```
+
+Projects cannot override `enabled` but can change `action`.
+
+**Self-protection**: The agent is blocked from reading this file (same protection as the global config).
+
+### 3. Legacy Local Configuration
+
+**Location**: `.ai-guardian.json` (in project directory, hidden file)
+
+Legacy project-specific overrides. Used only when no global config exists. For new setups, use the project-level overlay above instead.
 
 ### Project-level .aiguardignore.toml
 

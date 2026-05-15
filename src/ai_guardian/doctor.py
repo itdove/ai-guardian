@@ -95,6 +95,7 @@ class Doctor:
         report = DoctorReport(version=__version__)
         checks = [
             self.check_config_file,
+            self.check_project_config,
             self.check_deprecated_fields,
             self.check_global_pattern_server,
             self.check_scanners,
@@ -189,6 +190,29 @@ class Doctor:
             return [e.message for e in validator.iter_errors(config)]
         except Exception:
             return []
+
+    def check_project_config(self) -> CheckResult:
+        """Check if a project-level ai-guardian.json is detected."""
+        try:
+            from ai_guardian.config_utils import get_project_config_path
+            project_path = get_project_config_path()
+            if project_path:
+                return CheckResult(
+                    name="project_config",
+                    status=CheckStatus.PASS,
+                    message=f"Project config active: {project_path}",
+                )
+            return CheckResult(
+                name="project_config",
+                status=CheckStatus.PASS,
+                message="No project config (using global only)",
+            )
+        except Exception as e:
+            return CheckResult(
+                name="project_config",
+                status=CheckStatus.WARN,
+                message=f"Error checking project config: {e}",
+            )
 
     def check_deprecated_fields(self) -> CheckResult:
         self._ensure_config()
