@@ -290,6 +290,79 @@ class TestStats:
         assert stats["critical_count"] == 1
 
 
+class TestConfigReloadTracking:
+    def test_last_reload_set_on_init(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        state = DaemonState(config_path=config_path)
+        stats = state.get_stats()
+        assert stats["last_config_reload_at"] is not None
+        assert stats["last_config_reload_seconds_ago"] is not None
+        assert stats["last_config_reload_seconds_ago"] < 2.0
+
+    def test_last_reload_none_without_config(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        stats = state.get_stats()
+        assert stats["last_config_reload_at"] is None
+        assert stats["last_config_reload_seconds_ago"] is None
+
+    def test_last_reload_updates_on_change(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        state = DaemonState(config_path=config_path)
+        first_reload = state.get_stats()["last_config_reload_at"]
+
+        time.sleep(0.05)
+        config_path.write_text(json.dumps({"v": 2}))
+        state.get_config()
+
+        second_reload = state.get_stats()["last_config_reload_at"]
+        assert second_reload > first_reload
+
+    def test_callback_fires_on_reload(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        fired = []
+        state = DaemonState(config_path=config_path)
+        state._on_config_reloaded = lambda: fired.append(True)
+
+        time.sleep(0.05)
+        config_path.write_text(json.dumps({"v": 2}))
+        state.get_config()
+
+        assert fired == [True]
+
+    def test_callback_fires_on_force_reload(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        fired = []
+        state = DaemonState(config_path=config_path)
+        state._on_config_reloaded = lambda: fired.append(True)
+
+        state.force_reload_config()
+        assert fired == [True]
+
+    def test_callback_not_fired_without_change(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        fired = []
+        state = DaemonState(config_path=config_path)
+        state._on_config_reloaded = lambda: fired.append(True)
+
+        state.get_config()  # no change, no callback
+        assert fired == []
+
+    def test_callback_error_does_not_propagate(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        state = DaemonState(config_path=config_path)
+        state._on_config_reloaded = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+
+        time.sleep(0.05)
+        config_path.write_text(json.dumps({"v": 2}))
+        state.get_config()  # should not raise
+
+
 class TestThreadSafety:
     def test_concurrent_context_access(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")

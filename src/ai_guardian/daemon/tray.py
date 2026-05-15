@@ -162,6 +162,21 @@ class DaemonTray:
             except Exception:
                 pass
 
+    def flash_reload(self):
+        """Briefly flash the icon yellow to indicate config reload."""
+        if not self._icon:
+            return
+        prev = self._status
+        self._status = "reloading"
+        self._dispatch_to_main(self._update_icon)
+
+        def _revert():
+            if self._status == "reloading":
+                self._status = prev
+            self._dispatch_to_main(self._update_icon)
+
+        threading.Timer(1.0, _revert).start()
+
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
         menu = pystray.Menu(
@@ -193,6 +208,10 @@ class DaemonTray:
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem(
                         lambda _: self._last_block_text(), None, enabled=False
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(
+                        lambda _: self._config_reload_text(), None, enabled=False
                     ),
                 ),
             ),
@@ -339,13 +358,14 @@ class DaemonTray:
         return None
 
     def _apply_status_tint(self, img):
-        """Apply a red tint overlay on top of the icon when paused/error."""
+        """Apply a color tint overlay on top of the icon for status."""
         if self._status == "running":
             return img
 
         tints = {
             "paused": (200, 30, 30, 140),
             "error": (200, 30, 30, 160),
+            "reloading": (220, 180, 30, 140),
         }
         tint = tints.get(self._status)
         if tint is None:
@@ -416,6 +436,13 @@ class DaemonTray:
         if block_type is None:
             return "Last block: none"
         return f"Last block: {block_type} {self._format_time_ago(seconds_ago)}"
+
+    def _config_reload_text(self):
+        stats = self._get_stats()
+        seconds_ago = stats.get('last_config_reload_seconds_ago')
+        if seconds_ago is None:
+            return "Config: loaded"
+        return f"Config reloaded: {self._format_time_ago(seconds_ago)}"
 
     @staticmethod
     def _format_time_ago(seconds):

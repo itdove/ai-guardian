@@ -235,6 +235,93 @@ class TestDaemonTrayCallbacks:
         assert "5s" in label
 
 
+class TestConfigReloadText:
+    def test_config_reload_never_reloaded(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_config_reload_seconds_ago": None},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._config_reload_text()
+        assert text == "Config: loaded"
+
+    def test_config_reload_recent(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_config_reload_seconds_ago": 120},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._config_reload_text()
+        assert "Config reloaded:" in text
+        assert "2m ago" in text
+
+    def test_config_reload_seconds(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_config_reload_seconds_ago": 30},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._config_reload_text()
+        assert "30s ago" in text
+
+    def test_config_reload_hours(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"last_config_reload_seconds_ago": 7200},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        text = tray._config_reload_text()
+        assert "2h ago" in text
+
+
+class TestFlashReload:
+    def test_flash_sets_reloading_status(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = mock.MagicMock()
+        tray.flash_reload()
+        assert tray._status == "reloading"
+
+    def test_flash_without_icon_is_noop(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray.flash_reload()  # no icon — should not raise
+        assert tray._status == "running"
+
+    def test_flash_reverts_to_previous_status(self):
+        import time as _time
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = mock.MagicMock()
+        tray.flash_reload()
+        assert tray._status == "reloading"
+        _time.sleep(1.2)
+        assert tray._status == "running"
+
+    def test_flash_from_paused_reverts_to_paused(self):
+        import time as _time
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = mock.MagicMock()
+        tray._status = "paused"
+        tray.flash_reload()
+        assert tray._status == "reloading"
+        _time.sleep(1.2)
+        assert tray._status == "paused"
+
+
 class TestFormatTimeAgo:
     def test_seconds(self):
         assert DaemonTray._format_time_ago(30) == "30s ago"
@@ -423,6 +510,20 @@ class TestDaemonTrayIcon:
             pause_callback=lambda: None,
         )
         tray._status = "error"
+        icon = tray._create_icon()
+        assert icon is not None
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_create_icon_reloading(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda: None,
+        )
+        tray._status = "reloading"
         icon = tray._create_icon()
         assert icon is not None
 
