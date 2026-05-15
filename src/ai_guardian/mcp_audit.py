@@ -282,7 +282,13 @@ class MCPAuditor:
                 "tool_name": f"mcp__{server_name}__test",
                 "parameters": {},
             }
-            allowed, _, _ = checker.check_tool_allowed(hook_data)
+            tp_logger = logging.getLogger("ai_guardian.tool_policy")
+            original_level = tp_logger.level
+            tp_logger.setLevel(logging.CRITICAL)
+            try:
+                allowed, _, _ = checker.check_tool_allowed(hook_data)
+            finally:
+                tp_logger.setLevel(original_level)
             return bool(allowed)
         except Exception:
             logger.debug("Could not check trust for %s", server_name)

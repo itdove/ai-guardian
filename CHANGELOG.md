@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Bug: Console startup prints MCP permission check messages to terminal** (Issue #600)
+  - Suppress stderr logging (INFO/DEBUG) when running `ai-guardian console` or `ai-guardian tui`
+  - File logging remains at full verbosity for debugging
+  - MCP permission check results still available in Console MCP panel
+
 - **Bug: unlisted MCP servers always blocked** (Issue #595, AAP-75435)
   - Switch permission rules to last-match-wins evaluation (consistent with directory_rules)
   - Rules evaluated in order: broad allow → category deny → specific allow
