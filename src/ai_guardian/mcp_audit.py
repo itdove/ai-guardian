@@ -25,6 +25,8 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from ai_guardian.language_patterns import SKIP_DIRS
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -106,20 +108,6 @@ _SUSPICIOUS_URL_PATTERNS = [
     re.compile(r"https?://0\.0\.0\.0\b"),
     re.compile(r"ngrok\.io|ngrok-free\.app|localtunnel\.me|loca\.lt"),
 ]
-
-_SKIP_DIRS = {
-    "node_modules",
-    "__pycache__",
-    ".git",
-    ".venv",
-    "venv",
-    ".tox",
-    ".mypy_cache",
-    ".pytest_cache",
-    "dist",
-    "build",
-    ".egg-info",
-}
 
 _SCAN_EXTENSIONS = {".py", ".js", ".ts", ".mjs", ".cjs"}
 
@@ -285,9 +273,11 @@ class MCPAuditor:
     def _check_trust(self, server_name: str) -> bool:
         """Check if an MCP server is trusted via permissions.rules."""
         try:
-            from ai_guardian.tool_policy import ToolPolicyChecker
+            if not hasattr(self, '_policy_checker'):
+                from ai_guardian.tool_policy import ToolPolicyChecker
+                self._policy_checker = ToolPolicyChecker(config=self.config if self.config else None)
 
-            checker = ToolPolicyChecker(config=self.config if self.config else None)
+            checker = self._policy_checker
             hook_data = {
                 "tool_name": f"mcp__{server_name}__test",
                 "parameters": {},
@@ -423,7 +413,7 @@ class MCPAuditor:
         files_scanned = 0
 
         for root, dirs, files in os.walk(source_path):
-            dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
             for fname in files:
                 ext = Path(fname).suffix
                 if ext not in _SCAN_EXTENSIONS:

@@ -106,6 +106,7 @@ from ai_guardian.config_loaders import (  # noqa: F401
     _config_cache_project_mtime,
     _config_cache_global_path,
     _config_cache_project_path,
+    HAS_AIGUARDIGNORE,
     _merge_aiguardignore,
     _clear_config_cache,
     _load_config_file,
@@ -161,7 +162,6 @@ from ai_guardian.hook_processing import (  # noqa: F401
     _handle_daemon_command,
     # HAS_* flags and conditionally-imported names
     HAS_GITLEAKS_CONFIG,
-    HAS_AIGUARDIGNORE,
     HAS_TOOL_POLICY,
     HAS_PATTERN_SERVER,
     HAS_PROMPT_INJECTION,
