@@ -1252,24 +1252,33 @@ class ToolPolicyChecker:
             msg += f"Pattern: {display_reason}\n"
 
         # Why blocked section
-        msg += f"\nWhy blocked: This {tool_name.lower()} operation matches a denied pattern in your tool policy.\n"
-
-        # Add context-specific explanation
-        if tool_name == "Bash":
-            if "install" in (tool_value or "").lower() or "install" in (reason or "").lower():
-                msg += "Package installation requires explicit approval to prevent supply chain attacks.\n"
-            elif "rm" in (tool_value or "").lower() or "delete" in (tool_value or "").lower():
-                msg += "Destructive commands require explicit approval to prevent data loss.\n"
+        if reason == "no permission rule" and (tool_name.startswith("mcp__") or tool_name == "Skill"):
+            msg += "\nWhy blocked: MCP servers and Skills are blocked by default (deny-by-default policy).\n"
+            if tool_name.startswith("mcp__"):
+                msg += "MCP servers run third-party code that may bypass hook-based scanning.\n"
+                msg += "Add an explicit allow rule in permissions to use this MCP server.\n"
             else:
-                msg += "This command requires explicit approval in your security policy.\n"
-        elif tool_name == "Skill":
-            msg += "Skill execution requires explicit approval in your security policy.\n"
-        elif matcher in ["Edit", "Write"]:
-            msg += "File modifications require explicit approval to prevent unauthorized changes.\n"
-        elif matcher == "Read":
-            msg += "File access requires explicit approval to prevent information disclosure.\n"
+                msg += "Skills can override AI behavior and instructions.\n"
+                msg += "Add an explicit allow rule in permissions to use this Skill.\n"
         else:
-            msg += "This operation requires explicit approval in your security policy.\n"
+            msg += f"\nWhy blocked: This {tool_name.lower()} operation matches a denied pattern in your tool policy.\n"
+
+            # Add context-specific explanation
+            if tool_name == "Bash":
+                if "install" in (tool_value or "").lower() or "install" in (reason or "").lower():
+                    msg += "Package installation requires explicit approval to prevent supply chain attacks.\n"
+                elif "rm" in (tool_value or "").lower() or "delete" in (tool_value or "").lower():
+                    msg += "Destructive commands require explicit approval to prevent data loss.\n"
+                else:
+                    msg += "This command requires explicit approval in your security policy.\n"
+            elif tool_name == "Skill":
+                msg += "Skill execution requires explicit approval in your security policy.\n"
+            elif matcher in ["Edit", "Write"]:
+                msg += "File modifications require explicit approval to prevent unauthorized changes.\n"
+            elif matcher == "Read":
+                msg += "File access requires explicit approval to prevent information disclosure.\n"
+            else:
+                msg += "This operation requires explicit approval in your security policy.\n"
 
         # Security warnings
         msg += "\nThis operation has been blocked for security.\n"

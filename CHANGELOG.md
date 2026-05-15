@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Document deny-by-default for MCP servers and Skills** (Issue #606)
+  - README: added prominent callout after Quick Start explaining MCP/Skills are blocked by default
+  - README: updated Default Behavior table to distinguish built-in tools (allowed) from MCP/Skills (blocked)
+  - TOOL_POLICY.md: added "Default Security Posture" section with rationale table
+  - Error message for "no permission rule" now explains deny-by-default policy instead of "matches a denied pattern"
+
 ### Added
 
 - **Project-level ai-guardian.json config overlay** (Issue #594)
