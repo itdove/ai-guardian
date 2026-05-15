@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Daemon auto-reload for project-level config** (Issue #617)
+  - Daemon client sends its CWD to the daemon server on each hook request
+  - Thread-local project directory override enables correct project config discovery in daemon context
+  - Per-project mtime tracking detects config changes across multiple projects
+  - Tray icon flashes yellow on project config changes (same as global config reload)
+  - `daemon status` shows project configs tracked and last project config reload time
+  - Stale project entries auto-pruned after 24 hours of inactivity
+
 - **`init-project` command with language auto-discovery** (Issue #608)
   - New CLI command: `ai-guardian init-project` detects programming languages and generates project-level prompt injection allowlist
   - Pattern-aware: tests language identifiers against live detection patterns, only generates entries that actually trigger false positives

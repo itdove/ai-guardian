@@ -261,17 +261,30 @@ class DaemonServer:
             return {"output": "{}", "exit_code": 0}
 
         self.state.record_activity()
-        self.state.get_config()
 
-        from ai_guardian import process_hook_data
-        result = process_hook_data(hook_data, daemon_state=self.state)
+        cwd = hook_data.pop("_daemon_cwd", None)
+        if cwd:
+            from ai_guardian.config_utils import set_project_dir_override, clear_project_dir_override
+            from ai_guardian.config_loaders import _clear_config_cache
+            set_project_dir_override(cwd)
+            _clear_config_cache()
+
+        try:
+            self.state.get_config()
+            self.state.check_project_config(cwd)
+
+            from ai_guardian import process_hook_data
+            result = process_hook_data(hook_data, daemon_state=self.state)
+        finally:
+            if cwd:
+                clear_project_dir_override()
+                _clear_config_cache()
 
         # Track stats
         exit_code = result.get("exit_code", 0)
         violation_type = result.get("_violation_type")
         if exit_code != 0 or result.get("_blocked"):
             self.state.record_blocked(violation_type=violation_type)
-            # Mark session for security re-injection on next prompt (#584)
             session_key = hook_data.get("session_id") or hook_data.get("transcript_path")
             if session_key:
                 self.state.mark_security_reinject(session_key)

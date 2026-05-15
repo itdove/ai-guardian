@@ -84,6 +84,7 @@ def send_hook_request(hook_data, timeout=2.0):
             return None
 
         try:
+            hook_data = {**hook_data, "_daemon_cwd": os.getcwd()}
             request = make_hook_request(hook_data)
             sock.sendall(encode_message(request))
             response = decode_message(sock, timeout=timeout)
