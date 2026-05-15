@@ -63,8 +63,10 @@ def _clear_config_cache():
 
 def _get_mtime(path):
     """Get file mtime, or None if the file doesn't exist."""
+    if not path:
+        return None
     try:
-        return path.stat().st_mtime if path and path.exists() else None
+        return path.stat().st_mtime
     except OSError:
         return None
 
@@ -92,7 +94,7 @@ def _load_config_file():
         config_dir = get_config_dir()
         global_path = config_dir / "ai-guardian.json"
 
-        if not global_path.exists():
+        if _get_mtime(global_path) is None:
             global_path = None
 
         project_path = get_project_config_path()
@@ -285,43 +287,31 @@ def _load_pattern_server_config():
         return None
 
 
-def _load_prompt_injection_config():
-    """
-    Load prompt injection configuration from ai-guardian.json.
-
-    Returns:
-        tuple: (config_dict or None, error_message or None)
-    """
+def _load_config_section(key, defaults=None, merge_ignore=False):
+    """Load a config section from ai-guardian.json with optional defaults and .aiguardignore merge."""
     config, error_msg = _load_config_file()
     if error_msg:
-        return None, error_msg
+        return (defaults or None), error_msg
     if config is None:
-        return None, None
-    return _merge_aiguardignore(config.get("prompt_injection"), "prompt_injection"), None
+        return (defaults or None), None
+    section = config.get(key, defaults) if defaults else config.get(key)
+    if merge_ignore and section is not None:
+        section = _merge_aiguardignore(section, key)
+    return section, None
+
+
+def _load_prompt_injection_config():
+    """Load prompt injection configuration from ai-guardian.json."""
+    return _load_config_section("prompt_injection", merge_ignore=True)
 
 
 def _load_config_scanner_config():
-    """
-    Load config file scanning configuration from ai-guardian.json.
-
-    Returns:
-        tuple: (config_dict or None, error_message or None)
-    """
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return None, error_msg
-    if config is None:
-        return None, None
-    return _merge_aiguardignore(config.get("config_file_scanning"), "config_file_scanning"), None
+    """Load config file scanning configuration from ai-guardian.json."""
+    return _load_config_section("config_file_scanning", merge_ignore=True)
 
 
 def _load_permissions_config():
-    """
-    Load permissions configuration from ai-guardian.json.
-
-    Returns:
-        tuple: (config_dict or None, error_message or None)
-    """
+    """Load permissions configuration from ai-guardian.json."""
     config, error_msg = _load_config_file()
     if error_msg:
         return None, error_msg
@@ -336,111 +326,43 @@ def _load_permissions_config():
 
 
 def _load_secret_scanning_config():
-    """
-    Load secret scanning configuration from ai-guardian.json.
-
-    Returns:
-        tuple: (config_dict or None, error_message or None)
-    """
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return None, error_msg
-    if config is None:
-        return None, None
-    return _merge_aiguardignore(config.get("secret_scanning"), "secret_scanning"), None
+    """Load secret scanning configuration from ai-guardian.json."""
+    return _load_config_section("secret_scanning", merge_ignore=True)
 
 
 def _load_secret_redaction_config():
-    """
-    Load secret redaction configuration from ai-guardian.json.
+    """Load secret redaction configuration from ai-guardian.json."""
+    return _load_config_section("secret_redaction")
 
-    Returns:
-        tuple: (config_dict or None, error_message or None)
-    """
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return None, error_msg
-    if config is None:
-        return None, None
-    return config.get("secret_redaction"), None
+
+_PII_DEFAULTS = {
+    'enabled': True,
+    'pii_types': ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'],
+    'action': 'block',
+    'ignore_files': [],
+    'ignore_tools': [],
+    'allowlist_patterns': []
+}
 
 
 def _load_pii_config():
-    """
-    Load PII scanning configuration from ai-guardian.json.
-
-    Returns defaults (enabled=True) when the scan_pii section is absent.
-
-    Returns:
-        tuple: (config_dict, error_message or None)
-    """
-    _PII_DEFAULTS = {
-        'enabled': True,
-        'pii_types': ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'],
-        'action': 'block',
-        'ignore_files': [],
-        'ignore_tools': [],
-        'allowlist_patterns': []
-    }
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return _PII_DEFAULTS, error_msg
-    if config is None:
-        return _PII_DEFAULTS, None
-    return _merge_aiguardignore(config.get("scan_pii", _PII_DEFAULTS), "scan_pii"), None
+    """Load PII scanning configuration. Returns defaults when scan_pii section is absent."""
+    return _load_config_section("scan_pii", defaults=_PII_DEFAULTS, merge_ignore=True)
 
 
 def _load_transcript_scanning_config():
-    """
-    Load transcript scanning configuration from ai-guardian.json.
-
-    Returns defaults (enabled=True) when the transcript_scanning section is absent.
-
-    Returns:
-        tuple: (config_dict, error_message or None)
-    """
-    _DEFAULTS = {
-        'enabled': True,
-    }
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return _DEFAULTS, error_msg
-    if config is None:
-        return _DEFAULTS, None
-    return config.get("transcript_scanning", _DEFAULTS), None
+    """Load transcript scanning configuration. Returns defaults when section is absent."""
+    return _load_config_section("transcript_scanning", defaults={'enabled': True})
 
 
 def _load_annotations_config():
-    """
-    Load annotations configuration from ai-guardian.json.
-
-    Returns defaults (enabled=True) when the annotations section is absent.
-
-    Returns:
-        tuple: (config_dict, error_message or None)
-    """
-    _DEFAULTS = {"enabled": True}
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return _DEFAULTS, error_msg
-    if config is None:
-        return _DEFAULTS, None
-    return config.get("annotations", _DEFAULTS), None
+    """Load annotations configuration. Returns defaults when section is absent."""
+    return _load_config_section("annotations", defaults={"enabled": True})
 
 
 def _load_security_instructions_config():
-    """
-    Load security instructions configuration from ai-guardian.json.
-
-    Returns:
-        tuple: (config_dict or None, error_message or None)
-    """
-    config, error_msg = _load_config_file()
-    if error_msg:
-        return None, error_msg
-    if config is None:
-        return None, None
-    return config.get("security_instructions"), None
+    """Load security instructions configuration from ai-guardian.json."""
+    return _load_config_section("security_instructions")
 
 
 def _get_on_scan_error_action() -> str:

@@ -98,12 +98,6 @@ try:
 except ImportError:
     HAS_ANNOTATIONS = False
 
-try:
-    from ai_guardian import aiguardignore as _aiguardignore_cfg
-    HAS_AIGUARDIGNORE = True
-except ImportError:
-    HAS_AIGUARDIGNORE = False
-
 logger = logging.getLogger(__name__)
 
 
@@ -160,8 +154,6 @@ def _is_path_excluded(file_path, config):
                         logging.debug(f"Path {abs_file_path} matches recursive exclusion: {exclusion_path}")
                         return True
                 elif "*" in expanded_path:
-                    # Single-level wildcard: use fnmatch for pattern matching
-                    import fnmatch
                     # Get parent directory of file for matching
                     file_parent = os.path.dirname(abs_file_path)
                     wildcard_parent = os.path.dirname(expanded_path)
@@ -567,6 +559,16 @@ def extract_tool_result(hook_data):
         return None, "unknown"
 
 
+def _matches_ignore_files(file_path, ignore_files):
+    """Check if file_path matches any pattern in ignore_files list."""
+    if not ignore_files or not file_path:
+        return False
+    for pattern in ignore_files:
+        if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(os.path.basename(file_path), pattern):
+            return True
+    return False
+
+
 def _should_skip_pii_scan(pii_config, tool_identifier=None, file_path=None):
     """Check if PII scan should be skipped based on ignore_tools and ignore_files config."""
     ignore_tools = pii_config.get('ignore_tools', [])
@@ -576,12 +578,9 @@ def _should_skip_pii_scan(pii_config, tool_identifier=None, file_path=None):
                 logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
                 return True
 
-    ignore_files = pii_config.get('ignore_files', [])
-    if ignore_files and file_path:
-        for pattern in ignore_files:
-            if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(os.path.basename(file_path), pattern):
-                logging.info(f"Skipping PII scan for ignored file: {file_path} (pattern: {pattern})")
-                return True
+    if _matches_ignore_files(file_path, pii_config.get('ignore_files', [])):
+        logging.info(f"Skipping PII scan for ignored file: {file_path}")
+        return True
 
     return False
 
@@ -1190,8 +1189,6 @@ def _extract_block_reason(error_message: str) -> str:
         - "Matched deny pattern: *.env"
         - "No permission rule"
     """
-    import re
-
     # Phase 3 format - Immutable Protection
     if "🛡️ Immutable Protection" in error_message:
         if "Protection: Configuration File" in error_message:
@@ -1262,8 +1259,6 @@ def _is_ai_guardian_test_file(file_path):
     """
     if not file_path:
         return False
-
-    import os
 
     # Get the absolute path and resolve symlinks
     abs_path = os.path.realpath(file_path)
@@ -1726,7 +1721,8 @@ def _describe_patterns(engine_config, resolved_config_path, config_source, patte
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
                                 ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
-                                allowlist_patterns: Optional[list] = None):
+                                allowlist_patterns: Optional[list] = None,
+                                secret_config: Optional[Dict] = None):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -1870,7 +1866,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             _all_available_engines = None
             if not gitleaks_config_path and HAS_SCANNER_ENGINE:
                 try:
-                    scanner_config, _ = _load_secret_scanning_config()
+                    scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
                     engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     consensus_threshold = scanner_config.get("consensus_threshold", 2) if scanner_config else 2
@@ -2132,7 +2128,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             # (engine_config already set above if using scanner defaults)
             if gitleaks_config_path and not engine_config and HAS_SCANNER_ENGINE:
                 try:
-                    scanner_config, _ = _load_secret_scanning_config()
+                    scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
                     engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     engine_config = select_engine(engines_list)
@@ -2738,6 +2734,9 @@ def process_hook_data(hook_data, daemon_state=None):
               - For Cursor: output=JSON string, exit_code=0
     """
     try:
+        now = datetime.now(timezone.utc)
+        violation_logger = ViolationLogger() if HAS_VIOLATION_LOGGER else None
+
         # Detect which IDE is calling
         ide_type = detect_ide_type(hook_data)
 
@@ -2778,7 +2777,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 if si_config is not None:
                     inject = is_feature_enabled(
                         si_config.get("inject_on_prompt"),
-                        datetime.now(timezone.utc),
+                        now,
                         default=True
                     )
                 if inject:
@@ -2862,7 +2861,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 post_annotations_config, _ = _load_annotations_config()
                 if post_annotations_config and is_feature_enabled(
                     post_annotations_config.get("enabled"),
-                    datetime.now(timezone.utc),
+                    now,
                     default=True
                 ):
                     post_all_suppressed, post_secret_suppressed, _, _ = process_annotations(
@@ -2891,7 +2890,7 @@ def process_hook_data(hook_data, daemon_state=None):
             # Check if secret scanning is enabled (respect disabled_until)
             if secret_config and not is_feature_enabled(
                 secret_config.get("enabled", True),
-                datetime.now(timezone.utc),
+                now,
                 default=True
             ):
                 logging.info("Secret scanning is disabled - skipping PostToolUse scan")
@@ -2934,7 +2933,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     tool_name=tool_identifier,
                     ignore_files=ignore_files,
                     ignore_tools=ignore_tools,
-                    allowlist_patterns=secret_allowlist
+                    allowlist_patterns=secret_allowlist,
+                    secret_config=secret_config
                 )
 
             if not has_secrets and error_message:
@@ -2995,8 +2995,6 @@ def process_hook_data(hook_data, daemon_state=None):
                             logging.info(f"  - {r['type']} at position {r['position']} using {r['strategy']}")
 
                         # Log to violation logger
-                        from ai_guardian.violation_logger import ViolationLogger
-                        violation_logger = ViolationLogger()
                         redaction_file_path = tool_input.get("file_path") or tool_input.get("path")
                         # Inherit file_path from PreToolUse context (#366)
                         if not redaction_file_path and pretool_ctx:
@@ -3025,11 +3023,12 @@ def process_hook_data(hook_data, daemon_state=None):
                             ctx['session_id'] = hook_session_id
                         if pretool_ctx:
                             ctx['pretool_context'] = pretool_ctx
-                        violation_logger.log_violation(
-                            violation_type='secret_redaction',
-                            blocked=blocked_info,
-                            context=ctx
-                        )
+                        if violation_logger:
+                            violation_logger.log_violation(
+                                violation_type='secret_redaction',
+                                blocked=blocked_info,
+                                context=ctx
+                            )
 
                         # Return redacted output (allow, with modifications)
                         # For warn mode, include a warning message
@@ -3079,7 +3078,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and is_feature_enabled(
                 pii_config.get('enabled'),
-                datetime.now(timezone.utc),
+                now,
                 default=True
             ):
                 pii_file_path = tool_input.get("file_path") or tool_input.get("path")
@@ -3111,8 +3110,6 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
 
                         # Log violation
-                        from ai_guardian.violation_logger import ViolationLogger
-                        violation_logger = ViolationLogger()
                         pii_file_path = tool_input.get("file_path") or tool_input.get("path")
                         # Inherit file_path from PreToolUse context (#366)
                         if not pii_file_path and pretool_ctx:
@@ -3139,11 +3136,12 @@ def process_hook_data(hook_data, daemon_state=None):
                             pii_ctx['session_id'] = hook_session_id
                         if pretool_ctx:
                             pii_ctx['pretool_context'] = pretool_ctx
-                        violation_logger.log_violation(
-                            violation_type='pii_detected',
-                            blocked=pii_blocked,
-                            context=pii_ctx
-                        )
+                        if violation_logger:
+                            violation_logger.log_violation(
+                                violation_type='pii_detected',
+                                blocked=pii_blocked,
+                                context=pii_ctx
+                            )
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -3230,7 +3228,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Check if permissions enforcement is enabled (supports time-based disabling)
                 if is_feature_enabled(
                     permissions_config.get("enabled") if permissions_config else None,
-                    datetime.now(timezone.utc),
+                    now,
                     default=True
                 ):
                     policy_checker = ToolPolicyChecker()
@@ -3353,7 +3351,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     if annotations_config and is_feature_enabled(
                         annotations_config.get("enabled"),
-                        datetime.now(timezone.utc),
+                        now,
                         default=True
                     ):
                         content_all_sup, content_secret_sup, ann_suppressions, ann_warnings = process_annotations(
@@ -3367,9 +3365,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             secret_content_to_scan = content_secret_sup
 
                             # Log suppressions for audit trail
-                            if HAS_VIOLATION_LOGGER:
+                            if violation_logger:
                                 try:
-                                    violation_logger = ViolationLogger()
                                     ann_ctx = {
                                         "ide_type": ide_type.value,
                                         "hook_event": hook_event,
@@ -3450,7 +3447,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Check if prompt injection detection is enabled (supports time-based disabling)
                 if injection_config and is_feature_enabled(
                     injection_config.get("enabled"),
-                    datetime.now(timezone.utc),
+                    now,
                     default=True
                 ):
                     # Determine source type based on hook event
@@ -3526,7 +3523,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Default to enabled even if config section doesn't exist
                 is_enabled = is_feature_enabled(
                     scanner_config.get("enabled") if scanner_config else None,
-                    datetime.now(timezone.utc),
+                    now,
                     default=True
                 )
 
@@ -3541,9 +3538,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             logging.info(f"Blocking operation for {file_path} due to config file threat")
 
                         # Log config file exfiltration violation
-                        if HAS_VIOLATION_LOGGER:
+                        if violation_logger:
                             try:
-                                violation_logger = ViolationLogger()
                                 exfil_ctx = {
                                     "ide_type": ide_type.value if hasattr(ide_type, 'value') else str(ide_type),
                                     "hook_event": hook_event,
@@ -3597,7 +3593,7 @@ def process_hook_data(hook_data, daemon_state=None):
         # Check if secret scanning is enabled (supports time-based disabling)
         if is_feature_enabled(
             secret_config.get("enabled") if secret_config else None,
-            datetime.now(timezone.utc),
+            now,
             default=True
         ):
             # Extract ignore lists and allowlist from config
@@ -3619,7 +3615,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 tool_name=tool_identifier,
                 ignore_files=ignore_files,
                 ignore_tools=ignore_tools,
-                allowlist_patterns=secret_allowlist
+                allowlist_patterns=secret_allowlist,
+                secret_config=secret_config
             )
 
             if not has_secrets and error_message:
@@ -3644,16 +3641,18 @@ def process_hook_data(hook_data, daemon_state=None):
             logging.info("⚠️  Secret scanning temporarily disabled")
 
         # PII scanning for UserPromptSubmit and PreToolUse (Issue #262)
+        pii_was_skipped = False
         if content_to_scan:
             pii_config, pii_error = _load_pii_config()
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and is_feature_enabled(
                 pii_config.get('enabled'),
-                datetime.now(timezone.utc),
+                now,
                 default=True
             ):
-                should_scan_pii = not _should_skip_pii_scan(pii_config, tool_identifier, file_path)
+                pii_was_skipped = _should_skip_pii_scan(pii_config, tool_identifier, file_path)
+                should_scan_pii = not pii_was_skipped
 
                 if should_scan_pii:
                     logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
@@ -3674,8 +3673,6 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"PII detected: {pii_types}")
 
                         # Log violation
-                        from ai_guardian.violation_logger import ViolationLogger
-                        violation_logger = ViolationLogger()
                         hook_name = 'UserPromptSubmit' if hook_event == 'prompt' else 'PreToolUse'
                         pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
                         pre_pii_blocked = {
@@ -3694,11 +3691,12 @@ def process_hook_data(hook_data, daemon_state=None):
                             pre_pii_ctx['tool_use_id'] = hook_tool_use_id
                         if hook_session_id:
                             pre_pii_ctx['session_id'] = hook_session_id
-                        violation_logger.log_violation(
-                            violation_type='pii_detected',
-                            blocked=pre_pii_blocked,
-                            context=pre_pii_ctx
-                        )
+                        if violation_logger:
+                            violation_logger.log_violation(
+                                violation_type='pii_detected',
+                                blocked=pre_pii_blocked,
+                                context=pre_pii_ctx
+                            )
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
@@ -3728,7 +3726,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                 if ts_config and is_feature_enabled(
                     ts_config.get("enabled"),
-                    datetime.now(timezone.utc),
+                    now,
                     default=True
                 ):
                     logging.info("Scanning transcript for secrets/PII...")
@@ -3771,29 +3769,17 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Determine if PII scan was skipped and why
                 pii_scanned = False
                 pii_skip_reason = None
-                try:
-                    if content_to_scan and pii_config:
-                        pii_was_skipped = _should_skip_pii_scan(pii_config, tool_identifier, file_path)
-                        if pii_was_skipped:
-                            pii_skip_reason = "ignore_files match"
-                        else:
-                            pii_scanned = True
-                except NameError:
-                    pass
+                if content_to_scan and pii_config:
+                    if pii_was_skipped:
+                        pii_skip_reason = "ignore_files match"
+                    else:
+                        pii_scanned = True
 
                 # Determine if file matched ignore_files
-                ignore_files_matched = False
-                try:
-                    if file_path and secret_config:
-                        pre_ignore_files = secret_config.get("ignore_files", [])
-                        if pre_ignore_files:
-                            import fnmatch
-                            for pattern in pre_ignore_files:
-                                if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(os.path.basename(file_path), pattern):
-                                    ignore_files_matched = True
-                                    break
-                except NameError:
-                    pass
+                ignore_files_matched = bool(
+                    file_path and secret_config
+                    and _matches_ignore_files(file_path, secret_config.get("ignore_files", []))
+                )
 
                 pretool_context = {
                     "file_path": file_path,

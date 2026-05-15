@@ -34,6 +34,7 @@ from ai_guardian.hook_processing import (
     _get_client_timeout,
     _set_daemon_mode_in_config,
     _handle_daemon_command,
+    HAS_VIOLATION_LOGGER,
 )
 
 logger = logging.getLogger(__name__)
