@@ -363,6 +363,128 @@ class TestConfigReloadTracking:
         state.get_config()  # should not raise
 
 
+class TestProjectConfigTracking:
+    def test_check_project_config_new_dir(self, tmp_path):
+        """First time seeing a project dir — records mtime, no callback."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        config_dir = project_dir / ".ai-guardian"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text(json.dumps({"v": 1}))
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        fired = []
+        state._on_config_reloaded = lambda: fired.append(True)
+
+        state.check_project_config(str(project_dir))
+
+        assert fired == []
+        stats = state.get_stats()
+        assert stats["project_configs_tracked"] == 1
+
+    def test_check_project_config_changed(self, tmp_path):
+        """Mtime change triggers callback and updates reload timestamp."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        config_dir = project_dir / ".ai-guardian"
+        config_dir.mkdir()
+        config_path = config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        fired = []
+        state._on_config_reloaded = lambda: fired.append(True)
+
+        state.check_project_config(str(project_dir))
+        assert fired == []
+
+        time.sleep(0.05)
+        config_path.write_text(json.dumps({"v": 2}))
+
+        state.check_project_config(str(project_dir))
+        assert fired == [True]
+        stats = state.get_stats()
+        assert stats["last_project_config_reload_at"] is not None
+        assert stats["last_project_config_reload_seconds_ago"] < 2.0
+
+    def test_check_project_config_no_file(self, tmp_path):
+        """Dir without config file — no crash, no tracking."""
+        project_dir = tmp_path / "empty_project"
+        project_dir.mkdir()
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.check_project_config(str(project_dir))
+
+        stats = state.get_stats()
+        assert stats["project_configs_tracked"] == 0
+
+    def test_check_project_config_none_dir(self, tmp_path):
+        """None dir — no crash."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.check_project_config(None)
+
+        stats = state.get_stats()
+        assert stats["project_configs_tracked"] == 0
+
+    def test_stats_include_project_fields(self, tmp_path):
+        """Stats include project config tracking fields."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        stats = state.get_stats()
+        assert "last_project_config_reload_at" in stats
+        assert "last_project_config_reload_seconds_ago" in stats
+        assert "project_configs_tracked" in stats
+        assert stats["last_project_config_reload_at"] is None
+        assert stats["last_project_config_reload_seconds_ago"] is None
+        assert stats["project_configs_tracked"] == 0
+
+    def test_multiple_project_dirs_tracked(self, tmp_path):
+        """Multiple project directories tracked independently."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+
+        for i in range(3):
+            project_dir = tmp_path / f"project{i}"
+            project_dir.mkdir()
+            config_dir = project_dir / ".ai-guardian"
+            config_dir.mkdir()
+            (config_dir / "ai-guardian.json").write_text(
+                json.dumps({"project": i})
+            )
+            state.check_project_config(str(project_dir))
+
+        stats = state.get_stats()
+        assert stats["project_configs_tracked"] == 3
+
+    def test_project_config_legacy_location(self, tmp_path):
+        """Legacy ai-guardian.json at project root is detected."""
+        project_dir = tmp_path / "legacy_project"
+        project_dir.mkdir()
+        (project_dir / "ai-guardian.json").write_text(json.dumps({"v": 1}))
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.check_project_config(str(project_dir))
+
+        assert state.get_stats()["project_configs_tracked"] == 1
+
+    def test_callback_error_does_not_propagate(self, tmp_path):
+        """Callback error in check_project_config is swallowed."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        config_dir = project_dir / ".ai-guardian"
+        config_dir.mkdir()
+        config_path = config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state._on_config_reloaded = lambda: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        )
+
+        state.check_project_config(str(project_dir))
+        time.sleep(0.05)
+        config_path.write_text(json.dumps({"v": 2}))
+        state.check_project_config(str(project_dir))  # should not raise
+
+
 class TestThreadSafety:
     def test_concurrent_context_access(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")

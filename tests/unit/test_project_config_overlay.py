@@ -22,7 +22,10 @@ from ai_guardian.config_utils import (
     get_project_config_path,
     _clear_project_config_cache,
     _deep_merge_section,
+    _find_config_in_dir,
     _get_immutable_info,
+    set_project_dir_override,
+    clear_project_dir_override,
 )
 from ai_guardian.config_loaders import _clear_config_cache, _load_config_file
 
@@ -430,3 +433,105 @@ class TestGlobalOnlySections:
 
     def test_is_frozenset(self):
         assert isinstance(GLOBAL_ONLY_SECTIONS, frozenset)
+
+
+class TestFindConfigInDir:
+    """Tests for _find_config_in_dir helper."""
+
+    def test_finds_new_location(self, tmp_path):
+        config_dir = tmp_path / ".ai-guardian"
+        config_dir.mkdir()
+        config_file = config_dir / "ai-guardian.json"
+        config_file.write_text("{}")
+        assert _find_config_in_dir(tmp_path) == config_file
+
+    def test_finds_legacy_location(self, tmp_path):
+        legacy = tmp_path / "ai-guardian.json"
+        legacy.write_text("{}")
+        assert _find_config_in_dir(tmp_path) == legacy
+
+    def test_prefers_new_over_legacy(self, tmp_path):
+        config_dir = tmp_path / ".ai-guardian"
+        config_dir.mkdir()
+        new_file = config_dir / "ai-guardian.json"
+        new_file.write_text("{}")
+        (tmp_path / "ai-guardian.json").write_text("{}")
+        assert _find_config_in_dir(tmp_path) == new_file
+
+    def test_returns_none_when_empty(self, tmp_path):
+        assert _find_config_in_dir(tmp_path) is None
+
+
+class TestThreadLocalOverride:
+    """Tests for thread-local project directory override (daemon use)."""
+
+    def test_override_used_for_discovery(self, tmp_path, _isolate_config_dir):
+        project_dir = tmp_path / "my_project"
+        project_dir.mkdir()
+        config_dir = project_dir / ".ai-guardian"
+        config_dir.mkdir()
+        config_file = config_dir / "ai-guardian.json"
+        config_file.write_text(json.dumps({"test": True}))
+
+        _clear_project_config_cache()
+        _clear_config_cache()
+
+        set_project_dir_override(str(project_dir))
+        try:
+            result = get_project_config_path()
+            assert result is not None
+            assert result == config_file
+        finally:
+            clear_project_dir_override()
+
+    def test_override_cleared_restores_normal(self, tmp_path, _isolate_config_dir):
+        project_dir = tmp_path / "my_project"
+        project_dir.mkdir()
+        config_dir = project_dir / ".ai-guardian"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}")
+
+        set_project_dir_override(str(project_dir))
+        result_with = get_project_config_path()
+        assert result_with is not None
+
+        clear_project_dir_override()
+        _clear_project_config_cache()
+        result_without = get_project_config_path()
+        assert result_without != result_with or result_without is None
+
+    def test_override_bypasses_cache(self, tmp_path, _isolate_config_dir):
+        """Each call with override active re-discovers (no stale cache)."""
+        project_a = tmp_path / "project_a"
+        project_a.mkdir()
+        config_a = project_a / ".ai-guardian"
+        config_a.mkdir()
+        (config_a / "ai-guardian.json").write_text(json.dumps({"project": "a"}))
+
+        project_b = tmp_path / "project_b"
+        project_b.mkdir()
+        config_b = project_b / ".ai-guardian"
+        config_b.mkdir()
+        (config_b / "ai-guardian.json").write_text(json.dumps({"project": "b"}))
+
+        try:
+            set_project_dir_override(str(project_a))
+            result_a = get_project_config_path()
+            assert "project_a" in str(result_a)
+
+            set_project_dir_override(str(project_b))
+            result_b = get_project_config_path()
+            assert "project_b" in str(result_b)
+        finally:
+            clear_project_dir_override()
+
+    def test_override_with_no_config_returns_none(self, tmp_path, _isolate_config_dir):
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        set_project_dir_override(str(empty_dir))
+        try:
+            result = get_project_config_path()
+            assert result is None
+        finally:
+            clear_project_dir_override()

@@ -16,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-from ai_guardian.config_utils import get_config_dir, get_state_dir
+from ai_guardian.config_utils import get_config_dir, get_state_dir, _find_config_in_dir
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ DEFAULT_CONTEXT_TTL = 300.0  # 5 minutes
 DEFAULT_IDLE_TIMEOUT = 1800.0  # 30 minutes
 CONFIG_CHECKSUM_INTERVAL = 60.0  # check checksum every 60s
 SESSION_TTL = 86400  # 24 hours
+PROJECT_CONFIG_TTL = 86400  # 24 hours — prune stale project entries
 PERSIST_DEBOUNCE = 2.0  # seconds before writing to disk
 DAEMON_SESSIONS_FILENAME = "daemon_sessions.json"
 
@@ -75,6 +76,12 @@ class DaemonState:
         # Config reload tracking (#610)
         self._last_config_reload_at = None  # unix timestamp
         self._on_config_reloaded = None  # optional callback
+
+        # Project config tracking (#617)
+        self._project_config_mtimes = {}  # project_dir -> mtime
+        self._project_config_paths = {}   # project_dir -> config_path str
+        self._project_dir_last_seen = {}  # project_dir -> monotonic timestamp
+        self._last_project_config_reload_at = None  # unix timestamp
 
         # Security injection tracking (#584)
         self._security_injected_sessions = set()
@@ -143,7 +150,7 @@ class DaemonState:
             return entry["context"]
 
     def cleanup_expired_contexts(self):
-        """Remove expired cross-hook correlation entries."""
+        """Remove expired cross-hook correlation entries and stale project configs."""
         now = time.monotonic()
         with self._lock:
             expired = [
@@ -154,6 +161,7 @@ class DaemonState:
                 del self._hook_contexts[key]
             if expired:
                 logger.debug(f"Cleaned up {len(expired)} expired hook contexts")
+        self._cleanup_stale_project_configs()
 
     # --- Security injection tracking (#584) ---
 
@@ -300,6 +308,76 @@ class DaemonState:
         except OSError:
             return ""
 
+    # --- Project config tracking (#617) ---
+
+    def check_project_config(self, project_dir):
+        """Check if a project config has changed and track the reload.
+
+        Called by the daemon server on each hook request with the client's CWD.
+        Detects mtime changes on the project's ai-guardian config file and
+        fires the reload callback (tray flash) when changes occur.
+
+        Args:
+            project_dir: Absolute path string of the project directory
+        """
+        if not project_dir:
+            return
+
+        project_dir = str(project_dir)
+        config_path = _find_config_in_dir(Path(project_dir))
+
+        with self._lock:
+            self._project_dir_last_seen[project_dir] = time.monotonic()
+
+            if not config_path:
+                return
+
+            try:
+                current_mtime = os.stat(config_path).st_mtime
+            except OSError:
+                return
+
+            config_path_str = str(config_path)
+            prev_mtime = self._project_config_mtimes.get(project_dir)
+            prev_path = self._project_config_paths.get(project_dir)
+
+            changed = (
+                (prev_mtime is not None and current_mtime != prev_mtime)
+                or (prev_path is not None and config_path_str != prev_path)
+            )
+
+            self._project_config_mtimes[project_dir] = current_mtime
+            self._project_config_paths[project_dir] = config_path_str
+
+            if changed:
+                self._last_project_config_reload_at = time.time()
+                self._compiled_patterns.clear()
+                logger.info(f"Project config changed: {config_path}")
+                callback = self._on_config_reloaded
+            else:
+                callback = None
+
+        if callback:
+            try:
+                callback()
+            except Exception:
+                pass
+
+    def _cleanup_stale_project_configs(self):
+        """Remove project config entries not seen for PROJECT_CONFIG_TTL."""
+        now = time.monotonic()
+        with self._lock:
+            stale = [
+                d for d, last_seen in self._project_dir_last_seen.items()
+                if now - last_seen > PROJECT_CONFIG_TTL
+            ]
+            for d in stale:
+                self._project_config_mtimes.pop(d, None)
+                self._project_config_paths.pop(d, None)
+                self._project_dir_last_seen.pop(d, None)
+            if stale:
+                logger.debug(f"Pruned {len(stale)} stale project config entries")
+
     # --- Compiled regex pattern cache ---
 
     def get_compiled_pattern(self, pattern):
@@ -437,6 +515,12 @@ class DaemonState:
             if self._last_config_reload_at is not None:
                 last_reload_seconds_ago = time.time() - self._last_config_reload_at
 
+            last_project_reload_seconds_ago = None
+            if self._last_project_config_reload_at is not None:
+                last_project_reload_seconds_ago = (
+                    time.time() - self._last_project_config_reload_at
+                )
+
             return {
                 "uptime_seconds": uptime,
                 "request_count": self._request_count,
@@ -456,6 +540,9 @@ class DaemonState:
                 "started_at": self._started_at,
                 "last_config_reload_at": self._last_config_reload_at,
                 "last_config_reload_seconds_ago": last_reload_seconds_ago,
+                "last_project_config_reload_at": self._last_project_config_reload_at,
+                "last_project_config_reload_seconds_ago": last_project_reload_seconds_ago,
+                "project_configs_tracked": len(self._project_config_mtimes),
             }
 
     def _pause_remaining_locked(self):

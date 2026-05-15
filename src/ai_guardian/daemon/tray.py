@@ -440,9 +440,20 @@ class DaemonTray:
     def _config_reload_text(self):
         stats = self._get_stats()
         seconds_ago = stats.get('last_config_reload_seconds_ago')
-        if seconds_ago is None:
-            return "Config: loaded"
-        return f"Config reloaded: {self._format_time_ago(seconds_ago)}"
+        project_count = stats.get('project_configs_tracked', 0)
+        project_ago = stats.get('last_project_config_reload_seconds_ago')
+
+        parts = []
+        if seconds_ago is not None:
+            parts.append(f"Config reloaded: {self._format_time_ago(seconds_ago)}")
+        else:
+            parts.append("Config: loaded")
+
+        if project_count > 0:
+            suffix = f" (reload: {self._format_time_ago(project_ago)})" if project_ago is not None else ""
+            parts.append(f"Projects: {project_count}{suffix}")
+
+        return " | ".join(parts)
 
     @staticmethod
     def _format_time_ago(seconds):

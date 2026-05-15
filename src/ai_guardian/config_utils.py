@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, FrozenSet, List, Optional, Set
@@ -30,6 +31,22 @@ GLOBAL_ONLY_SECTIONS: FrozenSet[str] = frozenset({
 _project_config_path_cache: Optional[Path] = None
 _project_config_path_cached = False
 
+_thread_local = threading.local()
+
+
+def set_project_dir_override(project_dir):
+    """Set per-thread project directory override (for daemon use).
+
+    When set, get_project_config_path() discovers config from this directory
+    instead of using git root or CWD. Bypasses the module-level cache.
+    """
+    _thread_local.project_dir = project_dir
+
+
+def clear_project_dir_override():
+    """Clear per-thread project directory override."""
+    _thread_local.project_dir = None
+
 
 def _clear_project_config_cache():
     """Clear the project config path cache."""
@@ -38,19 +55,42 @@ def _clear_project_config_cache():
     _project_config_path_cached = False
 
 
+def _find_config_in_dir(root: Path) -> Optional[Path]:
+    """Find ai-guardian config file in a directory.
+
+    Checks .ai-guardian/ai-guardian.json first (new location),
+    then ai-guardian.json at root (legacy, deprecated).
+
+    Returns:
+        Path to config file if found, None otherwise.
+    """
+    new_path = root / ".ai-guardian" / "ai-guardian.json"
+    if new_path.exists():
+        return new_path
+    legacy_path = root / "ai-guardian.json"
+    if legacy_path.exists():
+        return legacy_path
+    return None
+
+
 def get_project_config_path() -> Optional[Path]:
     """
     Get project-level ai-guardian.json path.
 
     Discovery order:
     1. AI_GUARDIAN_PROJECT_CONFIG env var (explicit override for testing/CI)
-    2. Git repo root / ai-guardian.json
-    3. CWD / ai-guardian.json (fallback if not in git repo)
+    2. Thread-local project dir override (daemon use)
+    3. Git repo root / ai-guardian.json
+    4. CWD / ai-guardian.json (fallback if not in git repo)
 
     Returns:
         Path to project config if it exists, None otherwise.
     """
     global _project_config_path_cache, _project_config_path_cached
+
+    override_dir = getattr(_thread_local, 'project_dir', None)
+    if override_dir:
+        return _discover_project_config_path()
 
     if _project_config_path_cached:
         return _project_config_path_cache
@@ -63,6 +103,13 @@ def get_project_config_path() -> Optional[Path]:
 
 def _discover_project_config_path() -> Optional[Path]:
     """Internal discovery logic for project config path."""
+    override_dir = getattr(_thread_local, 'project_dir', None)
+    if override_dir:
+        result = _find_config_in_dir(Path(override_dir))
+        if result:
+            logger.debug(f"Project config from daemon CWD: {result}")
+        return result
+
     env_path = os.environ.get("AI_GUARDIAN_PROJECT_CONFIG")
     if env_path:
         p = Path(env_path).expanduser()
@@ -74,34 +121,32 @@ def _discover_project_config_path() -> Optional[Path]:
 
     project_root = _find_git_root()
     if project_root:
-        # New location (.ai-guardian/ directory)
-        new_path = project_root / ".ai-guardian" / "ai-guardian.json"
-        if new_path.exists():
-            logger.debug(f"Project config at git root: {new_path}")
-            return new_path
-        # Legacy location (bare file at root) — deprecated
-        legacy_path = project_root / "ai-guardian.json"
-        if legacy_path.exists():
+        result = _find_config_in_dir(project_root)
+        if result:
+            legacy_path = project_root / "ai-guardian.json"
+            if result == legacy_path:
+                logger.warning(
+                    "DEPRECATED: Project config at '%s'. "
+                    "Move to '.ai-guardian/ai-guardian.json'. "
+                    "Legacy support will be removed in v2.0.0.", legacy_path
+                )
+            else:
+                logger.debug(f"Project config at git root: {result}")
+            return result
+
+    cwd = Path.cwd()
+    result = _find_config_in_dir(cwd)
+    if result:
+        legacy_path = cwd / "ai-guardian.json"
+        if result == legacy_path:
             logger.warning(
                 "DEPRECATED: Project config at '%s'. "
                 "Move to '.ai-guardian/ai-guardian.json'. "
                 "Legacy support will be removed in v2.0.0.", legacy_path
             )
-            return legacy_path
-
-    # CWD fallback — new location first, then legacy
-    cwd_new = Path.cwd() / ".ai-guardian" / "ai-guardian.json"
-    if cwd_new.exists():
-        logger.debug(f"Project config at CWD: {cwd_new}")
-        return cwd_new
-    cwd_legacy = Path.cwd() / "ai-guardian.json"
-    if cwd_legacy.exists():
-        logger.warning(
-            "DEPRECATED: Project config at '%s'. "
-            "Move to '.ai-guardian/ai-guardian.json'. "
-            "Legacy support will be removed in v2.0.0.", cwd_legacy
-        )
-        return cwd_legacy
+        else:
+            logger.debug(f"Project config at CWD: {result}")
+        return result
 
     return None
 

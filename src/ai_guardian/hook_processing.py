@@ -4017,6 +4017,23 @@ def _handle_daemon_command(args):
             elif stats.get("port"):
                 print(f"TCP: 127.0.0.1:{stats['port']}")
 
+            project_count = stats.get("project_configs_tracked", 0)
+            project_reload_ago = stats.get("last_project_config_reload_seconds_ago")
+            if project_count > 0:
+                if project_reload_ago is not None:
+                    pr_secs = int(project_reload_ago)
+                    if pr_secs < 60:
+                        pr_str = f"{pr_secs}s ago"
+                    elif pr_secs < 3600:
+                        pr_str = f"{pr_secs // 60}m ago"
+                    elif pr_secs < 86400:
+                        pr_str = f"{pr_secs // 3600}h ago"
+                    else:
+                        pr_str = f"{pr_secs // 86400}d ago"
+                    print(f"Project configs tracked: {project_count} (last reload: {pr_str})")
+                else:
+                    print(f"Project configs tracked: {project_count}")
+
             print(f"Active contexts: {stats.get('active_contexts', 0)}")
             print(f"Cached patterns: {stats.get('cached_patterns', 0)}")
         else:

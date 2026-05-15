@@ -105,6 +105,67 @@ class TestSendHookRequest:
             server.close()
             thread.join(timeout=3)
 
+    def test_injects_daemon_cwd(self, short_state_dir):
+        """send_hook_request includes _daemon_cwd in the hook data."""
+        from pathlib import Path
+
+        sock_path = Path(short_state_dir) / "daemon.sock"
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(str(sock_path))
+        server.listen(1)
+
+        received_data = {}
+
+        def mock_server():
+            conn, _ = server.accept()
+            try:
+                request = decode_message(conn, timeout=2.0)
+                received_data.update(request.get("data", {}))
+                response = make_response({"output": "{}", "exit_code": 0})
+                conn.sendall(encode_message(response))
+            finally:
+                conn.close()
+
+        thread = threading.Thread(target=mock_server, daemon=True)
+        thread.start()
+
+        try:
+            send_hook_request({"prompt": "test"}, timeout=2.0)
+            assert "_daemon_cwd" in received_data
+            assert received_data["_daemon_cwd"] == os.getcwd()
+        finally:
+            server.close()
+            thread.join(timeout=3)
+
+    def test_does_not_mutate_caller_dict(self, short_state_dir):
+        """send_hook_request should not add _daemon_cwd to caller's dict."""
+        from pathlib import Path
+
+        sock_path = Path(short_state_dir) / "daemon.sock"
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(str(sock_path))
+        server.listen(1)
+
+        def mock_server():
+            conn, _ = server.accept()
+            try:
+                decode_message(conn, timeout=2.0)
+                response = make_response({"output": "{}", "exit_code": 0})
+                conn.sendall(encode_message(response))
+            finally:
+                conn.close()
+
+        thread = threading.Thread(target=mock_server, daemon=True)
+        thread.start()
+
+        original = {"prompt": "test"}
+        try:
+            send_hook_request(original, timeout=2.0)
+            assert "_daemon_cwd" not in original
+        finally:
+            server.close()
+            thread.join(timeout=3)
+
 
 class TestSendShutdown:
     def test_returns_false_when_no_daemon(self, tmp_path, monkeypatch):
