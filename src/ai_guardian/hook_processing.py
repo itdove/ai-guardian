@@ -4004,9 +4004,25 @@ def _handle_daemon_command(args):
             req_count = stats.get("request_count", 0)
             paused = " (PAUSED)" if stats.get("paused") else ""
 
+            reload_ago = stats.get("last_config_reload_seconds_ago")
+            if reload_ago is not None:
+                reload_secs = int(reload_ago)
+                if reload_secs < 60:
+                    reload_str = f"{reload_secs}s ago"
+                elif reload_secs < 3600:
+                    reload_str = f"{reload_secs // 60}m ago"
+                elif reload_secs < 86400:
+                    reload_str = f"{reload_secs // 3600}h ago"
+                else:
+                    reload_str = f"{reload_secs // 86400}d ago"
+                config_str = f"loaded (last reload: {reload_str})"
+            else:
+                config_str = "loaded"
+
             print(f"ai-guardian daemon: running (pid {pid}){paused}")
             print(f"Uptime: {uptime_str}")
             print(f"Hooks processed: {req_count} ({blocked} blocked)")
+            print(f"Config: {config_str}")
             print(f"Mode: {_get_daemon_mode()} (daemon active)")
 
             sock_path = get_socket_path()

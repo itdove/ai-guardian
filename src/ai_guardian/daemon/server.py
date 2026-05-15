@@ -261,6 +261,7 @@ class DaemonServer:
             return {"output": None, "exit_code": 0}
 
         self.state.record_activity()
+        self.state.get_config()
 
         from ai_guardian import process_hook_data
         result = process_hook_data(hook_data, daemon_state=self.state)
@@ -363,6 +364,7 @@ class DaemonServer:
                 stop_callback=self.stop,
                 pause_callback=self._pause_for,
             )
+            self.state._on_config_reloaded = self._tray.flash_reload
             self._tray.start()
             logger.info("System tray icon started")
         except Exception as e:
@@ -388,6 +390,7 @@ class DaemonServer:
                 stop_callback=self.stop,
                 pause_callback=self._pause_for,
             )
+            self.state._on_config_reloaded = self._tray.flash_reload
             logger.info("System tray icon starting on main thread (macOS)")
             self._tray.run_blocking()  # Blocks until tray exits
         except Exception as e:

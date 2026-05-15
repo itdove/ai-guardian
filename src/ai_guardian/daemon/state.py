@@ -72,6 +72,10 @@ class DaemonState:
         self._paused = False
         self._paused_until = 0.0  # monotonic timestamp, 0 = not time-limited
 
+        # Config reload tracking (#610)
+        self._last_config_reload_at = None  # unix timestamp
+        self._on_config_reloaded = None  # optional callback
+
         # Security injection tracking (#584)
         self._security_injected_sessions = set()
         self._security_reinject_sessions = set()
@@ -197,14 +201,29 @@ class DaemonState:
         """
         with self._lock:
             if self._check_config_reload():
-                self._reload_config()
-            return self._config
+                reloaded = self._reload_config()
+                callback = self._on_config_reloaded if reloaded else None
+            else:
+                callback = None
+            config = self._config
+        if callback:
+            try:
+                callback()
+            except Exception:
+                pass
+        return config
 
     def force_reload_config(self):
         """Force config reload regardless of mtime/checksum."""
         with self._lock:
-            self._reload_config()
+            reloaded = self._reload_config()
+            callback = self._on_config_reloaded if reloaded else None
             logger.info("Config force-reloaded")
+        if callback:
+            try:
+                callback()
+            except Exception:
+                pass
 
     def _check_config_reload(self):
         """Check if config file has changed (must be called with lock held).
@@ -241,13 +260,17 @@ class DaemonState:
             return False
 
     def _reload_config(self):
-        """Reload config from disk (must be called with lock held)."""
+        """Reload config from disk (must be called with lock held).
+
+        Returns:
+            bool: True if config was successfully reloaded
+        """
         try:
             if not self._config_path.exists():
                 self._config = None
                 self._config_mtime = 0.0
                 self._config_checksum = ""
-                return
+                return False
 
             content = self._config_path.read_text(encoding="utf-8")
             self._config = json.loads(content)
@@ -261,9 +284,13 @@ class DaemonState:
             # Invalidate compiled pattern cache on config change
             self._compiled_patterns.clear()
 
+            self._last_config_reload_at = time.time()
+
             logger.info(f"Config loaded from {self._config_path}")
+            return True
         except (json.JSONDecodeError, OSError) as e:
             logger.error(f"Failed to reload config: {e}")
+            return False
 
     def _compute_config_checksum(self):
         """Compute SHA256 of config file content."""
@@ -406,6 +433,10 @@ class DaemonState:
             if self._last_block_time is not None:
                 last_block_seconds_ago = time.monotonic() - self._last_block_time
 
+            last_reload_seconds_ago = None
+            if self._last_config_reload_at is not None:
+                last_reload_seconds_ago = time.time() - self._last_config_reload_at
+
             return {
                 "uptime_seconds": uptime,
                 "request_count": self._request_count,
@@ -423,6 +454,8 @@ class DaemonState:
                 "paused": self._paused,
                 "pause_remaining_seconds": self._pause_remaining_locked(),
                 "started_at": self._started_at,
+                "last_config_reload_at": self._last_config_reload_at,
+                "last_config_reload_seconds_ago": last_reload_seconds_ago,
             }
 
     def _pause_remaining_locked(self):
