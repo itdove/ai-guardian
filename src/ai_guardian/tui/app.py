@@ -1362,7 +1362,7 @@ class AIGuardianTUI(App):
         if content and hasattr(content, "action_test_server"):
             content.action_test_server()
 
-    def check_action(self, action: str, parameters) -> bool | None:
+    def check_action(self, action: str, parameters) -> Optional[bool]:
         """Show p when in global scope, g when in project scope."""
         if action == "scope_project":
             return self.config_scope == "global"
