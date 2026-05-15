@@ -47,29 +47,29 @@ class TestConsoleLoggingSuppression:
             is_match = argv_cmd in sys.argv
             assert result == is_match
 
-    def test_console_in_argv_sets_warning_level(self):
-        """When 'console' is in sys.argv, stderr handler should be at WARNING.
+    def test_console_in_argv_suppresses_all_stderr(self):
+        """When 'console' is in sys.argv, stderr handler should suppress all messages.
 
         This test validates the code path at module level:
             _is_tui_mode = any(cmd in sys.argv for cmd in ("console", "tui"))
-            if "--json" in sys.argv or _is_tui_mode:
-                _stderr_handler.setLevel(logging.WARNING)
+            if _is_tui_mode:
+                _stderr_handler.setLevel(logging.CRITICAL + 1)
         """
         handler = logging.StreamHandler()
         is_tui = any(cmd in ["ai-guardian", "console"] for cmd in ("console", "tui"))
         if is_tui:
-            handler.setLevel(logging.WARNING)
+            handler.setLevel(logging.CRITICAL + 1)
         assert is_tui is True
-        assert handler.level == logging.WARNING
+        assert handler.level > logging.CRITICAL
 
-    def test_tui_in_argv_sets_warning_level(self):
-        """When 'tui' is in sys.argv, stderr handler should be at WARNING."""
+    def test_tui_in_argv_suppresses_all_stderr(self):
+        """When 'tui' is in sys.argv, stderr handler should suppress all messages."""
         handler = logging.StreamHandler()
         is_tui = any(cmd in ["ai-guardian", "tui"] for cmd in ("console", "tui"))
         if is_tui:
-            handler.setLevel(logging.WARNING)
+            handler.setLevel(logging.CRITICAL + 1)
         assert is_tui is True
-        assert handler.level == logging.WARNING
+        assert handler.level > logging.CRITICAL
 
     def test_normal_command_keeps_default_level(self):
         """Non-console commands should not trigger TUI mode."""
