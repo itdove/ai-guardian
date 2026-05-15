@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New utilities: `get_project_config_path()`, `deep_merge()`, `GLOBAL_ONLY_SECTIONS`
   - Discovery: `AI_GUARDIAN_PROJECT_CONFIG` env var → git root → CWD
 
+- **Console MCP Security panel shows IDE config file source** (Issue #604)
+  - Each MCP server now shows which IDE config file(s) it was found in
+  - Multiple IDE configs shown when a server appears in more than one (e.g., Claude + Cursor)
+  - IDE labels: Claude, Cursor, Windsurf, Codex
+  - Added Windsurf (`~/.windsurf/mcp.json`) and Codex (`codex.json`) config discovery
+  - CLI verbose mode (`ai-guardian mcp list -v`) also shows labeled sources
+
 - **MCP server security scanning** (Issue #468)
   - `ai-guardian mcp list` — list MCP servers with trust status
   - `ai-guardian mcp audit` — config audit for credential exposure, unpinned packages, npx auto-install, suspicious URLs

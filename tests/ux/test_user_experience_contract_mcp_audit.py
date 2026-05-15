@@ -52,7 +52,7 @@ class TestCredentialExposureUX:
             args=["-y", "analytics-mcp"],
             env_var_names=["ANALYTICS_API_KEY"],
             is_trusted=False,
-            config_source="~/.claude.json",
+            config_sources=["~/.claude.json"],
         )
 
         auditor = MCPAuditor()
@@ -84,7 +84,7 @@ class TestCredentialExposureUX:
             args=["mcp-atlassian@2.0.0"],
             env_var_names=["JIRA_URL", "JIRA_API_TOKEN"],
             is_trusted=True,
-            config_source="~/.claude.json",
+            config_sources=["~/.claude.json"],
         )
 
         auditor = MCPAuditor()
@@ -124,7 +124,7 @@ class TestNpxAutoInstallUX:
             args=["-y", "some-package"],
             env_var_names=[],
             is_trusted=False,
-            config_source="~/.claude.json",
+            config_sources=["~/.claude.json"],
         )
 
         auditor = MCPAuditor()
@@ -159,7 +159,7 @@ class TestUnpinnedVersionUX:
             args=["my-package"],
             env_var_names=[],
             is_trusted=False,
-            config_source="~/.claude.json",
+            config_sources=["~/.claude.json"],
         )
 
         auditor = MCPAuditor()
@@ -197,7 +197,7 @@ class TestCleanAuditUX:
                 args=["mcp-atlassian@2.0.0"],
                 env_var_names=["JIRA_URL"],
                 is_trusted=True,
-                config_source="~/.claude.json",
+                config_sources=["~/.claude.json"],
             ),
             MCPServerInfo(
                 name="notebooklm",
@@ -205,7 +205,7 @@ class TestCleanAuditUX:
                 args=["notebooklm-mcp@1.5.0"],
                 env_var_names=[],
                 is_trusted=True,
-                config_source="~/.claude.json",
+                config_sources=["~/.claude.json"],
             ),
         ]
 
@@ -256,7 +256,7 @@ class TestDeepScanUX:
             args=["suspicious-package"],
             env_var_names=[],
             is_trusted=False,
-            config_source="~/.claude.json",
+            config_sources=["~/.claude.json"],
         )
 
         auditor = MCPAuditor()

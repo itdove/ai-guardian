@@ -44,7 +44,7 @@ class MCPServerInfo:
     args: List[str]
     env_var_names: List[str]
     is_trusted: bool
-    config_source: str
+    config_sources: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -228,9 +228,11 @@ class MCPAuditor:
                 continue
 
             for name, server_def in mcp_servers.items():
-                if name in servers:
-                    continue
                 if not isinstance(server_def, dict):
+                    continue
+
+                if name in servers:
+                    servers[name].config_sources.append(str(path))
                     continue
 
                 command = server_def.get("command", "")
@@ -246,7 +248,7 @@ class MCPAuditor:
                     args=[str(a) for a in args] if isinstance(args, list) else [],
                     env_var_names=env_var_names,
                     is_trusted=is_trusted,
-                    config_source=str(path),
+                    config_sources=[str(path)],
                 )
 
         return list(servers.values())
@@ -269,6 +271,14 @@ class MCPAuditor:
 
         # Cursor
         paths.append("~/.cursor/mcp.json")
+
+        # Windsurf
+        paths.append("~/.windsurf/mcp.json")
+
+        # Codex (project-local)
+        codex_local = Path.cwd() / "codex.json"
+        if codex_local.exists():
+            paths.append(str(codex_local))
 
         return paths
 
@@ -543,6 +553,22 @@ class MCPAuditor:
             pass
         return None
 
+    # -- Helpers -----------------------------------------------------------
+
+    @staticmethod
+    def ide_label(config_path: str) -> str:
+        """Map a config file path to a human-readable IDE name."""
+        p = config_path.replace("\\", "/")
+        if ".claude.json" in p or ".claude/settings.json" in p or ".claude/" in p:
+            return "Claude"
+        if ".cursor/" in p:
+            return "Cursor"
+        if ".windsurf/" in p:
+            return "Windsurf"
+        if p.endswith("codex.json"):
+            return "Codex"
+        return "Unknown"
+
     # -- Output methods ----------------------------------------------------
 
     def print_server_list(
@@ -575,7 +601,10 @@ class MCPAuditor:
                     print(f"  args: {' '.join(s.args)}")
                 if s.env_var_names:
                     print(f"  env:  {', '.join(s.env_var_names)}")
-                print(f"  from: {s.config_source}")
+                sources_str = ", ".join(
+                    f"{self.ide_label(p)}: {p}" for p in s.config_sources
+                )
+                print(f"  from: {sources_str}")
 
         print()
 
@@ -588,7 +617,7 @@ class MCPAuditor:
                 "args": s.args,
                 "env_var_names": s.env_var_names,
                 "is_trusted": s.is_trusted,
-                "config_source": s.config_source,
+                "config_sources": s.config_sources,
             }
             for s in servers
         ]
