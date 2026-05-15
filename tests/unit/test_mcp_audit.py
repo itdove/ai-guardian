@@ -37,7 +37,7 @@ def _make_server(
     args=None,
     env_var_names=None,
     is_trusted=False,
-    config_source="~/.claude.json",
+    config_sources=None,
 ):
     return MCPServerInfo(
         name=name,
@@ -45,7 +45,7 @@ def _make_server(
         args=args or [],
         env_var_names=env_var_names or [],
         is_trusted=is_trusted,
-        config_source=config_source,
+        config_sources=config_sources or ["~/.claude.json"],
     )
 
 
@@ -100,8 +100,8 @@ class TestDiscoverServers:
 
         assert len(servers) == 0
 
-    def test_discover_deduplication(self, tmp_path):
-        """Same server in multiple config files is deduplicated."""
+    def test_discover_deduplication_with_multi_source(self, tmp_path):
+        """Same server in multiple config files is deduplicated but accumulates sources."""
         config1 = tmp_path / "config1.json"
         config2 = tmp_path / "config2.json"
 
@@ -123,6 +123,9 @@ class TestDiscoverServers:
 
         assert len(servers) == 1
         assert servers[0].name == "shared-server"
+        assert len(servers[0].config_sources) == 2
+        assert str(config1) in servers[0].config_sources
+        assert str(config2) in servers[0].config_sources
 
     def test_discover_env_var_names_only(self, tmp_path):
         """Env var values are NOT stored, only names."""
@@ -549,10 +552,10 @@ class TestOutputFormatting:
     """Tests for output methods."""
 
     def test_server_list_json_structure(self):
-        """JSON output has correct structure."""
+        """JSON output has correct structure with config_sources list."""
         servers = [
-            _make_server(name="s1", is_trusted=True),
-            _make_server(name="s2", is_trusted=False),
+            _make_server(name="s1", is_trusted=True, config_sources=["~/.claude.json"]),
+            _make_server(name="s2", is_trusted=False, config_sources=["~/.cursor/mcp.json"]),
         ]
         auditor = MCPAuditor()
         result = json.loads(auditor.get_server_list_json(servers))
@@ -561,8 +564,10 @@ class TestOutputFormatting:
         assert len(result) == 2
         assert result[0]["name"] == "s1"
         assert result[0]["is_trusted"] is True
+        assert result[0]["config_sources"] == ["~/.claude.json"]
         assert result[1]["name"] == "s2"
         assert result[1]["is_trusted"] is False
+        assert result[1]["config_sources"] == ["~/.cursor/mcp.json"]
 
     def test_audit_report_json_structure(self):
         """Audit report JSON has correct structure."""
@@ -645,3 +650,50 @@ class TestOutputFormatting:
         auditor.print_audit_report(report)
         output = capsys.readouterr().out
         assert "No issues found" in output
+
+    def test_print_server_list_verbose_shows_sources(self, capsys):
+        """Verbose output shows config sources with IDE labels."""
+        servers = [
+            _make_server(
+                name="multi-src",
+                config_sources=["~/.claude.json", "~/.cursor/mcp.json"],
+            ),
+        ]
+        auditor = MCPAuditor()
+        auditor.print_server_list(servers, verbose=True)
+        output = capsys.readouterr().out
+        assert "Claude: ~/.claude.json" in output
+        assert "Cursor: ~/.cursor/mcp.json" in output
+
+
+# ---------------------------------------------------------------------------
+# IDE Label Tests
+# ---------------------------------------------------------------------------
+
+
+class TestIDELabel:
+    """Tests for MCPAuditor.ide_label()."""
+
+    def test_claude_json(self):
+        assert MCPAuditor.ide_label("~/.claude.json") == "Claude"
+
+    def test_claude_settings(self):
+        assert MCPAuditor.ide_label("~/.claude/settings.json") == "Claude"
+
+    def test_claude_config_dir(self):
+        assert MCPAuditor.ide_label("/custom/.claude/settings.json") == "Claude"
+
+    def test_cursor(self):
+        assert MCPAuditor.ide_label("~/.cursor/mcp.json") == "Cursor"
+
+    def test_windsurf(self):
+        assert MCPAuditor.ide_label("~/.windsurf/mcp.json") == "Windsurf"
+
+    def test_codex(self):
+        assert MCPAuditor.ide_label("codex.json") == "Codex"
+
+    def test_unknown(self):
+        assert MCPAuditor.ide_label("/some/other/file.json") == "Unknown"
+
+    def test_project_local_claude(self):
+        assert MCPAuditor.ide_label("/project/.claude/settings.json") == "Claude"

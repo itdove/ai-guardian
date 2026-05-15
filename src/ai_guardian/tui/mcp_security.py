@@ -161,6 +161,12 @@ class MCPSecurityContent(ScrollableContainer):
             env_count = len(s.env_var_names)
             env_text = f"{env_count} env" if env_count else "no env"
             lines.append(f"  {s.name:<24s}  {s.command:<10s}  {trust:<22s}  {env_text}")
+            if s.config_sources:
+                from ai_guardian.mcp_audit import MCPAuditor
+                sources_str = ", ".join(
+                    f"{MCPAuditor.ide_label(p)}: {p}" for p in s.config_sources
+                )
+                lines.append(f"    [dim]{sources_str}[/dim]")
 
         if lines:
             servers_container.mount(Static("\n".join(lines)))
