@@ -7,13 +7,18 @@ Uses TimeBasedToggle widgets (same as individual panels) without help text for c
 """
 
 import json
-from typing import Any
+from pathlib import Path
+from typing import Any, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Label, Select
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import (
+    get_config_dir,
+    get_project_config_path,
+    GLOBAL_ONLY_SECTIONS,
+)
 from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, select_options_with_default
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
@@ -117,15 +122,18 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
     .gs-action-row Select {
         width: 30;
     }
+
+    #scope-notice {
+        margin: 0 0 1 0;
+        padding: 0 1;
+    }
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Global Security Settings[/bold]", id="global-settings-header")
+        yield Static("[bold]Security Settings[/bold]", id="global-settings-header")
 
         with VerticalScroll():
-            yield Static(
-                "[dim]Quick-toggle dashboard — use each feature's panel for full settings.[/dim]"
-            )
+            yield Static("", id="scope-notice")
 
             with Container(classes="gs-action-section"):
                 with Horizontal(classes="gs-action-row"):
@@ -160,18 +168,77 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                                 id=f"{config_key}_action",
                             )
 
-    def on_mount(self) -> None:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._loading = False
+        self._global_config: dict = {}
+
+    def on_mount(self) -> None:
         self.load_config()
 
     def refresh_content(self) -> None:
         self.load_config()
 
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        """Return the config path for the current scope."""
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        config_dir = get_config_dir()
+        return config_dir / "ai-guardian.json"
+
+    def _load_global_immutable_fields(self) -> dict:
+        """Load immutable field lists from the global config."""
+        config_dir = get_config_dir()
+        global_path = config_dir / "ai-guardian.json"
+        immutables: dict = {}
+        if global_path.exists():
+            try:
+                with open(global_path, 'r', encoding='utf-8') as f:
+                    global_cfg = json.load(f)
+                for section, data in global_cfg.items():
+                    if not isinstance(data, dict):
+                        continue
+                    immutable = data.get("immutable")
+                    if immutable is True:
+                        immutables[section] = True
+                    elif isinstance(immutable, list):
+                        immutables[section] = immutable
+            except Exception:
+                pass
+        return immutables
+
+    def _update_scope_notice(self) -> None:
+        """Update the scope notice text."""
+        try:
+            notice = self.query_one("#scope-notice", Static)
+            if self._is_project_scope:
+                path = self._get_config_path()
+                if path.exists():
+                    notice.update(f"[dim]Editing project config: {path}[/dim]")
+                else:
+                    notice.update(f"[yellow]Project config will be created at: {path}[/yellow]")
+            else:
+                path = self._get_config_path()
+                notice.update(f"[dim]Editing global config: {path}[/dim]")
+        except Exception:
+            pass
+
     def load_config(self) -> None:
         self._loading = True
         try:
-            config_dir = get_config_dir()
-            config_path = config_dir / "ai-guardian.json"
+            config_path = self._get_config_path()
 
             config = {}
             if config_path.exists():
@@ -182,28 +249,47 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                     self.app.notify(f"Error loading config: {e}", severity="error")
                     return
 
+            if not self._is_project_scope:
+                self._global_config = config
+
+            immutables = self._load_global_immutable_fields() if self._is_project_scope else {}
+
             try:
                 on_scan_error = config.get("on_scan_error", "allow")
-                self.query_one("#on_scan_error_select", Select).value = on_scan_error
+                select_widget = self.query_one("#on_scan_error_select", Select)
+                select_widget.value = on_scan_error
+                select_widget.disabled = self._is_project_scope
             except Exception:
                 pass
 
             for section, config_key, _ in FEATURES:
                 section_data = config.get(section, {})
                 raw = section_data.get("enabled", True) if isinstance(section_data, dict) else True
+                is_global_only = section in GLOBAL_ONLY_SECTIONS
+                section_immutable = immutables.get(section)
+                section_fully_locked = section_immutable is True
+                locked_fields = section_immutable if isinstance(section_immutable, list) else []
+                enabled_locked = section_fully_locked or "enabled" in locked_fields
+
                 try:
                     toggle = self.query_one(f"#{config_key}_toggle", TimeBasedToggle)
                     toggle.load_value(raw)
+                    toggle.disabled = (self._is_project_scope and is_global_only) or enabled_locked
                 except Exception:
                     pass
 
                 if section in FEATURE_ACTIONS:
                     action_info = FEATURE_ACTIONS[section]
                     action_value = section_data.get("action", action_info["default"]) if isinstance(section_data, dict) else action_info["default"]
+                    action_locked = section_fully_locked or "action" in locked_fields
                     try:
-                        self.query_one(f"#{config_key}_action", Select).value = action_value
+                        action_select = self.query_one(f"#{config_key}_action", Select)
+                        action_select.value = action_value
+                        action_select.disabled = (self._is_project_scope and is_global_only) or action_locked
                     except Exception:
                         pass
+
+            self._update_scope_notice()
         finally:
             self._loading = False
 
@@ -256,14 +342,14 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
     def _save_on_scan_error(self, value: str) -> None:
         """Save the global on_scan_error setting."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             else:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
                 config = {}
 
             config["on_scan_error"] = value
@@ -279,14 +365,14 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
     def _save_action(self, section: str, value: str, display: str) -> None:
         """Save an action value for a feature section."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             else:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
                 config = {}
 
             if section not in config or not isinstance(config[section], dict):
@@ -297,20 +383,21 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
-            self.app.notify(f"✓ {display}: action = {value}", severity="success")
+            scope = "project" if self._is_project_scope else "global"
+            self.app.notify(f"✓ {display}: action = {value} [{scope}]", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error saving: {e}", severity="error")
 
     def _save(self, section: str, value: Any, display: str) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             else:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
                 config = {}
 
             if section not in config or not isinstance(config[section], dict):
@@ -321,13 +408,14 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
+            scope = "project" if self._is_project_scope else "global"
             if isinstance(value, bool):
                 status = "enabled" if value else "disabled"
-                self.app.notify(f"✓ {display}: {status}", severity="success")
+                self.app.notify(f"✓ {display}: {status} [{scope}]", severity="success")
             elif isinstance(value, dict) and value.get("disabled_until"):
                 from ai_guardian.tui.widgets import format_local_time
                 self.app.notify(
-                    f"✓ {display}: temp disabled until {format_local_time(value['disabled_until'])}",
+                    f"✓ {display}: temp disabled until {format_local_time(value['disabled_until'])} [{scope}]",
                     severity="success",
                 )
 

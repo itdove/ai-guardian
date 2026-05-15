@@ -20,8 +20,9 @@ AI Guardian uses **hardcoded deny patterns** that protect its own critical files
 ### Protected Files
 
 1. **Configuration files** - Prevents AI from disabling security features
-   - `~/.config/ai-guardian/ai-guardian.json`
-   - `./.ai-guardian.json`
+   - `~/.config/ai-guardian/ai-guardian.json` (global config)
+   - `.ai-guardian/ai-guardian.json` (project config, NEW in v1.8.0)
+   - `./.ai-guardian.json` (legacy)
    - Any file matching `*ai-guardian.json`
 
 2. **IDE hook files** - Prevents AI from removing ai-guardian hooks

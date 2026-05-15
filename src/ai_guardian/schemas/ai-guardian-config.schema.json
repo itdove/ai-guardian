@@ -141,6 +141,9 @@
       "type": "object",
       "description": "Secret scanning with multi-engine support (v1.4.0+). Object with 'enabled' property that supports boolean (permanent) or time-based (temporary) formats. Multi-engine support added in v1.5.0 - configure multiple engines with automatic fallback.",
       "properties": {
+        "immutable": {
+          "$ref": "#/definitions/immutable_fields"
+        },
         "engines": {
           "type": "array",
           "description": "List of secret scanning engines to use. Tries engines in order, using first available. Supported: 'gitleaks' (default, industry standard), 'betterleaks' (faster fork), 'leaktk' (auto-pattern management), 'trufflehog' (700+ detectors with verification), 'detect-secrets' (baseline workflow), or custom engine config objects. See docs/MULTI_ENGINE_SUPPORT.md for examples.",
@@ -535,6 +538,9 @@
       "type": "object",
       "description": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for personally identifiable information such as SSNs, credit card numbers, phone numbers, emails, passport numbers, and IBANs.",
       "properties": {
+        "immutable": {
+          "$ref": "#/definitions/immutable_fields"
+        },
         "enabled": {
           "oneOf": [
             {
@@ -686,6 +692,9 @@
       "description": "Prompt injection detection configuration (NEW in v1.2.0, time-based support in v1.4.0). Protects against prompt injection attacks that try to manipulate AI behavior.",
       "additionalProperties": true,
       "properties": {
+        "immutable": {
+          "$ref": "#/definitions/immutable_fields"
+        },
         "enabled": {
           "oneOf": [
             {
@@ -854,6 +863,9 @@
       "description": "SSRF (Server-Side Request Forgery) protection configuration (NEW in v1.5.0). Prevents AI agents from accessing private networks, cloud metadata endpoints, and dangerous URL schemes. Inspired by Hermes Security Framework.",
       "additionalProperties": true,
       "properties": {
+        "immutable": {
+          "$ref": "#/definitions/immutable_fields"
+        },
         "enabled": {
           "oneOf": [
             {
@@ -1540,6 +1552,11 @@
         }
       },
       "additionalProperties": false
+    },
+    "immutable_fields": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of field names in this section that project-level ai-guardian.json configs cannot override. Only meaningful in the global config (~/.config/ai-guardian/ai-guardian.json). Project configs that attempt to set immutable fields will have those fields silently ignored."
     }
   }
 }

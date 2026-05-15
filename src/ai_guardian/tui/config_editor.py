@@ -17,7 +17,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, TextArea
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
 
 try:
@@ -204,6 +204,7 @@ class ConfigEditorContent(Container):
     .status-warning {
         color: $warning;
     }
+
     """
 
     def __init__(self, *args, **kwargs):
@@ -212,8 +213,7 @@ class ConfigEditorContent(Container):
         self._schema_warnings: List[str] = []
 
     def compose(self) -> ComposeResult:
-        config_dir = get_config_dir()
-        self._config_path = config_dir / "ai-guardian.json"
+        self._update_config_path_from_app()
 
         yield Static(
             "[bold]Config Editor[/bold]  "
@@ -236,6 +236,28 @@ class ConfigEditorContent(Container):
 
         yield Static("", id="editor-status")
 
+    def _update_config_path_from_app(self) -> None:
+        """Update _config_path based on app-level scope."""
+        try:
+            scope = self.app.config_scope
+        except Exception:
+            scope = "global"
+        if scope == "project":
+            project_path = get_project_config_path()
+            if project_path:
+                self._config_path = project_path
+            else:
+                from ai_guardian.config_utils import _find_git_root
+                root = _find_git_root() or Path.cwd()
+                self._config_path = root / ".ai-guardian" / "ai-guardian.json"
+        else:
+            config_dir = get_config_dir()
+            self._config_path = config_dir / "ai-guardian.json"
+        try:
+            self.query_one("#editor-path", Static).update(f"[dim]{self._config_path}[/dim]")
+        except Exception:
+            pass
+
     def on_mount(self) -> None:
         self.load_config()
 
@@ -244,6 +266,7 @@ class ConfigEditorContent(Container):
         self._apply_saved_theme()
 
     def refresh_content(self) -> None:
+        self._update_config_path_from_app()
         self._apply_saved_theme()
         self.load_config()
 

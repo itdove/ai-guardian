@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Project-level ai-guardian.json config overlay** (Issue #594)
+  - Place `.ai-guardian/ai-guardian.json` at repo root to tune scanning rules per-project
+  - Deep merge: project config overlays global config (project wins for non-locked fields)
+  - `immutable` in global config sections prevents project override (`true` locks entire section, array locks specific fields)
+  - Global-only sections (daemon, mcp_server, support, etc.) cannot be overridden by project
+  - Self-protection: agent blocked from reading project-level config (existing IMMUTABLE_DENY_PATTERNS)
+  - Console: scope toggle (Global/Project) in Settings and Config Editor panels
+  - Doctor: new `check_project_config` check reports active project config
+  - MCP: `get_config()` reports `project_config` path when active
+  - New utilities: `get_project_config_path()`, `deep_merge()`, `GLOBAL_ONLY_SECTIONS`
+  - Discovery: `AI_GUARDIAN_PROJECT_CONFIG` env var → git root → CWD
+
 - **MCP server security scanning** (Issue #468)
   - `ai-guardian mcp list` — list MCP servers with trust status
   - `ai-guardian mcp audit` — config audit for credential exposure, unpinned packages, npx auto-install, suspicious URLs

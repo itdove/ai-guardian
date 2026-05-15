@@ -818,6 +818,7 @@ class AIGuardianTUI(App):
         super().__init__(*args, **kwargs)
         self._input_original_values = {}
         self.initial_panel = None
+        self.config_scope = "global"
 
     CSS = """
     Screen {
@@ -964,6 +965,8 @@ class AIGuardianTUI(App):
         Binding("q", "quit", "Quit", priority=True),
         Binding("r", "refresh_current_tab", "Refresh"),
         Binding("question_mark", "show_help", "Help"),
+        Binding("p", "scope_project", "Project", show=True),
+        Binding("g", "scope_global", "Global", show=True),
         Binding("escape", "focus_nav", "Navigation", show=False),
         Binding("1", "filter_all", show=False),
         Binding("2", "filter_tool", show=False),
@@ -1358,6 +1361,36 @@ class AIGuardianTUI(App):
         content = self._get_current_content()
         if content and hasattr(content, "action_test_server"):
             content.action_test_server()
+
+    def check_action(self, action: str, parameters) -> bool | None:
+        """Show p when in global scope, g when in project scope."""
+        if action == "scope_project":
+            return self.config_scope == "global"
+        if action == "scope_global":
+            return self.config_scope == "project"
+        return True
+
+    def action_scope_project(self) -> None:
+        """Switch to project scope."""
+        self.config_scope = "project"
+        self.sub_title = "[Project]"
+        self.refresh_bindings()
+        self._refresh_scope_panels()
+        self.notify("Scope: Project", severity="information")
+
+    def action_scope_global(self) -> None:
+        """Switch to global scope."""
+        self.config_scope = "global"
+        self.sub_title = ""
+        self.refresh_bindings()
+        self._refresh_scope_panels()
+        self.notify("Scope: Global", severity="information")
+
+    def _refresh_scope_panels(self) -> None:
+        """Refresh panels that are scope-aware."""
+        content = self._get_current_content()
+        if content and hasattr(content, "refresh_content"):
+            content.refresh_content()
 
 
 def run_tui():

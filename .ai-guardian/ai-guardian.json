@@ -1,0 +1,18 @@
+{
+  "prompt_injection": {
+    "allowlist_patterns": [
+      "__init__",
+      "__main__",
+      "__all__",
+      "__version__",
+      "__name__",
+      "__file__",
+      "__doc__",
+      "__package__",
+      "__spec__",
+      "__path__",
+      "__globals__",
+      "__import__"
+    ]
+  }
+}
