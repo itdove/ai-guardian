@@ -209,6 +209,46 @@ class TestDaemonServerProtocol:
         finally:
             sock.close()
 
+    def test_hook_request_when_paused_returns_empty_json(self, running_server):
+        server, sock_path = running_server
+        server.state.pause()
+
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls"},
+        }
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_hook_request(hook_data)))
+            response = decode_message(sock, timeout=5.0)
+            assert response["type"] == "response"
+            data = response["data"]
+            assert data["output"] == "{}"
+            assert data["exit_code"] == 0
+        finally:
+            sock.close()
+            server.state.resume()
+
+    def test_hook_request_after_resume_processes_normally(self, running_server):
+        server, sock_path = running_server
+        server.state.pause()
+        server.state.resume()
+
+        hook_data = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "hello world",
+        }
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_hook_request(hook_data)))
+            response = decode_message(sock, timeout=5.0)
+            assert response["type"] == "response"
+            data = response["data"]
+            assert "exit_code" in data
+        finally:
+            sock.close()
+
 
 class TestDaemonServerTCP:
     def test_tcp_mode_binds_localhost(self, short_state_dir, monkeypatch):
@@ -270,6 +310,46 @@ class TestDaemonServerCrossPlatform:
     def test_linux_uses_background_tray(self):
         with mock.patch("platform.system", return_value="Linux"):
             assert DaemonServer._should_use_main_thread_tray() is False
+
+
+class TestDaemonServerPausedHook:
+    """Test that paused daemon returns valid empty JSON to avoid Claude Code errors."""
+
+    def test_handle_hook_request_paused_returns_empty_json(self, short_state_dir):
+        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server.state.pause()
+
+        result = server._handle_hook_request({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls"},
+        })
+
+        assert result["output"] == "{}"
+        assert result["exit_code"] == 0
+
+    def test_handle_hook_request_paused_output_is_valid_json(self, short_state_dir):
+        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server.state.pause()
+
+        result = server._handle_hook_request({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "test",
+        })
+
+        parsed = json.loads(result["output"])
+        assert isinstance(parsed, dict)
+
+    def test_handle_hook_request_not_paused_processes_normally(self, short_state_dir):
+        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        assert not server.state.paused
+
+        result = server._handle_hook_request({
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "hello",
+        })
+
+        assert "exit_code" in result
 
 
 class TestDaemonServerIdleTimeout:

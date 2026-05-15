@@ -258,7 +258,7 @@ class DaemonServer:
             dict: Response with 'output' and 'exit_code'
         """
         if self.state.paused:
-            return {"output": None, "exit_code": 0}
+            return {"output": "{}", "exit_code": 0}
 
         self.state.record_activity()
         self.state.get_config()
