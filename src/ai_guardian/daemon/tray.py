@@ -164,7 +164,7 @@ class DaemonTray:
 
     def flash_reload(self):
         """Briefly flash the icon yellow to indicate config reload."""
-        if not self._icon or not HAS_PYSTRAY:
+        if not self._icon:
             return
         prev = self._status
         self._status = "reloading"
