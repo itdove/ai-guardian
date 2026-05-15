@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`init-project` command with language auto-discovery** (Issue #608)
+  - New CLI command: `ai-guardian init-project` detects programming languages and generates project-level prompt injection allowlist
+  - Pattern-aware: tests language identifiers against live detection patterns, only generates entries that actually trigger false positives
+  - Supports 15 languages: Python, JavaScript, TypeScript, HTML, PHP, Ruby, C/C++, Go, Rust, Java, Kotlin, Swift, Scala, CSS, Shell
+  - Python projects: generates allowlist for `__init__`, `__class__`, `__import__`, `__globals__`, `__builtins__`, `__mro__`, `__subclasses__`
+  - HTML projects: generates `ignore_files` globs instead of allowlisting XSS-triggering patterns (safer)
+  - Options: `--dry-run` (preview), `--force` (overwrite with backup), `--json` (machine-readable), `--dir` (specify project path)
+
 - **Project-level ai-guardian.json config overlay** (Issue #594)
   - Place `.ai-guardian/ai-guardian.json` at repo root to tune scanning rules per-project
   - Deep merge: project config overlays global config (project wins for non-locked fields)

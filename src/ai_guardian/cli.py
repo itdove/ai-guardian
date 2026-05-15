@@ -699,6 +699,33 @@ def main():
             help="Output results as JSON"
         )
 
+        # init-project subcommand (Issue #608)
+        init_project_parser = subparsers.add_parser(
+            "init-project",
+            help="Auto-detect project languages and generate prompt injection allowlist"
+        )
+        init_project_parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would be generated without writing files"
+        )
+        init_project_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite existing .ai-guardian/ai-guardian.json (creates backup)"
+        )
+        init_project_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output results as JSON"
+        )
+        init_project_parser.add_argument(
+            "--dir",
+            metavar="PATH",
+            default=".",
+            help="Project directory to scan (default: current directory)"
+        )
+
         args = parser.parse_args()
 
         # Handle setup command
@@ -1125,6 +1152,20 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error running support command: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle init-project command (Issue #608)
+        if args.command == "init-project":
+            try:
+                from ai_guardian.project_init import init_project_command
+                return init_project_command(args)
+            except ImportError as e:
+                print(f"Error: Project init module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running init-project: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1
