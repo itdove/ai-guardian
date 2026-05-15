@@ -537,21 +537,28 @@ class DaemonTray:
         Args:
             panel: Optional panel ID to open (e.g., 'panel-violations')
         """
+        import os
         import subprocess
+        import sys
         import platform
         import shutil
 
         executable = shutil.which("ai-guardian")
-        cmd_str = f"{executable} console" if executable else "python -m ai_guardian console"
+        if executable:
+            executable = os.path.abspath(executable)
+            cmd_str = f"{executable} console"
+        else:
+            cmd_str = f"{sys.executable} -m ai_guardian console"
         if panel:
             cmd_str += f" --panel {panel}"
 
         try:
             system = platform.system()
             if system == "Darwin":
+                escaped_cmd = cmd_str.replace("\\", "\\\\").replace('"', '\\"')
                 script = (
                     'tell application "Terminal"\n'
-                    f'    set currentTab to do script "{cmd_str}"\n'
+                    f'    set currentTab to do script "{escaped_cmd}"\n'
                     '    activate\n'
                     '    set zoomed of front window to true\n'
                     '    repeat\n'
