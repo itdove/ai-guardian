@@ -1,9 +1,12 @@
 """
-Single-engine execution for secret scanning.
+Engine execution for secret scanning.
 
-Provides run_single_engine() which runs one scanner engine via subprocess,
-parses its output, and returns a standardized ScanResult. This function
-is the building block that execution strategies use to run scanners.
+Provides:
+- run_single_engine(): runs one subprocess-based scanner engine
+- run_python_scanner(): runs one Python-based scanner in-process
+- run_engine(): dispatcher that routes to the correct executor
+
+These functions are the building blocks that execution strategies use.
 """
 
 import logging
@@ -16,6 +19,24 @@ from typing import Optional
 from ai_guardian.scanners.engine_builder import EngineConfig, build_scanner_command
 from ai_guardian.scanners.output_parsers import get_parser
 from ai_guardian.scanners.strategies import ScanResult, SecretMatch
+
+
+def _cache_get(cache, content_hash, engine_config, engine_label):
+    """Check cache for a previous scan result. Returns (result, cfg_hash) or (None, cfg_hash)."""
+    if not (cache and content_hash):
+        return None, None
+    from ai_guardian.scanners.cache import ScanResultCache
+    cfg_hash = ScanResultCache.config_hash(engine_config)
+    cached = cache.get(content_hash, engine_label, cfg_hash)
+    if cached is not None:
+        logging.info(f"Cache hit for {engine_label} (hash={content_hash[:12]})")
+    return cached, cfg_hash
+
+
+def _cache_put(cache, content_hash, engine_label, cfg_hash, result):
+    """Store a scan result in the cache if caching is active."""
+    if cache and content_hash and cfg_hash is not None:
+        cache.put(content_hash, engine_label, cfg_hash, result)
 
 
 def run_single_engine(
@@ -45,16 +66,9 @@ def run_single_engine(
     Returns:
         ScanResult with findings from this engine
     """
-    if cache and content_hash:
-        from ai_guardian.scanners.cache import ScanResultCache
-        cfg_hash = ScanResultCache.config_hash(engine_config)
-        cached = cache.get(content_hash, engine_config.type, cfg_hash)
-        if cached is not None:
-            logging.info(
-                f"Cache hit for {engine_config.type} "
-                f"(hash={content_hash[:12]})"
-            )
-            return cached
+    cached, cfg_hash = _cache_get(cache, content_hash, engine_config, engine_config.type)
+    if cached is not None:
+        return cached
 
     if hasattr(engine_config, 'api_key_env') and engine_config.api_key_env:
         if not os.environ.get(engine_config.api_key_env):
@@ -101,10 +115,7 @@ def run_single_engine(
 
         if is_secrets_found:
             scan_result = _parse_secrets_result(engine_config, report_file, elapsed_ms)
-            if cache and content_hash:
-                from ai_guardian.scanners.cache import ScanResultCache
-                cfg_hash = ScanResultCache.config_hash(engine_config)
-                cache.put(content_hash, engine_config.type, cfg_hash, scan_result)
+            _cache_put(cache, content_hash, engine_config.type, cfg_hash, scan_result)
             return scan_result
 
         if result.returncode == engine_config.success_exit_code:
@@ -118,10 +129,7 @@ def run_single_engine(
                 engine=engine_config.type,
                 scan_time_ms=elapsed_ms
             )
-            if cache and content_hash:
-                from ai_guardian.scanners.cache import ScanResultCache
-                cfg_hash = ScanResultCache.config_hash(engine_config)
-                cache.put(content_hash, engine_config.type, cfg_hash, clean_result)
+            _cache_put(cache, content_hash, engine_config.type, cfg_hash, clean_result)
             return clean_result
 
         # Unexpected exit code
@@ -173,6 +181,139 @@ def run_single_engine(
             error=str(e),
             scan_time_ms=elapsed_ms
         )
+
+
+def run_python_scanner(
+    engine_config: EngineConfig,
+    source_file: str,
+    report_file: str,
+    config_path: Optional[str] = None,
+    timeout: int = 30,
+    cache=None,
+    content_hash: Optional[str] = None,
+) -> ScanResult:
+    """
+    Run a Python-based scanner in-process and return standardized results.
+
+    Reads content from source_file, calls the scanner's scan() method,
+    and converts Finding objects to SecretMatch objects.
+
+    Args:
+        engine_config: Engine configuration with python_scanner set
+        source_file: Path to the file being scanned
+        report_file: Unused for Python scanners (kept for API compatibility)
+        config_path: Unused for Python scanners
+        timeout: Unused for Python scanners (in-process, no subprocess)
+        cache: Optional ScanResultCache for result caching
+        content_hash: Optional content hash for cache lookups
+
+    Returns:
+        ScanResult with findings from this scanner
+    """
+    scanner = engine_config.python_scanner
+    scanner_name = getattr(scanner, "name", "python")
+
+    cached, cfg_hash = _cache_get(cache, content_hash, engine_config, scanner_name)
+    if cached is not None:
+        return cached
+
+    start_time = time.monotonic()
+
+    try:
+        with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        findings = scanner.scan(content, file_path=source_file)
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        if not findings:
+            logging.info(
+                f"Engine scan complete: engine={scanner_name} "
+                f"duration_ms={elapsed_ms:.1f} findings=0 has_secrets=False"
+            )
+            clean_result = ScanResult(
+                has_secrets=False,
+                secrets=[],
+                engine=scanner_name,
+                scan_time_ms=elapsed_ms,
+            )
+            _cache_put(cache, content_hash, scanner_name, cfg_hash, clean_result)
+            return clean_result
+
+        secrets = []
+        for finding in findings:
+            secrets.append(SecretMatch(
+                rule_id=finding.rule_id,
+                description=finding.description,
+                file=source_file,
+                line_number=finding.line_number,
+                end_line=finding.end_line,
+                commit=finding.commit,
+                engine=scanner_name,
+            ))
+
+        logging.info(
+            f"Engine scan complete: engine={scanner_name} "
+            f"duration_ms={elapsed_ms:.1f} findings={len(secrets)} has_secrets=True"
+        )
+
+        result = ScanResult(
+            has_secrets=True,
+            secrets=secrets,
+            engine=scanner_name,
+            scan_time_ms=elapsed_ms,
+        )
+        _cache_put(cache, content_hash, scanner_name, cfg_hash, result)
+        return result
+
+    except Exception as e:
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+        logging.error(f"Python scanner {scanner_name} failed: {e}")
+        return ScanResult(
+            has_secrets=False,
+            secrets=[],
+            engine=scanner_name,
+            error=str(e),
+            scan_time_ms=elapsed_ms,
+        )
+
+
+def run_engine(
+    engine_config: EngineConfig,
+    source_file: str,
+    report_file: str,
+    config_path: Optional[str] = None,
+    timeout: int = 30,
+    cache=None,
+    content_hash: Optional[str] = None,
+) -> ScanResult:
+    """
+    Run a scanner engine, dispatching to the correct executor.
+
+    Routes to run_python_scanner() for Python-based scanners or
+    run_single_engine() for subprocess-based scanners.
+
+    Args:
+        engine_config: Engine configuration
+        source_file: Path to the file being scanned
+        report_file: Path for scanner output report
+        config_path: Optional path to scanner configuration file
+        timeout: Subprocess timeout in seconds (ignored for Python scanners)
+        cache: Optional ScanResultCache for result caching
+        content_hash: Optional content hash for cache lookups
+
+    Returns:
+        ScanResult with findings from this engine
+    """
+    if engine_config.python_scanner is not None:
+        return run_python_scanner(
+            engine_config, source_file, report_file, config_path,
+            timeout, cache, content_hash,
+        )
+    return run_single_engine(
+        engine_config, source_file, report_file, config_path,
+        timeout, cache, content_hash,
+    )
 
 
 def _parse_secrets_result(

@@ -54,7 +54,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_scanner_engine_used_when_available(
         self, mock_load_config, mock_run_single,
@@ -141,7 +141,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_gitleaks_exit_code_1_not_treated_as_success(
         self, mock_load_config, mock_run_single,
@@ -184,7 +184,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_gitleaks_exit_code_42_blocks_operation(
         self, mock_load_config, mock_run_single,
@@ -266,7 +266,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
     @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
     def test_betterleaks_exit_code_1_not_treated_as_success(
         self, mock_load_config, mock_run_single,
@@ -317,7 +317,7 @@ class TestGuardClauseFallthrough(unittest.TestCase):
     @patch('ai_guardian.hook_processing.resolve_engine_config_path')
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing.build_scanner_command')
     @patch('ai_guardian.hook_processing.get_parser')
     @patch('ai_guardian.hook_processing.subprocess.run')
@@ -398,7 +398,7 @@ class TestGuardClauseFallthrough(unittest.TestCase):
     @patch('ai_guardian.hook_processing.resolve_engine_config_path')
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing.build_scanner_command')
     @patch('ai_guardian.hook_processing.get_parser')
     @patch('ai_guardian.hook_processing.subprocess.run')
@@ -453,7 +453,7 @@ class TestGuardClauseFallthrough(unittest.TestCase):
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing.build_scanner_command')
     @patch('ai_guardian.hook_processing.get_parser')
     @patch('ai_guardian.hook_processing.subprocess.run')

@@ -44,8 +44,8 @@ class EngineConfig:
     Configuration for a scanner engine.
 
     Attributes:
-        type: Engine type identifier (e.g., 'gitleaks', 'betterleaks', 'leaktk')
-        binary: Binary name or path for the scanner
+        type: Engine type identifier (e.g., 'gitleaks', 'betterleaks', 'leaktk', 'python')
+        binary: Binary name or path for the scanner (use "__python__" for Python scanners)
         command_template: Command template with placeholders for building commands
         config_flag: Optional flags for specifying config file
         extra_flags: Optional additional command-line flags
@@ -55,6 +55,7 @@ class EngineConfig:
         ignore_files: Per-engine glob patterns for files to skip scanning
         pattern_server: Per-engine pattern server configuration override
         file_patterns: File extensions this engine should handle for file type routing
+        python_scanner: Instantiated Python Scanner object (for type="python" engines)
     """
     type: str
     binary: str
@@ -69,6 +70,7 @@ class EngineConfig:
     file_patterns: Optional[List[str]] = None
     requires_consent: bool = False
     api_key_env: Optional[str] = None
+    python_scanner: Optional[Any] = None
 
 
 # Built-in engine presets
@@ -199,6 +201,19 @@ def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
             engine_config.extra_flags = engine_spec["extra_flags"]
         if "config_flag" in engine_spec:
             engine_config.config_flag = engine_spec["config_flag"]
+    elif engine_type == "python":
+        try:
+            from ai_guardian.scanners.python_loader import load_python_scanner
+            scanner = load_python_scanner(engine_spec)
+            engine_config = EngineConfig(
+                type="python",
+                binary="__python__",
+                command_template=[],
+                python_scanner=scanner,
+            )
+        except Exception as e:
+            logging.warning(f"Failed to load Python scanner: {e}")
+            return None
     elif engine_type == "custom":
         engine_config = EngineConfig(
             type="custom",
@@ -298,7 +313,10 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
             )
             continue
 
-        if shutil.which(engine_config.binary):
+        if engine_config.python_scanner is not None:
+            logging.info(f"Selected Python scanner: {engine_config.python_scanner.name}")
+            return engine_config
+        elif shutil.which(engine_config.binary):
             logging.info(f"Selected scanner engine: {engine_config.type}")
             return engine_config
         else:
@@ -344,7 +362,10 @@ def select_all_engines(engines_config: List[Any]) -> List[EngineConfig]:
             )
             continue
 
-        if shutil.which(engine_config.binary):
+        if engine_config.python_scanner is not None:
+            logging.info(f"Found available Python scanner: {engine_config.python_scanner.name}")
+            available.append(engine_config)
+        elif shutil.which(engine_config.binary):
             logging.info(f"Found available scanner engine: {engine_config.type}")
             available.append(engine_config)
         else:

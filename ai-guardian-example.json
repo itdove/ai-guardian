@@ -275,6 +275,30 @@
       "_warning": "Content is sent to GitGuardian cloud API for scanning",
       "_config": ["gitleaks", "gitguardian"]
     },
+    "_engines_python_scanner_example": {
+      "_comment": "Python-based custom scanners (NEW in v1.8.0, Issue #474). Run in-process (~1ms vs ~50ms subprocess). No binary installation needed.",
+      "_module_example": {
+        "_comment": "Load scanner from installed Python module",
+        "type": "python",
+        "module": "my_company.scanners.api_checker",
+        "class": "InternalApiScanner",
+        "scanner_config": {"api_domains": ["internal-api.company.com"]}
+      },
+      "_file_example": {
+        "_comment": "Load scanner from a .py file",
+        "type": "python",
+        "path": "~/.config/ai-guardian/scanners/custom_scanner.py",
+        "class": "MyScanner"
+      },
+      "_config": [
+        "gitleaks",
+        {
+          "type": "python",
+          "module": "my_company.scanners.api_checker",
+          "class": "InternalApiScanner"
+        }
+      ]
+    },
     "execution_strategy": "first-match",
     "_execution_strategy_comment": "NEW in v1.7.0: 'first-match' (default, backward compatible), 'any-match' (block if ANY engine finds secrets), 'consensus' (block only if N engines agree)",
     "consensus_threshold": 2,

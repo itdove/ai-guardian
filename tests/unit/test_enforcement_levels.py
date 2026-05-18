@@ -114,7 +114,7 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
 class SecretScanningEnforcementTest(unittest.TestCase):
     """Test secret scanning (always blocks when secrets found)"""
 
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
