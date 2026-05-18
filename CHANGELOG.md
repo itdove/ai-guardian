@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Simplify CONTRIBUTING.md + create Developer Guide** (Issue #628)
+  - Reduced CONTRIBUTING.md from 679 lines to ~50 lines (fork workflow, commit format, checklist)
+  - Created `docs/DEVELOPER_GUIDE.md` with architecture overview, development setup, testing, new feature checklist
+  - Updated for v1.8.0-dev features: daemon, MCP server, Console, profiles, annotations, custom scanner SDK
+  - Removed basic git tutorials and duplicate PR/issue templates from CONTRIBUTING.md
+
 - **Document deny-by-default for MCP servers and Skills** (Issue #606)
   - README: added prominent callout after Quick Start explaining MCP/Skills are blocked by default
   - README: updated Default Behavior table to distinguish built-in tools (allowed) from MCP/Skills (blocked)
