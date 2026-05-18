@@ -55,6 +55,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 
 | Document | Description |
 |----------|-------------|
+| [Developer Guide](DEVELOPER_GUIDE.md) | Architecture, setup, testing, and development workflows |
 | [Contributing](../CONTRIBUTING.md) | Fork workflow, PR guidelines |
 | [Agent Instructions](../AGENTS.md) | Development guidelines, testing, CI/CD |
 | [Releasing](../RELEASING.md) | Release process and version management |
