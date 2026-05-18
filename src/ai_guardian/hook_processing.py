@@ -1574,6 +1574,101 @@ def _count_gitleaks_patterns(config_path):
 
 
 
+def _log_pii_violation(violation_logger, pii_config, pii_redactions,
+                      tool_identifier, hook_name, file_path, snippet_text,
+                      hook_event, hook_tool_use_id=None, hook_session_id=None,
+                      bash_command=None, pretool_ctx=None):
+    """Log a PII violation and return (pii_action, pii_types)."""
+    pii_action = pii_config.get('action', 'block')
+    pii_types = list(set(r['type'] for r in pii_redactions))
+    pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
+
+    pii_blocked = {
+        'tool': tool_identifier,
+        'hook': hook_name,
+        'file_path': file_path,
+        'line_number': pii_first_line,
+        'pii_count': len(pii_redactions),
+        'pii_types': pii_types,
+    }
+    if bash_command:
+        pii_blocked['command'] = bash_command
+    snippet = _extract_context_snippet(snippet_text, pii_first_line)
+    if snippet:
+        pii_blocked['context_snippet'] = snippet
+
+    pii_ctx = {'action': pii_action, 'hook_event': hook_event}
+    if hook_tool_use_id:
+        pii_ctx['tool_use_id'] = hook_tool_use_id
+    if hook_session_id:
+        pii_ctx['session_id'] = hook_session_id
+    if pretool_ctx:
+        pii_ctx['pretool_context'] = pretool_ctx
+
+    if violation_logger:
+        violation_logger.log_violation(
+            violation_type=ViolationType.PII_DETECTED,
+            blocked=pii_blocked,
+            context=pii_ctx,
+        )
+
+    return pii_action, pii_types
+
+
+def _build_secret_detected_message(scanner_name, secret_details, pattern_description,
+                                   protection_label="Secret Scanning"):
+    """Build a consistent 'Secret Detected' error banner."""
+    error_msg = (
+        f"\n{'='*70}\n"
+        f"🛡️ Secret Detected\n"
+        f"{'='*70}\n\n"
+        f"Protection: {protection_label}\n"
+    )
+
+    if secret_details:
+        error_msg += f"Secret Type: {secret_details['rule_id']}\n"
+        if secret_details.get('line_number'):
+            error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
+        else:
+            error_msg += f"Location: {secret_details['file']}\n"
+    else:
+        error_msg += "Secret Type: (multiple or unknown)\n"
+
+    error_msg += f"Scanner: {scanner_name}\n"
+    error_msg += f"Patterns: {pattern_description}\n"
+
+    error_msg += (
+        f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
+        f"and be accessed by unauthorized users.\n\n"
+        f"This operation has been blocked for security.\n"
+        f"Please remove the sensitive information and try again.\n\n"
+        f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+        f"Recommendation:\n"
+        f"  • Move secrets to environment variables\n"
+        f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
+        f"  • Add to .gitignore if in config file\n"
+        f"  • Never commit secrets to git\n"
+        f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
+        f"⚠️  Secret value NOT shown in this message for security\n\n"
+    )
+
+    if not secret_details:
+        error_msg += (
+            "Common secret types:\n"
+            "  • API keys and tokens\n"
+            "  • Private keys (SSH, RSA, PGP)\n"
+            "  • Database credentials\n"
+            "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
+        )
+
+    error_msg += (
+        f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
+        f"Section: secret_scanning.enabled\n"
+        f"{'='*70}\n"
+    )
+    return error_msg
+
+
 def _describe_patterns(engine_config, resolved_config_path, config_source, pattern_config):
     """Return a user-facing description of which patterns a scanner engine uses."""
     engine_type = engine_config.type if engine_config else "gitleaks"
@@ -1886,35 +1981,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         }
 
                         scanner_name = strategy_result.engine
-                        error_msg = (
-                            f"\n{'='*70}\n"
-                            f"🛡️ Secret Detected\n"
-                            f"{'='*70}\n\n"
-                            f"Protection: Secret Scanning ({execution_strategy_name} strategy)\n"
-                            f"Secret Type: {secret_details['rule_id']}\n"
-                        )
-                        if secret_details.get('line_number'):
-                            error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
-                        else:
-                            error_msg += f"Location: {secret_details['file']}\n"
-                        error_msg += (
-                            f"Scanner: {scanner_name}\n"
-                            f"Patterns: Built-in {scanner_name} rules\n"
-                            f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
-                            f"and be accessed by unauthorized users.\n\n"
-                            f"This operation has been blocked for security.\n"
-                            f"Please remove the sensitive information and try again.\n\n"
-                            f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
-                            f"Recommendation:\n"
-                            f"  • Move secrets to environment variables\n"
-                            f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
-                            f"  • Add to .gitignore if in config file\n"
-                            f"  • Never commit secrets to git\n"
-                            f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
-                            f"⚠️  Secret value NOT shown in this message for security\n\n"
-                            f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
-                            f"Section: secret_scanning.enabled\n"
-                            f"{'='*70}\n"
+                        error_msg = _build_secret_detected_message(
+                            scanner_name, secret_details,
+                            f"Built-in {scanner_name} rules",
+                            f"Secret Scanning ({execution_strategy_name} strategy)",
                         )
 
                         _log_secret_detection_violation(file_path or filename, context, secret_details,
@@ -2172,35 +2242,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "total_findings": len(fallback_result.secrets)
                                 }
                                 scanner_name = fallback_result.engine
-                                error_msg = (
-                                    f"\n{'='*70}\n"
-                                    f"🛡️ Secret Detected\n"
-                                    f"{'='*70}\n\n"
-                                    f"Protection: Secret Scanning (first-match fallthrough)\n"
-                                    f"Secret Type: {secret_details['rule_id']}\n"
-                                )
-                                if secret_details.get('line_number'):
-                                    error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
-                                else:
-                                    error_msg += f"Location: {secret_details['file']}\n"
-                                error_msg += (
-                                    f"Scanner: {scanner_name}\n"
-                                    f"Patterns: Built-in Defaults\n"
-                                    f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
-                                    f"and be accessed by unauthorized users.\n\n"
-                                    f"This operation has been blocked for security.\n"
-                                    f"Please remove the sensitive information and try again.\n\n"
-                                    f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
-                                    f"Recommendation:\n"
-                                    f"  • Move secrets to environment variables\n"
-                                    f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
-                                    f"  • Add to .gitignore if in config file\n"
-                                    f"  • Never commit secrets to git\n"
-                                    f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
-                                    f"⚠️  Secret value NOT shown in this message for security\n\n"
-                                    f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
-                                    f"Section: secret_scanning.enabled\n"
-                                    f"{'='*70}\n"
+                                error_msg = _build_secret_detected_message(
+                                    scanner_name, secret_details,
+                                    "Built-in Defaults",
+                                    "Secret Scanning (first-match fallthrough)",
                                 )
                                 _log_secret_detection_violation(file_path or filename, context, secret_details,
                                                                 hook_context=context)
@@ -2261,58 +2306,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                 # Build error message with details if available
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
-                error_msg = (
-                    f"\n{'='*70}\n"
-                    f"🛡️ Secret Detected\n"
-                    f"{'='*70}\n\n"
-                    f"Protection: Secret Scanning\n"
-                )
-
-                # Include specific details if we have them
-                if secret_details:
-                    error_msg += f"Secret Type: {secret_details['rule_id']}\n"
-                    if secret_details.get('line_number'):
-                        error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
-                    else:
-                        error_msg += f"Location: {secret_details['file']}\n"
-                else:
-                    error_msg += "Secret Type: (multiple or unknown)\n"
-
-                # Add scanner information
-                error_msg += f"Scanner: {scanner_name}\n"
-
                 pattern_config_for_msg = pattern_config if HAS_PATTERN_SERVER else None
-                error_msg += f"Patterns: {_describe_patterns(engine_config, resolved_config_path, config_source, pattern_config_for_msg)}\n"
-
-                error_msg += (
-                    f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
-                    f"and be accessed by unauthorized users.\n\n"
-                    f"This operation has been blocked for security.\n"
-                    f"Please remove the sensitive information and try again.\n\n"
-                    f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
-                    f"Recommendation:\n"
-                    f"  • Move secrets to environment variables\n"
-                    f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
-                    f"  • Add to .gitignore if in config file\n"
-                    f"  • Never commit secrets to git\n"
-                    f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
-                    f"⚠️  Secret value NOT shown in this message for security\n\n"
-                )
-
-                # Only show generic list if we don't have specific details
-                if not secret_details:
-                    error_msg += (
-                        "Common secret types:\n"
-                        "  • API keys and tokens\n"
-                        "  • Private keys (SSH, RSA, PGP)\n"
-                        "  • Database credentials\n"
-                        "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
-                    )
-
-                error_msg += (
-                    f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
-                    f"Section: secret_scanning.enabled\n"
-                    f"{'='*70}\n"
+                error_msg = _build_secret_detected_message(
+                    scanner_name, secret_details,
+                    _describe_patterns(engine_config, resolved_config_path, config_source, pattern_config_for_msg),
                 )
 
                 # Log secret detection violation with details
@@ -2369,35 +2366,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 fallback_engine_config, fallback_resolved,
                                 config_source, pattern_config if HAS_PATTERN_SERVER else None
                             )
-                            error_msg = (
-                                f"\n{'='*70}\n"
-                                f"🛡️ Secret Detected\n"
-                                f"{'='*70}\n\n"
-                                f"Protection: Secret Scanning (first-match fallthrough)\n"
-                                f"Secret Type: {secret_details['rule_id']}\n"
-                            )
-                            if secret_details.get('line_number'):
-                                error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
-                            else:
-                                error_msg += f"Location: {secret_details['file']}\n"
-                            error_msg += (
-                                f"Scanner: {scanner_name}\n"
-                                f"Patterns: {fallback_pattern_desc}\n"
-                                f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
-                                f"and be accessed by unauthorized users.\n\n"
-                                f"This operation has been blocked for security.\n"
-                                f"Please remove the sensitive information and try again.\n\n"
-                                f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
-                                f"Recommendation:\n"
-                                f"  • Move secrets to environment variables\n"
-                                f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
-                                f"  • Add to .gitignore if in config file\n"
-                                f"  • Never commit secrets to git\n"
-                                f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
-                                f"⚠️  Secret value NOT shown in this message for security\n\n"
-                                f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
-                                f"Section: secret_scanning.enabled\n"
-                                f"{'='*70}\n"
+                            error_msg = _build_secret_detected_message(
+                                scanner_name, secret_details,
+                                fallback_pattern_desc,
+                                "Secret Scanning (first-match fallthrough)",
                             )
                             _log_secret_detection_violation(file_path or filename, context, secret_details,
                                                             hook_context=context)
@@ -2981,43 +2953,20 @@ def process_hook_data(hook_data, daemon_state=None):
                         return result
 
                     if has_pii and pii_redactions:
-                        pii_action = pii_config.get('action', 'block')
-                        pii_types = list(set(r['type'] for r in pii_redactions))
-                        logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
-
-                        # Log violation
                         pii_file_path = tool_input.get("file_path") or tool_input.get("path")
-                        # Inherit file_path from PreToolUse context (#366)
                         if not pii_file_path and pretool_ctx:
                             pii_file_path = pretool_ctx.get("file_path")
-                        pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
-                        pii_blocked = {
-                            'tool': tool_identifier,
-                            'hook': 'PostToolUse',
-                            'file_path': pii_file_path,
-                            'line_number': pii_first_line,
-                            'pii_count': len(pii_redactions),
-                            'pii_types': pii_types
-                        }
-                        if bash_command:
-                            pii_blocked['command'] = bash_command
                         pii_snippet_text = redacted_text if redacted_text else tool_output
-                        pii_snippet = _extract_context_snippet(pii_snippet_text, pii_first_line)
-                        if pii_snippet:
-                            pii_blocked['context_snippet'] = pii_snippet
-                        pii_ctx = {'action': pii_action, 'hook_event': HookEvent.POST_TOOL_USE}
-                        if hook_tool_use_id:
-                            pii_ctx['tool_use_id'] = hook_tool_use_id
-                        if hook_session_id:
-                            pii_ctx['session_id'] = hook_session_id
-                        if pretool_ctx:
-                            pii_ctx['pretool_context'] = pretool_ctx
-                        if violation_logger:
-                            violation_logger.log_violation(
-                                violation_type=ViolationType.PII_DETECTED,
-                                blocked=pii_blocked,
-                                context=pii_ctx
-                            )
+                        pii_action, pii_types = _log_pii_violation(
+                            violation_logger, pii_config, pii_redactions,
+                            tool_identifier, 'PostToolUse', pii_file_path,
+                            pii_snippet_text, HookEvent.POST_TOOL_USE,
+                            hook_tool_use_id=hook_tool_use_id,
+                            hook_session_id=hook_session_id,
+                            bash_command=bash_command,
+                            pretool_ctx=pretool_ctx,
+                        )
+                        logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -3544,35 +3493,15 @@ def process_hook_data(hook_data, daemon_state=None):
                         return result
 
                     if has_pii and pii_redactions:
-                        pii_action = pii_config.get('action', 'block')
-                        pii_types = list(set(r['type'] for r in pii_redactions))
-                        logging.warning(f"PII detected: {pii_types}")
-
-                        # Log violation
                         hook_name = 'UserPromptSubmit' if hook_event == HookEvent.PROMPT else 'PreToolUse'
-                        pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
-                        pre_pii_blocked = {
-                            'tool': tool_identifier or filename,
-                            'hook': hook_name,
-                            'file_path': file_path,
-                            'line_number': pii_first_line,
-                            'pii_count': len(pii_redactions),
-                            'pii_types': pii_types
-                        }
-                        pre_pii_snippet = _extract_context_snippet(content_to_scan, pii_first_line)
-                        if pre_pii_snippet:
-                            pre_pii_blocked['context_snippet'] = pre_pii_snippet
-                        pre_pii_ctx = {'action': pii_action, 'hook_event': hook_event}
-                        if hook_tool_use_id:
-                            pre_pii_ctx['tool_use_id'] = hook_tool_use_id
-                        if hook_session_id:
-                            pre_pii_ctx['session_id'] = hook_session_id
-                        if violation_logger:
-                            violation_logger.log_violation(
-                                violation_type=ViolationType.PII_DETECTED,
-                                blocked=pre_pii_blocked,
-                                context=pre_pii_ctx
-                            )
+                        pii_action, pii_types = _log_pii_violation(
+                            violation_logger, pii_config, pii_redactions,
+                            tool_identifier or filename, hook_name, file_path,
+                            content_to_scan, hook_event,
+                            hook_tool_use_id=hook_tool_use_id,
+                            hook_session_id=hook_session_id,
+                        )
+                        logging.warning(f"PII detected: {pii_types}")
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None

@@ -401,16 +401,19 @@ class GitleaksAllowGuidanceTests(TestCase):
 
         Directly verifies the source code text for the gitleaks:allow recommendation.
         This test does NOT require gitleaks to be installed — it reads the source.
+        The message text lives in the _build_secret_detected_message helper which is
+        called by check_secrets_with_gitleaks.
         """
         import inspect
-        source = inspect.getsource(ai_guardian.check_secrets_with_gitleaks)
+        from ai_guardian.hook_processing import _build_secret_detected_message
+        source = inspect.getsource(_build_secret_detected_message)
 
         assert "at the end of the line" in source, \
-            "check_secrets_with_gitleaks must say 'at the end of the line'"
+            "_build_secret_detected_message must say 'at the end of the line'"
         assert "before the line" not in source, \
-            "check_secrets_with_gitleaks must NOT say 'before the line'"
+            "_build_secret_detected_message must NOT say 'before the line'"
         assert "comment to the line" not in source, \
-            "check_secrets_with_gitleaks must NOT say 'comment to the line'"
+            "_build_secret_detected_message must NOT say 'comment to the line'"
 
     def test_tui_violations_gitleaks_allow_guidance(self):
         """
