@@ -858,7 +858,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "secret_scanning": {
             "enabled": True,
             "allowlist_patterns": [],
-            "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
+            "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Python-based custom scanners: {type: python, module/path: ..., class: ...}. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
             "engines": [
                 {
                     "type": "gitleaks",

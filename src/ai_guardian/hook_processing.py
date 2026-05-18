@@ -88,7 +88,7 @@ try:
     from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command, resolve_engine_config_path, PATTERN_SERVER_UNSET
     from ai_guardian.scanners.output_parsers import get_parser
     from ai_guardian.scanners.strategies import get_strategy, ScanResult as StrategyScanResult, SecretMatch
-    from ai_guardian.scanners.executor import run_single_engine
+    from ai_guardian.scanners.executor import run_single_engine, run_engine
     HAS_SCANNER_ENGINE = True
 except ImportError:
     HAS_SCANNER_ENGINE = False
@@ -1926,7 +1926,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                     strategy_result = strategy.execute(
                         engine_configs=all_engines,
-                        scanner_fn=run_single_engine,
+                        scanner_fn=run_engine,
                         source_file=tmp_file_path,
                         report_file_prefix=report_file.replace('.json', ''),
                         config_path=gitleaks_config_path,
@@ -2225,7 +2225,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             strategy = get_strategy("first-match")
                             fallback_result = strategy.execute(
                                 engine_configs=remaining,
-                                scanner_fn=run_single_engine,
+                                scanner_fn=run_engine,
                                 source_file=tmp_file_path,
                                 report_file_prefix=report_file.replace('.json', ''),
                                 config_path=None,
@@ -2339,7 +2339,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         strategy = get_strategy("first-match")
                         fallback_result = strategy.execute(
                             engine_configs=remaining,
-                            scanner_fn=run_single_engine,
+                            scanner_fn=run_engine,
                             source_file=tmp_file_path,
                             report_file_prefix=report_file.replace('.json', ''),
                             config_path=None,

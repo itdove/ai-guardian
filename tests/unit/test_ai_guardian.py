@@ -159,7 +159,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # Should return False (don't block) with warning message (fail-open)
         self.assertFalse(has_secrets, "Missing Gitleaks should not block operation")
 
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
@@ -179,7 +179,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_select_engine.return_value = mock_engine
         mock_select_all.return_value = [mock_engine]
 
-        # Mock run_single_engine to return auth error
+        # Mock run_engine to return auth error
         mock_run_single.return_value = ScanResult(
             has_secrets=False, secrets=[], engine="gitleaks",
             error="Unexpected exit code 2: Error: 401 Unauthorized - authentication failed"
@@ -197,7 +197,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertIn("blocked for security", error_msg, "Should indicate operation is blocked")
         self.assertIn("AI_GUARDIAN_PATTERN_TOKEN", error_msg, "Should mention token env var")
 
-    @patch('ai_guardian.hook_processing.run_single_engine')
+    @patch('ai_guardian.hook_processing.run_engine')
     @patch('ai_guardian.hook_processing.select_all_engines')
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
@@ -218,7 +218,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_select_engine.return_value = mock_engine
         mock_select_all.return_value = [mock_engine]
 
-        # Mock run_single_engine to return network error
+        # Mock run_engine to return network error
         mock_run_single.return_value = ScanResult(
             has_secrets=False, secrets=[], engine="gitleaks",
             error="Unexpected exit code 2: Error: connection timeout - unable to reach pattern server"

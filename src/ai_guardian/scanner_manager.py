@@ -119,7 +119,7 @@ class ScannerManager:
 
     def list_installed(self) -> List[InstalledScanner]:
         """
-        List all installed scanners.
+        List all installed scanners, including Python-based scanners.
 
         Returns:
             List of InstalledScanner objects
@@ -140,7 +140,56 @@ class ScannerManager:
                     )
                 )
 
+        installed.extend(self._list_python_scanners())
+
         return installed
+
+    def _list_python_scanners(self) -> List[InstalledScanner]:
+        """List Python-based scanners from config.
+
+        Loads scanner classes without instantiating them to avoid
+        triggering side effects in scanner __init__ methods.
+        """
+        python_scanners = []
+        secret_config = self.config.get("secret_scanning", {})
+        engines = secret_config.get("engines", [])
+
+        for engine_spec in engines:
+            if not isinstance(engine_spec, dict):
+                continue
+            if engine_spec.get("type") != "python":
+                continue
+            try:
+                from ai_guardian.scanners.python_loader import (
+                    load_from_module, load_from_file,
+                )
+                module_path = engine_spec.get("module")
+                file_path = engine_spec.get("path")
+                class_name = engine_spec.get("class")
+                if not class_name:
+                    continue
+
+                if module_path:
+                    cls = load_from_module(module_path, class_name)
+                    source = module_path
+                elif file_path:
+                    cls = load_from_file(file_path, class_name)
+                    source = file_path
+                else:
+                    continue
+
+                python_scanners.append(
+                    InstalledScanner(
+                        name=getattr(cls, "name", "custom"),
+                        version=getattr(cls, "version", "0.0.0"),
+                        path=f"python:{source}",
+                        is_default=False,
+                    )
+                )
+            except Exception as e:
+                logger.debug(f"Could not load Python scanner: {e}")
+
+        return python_scanners
 
     def print_scanner_list(self, verbose: bool = False):
         """

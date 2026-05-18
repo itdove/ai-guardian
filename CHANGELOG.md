@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Custom Scanner SDK — Python-based scanners** (Issue #474)
+  - `Scanner` base class and `Finding` dataclass in `ai_guardian.scanners.sdk`
+  - Write custom scanners as Python classes that run in-process (~1ms vs ~50ms subprocess)
+  - Registration via config: module path + class name, or file path + class name
+  - Registration via pip entry points (`ai_guardian.scanners` group)
+  - Auto-discovery from `~/.config/ai-guardian/scanners/` directory
+  - Python scanners work alongside subprocess engines in all execution strategies
+  - `configure()` method for scanner-specific config from ai-guardian.json
+  - Security: module path validation, Scanner subclass verification, startup logging
+  - `run_engine()` dispatcher routes between subprocess and in-process scanners
+
 - **Daemon auto-reload for project-level config** (Issue #617)
   - Daemon client sends its CWD to the daemon server on each hook request
   - Thread-local project directory override enables correct project config discovery in daemon context

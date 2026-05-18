@@ -34,13 +34,21 @@ from ai_guardian.scanners.strategies import (
     EXECUTION_STRATEGIES,
     get_strategy
 )
-from ai_guardian.scanners.executor import run_single_engine
+from ai_guardian.scanners.executor import run_single_engine, run_python_scanner, run_engine
 from ai_guardian.scanners.cache import ScanResultCache, FileStateTracker
 from ai_guardian.scanners.audit import ScanAuditLogger
 from ai_guardian.scanners.compliance import ComplianceReporter
 from ai_guardian.scanners.remote_config import (
     fetch_remote_engine_config,
     merge_engine_configs,
+)
+from ai_guardian.scanners.sdk import Scanner, Finding
+from ai_guardian.scanners.python_loader import (
+    load_python_scanner,
+    load_from_module,
+    load_from_file,
+    discover_entry_points,
+    discover_scanner_directory,
 )
 
 __all__ = [
@@ -66,10 +74,19 @@ __all__ = [
     'EXECUTION_STRATEGIES',
     'get_strategy',
     'run_single_engine',
+    'run_python_scanner',
+    'run_engine',
     'ScanResultCache',
     'FileStateTracker',
     'ScanAuditLogger',
     'ComplianceReporter',
     'fetch_remote_engine_config',
     'merge_engine_configs',
+    'Scanner',
+    'Finding',
+    'load_python_scanner',
+    'load_from_module',
+    'load_from_file',
+    'discover_entry_points',
+    'discover_scanner_directory',
 ]
