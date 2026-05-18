@@ -58,13 +58,14 @@ When invoked with arguments (e.g., `/release minor`), this skill guides you thro
 
 **Steps**:
 1. Verify prerequisites (clean working directory, tests pass, CHANGELOG updated)
-2. Create release branch (e.g., `release-1.2`)
-3. Determine new version based on release type
-4. Update version in both files (remove `-dev` suffix)
-5. Update CHANGELOG.md (move Unreleased to version section with date)
-6. Commit changes with proper commit message format
-7. Provide instructions for tagging and verification
-8. Provide post-release checklist
+2. Documentation review (mandatory — see checklist below)
+3. Create release branch (e.g., `release-1.2`)
+4. Determine new version based on release type
+5. Update version in both files (remove `-dev` suffix)
+6. Update CHANGELOG.md (move Unreleased to version section with date)
+7. Commit changes with proper commit message format
+8. Provide instructions for tagging and verification
+9. Provide post-release checklist
 
 ### Hotfix Release (`/release hotfix <tag>`)
 
@@ -215,6 +216,38 @@ EOF
 - Wrong branch → Abort, guide to correct branch
 - Missing CHANGELOG updates → Abort, ask user to update CHANGELOG
 
+## Documentation Review (mandatory)
+
+Before creating the release branch, compare docs against changes since the previous release tag:
+
+1. **Review all docs/ files for accuracy**:
+   ```bash
+   find docs/ -name '*.md' -type f | sort
+   ```
+   Read each file and verify its content matches current functionality.
+
+2. **Check for new features not yet documented**:
+   ```bash
+   git log --oneline <previous-tag>..HEAD --grep='feat'
+   ```
+
+3. **Verify README.md**:
+   - Kept concise (~300 lines max) — detailed documentation belongs in `docs/` files, not README
+   - Each feature gets one line plus a link to its `docs/` page
+   - Security Disclaimer present and complete
+   - Quick Start commands work
+   - Feature list matches current capabilities
+   - All links resolve (especially for PyPI)
+
+4. **Verify CONTRIBUTING.md is current**
+
+5. **Verify ai-guardian-example.json matches schema and setup.py defaults**
+
+6. **Verify CHANGELOG.md**:
+   - No back-and-forth entries
+   - No bugs that only existed between releases
+   - Organized by user impact (Added/Changed/Fixed/Security)
+
 ## Git Operations
 
 **Branch Naming**:
@@ -268,12 +301,13 @@ EOF
 # Skill will:
 # 1. Auto-detect version files (first run only)
 # 2. Verify prerequisites
-# 3. Create release-1.2 branch
-# 4. Update version 1.1.0-dev → 1.2.0 in all detected files
-# 5. Update CHANGELOG.md for v1.2.0
-# 6. Commit changes
-# 7. Provide tag creation command: git tag -a v1.2.0 -m "..."
-# 8. Provide post-release instructions
+# 3. Run documentation review checklist
+# 4. Create release-1.2 branch
+# 5. Update version 1.1.0-dev → 1.2.0 in all detected files
+# 6. Update CHANGELOG.md for v1.2.0
+# 7. Commit changes
+# 8. Provide tag creation command: git tag -a v1.2.0 -m "..."
+# 9. Provide post-release instructions
 ```
 
 ### Hotfix Release
@@ -312,12 +346,13 @@ EOF
 1. **Auto-detect version files** (first run only): Scan for common version file patterns
 2. **Parse arguments**: Determine release type (major/minor/patch/hotfix/test)
 3. **Run safety checks**: Verify prerequisites before proceeding
-4. **Calculate new version**: Based on current version and release type
-5. **Update version files**: Edit all detected version files atomically
-6. **Update CHANGELOG**: Move Unreleased to version section with date
-7. **Create commits**: Use proper commit message format
-8. **Provide guidance**: Show commands for tagging and next steps
-9. **Validate**: Ensure versions match between all files
+4. **Documentation review**: Run the mandatory documentation review checklist (regular releases only)
+5. **Calculate new version**: Based on current version and release type
+6. **Update version files**: Edit all detected version files atomically
+7. **Update CHANGELOG**: Move Unreleased to version section with date
+8. **Create commits**: Use proper commit message format
+9. **Provide guidance**: Show commands for tagging and next steps
+10. **Validate**: Ensure versions match between all files
 
 **Error Recovery**:
 - If any step fails, provide clear error message and recovery steps
