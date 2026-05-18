@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Restore full Security Disclaimer + fix broken PyPI README links** (Issue #624)
+  - Restored full Security Disclaimer section with bullet points about limitations and defense-in-depth recommendations
+  - Converted all relative links in README.md to absolute GitHub URLs so they work on PyPI
+
 ### Changed
 
 - **Simplify CONTRIBUTING.md + create Developer Guide** (Issue #628)
