@@ -20,7 +20,7 @@ from ai_guardian.tui.schema_defaults import (
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
 
 
-ALL_PII_TYPES = [
+PHASE1_PII_TYPES = [
     ("ssn", "Social Security Numbers (XXX-XX-XXXX)"),
     ("credit_card", "Credit Card Numbers (Visa, MC, Amex, etc.)"),
     ("phone", "US Phone Numbers"),
@@ -29,6 +29,17 @@ ALL_PII_TYPES = [
     ("iban", "International Bank Account Numbers"),
     ("intl_phone", "International Phone Numbers (+country code)"),
 ]
+
+PHASE2_PII_TYPES = [
+    ("medical_id", "Medical Record Numbers (context-aware)"),
+    ("passport", "International Passport Numbers (context-aware)"),
+    ("canada_sin", "Canadian Social Insurance Numbers (Luhn-validated)"),
+    ("uk_nin", "UK National Insurance Numbers"),
+    ("india_aadhaar", "Indian Aadhaar Numbers"),
+    ("address", "Street Addresses (regex-based, limited)"),
+]
+
+ALL_PII_TYPES = PHASE1_PII_TYPES + PHASE2_PII_TYPES
 
 
 class ScanPIIContent(SchemaDefaultsMixin, Container):
@@ -56,6 +67,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         padding: 1;
         background: $panel;
         border: solid $primary;
+        height: auto;
     }
 
     .section-title {
@@ -77,13 +89,8 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         width: 40;
     }
 
-    .pii-type-row {
-        margin: 0.25 0;
-        height: auto;
-    }
-
-    .pii-type-row Checkbox {
-        margin: 0 1 0 0;
+    .pii-type-check {
+        margin: 0 0 0 1;
     }
 
     .list-scroll {
@@ -174,13 +181,28 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     classes="section-title",
                 )
 
-                for pii_type, description in ALL_PII_TYPES:
-                    with Horizontal(classes="pii-type-row"):
-                        yield Checkbox(
-                            description,
-                            id=f"pii-type-{pii_type}",
-                            value=True,
-                        )
+                for pii_type, description in PHASE1_PII_TYPES:
+                    yield Checkbox(
+                        description,
+                        id=f"pii-type-{pii_type}",
+                        value=True,
+                        classes="pii-type-check",
+                    )
+
+            with Container(classes="section"):
+                yield Static("[bold]Phase 2 PII Types (opt-in)[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Advanced types — not enabled by default. Add to pii_types to enable.[/dim]",
+                    classes="section-title",
+                )
+
+                for pii_type, description in PHASE2_PII_TYPES:
+                    yield Checkbox(
+                        description,
+                        id=f"pii-type-{pii_type}",
+                        value=False,
+                        classes="pii-type-check",
+                    )
 
             with Container(classes="section"):
                 yield Static("[bold]Ignore Files[/bold]", classes="section-title")

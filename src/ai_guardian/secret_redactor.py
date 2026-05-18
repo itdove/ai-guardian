@@ -132,14 +132,20 @@ class SecretRedactor:
         'email': (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', 'pii_email', 'Email Address'),
         'us_passport': (r'\b[A-Z]\d{8}\b', 'full_redact', 'US Passport Number'),
         'iban': (r'\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b', 'iban', 'IBAN'),
-        'intl_phone': (r'\+\d{7,15}\b', 'full_redact', 'International Phone Number'),
+        'intl_phone': (r'\+\d{1,3}(?:[- .]?\d){6,14}(?!\d)', 'full_redact', 'International Phone Number'),
+        'medical_id': (r'(?i)(?:MRN|Patient\s*(?:ID|No\.?|Number|#)|Medical\s*Record(?:\s*(?:No\.?|Number|#))?)\s*[:#]?\s*\d{6,10}', 'full_redact', 'Medical Record Number'),
+        'passport': (r'(?i)(?:passport\s*(?:no\.?|number|#)?)\s*[:#]?\s*[A-Z0-9]{6,12}', 'full_redact', 'Passport Number'),
+        'canada_sin': (r'(?<!\d)\d{3}[- ]\d{3}[- ]\d{3}(?!\d)', 'canada_sin', 'Canadian SIN'),
+        'uk_nin': (r'\b[A-Z]{2}\d{6}[A-D]\b', 'full_redact', 'UK National Insurance Number'),
+        'india_aadhaar': (r'(?<!\d)\d{4}[- ]\d{4}[- ]\d{4}(?![- ]\d)', 'full_redact', 'Indian Aadhaar Number'),
+        'address': (r'\b\d+\s+(?:\w+\s+){0,3}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Road|Rd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir)\.?\b', 'full_redact', 'Street Address'),
     }
 
     @staticmethod
-    def _luhn_check(number_str: str) -> bool:
+    def _luhn_check(number_str: str, min_digits: int = 13, max_digits: int = 19) -> bool:
         """Validate a number string using the Luhn algorithm."""
         digits = [int(d) for d in number_str if d.isdigit()]
-        if len(digits) < 13 or len(digits) > 19:
+        if len(digits) < min_digits or len(digits) > max_digits:
             return False
         checksum = 0
         for i, digit in enumerate(reversed(digits)):
@@ -444,6 +450,8 @@ class SecretRedactor:
             return self._redact_pii_email(match)
         elif strategy == 'iban':
             return self._redact_iban(match)
+        elif strategy == 'canada_sin':
+            return self._redact_canada_sin(match)
         else:
             # Default to preserve_prefix_suffix
             return self._preserve_prefix_suffix(match)
@@ -647,3 +655,14 @@ class SecretRedactor:
         country = iban[:2]
         last_four = iban[-4:]
         return (f"[HIDDEN IBAN {country}****{last_four}]", {'method': 'iban', 'country': country})
+
+    def _redact_canada_sin(self, match: re.Match) -> Tuple[str, Dict]:
+        """
+        Redact Canadian SIN after Luhn validation.
+
+        Returns (None, None) if the number fails Luhn check.
+        """
+        sin = match.group(0)
+        if not self._luhn_check(sin, min_digits=9, max_digits=9):
+            return (None, None)
+        return ('[HIDDEN Canadian SIN]', {'method': 'canada_sin'})
