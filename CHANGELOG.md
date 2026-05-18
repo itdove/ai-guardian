@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Safe fix suggestions in MCP `get_violations()` tool** (Issue #627)
+  - Each violation now includes a `suggestion` field with safe-only remediation guidance
+  - Covers all 8 violation types: secret_detected, pii_detected, directory_blocking, tool_permission, prompt_injection, ssrf_blocked, config_file_exfil, jailbreak_detected
+  - Suggestions never include bypass instructions, allowlist syntax, or config disabling hints
+
+- **AGENTS.md bypass-prevention policy** (Issue #627)
+  - Documents that AI Guardian must never provide bypass information to AI agents
+  - Covers MCP tool responses, skill instructions, error messages, and Console output
+
+- **Block Console in non-interactive AI sessions** (Issue #627)
+  - `ai-guardian console` now checks `sys.stdin.isatty()` and refuses to run in non-interactive environments
+  - Prevents AI agents from accessing full security configuration, patterns, and allowlists via the Console TUI
+
 ### Fixed
 
 - **Restore full Security Disclaimer + fix broken PyPI README links** (Issue #624)
