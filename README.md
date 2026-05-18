@@ -10,7 +10,26 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://badge.fury.io/py/ai-guardian.svg)](https://pypi.org/project/ai-guardian/)
 
-AI Guardian provides comprehensive protection for AI IDE interactions through multiple security layers. **It is not a silver bullet** — use it as one layer in a defense-in-depth strategy. See [Security Design](docs/SECURITY_DESIGN.md) for limitations and architecture.
+AI Guardian provides comprehensive protection for AI IDE interactions through multiple security layers.
+
+## Security Disclaimer
+
+**AI Guardian is not a silver bullet** and cannot guarantee detection of all security threats.
+
+- **Prompt injection detection** may miss novel or obfuscated attacks
+- **Secret scanning** depends on scanner patterns and may miss custom secret formats
+- **Attackers evolve continuously** — new bypass techniques emerge constantly
+- **Fail-open by design** — prioritizes availability over security (errors allow operations)
+
+**Use AI Guardian as ONE layer in a defense-in-depth security strategy, not as your only protection.**
+
+Combine with:
+- Code review processes
+- CI/CD security scanning
+- Network security (firewalls, egress rules)
+- Secret management (Vault, AWS Secrets Manager)
+
+See [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECURITY_DESIGN.md) for limitations and architecture.
 
 ## Quick Start
 
@@ -25,7 +44,7 @@ This single command:
 - Installs IDE hooks (PreToolUse, PostToolUse, UserPromptSubmit)
 - Sets up the MCP security advisor for AI-aware protection
 
-> **MCP servers and Skills are blocked by default.** Built-in tools (Bash, Read, Write, Edit) are allowed and scanned by hooks, but MCP servers and Skills require explicit allow rules. See [Tool Policy](docs/TOOL_POLICY.md#default-security-posture) for why and how to allow them.
+> **MCP servers and Skills are blocked by default.** Built-in tools (Bash, Read, Write, Edit) are allowed and scanned by hooks, but MCP servers and Skills require explicit allow rules. See [Tool Policy](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md#default-security-posture) for why and how to allow them.
 
 ### Security Profiles
 
@@ -46,24 +65,24 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 
 | Feature | Description | Docs |
 |---------|-------------|------|
-| Secret Scanning | Multi-layered detection of API keys, tokens, passwords | [docs/security/SECRET_SCANNING.md](docs/security/SECRET_SCANNING.md) |
-| PII Detection | Detect personally identifiable information | [docs/security/SECRET_SCANNING.md](docs/security/SECRET_SCANNING.md) |
-| Prompt Injection | Heuristic detection with configurable sensitivity | [docs/security/PROMPT_INJECTION.md](docs/security/PROMPT_INJECTION.md) |
-| Unicode Attack Detection | Zero-width chars, bidi override, homoglyphs | [docs/security/UNICODE_ATTACKS.md](docs/security/UNICODE_ATTACKS.md) |
-| SSRF Protection | Block private IPs, cloud metadata, dangerous schemes | [docs/security/SSRF_PROTECTION.md](docs/security/SSRF_PROTECTION.md) |
-| Config File Scanning | Detect exfiltration of sensitive config files | [docs/security/CREDENTIAL_EXFILTRATION.md](docs/security/CREDENTIAL_EXFILTRATION.md) |
-| Directory Blocking | `.ai-read-deny` markers + config-based rules | [docs/security/DIRECTORY_RULES.md](docs/security/DIRECTORY_RULES.md) |
-| Tool Permissions | Allow/deny lists for Skills, MCP, Bash, Write | [docs/TOOL_POLICY.md](docs/TOOL_POLICY.md) |
-| Violation Logging | JSON audit trail of all blocked operations | [docs/VIOLATION_LOGGING.md](docs/VIOLATION_LOGGING.md) |
-| Sanitize Command | Clean sensitive data from files | [docs/security/SECRET_REDACTION.md](docs/security/SECRET_REDACTION.md) |
-| Interactive Console | TUI for managing configuration visually | [docs/CONSOLE.md](docs/CONSOLE.md) |
-| Scanner Management | Install and manage 7 scanner engines | [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) |
-| Pre-commit Hook | Scan staged files for secrets before commit | [docs/PRE_COMMIT.md](docs/PRE_COMMIT.md) |
-| Inline Annotations | Suppress false positives with `ai-guardian:allow` and block annotations | [docs/ANNOTATIONS.md](docs/ANNOTATIONS.md) |
-| Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) |
-| MCP Security Advisor | Read-only security tools for AI agents (proactive checks) | [docs/MCP_SERVER.md](docs/MCP_SERVER.md) |
-| MCP Security Scanning | Audit MCP server configs and source code for supply chain risks | [docs/MCP_SERVER.md](docs/MCP_SERVER.md#mcp-security-scanning) |
-| Project Config Overlay | Per-repo config with immutable fields and global-only section protection | [docs/CONFIGURATION.md](docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180) |
+| Secret Scanning | Multi-layered detection of API keys, tokens, passwords | [docs/security/SECRET_SCANNING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/SECRET_SCANNING.md) |
+| PII Detection | Detect personally identifiable information | [docs/security/SECRET_SCANNING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/SECRET_SCANNING.md) |
+| Prompt Injection | Heuristic detection with configurable sensitivity | [docs/security/PROMPT_INJECTION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/PROMPT_INJECTION.md) |
+| Unicode Attack Detection | Zero-width chars, bidi override, homoglyphs | [docs/security/UNICODE_ATTACKS.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/UNICODE_ATTACKS.md) |
+| SSRF Protection | Block private IPs, cloud metadata, dangerous schemes | [docs/security/SSRF_PROTECTION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/SSRF_PROTECTION.md) |
+| Config File Scanning | Detect exfiltration of sensitive config files | [docs/security/CREDENTIAL_EXFILTRATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CREDENTIAL_EXFILTRATION.md) |
+| Directory Blocking | `.ai-read-deny` markers + config-based rules | [docs/security/DIRECTORY_RULES.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/DIRECTORY_RULES.md) |
+| Tool Permissions | Allow/deny lists for Skills, MCP, Bash, Write | [docs/TOOL_POLICY.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md) |
+| Violation Logging | JSON audit trail of all blocked operations | [docs/VIOLATION_LOGGING.md](https://github.com/itdove/ai-guardian/blob/main/docs/VIOLATION_LOGGING.md) |
+| Sanitize Command | Clean sensitive data from files | [docs/security/SECRET_REDACTION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/SECRET_REDACTION.md) |
+| Interactive Console | TUI for managing configuration visually | [docs/CONSOLE.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONSOLE.md) |
+| Scanner Management | Install and manage 7 scanner engines | [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) |
+| Pre-commit Hook | Scan staged files for secrets before commit | [docs/PRE_COMMIT.md](https://github.com/itdove/ai-guardian/blob/main/docs/PRE_COMMIT.md) |
+| Inline Annotations | Suppress false positives with `ai-guardian:allow` and block annotations | [docs/ANNOTATIONS.md](https://github.com/itdove/ai-guardian/blob/main/docs/ANNOTATIONS.md) |
+| Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](https://github.com/itdove/ai-guardian/blob/main/docs/SECURITY_DESIGN.md) |
+| MCP Security Advisor | Read-only security tools for AI agents (proactive checks) | [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) |
+| MCP Security Scanning | Audit MCP server configs and source code for supply chain risks | [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md#mcp-security-scanning) |
+| Project Config Overlay | Per-repo config with immutable fields and global-only section protection | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180) |
 
 ## Default Behavior (No Configuration File)
 
@@ -95,14 +114,14 @@ ai-guardian setup --create-config --profile @strict         # Enterprise SOC2/co
 ai-guardian setup --list-profiles                           # List available profiles
 ```
 
-- **Example config**: [ai-guardian-example.json](ai-guardian-example.json)
-- **JSON Schema**: [ai-guardian-config.schema.json](src/ai_guardian/schemas/ai-guardian-config.schema.json) (IDE autocomplete + runtime validation)
-- **Full reference**: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+- **Example config**: [ai-guardian-example.json](https://github.com/itdove/ai-guardian/blob/main/ai-guardian-example.json)
+- **JSON Schema**: [ai-guardian-config.schema.json](https://github.com/itdove/ai-guardian/blob/main/src/ai_guardian/schemas/ai-guardian-config.schema.json) (IDE autocomplete + runtime validation)
+- **Full reference**: [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md)
 
 ### Configuration Locations (Precedence Order)
 
 1. **User config**: `~/.config/ai-guardian/ai-guardian.json` (base)
-2. **Project config**: `.ai-guardian/ai-guardian.json` (merged on top of user config, see [docs](docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180))
+2. **Project config**: `.ai-guardian/ai-guardian.json` (merged on top of user config, see [docs](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180))
 3. **Remote configs** (highest, permissions only): Fetched from URLs in `remote_configs`
 4. **Defaults**: Built-in defaults when no config exists
 
@@ -118,7 +137,7 @@ ai-guardian setup --ide claude --mcp # Enable MCP security advisor (opt-in)
 ai-guardian setup --remote-config-url https://example.com/policy.json
 ```
 
-Run `ai-guardian setup` after upgrading to get the latest hooks. Use `--mcp` to enable the MCP security advisor server — the AI can then check security proactively before acting. See [docs/MCP_SERVER.md](docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for other setup options.
+Run `ai-guardian setup` after upgrading to get the latest hooks. Use `--mcp` to enable the MCP security advisor server — the AI can then check security proactively before acting. See [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) for other setup options.
 
 ## Action Modes
 
@@ -130,7 +149,7 @@ Each security policy supports three enforcement levels:
 | `warn` | Allowed | Warning shown | **Educate** during rollout |
 | `log-only` | Allowed | Silent | **Monitor** silently |
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for per-feature action mode configuration.
+See [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) for per-feature action mode configuration.
 
 ## Integration
 
@@ -142,10 +161,10 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for per-feature action mode c
 | GitHub Copilot | Yes | Yes | Planned | Full support |
 | Aider | No | Yes (commit-time) | No | Git hook |
 
-- [GitHub Copilot Setup](docs/GITHUB_COPILOT.md)
-- [Aider Setup](docs/AIDER.md)
-- [Multi-Engine Support](docs/MULTI_ENGINE_SUPPORT.md)
-- [Hook Ordering](docs/HOOKS.md)
+- [GitHub Copilot Setup](https://github.com/itdove/ai-guardian/blob/main/docs/GITHUB_COPILOT.md)
+- [Aider Setup](https://github.com/itdove/ai-guardian/blob/main/docs/AIDER.md)
+- [Multi-Engine Support](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_ENGINE_SUPPORT.md)
+- [Hook Ordering](https://github.com/itdove/ai-guardian/blob/main/docs/HOOKS.md)
 
 ## How It Works
 
@@ -167,7 +186,7 @@ User prompt / Tool use
   ALLOW --> Send to AI / Execute tool
 ```
 
-The MCP advisor lets the AI check *before* acting (advisory). Hooks enforce *during* execution (mandatory). PostToolUse hooks scan tool outputs using the same pipeline. See [docs/MCP_SERVER.md](docs/MCP_SERVER.md) for the MCP server and [docs/SECURITY_DESIGN.md](docs/SECURITY_DESIGN.md) for full architecture.
+The MCP advisor lets the AI check *before* acting (advisory). Hooks enforce *during* execution (mandatory). PostToolUse hooks scan tool outputs using the same pipeline. See [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) for the MCP server and [docs/SECURITY_DESIGN.md](https://github.com/itdove/ai-guardian/blob/main/docs/SECURITY_DESIGN.md) for full architecture.
 
 ## Environment Variables
 
@@ -179,15 +198,15 @@ The MCP advisor lets the AI check *before* acting (advisory). Hooks enforce *dur
 | `AI_GUARDIAN_IDE_TYPE` | Override IDE auto-detection | Auto-detect |
 | `AI_GUARDIAN_PATTERN_TOKEN` | Default pattern server auth token (all sections) | None |
 
-Each detection feature (`secret_scanning`, `secret_redaction`, `ssrf_protection`, `config_file_scanning`) can use its own pattern server with independent auth via `token_env` or `token_file`. See [docs/PATTERN_SERVER.md](docs/PATTERN_SERVER.md#per-section-auth-for-multiple-servers).
+Each detection feature (`secret_scanning`, `secret_redaction`, `ssrf_protection`, `config_file_scanning`) can use its own pattern server with independent auth via `token_env` or `token_file`. See [docs/PATTERN_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/PATTERN_SERVER.md#per-section-auth-for-multiple-servers).
 
 ## Requirements
 
 - **Python 3.9+**
 - **Scanner engine**: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, or gitguardian
-- **GNOME Linux**: AppIndicator extension for system tray icon ([setup steps](docs/CONSOLE.md#getting-started))
+- **GNOME Linux**: AppIndicator extension for system tray icon ([setup steps](https://github.com/itdove/ai-guardian/blob/main/docs/CONSOLE.md#getting-started))
 
-See [docs/SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) for installation instructions.
+See [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) for installation instructions.
 
 ## Installation
 
@@ -218,7 +237,7 @@ uv run --extra dev python -m pytest             # Run all tests
 uv run --extra dev python -m pytest --cov=ai_guardian --cov-report=term  # With coverage
 ```
 
-See [AGENTS.md](AGENTS.md) for testing guidelines and CI/CD details.
+See [AGENTS.md](https://github.com/itdove/ai-guardian/blob/main/AGENTS.md) for testing guidelines and CI/CD details.
 
 ## Contributing
 
@@ -232,19 +251,19 @@ git checkout -b feature-name
 gh pr create --web
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for complete guidelines.
+See [CONTRIBUTING.md](https://github.com/itdove/ai-guardian/blob/main/CONTRIBUTING.md) for complete guidelines.
 
 ## Documentation
 
-Full documentation is available in the [docs/](docs/) folder:
+Full documentation is available in the [docs/](https://github.com/itdove/ai-guardian/blob/main/docs/) folder:
 
-- [Configuration Guide](docs/CONFIGURATION.md)
-- [Security Documentation](docs/security/)
-- [Console Guide](docs/CONSOLE.md)
-- [Tool Policy](docs/TOOL_POLICY.md)
-- [Scanner Installation](docs/SCANNER_INSTALLATION.md)
-- [Security Design](docs/SECURITY_DESIGN.md)
-- [All Documentation](docs/README.md)
+- [Configuration Guide](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md)
+- [Security Documentation](https://github.com/itdove/ai-guardian/blob/main/docs/security/)
+- [Console Guide](https://github.com/itdove/ai-guardian/blob/main/docs/CONSOLE.md)
+- [Tool Policy](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md)
+- [Scanner Installation](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md)
+- [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECURITY_DESIGN.md)
+- [All Documentation](https://github.com/itdove/ai-guardian/blob/main/docs/README.md)
 
 ## FAQ
 
@@ -252,11 +271,11 @@ Full documentation is available in the [docs/](docs/) folder:
 Publishing attack patterns makes them easier to misuse and would cause ai-guardian to block its own documentation. Use `test:` prefixed strings for testing. See OWASP LLM Top 10 for research.
 
 **Q: What's `permissions` vs `permissions_directories` vs `directory_rules`?**
-`permissions` = which **tools** can run. `permissions_directories` = auto-discover tool permissions from repos. `directory_rules` = which **paths** can be accessed. See [docs/TOOL_POLICY.md](docs/TOOL_POLICY.md) and [docs/security/DIRECTORY_RULES.md](docs/security/DIRECTORY_RULES.md).
+`permissions` = which **tools** can run. `permissions_directories` = auto-discover tool permissions from repos. `directory_rules` = which **paths** can be accessed. See [docs/TOOL_POLICY.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md) and [docs/security/DIRECTORY_RULES.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/DIRECTORY_RULES.md).
 
 ## License
 
-Apache 2.0 - see [LICENSE](LICENSE) file for details.
+Apache 2.0 - see [LICENSE](https://github.com/itdove/ai-guardian/blob/main/LICENSE) file for details.
 
 ## Acknowledgments
 
