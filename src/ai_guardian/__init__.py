@@ -150,16 +150,11 @@ from ai_guardian.hook_processing import (  # noqa: F401
     _log_directory_blocking_violation,
     _log_secret_detection_violation,
     _log_prompt_injection_violation,
-    _handle_violations_command,
     _count_gitleaks_patterns,
     _describe_patterns,
     check_secrets_with_gitleaks,
     process_hook_data,
     process_hook_input,
-    _get_daemon_mode,
-    _get_client_timeout,
-    _set_daemon_mode_in_config,
-    _handle_daemon_command,
     # HAS_* flags and conditionally-imported names
     HAS_GITLEAKS_CONFIG,
     HAS_TOOL_POLICY,
@@ -169,6 +164,15 @@ from ai_guardian.hook_processing import (  # noqa: F401
     HAS_VIOLATION_LOGGER,
     HAS_SCANNER_ENGINE,
     HAS_ANNOTATIONS,
+)
+
+# --- cli_handlers.py ---
+from ai_guardian.cli_handlers import (  # noqa: F401
+    _handle_violations_command,
+    _get_daemon_mode,
+    _get_client_timeout,
+    _set_daemon_mode_in_config,
+    _handle_daemon_command,
 )
 
 # --- cli.py ---

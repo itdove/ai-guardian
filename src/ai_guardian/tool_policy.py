@@ -37,6 +37,7 @@ from ai_guardian.config_utils import (
     is_expired,
     is_feature_enabled,
 )
+from ai_guardian.config_loaders import _load_json_config
 
 # Import violation logger
 try:
@@ -1803,24 +1804,16 @@ class ToolPolicyChecker:
         }
 
     def _load_local_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
-        """Load project local configuration from ai-guardian.json."""
-        # Try to get project path from environment (Cursor might set this)
-        project_path = os.environ.get("CURSOR_PROJECT_PATH") or os.environ.get("VSCODE_CWD")
+        """Load project local configuration from ai-guardian.json.
 
-        if project_path:
-            logger.debug(f"Using project path from environment: {project_path}")
-            new_path = Path(project_path) / ".ai-guardian" / "ai-guardian.json"
-            if new_path.exists():
-                config_path = new_path
-            else:
-                config_path = Path(project_path) / "ai-guardian.json"
-        else:
-            discovered = get_project_config_path()
-            if discovered:
-                config_path = discovered
-            else:
-                config_path = Path.cwd() / "ai-guardian.json"
-            logger.debug(f"Project config path: {config_path}")
+        Delegates path discovery to get_project_config_path(), which handles
+        AI_GUARDIAN_PROJECT_CONFIG env var, IDE env vars (CURSOR_PROJECT_PATH,
+        VSCODE_CWD), git root, and CWD fallback.
+        """
+        config_path = get_project_config_path()
+        if not config_path:
+            config_path = Path.cwd() / "ai-guardian.json"
+        logger.debug(f"Project config path: {config_path}")
 
         config = self._load_json_file(config_path, "project local")
         return config, config_path if config else None
@@ -1903,6 +1896,9 @@ class ToolPolicyChecker:
         """
         Load and parse a JSON configuration file.
 
+        Delegates JSON parsing to shared _load_json_config(), then adds
+        schema validation on top.
+
         Args:
             path: Path to JSON file
             source_name: Human-readable source name for logging
@@ -1910,31 +1906,120 @@ class ToolPolicyChecker:
         Returns:
             dict or None: Parsed JSON config or None if error/not found
         """
-        try:
-            if not path.exists():
-                logger.debug(f"No {source_name} config found at {path}")
-                return None
-
-            logger.info(f"Loading {source_name} config from {path}")
-            with open(path, 'r') as f:
-                config = json.load(f)
-
-            logger.debug(f"Loaded {source_name} config: {config}")
-
-            # Validate against JSON Schema
-            if not self._validate_config(config, source_name, path):
-                # Validation failed - return None to block operation
-                logger.error(f"Schema validation failed for {source_name} config")
-                return None
-
-            return config
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"Invalid JSON in {source_name} config at {path}: {e}")
+        if not path.exists():
+            logger.debug(f"No {source_name} config found at {path}")
             return None
-        except Exception as e:
-            logger.warning(f"Error loading {source_name} config from {path}: {e}")
+
+        logger.info(f"Loading {source_name} config from {path}")
+
+        config, error_msg = _load_json_config(path)
+        if error_msg:
+            logger.warning(f"Error loading {source_name} config from {path}: {error_msg}")
             return None
+
+        logger.debug(f"Loaded {source_name} config: {config}")
+
+        # Validate against JSON Schema
+        if not self._validate_config(config, source_name, path):
+            # Validation failed - return None to block operation
+            logger.error(f"Schema validation failed for {source_name} config")
+            return None
+
+        return config
+
+    def _merge_permissions(
+        self,
+        base_value,
+        override_value,
+        immutable_matchers: Set[str],
+        immutable_sections: Set[str],
+    ):
+        """
+        Merge the "permissions" key from override into base, filtering
+        immutable matchers and handling both new (dict) and legacy (list)
+        formats.
+
+        Args:
+            base_value: Current value of result["permissions"] (may be dict, list, or missing)
+            override_value: The override["permissions"] value
+            immutable_matchers: Set of matchers that cannot be overridden
+            immutable_sections: Set of sections that cannot be overridden
+
+        Returns:
+            Merged permissions value
+        """
+        if isinstance(override_value, dict):
+            # New unified format: permissions is an object with enabled, immutable, rules
+            base_permissions = base_value if isinstance(base_value, dict) else {
+                "enabled": True, "immutable": False, "rules": []
+            }
+
+            merged_permissions = base_permissions.copy()
+
+            # Merge enabled field (if not immutable at section level)
+            if "enabled" in override_value and "permissions" not in immutable_sections:
+                merged_permissions["enabled"] = override_value["enabled"]
+
+            # Merge immutable field (always take from override)
+            if "immutable" in override_value:
+                merged_permissions["immutable"] = override_value["immutable"]
+
+            # Merge auto_directory_rules field (NEW in v1.8.0, Issue #144)
+            if "auto_directory_rules" in override_value:
+                merged_permissions["auto_directory_rules"] = override_value["auto_directory_rules"]
+
+            # Merge rules array with matcher-level immutability filtering
+            if "rules" in override_value:
+                override_rules = override_value["rules"]
+                if isinstance(override_rules, list):
+                    # Filter out rules for immutable matchers
+                    filtered_rules = []
+                    for rule in override_rules:
+                        matcher = rule.get("matcher")
+                        if matcher in immutable_matchers:
+                            logger.info(f"Skipping override for immutable matcher: {matcher}")
+                        else:
+                            filtered_rules.append(rule)
+
+                    # Concatenate with existing rules
+                    existing_rules = merged_permissions.get("rules", [])
+                    if isinstance(existing_rules, list):
+                        merged_permissions["rules"] = existing_rules + filtered_rules
+                    else:
+                        merged_permissions["rules"] = filtered_rules
+
+            return merged_permissions
+
+        elif isinstance(override_value, list):
+            # Legacy format: permissions is array of rules directly (pre-v1.4.0)
+            logger.debug("Legacy permissions array format in override - converting to new structure")
+            # Filter out rules for immutable matchers
+            filtered_rules = []
+            for rule in override_value:
+                matcher = rule.get("matcher")
+                if matcher in immutable_matchers:
+                    logger.info(f"Skipping override for immutable matcher: {matcher}")
+                else:
+                    filtered_rules.append(rule)
+
+            # If base is new format (dict), merge into rules
+            if isinstance(base_value, dict):
+                base_permissions = base_value
+                existing_rules = base_permissions.get("rules", [])
+                if isinstance(existing_rules, list):
+                    base_permissions["rules"] = existing_rules + filtered_rules
+                else:
+                    base_permissions["rules"] = filtered_rules
+                return base_permissions
+            # If base is also legacy format (list), just concatenate
+            elif isinstance(base_value, list):
+                return base_value + filtered_rules
+            else:
+                # Base is missing or invalid - create new structure
+                return {"enabled": True, "immutable": False, "rules": filtered_rules}
+
+        else:
+            return override_value
 
     def _merge_configs(
         self,
@@ -1946,7 +2031,7 @@ class ToolPolicyChecker:
         """
         Merge two configuration dictionaries with immutability enforcement.
 
-        For permissions array: concatenate (filtering immutable matchers)
+        For permissions: delegates to _merge_permissions() for format handling
         For other lists: concatenate
         For dicts: recursively merge
         For immutable sections: skip override entirely
@@ -1974,78 +2059,9 @@ class ToolPolicyChecker:
                 continue
 
             if key == "permissions":
-                # Special handling for permissions object with immutability filtering
-                if isinstance(value, dict):
-                    # New unified format: permissions is an object with enabled, immutable, rules
-                    base_permissions = result.get(key, {})
-                    if not isinstance(base_permissions, dict):
-                        base_permissions = {"enabled": True, "immutable": False, "rules": []}
-
-                    # Merge the object
-                    merged_permissions = base_permissions.copy()
-
-                    # Merge enabled field (if not immutable at section level)
-                    if "enabled" in value and key not in immutable_sections:
-                        merged_permissions["enabled"] = value["enabled"]
-
-                    # Merge immutable field (always take from override)
-                    if "immutable" in value:
-                        merged_permissions["immutable"] = value["immutable"]
-
-                    # Merge auto_directory_rules field (NEW in v1.8.0, Issue #144)
-                    if "auto_directory_rules" in value:
-                        merged_permissions["auto_directory_rules"] = value["auto_directory_rules"]
-
-                    # Merge rules array with matcher-level immutability filtering
-                    if "rules" in value:
-                        override_rules = value["rules"]
-                        if isinstance(override_rules, list):
-                            # Filter out rules for immutable matchers
-                            filtered_rules = []
-                            for rule in override_rules:
-                                matcher = rule.get("matcher")
-                                if matcher in immutable_matchers:
-                                    logger.info(f"Skipping override for immutable matcher: {matcher}")
-                                else:
-                                    filtered_rules.append(rule)
-
-                            # Concatenate with existing rules
-                            existing_rules = merged_permissions.get("rules", [])
-                            if isinstance(existing_rules, list):
-                                merged_permissions["rules"] = existing_rules + filtered_rules
-                            else:
-                                merged_permissions["rules"] = filtered_rules
-
-                    result[key] = merged_permissions
-                elif isinstance(value, list):
-                    # Legacy format: permissions is array of rules directly (pre-v1.4.0)
-                    logger.debug("Legacy permissions array format in override - converting to new structure")
-                    # Filter out rules for immutable matchers
-                    filtered_rules = []
-                    for rule in value:
-                        matcher = rule.get("matcher")
-                        if matcher in immutable_matchers:
-                            logger.info(f"Skipping override for immutable matcher: {matcher}")
-                        else:
-                            filtered_rules.append(rule)
-
-                    # If base is new format (dict), merge into rules
-                    if isinstance(result.get(key), dict):
-                        base_permissions = result[key]
-                        existing_rules = base_permissions.get("rules", [])
-                        if isinstance(existing_rules, list):
-                            base_permissions["rules"] = existing_rules + filtered_rules
-                        else:
-                            base_permissions["rules"] = filtered_rules
-                        result[key] = base_permissions
-                    # If base is also legacy format (list), just concatenate
-                    elif isinstance(result.get(key), list):
-                        result[key] = result[key] + filtered_rules
-                    else:
-                        # Base is missing or invalid - create new structure
-                        result[key] = {"enabled": True, "immutable": False, "rules": filtered_rules}
-                else:
-                    result[key] = value
+                result[key] = self._merge_permissions(
+                    result.get(key), value, immutable_matchers, immutable_sections
+                )
             elif key in result:
                 # If both are lists, concatenate
                 if isinstance(result[key], list) and isinstance(value, list):

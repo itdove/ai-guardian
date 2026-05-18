@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from ai_guardian import __version__
+from ai_guardian.constants import ViolationType
 from ai_guardian.config_utils import get_config_dir
 
 from ai_guardian.config_loaders import (
@@ -27,14 +28,14 @@ from ai_guardian.hook_processing import (
     process_hook_input,
     check_secrets_with_gitleaks,
     _scan_for_pii,
+    HAS_VIOLATION_LOGGER,
+)
+from ai_guardian.cli_handlers import (
     _handle_violations_command,
-    _describe_patterns,
-    _count_gitleaks_patterns,
     _get_daemon_mode,
     _get_client_timeout,
     _set_daemon_mode_in_config,
     _handle_daemon_command,
-    HAS_VIOLATION_LOGGER,
 )
 
 logger = logging.getLogger(__name__)
@@ -167,7 +168,7 @@ def main():
         )
         violations_parser.add_argument(
             "--type",
-            choices=["tool_permission", "directory_blocking", "secret_detected", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected"],
+            choices=list(ViolationType),
             help="Filter by violation type"
         )
         violations_parser.add_argument(
@@ -214,12 +215,7 @@ def main():
         )
         metrics_parser.add_argument(
             "--type",
-            choices=[
-                "tool_permission", "directory_blocking", "secret_detected",
-                "secret_redaction", "prompt_injection", "jailbreak_detected",
-                "ssrf_blocked", "config_file_exfil", "pii_detected",
-                "secret_in_transcript", "pii_in_transcript",
-            ],
+            choices=list(ViolationType),
             help="Filter by violation type"
         )
 

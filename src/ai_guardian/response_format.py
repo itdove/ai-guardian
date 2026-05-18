@@ -11,6 +11,8 @@ import os
 import sys
 from enum import Enum
 
+from ai_guardian.constants import HookEvent
+
 logger = logging.getLogger(__name__)
 
 
@@ -80,7 +82,7 @@ def detect_ide_type(hook_data):
     return IDEType.CLAUDE_CODE
 
 
-def format_response(ide_type, has_secrets, error_message=None, hook_event="prompt", warning_message=None, modified_output=None, violation_type=None, security_message=None):
+def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEvent.PROMPT, warning_message=None, modified_output=None, violation_type=None, security_message=None):
     """
     Format the response based on IDE type and hook event.
 
@@ -106,7 +108,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         return result
 
     if ide_type == IDEType.GITHUB_COPILOT:
-        if hook_event == "pretooluse":
+        if hook_event == HookEvent.PRE_TOOL_USE:
             response = {}
             if has_secrets:
                 response["permissionDecision"] = "deny"
@@ -136,13 +138,13 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         if has_secrets and error_message and warning_message:
             final_error = f"{warning_message}\n\n{error_message}"
 
-        if hook_event == "pretooluse":
+        if hook_event == HookEvent.PRE_TOOL_USE:
             response = {
                 "decision": "deny" if has_secrets else "allow",
             }
             if has_secrets and final_error:
                 response["reason"] = final_error
-        elif hook_event == "beforereadfile":
+        elif hook_event == HookEvent.BEFORE_READ_FILE:
             response = {
                 "permission": "deny" if has_secrets else "allow",
             }
@@ -161,7 +163,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
         })
     else:
         # Claude Code
-        if hook_event == "posttooluse":
+        if hook_event == HookEvent.POST_TOOL_USE:
             if has_secrets:
                 final_error = error_message or "Secrets detected in tool output"
                 if warning_message:
@@ -188,7 +190,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event="promp
                 "output": json.dumps(response),
                 "exit_code": 0
             })
-        elif hook_event == "prompt":
+        elif hook_event == HookEvent.PROMPT:
             if has_secrets and error_message:
                 final_error = error_message
                 if warning_message:
@@ -248,34 +250,34 @@ def detect_hook_event(hook_data):
         hook_data: Parsed JSON input from the IDE
 
     Returns:
-        str: "prompt", "pretooluse", "posttooluse", or "beforereadfile"
+        HookEvent: HookEvent.PROMPT, HookEvent.PRE_TOOL_USE, HookEvent.POST_TOOL_USE, or HookEvent.BEFORE_READ_FILE
     """
     event_name = hook_data.get("hook_event_name", "").lower()
     if event_name in ["userpromptsubmit", "beforesubmitprompt"]:
-        return "prompt"
+        return HookEvent.PROMPT
     elif event_name in ["pretooluse"]:
-        return "pretooluse"
+        return HookEvent.PRE_TOOL_USE
     elif event_name in ["posttooluse"]:
-        return "posttooluse"
+        return HookEvent.POST_TOOL_USE
     elif event_name in ["beforereadfile"]:
-        return "beforereadfile"
+        return HookEvent.BEFORE_READ_FILE
 
     hook_name = hook_data.get("hook_name", "").lower()
     if hook_name in ["beforesubmitprompt"]:
-        return "prompt"
+        return HookEvent.PROMPT
     elif hook_name in ["pretooluse"]:
-        return "pretooluse"
+        return HookEvent.PRE_TOOL_USE
 
     if "toolName" in hook_data:
-        return "pretooluse"
+        return HookEvent.PRE_TOOL_USE
 
     if "tool_response" in hook_data:
-        return "posttooluse"
+        return HookEvent.POST_TOOL_USE
 
     if "tool_use" in hook_data or "tool" in hook_data or "tool_name" in hook_data:
-        return "pretooluse"
+        return HookEvent.PRE_TOOL_USE
 
     if "prompt" in hook_data or "message" in hook_data or "userMessage" in hook_data:
-        return "prompt"
+        return HookEvent.PROMPT
 
-    return "prompt"
+    return HookEvent.PROMPT
