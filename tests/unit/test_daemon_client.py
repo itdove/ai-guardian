@@ -204,46 +204,46 @@ class TestClientTimeout:
     def test_default_when_no_config(self):
         from ai_guardian import _get_client_timeout
 
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=(None, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(None, None)):
             assert _get_client_timeout() == 2.0
 
     def test_reads_from_config(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": 5.0}}
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=(config, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
             assert _get_client_timeout() == 5.0
 
     def test_clamped_low(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": 0.1}}
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=(config, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
             assert _get_client_timeout() == 0.5
 
     def test_clamped_high(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": 99.0}}
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=(config, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
             assert _get_client_timeout() == 10.0
 
     def test_invalid_type_returns_default(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": "not a number"}}
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=(config, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
             assert _get_client_timeout() == 2.0
 
     def test_missing_daemon_section(self):
         from ai_guardian import _get_client_timeout
 
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=({}, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=({}, None)):
             assert _get_client_timeout() == 2.0
 
     def test_hook_forwarding_passes_config_timeout(self):
         config = {"daemon": {"client_timeout_seconds": 3.5, "mode": "auto"}}
-        with mock.patch("ai_guardian.hook_processing._load_config_file", return_value=(config, None)):
+        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
             with mock.patch(
                 "ai_guardian.daemon.client.is_daemon_running", return_value=True
             ):

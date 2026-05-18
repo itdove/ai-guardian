@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from ai_guardian.config_utils import get_config_dir, get_state_dir, is_feature_enabled
+from ai_guardian.constants import ActionMode, ViolationType, HookEvent
 from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
 from ai_guardian.config_loaders import (
@@ -211,12 +212,12 @@ def _check_directory_rules(file_path, config):
         # Handle both formats
         if isinstance(directory_rules_config, dict):
             # New format: {"action": "block", "rules": [...]}
-            global_action = directory_rules_config.get("action", "block")
+            global_action = directory_rules_config.get("action", ActionMode.BLOCK)
             directory_rules = directory_rules_config.get("rules", [])
         else:
             # Old format: array of rules
             # Default action is "block" for backward compatibility
-            global_action = "block"
+            global_action = ActionMode.BLOCK
             directory_rules = directory_rules_config
 
         # Backward compatibility: convert directory_exclusions to rules
@@ -424,12 +425,12 @@ def check_directory_denied(file_path, config=None):
             else:
                 # No allow rule to override - block, warn, or log-only
                 # Check action
-                if rule_action == "warn":
+                if rule_action == ActionMode.WARN:
                     logging.warning(f"Policy violation (warn mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
                     warn_msg = f"⚠️  Policy violation (warn mode): Directory '{denied_directory}' denied by marker but allowed for audit"
                     return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
-                elif rule_action == "log-only":
+                elif rule_action == ActionMode.LOG_ONLY:
                     logging.warning(f"Policy violation (log-only mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit (silent)")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
                     return False, None, None, matched_pattern  # ALLOW - logged for audit, NO warning
@@ -448,13 +449,13 @@ def check_directory_denied(file_path, config=None):
                 "config_file": "ai-guardian.json",
                 "warning": f"Directory rules deny access (matched pattern: {matched_pattern})"
             }
-            if rule_action == "warn":
+            if rule_action == ActionMode.WARN:
                 logging.warning(f"Policy violation (warn mode): {file_path} - denied by rules but allowed for audit")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
                                                   reason=rule_reason, suggestion=rule_suggestion)
                 warn_msg = f"⚠️  Policy violation (warn mode): Directory rules deny '{file_path}' but allowed for audit"
                 return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
-            elif rule_action == "log-only":
+            elif rule_action == ActionMode.LOG_ONLY:
                 logging.warning(f"Policy violation (log-only mode): {file_path} - denied by rules but allowed for audit (silent)")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
                                                   reason=rule_reason, suggestion=rule_suggestion)
@@ -1008,7 +1009,7 @@ def scan_transcript_incremental(
             secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
             has_secrets, secret_error = check_secrets_with_gitleaks(
                 combined_text, "transcript",
-                context={"ide_type": "transcript_scan", "hook_event": "prompt"},
+                context={"ide_type": "transcript_scan", "hook_event": HookEvent.PROMPT},
                 allowlist_patterns=secret_allowlist
             )
             if has_secrets and secret_error:
@@ -1029,7 +1030,7 @@ def scan_transcript_incremental(
                     )
                     warnings.append(warning_msg)
                     _log_transcript_violation(
-                        "secret_in_transcript", transcript_path,
+                        ViolationType.SECRET_IN_TRANSCRIPT, transcript_path,
                         details={"reason": secret_error},
                         hook_context=hook_context
                     )
@@ -1073,7 +1074,7 @@ def scan_transcript_incremental(
                     )
                     warnings.append(warning_msg)
                     _log_transcript_violation(
-                        "pii_in_transcript", transcript_path,
+                        ViolationType.PII_IN_TRANSCRIPT, transcript_path,
                         details={"pii_types": pii_types, "pii_count": len(new_redactions)},
                         hook_context=hook_context
                     )
@@ -1111,7 +1112,7 @@ def _log_transcript_violation(
 
         violation_ctx = {
             "ide_type": "unknown",
-            "hook_event": "prompt",
+            "hook_event": HookEvent.PROMPT,
             "project_path": os.getcwd()
         }
         if hctx.get("session_id"):
@@ -1168,7 +1169,7 @@ def _scan_for_pii(text, pii_config):
     except Exception as e:
         logging.warning(f"PII scan error: {e}")
         on_error = _get_on_scan_error_action()
-        if on_error == "block":
+        if on_error == ActionMode.BLOCK:
             logging.error(f"PII scan failed (fail-closed, on_scan_error=block): {e}")
             return True, text, [], f"PII scan failed (blocked by on_scan_error=block): {e}"
         return False, text, [], None
@@ -1403,7 +1404,7 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
             }
 
         violation_logger.log_violation(
-            violation_type="directory_blocking",
+            violation_type=ViolationType.DIRECTORY_BLOCKING,
             blocked={
                 "file_path": file_path,
                 "denied_directory": denied_directory,
@@ -1467,7 +1468,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
 
         violation_logger = ViolationLogger()
         violation_logger.log_violation(
-            violation_type="secret_detected",
+            violation_type=ViolationType.SECRET_DETECTED,
             blocked=blocked_info,
             context=violation_ctx,
             suggestion={
@@ -1504,7 +1505,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         ctx = context or {}
         hctx = hook_context or {}
         violation_logger = ViolationLogger()
-        vtype = "jailbreak_detected" if attack_type == "jailbreak" else "prompt_injection"
+        vtype = ViolationType.JAILBREAK_DETECTED if attack_type == "jailbreak" else ViolationType.PROMPT_INJECTION
         reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
         full_path = ctx.get("file_path")
         if not full_path and filename != "user_prompt":
@@ -1542,132 +1543,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         logger.debug(f"Failed to log prompt injection violation: {e}")
 
 
-def _handle_violations_command(args):
-    """
-    Handle the violations subcommand.
-
-    Args:
-        args: Parsed command-line arguments
-
-    Returns:
-        int: Exit code (0 for success, 1 for error)
-    """
-    from ai_guardian.violation_logger import ViolationLogger
-
-    violation_logger = ViolationLogger()
-
-    # Handle --clear
-    if args.clear:
-        if args.yes:
-            confirm = "y"
-        else:
-            confirm = input("Are you sure you want to clear all violations? [y/N] ")
-        if confirm.lower() == 'y':
-            if violation_logger.clear_log():
-                print("Violations log cleared successfully")
-                return 0
-            else:
-                print("Error: Failed to clear violations log", file=sys.stderr)
-                return 1
-        else:
-            print("Cancelled")
-            return 0
-
-    # Handle --export
-    if args.export:
-        export_path = Path(args.export)
-        if violation_logger.export_violations(export_path, violation_type=args.type):
-            print(f"Violations exported to {export_path}")
-            return 0
-        else:
-            print(f"Error: Failed to export violations to {export_path}", file=sys.stderr)
-            return 1
-
-    # Display violations
-    violations = violation_logger.get_recent_violations(
-        limit=args.limit,
-        violation_type=args.type,
-        resolved=False  # Only show unresolved violations by default
-    )
-
-    if not violations:
-        print("No recent violations found")
-        return 0
-
-    # Format and display violations
-    print(f"\nRecent Violations (last {len(violations)}):\n")
-
-    for v in violations:
-        timestamp = v.get("timestamp", "Unknown")
-        vtype = v.get("violation_type", "unknown").upper().replace("_", " ")
-        severity = v.get("severity", "warning").upper()
-        blocked = v.get("blocked", {})
-        suggestion = v.get("suggestion", {})
-
-        # Format severity with color indicators
-        severity_indicator = {
-            "WARNING": "⚠",
-            "HIGH": "🔴",
-            "CRITICAL": "🔒"
-        }.get(severity, "•")
-
-        print(f"[{timestamp}] {severity_indicator} {vtype} ({severity.lower()})")
-
-        # Display blocked details based on violation type
-        if v.get("violation_type") == "tool_permission":
-            tool_name = blocked.get("tool_name", "Unknown")
-            tool_value = blocked.get("tool_value", "")
-            reason = blocked.get("reason", "")
-            print(f"  Tool: {tool_name}/{tool_value}")
-            if blocked.get("file_path"):
-                print(f"  File: {blocked['file_path']}")
-            print(f"  Reason: {reason}")
-
-        elif v.get("violation_type") == "directory_blocking":
-            file_path = blocked.get("file_path", "Unknown")
-            denied_dir = blocked.get("denied_directory", "")
-            print(f"  File: {file_path}")
-            print(f"  Denied by: {denied_dir}/.ai-read-deny")
-
-        elif v.get("violation_type") == "secret_detected":
-            source = blocked.get("source", "unknown")
-            file_path = blocked.get("file_path")
-            if file_path:
-                location = f"  File: {file_path}"
-                line_number = blocked.get("line_number")
-                if line_number:
-                    end_line = blocked.get("end_line")
-                    if end_line and end_line != line_number:
-                        location += f" (lines {line_number}-{end_line})"
-                    else:
-                        location += f" (line {line_number})"
-                print(location)
-            else:
-                print(f"  Source: {source}")
-            secret_type = blocked.get("secret_type", "Unknown")
-            print(f"  Secret type: {secret_type}")
-
-        elif v.get("violation_type") in ("prompt_injection", "jailbreak_detected"):
-            source = blocked.get("source", "unknown")
-            pattern = blocked.get("pattern", "Unknown")
-            print(f"  Type: {'Jailbreak' if v.get('violation_type') == 'jailbreak_detected' else 'Injection'}")
-            if blocked.get("file_path"):
-                print(f"  File: {blocked['file_path']}")
-            else:
-                print(f"  Source: {source}")
-            print(f"  Pattern: {pattern}")
-
-        # Display suggestion
-        action = suggestion.get("action", "")
-        if action:
-            print(f"  → Suggestion: {action}")
-
-        print()
-
-    print(f"To allow blocked operations, run: ai-guardian console (when available)")
-    print(f"Or manually edit: ~/.config/ai-guardian/ai-guardian.json\n")
-
-    return 0
+# _handle_violations_command moved to cli_handlers.py
 
 
 def _count_gitleaks_patterns(config_path):
@@ -1914,7 +1790,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             f"Until a scanner is installed, you may leak secrets."
                         )
                     on_error = _get_on_scan_error_action()
-                    if on_error == "block":
+                    if on_error == ActionMode.BLOCK:
                         logging.error(f"No scanner available (fail-closed, on_scan_error=block)")
                         return True, warning_msg + "\n\nOperation BLOCKED (on_scan_error=block)."
                     logging.warning(f"No scanner available - warning user")
@@ -2094,7 +1970,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             )
                             print(warning_msg, file=sys.stderr)
                             on_error = _get_on_scan_error_action()
-                            if on_error == "block":
+                            if on_error == ActionMode.BLOCK:
                                 return True, warning_msg + "\nOperation BLOCKED (on_scan_error=block)."
                             return False, None
 
@@ -2616,7 +2492,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     print(warning_msg, file=sys.stderr)
 
                     on_error = _get_on_scan_error_action()
-                    if on_error == "block":
+                    if on_error == ActionMode.BLOCK:
                         logging.error(f"Secret scanning error (fail-closed, on_scan_error=block)")
                         return True, warning_msg + "\nOperation BLOCKED (on_scan_error=block)."
                     return False, None
@@ -2768,7 +2644,7 @@ def process_hook_data(hook_data, daemon_state=None):
         # Load security instructions for systemMessage injection (#580, #584)
         # Inject only on first prompt per session + after blocks (not every prompt)
         security_message = None
-        if ide_type == IDEType.CLAUDE_CODE and hook_event == "prompt":
+        if ide_type == IDEType.CLAUDE_CODE and hook_event == HookEvent.PROMPT:
             try:
                 si_config, si_error = _load_security_instructions_config()
                 if si_error:
@@ -2798,7 +2674,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 logging.debug(f"Security instructions config load failed (non-fatal): {e}")
 
         # Handle PostToolUse event - scan tool output before sending to AI
-        if hook_event == "posttooluse":
+        if hook_event == HookEvent.POST_TOOL_USE:
             logging.info("Processing PostToolUse hook...")
 
             # Extract tool output
@@ -2915,7 +2791,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 skip_secret_scan = True
 
             # Check for secrets in the output (use composite identifier for ignore matching)
-            post_secret_ctx = {"ide_type": ide_type.value, "hook_event": "posttooluse"}
+            post_secret_ctx = {"ide_type": ide_type.value, "hook_event": HookEvent.POST_TOOL_USE}
             if hook_tool_use_id:
                 post_secret_ctx["tool_use_id"] = hook_tool_use_id
             if hook_session_id:
@@ -2953,14 +2829,14 @@ def process_hook_data(hook_data, daemon_state=None):
                     result = format_response(ide_type, has_secrets=True,
                                          error_message=error_message,
                                          hook_event=hook_event,
-                                         violation_type="secret_detected")
+                                         violation_type=ViolationType.SECRET_DETECTED)
                     return result
 
                 # Determine action mode (always redact when secrets detected)
                 if redaction_config is None:
                     redaction_config = {}
 
-                action = redaction_config.get("action", "warn")
+                action = redaction_config.get("action", ActionMode.WARN)
                 enabled = redaction_config.get("enabled", True)
 
                 if enabled:
@@ -3015,7 +2891,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         ctx = {
                             'action': 'redacted',
                             'mode': action,
-                            'hook_event': 'posttooluse'
+                            'hook_event': HookEvent.POST_TOOL_USE
                         }
                         if hook_tool_use_id:
                             ctx['tool_use_id'] = hook_tool_use_id
@@ -3025,7 +2901,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             ctx['pretool_context'] = pretool_ctx
                         if violation_logger:
                             violation_logger.log_violation(
-                                violation_type='secret_redaction',
+                                violation_type=ViolationType.SECRET_REDACTION,
                                 blocked=blocked_info,
                                 context=ctx
                             )
@@ -3033,7 +2909,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         # Return redacted output (allow, with modifications)
                         # For warn mode, include a warning message
                         warning_msg = None
-                        if action == "warn":
+                        if action == ActionMode.WARN:
                             warning_msg = (
                                 f"⚠️  Redacted {len(redactions)} secret(s) from output:\n"
                                 + "\n".join([f"  - {r['type']}" for r in redactions[:5]])
@@ -3045,7 +2921,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=warning_msg, modified_output=redacted_text)
                         result["_warning"] = True
-                        result["_violation_type"] = "secret_redaction"
+                        result["_violation_type"] = ViolationType.SECRET_REDACTION
                         return result
 
                     except Exception as redact_error:
@@ -3057,7 +2933,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         result = format_response(ide_type, has_secrets=True,
                                              error_message=error_message,
                                              hook_event=hook_event,
-                                             violation_type="secret_redaction")
+                                             violation_type=ViolationType.SECRET_REDACTION)
                         return result
                 else:
                     # Redaction disabled - block to prevent secrets from reaching AI model
@@ -3067,7 +2943,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     result = format_response(ide_type, has_secrets=True,
                                          error_message=error_message,
                                          hook_event=hook_event,
-                                         violation_type="secret_detected")
+                                         violation_type=ViolationType.SECRET_DETECTED)
                     return result
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
@@ -3101,7 +2977,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     if has_pii and not pii_redactions:
                         result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                              error_message=pii_warning,
-                                             violation_type="pii_detected")
+                                             violation_type=ViolationType.PII_DETECTED)
                         return result
 
                     if has_pii and pii_redactions:
@@ -3129,7 +3005,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         pii_snippet = _extract_context_snippet(pii_snippet_text, pii_first_line)
                         if pii_snippet:
                             pii_blocked['context_snippet'] = pii_snippet
-                        pii_ctx = {'action': pii_action, 'hook_event': 'posttooluse'}
+                        pii_ctx = {'action': pii_action, 'hook_event': HookEvent.POST_TOOL_USE}
                         if hook_tool_use_id:
                             pii_ctx['tool_use_id'] = hook_tool_use_id
                         if hook_session_id:
@@ -3138,7 +3014,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             pii_ctx['pretool_context'] = pretool_ctx
                         if violation_logger:
                             violation_logger.log_violation(
-                                violation_type='pii_detected',
+                                violation_type=ViolationType.PII_DETECTED,
                                 blocked=pii_blocked,
                                 context=pii_ctx
                             )
@@ -3146,7 +3022,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                                  error_message=pii_warning,
-                                                 violation_type="pii_detected")
+                                                 violation_type=ViolationType.PII_DETECTED)
                             return result
                         elif pii_action == 'redact':
                             # Restore original content on annotation-suppressed lines
@@ -3160,18 +3036,18 @@ def process_hook_data(hook_data, daemon_state=None):
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning, modified_output=redacted_text)
                             result["_warning"] = True
-                            result["_violation_type"] = "pii_detected"
+                            result["_violation_type"] = ViolationType.PII_DETECTED
                             return result
                         elif pii_action == 'warn':
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning)
                             result["_warning"] = True
-                            result["_violation_type"] = "pii_detected"
+                            result["_violation_type"] = ViolationType.PII_DETECTED
                             return result
                         elif pii_action == 'log-only':
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event)
                             result["_log_only"] = 1
-                            result["_violation_type"] = "pii_detected"
+                            result["_violation_type"] = ViolationType.PII_DETECTED
                             return result
                         else:
                             logging.warning(f"Unknown PII action '{pii_action}', allowing through")
@@ -3186,7 +3062,7 @@ def process_hook_data(hook_data, daemon_state=None):
         # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
         tool_name = None
         tool_identifier = None  # Composite identifier like "Skill:code-review" or "mcp__server__tool"
-        if hook_event in ["pretooluse", "beforereadfile"]:
+        if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             # Extract tool name and input from hook_data
             tool_input = {}
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
@@ -3219,7 +3095,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 tool_identifier = tool_name
 
         # Check tool permissions for PreToolUse events (MCP servers and Skills)
-        if hook_event in ["pretooluse", "beforereadfile"] and HAS_TOOL_POLICY:
+        if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and HAS_TOOL_POLICY:
             try:
                 permissions_config, config_error = _load_permissions_config()
                 if config_error:
@@ -3260,7 +3136,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type="tool_permission", security_message=security_message)
+                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.TOOL_PERMISSION, security_message=security_message)
                         return result
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
@@ -3275,18 +3151,18 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.info("⚠️  Tool permissions enforcement temporarily disabled")
             except Exception as e:
                 on_error = _get_on_scan_error_action()
-                if on_error == "block":
+                if on_error == ActionMode.BLOCK:
                     logging.error(f"Tool policy check error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="tool_permission", security_message=security_message)
+                                          violation_type=ViolationType.TOOL_PERMISSION, security_message=security_message)
                 logging.warning(f"Tool policy check error (fail-open): {e}")
 
         content_to_scan = None
         filename = "unknown"
         file_path = None
 
-        if hook_event in ["pretooluse", "beforereadfile"]:
+        if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             # PreToolUse or beforeReadFile hook
             logging.info(f"Processing {hook_event} hook...")
 
@@ -3303,7 +3179,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 "ReadFile"
             ]
 
-            if tool_name in FILE_READING_TOOLS or hook_event == "beforereadfile":
+            if tool_name in FILE_READING_TOOLS or hook_event == HookEvent.BEFORE_READ_FILE:
                 # Extract file content for tools that read files
                 content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
 
@@ -3311,7 +3187,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning, violation_type="directory_blocking", security_message=security_message)
+                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.DIRECTORY_BLOCKING, security_message=security_message)
                     return result
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
@@ -3453,7 +3329,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     # Determine source type based on hook event
                     # UserPromptSubmit = user input (check all patterns, threshold 0.75)
                     # PreToolUse = file content (check critical patterns only, threshold 0.90)
-                    source_type = "user_prompt" if hook_event == "prompt" else "file_content"
+                    source_type = "user_prompt" if hook_event == HookEvent.PROMPT else "file_content"
 
                     detector = PromptInjectionDetector(injection_config)
                     should_block, injection_error, injection_detected = detector.detect(
@@ -3487,7 +3363,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 logging.info("Blocking operation due to prompt injection detection")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning, violation_type="prompt_injection", security_message=security_message)
+                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.PROMPT_INJECTION, security_message=security_message)
                         return result
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
@@ -3502,17 +3378,17 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.info("⚠️  Prompt injection detection temporarily disabled")
             except Exception as e:
                 on_error = _get_on_scan_error_action()
-                if on_error == "block":
+                if on_error == ActionMode.BLOCK:
                     logging.error(f"Prompt injection check error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="prompt_injection", security_message=security_message)
+                                          violation_type=ViolationType.PROMPT_INJECTION, security_message=security_message)
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
         # Only scan for PreToolUse/Read operations on actual files
         logger.debug(f"Config scanner check: HAS_CONFIG_SCANNER={HAS_CONFIG_SCANNER}, hook_event={hook_event}, file_path={file_path}, has_content={content_to_scan is not None}")
-        if HAS_CONFIG_SCANNER and hook_event in ["pretooluse", "beforereadfile"] and file_path and content_to_scan:
+        if HAS_CONFIG_SCANNER and hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and file_path and content_to_scan:
             logger.debug("Config scanner conditions met, running scan...")
             try:
                 scanner_config, config_error = _load_config_scanner_config()
@@ -3550,7 +3426,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if hook_session_id:
                                     exfil_ctx["session_id"] = hook_session_id
                                 violation_logger.log_violation(
-                                    violation_type="config_file_exfil",
+                                    violation_type=ViolationType.CONFIG_FILE_EXFIL,
                                     blocked={
                                         "file_path": file_path,
                                         "line_number": None,
@@ -3564,7 +3440,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 logging.debug(f"Failed to log config file exfil violation: {e}")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type="config_file_exfil", security_message=security_message)
+                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONFIG_FILE_EXFIL, security_message=security_message)
                         return result
                     elif config_details and config_error:
                         # Log/warn mode: threat detected but execution allowed - display warning
@@ -3578,11 +3454,11 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.info("⚠️  Config file scanning temporarily disabled")
             except Exception as e:
                 on_error = _get_on_scan_error_action()
-                if on_error == "block":
+                if on_error == ActionMode.BLOCK:
                     logging.error(f"Config file scanning error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="config_file_exfil", security_message=security_message)
+                                          violation_type=ViolationType.CONFIG_FILE_EXFIL, security_message=security_message)
                 logging.warning(f"Config file scanning error (fail-open): {e}")
 
         # Check for secrets in the content
@@ -3625,11 +3501,11 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning, violation_type="secret_detected", security_message=security_message)
+                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
                 return result
 
             # No secrets found, allow operation
-            if hook_event == "pretooluse":
+            if hook_event == HookEvent.PRE_TOOL_USE:
                 if file_path:
                     logging.info(f"✓ No secrets detected in file '{filename}' ({file_path})")
                 else:
@@ -3655,7 +3531,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 should_scan_pii = not pii_was_skipped
 
                 if should_scan_pii:
-                    logging.info(f"Scanning {'prompt' if hook_event == 'prompt' else filename} for PII...")
+                    logging.info(f"Scanning {'prompt' if hook_event == HookEvent.PROMPT else filename} for PII...")
                     pii_scan_content = pii_content_to_scan if pii_content_to_scan is not None else content_to_scan
                     has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config)
 
@@ -3664,7 +3540,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         final_error = _annotation_hint(pii_warning, file_path, annotations_config)
                         result = format_response(ide_type, has_secrets=True,
                                              error_message=final_error, hook_event=hook_event,
-                                             violation_type="pii_detected", security_message=security_message)
+                                             violation_type=ViolationType.PII_DETECTED, security_message=security_message)
                         return result
 
                     if has_pii and pii_redactions:
@@ -3673,7 +3549,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"PII detected: {pii_types}")
 
                         # Log violation
-                        hook_name = 'UserPromptSubmit' if hook_event == 'prompt' else 'PreToolUse'
+                        hook_name = 'UserPromptSubmit' if hook_event == HookEvent.PROMPT else 'PreToolUse'
                         pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
                         pre_pii_blocked = {
                             'tool': tool_identifier or filename,
@@ -3693,7 +3569,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             pre_pii_ctx['session_id'] = hook_session_id
                         if violation_logger:
                             violation_logger.log_violation(
-                                violation_type='pii_detected',
+                                violation_type=ViolationType.PII_DETECTED,
                                 blocked=pre_pii_blocked,
                                 context=pre_pii_ctx
                             )
@@ -3705,7 +3581,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 final_error = f"{combined_warning}\n\n{final_error}"
                             result = format_response(ide_type, has_secrets=True,
                                                  error_message=final_error, hook_event=hook_event,
-                                                 violation_type="pii_detected", security_message=security_message)
+                                                 violation_type=ViolationType.PII_DETECTED, security_message=security_message)
                             return result
                         elif pii_action == 'warn':
                             warning_messages.append(pii_warning)
@@ -3718,7 +3594,7 @@ def process_hook_data(hook_data, daemon_state=None):
         # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
         # Prompt injection scanning intentionally excluded — too many false positives in conversation context
         transcript_path = _get_transcript_path(hook_data)
-        if transcript_path and hook_event == "prompt":
+        if transcript_path and hook_event == HookEvent.PROMPT:
             try:
                 ts_config, ts_error = _load_transcript_scanning_config()
                 if ts_error:
@@ -3756,15 +3632,15 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.info("⚠️  Transcript scanning temporarily disabled")
             except Exception as e:
                 on_error = _get_on_scan_error_action()
-                if on_error == "block":
+                if on_error == ActionMode.BLOCK:
                     logging.error(f"Transcript scanning error (fail-closed, on_scan_error=block): {e}")
                     return format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                           error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
-                                          violation_type="secret_detected", security_message=security_message)
+                                          violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
 
         # Save PreToolUse context for PostToolUse correlation (#366)
-        if hook_event in ["pretooluse", "beforereadfile"] and context_mgr and hook_tool_use_id:
+        if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and context_mgr and hook_tool_use_id:
             try:
                 # Determine if PII scan was skipped and why
                 pii_scanned = False
@@ -3854,211 +3730,15 @@ def process_hook_input():
         return {"output": None, "exit_code": 0}
 
 
-def _get_daemon_mode():
-    """Get daemon mode from environment variable or config.
 
-    Returns:
-        str: "auto", "local", or "daemon"
-    """
-    valid_modes = ("auto", "local", "daemon")
-    env_mode = os.environ.get("AI_GUARDIAN_DAEMON_MODE", "").lower()
-    if env_mode in valid_modes:
-        return env_mode
-
-    try:
-        config, _ = _load_config_file()
-        if config:
-            daemon_config = config.get("daemon", {})
-            mode = daemon_config.get("mode", "auto")
-            if mode in valid_modes:
-                return mode
-    except Exception:
-        pass
-
-    return "auto"
-
-
-def _get_client_timeout():
-    """Get daemon client timeout from config.
-
-    Returns:
-        float: Timeout in seconds (default 2.0, range 0.5-10.0)
-    """
-    try:
-        config, _ = _load_config_file()
-        if config:
-            daemon_config = config.get("daemon", {})
-            timeout = daemon_config.get("client_timeout_seconds", 2.0)
-            try:
-                timeout = float(timeout)
-            except (TypeError, ValueError):
-                return 2.0
-            return max(0.5, min(10.0, timeout))
-    except Exception:
-        pass
-    return 2.0
-
-
-def _set_daemon_mode_in_config(mode):
-    """Update daemon mode in the config file."""
-    try:
-        config_path = get_config_dir() / "ai-guardian.json"
-        if config_path.exists():
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-        else:
-            config = {}
-        if "daemon" not in config:
-            config["daemon"] = {}
-        config["daemon"]["mode"] = mode
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-        logging.info(f"Daemon mode set to '{mode}'")
-    except Exception as e:
-        logging.warning(f"Failed to update daemon mode in config: {e}")
-
-
-def _handle_daemon_command(args):
-    """Handle daemon subcommands (start, stop, status, restart)."""
-    cmd = getattr(args, "daemon_command", None)
-
-    if cmd == "start":
-        _set_daemon_mode_in_config("auto")
-        if args.background:
-            from ai_guardian.daemon.client import start_daemon_background
-
-            if start_daemon_background():
-                print("ai-guardian daemon started (mode set to 'auto')")
-                return 0
-            else:
-                print("Failed to start daemon in background", file=sys.stderr)
-                return 1
-        else:
-            from ai_guardian.daemon.server import DaemonServer
-
-            idle_timeout = (args.idle_timeout or 30) * 60
-            server = DaemonServer(
-                idle_timeout=idle_timeout,
-                enable_tray=not args.no_tray,
-            )
-            try:
-                server.start()
-            except RuntimeError as e:
-                print(f"Error: {e}", file=sys.stderr)
-                return 1
-            return 0
-
-    elif cmd == "stop":
-        from ai_guardian.daemon.client import is_daemon_running, send_shutdown
-
-        _set_daemon_mode_in_config("local")
-        if not is_daemon_running():
-            print("ai-guardian daemon is not running (mode set to 'local')")
-            return 0
-
-        if send_shutdown(timeout=_get_client_timeout()):
-            print("ai-guardian daemon stopped (mode set to 'local')")
-            return 0
-        else:
-            print("Failed to stop daemon", file=sys.stderr)
-            return 1
-
-    elif cmd == "status":
-        from ai_guardian.daemon.client import is_daemon_running, send_status_request
-        from ai_guardian.daemon import get_pid_path, get_socket_path
-
-        if not is_daemon_running():
-            print("ai-guardian daemon: not running")
-            return 1
-
-        stats = send_status_request(timeout=_get_client_timeout())
-        if stats:
-            uptime = stats.get("uptime_seconds", 0)
-            hours = int(uptime // 3600)
-            minutes = int((uptime % 3600) // 60)
-            uptime_str = f"{hours}h {minutes}m" if hours else f"{minutes}m"
-
-            pid_path = get_pid_path()
-            pid = "unknown"
-            try:
-                import json as _json
-                pid_info = _json.loads(pid_path.read_text())
-                pid = pid_info.get("pid", "unknown")
-            except Exception:
-                pass
-
-            blocked = stats.get("blocked_count", 0)
-            req_count = stats.get("request_count", 0)
-            paused = " (PAUSED)" if stats.get("paused") else ""
-
-            reload_ago = stats.get("last_config_reload_seconds_ago")
-            if reload_ago is not None:
-                reload_secs = int(reload_ago)
-                if reload_secs < 60:
-                    reload_str = f"{reload_secs}s ago"
-                elif reload_secs < 3600:
-                    reload_str = f"{reload_secs // 60}m ago"
-                elif reload_secs < 86400:
-                    reload_str = f"{reload_secs // 3600}h ago"
-                else:
-                    reload_str = f"{reload_secs // 86400}d ago"
-                config_str = f"loaded (last reload: {reload_str})"
-            else:
-                config_str = "loaded"
-
-            print(f"ai-guardian daemon: running (pid {pid}){paused}")
-            print(f"Uptime: {uptime_str}")
-            print(f"Hooks processed: {req_count} ({blocked} blocked)")
-            print(f"Config: {config_str}")
-            print(f"Mode: {_get_daemon_mode()} (daemon active)")
-
-            sock_path = get_socket_path()
-            if sock_path.exists():
-                print(f"Socket: {sock_path}")
-            elif stats.get("port"):
-                print(f"TCP: 127.0.0.1:{stats['port']}")
-
-            project_count = stats.get("project_configs_tracked", 0)
-            project_reload_ago = stats.get("last_project_config_reload_seconds_ago")
-            if project_count > 0:
-                if project_reload_ago is not None:
-                    pr_secs = int(project_reload_ago)
-                    if pr_secs < 60:
-                        pr_str = f"{pr_secs}s ago"
-                    elif pr_secs < 3600:
-                        pr_str = f"{pr_secs // 60}m ago"
-                    elif pr_secs < 86400:
-                        pr_str = f"{pr_secs // 3600}h ago"
-                    else:
-                        pr_str = f"{pr_secs // 86400}d ago"
-                    print(f"Project configs tracked: {project_count} (last reload: {pr_str})")
-                else:
-                    print(f"Project configs tracked: {project_count}")
-
-            print(f"Active contexts: {stats.get('active_contexts', 0)}")
-            print(f"Cached patterns: {stats.get('cached_patterns', 0)}")
-        else:
-            print("ai-guardian daemon: running (could not fetch stats)")
-        return 0
-
-    elif cmd == "restart":
-        from ai_guardian.daemon.client import is_daemon_running, send_shutdown
-
-        if is_daemon_running():
-            send_shutdown(timeout=_get_client_timeout())
-            import time
-            time.sleep(0.5)
-
-        # Re-invoke start in foreground
-        args.daemon_command = "start"
-        args.background = False
-        if not hasattr(args, "idle_timeout"):
-            args.idle_timeout = None
-        if not hasattr(args, "no_tray"):
-            args.no_tray = False
-        return _handle_daemon_command(args)
-
-    else:
-        print("Usage: ai-guardian daemon {start|stop|status|restart}")
-        return 1
+# _get_daemon_mode, _get_client_timeout, _set_daemon_mode_in_config,
+# _handle_daemon_command moved to cli_handlers.py
+from ai_guardian.cli_handlers import (  # noqa: F401 - backward compat
+    _handle_violations_command,
+    _get_daemon_mode,
+    _get_client_timeout,
+    _set_daemon_mode_in_config,
+    _handle_daemon_command,
+)
 
 

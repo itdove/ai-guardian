@@ -102,7 +102,15 @@ def get_project_config_path() -> Optional[Path]:
 
 
 def _discover_project_config_path() -> Optional[Path]:
-    """Internal discovery logic for project config path."""
+    """Internal discovery logic for project config path.
+
+    Discovery order:
+    1. Thread-local project dir override (daemon use)
+    2. AI_GUARDIAN_PROJECT_CONFIG env var (explicit override for testing/CI)
+    3. IDE env vars: CURSOR_PROJECT_PATH, VSCODE_CWD
+    4. Git repo root
+    5. CWD fallback
+    """
     override_dir = getattr(_thread_local, 'project_dir', None)
     if override_dir:
         result = _find_config_in_dir(Path(override_dir))
@@ -118,6 +126,15 @@ def _discover_project_config_path() -> Optional[Path]:
             return p
         logger.debug(f"AI_GUARDIAN_PROJECT_CONFIG set but file not found: {p}")
         return None
+
+    # Check IDE environment variables (Cursor, VS Code)
+    ide_project_path = os.environ.get("CURSOR_PROJECT_PATH") or os.environ.get("VSCODE_CWD")
+    if ide_project_path:
+        ide_root = Path(ide_project_path)
+        result = _find_config_in_dir(ide_root)
+        if result:
+            logger.debug(f"Project config from IDE env: {result}")
+            return result
 
     project_root = _find_git_root()
     if project_root:
