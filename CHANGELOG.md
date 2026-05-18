@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PII Detection Phase 2 - Advanced Types** (Issue #329)
+  - New PII types (all opt-in, add to `pii_types` to enable):
+    - `medical_id`: Medical Record Numbers with context keywords (MRN, Patient ID)
+    - `passport`: International Passport Numbers with context keywords
+    - `canada_sin`: Canadian Social Insurance Numbers with Luhn validation
+    - `uk_nin`: UK National Insurance Numbers
+    - `india_aadhaar`: Indian Aadhaar Numbers (12-digit, separated format)
+    - `address`: Street Addresses (regex-based, common US suffixes)
+  - Enhanced `intl_phone` pattern: now detects formatted international numbers with spaces, dashes, and dots (e.g., `+44 20 7946 0958`)
+  - Context-aware detection for medical_id and passport reduces false positives
+  - Canadian SIN uses Luhn algorithm validation (same as credit cards)
+  - All new types available in Console TUI and JSON schema
+  - 64 new tests covering detection, false positive prevention, and validation
+
 - **Safe fix suggestions in MCP `get_violations()` tool** (Issue #627)
   - Each violation now includes a `suggestion` field with safe-only remediation guidance
   - Covers all 8 violation types: secret_detected, pii_detected, directory_blocking, tool_permission, prompt_injection, ssrf_blocked, config_file_exfil, jailbreak_detected

@@ -917,7 +917,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_patterns": []
         },
 
-        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (NEW in v1.6.0). Scans user prompts, file reads, and tool outputs for SSN, credit card, phone, passport, IBAN, international phone. Email detection is available but opt-in (add 'email' to pii_types).",
+        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (v1.6.0+). Phase 1: SSN, credit card, phone, US passport, IBAN, international phone. Phase 2 (v1.8.0): medical_id, passport, canada_sin, uk_nin, india_aadhaar, address (all opt-in). Email also opt-in.",
         "scan_pii": {
             "enabled": True,
             "pii_types": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone"],
