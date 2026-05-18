@@ -10,7 +10,9 @@ class TestConsoleAlias:
     """Test that 'console' works as an alias for 'tui'."""
 
     @patch("ai_guardian.tui.AIGuardianTUI")
-    def test_console_launches_tui(self, mock_tui_cls):
+    @patch("sys.stdin")
+    def test_console_launches_tui(self, mock_stdin, mock_tui_cls):
+        mock_stdin.isatty.return_value = True
         mock_app = MagicMock()
         mock_tui_cls.return_value = mock_app
 
@@ -22,7 +24,9 @@ class TestConsoleAlias:
         assert result == 0
 
     @patch("ai_guardian.tui.AIGuardianTUI")
-    def test_tui_still_works(self, mock_tui_cls):
+    @patch("sys.stdin")
+    def test_tui_still_works(self, mock_stdin, mock_tui_cls):
+        mock_stdin.isatty.return_value = True
         mock_app = MagicMock()
         mock_tui_cls.return_value = mock_app
 

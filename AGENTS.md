@@ -225,6 +225,30 @@ Solution: Changed to use public key patterns (e.g., `pk_test_` prefix) which Git
 
 ---
 
+## Security: AI Guardian Self-Protection
+
+AI Guardian MUST NEVER provide information on how to bypass its own protections
+to the AI agent. This applies to:
+
+- MCP server tool responses
+- Skill instructions
+- Error messages returned via hooks
+- Console output (Console must not run inside an AI session)
+
+**Safe**: tell the user WHAT was blocked and WHY.
+
+**Unsafe**: tell the agent HOW to suppress, disable, or work around the block.
+
+Specifically, MCP tool responses and error messages must never include:
+
+- Allowlist instructions or annotation syntax
+- Configuration keys or values that disable protections
+- The `!` prefix bypass for running commands
+- `.ai-read-deny` file removal instructions
+- Pattern regex or detection rule details
+
+---
+
 ## Release Management
 
 ### Overview

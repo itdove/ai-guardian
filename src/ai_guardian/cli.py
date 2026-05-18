@@ -774,6 +774,10 @@ def main():
 
         # Handle tui/console command
         if args.command in ("tui", "console"):
+            if not sys.stdin.isatty():
+                print("Error: Console requires an interactive terminal.", file=sys.stderr)
+                print("Run 'ai-guardian console' directly in your terminal.", file=sys.stderr)
+                return 1
             try:
                 from ai_guardian.tui import AIGuardianTUI
                 app = AIGuardianTUI()

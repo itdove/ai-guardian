@@ -264,6 +264,66 @@ class TestGetViolations:
         assert result["violations"][0]["type"] == "secret_detected"
         assert all(v["type"] != "annotation_suppressed" for v in result["violations"])
 
+    @patch("ai_guardian.violation_logger.ViolationLogger")
+    def test_violations_include_safe_suggestions(self, mock_vl_cls):
+        """Each violation entry must include a safe-only fix suggestion."""
+        violation_types = [
+            "secret_detected", "pii_detected", "directory_blocking",
+            "tool_permission", "prompt_injection", "ssrf_blocked",
+            "config_file_exfil", "jailbreak_detected",
+        ]
+        mock_vl = MagicMock()
+        mock_vl.get_recent_violations.return_value = [
+            {
+                "timestamp": f"2026-05-18T10:0{i}:00Z",
+                "violation_type": vtype,
+                "severity": "high",
+                "blocked": {},
+                "context": {"tool_name": "Bash"},
+            }
+            for i, vtype in enumerate(violation_types)
+        ]
+        mock_vl_cls.return_value = mock_vl
+
+        server = create_server()
+        tool = server._tool_manager._tools["get_violations"]
+        result = tool.fn()
+        assert result["count"] == len(violation_types)
+        for v in result["violations"]:
+            assert "suggestion" in v, f"Missing suggestion for {v['type']}"
+            assert len(v["suggestion"]) > 10, f"Suggestion too short for {v['type']}"
+
+    @patch("ai_guardian.violation_logger.ViolationLogger")
+    def test_suggestions_contain_no_bypass_hints(self, mock_vl_cls):
+        """Suggestions must never include bypass instructions."""
+        mock_vl = MagicMock()
+        mock_vl.get_recent_violations.return_value = [
+            {
+                "timestamp": "2026-05-18T10:00:00Z",
+                "violation_type": vtype,
+                "severity": "high",
+                "blocked": {},
+                "context": {"tool_name": "Write"},
+            }
+            for vtype in [
+                "secret_detected", "pii_detected", "directory_blocking",
+                "tool_permission", "prompt_injection", "ssrf_blocked",
+                "config_file_exfil", "jailbreak_detected", "unknown_type",
+            ]
+        ]
+        mock_vl_cls.return_value = mock_vl
+
+        server = create_server()
+        tool = server._tool_manager._tools["get_violations"]
+        result = tool.fn()
+        for v in result["violations"]:
+            s = v["suggestion"].lower()
+            assert "allowlist" not in s
+            assert "annotation" not in s
+            assert "disable" not in s
+            assert "! " not in v["suggestion"]
+            assert ".ai-read-deny" not in s
+
 
 class TestGetConfig:
     """Test get_config tool."""

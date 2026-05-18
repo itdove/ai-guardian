@@ -24,6 +24,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+_SAFE_SUGGESTIONS: Dict[str, str] = {
+    "secret_detected": "Remove the secret and use environment variables or a secret manager",
+    "pii_detected": "Remove PII from the file or use anonymized test data",
+    "directory_blocking": "This path is protected by security policy",
+    "tool_permission": "This tool requires explicit permission from your admin",
+    "prompt_injection": "The content contains patterns that match injection detection",
+    "ssrf_blocked": "The URL targets a restricted network resource",
+    "config_file_exfil": "This configuration file is protected from exfiltration",
+    "jailbreak_detected": "The content contains patterns that match jailbreak detection",
+}
+
 try:
     from mcp.server.fastmcp import FastMCP
 
@@ -278,14 +289,18 @@ def create_server() -> "FastMCP":
                 blocked = v.get("blocked", {})
                 if not isinstance(blocked, dict):
                     blocked = {}
+                vtype = v.get("violation_type", "")
                 entry = {
                     "timestamp": v.get("timestamp", ""),
-                    "type": v.get("violation_type", ""),
+                    "type": vtype,
                     "severity": v.get("severity", ""),
                     "tool": v.get("context", {}).get("tool_name", ""),
                     "file": blocked.get("file_path", "")
                     or v.get("context", {}).get("file_path", ""),
                     "action": "blocked" if v.get("blocked") else "logged",
+                    "suggestion": _SAFE_SUGGESTIONS.get(
+                        vtype, "Review the security policy for this violation type"
+                    ),
                 }
                 if blocked.get("line_number"):
                     entry["line"] = blocked["line_number"]
