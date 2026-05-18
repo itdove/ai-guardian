@@ -818,22 +818,10 @@ def main():
                         print(f"Error: Config file not found: {config_path}", file=sys.stderr)
                         return 1
                 else:
-                    # Try to find config in default locations
-                    config_candidates = [
-                        Path.cwd() / "ai-guardian.json",
-                        Path.cwd() / ".ai-guardian.json",
-                        Path.home() / ".config" / "ai-guardian" / "ai-guardian.json",
-                    ]
-                    config_path = None
-                    for candidate in config_candidates:
-                        if candidate.exists():
-                            config_path = candidate
-                            break
-
-                    if config_path:
-                        config = json.loads(config_path.read_text())
-                    else:
-                        # No config found, use empty config (show defaults)
+                    config, config_error = _load_config_file()
+                    if config_error:
+                        print(f"Warning: {config_error}", file=sys.stderr)
+                    if config is None:
                         config = {}
 
                 inspector = ConfigInspector(config)
