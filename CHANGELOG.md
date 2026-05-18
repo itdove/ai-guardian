@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Python 3.13 and 3.14 support** (Issue #645)
+  - Added Python 3.13 and 3.14 to CI test matrix
+  - Added PyPI classifiers for Python 3.13 and 3.14
+
 - **PII Detection Phase 2 - Advanced Types** (Issue #329)
   - New PII types (all opt-in, add to `pii_types` to enable):
     - `medical_id`: Medical Record Numbers with context keywords (MRN, Patient ID)

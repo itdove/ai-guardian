@@ -399,7 +399,7 @@ ai-guardian/
 
 1. **Tests** (`.github/workflows/test.yml`)
    - Runs on: push to main, pull requests
-   - Tests: Python 3.9, 3.10, 3.11, 3.12
+   - Tests: Python 3.9, 3.10, 3.11, 3.12, 3.13, 3.14
    - Coverage: Uploaded to Codecov
 
 2. **Lint** (`.github/workflows/lint.yml`)
