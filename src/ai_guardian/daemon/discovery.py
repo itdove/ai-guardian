@@ -16,9 +16,33 @@ import threading
 import time
 from dataclasses import dataclass, field as dc_field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
+
+try:
+    import docker as docker_sdk
+    from docker.errors import DockerException
+    HAS_DOCKER_SDK = True
+except ImportError:
+    HAS_DOCKER_SDK = False
 
 _CONTAINER_ID_RE = re.compile(r"^[a-fA-F0-9]{12,64}$")
+
+DOCKER_SOCKET = "/var/run/docker.sock"
+PODMAN_ROOTFUL_SOCKET = "/run/podman/podman.sock"
+
+
+def _get_podman_socket():
+    """Get the rootless Podman socket path."""
+    try:
+        uid = os.getuid()
+    except AttributeError:
+        return None
+    return f"/run/user/{uid}/podman/podman.sock"
+
+
+def _engine_from_source(source: str) -> str:
+    """Derive 'podman' or 'docker' from a socket path or URL."""
+    return "podman" if "podman" in source else "docker"
 
 from ai_guardian.daemon import (
     DEFAULT_REST_PORT,
@@ -151,16 +175,27 @@ class DaemonDiscovery:
         return target
 
     def discover_containers(self) -> List[DaemonTarget]:
-        """Discover container daemons via podman/docker.
+        """Discover container daemons via docker SDK.
 
-        Scans all available container engines (podman and docker).
-        Uses cascading discovery per engine:
+        Uses the docker Python SDK (compatible with both Docker and Podman)
+        to scan available container engine sockets:
+        1. DOCKER_HOST env var (if set)
+        2. Well-known sockets (Docker, Podman rootless, Podman rootful)
+
+        Per socket, uses cascading discovery:
         1. Label filter (primary): containers with ai-guardian.daemon=true label
         2. Port filter (fallback): containers with port mapping to rest_port
         3. Merge and deduplicate by container ID across all engines
         """
-        engines = self.get_container_engines()
-        if not engines:
+        if not HAS_DOCKER_SDK:
+            logger.debug(
+                "docker SDK not installed; skipping container discovery "
+                "(install with: pip install ai-guardian[tray])"
+            )
+            return []
+
+        clients = self._get_docker_clients()
+        if not clients:
             return []
 
         rest_port = self._config.get("daemon", {}).get(
@@ -169,61 +204,195 @@ class DaemonDiscovery:
 
         seen_ids: Dict[str, DaemonTarget] = {}
 
-        for engine in engines:
-            label_targets = self._discover_by_label(engine, rest_port)
-            for t in label_targets:
-                if t.container_id and t.container_id not in seen_ids:
-                    seen_ids[t.container_id] = t
+        for client, engine in clients:
+            try:
+                label_targets = self._sdk_discover_by_label(
+                    client, engine, rest_port
+                )
+                for t in label_targets:
+                    if t.container_id and t.container_id not in seen_ids:
+                        seen_ids[t.container_id] = t
 
-            port_targets = self._discover_by_port(engine, rest_port)
-            for t in port_targets:
-                if t.container_id and t.container_id not in seen_ids:
-                    seen_ids[t.container_id] = t
+                port_targets = self._sdk_discover_by_port(
+                    client, engine, rest_port
+                )
+                for t in port_targets:
+                    if t.container_id and t.container_id not in seen_ids:
+                        seen_ids[t.container_id] = t
+            finally:
+                try:
+                    client.close()
+                except Exception:
+                    pass
 
         return list(seen_ids.values())
 
-    def _discover_by_label(self, engine, rest_port):
-        """Find containers with the ai-guardian.daemon=true label."""
-        try:
-            result = subprocess.run(
-                [
-                    engine, "ps",
-                    "--filter", "label=ai-guardian.daemon=true",
-                    "--format", "json",
-                ],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode != 0:
-                logger.debug("Container label discovery failed: %s", result.stderr)
-                return []
+    def _get_docker_clients(self) -> List[Tuple]:
+        """Return (DockerClient, engine_name) for each reachable socket."""
+        clients: List[Tuple] = []
+        seen_sockets: set = set()
 
-            containers = self._parse_container_json(result.stdout)
-            return self._containers_to_targets(engine, containers, rest_port)
-        except (subprocess.TimeoutExpired, OSError) as e:
-            logger.debug("Container label discovery error: %s", e)
+        docker_host = os.environ.get("DOCKER_HOST")
+        if docker_host:
+            try:
+                client = docker_sdk.DockerClient(
+                    base_url=docker_host, timeout=10
+                )
+                client.ping()
+                engine = _engine_from_source(docker_host)
+                clients.append((client, engine))
+                seen_sockets.add(docker_host)
+            except Exception:
+                logger.debug("DOCKER_HOST=%s unreachable", docker_host)
+
+        podman_socket = _get_podman_socket()
+        sockets = [
+            DOCKER_SOCKET,
+        ]
+        if podman_socket:
+            sockets.append(podman_socket)
+        sockets.append(PODMAN_ROOTFUL_SOCKET)
+
+        for sock in sockets:
+            if sock in seen_sockets or not os.path.exists(sock):
+                continue
+            try:
+                url = f"unix://{sock}"
+                client = docker_sdk.DockerClient(base_url=url, timeout=10)
+                client.ping()
+                engine = _engine_from_source(sock)
+                clients.append((client, engine))
+                seen_sockets.add(sock)
+            except Exception:
+                logger.debug("Socket %s unreachable", sock)
+
+        return clients
+
+    def _sdk_discover_by_label(self, client, engine, rest_port):
+        """Find containers with the ai-guardian.daemon=true label via SDK."""
+        try:
+            containers = client.containers.list(
+                filters={"label": "ai-guardian.daemon=true"}
+            )
+            return self._sdk_containers_to_targets(
+                engine, containers, rest_port
+            )
+        except Exception as e:
+            logger.debug("SDK label discovery error: %s", e)
             return []
 
-    def _discover_by_port(self, engine, rest_port):
-        """Find containers with a port mapping to rest_port."""
+    def _sdk_discover_by_port(self, client, engine, rest_port):
+        """Find containers with a port mapping to rest_port via SDK."""
         try:
-            result = subprocess.run(
-                [engine, "ps", "--format", "json"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode != 0:
-                return []
-
-            containers = self._parse_container_json(result.stdout)
-
+            containers = client.containers.list()
             matching = []
             for c in containers:
-                if self._has_port_mapping(c, rest_port):
+                ports = c.ports or {}
+                port_key = f"{rest_port}/tcp"
+                if port_key in ports and ports[port_key]:
                     matching.append(c)
-
-            return self._containers_to_targets(engine, matching, rest_port)
-        except (subprocess.TimeoutExpired, OSError) as e:
-            logger.debug("Container port discovery error: %s", e)
+            return self._sdk_containers_to_targets(
+                engine, matching, rest_port
+            )
+        except Exception as e:
+            logger.debug("SDK port discovery error: %s", e)
             return []
+
+    def _sdk_containers_to_targets(self, engine, containers, rest_port):
+        """Convert SDK Container objects to DaemonTarget list."""
+        targets = []
+        for c in containers:
+            container_id = c.id
+            if not container_id or not _CONTAINER_ID_RE.match(container_id):
+                continue
+
+            labels = c.labels or {}
+
+            name = (
+                labels.get("ai-guardian.name")
+                or c.name
+                or container_id[:12]
+            )
+
+            label_port = labels.get("ai-guardian.rest-port")
+            try:
+                target_rest_port = int(label_port) if label_port else rest_port
+            except (ValueError, TypeError):
+                target_rest_port = rest_port
+
+            host_port = self._sdk_find_host_port(c, target_rest_port)
+
+            status = "unknown"
+            if host_port:
+                api_data = self._probe_daemon(host_port)
+                if api_data:
+                    status = "running"
+                    if not labels.get("ai-guardian.name") and api_data.get("name"):
+                        name = api_data["name"]
+
+            if not labels.get("ai-guardian.name") and status != "running":
+                exec_name = self._sdk_exec_instance_name(c)
+                if exec_name:
+                    name = exec_name
+
+            target = DaemonTarget(
+                name=name,
+                runtime="container",
+                status=status,
+                host="127.0.0.1",
+                port=host_port,
+                container_id=container_id,
+                container_engine=engine,
+                last_seen=time.monotonic(),
+            )
+            targets.append(target)
+
+        return targets
+
+    @staticmethod
+    def _sdk_find_host_port(container, container_port):
+        """Find the host-side port for a container port via SDK."""
+        ports = container.ports or {}
+        port_key = f"{container_port}/tcp"
+        bindings = ports.get(port_key)
+        if bindings and isinstance(bindings, list) and bindings:
+            hp = bindings[0].get("HostPort")
+            if hp:
+                return int(hp)
+        return 0
+
+    @staticmethod
+    def _sdk_exec_instance_name(container, timeout=3):
+        """Read daemon name from container config via SDK exec_run."""
+        try:
+            exit_code, output = container.exec_run(
+                ["python3", "-c",
+                 "import json; "
+                 "f=open('/etc/ai-guardian/ai-guardian.json'); "
+                 "c=json.load(f); "
+                 "n=c.get('daemon',{}).get('name',''); "
+                 "print(n)"],
+                demux=False,
+            )
+            if exit_code == 0:
+                name = output.decode("utf-8", errors="replace").strip()
+                if name:
+                    return name
+        except Exception:
+            pass
+
+        try:
+            exit_code, output = container.exec_run(
+                ["ai-guardian", "show-config", "--json"],
+                demux=False,
+            )
+            if exit_code == 0:
+                data = json.loads(output.decode("utf-8", errors="replace"))
+                return data.get("daemon", {}).get("name")
+        except Exception:
+            pass
+
+        return None
 
     @staticmethod
     def _parse_container_json(output):
