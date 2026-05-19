@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 
+from ai_guardian.daemon.discovery import DaemonTarget
 from ai_guardian.daemon.tray import (
     DaemonTray,
     is_tray_available,
@@ -432,3 +433,81 @@ class TestSuppressGtkStderr:
                 sys.stderr.flush()
             finally:
                 os.close(original_fd)
+
+
+class TestSingleDaemonFlatMenu:
+    """Tests for flat menu layout when exactly one daemon is discovered."""
+
+    def _make_tray(self, targets=None):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"request_count": 10, "blocked_count": 2},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        if targets is not None:
+            tray._targets = targets
+        return tray
+
+    def test_is_single_daemon_with_one_target(self):
+        tray = self._make_tray([DaemonTarget(name="local", runtime="local", status="running")])
+        assert tray._is_single_daemon() is True
+        assert tray._is_multi_daemon() is False
+
+    def test_is_multi_daemon_with_two_targets(self):
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ])
+        assert tray._is_multi_daemon() is True
+        assert tray._is_single_daemon() is False
+
+    def test_is_multi_daemon_with_zero_targets(self):
+        tray = self._make_tray([])
+        assert tray._is_multi_daemon() is True
+        assert tray._is_single_daemon() is False
+
+    def test_daemon_status_label_running(self):
+        t = DaemonTarget(name="my-host", runtime="local", status="running")
+        label = DaemonTray._daemon_status_label(t)
+        assert label == "● my-host"
+
+    def test_daemon_status_label_stopped(self):
+        t = DaemonTarget(name="my-host", runtime="local", status="stopped")
+        label = DaemonTray._daemon_status_label(t)
+        assert "⚠" in label
+        assert "daemon not running" in label
+
+    def test_daemon_status_label_container(self):
+        t = DaemonTarget(name="sandbox", runtime="container",
+                         container_engine="podman", status="running")
+        label = DaemonTray._daemon_status_label(t)
+        assert "● sandbox (podman)" == label
+
+    def test_daemon_status_label_kubernetes(self):
+        t = DaemonTarget(name="k8s-pod", runtime="kubernetes", status="running")
+        label = DaemonTray._daemon_status_label(t)
+        assert "● k8s-pod (kubernetes)" == label
+
+    def test_flat_menu_with_single_container_target(self):
+        """Single container daemon uses flat layout — same as local."""
+        tray = self._make_tray([
+            DaemonTarget(name="carbonite-prod", runtime="container",
+                         container_engine="podman", status="running"),
+        ])
+        assert tray._is_single_daemon() is True
+
+    def test_dynamic_switch_flat_to_nested(self):
+        """Layout switches dynamically when targets change count."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ])
+        assert tray._is_single_daemon() is True
+
+        tray._targets.append(
+            DaemonTarget(name="remote", runtime="container", status="running")
+        )
+        assert tray._is_single_daemon() is False
+        assert tray._is_multi_daemon() is True
+
+        tray._targets.pop()
+        assert tray._is_single_daemon() is True

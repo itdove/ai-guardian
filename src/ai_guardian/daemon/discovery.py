@@ -46,6 +46,7 @@ class DaemonTarget:
     socket_path: Optional[str] = None
     url: Optional[str] = None
     auth_token: Optional[str] = dc_field(default=None, repr=False)
+    config_exists: bool = False
     stats: Optional[dict] = None
     last_seen: float = 0.0
     error_message: Optional[str] = None
@@ -92,11 +93,32 @@ class DaemonDiscovery:
         return results
 
     def discover_local(self) -> Optional[DaemonTarget]:
-        """Check for a local daemon via Unix socket / PID file."""
+        """Check for a local ai-guardian installation via config file.
+
+        Returns None if no ai-guardian.json config exists locally.
+        When config exists but the daemon is not running, returns a
+        target with status="stopped" so the tray can show a warning.
+        """
+        from ai_guardian.config_utils import get_config_dir
+        config_path = get_config_dir() / "ai-guardian.json"
+
+        if not config_path.exists():
+            return None
+
+        name = "local"
+        try:
+            config_data = json.loads(config_path.read_text(encoding="utf-8"))
+            cfg_name = config_data.get("daemon", {}).get("name")
+            if cfg_name:
+                name = cfg_name
+        except (json.JSONDecodeError, OSError):
+            pass
+
         target = DaemonTarget(
-            name="local",
+            name=name,
             runtime="local",
             socket_path=str(get_socket_path()),
+            config_exists=True,
         )
 
         pid_path = get_pid_path()
@@ -107,9 +129,9 @@ class DaemonDiscovery:
                 if rest_port:
                     target.port = rest_port
 
-                name = pid_info.get("name")
-                if name:
-                    target.name = name
+                pid_name = pid_info.get("name")
+                if pid_name:
+                    target.name = pid_name
 
                 pid = pid_info.get("pid", 0)
                 if pid == os.getpid():
@@ -124,7 +146,7 @@ class DaemonDiscovery:
             target.status = "running"
             target.last_seen = time.monotonic()
         else:
-            target.status = "unknown"
+            target.status = "stopped"
 
         return target
 
