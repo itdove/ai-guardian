@@ -11,6 +11,7 @@ from ai_guardian.daemon.discovery import (
     DaemonDiscovery,
     DaemonTarget,
     HAS_DOCKER_SDK,
+    _detect_engine,
     _engine_from_source,
     _get_podman_socket,
 )
@@ -264,6 +265,41 @@ class TestEngineFromSource:
 
     def test_docker_host_podman(self):
         assert _engine_from_source("unix:///run/podman/podman.sock") == "podman"
+
+
+class TestDetectEngine:
+    def test_podman_detected_via_api(self):
+        client = mock.MagicMock()
+        client.version.return_value = {
+            "Components": [{"Name": "Podman Engine", "Version": "5.4.0"}],
+        }
+        assert _detect_engine(client, "/var/run/docker.sock") == "podman"
+
+    def test_docker_detected_via_api(self):
+        client = mock.MagicMock()
+        client.version.return_value = {
+            "Components": [{"Name": "Engine", "Version": "27.0.0"}],
+        }
+        assert _detect_engine(client, "/var/run/docker.sock") == "docker"
+
+    def test_fallback_to_socket_path_on_api_error(self):
+        client = mock.MagicMock()
+        client.version.side_effect = Exception("connection lost")
+        assert _detect_engine(client, "/run/user/1000/podman/podman.sock") == "podman"
+        assert _detect_engine(client, "/var/run/docker.sock") == "docker"
+
+    def test_fallback_when_components_empty(self):
+        client = mock.MagicMock()
+        client.version.return_value = {"Version": "27.0.0"}
+        assert _detect_engine(client, "/run/podman/podman.sock") == "podman"
+        assert _detect_engine(client, "/var/run/docker.sock") == "docker"
+
+    def test_podman_via_docker_host_env(self):
+        client = mock.MagicMock()
+        client.version.return_value = {
+            "Components": [{"Name": "Podman Engine", "Version": "5.4.0"}],
+        }
+        assert _detect_engine(client, "unix:///var/run/docker.sock") == "podman"
 
 
 class TestGetPodmanSocket:
@@ -524,6 +560,9 @@ class TestGetDockerClients:
         mock_exists.return_value = False
         mock_client = mock.MagicMock()
         mock_client.ping.return_value = True
+        mock_client.version.return_value = {
+            "Components": [{"Name": "Engine", "Version": "27.0.0"}],
+        }
 
         d = DaemonDiscovery()
         with mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker:
@@ -532,6 +571,26 @@ class TestGetDockerClients:
 
         assert len(clients) == 1
         assert clients[0][1] == "docker"
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    @mock.patch("os.path.exists")
+    @mock.patch.dict(os.environ, {"DOCKER_HOST": "unix:///var/run/docker.sock"})
+    def test_podman_behind_docker_socket(self, mock_exists):
+        """Podman providing Docker-compatible socket is detected as podman."""
+        mock_exists.return_value = False
+        mock_client = mock.MagicMock()
+        mock_client.ping.return_value = True
+        mock_client.version.return_value = {
+            "Components": [{"Name": "Podman Engine", "Version": "5.4.0"}],
+        }
+
+        d = DaemonDiscovery()
+        with mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker:
+            mock_docker.DockerClient.return_value = mock_client
+            clients = d._get_docker_clients()
+
+        assert len(clients) == 1
+        assert clients[0][1] == "podman"
 
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     @mock.patch.dict(os.environ, {}, clear=True)
