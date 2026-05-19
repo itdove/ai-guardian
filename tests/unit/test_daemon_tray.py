@@ -555,9 +555,20 @@ class TestIDESetupMenu:
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
             tray._build_ide_setup_menu_items()
-            ide_names = [
+            item_names = [
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list[:-1]
             ]
+            assert "Create Config..." in item_names
             for ide_cfg in IDESetup.IDE_CONFIGS.values():
-                assert ide_cfg["name"] in ide_names
+                assert ide_cfg["name"] in item_names
+
+    def test_launch_create_config_builds_correct_command(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    DaemonTray._launch_create_config()
+                    script = mock_popen.call_args[0][0][2]
+                    assert "setup --create-config" in script
+                    assert "close" not in script

@@ -1107,11 +1107,21 @@ class DaemonTray:
             )
         return items
 
-    def _build_ide_setup_menu_items(self):
-        """Build the top-level 'Local Setup...' submenu for IDE hook setup.
+    @staticmethod
+    def _launch_create_config():
+        """Launch ai-guardian setup --create-config in a new terminal."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
 
-        Always visible regardless of daemon count. Each entry opens a
-        terminal running ``ai-guardian setup --ide <key>`` interactively.
+        _launch_in_terminal(
+            DaemonTray._resolve_cli_cmd("setup", "--create-config"),
+            keep_open=True,
+        )
+
+    def _build_ide_setup_menu_items(self):
+        """Build the top-level 'Local Setup...' submenu.
+
+        Always visible regardless of daemon count. Contains config
+        creation and per-IDE hook setup entries.
         """
         from ai_guardian.setup import IDESetup
 
@@ -1120,7 +1130,13 @@ class DaemonTray:
                 self._launch_ide_setup(k)
             return action
 
-        ide_items = []
+        ide_items = [
+            pystray.MenuItem(
+                "Create Config...",
+                lambda _, __: self._launch_create_config(),
+            ),
+            pystray.Menu.SEPARATOR,
+        ]
         for ide_key, ide_cfg in IDESetup.IDE_CONFIGS.items():
             ide_items.append(
                 pystray.MenuItem(ide_cfg["name"], _mk_ide_action(ide_key))
