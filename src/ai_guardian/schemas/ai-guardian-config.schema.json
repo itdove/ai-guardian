@@ -1483,6 +1483,10 @@
       "type": "object",
       "description": "Background daemon configuration. Controls whether ai-guardian runs as a long-lived daemon process for faster hook response times and cross-hook state sharing. Two modes: 'auto' (default, try daemon then fall back to direct) and 'direct' (always per-process, for CI/CD).",
       "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-friendly daemon name displayed in the tray. Defaults to hostname if not set."
+        },
         "mode": {
           "type": "string",
           "enum": ["auto", "local", "daemon"],
@@ -1502,6 +1506,24 @@
           "maximum": 10.0,
           "description": "Timeout in seconds for client to wait for daemon response before falling back to direct mode."
         },
+        "rest_port": {
+          "type": "integer",
+          "default": 63152,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "REST API port for tray-to-daemon communication. Default 63152. Set to 0 for OS-assigned port. Container daemons should use a fixed port for discovery."
+        },
+        "rest_host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "REST API bind address. Default 127.0.0.1 (localhost only). Set to 0.0.0.0 for container daemons that need external access."
+        },
+        "container_engine": {
+          "type": "string",
+          "enum": ["auto", "podman", "docker"],
+          "default": "auto",
+          "description": "Container engine for daemon discovery. 'auto' detects podman first, then docker."
+        },
         "tray": {
           "type": "object",
           "description": "System tray icon settings. Disable on headless servers without a display.",
@@ -1510,6 +1532,40 @@
               "type": "boolean",
               "default": true,
               "description": "Show system tray icon when daemon is running. Set to false on headless servers."
+            },
+            "discovery_interval_seconds": {
+              "type": "integer",
+              "default": 15,
+              "minimum": 5,
+              "maximum": 300,
+              "description": "How often to poll for daemon discovery (seconds)."
+            },
+            "discover_containers": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Podman/Docker container daemon discovery."
+            },
+            "discover_kubernetes": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Kubernetes pod daemon discovery. Requires kubectl and appropriate cluster access."
+            },
+            "kubernetes": {
+              "type": "object",
+              "description": "Kubernetes discovery settings.",
+              "properties": {
+                "namespace": {
+                  "type": "string",
+                  "default": "ai-sdlc",
+                  "description": "Kubernetes namespace to search for daemon pods."
+                },
+                "label_selector": {
+                  "type": "string",
+                  "default": "app=ai-guardian",
+                  "description": "Label selector for daemon pods. User label is added automatically."
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

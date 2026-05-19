@@ -48,135 +48,6 @@ class TestDaemonTrayWithoutPystray:
 
 
 class TestDaemonTrayCallbacks:
-    def test_header_text_running(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        header = tray._header_text()
-        assert "AI Guardian" in header
-        assert "Running" in header
-
-    def test_header_text_paused(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._status = "paused"
-        header = tray._header_text()
-        assert "Paused" in header
-
-    def test_requests_text(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"request_count": 1234},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._requests_text()
-        assert "1,234" in text
-        assert "Requests:" in text
-
-    def test_blocked_text_with_percentage(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"blocked_count": 28, "request_count": 1234},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._blocked_text()
-        assert "28" in text
-        assert "2.3%" in text
-
-    def test_blocked_text_zero_requests(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"blocked_count": 0, "request_count": 0},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._blocked_text()
-        assert "0" in text
-        assert "%" not in text
-
-    def test_warnings_text(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"warning_count": 42},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._warnings_text()
-        assert "42" in text
-        assert "Warned:" in text
-
-    def test_log_only_text(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"log_only_count": 15},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._log_only_text()
-        assert "15" in text
-        assert "Logged:" in text
-
-    def test_violations_text(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"violation_count": 5},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._violations_text()
-        assert "5" in text
-        assert "Violations:" in text
-
-    def test_critical_text(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"critical_count": 1},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._critical_text()
-        assert "1" in text
-        assert "Critical:" in text
-
-    def test_warning_severity_text(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"warning_severity_count": 4},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._warning_severity_text()
-        assert "4" in text
-        assert "Warning:" in text
-
-    def test_last_block_text_none(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_block_type": None, "last_block_seconds_ago": None},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._last_block_text()
-        assert "none" in text
-
-    def test_last_block_text_recent(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_block_type": "secret_detected", "last_block_seconds_ago": 120},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._last_block_text()
-        assert "secret_detected" in text
-        assert "2m ago" in text
-
-    def test_last_block_text_hours(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_block_type": "prompt_injection", "last_block_seconds_ago": 7200},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._last_block_text()
-        assert "prompt_injection" in text
-        assert "2h ago" in text
-
     def test_quit_calls_stop_callback(self):
         stopped = []
         tray = DaemonTray(
@@ -186,42 +57,6 @@ class TestDaemonTrayCallbacks:
         )
         tray._on_quit(mock.MagicMock(), mock.MagicMock())
         assert stopped == [True]
-
-    def test_open_console_launches_subprocess(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        with mock.patch("shutil.which", return_value="/usr/bin/ai-guardian"):
-            with mock.patch("platform.system", return_value="Linux"):
-                with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
-                    mock_popen.assert_called_once()
-
-    def test_pause_calls_callback_with_duration(self):
-        paused_durations = []
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"pause_remaining_seconds": 900},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: paused_durations.append(mins),
-        )
-        tray._on_pause(15)
-        assert paused_durations == [15]
-        assert tray._status == "paused"
-        tray._stop_pause_timer()
-
-    def test_resume_calls_callback_with_zero(self):
-        paused_durations = []
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"pause_remaining_seconds": 0},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: paused_durations.append(mins),
-        )
-        tray._status = "paused"
-        tray._on_resume(mock.MagicMock(), mock.MagicMock())
-        assert paused_durations == [0]
-        assert tray._status == "running"
 
     def test_resume_label_shows_remaining_time(self):
         tray = DaemonTray(
@@ -233,45 +68,6 @@ class TestDaemonTrayCallbacks:
         label = tray._resume_menu_label()
         assert "2m" in label
         assert "5s" in label
-
-
-class TestConfigReloadText:
-    def test_config_reload_never_reloaded(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_config_reload_seconds_ago": None},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._config_reload_text()
-        assert text == "Config: loaded"
-
-    def test_config_reload_recent(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_config_reload_seconds_ago": 120},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._config_reload_text()
-        assert "Config reloaded:" in text
-        assert "2m ago" in text
-
-    def test_config_reload_seconds(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_config_reload_seconds_ago": 30},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._config_reload_text()
-        assert "30s ago" in text
-
-    def test_config_reload_hours(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"last_config_reload_seconds_ago": 7200},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        text = tray._config_reload_text()
-        assert "2h ago" in text
 
 
 class TestFlashReload:
@@ -386,7 +182,7 @@ class TestCrossPlatform:
         with mock.patch("platform.system", return_value="Linux"):
             with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/gnome-terminal" if x == "gnome-terminal" else None):
                 with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    tray._launch_console()
                     mock_popen.assert_called_once()
                     args = mock_popen.call_args[0][0]
                     assert "gnome-terminal" in args[0]
@@ -400,7 +196,7 @@ class TestCrossPlatform:
         with mock.patch("platform.system", return_value="Linux"):
             with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None):
                 with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    tray._launch_console()
                     mock_popen.assert_called_once()
                     args = mock_popen.call_args[0][0]
                     assert args[0] == "kgx"
@@ -414,7 +210,7 @@ class TestCrossPlatform:
         with mock.patch("platform.system", return_value="Darwin"):
             with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
                 with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    tray._launch_console()
                     mock_popen.assert_called_once()
                     script = mock_popen.call_args[0][0][2]
                     assert "osascript" in mock_popen.call_args[0][0][0]
@@ -432,7 +228,7 @@ class TestCrossPlatform:
         with mock.patch("platform.system", return_value="Darwin"):
             with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
                 with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                    tray._launch_console()
                     script = mock_popen.call_args[0][0][2]
                     lines = script.split("\n")
                     do_script_lines = [l.strip() for l in lines if "do script" in l]
@@ -451,7 +247,7 @@ class TestCrossPlatform:
             with mock.patch("shutil.which", return_value=None):
                 with mock.patch("sys.executable", "/usr/bin/python3"):
                     with mock.patch("subprocess.Popen") as mock_popen:
-                        tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                        tray._launch_console()
                         script = mock_popen.call_args[0][0][2]
                         assert "/usr/bin/python3 -m ai_guardian console" in script
 
@@ -463,7 +259,7 @@ class TestCrossPlatform:
         )
         with mock.patch("platform.system", return_value="Windows"):
             with mock.patch("subprocess.Popen") as mock_popen:
-                tray._on_open_console(mock.MagicMock(), mock.MagicMock())
+                tray._launch_console()
                 mock_popen.assert_called_once()
                 call_args = str(mock_popen.call_args)
                 assert "start" in call_args

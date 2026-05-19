@@ -228,7 +228,6 @@ def _handle_daemon_command(args):
             idle_timeout = (args.idle_timeout or 30) * 60
             server = DaemonServer(
                 idle_timeout=idle_timeout,
-                enable_tray=not args.no_tray,
             )
             try:
                 server.start()
@@ -338,9 +337,8 @@ def _handle_daemon_command(args):
             import time
             time.sleep(0.5)
 
-        # Re-invoke start in foreground
         args.daemon_command = "start"
-        args.background = False
+        args.background = True
         if not hasattr(args, "idle_timeout"):
             args.idle_timeout = None
         if not hasattr(args, "no_tray"):
@@ -350,3 +348,134 @@ def _handle_daemon_command(args):
     else:
         print("Usage: ai-guardian daemon {start|stop|status|restart}")
         return 1
+
+
+def _handle_tray_command(args):
+    """Handle the standalone tray subcommand (Issue #527)."""
+    tray_command = getattr(args, "tray_command", None)
+
+    if tray_command == "stop":
+        return _handle_tray_stop()
+
+    if tray_command == "restart":
+        _handle_tray_stop()
+        import time
+        time.sleep(1)
+        args.tray_command = "start"
+        if not getattr(args, "background", False):
+            args.background = True
+        return _handle_tray_start(args)
+
+    if tray_command is None or tray_command == "start":
+        return _handle_tray_start(args)
+
+    print("Usage: ai-guardian tray {start|stop|restart}")
+    return 1
+
+
+def _handle_tray_stop():
+    """Stop the running standalone tray."""
+    from ai_guardian.daemon.tray import _get_tray_lock_path
+
+    lock_path = _get_tray_lock_path()
+    if not lock_path.exists():
+        print("ai-guardian tray is not running")
+        return 1
+
+    import os
+    import signal
+
+    try:
+        pid = int(lock_path.read_text().strip())
+        os.kill(pid, signal.SIGTERM)
+        print(f"ai-guardian tray stopped (pid {pid})")
+        lock_path.unlink(missing_ok=True)
+        return 0
+    except ProcessLookupError:
+        print("ai-guardian tray is not running (stale lock file removed)")
+        lock_path.unlink(missing_ok=True)
+        return 1
+    except (ValueError, OSError) as e:
+        print(f"Failed to stop tray: {e}", file=sys.stderr)
+        return 1
+
+
+def _handle_tray_start(args):
+    """Start the standalone multi-daemon tray client."""
+    import shutil
+    import subprocess
+
+    if getattr(args, "background", False):
+        executable = shutil.which("ai-guardian")
+        if executable:
+            cmd = [executable, "tray", "start"]
+        else:
+            cmd = [sys.executable, "-m", "ai_guardian", "tray", "start"]
+        if getattr(args, "no_discover", False):
+            cmd.append("--no-discover")
+        try:
+            subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            print("ai-guardian tray started in background")
+            return 0
+        except OSError as e:
+            print(f"Failed to start tray in background: {e}", file=sys.stderr)
+            return 1
+
+    from ai_guardian.daemon.tray import DaemonTray, is_tray_available
+    from ai_guardian.daemon.discovery import DaemonDiscovery
+    from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+    if not is_tray_available():
+        print(
+            "System tray not available. "
+            "Install pystray and Pillow, or run 'ai-guardian doctor' for details.",
+            file=sys.stderr,
+        )
+        return 1
+
+    config = {}
+    try:
+        cfg, _err = _load_config_file()
+        if cfg:
+            config = cfg
+    except Exception:
+        pass
+
+    no_discover = getattr(args, "no_discover", False)
+
+    daemon_cfg = config.get("daemon", {})
+    tray_cfg = daemon_cfg.get("tray", {})
+    interval = tray_cfg.get("discovery_interval_seconds", 15)
+
+    if no_discover:
+        disc_config = dict(config)
+        disc_config.setdefault("daemon", {}).setdefault("tray", {})
+        disc_config["daemon"]["tray"]["discover_containers"] = False
+        disc_config["daemon"]["tray"]["discover_kubernetes"] = False
+        discovery = DaemonDiscovery(config=disc_config, discovery_interval=interval)
+    else:
+        discovery = DaemonDiscovery(config=config, discovery_interval=interval)
+
+    multi_client = MultiDaemonClient()
+
+    from ai_guardian.daemon.client import send_status_request
+    get_stats = lambda: send_status_request() or {}
+
+    tray = DaemonTray(
+        get_stats_callback=get_stats,
+        stop_callback=lambda: None,
+        pause_callback=lambda mins: None,
+        discovery=discovery,
+        multi_client=multi_client,
+        standalone=True,
+    )
+
+    print("ai-guardian tray started (multi-daemon mode)")
+    tray.run_blocking()
+    return 0

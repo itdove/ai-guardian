@@ -43,20 +43,22 @@ def _is_pid_alive(pid):
 class DaemonServer:
     """Long-running daemon server for ai-guardian."""
 
-    def __init__(self, idle_timeout=1800.0, use_tcp=False, enable_tray=True):
+    def __init__(self, idle_timeout=1800.0, use_tcp=False,
+                 enable_rest_api=True):
         """Initialize daemon server.
 
         Args:
             idle_timeout: Seconds of inactivity before auto-stop (0 to disable)
             use_tcp: Force TCP mode (auto-detected on Windows)
-            enable_tray: Enable system tray icon if available
+            enable_rest_api: Enable REST API for tray/remote queries
         """
         self._use_tcp = use_tcp or (platform.system() == "Windows")
-        self._enable_tray = enable_tray
+        self._enable_rest_api = enable_rest_api
         self._server_socket = None
         self._running = False
         self._shutdown_event = threading.Event()
-        self._tray = None
+        self._rest_api = None
+        self._rest_port = 0
         self._tcp_port = 0
         self.state = DaemonState(idle_timeout=idle_timeout)
 
@@ -64,8 +66,8 @@ class DaemonServer:
         """Start the daemon server (blocking).
 
         Sets up signal handlers, creates socket, and enters accept loop.
-        On macOS, the tray icon must run on the main thread (AppKit requirement),
-        so the socket server runs in a background thread instead.
+        The daemon runs headless — use 'ai-guardian tray' for the system
+        tray client.
         """
         self._cleanup_stale()
         self._write_pid_file()
@@ -73,38 +75,26 @@ class DaemonServer:
         self._server_socket = self._setup_socket()
         self._running = True
 
-        # Start idle check background thread
+        if self._enable_rest_api:
+            self._start_rest_api()
+
         idle_thread = threading.Thread(
             target=self._idle_check_loop, daemon=True, name="idle-checker"
         )
         idle_thread.start()
 
         sock_info = self._socket_info()
-        logger.info(f"Daemon started (pid {os.getpid()}, {sock_info})")
-        print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info})")
+        name_info = f", name={self._daemon_name}" if hasattr(self, '_daemon_name') else ""
+        logger.info(f"Daemon started (pid {os.getpid()}, {sock_info}{name_info})")
+        print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info}{name_info})")
+        print("Use 'ai-guardian tray' to start the system tray client")
 
-        if self._enable_tray and self._should_use_main_thread_tray():
-            # macOS: tray must run on main thread, socket server in background
-            server_thread = threading.Thread(
-                target=self._accept_loop_with_error_handling,
-                daemon=True,
-                name="socket-server",
-            )
-            server_thread.start()
-            self._start_tray_blocking()  # Blocks main thread
-            # Tray exited (user quit or stop called) — shut down server
+        try:
+            self._accept_loop()
+        except Exception as e:
+            logger.error(f"Daemon accept loop error: {e}")
+        finally:
             self.stop()
-            server_thread.join(timeout=3)
-        else:
-            # Linux/Windows/headless: tray in background thread, server on main
-            if self._enable_tray:
-                self._start_tray()
-            try:
-                self._accept_loop()
-            except Exception as e:
-                logger.error(f"Daemon accept loop error: {e}")
-            finally:
-                self.stop()
 
     def stop(self):
         """Graceful shutdown."""
@@ -143,10 +133,10 @@ class DaemonServer:
             except OSError:
                 pass
 
-        # Stop tray
-        if self._tray:
+        # Stop REST API
+        if self._rest_api:
             try:
-                self._tray.stop()
+                self._rest_api.stop()
             except Exception:
                 pass
 
@@ -337,8 +327,44 @@ class DaemonServer:
         pid_info = {"pid": os.getpid()}
         if self._use_tcp and self._tcp_port:
             pid_info["port"] = self._tcp_port
+        if self._rest_port:
+            pid_info["rest_port"] = self._rest_port
+        if hasattr(self, '_daemon_name') and self._daemon_name:
+            pid_info["name"] = self._daemon_name
         pid_path.write_text(json.dumps(pid_info))
         os.chmod(str(pid_path), 0o600)
+
+    def _start_rest_api(self):
+        """Start the REST API server for tray/remote queries."""
+        try:
+            from ai_guardian.daemon.rest_api import DaemonRestAPI
+            from ai_guardian.daemon import DEFAULT_REST_PORT
+            from ai_guardian.config_loaders import _load_config_file
+
+            daemon_cfg = {}
+            try:
+                cfg, _err = _load_config_file()
+                if cfg:
+                    daemon_cfg = cfg.get("daemon", {})
+            except Exception:
+                pass
+
+            self._daemon_name = daemon_cfg.get("name")
+            cfg_port = daemon_cfg.get("rest_port", DEFAULT_REST_PORT)
+
+            default_host = "127.0.0.1"
+            if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
+                default_host = "0.0.0.0"
+            host = daemon_cfg.get("rest_host", default_host)
+            self._rest_api = DaemonRestAPI(
+                state=self.state, host=host, port=cfg_port,
+                daemon_name=self._daemon_name,
+            )
+            self._rest_port = self._rest_api.start()
+            self._write_pid_file()
+            logger.info(f"REST API started on port {self._rest_port}")
+        except Exception as e:
+            logger.debug(f"REST API failed to start: {e}")
 
     def _cleanup_stale(self):
         """Clean up stale socket and PID files from crashed daemon."""
@@ -362,89 +388,6 @@ class DaemonServer:
         if sock_path.exists() and not self._use_tcp:
             sock_path.unlink()
             logger.info("Cleaned up stale socket file")
-
-    def _start_tray(self):
-        """Start system tray icon in a background thread."""
-        try:
-            from ai_guardian.daemon.tray import DaemonTray, is_tray_available
-
-            if not is_tray_available():
-                logger.info("System tray not available (run 'ai-guardian doctor' for details)")
-                return
-
-            self._tray = DaemonTray(
-                get_stats_callback=self.state.get_stats,
-                stop_callback=self.stop,
-                pause_callback=self._pause_for,
-            )
-            self.state._on_config_reloaded = self._tray.flash_reload
-            self._tray.start()
-            logger.info("System tray icon started")
-        except Exception as e:
-            logger.debug(f"System tray failed to start: {e}")
-
-    def _start_tray_blocking(self):
-        """Start system tray icon on the current (main) thread.
-
-        Used on macOS where AppKit requires the tray to run on the main thread.
-        This call blocks until the tray is stopped (user quits or daemon stops).
-        """
-        try:
-            from ai_guardian.daemon.tray import DaemonTray, is_tray_available
-
-            if not is_tray_available():
-                logger.info("System tray not available, running headless (run 'ai-guardian doctor' for details)")
-                # Block on shutdown event instead so daemon doesn't exit
-                self._shutdown_event.wait()
-                return
-
-            self._tray = DaemonTray(
-                get_stats_callback=self.state.get_stats,
-                stop_callback=self.stop,
-                pause_callback=self._pause_for,
-            )
-            self.state._on_config_reloaded = self._tray.flash_reload
-            logger.info("System tray icon starting on main thread (macOS)")
-            self._tray.run_blocking()  # Blocks until tray exits
-        except Exception as e:
-            logger.debug(f"System tray failed: {e}")
-            # Fall back to blocking on shutdown event
-            self._shutdown_event.wait()
-
-    def _accept_loop_with_error_handling(self):
-        """Wrapper around _accept_loop that catches exceptions."""
-        try:
-            self._accept_loop()
-        except Exception as e:
-            logger.error(f"Daemon accept loop error: {e}")
-            self.stop()
-
-    @staticmethod
-    def _should_use_main_thread_tray():
-        """Check if the tray icon needs to run on the main thread.
-
-        macOS requires AppKit/NSApplication to run on the main thread.
-        """
-        return platform.system() == "Darwin"
-
-    def _pause_for(self, duration_minutes):
-        """Pause or resume scanning.
-
-        Args:
-            duration_minutes: Minutes to pause. 0 = resume, -1 = indefinite.
-        """
-        if duration_minutes < 0:
-            self.state.pause(0)  # 0 = indefinite in state API
-            if self._tray:
-                self._tray.update_status("paused")
-        elif duration_minutes > 0:
-            self.state.pause(duration_minutes)
-            if self._tray:
-                self._tray.update_status("paused")
-        else:
-            self.state.resume()
-            if self._tray:
-                self._tray.update_status("running")
 
     def _socket_info(self):
         """Get human-readable socket info string."""
