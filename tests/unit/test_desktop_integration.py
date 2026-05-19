@@ -155,7 +155,7 @@ class TestLinuxDesktop:
         content = linux.shortcut_path.read_text()
         assert "[Desktop Entry]" in content
         assert "Type=Application" in content
-        assert "Name=AI Guardian" in content
+        assert "Name=AI Guardian Tray" in content
         assert "Exec=/usr/bin/ai-guardian tray start" in content
         assert "Terminal=false" in content
         assert f"Icon={icon}" in content
@@ -380,11 +380,11 @@ class TestWindowsDesktop:
         return WindowsDesktop()
 
     def test_shortcut_path_in_start_menu(self, win, tmp_path):
-        expected = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "AI Guardian.lnk"
+        expected = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "AI Guardian Tray.lnk"
         assert win.shortcut_path == expected
 
     def test_autostart_path_in_startup(self, win, tmp_path):
-        expected = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "AI Guardian.lnk"
+        expected = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "AI Guardian Tray.lnk"
         assert win.autostart_path == expected
 
     def test_shortcut_exists_false_when_missing(self, win):

@@ -243,7 +243,7 @@ class DaemonTray:
             pystray.MenuItem("Quit", self._on_quit),
         )
         self._icon = pystray.Icon(
-            "ai-guardian", self._create_icon(), "AI Guardian", menu
+            "ai-guardian", self._create_icon(), "AI Guardian Tray", menu
         )
         self._start_stats_refresh()
         import platform
