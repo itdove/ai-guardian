@@ -560,9 +560,9 @@ class TestIDESetupMenu:
             item_names = [
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list[:-1]
             ]
-            assert "Create Config..." in item_names
+            assert "  Create Config..." in item_names
             for ide_cfg in IDESetup.IDE_CONFIGS.values():
-                assert ide_cfg["name"] in item_names
+                assert f"  {ide_cfg['name']}" in item_names
 
     def test_launch_create_config_builds_correct_command(self):
         with mock.patch("platform.system", return_value="Darwin"):
