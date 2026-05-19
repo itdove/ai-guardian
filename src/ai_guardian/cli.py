@@ -36,6 +36,7 @@ from ai_guardian.cli_handlers import (
     _get_client_timeout,
     _set_daemon_mode_in_config,
     _handle_daemon_command,
+    _handle_tray_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -557,11 +558,35 @@ def main():
         daemon_start_parser.add_argument(
             "--no-tray",
             action="store_true",
-            help="Disable system tray icon"
+            help="Deprecated: daemon is always headless. Use 'ai-guardian tray' for system tray."
         )
         daemon_sub.add_parser("stop", help="Stop running daemon")
         daemon_sub.add_parser("status", help="Show daemon status")
         daemon_sub.add_parser("restart", help="Restart daemon")
+
+        # Standalone tray subcommand (Issue #527)
+        tray_parser = subparsers.add_parser(
+            "tray",
+            help="Manage standalone multi-daemon tray client"
+        )
+        tray_sub = tray_parser.add_subparsers(
+            dest="tray_command", help="Tray commands"
+        )
+        tray_start_parser = tray_sub.add_parser(
+            "start", help="Start standalone tray (default)"
+        )
+        tray_start_parser.add_argument(
+            "--background", "-b",
+            action="store_true",
+            help="Start tray in background (detached)"
+        )
+        tray_start_parser.add_argument(
+            "--no-discover",
+            action="store_true",
+            help="Disable auto-discovery (manual targets only)"
+        )
+        tray_sub.add_parser("stop", help="Stop running standalone tray")
+        tray_sub.add_parser("restart", help="Restart standalone tray")
 
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
@@ -1054,6 +1079,10 @@ def main():
 
         if args.command == "daemon":
             return _handle_daemon_command(args)
+
+        # Handle tray command (Issue #527)
+        if args.command == "tray":
+            return _handle_tray_command(args)
 
         # Handle mcp-server command (Issue #477)
         if args.command == "mcp-server":

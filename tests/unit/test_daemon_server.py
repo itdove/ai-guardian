@@ -112,7 +112,7 @@ class TestDaemonServerProtocol:
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
         from pathlib import Path
 
-        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
@@ -160,7 +160,7 @@ class TestDaemonServerProtocol:
 
     def test_shutdown_request(self, short_state_dir, monkeypatch):
         from pathlib import Path
-        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
@@ -253,7 +253,7 @@ class TestDaemonServerProtocol:
 class TestDaemonServerTCP:
     def test_tcp_mode_binds_localhost(self, short_state_dir, monkeypatch):
         server = DaemonServer(
-            idle_timeout=5, use_tcp=True, enable_tray=False
+            idle_timeout=5, use_tcp=True, enable_rest_api=False
         )
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -303,20 +303,11 @@ class TestDaemonServerCrossPlatform:
             server = DaemonServer(idle_timeout=5)
             assert server._use_tcp is False
 
-    def test_macos_uses_main_thread_tray(self):
-        with mock.patch("platform.system", return_value="Darwin"):
-            assert DaemonServer._should_use_main_thread_tray() is True
-
-    def test_linux_uses_background_tray(self):
-        with mock.patch("platform.system", return_value="Linux"):
-            assert DaemonServer._should_use_main_thread_tray() is False
-
-
 class TestDaemonServerPausedHook:
     """Test that paused daemon returns valid empty JSON to avoid Claude Code errors."""
 
     def test_handle_hook_request_paused_returns_empty_json(self, short_state_dir):
-        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         server.state.pause()
 
         result = server._handle_hook_request({
@@ -329,7 +320,7 @@ class TestDaemonServerPausedHook:
         assert result["exit_code"] == 0
 
     def test_handle_hook_request_paused_output_is_valid_json(self, short_state_dir):
-        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         server.state.pause()
 
         result = server._handle_hook_request({
@@ -341,7 +332,7 @@ class TestDaemonServerPausedHook:
         assert isinstance(parsed, dict)
 
     def test_handle_hook_request_not_paused_processes_normally(self, short_state_dir):
-        server = DaemonServer(idle_timeout=30, enable_tray=False)
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         assert not server.state.paused
 
         result = server._handle_hook_request({
@@ -355,7 +346,7 @@ class TestDaemonServerPausedHook:
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
         from pathlib import Path
-        server = DaemonServer(idle_timeout=0.5, enable_tray=False)
+        server = DaemonServer(idle_timeout=0.5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()

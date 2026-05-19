@@ -39,7 +39,7 @@ Unlike command-line flags, the Console requires you to physically see and click 
 
 3. **Minimum terminal size**: 80x24 characters (recommended: 120x40)
 
-4. **GNOME Desktop (Linux)**: The daemon system tray icon requires the AppIndicator extension. Without it, `ai-guardian daemon start` runs but the tray icon does not appear.
+4. **GNOME Desktop (Linux)**: The system tray icon requires the AppIndicator extension. Without it, `ai-guardian tray start` runs but the tray icon does not appear.
 
    ```bash
    # Fedora / RHEL

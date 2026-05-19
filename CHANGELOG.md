@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-Daemon Tray Client with Podman Auto-Discovery** (Issue #527)
+  - New discovery engine (`discovery.py`) finds daemons across local, Podman/Docker containers, Kubernetes pods, and manual targets
+  - Cascading container discovery: label filter (`ai-guardian.daemon=true`) with port filter fallback
+  - New multi-client (`multi_client.py`) routes tray actions to correct daemon via socket, REST API, `podman exec`, or `kubectl exec`
+  - New REST API (`rest_api.py`) for cross-network daemon communication (stdlib `http.server`, no new deps)
+  - REST API endpoints: `GET /api/status`, `GET /api/stats`, `GET /api/health`, `POST /api/pause`, `POST /api/resume`
+  - Tray menu shows discovered daemons with status indicators and supports daemon selection
+  - New `ai-guardian tray` CLI subcommand for standalone multi-daemon tray client
+  - Configurable REST port (`daemon.rest_port`, default 63152) with container label override (`ai-guardian.rest-port`)
+  - Container engine auto-detection (podman preferred) with manual override (`daemon.container_engine`)
+  - Kubernetes discovery opt-in (`daemon.tray.discover_kubernetes`) with user-scoped pod filtering
+  - Manual targets via `~/.config/ai-guardian/tray-targets.json` with auth token support
+  - Instance name (`name` in config, defaults to hostname) displayed in Console banner, tray, REST API, and MCP
+  - Daemon is now always headless — tray is a separate process (`ai-guardian tray start/stop`)
+  - `ai-guardian tray stop` command to cleanly stop the standalone tray
+  - Tray lock file prevents duplicate tray instances across all platforms
+  - Auto-selects the first running daemon target (no manual selection needed)
+
+### Changed
+
+- **BREAKING: Daemon no longer launches system tray automatically** (Issue #527)
+  - `ai-guardian daemon start` now runs headless (no tray icon)
+  - System tray is a separate process: `ai-guardian tray start`
+  - **Migration**: If you relied on the tray appearing automatically with `daemon start`, add `ai-guardian tray start` to your workflow (e.g., login items, shell alias, or startup script)
+  - The `--no-tray` flag on `daemon start` is deprecated (daemon is always headless)
+  - This separation enables the tray to manage multiple daemons (local + containers) independently
+
 - **Python 3.13 and 3.14 support** (Issue #645)
   - Added Python 3.13 and 3.14 to CI test matrix
   - Added PyPI classifiers for Python 3.13 and 3.14

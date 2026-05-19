@@ -46,6 +46,20 @@ This single command:
 
 > **MCP servers and Skills are blocked by default.** Built-in tools (Bash, Read, Write, Edit) are allowed and scanned by hooks, but MCP servers and Skills require explicit allow rules. See [Tool Policy](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md#default-security-posture) for why and how to allow them.
 
+### Daemon & Tray
+
+The daemon provides faster hook processing. The tray is a separate process that discovers and manages daemons across local, Podman/Docker containers, and Kubernetes pods:
+
+```bash
+ai-guardian daemon start          # Start headless daemon (background: -b)
+ai-guardian tray start -b         # Start system tray in background
+ai-guardian tray stop             # Stop the tray
+```
+
+The tray auto-discovers running daemons and shows per-daemon submenus with Statistics, Console, Pause/Resume, and Start/Stop controls. See [Multi-Daemon Tray](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) for full documentation.
+
+> **Breaking change in v1.8.0**: `daemon start` no longer launches the tray automatically. Run `ai-guardian tray start -b` separately, or add it to your login items.
+
 ### Security Profiles
 
 Choose a profile that matches your environment:
@@ -83,6 +97,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | MCP Security Advisor | Read-only security tools for AI agents (proactive checks) | [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) |
 | MCP Security Scanning | Audit MCP server configs and source code for supply chain risks | [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md#mcp-security-scanning) |
 | Project Config Overlay | Per-repo config with immutable fields and global-only section protection | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180) |
+| Multi-Daemon Tray | Discover and manage daemons across local, Podman/Docker, and Kubernetes | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) |
 
 ## Default Behavior (No Configuration File)
 
