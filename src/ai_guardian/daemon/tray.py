@@ -1131,16 +1131,20 @@ class DaemonTray:
             return action
 
         ide_items = [
-            pystray.MenuItem(
-                "Create Config...",
-                lambda _, __: self._launch_create_config(),
-            ),
-            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("IDE Hooks (required)", None, enabled=False),
         ]
         for ide_key, ide_cfg in IDESetup.IDE_CONFIGS.items():
             ide_items.append(
                 pystray.MenuItem(ide_cfg["name"], _mk_ide_action(ide_key))
             )
+        ide_items.extend([
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Configuration", None, enabled=False),
+            pystray.MenuItem(
+                "Create Config...",
+                lambda _, __: self._launch_create_config(),
+            ),
+        ])
 
         return [
             pystray.MenuItem(
