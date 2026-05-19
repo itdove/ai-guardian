@@ -182,7 +182,7 @@ class LinuxDesktop(DesktopIntegration):
         lines = [
             "[Desktop Entry]",
             "Type=Application",
-            "Name=AI Guardian",
+            "Name=AI Guardian Tray",
             "Comment=Security tray for AI coding agents",
             f"Exec={exec_line}",
             "Terminal=false",
@@ -236,7 +236,7 @@ class LinuxDesktop(DesktopIntegration):
 
 class MacOSDesktop(DesktopIntegration):
     APP_DIR = Path("~/Applications").expanduser()
-    APP_NAME = "AI Guardian.app"
+    APP_NAME = "AI Guardian Tray.app"
     LAUNCHD_DIR = Path("~/Library/LaunchAgents").expanduser()
     PLIST_NAME = "com.ai-guardian.tray.plist"
 
@@ -275,8 +275,8 @@ class MacOSDesktop(DesktopIntegration):
 
             import plistlib
             info_plist = {
-                "CFBundleName": "AI Guardian",
-                "CFBundleDisplayName": "AI Guardian",
+                "CFBundleName": "AI Guardian Tray",
+                "CFBundleDisplayName": "AI Guardian Tray",
                 "CFBundleIdentifier": "com.ai-guardian.tray",
                 "CFBundleVersion": "1.0",
                 "CFBundlePackageType": "APPL",
@@ -344,7 +344,7 @@ class MacOSDesktop(DesktopIntegration):
 
 
 class WindowsDesktop(DesktopIntegration):
-    LNK_NAME = "AI Guardian.lnk"
+    LNK_NAME = "AI Guardian Tray.lnk"
 
     @property
     def _start_menu_dir(self):
