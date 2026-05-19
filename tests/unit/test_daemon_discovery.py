@@ -7,7 +7,13 @@ from unittest import mock
 
 import pytest
 
-from ai_guardian.daemon.discovery import DaemonDiscovery, DaemonTarget
+from ai_guardian.daemon.discovery import (
+    DaemonDiscovery,
+    DaemonTarget,
+    HAS_DOCKER_SDK,
+    _engine_from_source,
+    _get_podman_socket,
+)
 
 
 class TestDaemonTarget:
@@ -228,42 +234,82 @@ class TestDiscoverLocal:
             os.unlink(f.name)
 
 
-class TestDiscoverContainers:
-    """Tests for container discovery.
+def _make_mock_container(
+    container_id="abc123def456",
+    name="my-guardian",
+    labels=None,
+    ports=None,
+):
+    """Create a mock docker SDK Container object."""
+    c = mock.MagicMock()
+    c.id = container_id
+    c.name = name
+    c.labels = labels or {"ai-guardian.daemon": "true"}
+    c.ports = ports or {"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49200"}]}
+    return c
 
-    All tests mock _probe_daemon and _exec_instance_name to avoid
+
+class TestEngineFromSource:
+    def test_docker_socket(self):
+        assert _engine_from_source("/var/run/docker.sock") == "docker"
+
+    def test_podman_rootless_socket(self):
+        assert _engine_from_source("/run/user/1000/podman/podman.sock") == "podman"
+
+    def test_podman_rootful_socket(self):
+        assert _engine_from_source("/run/podman/podman.sock") == "podman"
+
+    def test_docker_host_tcp(self):
+        assert _engine_from_source("tcp://localhost:2375") == "docker"
+
+    def test_docker_host_podman(self):
+        assert _engine_from_source("unix:///run/podman/podman.sock") == "podman"
+
+
+class TestGetPodmanSocket:
+    @mock.patch("os.getuid", return_value=1000)
+    def test_returns_rootless_path(self, mock_uid):
+        assert _get_podman_socket() == "/run/user/1000/podman/podman.sock"
+
+    def test_returns_none_on_windows(self):
+        with mock.patch("os.getuid", side_effect=AttributeError):
+            assert _get_podman_socket() is None
+
+
+class TestDiscoverContainers:
+    """Tests for SDK-based container discovery.
+
+    All tests mock _probe_daemon and _sdk_exec_instance_name to avoid
     actual HTTP/exec calls during container discovery.
     """
 
     def _patch_probes(self, d, probe_return=None):
-        """Patch _probe_daemon and _exec_instance_name on a discovery instance."""
+        """Patch _probe_daemon and _sdk_exec_instance_name on a discovery instance."""
         return (
             mock.patch.object(d, "_probe_daemon", return_value=probe_return),
-            mock.patch.object(d, "_exec_instance_name", return_value=None),
+            mock.patch.object(d, "_sdk_exec_instance_name", return_value=None),
         )
 
-    def test_no_engine_returns_empty(self):
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", False)
+    def test_no_sdk_returns_empty(self):
         d = DaemonDiscovery()
-        with mock.patch.object(d, "get_container_engines", return_value=[]):
+        assert d.discover_containers() == []
+
+    def test_no_reachable_sockets_returns_empty(self):
+        d = DaemonDiscovery()
+        with mock.patch.object(d, "_get_docker_clients", return_value=[]):
             assert d.discover_containers() == []
 
-    @mock.patch("subprocess.run")
-    def test_label_discovery_podman_array(self, mock_run):
-        containers = [
-            {
-                "Id": "abc123def456",
-                "Names": ["my-guardian"],
-                "Labels": {"ai-guardian.daemon": "true"},
-                "Ports": [{"container_port": 63152, "host_port": 49200}],
-            }
-        ]
-        mock_run.return_value = mock.MagicMock(
-            returncode=0, stdout=json.dumps(containers), stderr=""
-        )
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_label_discovery_via_sdk(self):
+        container = _make_mock_container()
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -272,142 +318,135 @@ class TestDiscoverContainers:
         assert targets[0].port == 49200
         assert targets[0].container_engine == "podman"
 
-    @mock.patch("subprocess.run")
-    def test_label_discovery_docker_line_delimited(self, mock_run):
-        line1 = json.dumps({
-            "Id": "aaa111bbb222ccc333", "Names": ["daemon-1"],
-            "Labels": {"ai-guardian.daemon": "true"},
-            "Ports": [{"containerPort": 63152, "hostPort": 50001}],
-        })
-        line2 = json.dumps({
-            "Id": "bbb222ccc333ddd444", "Names": ["daemon-2"],
-            "Labels": {"ai-guardian.daemon": "true"},
-            "Ports": [{"containerPort": 63152, "hostPort": 50002}],
-        })
-
-        mock_run.return_value = mock.MagicMock(
-            returncode=0, stdout=f"{line1}\n{line2}\n", stderr=""
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_label_discovery_multiple_containers(self):
+        c1 = _make_mock_container(
+            container_id="aaa111bbb222ccc333", name="daemon-1",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "50001"}]}
         )
+        c2 = _make_mock_container(
+            container_id="bbb222ccc333ddd444", name="daemon-2",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "50002"}]}
+        )
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [c1, c2]
+        mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["docker"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "docker")]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 2
 
-    @mock.patch("subprocess.run")
-    def test_port_fallback_discovery(self, mock_run):
-        label_result = mock.MagicMock(returncode=0, stdout="[]", stderr="")
-        port_result = mock.MagicMock(
-            returncode=0,
-            stdout=json.dumps([{
-                "Id": "abc789def012abc789", "Names": ["some-container"],
-                "Labels": {},
-                "Ports": [{"container_port": 63152, "host_port": 49300}],
-            }]),
-            stderr=""
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_port_fallback_discovery(self):
+        container = _make_mock_container(
+            container_id="abc789def012abc789", name="some-container",
+            labels={},
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49300"}]}
         )
-        mock_run.side_effect = [label_result, port_result]
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.side_effect = [
+            [],
+            [container],
+        ]
+        mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
         assert targets[0].name == "some-container"
 
-    @mock.patch("subprocess.run")
-    def test_deduplicates_by_container_id(self, mock_run):
-        container = {
-            "Id": "abc123def456abc123", "Names": ["guardian"],
-            "Labels": {"ai-guardian.daemon": "true"},
-            "Ports": [{"container_port": 63152, "host_port": 49400}],
-        }
-        label_result = mock.MagicMock(
-            returncode=0, stdout=json.dumps([container]), stderr=""
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_deduplicates_by_container_id(self):
+        container = _make_mock_container(
+            container_id="abc123def456abc123", name="guardian",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49400"}]}
         )
-        port_result = mock.MagicMock(
-            returncode=0, stdout=json.dumps([container]), stderr=""
-        )
-        mock_run.side_effect = [label_result, port_result]
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
 
-    @mock.patch("subprocess.run")
-    def test_empty_container_list(self, mock_run):
-        mock_run.return_value = mock.MagicMock(
-            returncode=0, stdout="[]", stderr=""
-        )
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_empty_container_list(self):
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = []
+        mock_client.close = mock.MagicMock()
+
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d)
-        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
             targets = d.discover_containers()
         assert targets == []
 
-    @mock.patch("subprocess.run")
-    def test_custom_name_from_label(self, mock_run):
-        containers = [{
-            "Id": "abc123def456abc123", "Names": ["default-name"],
-            "Labels": {"ai-guardian.daemon": "true", "ai-guardian.name": "my-sandbox"},
-            "Ports": [{"container_port": 63152, "host_port": 49500}],
-        }]
-        mock_run.return_value = mock.MagicMock(
-            returncode=0, stdout=json.dumps(containers), stderr=""
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_custom_name_from_label(self):
+        container = _make_mock_container(
+            container_id="abc123def456abc123", name="default-name",
+            labels={"ai-guardian.daemon": "true", "ai-guardian.name": "my-sandbox"},
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49500"}]}
         )
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
+
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
             targets = d.discover_containers()
         assert targets[0].name == "my-sandbox"
 
-    @mock.patch("subprocess.run")
-    def test_custom_rest_port_from_label(self, mock_run):
-        containers = [{
-            "Id": "abc123def456abc123", "Names": ["guardian"],
-            "Labels": {
-                "ai-guardian.daemon": "true",
-                "ai-guardian.rest-port": "8080"
-            },
-            "Ports": [{"container_port": 8080, "host_port": 49600}],
-        }]
-        mock_run.return_value = mock.MagicMock(
-            returncode=0, stdout=json.dumps(containers), stderr=""
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_custom_rest_port_from_label(self):
+        container = _make_mock_container(
+            container_id="abc123def456abc123", name="guardian",
+            labels={"ai-guardian.daemon": "true", "ai-guardian.rest-port": "8080"},
+            ports={"8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49600"}]}
         )
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
+
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
             targets = d.discover_containers()
         assert targets[0].port == 49600
 
-    @mock.patch("subprocess.run")
-    def test_multi_engine_discovery(self, mock_run):
-        podman_containers = [{
-            "Id": "aaa111bbb222ccc333", "Names": ["carbonite"],
-            "Labels": {"ai-guardian.daemon": "true"},
-            "Ports": [{"container_port": 63152, "host_port": 49700}],
-        }]
-        docker_containers = [{
-            "Id": "ddd444eee555fff666", "Names": ["dev-api"],
-            "Labels": {"ai-guardian.daemon": "true"},
-            "Ports": [{"containerPort": 63152, "hostPort": 49800}],
-        }]
-        mock_run.side_effect = [
-            mock.MagicMock(returncode=0, stdout=json.dumps(podman_containers), stderr=""),
-            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
-            mock.MagicMock(returncode=0, stdout=json.dumps(docker_containers), stderr=""),
-            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
-        ]
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_multi_engine_discovery(self):
+        podman_container = _make_mock_container(
+            container_id="aaa111bbb222ccc333", name="carbonite",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49700"}]}
+        )
+        docker_container = _make_mock_container(
+            container_id="ddd444eee555fff666", name="dev-api",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49800"}]}
+        )
+        podman_client = mock.MagicMock()
+        podman_client.containers.list.return_value = [podman_container]
+        podman_client.close = mock.MagicMock()
+
+        docker_client = mock.MagicMock()
+        docker_client.containers.list.return_value = [docker_container]
+        docker_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman", "docker"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[
+            (podman_client, "podman"), (docker_client, "docker")
+        ]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 2
@@ -416,27 +455,153 @@ class TestDiscoverContainers:
         names = {t.name for t in targets}
         assert names == {"carbonite", "dev-api"}
 
-    @mock.patch("subprocess.run")
-    def test_multi_engine_deduplication(self, mock_run):
-        container = {
-            "Id": "abc123def456abc123", "Names": ["guardian"],
-            "Labels": {"ai-guardian.daemon": "true"},
-            "Ports": [{"container_port": 63152, "host_port": 49900}],
-        }
-        mock_run.side_effect = [
-            mock.MagicMock(returncode=0, stdout=json.dumps([container]), stderr=""),
-            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
-            mock.MagicMock(returncode=0, stdout=json.dumps([container]), stderr=""),
-            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
-        ]
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_multi_engine_deduplication(self):
+        container = _make_mock_container(
+            container_id="abc123def456abc123", name="guardian",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49900"}]}
+        )
+        podman_client = mock.MagicMock()
+        podman_client.containers.list.return_value = [container]
+        podman_client.close = mock.MagicMock()
+
+        docker_client = mock.MagicMock()
+        docker_client.containers.list.return_value = [container]
+        docker_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engines", return_value=["podman", "docker"]), p1, p2:
+        with mock.patch.object(d, "_get_docker_clients", return_value=[
+            (podman_client, "podman"), (docker_client, "docker")
+        ]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
         assert targets[0].container_engine == "podman"
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_client_close_called(self):
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = []
+        mock_client.close = mock.MagicMock()
+
+        d = DaemonDiscovery()
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "docker")]):
+            d.discover_containers()
+
+        mock_client.close.assert_called_once()
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_client_close_called_on_error(self):
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.side_effect = Exception("connection lost")
+        mock_client.close = mock.MagicMock()
+
+        d = DaemonDiscovery()
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "docker")]):
+            targets = d.discover_containers()
+
+        assert targets == []
+        mock_client.close.assert_called_once()
+
+
+class TestGetDockerClients:
+    """Tests for _get_docker_clients socket discovery."""
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    @mock.patch("os.path.exists", return_value=False)
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_no_sockets_returns_empty(self, mock_exists):
+        d = DaemonDiscovery()
+        with mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker:
+            clients = d._get_docker_clients()
+        assert clients == []
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    @mock.patch("os.path.exists")
+    @mock.patch.dict(os.environ, {"DOCKER_HOST": "unix:///var/run/docker.sock"})
+    def test_docker_host_env_used_first(self, mock_exists):
+        mock_exists.return_value = False
+        mock_client = mock.MagicMock()
+        mock_client.ping.return_value = True
+
+        d = DaemonDiscovery()
+        with mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker:
+            mock_docker.DockerClient.return_value = mock_client
+            clients = d._get_docker_clients()
+
+        assert len(clients) == 1
+        assert clients[0][1] == "docker"
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_podman_socket_detected(self):
+        mock_client = mock.MagicMock()
+        mock_client.ping.return_value = True
+
+        d = DaemonDiscovery()
+        podman_sock = _get_podman_socket()
+
+        def mock_exists(path):
+            return path == podman_sock
+
+        with mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker, \
+             mock.patch("os.path.exists", side_effect=mock_exists):
+            mock_docker.DockerClient.return_value = mock_client
+            clients = d._get_docker_clients()
+
+        if podman_sock:
+            assert len(clients) == 1
+            assert clients[0][1] == "podman"
+
+
+class TestSdkFindHostPort:
+    def test_finds_port_from_sdk_format(self):
+        c = _make_mock_container(
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49200"}]}
+        )
+        assert DaemonDiscovery._sdk_find_host_port(c, 63152) == 49200
+
+    def test_no_match_returns_zero(self):
+        c = _make_mock_container(ports={"8080/tcp": [{"HostPort": "49200"}]})
+        assert DaemonDiscovery._sdk_find_host_port(c, 63152) == 0
+
+    def test_empty_ports_returns_zero(self):
+        c = mock.MagicMock()
+        c.ports = {}
+        assert DaemonDiscovery._sdk_find_host_port(c, 63152) == 0
+
+    def test_none_bindings_returns_zero(self):
+        c = _make_mock_container(ports={"63152/tcp": None})
+        assert DaemonDiscovery._sdk_find_host_port(c, 63152) == 0
+
+
+class TestSdkExecInstanceName:
+    def test_reads_name_from_config(self):
+        c = mock.MagicMock()
+        c.exec_run.return_value = (0, b"my-daemon\n")
+        assert DaemonDiscovery._sdk_exec_instance_name(c) == "my-daemon"
+
+    def test_fallback_to_show_config(self):
+        c = mock.MagicMock()
+        c.exec_run.side_effect = [
+            (1, b""),
+            (0, json.dumps({"daemon": {"name": "fallback-name"}}).encode()),
+        ]
+        assert DaemonDiscovery._sdk_exec_instance_name(c) == "fallback-name"
+
+    def test_returns_none_on_failure(self):
+        c = mock.MagicMock()
+        c.exec_run.side_effect = Exception("container stopped")
+        assert DaemonDiscovery._sdk_exec_instance_name(c) is None
+
+    def test_empty_name_tries_fallback(self):
+        c = mock.MagicMock()
+        c.exec_run.side_effect = [
+            (0, b"\n"),
+            (0, json.dumps({"daemon": {"name": "from-show-config"}}).encode()),
+        ]
+        assert DaemonDiscovery._sdk_exec_instance_name(c) == "from-show-config"
 
 
 class TestDiscoverKubernetes:
