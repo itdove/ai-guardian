@@ -645,7 +645,8 @@ class DaemonState:
             )
             closed = False
             try:
-                os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+                if hasattr(os, 'fchmod'):
+                    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
                 os.write(fd, content.encode("utf-8"))
                 os.close(fd)
                 closed = True

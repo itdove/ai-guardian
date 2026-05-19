@@ -21,14 +21,18 @@ def _get_tray_lock_path():
 
 def _is_tray_running():
     """Check if another tray process is already running."""
+    from ai_guardian.daemon import is_pid_alive
+
     lock_path = _get_tray_lock_path()
     if not lock_path.exists():
         return False
     try:
         pid = int(lock_path.read_text().strip())
-        os.kill(pid, 0)
-        return True
-    except (ValueError, ProcessLookupError, OSError):
+        if is_pid_alive(pid):
+            return True
+        lock_path.unlink(missing_ok=True)
+        return False
+    except ValueError:
         lock_path.unlink(missing_ok=True)
         return False
 

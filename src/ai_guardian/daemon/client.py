@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-from ai_guardian.daemon import get_pid_path, get_socket_path
+from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
@@ -47,9 +47,7 @@ def is_daemon_running():
             return False
 
         # Check if process exists
-        try:
-            os.kill(pid, 0)
-        except (OSError, ProcessLookupError):
+        if not is_pid_alive(pid):
             return False
 
         # Verify socket connectivity with a ping
@@ -291,14 +289,8 @@ def _find_executable():
     Returns:
         list: Command to invoke ai-guardian
     """
-    import shutil
-
-    path = shutil.which("ai-guardian")
-    if path:
-        return [path]
-
-    # Fallback for environments where scripts dir isn't in PATH
-    return [sys.executable, "-m", "ai_guardian"]
+    from ai_guardian.daemon import get_executable_command
+    return get_executable_command()
 
 
 def _tcp_pid_has_port():

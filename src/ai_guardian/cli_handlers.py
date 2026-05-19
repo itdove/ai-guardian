@@ -16,6 +16,25 @@ from ai_guardian.config_loaders import _load_config_file
 from ai_guardian.constants import ViolationType
 
 
+def _format_duration_ago(secs):
+    """Format a duration in seconds as a human-readable 'X ago' string.
+
+    Args:
+        secs: Number of seconds (int or float)
+
+    Returns:
+        str: Formatted string like '30s ago', '5m ago', '2h ago', '3d ago'
+    """
+    secs = int(secs)
+    if secs < 60:
+        return f"{secs}s ago"
+    if secs < 3600:
+        return f"{secs // 60}m ago"
+    if secs < 86400:
+        return f"{secs // 3600}h ago"
+    return f"{secs // 86400}d ago"
+
+
 def _handle_violations_command(args):
     """
     Handle the violations subcommand.
@@ -144,8 +163,11 @@ def _handle_violations_command(args):
     return 0
 
 
-def _get_daemon_mode():
+def _get_daemon_mode(config=None):
     """Get daemon mode from environment variable or config.
+
+    Args:
+        config: Pre-loaded config dict (skips _load_config_file when provided)
 
     Returns:
         str: "auto", "local", or "daemon"
@@ -156,7 +178,8 @@ def _get_daemon_mode():
         return env_mode
 
     try:
-        config, _ = _load_config_file()
+        if config is None:
+            config, _ = _load_config_file()
         if config:
             daemon_config = config.get("daemon", {})
             mode = daemon_config.get("mode", "auto")
@@ -168,14 +191,18 @@ def _get_daemon_mode():
     return "auto"
 
 
-def _get_client_timeout():
+def _get_client_timeout(config=None):
     """Get daemon client timeout from config.
+
+    Args:
+        config: Pre-loaded config dict (skips _load_config_file when provided)
 
     Returns:
         float: Timeout in seconds (default 2.0, range 0.5-10.0)
     """
     try:
-        config, _ = _load_config_file()
+        if config is None:
+            config, _ = _load_config_file()
         if config:
             daemon_config = config.get("daemon", {})
             timeout = daemon_config.get("client_timeout_seconds", 2.0)
@@ -269,8 +296,7 @@ def _handle_daemon_command(args):
             pid_path = get_pid_path()
             pid = "unknown"
             try:
-                import json as _json
-                pid_info = _json.loads(pid_path.read_text())
+                pid_info = json.loads(pid_path.read_text())
                 pid = pid_info.get("pid", "unknown")
             except Exception:
                 pass
@@ -281,16 +307,7 @@ def _handle_daemon_command(args):
 
             reload_ago = stats.get("last_config_reload_seconds_ago")
             if reload_ago is not None:
-                reload_secs = int(reload_ago)
-                if reload_secs < 60:
-                    reload_str = f"{reload_secs}s ago"
-                elif reload_secs < 3600:
-                    reload_str = f"{reload_secs // 60}m ago"
-                elif reload_secs < 86400:
-                    reload_str = f"{reload_secs // 3600}h ago"
-                else:
-                    reload_str = f"{reload_secs // 86400}d ago"
-                config_str = f"loaded (last reload: {reload_str})"
+                config_str = f"loaded (last reload: {_format_duration_ago(reload_ago)})"
             else:
                 config_str = "loaded"
 
@@ -310,16 +327,7 @@ def _handle_daemon_command(args):
             project_reload_ago = stats.get("last_project_config_reload_seconds_ago")
             if project_count > 0:
                 if project_reload_ago is not None:
-                    pr_secs = int(project_reload_ago)
-                    if pr_secs < 60:
-                        pr_str = f"{pr_secs}s ago"
-                    elif pr_secs < 3600:
-                        pr_str = f"{pr_secs // 60}m ago"
-                    elif pr_secs < 86400:
-                        pr_str = f"{pr_secs // 3600}h ago"
-                    else:
-                        pr_str = f"{pr_secs // 86400}d ago"
-                    print(f"Project configs tracked: {project_count} (last reload: {pr_str})")
+                    print(f"Project configs tracked: {project_count} (last reload: {_format_duration_ago(project_reload_ago)})")
                 else:
                     print(f"Project configs tracked: {project_count}")
 
@@ -452,15 +460,11 @@ def _handle_tray_stop():
 
 def _handle_tray_start(args):
     """Start the standalone multi-daemon tray client."""
-    import shutil
     import subprocess
 
     if getattr(args, "background", False):
-        executable = shutil.which("ai-guardian")
-        if executable:
-            cmd = [executable, "tray", "start"]
-        else:
-            cmd = [sys.executable, "-m", "ai_guardian", "tray", "start"]
+        from ai_guardian.daemon import get_executable_command
+        cmd = get_executable_command() + ["tray", "start"]
         if getattr(args, "no_discover", False):
             cmd.append("--no-discover")
         try:
@@ -516,18 +520,14 @@ def _handle_tray_start(args):
 
     no_discover = getattr(args, "no_discover", False)
 
-    daemon_cfg = config.get("daemon", {})
-    tray_cfg = daemon_cfg.get("tray", {})
-    interval = tray_cfg.get("discovery_interval_seconds", 15)
-
     if no_discover:
         disc_config = dict(config)
         disc_config.setdefault("daemon", {}).setdefault("tray", {})
         disc_config["daemon"]["tray"]["discover_containers"] = False
         disc_config["daemon"]["tray"]["discover_kubernetes"] = False
-        discovery = DaemonDiscovery(config=disc_config, discovery_interval=interval)
+        discovery = DaemonDiscovery(config=disc_config)
     else:
-        discovery = DaemonDiscovery(config=config, discovery_interval=interval)
+        discovery = DaemonDiscovery(config=config)
 
     multi_client = MultiDaemonClient()
 

@@ -3,6 +3,7 @@
 import logging
 import os
 import platform
+import shlex
 import shutil
 import stat
 import subprocess
@@ -27,10 +28,8 @@ def get_desktop_integration():
 
 def _get_executable_command():
     """Resolve the command to launch ai-guardian tray."""
-    executable = shutil.which("ai-guardian")
-    if executable:
-        return [os.path.abspath(executable)]
-    return [sys.executable, "-m", "ai_guardian"]
+    from ai_guardian.daemon import get_executable_command
+    return get_executable_command()
 
 
 def _find_banner_icon():
@@ -264,7 +263,7 @@ class MacOSDesktop(DesktopIntegration):
             resources_dir.mkdir(parents=True, exist_ok=True)
 
             cmd = _get_executable_command()
-            exec_line = " ".join(cmd) + " tray start"
+            exec_line = " ".join(shlex.quote(c) for c in cmd) + " tray start"
             script_path = macos_dir / "ai-guardian-tray"
             script_path.write_text(f"#!/bin/bash\nexec {exec_line}\n")
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -384,15 +383,18 @@ class WindowsDesktop(DesktopIntegration):
 
         lnk_path.parent.mkdir(parents=True, exist_ok=True)
 
+        def _ps_escape(s):
+            return str(s).replace("'", "''")
+
         ps_lines = [
             "$WshShell = New-Object -ComObject WScript.Shell",
-            f"$Shortcut = $WshShell.CreateShortcut('{lnk_path}')",
-            f"$Shortcut.TargetPath = '{target}'",
-            f"$Shortcut.Arguments = '{arguments}'",
+            f"$Shortcut = $WshShell.CreateShortcut('{_ps_escape(lnk_path)}')",
+            f"$Shortcut.TargetPath = '{_ps_escape(target)}'",
+            f"$Shortcut.Arguments = '{_ps_escape(arguments)}'",
             "$Shortcut.WindowStyle = 7",
         ]
         if ico_path:
-            ps_lines.append(f"$Shortcut.IconLocation = '{ico_path}'")
+            ps_lines.append(f"$Shortcut.IconLocation = '{_ps_escape(ico_path)}'")
         ps_lines.append("$Shortcut.Save()")
 
         ps_script = "; ".join(ps_lines)

@@ -30,12 +30,28 @@ class _RestHandler(BaseHTTPRequestHandler):
         else:
             self._send_error(404, "Not found")
 
+    def _check_auth(self):
+        """Check bearer token if the server has one configured."""
+        token = getattr(self.server, 'auth_token', None)
+        if not token:
+            return True
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header == f"Bearer {token}":
+            return True
+        self._send_error(401, "Unauthorized")
+        return False
+
     def do_POST(self):
+        if not self._check_auth():
+            return
         if self.path == "/api/pause":
             body = self._read_body()
             if body is None:
                 return
             minutes = body.get("minutes", 0)
+            if not isinstance(minutes, (int, float)) or minutes < 0 or minutes > 1440:
+                self._send_error(400, "minutes must be a number between 0 and 1440")
+                return
             self.server.daemon_state.pause(minutes)
             self._send_json({"status": "paused", "minutes": minutes})
         elif self.path == "/api/resume":
@@ -110,7 +126,7 @@ class _RestHandler(BaseHTTPRequestHandler):
 class DaemonRestAPI:
     """Minimal REST API for tray-to-daemon communication."""
 
-    def __init__(self, state, host="127.0.0.1", port=0, name=None):
+    def __init__(self, state, host="127.0.0.1", port=0, name=None, auth_token=None):
         """Initialize REST API server.
 
         Args:
@@ -118,11 +134,13 @@ class DaemonRestAPI:
             host: Bind address (127.0.0.1 for local, 0.0.0.0 for containers)
             port: Port to bind (0 for OS-assigned)
             name: Human-friendly name for this daemon
+            auth_token: Optional bearer token for POST endpoint authentication
         """
         self._state = state
         self._host = host
         self._port = port
         self._name = name
+        self._auth_token = auth_token
         self._server = None
         self._thread = None
 
@@ -131,6 +149,7 @@ class DaemonRestAPI:
         self._server = HTTPServer((self._host, self._port), _RestHandler)
         self._server.daemon_state = self._state
         self._server.instance_name = self._name
+        self._server.auth_token = self._auth_token
         actual_port = self._server.server_address[1]
 
         self._thread = threading.Thread(

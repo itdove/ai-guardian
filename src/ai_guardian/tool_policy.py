@@ -38,6 +38,7 @@ from ai_guardian.config_utils import (
     is_feature_enabled,
 )
 from ai_guardian.config_loaders import _load_json_config
+from ai_guardian.constants import ViolationType
 
 # Import violation logger
 try:
@@ -563,7 +564,7 @@ class ToolPolicyChecker:
                             reason="SSRF attack detected",
                             matcher=tool_name,
                             hook_data=hook_data,
-                            violation_type="ssrf_blocked"
+                            violation_type=ViolationType.SSRF_BLOCKED
                         )
                         return False, error_msg, tool_name
 
@@ -576,7 +577,7 @@ class ToolPolicyChecker:
                             reason="SSRF warning (allowed)",
                             matcher=tool_name,
                             hook_data=hook_data,
-                            violation_type="ssrf_blocked"
+                            violation_type=ViolationType.SSRF_BLOCKED
                         )
                         # Continue to other checks (warning is logged, execution allowed)
 
@@ -1575,7 +1576,7 @@ class ToolPolicyChecker:
         reason: str,
         matcher: str,
         hook_data: Dict,
-        violation_type: str = "tool_permission"
+        violation_type: str = ViolationType.TOOL_PERMISSION
     ):
         """
         Log a tool permission violation.

@@ -173,12 +173,8 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_restart() -> bool:
-        executable = shutil.which("ai-guardian")
-        cmd = (
-            [executable, "daemon", "restart"]
-            if executable
-            else [sys.executable, "-m", "ai_guardian", "daemon", "restart"]
-        )
+        from ai_guardian.daemon import get_executable_command
+        cmd = get_executable_command() + ["daemon", "restart"]
         try:
             subprocess.Popen(
                 cmd,
@@ -193,22 +189,14 @@ class MultiDaemonClient:
     @staticmethod
     def _local_console(cmd: List[str]):
         """Launch console locally in a new terminal window."""
-        executable = shutil.which("ai-guardian")
-        if executable:
-            executable = os.path.abspath(executable)
-            cmd_parts = [executable] + cmd[1:]
-        else:
-            cmd_parts = [sys.executable, "-m", "ai_guardian"] + cmd[1:]
+        from ai_guardian.daemon import get_executable_command
+        cmd_parts = get_executable_command() + cmd[1:]
         _launch_in_terminal(cmd_parts)
 
     @staticmethod
     def _local_exec(cmd: List[str]) -> Optional[str]:
-        executable = shutil.which("ai-guardian")
-        full_cmd = (
-            [executable] + cmd[1:]
-            if executable
-            else [sys.executable, "-m", "ai_guardian"] + cmd[1:]
-        )
+        from ai_guardian.daemon import get_executable_command
+        full_cmd = get_executable_command() + cmd[1:]
         try:
             result = subprocess.run(
                 full_cmd, capture_output=True, text=True, timeout=30
