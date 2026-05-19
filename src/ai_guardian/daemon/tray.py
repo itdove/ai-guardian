@@ -223,32 +223,16 @@ class DaemonTray:
         _remove_tray_lock()
 
     def update_status(self, status):
-        """Update tray icon status (changes icon color).
+        """Update tray icon status.
 
         Args:
             status: "running", "paused", or "error"
         """
         self._status = status
-        if self._icon and HAS_PYSTRAY:
-            try:
-                self._icon.icon = self._create_icon()
-            except Exception:
-                pass
 
     def flash_reload(self):
-        """Briefly flash the icon yellow to indicate config reload."""
-        if not self._icon:
-            return
-        prev = self._status
-        self._status = "reloading"
-        self._dispatch_to_main(self._update_icon)
-
-        def _revert():
-            if self._status == "reloading":
-                self._status = prev
-            self._dispatch_to_main(self._update_icon)
-
-        threading.Timer(1.0, _revert).start()
+        """Record config reload (no visual change with monochrome icons)."""
+        pass
 
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
@@ -271,82 +255,68 @@ class DaemonTray:
             self._icon.run()
 
     def _create_icon(self):
-        """Create tray icon from the project's shield image with status tint."""
-        size = 64
-        icon_img = self._load_project_icon(size)
-        if icon_img is not None:
-            return self._apply_status_tint(icon_img)
-        return self._create_fallback_icon(size)
-
-    def _load_project_icon(self, size):
-        """Load the ai-guardian shield icon from the bundled images."""
-        try:
-            icon_path = self._find_icon_path()
-            if icon_path is None:
-                return None
-
-            img = Image.open(icon_path).convert("RGBA")
-
-            # The banner is wide — crop the shield from the center
-            w, h = img.size
-            # Shield is roughly centered horizontally, top 80% of height
-            shield_size = min(w, h)
-            left = (w - shield_size) // 2
-            top = 0
-            img = img.crop((left, top, left + shield_size, top + shield_size))
-
-            img = img.resize((size, size), Image.LANCZOS)
-            return img
-        except Exception:
-            return None
+        """Create tray icon from monochrome shield template images."""
+        icon_path = self._find_tray_icon_path()
+        if icon_path is not None:
+            try:
+                return Image.open(icon_path).convert("RGBA")
+            except Exception:
+                pass
+        return self._create_fallback_icon(22)
 
     @staticmethod
-    def _find_icon_path():
-        """Find the project icon file."""
+    def _get_tray_icon_size():
+        """Return the preferred tray icon size for the current platform."""
+        import platform
+        system = platform.system()
+        if system == "Darwin":
+            return None  # macOS uses Template naming, not size suffix
+        if system == "Windows":
+            return 16
+        return 22  # Linux (GNOME/KDE)
+
+    @staticmethod
+    def _find_tray_icon_path():
+        """Find the monochrome tray icon for the current platform."""
         from pathlib import Path
+        import platform
         import importlib.resources
 
-        # Try importlib.resources (works for installed packages)
-        try:
-            ref = importlib.resources.files("ai_guardian") / "images" / "ai-guardian.png"
-            with importlib.resources.as_file(ref) as p:
-                if p.exists():
-                    return str(p)
-        except Exception:
-            pass
+        system = platform.system()
 
-        # Fallback: relative to this source file
+        if system == "Darwin":
+            names = ["tray-iconTemplate@2x.png", "tray-iconTemplate.png"]
+        elif system == "Windows":
+            names = ["tray-icon-16.png"]
+        else:
+            names = ["tray-icon-22.png", "tray-icon-32.png"]
+
+        for name in names:
+            try:
+                ref = (importlib.resources.files("ai_guardian")
+                       / "images" / name)
+                with importlib.resources.as_file(ref) as p:
+                    if p.exists():
+                        return str(p)
+            except Exception:
+                pass
+
         src_dir = Path(__file__).resolve().parent.parent
-        candidates = [
-            src_dir / "images" / "ai-guardian.png",
-            src_dir.parent.parent / "images" / "ai-guardian.png",
+        candidates_dirs = [
+            src_dir / "images",
+            src_dir.parent.parent / "images",
         ]
-        for path in candidates:
-            if path.exists():
-                return str(path)
+        for d in candidates_dirs:
+            for name in names:
+                path = d / name
+                if path.exists():
+                    return str(path)
 
         return None
 
-    def _apply_status_tint(self, img):
-        """Apply a color tint overlay on top of the icon for status."""
-        if self._status == "running":
-            return img
-
-        tints = {
-            "paused": (200, 30, 30, 140),
-            "error": (200, 30, 30, 160),
-            "reloading": (220, 180, 30, 140),
-        }
-        tint = tints.get(self._status)
-        if tint is None:
-            return img
-
-        overlay = Image.new("RGBA", img.size, tint)
-        return Image.alpha_composite(img, overlay)
-
     @staticmethod
     def _create_fallback_icon(size):
-        """Create a simple fallback icon if the project icon is not found."""
+        """Create a simple fallback icon if the tray icon files are not found."""
         image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
         draw.ellipse([4, 4, size - 4, size - 4], fill=(0, 160, 220, 255))
@@ -511,12 +481,6 @@ class DaemonTray:
             except Exception:
                 pass
 
-    def _update_icon(self):
-        """Update the tray icon image."""
-        if not self._icon:
-            return
-        self._icon.icon = self._create_icon()
-
     def _refresh_menu(self):
         """Refresh the tray menu (must be called on main thread)."""
         if self._icon:
@@ -526,13 +490,8 @@ class DaemonTray:
                 pass
 
     def _refresh_icon_running(self):
-        """Update icon and menu to reflect resumed state (main thread)."""
-        if self._icon:
-            try:
-                self._update_icon()
-                self._icon.update_menu()
-            except Exception:
-                pass
+        """Refresh menu to reflect resumed state (main thread)."""
+        self._refresh_menu()
 
     def _stop_pause_timer(self):
         """Stop the pause countdown timer."""
