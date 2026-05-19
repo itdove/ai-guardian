@@ -95,29 +95,122 @@ class TestGetContainerEngines:
 
 
 class TestDiscoverLocal:
+    """Tests for local discovery with config file check.
+
+    discover_local() now requires ai-guardian.json to exist.
+    All tests use a temp directory to isolate config state.
+    """
+
+    def _make_config_dir(self, tmp_path, config_content=None):
+        """Create a temp config dir, optionally with ai-guardian.json."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        if config_content is not None:
+            (config_dir / "ai-guardian.json").write_text(
+                json.dumps(config_content), encoding="utf-8"
+            )
+        return config_dir
+
     @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
-    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
-    def test_finds_running_daemon(self, mock_running, mock_pid):
+    def test_no_config_returns_none(self, mock_pid, tmp_path):
+        """No ai-guardian.json → discover_local() returns None."""
+        config_dir = self._make_config_dir(tmp_path)
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
         d = DaemonDiscovery()
-        target = d.discover_local()
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        ):
+            target = d.discover_local()
+        assert target is None
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_config_exists_daemon_running(self, mock_running, mock_pid, tmp_path):
+        """Config exists + daemon running → status='running', config_exists=True."""
+        config_dir = self._make_config_dir(tmp_path, {})
+        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
+        d = DaemonDiscovery()
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        ):
+            target = d.discover_local()
+        assert target is not None
+        assert target.status == "running"
+        assert target.config_exists is True
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False)
+    def test_config_exists_daemon_not_running(self, mock_running, mock_pid, tmp_path):
+        """Config exists + daemon not running → status='stopped'."""
+        config_dir = self._make_config_dir(tmp_path, {})
+        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
+        d = DaemonDiscovery()
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        ):
+            target = d.discover_local()
+        assert target is not None
+        assert target.status == "stopped"
+        assert target.config_exists is True
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False)
+    def test_config_name_loaded(self, mock_running, mock_pid, tmp_path):
+        """Name loaded from daemon.name in config file."""
+        config_dir = self._make_config_dir(
+            tmp_path, {"daemon": {"name": "my-workstation"}}
+        )
+        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
+        d = DaemonDiscovery()
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        ):
+            target = d.discover_local()
+        assert target.name == "my-workstation"
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_pid_file_name_overrides_config_name(self, mock_running, mock_pid, tmp_path):
+        """PID file name takes precedence over config name."""
+        config_dir = self._make_config_dir(
+            tmp_path, {"daemon": {"name": "config-name"}}
+        )
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
+            json.dump({"pid": 12345, "rest_port": 54321, "name": "pid-name"}, f)
+            f.flush()
+            from pathlib import Path
+            mock_pid.return_value = Path(f.name)
+
+        try:
+            d = DaemonDiscovery()
+            with mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            ):
+                target = d.discover_local()
+            assert target.name == "pid-name"
+            assert target.port == 54321
+        finally:
+            os.unlink(f.name)
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_finds_running_daemon(self, mock_running, mock_pid, tmp_path):
+        config_dir = self._make_config_dir(tmp_path, {})
+        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
+        d = DaemonDiscovery()
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        ):
+            target = d.discover_local()
         assert target is not None
         assert target.name == "local"
         assert target.runtime == "local"
         assert target.status == "running"
 
     @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
-    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False)
-    def test_no_daemon_running(self, mock_running, mock_pid):
-        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
-        d = DaemonDiscovery()
-        target = d.discover_local()
-        assert target is not None
-        assert target.status == "unknown"
-
-    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
     @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
-    def test_reads_rest_port_from_pid_file(self, mock_running, mock_pid):
+    def test_reads_rest_port_from_pid_file(self, mock_running, mock_pid, tmp_path):
+        config_dir = self._make_config_dir(tmp_path, {})
         with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
             json.dump({"pid": 12345, "rest_port": 54321}, f)
             f.flush()
@@ -126,7 +219,10 @@ class TestDiscoverLocal:
 
         try:
             d = DaemonDiscovery()
-            target = d.discover_local()
+            with mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            ):
+                target = d.discover_local()
             assert target.port == 54321
         finally:
             os.unlink(f.name)

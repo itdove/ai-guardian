@@ -253,7 +253,8 @@ class DaemonTray:
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
         menu = pystray.Menu(
-            *self._build_daemon_menu_items_static(),
+            *self._build_single_daemon_menu_items(),
+            *self._build_multi_daemon_menu_items(),
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
         )
@@ -618,12 +619,266 @@ class DaemonTray:
 
     _MAX_DAEMON_SLOTS = 8
 
-    def _build_daemon_menu_items_static(self):
+    def _is_multi_daemon(self):
+        """True when multiple daemons are discovered (nested submenu layout)."""
+        return len(self._targets) != 1
+
+    def _is_single_daemon(self):
+        """True when exactly one daemon is discovered (flat layout)."""
+        return len(self._targets) == 1
+
+    @staticmethod
+    def _daemon_status_label(target):
+        """Format a daemon target into a status header label."""
+        status_icon = {
+            "running": "●", "paused": "◐", "stopped": "⚠",
+            "error": "✗", "unknown": "○",
+        }.get(target.status, "○")
+        if target.runtime == "container" and target.container_engine:
+            runtime = f" ({target.container_engine})"
+        elif target.runtime != "local":
+            runtime = f" ({target.runtime})"
+        else:
+            runtime = ""
+        label = f"{status_icon} {target.name}{runtime}"
+        if target.status == "stopped":
+            label += " — daemon not running"
+        return label
+
+    def _build_single_daemon_menu_items(self):
+        """Build flat menu items for single-daemon mode.
+
+        When exactly one daemon is discovered, all submenu items are
+        promoted to the top level. Visible only when len(targets) == 1.
+        """
+        def _single_vis(_item):
+            return self._is_single_daemon()
+
+        def _single_vis_refresh(_item):
+            if self._discovery:
+                self._discovery.request_refresh(wait=True, timeout=1.0)
+            return self._is_single_daemon()
+
+        def _single_running(_item):
+            return (self._is_single_daemon()
+                    and self._targets[0].status == "running")
+
+        def _single_not_running(_item):
+            return (self._is_single_daemon()
+                    and self._targets[0].status != "running")
+
+        def _header_label(_item):
+            if not self._targets:
+                return ""
+            return self._daemon_status_label(self._targets[0])
+
+        def _open_panel(panel=None):
+            def action(_, __):
+                if self._targets:
+                    t = self._targets[0]
+                    if self._multi_client:
+                        self._multi_client.open_console(t, panel)
+                    else:
+                        self._launch_console(panel)
+            return action
+
+        def _pause_action(minutes):
+            def action(_, __):
+                if self._targets:
+                    t = self._targets[0]
+                    if self._multi_client and t.runtime != "local":
+                        self._multi_client.send_pause(t, minutes)
+                    else:
+                        self._pause(minutes)
+            return action
+
+        def _resume_action(_, __):
+            if self._targets:
+                t = self._targets[0]
+                if self._multi_client and t.runtime != "local":
+                    self._multi_client.send_resume(t)
+                else:
+                    self._pause(0)
+
+        def _stop_action(_, __):
+            if self._targets and self._multi_client:
+                self._multi_client.send_stop(self._targets[0])
+
+        def _restart_action(_, __):
+            if self._targets and self._multi_client:
+                self._multi_client.send_restart(self._targets[0])
+
+        _cache = {"stats": {}, "time": 0}
+
+        def _get_stats(_item):
+            import time as time_mod
+            now = time_mod.monotonic()
+            if now - _cache["time"] < 2.0:
+                return _cache["stats"]
+            if not self._targets:
+                return {}
+            target = self._targets[0]
+            if self._multi_client and target.runtime != "local":
+                result = self._multi_client.get_status(target)
+                if result and result.get("name"):
+                    target.name = result["name"]
+                _cache["stats"] = result or {}
+            else:
+                _cache["stats"] = self._get_stats()
+            _cache["time"] = now
+            return _cache["stats"]
+
+        def _s_requests(_item):
+            s = _get_stats(_item)
+            return f"Requests: {s.get('request_count', 0):,}"
+
+        def _s_blocked(_item):
+            s = _get_stats(_item)
+            b = s.get('blocked_count', 0)
+            t = s.get('request_count', 0)
+            if t > 0:
+                return f"Blocked: {b:,} ({b/t*100:.1f}%)"
+            return f"Blocked: {b:,}"
+
+        def _s_warned(_item):
+            s = _get_stats(_item)
+            return f"Warned: {s.get('warning_count', 0):,}"
+
+        def _s_logged(_item):
+            s = _get_stats(_item)
+            return f"Logged: {s.get('log_only_count', 0):,}"
+
+        def _s_violations(_item):
+            s = _get_stats(_item)
+            return f"Violations: {s.get('violation_count', 0):,}"
+
+        def _s_critical(_item):
+            s = _get_stats(_item)
+            return f"  Critical: {s.get('critical_count', 0):,}"
+
+        def _s_warning_sev(_item):
+            s = _get_stats(_item)
+            return f"  Warning: {s.get('warning_severity_count', 0):,}"
+
+        def _s_last_block(_item):
+            s = _get_stats(_item)
+            bt = s.get('last_block_type')
+            ba = s.get('last_block_seconds_ago')
+            if bt is None:
+                return "Last block: none"
+            return f"Last block: {bt} {self._format_time_ago(ba)}"
+
+        def _s_config_reload(_item):
+            s = _get_stats(_item)
+            ago = s.get('last_config_reload_seconds_ago')
+            if ago is not None:
+                return f"Config reloaded: {self._format_time_ago(ago)}"
+            return "Config: loaded"
+
+        return [
+            pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Console", _open_panel(), visible=_single_vis),
+            pystray.MenuItem("Violations", _open_panel("panel-violations"),
+                             visible=_single_vis),
+            pystray.MenuItem("Metrics", _open_panel("panel-metrics"),
+                             visible=_single_vis),
+            pystray.MenuItem(
+                "Statistics",
+                pystray.Menu(
+                    pystray.MenuItem(_s_requests, None),
+                    pystray.MenuItem(_s_blocked, None),
+                    pystray.MenuItem(_s_warned, None),
+                    pystray.MenuItem(_s_logged, None),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(_s_violations, None),
+                    pystray.MenuItem(_s_critical, None),
+                    pystray.MenuItem(_s_warning_sev, None),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(_s_last_block, None),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(_s_config_reload, None),
+                ),
+                visible=_single_running,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                lambda _: f"Mode: {self._current_mode}",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "auto",
+                        lambda _, __: self._on_change_mode("auto"),
+                        checked=lambda _: self._current_mode == "auto",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "local",
+                        lambda _, __: self._on_change_mode("local"),
+                        checked=lambda _: self._current_mode == "local",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "daemon",
+                        lambda _, __: self._on_change_mode("daemon"),
+                        checked=lambda _: self._current_mode == "daemon",
+                        radio=True,
+                    ),
+                ),
+                visible=_single_vis,
+            ),
+            pystray.MenuItem(
+                lambda _: f"MCP Proactive: {self._proactive_level}",
+                pystray.Menu(
+                    pystray.MenuItem(
+                        "low",
+                        lambda _, __: self._on_change_proactive("low"),
+                        checked=lambda _: self._proactive_level == "low",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "medium",
+                        lambda _, __: self._on_change_proactive("medium"),
+                        checked=lambda _: self._proactive_level == "medium",
+                        radio=True,
+                    ),
+                    pystray.MenuItem(
+                        "high",
+                        lambda _, __: self._on_change_proactive("high"),
+                        checked=lambda _: self._proactive_level == "high",
+                        radio=True,
+                    ),
+                ),
+                visible=_single_vis,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "Pause...",
+                pystray.Menu(
+                    pystray.MenuItem("5 minutes", _pause_action(5)),
+                    pystray.MenuItem("15 minutes", _pause_action(15)),
+                    pystray.MenuItem("30 minutes", _pause_action(30)),
+                    pystray.MenuItem("1 hour", _pause_action(60)),
+                ),
+                visible=_single_running,
+            ),
+            pystray.MenuItem("Resume", _resume_action, visible=_single_running),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Start daemon", _restart_action,
+                             visible=_single_not_running),
+            pystray.MenuItem("Stop daemon", _stop_action,
+                             visible=_single_running),
+            pystray.MenuItem("Restart daemon", _restart_action,
+                             visible=_single_running),
+        ]
+
+    def _build_multi_daemon_menu_items(self):
         """Build fixed-slot menu items with per-daemon action submenus.
 
         Each daemon gets its own submenu with Console, Pause, Restart, etc.
         pystray on macOS requires items defined at build time, so we
         pre-allocate slots with dynamic text/visibility lambdas.
+
+        Only visible when 2+ daemons are discovered.
         """
         items = []
         for i in range(self._MAX_DAEMON_SLOTS):
@@ -632,23 +887,12 @@ class DaemonTray:
             def make_label(_item, slot=idx):
                 if slot >= len(self._targets):
                     return ""
-                t = self._targets[slot]
-                status_icon = {
-                    "running": "●", "paused": "◐",
-                    "error": "✗", "unknown": "○",
-                }.get(t.status, "○")
-                if t.runtime == "container" and t.container_engine:
-                    runtime = f" ({t.container_engine})"
-                elif t.runtime != "local":
-                    runtime = f" ({t.runtime})"
-                else:
-                    runtime = ""
-                return f"{status_icon} {t.name}{runtime}"
+                return self._daemon_status_label(self._targets[slot])
 
             def make_visible(_item, slot=idx):
                 if slot == 0 and self._discovery:
                     self._discovery.request_refresh(wait=True, timeout=1.0)
-                return slot < len(self._targets)
+                return self._is_multi_daemon() and slot < len(self._targets)
 
             def _mk_open_panel(panel=None, slot=idx):
                 def action(_, __):
