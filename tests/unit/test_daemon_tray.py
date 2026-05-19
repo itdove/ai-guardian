@@ -497,6 +497,15 @@ class TestIDESetupMenu:
                     script = mock_popen.call_args[0][0][2]
                     assert "setup --ide claude" in script
 
+    def test_launch_ide_setup_keeps_terminal_open_macos(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    DaemonTray._launch_ide_setup("claude")
+                    script = mock_popen.call_args[0][0][2]
+                    assert "close" not in script
+                    assert "repeat" not in script
+
     def test_launch_ide_setup_fallback_sys_executable(self):
         with mock.patch("platform.system", return_value="Darwin"):
             with mock.patch("shutil.which", return_value=None):
@@ -506,7 +515,7 @@ class TestIDESetupMenu:
                         script = mock_popen.call_args[0][0][2]
                         assert "/usr/bin/python3 -m ai_guardian setup --ide cursor" in script
 
-    def test_launch_ide_setup_linux(self):
+    def test_launch_ide_setup_linux_keeps_terminal_open(self):
         with mock.patch("platform.system", return_value="Linux"):
             with mock.patch("shutil.which", side_effect=lambda x: {
                 "ai-guardian": "/usr/bin/ai-guardian",
@@ -517,9 +526,9 @@ class TestIDESetupMenu:
                     mock_popen.assert_called_once()
                     args = mock_popen.call_args[0][0]
                     assert "gnome-terminal" in args[0]
-                    assert "setup" in args
-                    assert "--ide" in args
-                    assert "copilot" in args
+                    shell_cmd = args[-1]
+                    assert "setup --ide copilot" in shell_cmd
+                    assert "Press Enter to close" in shell_cmd
 
     def test_build_ide_setup_menu_returns_items(self):
         tray = DaemonTray(
@@ -527,7 +536,7 @@ class TestIDESetupMenu:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray:
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
             items = tray._build_ide_setup_menu_items()
@@ -543,7 +552,7 @@ class TestIDESetupMenu:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray:
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
             tray._build_ide_setup_menu_items()

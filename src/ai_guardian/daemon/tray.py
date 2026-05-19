@@ -459,7 +459,8 @@ class DaemonTray:
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         _launch_in_terminal(
-            DaemonTray._resolve_cli_cmd("setup", "--ide", ide_key)
+            DaemonTray._resolve_cli_cmd("setup", "--ide", ide_key),
+            keep_open=True,
         )
 
     def _start_pause_timer(self):

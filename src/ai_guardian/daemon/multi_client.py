@@ -24,12 +24,31 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 5.0
 
 
-def _launch_in_terminal(cmd_parts):
-    """Launch a command in a new terminal window with auto-close on exit."""
+def _launch_in_terminal(cmd_parts, keep_open=False):
+    """Launch a command in a new terminal window.
+
+    Args:
+        cmd_parts: Command and arguments to run.
+        keep_open: If True, keep the terminal open after the command
+            finishes so the user can read the output.
+    """
     cmd_str = " ".join(shlex.quote(p) for p in cmd_parts)
     try:
         system = platform.system()
         if system == "Darwin":
+            if keep_open:
+                auto_close = ""
+            else:
+                auto_close = (
+                    '    repeat\n'
+                    '        delay 1\n'
+                    '        if not busy of currentTab then\n'
+                    '            close (every window whose tabs contains '
+                    'currentTab)\n'
+                    '            exit repeat\n'
+                    '        end if\n'
+                    '    end repeat\n'
+                )
             script = (
                 'tell application "Terminal"\n'
                 '    set currentTab to do script ""\n'
@@ -37,19 +56,17 @@ def _launch_in_terminal(cmd_parts):
                 f'    do script "{cmd_str}" in currentTab\n'
                 '    activate\n'
                 '    set zoomed of front window to true\n'
-                '    repeat\n'
-                '        delay 1\n'
-                '        if not busy of currentTab then\n'
-                '            close (every window whose tabs contains currentTab)\n'
-                '            exit repeat\n'
-                '        end if\n'
-                '    end repeat\n'
+                f'{auto_close}'
                 'end tell'
             )
             subprocess.Popen(["osascript", "-e", script])
         elif system == "Windows":
-            subprocess.Popen(["cmd", "/c", "start", "/max"] + cmd_parts)
+            flag = "/k" if keep_open else "/c"
+            subprocess.Popen(["cmd", flag, "start", "/max"] + cmd_parts)
         else:
+            if keep_open:
+                shell_cmd = cmd_str + '; echo; read -rp "Press Enter to close..."'
+                cmd_parts = ["bash", "-c", shell_cmd]
             for term, args in [
                 ("gnome-terminal", ["--maximize", "--"]),
                 ("kgx", ["-e"]),
