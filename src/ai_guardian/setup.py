@@ -757,6 +757,7 @@ def create_default_config(
     dry_run: bool = False,
     json_output: bool = False,
     profile: Optional[str] = None,
+    force: bool = False,
 ) -> Tuple[bool, str]:
     """
     Create default ai-guardian.json config file.
@@ -766,6 +767,7 @@ def create_default_config(
         dry_run: If True, show what would be created without writing
         json_output: If True, output only the raw JSON config
         profile: Optional security profile name to apply
+        force: If True, overwrite existing config file
 
     Returns:
         tuple: (success: bool, message: str)
@@ -791,7 +793,8 @@ def create_default_config(
 
         # Check if config already exists
         if config_path.exists() and not dry_run:
-            return False, f"Config already exists: {config_path}"
+            if not force:
+                return True, f"✓ Config already exists, preserving: {config_path}"
 
         if dry_run:
             message = f"[DRY RUN] Would create {config_path}:\n\n"
@@ -1603,7 +1606,7 @@ def setup_hooks(
     if create_config:
         config_success, message = create_default_config(
             permissive=permissive, dry_run=dry_run, json_output=False,
-            profile=profile,
+            profile=profile, force=force,
         )
         print(message)
         if not config_success:
@@ -1740,14 +1743,9 @@ def _setup_hooks_json_output(
         if not dry_run:
             config_dir = get_config_dir()
             config_path = config_dir / "ai-guardian.json"
-            if config_path.exists():
-                if ide_type is None:
-                    print(json.dumps({
-                        "success": False,
-                        "error": f"Config already exists: {config_path}",
-                    }, indent=2))
-                    return False
-                result["config_warning"] = f"Config already exists: {config_path}"
+            if config_path.exists() and not force:
+                result["config_preserved"] = True
+                result["config_path"] = str(config_path)
             else:
                 config_dir.mkdir(parents=True, exist_ok=True)
                 with open(config_path, "w", encoding="utf-8") as f:
