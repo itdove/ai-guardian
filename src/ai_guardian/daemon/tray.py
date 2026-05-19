@@ -432,18 +432,23 @@ class DaemonTray:
         return "medium"
 
     @staticmethod
-    def _launch_console(panel=None):
-        """Launch the ai-guardian console in a new terminal window."""
+    def _resolve_cli_cmd(*args):
+        """Build command list for running ai-guardian with given arguments."""
         import os
         import shutil
         import sys
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         executable = shutil.which("ai-guardian")
         if executable:
-            cmd_parts = [os.path.abspath(executable), "console"]
-        else:
-            cmd_parts = [sys.executable, "-m", "ai_guardian", "console"]
+            return [os.path.abspath(executable)] + list(args)
+        return [sys.executable, "-m", "ai_guardian"] + list(args)
+
+    @staticmethod
+    def _launch_console(panel=None):
+        """Launch the ai-guardian console in a new terminal window."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        cmd_parts = DaemonTray._resolve_cli_cmd("console")
         if panel:
             cmd_parts.extend(["--panel", panel])
         _launch_in_terminal(cmd_parts)
@@ -451,18 +456,11 @@ class DaemonTray:
     @staticmethod
     def _launch_ide_setup(ide_key):
         """Launch ai-guardian setup --ide <name> in a new terminal window."""
-        import os
-        import shutil
-        import sys
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
-        executable = shutil.which("ai-guardian")
-        if executable:
-            cmd_parts = [os.path.abspath(executable), "setup", "--ide", ide_key]
-        else:
-            cmd_parts = [sys.executable, "-m", "ai_guardian", "setup",
-                         "--ide", ide_key]
-        _launch_in_terminal(cmd_parts)
+        _launch_in_terminal(
+            DaemonTray._resolve_cli_cmd("setup", "--ide", ide_key)
+        )
 
     def _start_pause_timer(self):
         """Start a background thread that updates the countdown and auto-resumes.
@@ -1116,14 +1114,16 @@ class DaemonTray:
         """
         from ai_guardian.setup import IDESetup
 
+        def _mk_ide_action(k):
+            def action(_, __):
+                self._launch_ide_setup(k)
+            return action
+
         ide_items = []
         for ide_key, ide_cfg in IDESetup.IDE_CONFIGS.items():
-            key = ide_key
-
-            def _action(_, __, k=key):
-                self._launch_ide_setup(k)
-
-            ide_items.append(pystray.MenuItem(ide_cfg["name"], _action))
+            ide_items.append(
+                pystray.MenuItem(ide_cfg["name"], _mk_ide_action(ide_key))
+            )
 
         return [
             pystray.MenuItem(
