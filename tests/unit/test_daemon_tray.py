@@ -483,3 +483,72 @@ class TestSingleDaemonFlatMenu:
 
         tray._targets.pop()
         assert tray._is_single_daemon() is True
+
+
+class TestIDESetupMenu:
+    """Tests for the Local Setup... IDE submenu."""
+
+    def test_launch_ide_setup_builds_correct_command(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    DaemonTray._launch_ide_setup("claude")
+                    mock_popen.assert_called_once()
+                    script = mock_popen.call_args[0][0][2]
+                    assert "setup --ide claude" in script
+
+    def test_launch_ide_setup_fallback_sys_executable(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("shutil.which", return_value=None):
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    with mock.patch("subprocess.Popen") as mock_popen:
+                        DaemonTray._launch_ide_setup("cursor")
+                        script = mock_popen.call_args[0][0][2]
+                        assert "/usr/bin/python3 -m ai_guardian setup --ide cursor" in script
+
+    def test_launch_ide_setup_linux(self):
+        with mock.patch("platform.system", return_value="Linux"):
+            with mock.patch("shutil.which", side_effect=lambda x: {
+                "ai-guardian": "/usr/bin/ai-guardian",
+                "gnome-terminal": "/usr/bin/gnome-terminal",
+            }.get(x)):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    DaemonTray._launch_ide_setup("copilot")
+                    mock_popen.assert_called_once()
+                    args = mock_popen.call_args[0][0]
+                    assert "gnome-terminal" in args[0]
+                    assert "setup" in args
+                    assert "--ide" in args
+                    assert "copilot" in args
+
+    def test_build_ide_setup_menu_returns_items(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            items = tray._build_ide_setup_menu_items()
+            assert len(items) == 1
+            top_call = mock_pystray.MenuItem.call_args_list[-1]
+            assert top_call[0][0] == "Local Setup..."
+
+    def test_build_ide_setup_menu_has_all_supported_ides(self):
+        from ai_guardian.setup import IDESetup
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            tray._build_ide_setup_menu_items()
+            ide_names = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list[:-1]
+            ]
+            for ide_cfg in IDESetup.IDE_CONFIGS.values():
+                assert ide_cfg["name"] in ide_names

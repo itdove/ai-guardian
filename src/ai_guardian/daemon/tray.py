@@ -243,6 +243,8 @@ class DaemonTray:
         menu = pystray.Menu(
             *self._build_single_daemon_menu_items(),
             *self._build_multi_daemon_menu_items(),
+            pystray.Menu.SEPARATOR,
+            *self._build_ide_setup_menu_items(),
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
         )
@@ -444,6 +446,22 @@ class DaemonTray:
             cmd_parts = [sys.executable, "-m", "ai_guardian", "console"]
         if panel:
             cmd_parts.extend(["--panel", panel])
+        _launch_in_terminal(cmd_parts)
+
+    @staticmethod
+    def _launch_ide_setup(ide_key):
+        """Launch ai-guardian setup --ide <name> in a new terminal window."""
+        import os
+        import shutil
+        import sys
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        executable = shutil.which("ai-guardian")
+        if executable:
+            cmd_parts = [os.path.abspath(executable), "setup", "--ide", ide_key]
+        else:
+            cmd_parts = [sys.executable, "-m", "ai_guardian", "setup",
+                         "--ide", ide_key]
         _launch_in_terminal(cmd_parts)
 
     def _start_pause_timer(self):
@@ -1089,6 +1107,30 @@ class DaemonTray:
                 )
             )
         return items
+
+    def _build_ide_setup_menu_items(self):
+        """Build the top-level 'Local Setup...' submenu for IDE hook setup.
+
+        Always visible regardless of daemon count. Each entry opens a
+        terminal running ``ai-guardian setup --ide <key>`` interactively.
+        """
+        from ai_guardian.setup import IDESetup
+
+        ide_items = []
+        for ide_key, ide_cfg in IDESetup.IDE_CONFIGS.items():
+            key = ide_key
+
+            def _action(_, __, k=key):
+                self._launch_ide_setup(k)
+
+            ide_items.append(pystray.MenuItem(ide_cfg["name"], _action))
+
+        return [
+            pystray.MenuItem(
+                "Local Setup...",
+                pystray.Menu(*ide_items),
+            ),
+        ]
 
     def _on_restart_tray(self, icon, item):
         """Restart the tray process."""
