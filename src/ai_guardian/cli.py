@@ -1221,7 +1221,13 @@ def main():
         return 0
 
     # No arguments - run as hook (read from stdin)
-    daemon_mode = _get_daemon_mode()
+    # Load config once and share with both helpers
+    _hook_config = None
+    try:
+        _hook_config, _ = _load_config_file()
+    except Exception:
+        pass
+    daemon_mode = _get_daemon_mode(config=_hook_config)
     hook_data = None
     response = None
     stdin_consumed = False
@@ -1246,7 +1252,7 @@ def main():
 
             if is_daemon_running():
                 logging.info("Daemon is running, forwarding hook request")
-                response = send_hook_request(hook_data, timeout=_get_client_timeout())
+                response = send_hook_request(hook_data, timeout=_get_client_timeout(config=_hook_config))
                 if response is not None:
                     logging.info("Daemon processed hook request")
                 elif daemon_mode == "daemon":

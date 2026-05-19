@@ -9,7 +9,9 @@ redundant file reads within the same hook invocation.
 import json
 import logging
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional, Tuple, Any
 
 from ai_guardian.config_utils import (
     get_config_dir,
@@ -42,22 +44,23 @@ def _merge_aiguardignore(scanner_config, scanner_type):
     return result
 
 
-_config_cache = None
-_config_cache_global_mtime = None
-_config_cache_project_mtime = None
-_config_cache_global_path = None
-_config_cache_project_path = None
+@dataclass
+class _ConfigCacheEntry:
+    """Cached config state to avoid redundant file reads."""
+    result: Any = None  # (config_dict, error_msg) tuple or None
+    global_mtime: Optional[float] = None
+    project_mtime: Optional[float] = None
+    global_path: Optional[Path] = None
+    project_path: Optional[Path] = None
+
+
+_cache = _ConfigCacheEntry()
 
 
 def _clear_config_cache():
     """Clear the config file cache, forcing a re-read on next call."""
-    global _config_cache, _config_cache_global_mtime, _config_cache_project_mtime
-    global _config_cache_global_path, _config_cache_project_path
-    _config_cache = None
-    _config_cache_global_mtime = None
-    _config_cache_project_mtime = None
-    _config_cache_global_path = None
-    _config_cache_project_path = None
+    global _cache
+    _cache = _ConfigCacheEntry()
     _clear_project_config_cache()
 
 
@@ -86,8 +89,7 @@ def _load_config_file():
     Returns:
         tuple: (config_dict or None, error_message or None)
     """
-    global _config_cache, _config_cache_global_mtime, _config_cache_project_mtime
-    global _config_cache_global_path, _config_cache_project_path
+    global _cache
 
     try:
         # Resolve paths
@@ -113,37 +115,35 @@ def _load_config_file():
 
         # No config files at all
         if global_path is None and project_path is None:
-            _config_cache = (None, None)
-            _config_cache_global_mtime = None
-            _config_cache_project_mtime = None
-            _config_cache_global_path = None
-            _config_cache_project_path = None
-            return _config_cache
+            _cache = _ConfigCacheEntry(result=(None, None))
+            return _cache.result
 
         # Check mtime cache
         global_mtime = _get_mtime(global_path)
         project_mtime = _get_mtime(project_path)
 
         if (
-            _config_cache is not None
-            and _config_cache_global_path == global_path
-            and _config_cache_project_path == project_path
-            and _config_cache_global_mtime == global_mtime
-            and _config_cache_project_mtime == project_mtime
+            _cache.result is not None
+            and _cache.global_path == global_path
+            and _cache.project_path == project_path
+            and _cache.global_mtime == global_mtime
+            and _cache.project_mtime == project_mtime
         ):
-            return _config_cache
+            return _cache.result
 
         # Load global config
         global_config = None
         if global_path:
             global_config, error_msg = _load_json_config(global_path)
             if error_msg:
-                _config_cache = (None, error_msg)
-                _config_cache_global_mtime = global_mtime
-                _config_cache_project_mtime = project_mtime
-                _config_cache_global_path = global_path
-                _config_cache_project_path = project_path
-                return _config_cache
+                _cache = _ConfigCacheEntry(
+                    result=(None, error_msg),
+                    global_mtime=global_mtime,
+                    project_mtime=project_mtime,
+                    global_path=global_path,
+                    project_path=project_path,
+                )
+                return _cache.result
 
         # Load project config
         project_config = None
@@ -166,12 +166,14 @@ def _load_config_file():
         else:
             effective = None
 
-        _config_cache = (effective, None)
-        _config_cache_global_mtime = global_mtime
-        _config_cache_project_mtime = project_mtime
-        _config_cache_global_path = global_path
-        _config_cache_project_path = project_path
-        return _config_cache
+        _cache = _ConfigCacheEntry(
+            result=(effective, None),
+            global_mtime=global_mtime,
+            project_mtime=project_mtime,
+            global_path=global_path,
+            project_path=project_path,
+        )
+        return _cache.result
 
     except Exception as e:
         error_msg = f"⚠️  Configuration Error: {str(e)}"

@@ -79,13 +79,18 @@ class DaemonTarget:
 class DaemonDiscovery:
     """Discovers AI Guardian daemons across multiple runtimes."""
 
-    def __init__(self, config=None, discovery_interval=15.0):
+    def __init__(self, config=None):
         self._config = config or {}
         self._targets: List[DaemonTarget] = []
         self._lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._container_engines: Optional[List[str]] = None
+        self._callback: Optional[Callable] = None
+        self._refresh_event: Optional[threading.Event] = None
+        self._last_refresh: float = 0.0
+        self._pending_done: List[threading.Event] = []
+        self._done_lock: Optional[threading.Lock] = None
 
     @property
     def targets(self) -> List[DaemonTarget]:
@@ -308,11 +313,12 @@ class DaemonDiscovery:
 
             labels = c.labels or {}
 
-            name = (
+            raw_name = (
                 labels.get("ai-guardian.name")
                 or c.name
                 or container_id[:12]
             )
+            name = raw_name[:128]
 
             label_port = labels.get("ai-guardian.rest-port")
             try:
@@ -450,11 +456,12 @@ class DaemonDiscovery:
             if isinstance(labels, str):
                 labels = self._parse_label_string(labels)
 
-            name = (
+            raw_name = (
                 labels.get("ai-guardian.name")
                 or self._get_container_name(c)
                 or container_id[:12]
             )
+            name = raw_name[:128]
 
             label_port = labels.get("ai-guardian.rest-port")
             try:

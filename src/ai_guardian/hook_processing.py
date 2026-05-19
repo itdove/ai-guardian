@@ -7,6 +7,7 @@ and the main process_hook_data() entry point.
 """
 
 import fnmatch
+import glob
 import hashlib
 import json
 import logging
@@ -100,6 +101,34 @@ except ImportError:
     HAS_ANNOTATIONS = False
 
 logger = logging.getLogger(__name__)
+
+# Keywords used to classify scanner error messages
+_AUTH_ERROR_KEYWORDS = frozenset({
+    '401', '403', 'unauthorized', 'authentication',
+    'forbidden', 'authentication failed', 'bad credentials',
+    'invalid token', 'access denied',
+})
+_NETWORK_ERROR_KEYWORDS = frozenset({
+    'connection', 'timeout', 'network', 'unreachable',
+    'refused', 'dial tcp', 'no route', 'no route to host',
+})
+
+# Tools that modify state - don't scan their responses.
+# These return metadata only; content was already scanned in PreToolUse.
+STATE_MODIFY_TOOLS = frozenset({
+    "Write", "Edit", "Delete", "Move", "Rename",
+    "NotebookEdit",
+})
+
+# Tools that read files - need content scanning in PreToolUse.
+FILE_READING_TOOLS = frozenset({
+    # Claude Code tool names
+    "Read", "Grep",
+    # GitHub Copilot tool names
+    "read_file", "read", "grep", "search",
+    # Cursor tool names (if different)
+    "ReadFile",
+})
 
 
 def _is_path_excluded(file_path, config):
@@ -506,13 +535,6 @@ def extract_tool_result(hook_data):
             tool_name = "unknown"
             logging.info("extract_tool_result: tool_name defaulted to 'unknown'")
 
-        # Tools that modify state - don't scan their responses
-        # These return metadata only, content was already scanned in PreToolUse
-        STATE_MODIFY_TOOLS = {
-            "Write", "Edit", "Delete", "Move", "Rename",
-            "NotebookEdit",  # Notebook editing
-        }
-
         if tool_name in STATE_MODIFY_TOOLS:
             logging.debug(f"Skipping PostToolUse scan for state-modifying tool: {tool_name}")
             return None, tool_name
@@ -762,11 +784,12 @@ def _load_transcript_positions() -> Dict[str, int]:
     state_dir = get_state_dir()
     pos_file = state_dir / "transcript_positions.json"
     try:
-        if pos_file.exists():
-            with open(pos_file, 'r', encoding='utf-8') as f:
-                positions = json.load(f)
-            if isinstance(positions, dict):
-                return positions
+        with open(pos_file, 'r', encoding='utf-8') as f:
+            positions = json.load(f)
+        if isinstance(positions, dict):
+            return positions
+    except FileNotFoundError:
+        pass
     except Exception as e:
         logging.debug(f"Failed to load transcript positions: {e}")
     return {}
@@ -797,11 +820,12 @@ def _load_seen_findings() -> Dict[str, Dict[str, str]]:
     state_dir = get_state_dir()
     sf_file = state_dir / "transcript_seen_findings.json"
     try:
-        if sf_file.exists():
-            with open(sf_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return data
+        with open(sf_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except FileNotFoundError:
+        pass
     except Exception as e:
         logging.debug(f"Failed to load seen findings: {e}")
     return {}
@@ -1361,7 +1385,8 @@ def _extract_context_snippet(text: str, line_number: int, max_chars: int = 200) 
 
 def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False,
                                       reason: str = None, suggestion: dict = None,
-                                      hook_context: Optional[Dict] = None):
+                                      hook_context: Optional[Dict] = None,
+                                      violation_logger=None):
     """
     Log a directory blocking violation.
 
@@ -1378,7 +1403,8 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
 
     try:
         hctx = hook_context or {}
-        violation_logger = ViolationLogger()
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
 
         context = {
             "project_path": os.getcwd(),
@@ -1420,7 +1446,7 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
 
 
 def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None, secret_details: Optional[Dict] = None,
-                                    hook_context: Optional[Dict] = None):
+                                    hook_context: Optional[Dict] = None, violation_logger=None):
     """
     Log a secret detection violation.
 
@@ -1466,7 +1492,8 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         if hctx.get("session_id"):
             violation_ctx["session_id"] = hctx["session_id"]
 
-        violation_logger = ViolationLogger()
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type=ViolationType.SECRET_DETECTED,
             blocked=blocked_info,
@@ -1485,7 +1512,8 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
                                     hook_context: Optional[Dict] = None,
                                     matched_pattern: Optional[str] = None,
                                     matched_text: Optional[str] = None,
-                                    confidence: Optional[float] = None):
+                                    confidence: Optional[float] = None,
+                                    violation_logger=None):
     """
     Log a prompt injection or jailbreak violation.
 
@@ -1504,7 +1532,8 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
     try:
         ctx = context or {}
         hctx = hook_context or {}
-        violation_logger = ViolationLogger()
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
         vtype = ViolationType.JAILBREAK_DETECTED if attack_type == "jailbreak" else ViolationType.PROMPT_INJECTION
         reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
         full_path = ctx.get("file_path")
@@ -1541,9 +1570,6 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         )
     except Exception as e:
         logger.debug(f"Failed to log prompt injection violation: {e}")
-
-
-# _handle_violations_command moved to cli_handlers.py
 
 
 def _count_gitleaks_patterns(config_path):
@@ -1997,10 +2023,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         error_lower = (strategy_result.error or "").lower()
 
                         # Auth errors → block (user can fix credentials)
-                        is_auth_error = any(kw in error_lower for kw in
-                                            ['401', '403', 'unauthorized', 'forbidden',
-                                             'authentication failed', 'bad credentials',
-                                             'invalid token', 'access denied'])
+                        is_auth_error = any(kw in error_lower for kw in _AUTH_ERROR_KEYWORDS)
                         if is_auth_error:
                             error_msg = (
                                 f"\n{'='*70}\n"
@@ -2023,9 +2046,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             return True, error_msg
 
                         # Network errors → warn but allow (fail-open)
-                        is_network_error = any(kw in error_lower for kw in
-                                               ['connection', 'timeout', 'network',
-                                                'unreachable', 'dial tcp', 'no route'])
+                        is_network_error = any(kw in error_lower for kw in _NETWORK_ERROR_KEYWORDS)
                         if is_network_error:
                             warning_msg = (
                                 f"\n{'='*70}\n"
@@ -2396,17 +2417,13 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 is_auth_error = False
                 if result.stderr:
                     stderr_lower = result.stderr.lower()
-                    is_auth_error = any(keyword in stderr_lower for keyword in
-                                       ['401', '403', 'unauthorized', 'forbidden', 'authentication failed',
-                                        'bad credentials', 'invalid token', 'access denied'])
+                    is_auth_error = any(keyword in stderr_lower for keyword in _AUTH_ERROR_KEYWORDS)
 
                 # Check if this is a network error (user cannot fix)
                 is_network_error = False
                 if result.stderr:
                     stderr_lower = result.stderr.lower()
-                    is_network_error = any(keyword in stderr_lower for keyword in
-                                          ['connection', 'timeout', 'network', 'unreachable',
-                                           'dial tcp', 'no route to host'])
+                    is_network_error = any(keyword in stderr_lower for keyword in _NETWORK_ERROR_KEYWORDS)
 
                 if is_auth_error:
                     # Authentication error - BLOCK (user can fix by updating credentials)
@@ -2502,9 +2519,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 report_files_to_clean.append(report_file)
                 # Multi-engine strategies create per-engine report files
                 report_prefix = report_file.replace('.json', '')
-                import glob as _glob
                 report_files_to_clean.extend(
-                    _glob.glob(f"{report_prefix}_*.json")
+                    glob.glob(f"{report_prefix}_*.json")
                 )
 
             for rf_path in report_files_to_clean:
@@ -3119,15 +3135,6 @@ def process_hook_data(hook_data, daemon_state=None):
             # Bash, Write, Edit, etc. don't read files in PreToolUse - they have command/content parameters
             # Bug #94: Bash commands were incorrectly treated as file paths
             # Bug #174: Glob removed - uses 'pattern' parameter, not 'file_path', doesn't read content in PreToolUse
-            FILE_READING_TOOLS = [
-                # Claude Code tool names
-                "Read", "Grep",
-                # GitHub Copilot tool names
-                "read_file", "read", "grep", "search",
-                # Cursor tool names (if different)
-                "ReadFile"
-            ]
-
             if tool_name in FILE_READING_TOOLS or hook_event == HookEvent.BEFORE_READ_FILE:
                 # Extract file content for tools that read files
                 content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
@@ -3659,15 +3666,5 @@ def process_hook_input():
         return {"output": None, "exit_code": 0}
 
 
-
-# _get_daemon_mode, _get_client_timeout, _set_daemon_mode_in_config,
-# _handle_daemon_command moved to cli_handlers.py
-from ai_guardian.cli_handlers import (  # noqa: F401 - backward compat
-    _handle_violations_command,
-    _get_daemon_mode,
-    _get_client_timeout,
-    _set_daemon_mode_in_config,
-    _handle_daemon_command,
-)
 
 

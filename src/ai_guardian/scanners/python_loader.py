@@ -140,6 +140,10 @@ def discover_scanner_directory() -> Dict[str, Type[Scanner]]:
     Scans ~/.config/ai-guardian/scanners/ (or XDG equivalent) for .py files
     containing Scanner subclasses.
 
+    Security: Scanner files execute arbitrary Python at import time. Only place
+    trusted scanner files in this directory. The directory is operator-controlled
+    (~/.config/ai-guardian/scanners/) and requires local filesystem write access.
+
     Returns:
         Dict mapping scanner name to Scanner subclass
     """

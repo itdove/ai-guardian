@@ -755,7 +755,7 @@ class TestBackgroundDiscovery:
         mock_discover.return_value = targets
 
         received = []
-        d = DaemonDiscovery(discovery_interval=0.1)
+        d = DaemonDiscovery()
         d.start_background_discovery(lambda t: received.append(t))
 
         import time
@@ -766,7 +766,7 @@ class TestBackgroundDiscovery:
         assert received[0][0].name == "local"
 
     def test_stop_terminates_thread(self):
-        d = DaemonDiscovery(discovery_interval=0.1)
+        d = DaemonDiscovery()
         with mock.patch.object(d, "discover_all", return_value=[]):
             d.start_background_discovery(lambda t: None)
             assert d._thread is not None

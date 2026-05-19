@@ -15,7 +15,7 @@ import socket
 import threading
 import time
 
-from ai_guardian.daemon import get_pid_path, get_socket_path
+from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
@@ -29,13 +29,8 @@ logger = logging.getLogger(__name__)
 IDLE_CHECK_INTERVAL = 60  # seconds
 
 
-def _is_pid_alive(pid):
-    """Check if a process with the given PID is running."""
-    try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
-        return False
+# Kept as module-level alias for backward compatibility
+_is_pid_alive = is_pid_alive
 
 
 class DaemonServer:
@@ -357,9 +352,10 @@ class DaemonServer:
             if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
                 default_host = "0.0.0.0"
             host = daemon_cfg.get("rest_host", default_host)
+            auth_token = daemon_cfg.get("auth_token")
             self._rest_api = DaemonRestAPI(
                 state=self.state, host=host, port=cfg_port,
-                name=self._name,
+                name=self._name, auth_token=auth_token,
             )
             self._rest_port = self._rest_api.start()
             self._write_pid_file()

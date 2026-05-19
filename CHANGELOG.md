@@ -42,68 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tray lock file prevents duplicate tray instances across all platforms
   - Auto-selects the first running daemon target (no manual selection needed)
 
-### Changed
-
-- **BREAKING: Daemon no longer launches system tray automatically** (Issue #527)
-  - `ai-guardian daemon start` now runs headless (no tray icon)
-  - System tray is a separate process: `ai-guardian tray start`
-  - **Migration**: If you relied on the tray appearing automatically with `daemon start`, add `ai-guardian tray start` to your workflow (e.g., login items, shell alias, or startup script)
-  - The `--no-tray` flag on `daemon start` is deprecated (daemon is always headless)
-  - This separation enables the tray to manage multiple daemons (local + containers) independently
-
-- **Python 3.13 and 3.14 support** (Issue #645)
-  - Added Python 3.13 and 3.14 to CI test matrix
-  - Added PyPI classifiers for Python 3.13 and 3.14
-
-- **PII Detection Phase 2 - Advanced Types** (Issue #329)
-  - New PII types (all opt-in, add to `pii_types` to enable):
-    - `medical_id`: Medical Record Numbers with context keywords (MRN, Patient ID)
-    - `passport`: International Passport Numbers with context keywords
-    - `canada_sin`: Canadian Social Insurance Numbers with Luhn validation
-    - `uk_nin`: UK National Insurance Numbers
-    - `india_aadhaar`: Indian Aadhaar Numbers (12-digit, separated format)
-    - `address`: Street Addresses (regex-based, common US suffixes)
-  - Enhanced `intl_phone` pattern: now detects formatted international numbers with spaces, dashes, and dots (e.g., `+44 20 7946 0958`)
-  - Context-aware detection for medical_id and passport reduces false positives
-  - Canadian SIN uses Luhn algorithm validation (same as credit cards)
-  - All new types available in Console TUI and JSON schema
-  - 64 new tests covering detection, false positive prevention, and validation
-
-- **Safe fix suggestions in MCP `get_violations()` tool** (Issue #627)
-  - Each violation now includes a `suggestion` field with safe-only remediation guidance
-  - Covers all 8 violation types: secret_detected, pii_detected, directory_blocking, tool_permission, prompt_injection, ssrf_blocked, config_file_exfil, jailbreak_detected
-  - Suggestions never include bypass instructions, allowlist syntax, or config disabling hints
-
-- **AGENTS.md bypass-prevention policy** (Issue #627)
-  - Documents that AI Guardian must never provide bypass information to AI agents
-  - Covers MCP tool responses, skill instructions, error messages, and Console output
-
-- **Block Console in non-interactive AI sessions** (Issue #627)
-  - `ai-guardian console` now checks `sys.stdin.isatty()` and refuses to run in non-interactive environments
-  - Prevents AI agents from accessing full security configuration, patterns, and allowlists via the Console TUI
-
-### Fixed
-
-- **Restore full Security Disclaimer + fix broken PyPI README links** (Issue #624)
-  - Restored full Security Disclaimer section with bullet points about limitations and defense-in-depth recommendations
-  - Converted all relative links in README.md to absolute GitHub URLs so they work on PyPI
-
-### Changed
-
-- **Simplify CONTRIBUTING.md + create Developer Guide** (Issue #628)
-  - Reduced CONTRIBUTING.md from 679 lines to ~50 lines (fork workflow, commit format, checklist)
-  - Created `docs/DEVELOPER_GUIDE.md` with architecture overview, development setup, testing, new feature checklist
-  - Updated for v1.8.0-dev features: daemon, MCP server, Console, profiles, annotations, custom scanner SDK
-  - Removed basic git tutorials and duplicate PR/issue templates from CONTRIBUTING.md
-
-- **Document deny-by-default for MCP servers and Skills** (Issue #606)
-  - README: added prominent callout after Quick Start explaining MCP/Skills are blocked by default
-  - README: updated Default Behavior table to distinguish built-in tools (allowed) from MCP/Skills (blocked)
-  - TOOL_POLICY.md: added "Default Security Posture" section with rationale table
-  - Error message for "no permission rule" now explains deny-by-default policy instead of "matches a denied pattern"
-
-### Added
-
 - **Custom Scanner SDK — Python-based scanners** (Issue #474)
   - `Scanner` base class and `Finding` dataclass in `ai_guardian.scanners.sdk`
   - Write custom scanners as Python classes that run in-process (~1ms vs ~50ms subprocess)
@@ -165,7 +103,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - State file: `~/.local/state/ai-guardian/daemon_sessions.json`
   - Flush pending state on daemon shutdown for clean exit
 
+### Changed
+
+- **BREAKING: Daemon no longer launches system tray automatically** (Issue #527)
+  - `ai-guardian daemon start` now runs headless (no tray icon)
+  - System tray is a separate process: `ai-guardian tray start`
+  - **Migration**: If you relied on the tray appearing automatically with `daemon start`, add `ai-guardian tray start` to your workflow (e.g., login items, shell alias, or startup script)
+  - The `--no-tray` flag on `daemon start` is deprecated (daemon is always headless)
+  - This separation enables the tray to manage multiple daemons (local + containers) independently
+
+- **Replaced subprocess-based container discovery with Docker Python SDK** (Issue #659)
+  - Container discovery now uses `docker` Python SDK (`docker>=7.0,<9`) instead of subprocess calls
+  - Faster and more reliable container detection with native API access
+
+- **Refactored monolithic `__init__.py` into focused modules** (Issues #619, #620, #607)
+  - Extracted CLI entry points to `cli.py` and `cli_handlers.py`
+  - Extracted hook processing to `hook_processing.py`
+  - Extracted config loading to `config_loaders.py`
+  - Extracted shared constants to `constants.py` (ActionMode, ViolationType, HookEvent enums)
+  - Extracted response formatting to `response_format.py`
+  - All public symbols re-exported from `__init__.py` for backward compatibility
+
+- **Python 3.13 and 3.14 support** (Issue #645)
+  - Added Python 3.13 and 3.14 to CI test matrix
+  - Added PyPI classifiers for Python 3.13 and 3.14
+
+- **PII Detection Phase 2 - Advanced Types** (Issue #329)
+  - New PII types (all opt-in, add to `pii_types` to enable):
+    - `medical_id`: Medical Record Numbers with context keywords (MRN, Patient ID)
+    - `passport`: International Passport Numbers with context keywords
+    - `canada_sin`: Canadian Social Insurance Numbers with Luhn validation
+    - `uk_nin`: UK National Insurance Numbers
+    - `india_aadhaar`: Indian Aadhaar Numbers (12-digit, separated format)
+    - `address`: Street Addresses (regex-based, common US suffixes)
+  - Enhanced `intl_phone` pattern: now detects formatted international numbers with spaces, dashes, and dots (e.g., `+44 20 7946 0958`)
+  - Context-aware detection for medical_id and passport reduces false positives
+  - Canadian SIN uses Luhn algorithm validation (same as credit cards)
+  - All new types available in Console TUI and JSON schema
+  - 64 new tests covering detection, false positive prevention, and validation
+
+- **Safe fix suggestions in MCP `get_violations()` tool** (Issue #627)
+  - Each violation now includes a `suggestion` field with safe-only remediation guidance
+  - Covers all 8 violation types: secret_detected, pii_detected, directory_blocking, tool_permission, prompt_injection, ssrf_blocked, config_file_exfil, jailbreak_detected
+  - Suggestions never include bypass instructions, allowlist syntax, or config disabling hints
+
+- **AGENTS.md bypass-prevention policy** (Issue #627)
+  - Documents that AI Guardian must never provide bypass information to AI agents
+  - Covers MCP tool responses, skill instructions, error messages, and Console output
+
+- **Block Console in non-interactive AI sessions** (Issue #627)
+  - `ai-guardian console` now checks `sys.stdin.isatty()` and refuses to run in non-interactive environments
+  - Prevents AI agents from accessing full security configuration, patterns, and allowlists via the Console TUI
+
+- **Simplify CONTRIBUTING.md + create Developer Guide** (Issue #628)
+  - Reduced CONTRIBUTING.md from 679 lines to ~50 lines (fork workflow, commit format, checklist)
+  - Created `docs/DEVELOPER_GUIDE.md` with architecture overview, development setup, testing, new feature checklist
+  - Updated for v1.8.0-dev features: daemon, MCP server, Console, profiles, annotations, custom scanner SDK
+  - Removed basic git tutorials and duplicate PR/issue templates from CONTRIBUTING.md
+
+- **Document deny-by-default for MCP servers and Skills** (Issue #606)
+  - README: added prominent callout after Quick Start explaining MCP/Skills are blocked by default
+  - README: updated Default Behavior table to distinguish built-in tools (allowed) from MCP/Skills (blocked)
+  - TOOL_POLICY.md: added "Default Security Posture" section with rationale table
+  - Error message for "no permission rule" now explains deny-by-default policy instead of "matches a denied pattern"
+
+- **Performance**: Cache config file reads across `_load_*_config()` calls (Issue #569)
+  - Single file read per hook invocation instead of 4-6 redundant reads
+  - Uses mtime-based invalidation for automatic cache refresh
+  - Refactored `_load_pattern_server_config()` to use shared `_load_config_file()` cache
+
 ### Fixed
+
+- **Restore full Security Disclaimer + fix broken PyPI README links** (Issue #624)
+  - Restored full Security Disclaimer section with bullet points about limitations and defense-in-depth recommendations
+  - Converted all relative links in README.md to absolute GitHub URLs so they work on PyPI
+
+- **Rename desktop entries from "AI Guardian" to "AI Guardian Tray"** (Issue #663)
+  - Fixed desktop shortcut and autostart entries to use correct "AI Guardian Tray" name
 
 - **Bug: GNOME system tray icon not visible after AppIndicator extension install** (Issue #602)
   - pystray `setup=` callback prevents icon from appearing on newer GNOME/GTK
@@ -184,13 +198,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatible: old `action` on `mode: allow` rules still works (deprecated)
   - Updated @minimal, @standard, @strict profile defaults
   - Updated default config templates with layered permission rules
-
-### Changed
-
-- **Performance**: Cache config file reads across `_load_*_config()` calls (Issue #569)
-  - Single file read per hook invocation instead of 4-6 redundant reads
-  - Uses mtime-based invalidation for automatic cache refresh
-  - Refactored `_load_pattern_server_config()` to use shared `_load_config_file()` cache
 
 ## [1.7.0] - 2026-05-13
 
