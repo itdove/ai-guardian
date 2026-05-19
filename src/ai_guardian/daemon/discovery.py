@@ -60,8 +60,7 @@ class DaemonDiscovery:
         self._lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
-        self._container_engine: Optional[str] = None
-        self._container_engine_checked = False
+        self._container_engines: Optional[List[str]] = None
 
     @property
     def targets(self) -> List[DaemonTarget]:
@@ -132,13 +131,14 @@ class DaemonDiscovery:
     def discover_containers(self) -> List[DaemonTarget]:
         """Discover container daemons via podman/docker.
 
-        Uses cascading discovery:
+        Scans all available container engines (podman and docker).
+        Uses cascading discovery per engine:
         1. Label filter (primary): containers with ai-guardian.daemon=true label
         2. Port filter (fallback): containers with port mapping to rest_port
-        3. Merge and deduplicate by container ID
+        3. Merge and deduplicate by container ID across all engines
         """
-        engine = self.get_container_engine()
-        if not engine:
+        engines = self.get_container_engines()
+        if not engines:
             return []
 
         rest_port = self._config.get("daemon", {}).get(
@@ -147,15 +147,16 @@ class DaemonDiscovery:
 
         seen_ids: Dict[str, DaemonTarget] = {}
 
-        label_targets = self._discover_by_label(engine, rest_port)
-        for t in label_targets:
-            if t.container_id:
-                seen_ids[t.container_id] = t
+        for engine in engines:
+            label_targets = self._discover_by_label(engine, rest_port)
+            for t in label_targets:
+                if t.container_id and t.container_id not in seen_ids:
+                    seen_ids[t.container_id] = t
 
-        port_targets = self._discover_by_port(engine, rest_port)
-        for t in port_targets:
-            if t.container_id and t.container_id not in seen_ids:
-                seen_ids[t.container_id] = t
+            port_targets = self._discover_by_port(engine, rest_port)
+            for t in port_targets:
+                if t.container_id and t.container_id not in seen_ids:
+                    seen_ids[t.container_id] = t
 
         return list(seen_ids.values())
 
@@ -499,29 +500,16 @@ class DaemonDiscovery:
 
         return targets
 
-    def get_container_engine(self) -> Optional[str]:
-        """Auto-detect container engine: podman preferred over docker."""
-        if self._container_engine_checked:
-            return self._container_engine
+    def get_container_engines(self) -> List[str]:
+        """Return all available container engines (podman and/or docker)."""
+        if self._container_engines is not None:
+            return self._container_engines
 
-        self._container_engine_checked = True
-
-        configured = self._config.get("daemon", {}).get("container_engine", "auto")
-        if configured != "auto":
-            if shutil.which(configured):
-                self._container_engine = configured
-                return configured
-            logger.debug("Configured engine '%s' not found", configured)
-            self._container_engine = None
-            return None
-
-        for engine in ("podman", "docker"):
-            if shutil.which(engine):
-                self._container_engine = engine
-                return engine
-
-        self._container_engine = None
-        return None
+        self._container_engines = [
+            engine for engine in ("podman", "docker")
+            if shutil.which(engine)
+        ]
+        return self._container_engines
 
     def start_background_discovery(self, callback: Callable):
         """Start background discovery thread (event-driven, not periodic).

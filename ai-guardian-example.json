@@ -849,7 +849,6 @@
     "idle_timeout_minutes": 30,
     "client_timeout_seconds": 2.0,
     "rest_port": 63152,
-    "container_engine": "auto",
     "tray": {
       "enabled": true,
       "discovery_interval_seconds": 15,

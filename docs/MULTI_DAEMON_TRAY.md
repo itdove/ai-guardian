@@ -166,7 +166,6 @@ The REST port is configurable via `daemon.rest_port` (default 63152, 0 = OS-assi
   "daemon": {
     "rest_port": 63152,
     "rest_host": "127.0.0.1",
-    "container_engine": "auto",
     "tray": {
       "discover_containers": true,
       "discover_kubernetes": false,
@@ -184,8 +183,7 @@ The REST port is configurable via `daemon.rest_port` (default 63152, 0 = OS-assi
 | `name` | hostname | Instance name shown in tray, Console, REST API, MCP |
 | `daemon.rest_port` | `63152` | REST API port (0 = OS-assigned) |
 | `daemon.rest_host` | `127.0.0.1` | REST API bind address. Auto-set to `0.0.0.0` inside containers |
-| `daemon.container_engine` | `auto` | `auto` (podman > docker), `podman`, or `docker` |
-| `daemon.tray.discover_containers` | `true` | Enable Podman/Docker container discovery |
+| `daemon.tray.discover_containers` | `true` | Enable Podman/Docker container discovery (scans all available engines) |
 | `daemon.tray.discover_kubernetes` | `false` | Enable Kubernetes pod discovery |
 
 ## Action Routing

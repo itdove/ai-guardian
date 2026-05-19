@@ -65,36 +65,33 @@ class TestDaemonTarget:
         assert t.auth_token == "secret"
 
 
-class TestGetContainerEngine:
-    def test_auto_prefers_podman(self):
+class TestGetContainerEngines:
+    def test_both_available(self):
         d = DaemonDiscovery()
         with mock.patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}" if x in ("podman", "docker") else None):
-            assert d.get_container_engine() == "podman"
+            assert d.get_container_engines() == ["podman", "docker"]
 
-    def test_auto_falls_back_to_docker(self):
+    def test_podman_only(self):
+        d = DaemonDiscovery()
+        with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/podman" if x == "podman" else None):
+            assert d.get_container_engines() == ["podman"]
+
+    def test_docker_only(self):
         d = DaemonDiscovery()
         with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/docker" if x == "docker" else None):
-            assert d.get_container_engine() == "docker"
+            assert d.get_container_engines() == ["docker"]
 
-    def test_no_engine_available(self):
+    def test_none_available(self):
         d = DaemonDiscovery()
         with mock.patch("shutil.which", return_value=None):
-            assert d.get_container_engine() is None
+            assert d.get_container_engines() == []
 
-    def test_config_override_podman(self):
-        d = DaemonDiscovery(config={"daemon": {"container_engine": "podman"}})
-        with mock.patch("shutil.which", return_value="/usr/bin/podman"):
-            assert d.get_container_engine() == "podman"
-
-    def test_config_override_docker(self):
-        d = DaemonDiscovery(config={"daemon": {"container_engine": "docker"}})
-        with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/docker" if x == "docker" else None):
-            assert d.get_container_engine() == "docker"
-
-    def test_config_override_missing_engine(self):
-        d = DaemonDiscovery(config={"daemon": {"container_engine": "podman"}})
-        with mock.patch("shutil.which", return_value=None):
-            assert d.get_container_engine() is None
+    def test_result_is_cached(self):
+        d = DaemonDiscovery()
+        with mock.patch("shutil.which", return_value="/usr/bin/podman") as m:
+            d.get_container_engines()
+            d.get_container_engines()
+            assert m.call_count == 2  # called for podman and docker, cached after
 
 
 class TestDiscoverLocal:
@@ -151,7 +148,7 @@ class TestDiscoverContainers:
 
     def test_no_engine_returns_empty(self):
         d = DaemonDiscovery()
-        with mock.patch.object(d, "get_container_engine", return_value=None):
+        with mock.patch.object(d, "get_container_engines", return_value=[]):
             assert d.discover_containers() == []
 
     @mock.patch("subprocess.run")
@@ -170,7 +167,7 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engine", return_value="podman"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -198,7 +195,7 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engine", return_value="docker"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["docker"]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 2
@@ -219,7 +216,7 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engine", return_value="podman"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -242,7 +239,7 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engine", return_value="podman"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -254,7 +251,7 @@ class TestDiscoverContainers:
         )
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d)
-        with mock.patch.object(d, "get_container_engine", return_value="podman"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
             targets = d.discover_containers()
         assert targets == []
 
@@ -270,7 +267,7 @@ class TestDiscoverContainers:
         )
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engine", return_value="podman"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
             targets = d.discover_containers()
         assert targets[0].name == "my-sandbox"
 
@@ -289,9 +286,61 @@ class TestDiscoverContainers:
         )
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "get_container_engine", return_value="podman"), p1, p2:
+        with mock.patch.object(d, "get_container_engines", return_value=["podman"]), p1, p2:
             targets = d.discover_containers()
         assert targets[0].port == 49600
+
+    @mock.patch("subprocess.run")
+    def test_multi_engine_discovery(self, mock_run):
+        podman_containers = [{
+            "Id": "aaa111bbb222ccc333", "Names": ["carbonite"],
+            "Labels": {"ai-guardian.daemon": "true"},
+            "Ports": [{"container_port": 63152, "host_port": 49700}],
+        }]
+        docker_containers = [{
+            "Id": "ddd444eee555fff666", "Names": ["dev-api"],
+            "Labels": {"ai-guardian.daemon": "true"},
+            "Ports": [{"containerPort": 63152, "hostPort": 49800}],
+        }]
+        mock_run.side_effect = [
+            mock.MagicMock(returncode=0, stdout=json.dumps(podman_containers), stderr=""),
+            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
+            mock.MagicMock(returncode=0, stdout=json.dumps(docker_containers), stderr=""),
+            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
+        ]
+
+        d = DaemonDiscovery()
+        p1, p2 = self._patch_probes(d, probe_return={"running": True})
+        with mock.patch.object(d, "get_container_engines", return_value=["podman", "docker"]), p1, p2:
+            targets = d.discover_containers()
+
+        assert len(targets) == 2
+        engines = {t.container_engine for t in targets}
+        assert engines == {"podman", "docker"}
+        names = {t.name for t in targets}
+        assert names == {"carbonite", "dev-api"}
+
+    @mock.patch("subprocess.run")
+    def test_multi_engine_deduplication(self, mock_run):
+        container = {
+            "Id": "abc123def456abc123", "Names": ["guardian"],
+            "Labels": {"ai-guardian.daemon": "true"},
+            "Ports": [{"container_port": 63152, "host_port": 49900}],
+        }
+        mock_run.side_effect = [
+            mock.MagicMock(returncode=0, stdout=json.dumps([container]), stderr=""),
+            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
+            mock.MagicMock(returncode=0, stdout=json.dumps([container]), stderr=""),
+            mock.MagicMock(returncode=0, stdout="[]", stderr=""),
+        ]
+
+        d = DaemonDiscovery()
+        p1, p2 = self._patch_probes(d, probe_return={"running": True})
+        with mock.patch.object(d, "get_container_engines", return_value=["podman", "docker"]), p1, p2:
+            targets = d.discover_containers()
+
+        assert len(targets) == 1
+        assert targets[0].container_engine == "podman"
 
 
 class TestDiscoverKubernetes:
