@@ -243,6 +243,8 @@ class DaemonTray:
         menu = pystray.Menu(
             *self._build_single_daemon_menu_items(),
             *self._build_multi_daemon_menu_items(),
+            pystray.Menu.SEPARATOR,
+            *self._build_ide_setup_menu_items(),
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
         )
@@ -430,21 +432,36 @@ class DaemonTray:
         return "medium"
 
     @staticmethod
-    def _launch_console(panel=None):
-        """Launch the ai-guardian console in a new terminal window."""
+    def _resolve_cli_cmd(*args):
+        """Build command list for running ai-guardian with given arguments."""
         import os
         import shutil
         import sys
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         executable = shutil.which("ai-guardian")
         if executable:
-            cmd_parts = [os.path.abspath(executable), "console"]
-        else:
-            cmd_parts = [sys.executable, "-m", "ai_guardian", "console"]
+            return [os.path.abspath(executable)] + list(args)
+        return [sys.executable, "-m", "ai_guardian"] + list(args)
+
+    @staticmethod
+    def _launch_console(panel=None):
+        """Launch the ai-guardian console in a new terminal window."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        cmd_parts = DaemonTray._resolve_cli_cmd("console")
         if panel:
             cmd_parts.extend(["--panel", panel])
         _launch_in_terminal(cmd_parts)
+
+    @staticmethod
+    def _launch_ide_setup(ide_key):
+        """Launch ai-guardian setup --ide <name> in a new terminal window."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        _launch_in_terminal(
+            DaemonTray._resolve_cli_cmd("setup", "--ide", ide_key),
+            keep_open=True,
+        )
 
     def _start_pause_timer(self):
         """Start a background thread that updates the countdown and auto-resumes.
@@ -1089,6 +1106,52 @@ class DaemonTray:
                 )
             )
         return items
+
+    @staticmethod
+    def _launch_create_config():
+        """Launch ai-guardian setup --create-config in a new terminal."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        _launch_in_terminal(
+            DaemonTray._resolve_cli_cmd("setup", "--create-config"),
+            keep_open=True,
+        )
+
+    def _build_ide_setup_menu_items(self):
+        """Build the top-level 'Local Setup...' submenu.
+
+        Always visible regardless of daemon count. Contains config
+        creation and per-IDE hook setup entries.
+        """
+        from ai_guardian.setup import IDESetup
+
+        def _mk_ide_action(k):
+            def action(_, __):
+                self._launch_ide_setup(k)
+            return action
+
+        ide_items = [
+            pystray.MenuItem("IDE Hooks (required)", None),
+        ]
+        for ide_key, ide_cfg in IDESetup.IDE_CONFIGS.items():
+            ide_items.append(
+                pystray.MenuItem(f"  {ide_cfg['name']}", _mk_ide_action(ide_key))
+            )
+        ide_items.extend([
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Configuration", None),
+            pystray.MenuItem(
+                "  Create Config...",
+                lambda _, __: self._launch_create_config(),
+            ),
+        ])
+
+        return [
+            pystray.MenuItem(
+                "Local Setup...",
+                pystray.Menu(*ide_items),
+            ),
+        ]
 
     def _on_restart_tray(self, icon, item):
         """Restart the tray process."""
