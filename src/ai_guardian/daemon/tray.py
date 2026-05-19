@@ -637,7 +637,12 @@ class DaemonTray:
                     "running": "●", "paused": "◐",
                     "error": "✗", "unknown": "○",
                 }.get(t.status, "○")
-                runtime = f" ({t.runtime})" if t.runtime != "local" else ""
+                if t.runtime == "container" and t.container_engine:
+                    runtime = f" ({t.container_engine})"
+                elif t.runtime != "local":
+                    runtime = f" ({t.runtime})"
+                else:
+                    runtime = ""
                 return f"{status_icon} {t.name}{runtime}"
 
             def make_visible(_item, slot=idx):

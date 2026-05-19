@@ -1518,12 +1518,6 @@
           "default": "127.0.0.1",
           "description": "REST API bind address. Default 127.0.0.1 (localhost only). Set to 0.0.0.0 for container daemons that need external access."
         },
-        "container_engine": {
-          "type": "string",
-          "enum": ["auto", "podman", "docker"],
-          "default": "auto",
-          "description": "Container engine for daemon discovery. 'auto' detects podman first, then docker."
-        },
         "tray": {
           "type": "object",
           "description": "System tray icon settings. Disable on headless servers without a display.",
