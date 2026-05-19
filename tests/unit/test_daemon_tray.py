@@ -72,50 +72,24 @@ class TestDaemonTrayCallbacks:
 
 
 class TestFlashReload:
-    def test_flash_sets_reloading_status(self):
+    def test_flash_reload_is_noop(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        tray._icon = mock.MagicMock()
+        tray._status = "running"
         tray.flash_reload()
-        assert tray._status == "reloading"
-
-    def test_flash_without_icon_is_noop(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray.flash_reload()  # no icon — should not raise
         assert tray._status == "running"
 
-    def test_flash_reverts_to_previous_status(self):
-        import time as _time
+    def test_flash_reload_preserves_paused(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        tray._icon = mock.MagicMock()
-        tray.flash_reload()
-        assert tray._status == "reloading"
-        _time.sleep(1.2)
-        assert tray._status == "running"
-
-    def test_flash_from_paused_reverts_to_paused(self):
-        import time as _time
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._icon = mock.MagicMock()
         tray._status = "paused"
         tray.flash_reload()
-        assert tray._status == "reloading"
-        _time.sleep(1.2)
         assert tray._status == "paused"
 
 
@@ -146,14 +120,6 @@ class TestFormatTimeAgo:
 
 
 class TestCrossPlatform:
-    def test_update_icon_noop_without_icon(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._update_icon()  # No icon set — should not raise
-
     def test_dispatch_to_main_without_pyobjc(self):
         called = []
         with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
@@ -164,15 +130,6 @@ class TestCrossPlatform:
             )
             tray._dispatch_to_main(lambda: called.append(True))
         assert called == [True]
-
-    def test_update_icon_without_icon(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        # No icon — should not raise
-        tray._update_icon()
 
     def test_console_launch_linux(self):
         tray = DaemonTray(
@@ -271,88 +228,103 @@ class TestDaemonTrayIcon:
         not is_tray_available(),
         reason="pystray/Pillow not installed"
     )
-    def test_create_icon_running(self):
+    def test_create_icon_returns_image(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda: None,
         )
-        tray._status = "running"
         icon = tray._create_icon()
         assert icon is not None
-        assert icon.size == (64, 64)
+        assert icon.mode == "RGBA"
 
     @pytest.mark.skipif(
         not is_tray_available(),
         reason="pystray/Pillow not installed"
     )
-    def test_create_icon_paused(self):
+    def test_fallback_icon_when_no_tray_icon(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda: None,
         )
-        tray._status = "paused"
-        icon = tray._create_icon()
+        with mock.patch.object(DaemonTray, "_find_tray_icon_path", return_value=None):
+            icon = tray._create_icon()
         assert icon is not None
+        assert icon.size == (22, 22)
 
     @pytest.mark.skipif(
         not is_tray_available(),
         reason="pystray/Pillow not installed"
     )
-    def test_create_icon_error(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda: None,
-        )
-        tray._status = "error"
-        icon = tray._create_icon()
-        assert icon is not None
-
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
-    def test_create_icon_reloading(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda: None,
-        )
-        tray._status = "reloading"
-        icon = tray._create_icon()
-        assert icon is not None
-
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
-    def test_fallback_icon_when_no_project_icon(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda: None,
-        )
-        fallback = tray._create_fallback_icon(64)
-        assert fallback is not None
-        assert fallback.size == (64, 64)
-
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
-    def test_find_icon_path_returns_path_or_none(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda: None,
-        )
-        result = tray._find_icon_path()
-        # May return a path (dev) or None (CI) — both are valid
+    def test_find_tray_icon_path_returns_path_or_none(self):
+        result = DaemonTray._find_tray_icon_path()
         if result is not None:
             from pathlib import Path
             assert Path(result).exists()
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_find_tray_icon_path_macos(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            result = DaemonTray._find_tray_icon_path()
+        if result is not None:
+            assert "Template" in result
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_find_tray_icon_path_windows(self):
+        with mock.patch("platform.system", return_value="Windows"):
+            result = DaemonTray._find_tray_icon_path()
+        if result is not None:
+            assert "16" in result
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_find_tray_icon_path_linux(self):
+        with mock.patch("platform.system", return_value="Linux"):
+            result = DaemonTray._find_tray_icon_path()
+        if result is not None:
+            assert "22" in result
+
+    def test_all_required_tray_icon_sizes_exist(self):
+        from pathlib import Path
+        images_dir = Path(__file__).resolve().parent.parent.parent / "images"
+        required = [
+            "tray-icon-16.png",
+            "tray-icon-22.png",
+            "tray-icon-32.png",
+            "tray-iconTemplate.png",
+            "tray-iconTemplate@2x.png",
+        ]
+        for name in required:
+            assert (images_dir / name).exists(), f"Missing tray icon: {name}"
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_tray_icon_png_dimensions(self):
+        from pathlib import Path
+        from PIL import Image
+        images_dir = Path(__file__).resolve().parent.parent.parent / "images"
+        expected_sizes = {
+            "tray-icon-16.png": (16, 16),
+            "tray-icon-22.png": (22, 22),
+            "tray-icon-32.png": (32, 32),
+            "tray-iconTemplate.png": (22, 22),
+            "tray-iconTemplate@2x.png": (44, 44),
+        }
+        for name, expected in expected_sizes.items():
+            img = Image.open(images_dir / name)
+            assert img.size == expected, f"{name}: expected {expected}, got {img.size}"
+            assert img.mode in ("RGBA", "P"), f"{name}: expected RGBA mode"
 
 
 class TestRunPlatformBranching:

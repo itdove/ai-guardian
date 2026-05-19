@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Monochrome tray icons** (Issue #652)
+  - Shield silhouette template images for clean system tray rendering at 16x16, 22x22, 32x32, and 44x44
+  - macOS `*Template.png` naming convention for automatic light/dark mode adaptation
+  - Platform-specific icon selection: Windows (16px), Linux (22px), macOS (Template @1x/@2x)
+
 - **Multi-Daemon Tray Client with Podman Auto-Discovery** (Issue #527)
   - New discovery engine (`discovery.py`) finds daemons across local, Podman/Docker containers, Kubernetes pods, and manual targets
   - Cascading container discovery: label filter (`ai-guardian.daemon=true`) with port filter fallback
