@@ -997,8 +997,8 @@ class TestCreateDefaultConfig:
             assert config['permissions']['enabled'] is False
             assert len(config['permissions']['rules']) == 1  # catch-all allow rule in permissive mode
 
-    def test_create_default_config_already_exists(self, tmp_path):
-        """Test creating config when file already exists."""
+    def test_create_default_config_already_exists_preserves(self, tmp_path):
+        """Test creating config when file already exists preserves it."""
         from ai_guardian.setup import create_default_config
 
         config_file = tmp_path / 'ai-guardian.json'
@@ -1007,8 +1007,30 @@ class TestCreateDefaultConfig:
         with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
             success, message = create_default_config(permissive=False, dry_run=False)
 
-            assert success is False
-            assert 'already exists' in message
+            assert success is True
+            assert 'preserving' in message
+
+            with open(config_file) as f:
+                config = json.load(f)
+            assert config == {"existing": "config"}
+
+    def test_create_default_config_force_overwrite(self, tmp_path):
+        """Test --force overwrites existing config."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{"existing": "config"}')
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(permissive=False, dry_run=False, force=True)
+
+            assert success is True
+            assert '✓ Created default config' in message
+
+            with open(config_file) as f:
+                config = json.load(f)
+            assert 'secret_scanning' in config
+            assert 'existing' not in config
 
     def test_create_default_config_dry_run(self, tmp_path):
         """Test dry-run mode for config creation."""
@@ -1091,6 +1113,48 @@ class TestCreateDefaultConfig:
                 assert config_file.exists()
                 mock_instance.setup_ide_hooks.assert_called_once()
 
+    def test_setup_multiple_ides_preserves_config(self, tmp_path):
+        """Test setting up multiple IDEs sequentially preserves config (Issue #668)."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+        ide_config_file = tmp_path / 'settings.json'
+
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.IDE_CONFIGS = {
+                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)},
+                'cursor': {'name': 'Cursor', 'config_path': str(tmp_path / 'hooks.json')},
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+                # First IDE: creates config
+                success1 = setup_hooks(
+                    ide_type='claude',
+                    create_config=True,
+                    dry_run=False,
+                    interactive=False,
+                )
+                assert success1 is True
+                assert config_file.exists()
+
+                with open(config_file) as f:
+                    original_config = json.load(f)
+
+                # Second IDE: should preserve config
+                success2 = setup_hooks(
+                    ide_type='cursor',
+                    create_config=True,
+                    dry_run=False,
+                    interactive=False,
+                )
+                assert success2 is True
+
+                with open(config_file) as f:
+                    preserved_config = json.load(f)
+                assert preserved_config == original_config
+
     def test_setup_hooks_create_config_only(self, tmp_path):
         """Test setup with only --create-config (no IDE or remote config)."""
         from ai_guardian.setup import setup_hooks
@@ -1170,12 +1234,12 @@ class TestCreateDefaultConfig:
                     mock_instance.setup_ide_hooks.assert_called_once()
                     mock_mcp.assert_called_once()
 
-    def test_create_config_only_fails_when_exists(self, tmp_path):
-        """Test --create-config alone still fails when config exists (Issue #561)."""
+    def test_create_config_only_preserves_when_exists(self, tmp_path):
+        """Test --create-config alone succeeds with preserving message when config exists (Issue #668)."""
         from ai_guardian.setup import setup_hooks
 
         config_file = tmp_path / 'ai-guardian.json'
-        config_file.write_text('{}')
+        config_file.write_text('{"custom": "value"}')
 
         with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
             success = setup_hooks(
@@ -1187,7 +1251,34 @@ class TestCreateDefaultConfig:
                 interactive=False,
             )
 
-            assert success is False
+            assert success is True
+            with open(config_file) as f:
+                config = json.load(f)
+            assert config == {"custom": "value"}
+
+    def test_create_config_force_overwrites_when_exists(self, tmp_path):
+        """Test --create-config --force overwrites existing config (Issue #668)."""
+        from ai_guardian.setup import setup_hooks
+
+        config_file = tmp_path / 'ai-guardian.json'
+        config_file.write_text('{"custom": "value"}')
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success = setup_hooks(
+                ide_type=None,
+                remote_config_url=None,
+                create_config=True,
+                force=True,
+                permissive=False,
+                dry_run=False,
+                interactive=False,
+            )
+
+            assert success is True
+            with open(config_file) as f:
+                config = json.load(f)
+            assert 'secret_scanning' in config
+            assert 'custom' not in config
 
     def test_get_default_config_template_secure(self):
         """Test _get_default_config_template returns secure config by default."""

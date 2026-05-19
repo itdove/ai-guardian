@@ -88,7 +88,7 @@ def main():
         setup_parser.add_argument(
             "--force",
             action="store_true",
-            help="Overwrite existing hooks"
+            help="Overwrite existing hooks and config"
         )
         setup_parser.add_argument(
             "--yes",
