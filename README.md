@@ -54,11 +54,12 @@ The daemon provides faster hook processing. The tray is a separate process that 
 ai-guardian daemon start          # Start headless daemon (background: -b)
 ai-guardian tray start -b         # Start system tray in background
 ai-guardian tray stop             # Stop the tray
+ai-guardian tray --install --autostart  # Add desktop shortcut + launch on login
 ```
 
-The tray auto-discovers running daemons and shows per-daemon submenus with Statistics, Console, Pause/Resume, and Start/Stop controls. See [Multi-Daemon Tray](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) for full documentation.
+The tray auto-discovers running daemons and shows per-daemon submenus with Statistics, Console, Pause/Resume, and Start/Stop controls. On first launch, the tray will offer to create a desktop shortcut automatically. See [Multi-Daemon Tray](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) for full documentation.
 
-> **Breaking change in v1.8.0**: `daemon start` no longer launches the tray automatically. Run `ai-guardian tray start -b` separately, or add it to your login items.
+> **Breaking change in v1.8.0**: `daemon start` no longer launches the tray automatically. Run `ai-guardian tray start -b` separately, or use `ai-guardian tray --install --autostart` for a permanent desktop shortcut with login startup.
 
 ### Security Profiles
 
@@ -98,6 +99,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | MCP Security Scanning | Audit MCP server configs and source code for supply chain risks | [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md#mcp-security-scanning) |
 | Project Config Overlay | Per-repo config with immutable fields and global-only section protection | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180) |
 | Multi-Daemon Tray | Discover and manage daemons across local, Podman/Docker, and Kubernetes | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) |
+| Desktop Shortcut & Autostart | Install tray as desktop app with optional login startup | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#desktop-shortcuts) |
 
 ## Default Behavior (No Configuration File)
 

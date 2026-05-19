@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Desktop shortcut and autostart for tray** (Issue #649)
+  - `ai-guardian tray --install` creates a desktop shortcut (Applications menu)
+  - `ai-guardian tray --install --autostart` additionally configures launch on login
+  - `ai-guardian tray --uninstall` removes shortcut and autostart configuration
+  - First-run detection: prompts to create shortcut on first `ai-guardian tray` launch
+  - Linux: `.desktop` file in `~/.local/share/applications/` and `~/.config/autostart/`
+  - macOS: `.app` wrapper in `~/Applications/` and launchd plist in `~/Library/LaunchAgents/`
+  - Windows: Start Menu shortcut and startup folder shortcut (via PowerShell)
+  - Shortcut launches tray without requiring a terminal window
+
 - **Monochrome tray icons** (Issue #652)
   - Shield silhouette template images for clean system tray rendering at 16x16, 22x22, 32x32, and 44x44
   - macOS `*Template.png` naming convention for automatic light/dark mode adaptation

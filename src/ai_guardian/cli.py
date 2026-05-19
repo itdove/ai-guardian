@@ -587,6 +587,21 @@ def main():
         )
         tray_sub.add_parser("stop", help="Stop running standalone tray")
         tray_sub.add_parser("restart", help="Restart standalone tray")
+        tray_parser.add_argument(
+            "--install",
+            action="store_true",
+            help="Create desktop shortcut for tray"
+        )
+        tray_parser.add_argument(
+            "--autostart",
+            action="store_true",
+            help="Enable launch on login (use with --install)"
+        )
+        tray_parser.add_argument(
+            "--uninstall",
+            action="store_true",
+            help="Remove desktop shortcut and autostart"
+        )
 
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
