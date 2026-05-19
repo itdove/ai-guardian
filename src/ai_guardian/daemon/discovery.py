@@ -44,6 +44,18 @@ def _engine_from_source(source: str) -> str:
     """Derive 'podman' or 'docker' from a socket path or URL."""
     return "podman" if "podman" in source else "docker"
 
+
+def _detect_engine(client, source: str) -> str:
+    """Detect container engine via API, falling back to socket path heuristic."""
+    try:
+        version_info = client.version()
+        for comp in version_info.get("Components", []):
+            if "podman" in comp.get("Name", "").lower():
+                return "podman"
+    except Exception:
+        pass
+    return _engine_from_source(source)
+
 from ai_guardian.daemon import (
     DEFAULT_REST_PORT,
     get_pid_path,
@@ -244,7 +256,7 @@ class DaemonDiscovery:
                     base_url=docker_host, timeout=10
                 )
                 client.ping()
-                engine = _engine_from_source(docker_host)
+                engine = _detect_engine(client, docker_host)
                 clients.append((client, engine))
                 seen_sockets.add(docker_host)
             except Exception:
@@ -265,7 +277,7 @@ class DaemonDiscovery:
                 url = f"unix://{sock}"
                 client = docker_sdk.DockerClient(base_url=url, timeout=10)
                 client.ping()
-                engine = _engine_from_source(sock)
+                engine = _detect_engine(client, sock)
                 clients.append((client, engine))
                 seen_sockets.add(sock)
             except Exception:
