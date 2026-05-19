@@ -1479,14 +1479,14 @@
         }
       }
     },
+    "name": {
+      "type": "string",
+      "description": "Human-friendly instance name. Displayed in Console banner, tray menu, REST API, and MCP. Defaults to hostname if not set."
+    },
     "daemon": {
       "type": "object",
       "description": "Background daemon configuration. Controls whether ai-guardian runs as a long-lived daemon process for faster hook response times and cross-hook state sharing. Two modes: 'auto' (default, try daemon then fall back to direct) and 'direct' (always per-process, for CI/CD).",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "Human-friendly daemon name displayed in the tray. Defaults to hostname if not set."
-        },
         "mode": {
           "type": "string",
           "enum": ["auto", "local", "daemon"],

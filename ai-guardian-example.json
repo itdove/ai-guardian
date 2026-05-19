@@ -841,8 +841,10 @@
   "_comment_daemon_tray": "System tray icon shows daemon status. Disable on headless servers.",
   "_comment_daemon_rest_port": "REST API port for multi-daemon tray communication. Default 63152. Set 0 for OS-assigned. Container daemons should use a fixed port.",
   "_comment_daemon_discovery": "Multi-daemon discovery: finds daemons across local, Podman/Docker containers, Kubernetes pods, and manual targets (tray-targets.json).",
+  "_comment_name": "Human-friendly instance name. Shown in Console banner, tray, REST API, and MCP. Defaults to hostname.",
+  "name": "my-workstation",
+
   "daemon": {
-    "name": "my-workstation",
     "mode": "auto",
     "idle_timeout_minutes": 30,
     "client_timeout_seconds": 2.0,

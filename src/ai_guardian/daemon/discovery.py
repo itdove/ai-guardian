@@ -281,7 +281,7 @@ class DaemonDiscovery:
                         name = api_data["name"]
 
             if not labels.get("ai-guardian.name") and status != "running":
-                exec_name = self._exec_daemon_name(engine, container_id)
+                exec_name = self._exec_instance_name(engine, container_id)
                 if exec_name:
                     name = exec_name
 
@@ -300,7 +300,7 @@ class DaemonDiscovery:
         return targets
 
     @staticmethod
-    def _exec_daemon_name(engine, container_id, timeout=3):
+    def _exec_instance_name(engine, container_id, timeout=3):
         """Read daemon name from container config via podman/docker exec."""
         try:
             result = subprocess.run(

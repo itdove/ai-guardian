@@ -14,19 +14,24 @@ ai-guardian tray restart          # Restart the tray
 
 > **Note**: The daemon runs headless. The tray is always a separate process.
 
-## Daemon Name
+## Instance Name
 
-Set a human-friendly name in your config to identify daemons in the tray:
+Set a human-friendly name in your config to identify this ai-guardian instance:
 
 ```json
 {
-  "daemon": {
-    "name": "my-workstation"
-  }
+  "name": "my-workstation"
 }
 ```
 
-If not set, the tray shows the container name (for containers) or "local" (for the local daemon).
+The name appears in the Console banner, tray menu, REST API, and MCP.
+
+If not set, defaults to `hostname`. For containers, the priority is:
+
+1. Container label `ai-guardian.name` (set at run time)
+2. Config `name` field (from `ai-guardian.json`)
+3. Container name (from `podman ps`)
+4. Hostname
 
 ## Tray Menu Structure
 
@@ -157,8 +162,8 @@ The REST port is configurable via `daemon.rest_port` (default 63152, 0 = OS-assi
 
 ```json
 {
+  "name": "my-workstation",
   "daemon": {
-    "name": "my-workstation",
     "rest_port": 63152,
     "rest_host": "127.0.0.1",
     "container_engine": "auto",
@@ -176,7 +181,7 @@ The REST port is configurable via `daemon.rest_port` (default 63152, 0 = OS-assi
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `daemon.name` | *(unset)* | Display name in tray. Shows container name or "local" if not set |
+| `name` | hostname | Instance name shown in tray, Console, REST API, MCP |
 | `daemon.rest_port` | `63152` | REST API port (0 = OS-assigned) |
 | `daemon.rest_host` | `127.0.0.1` | REST API bind address. Auto-set to `0.0.0.0` inside containers |
 | `daemon.container_engine` | `auto` | `auto` (podman > docker), `podman`, or `docker` |

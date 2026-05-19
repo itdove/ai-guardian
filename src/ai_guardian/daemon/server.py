@@ -12,10 +12,8 @@ import os
 import platform
 import signal
 import socket
-import sys
 import threading
 import time
-from pathlib import Path
 
 from ai_guardian.daemon import get_pid_path, get_socket_path
 from ai_guardian.daemon.protocol import (
@@ -84,7 +82,7 @@ class DaemonServer:
         idle_thread.start()
 
         sock_info = self._socket_info()
-        name_info = f", name={self._daemon_name}" if hasattr(self, '_daemon_name') else ""
+        name_info = f", name={self._name}" if hasattr(self, '_name') else ""
         logger.info(f"Daemon started (pid {os.getpid()}, {sock_info}{name_info})")
         print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info}{name_info})")
         print("Use 'ai-guardian tray' to start the system tray client")
@@ -329,8 +327,8 @@ class DaemonServer:
             pid_info["port"] = self._tcp_port
         if self._rest_port:
             pid_info["rest_port"] = self._rest_port
-        if hasattr(self, '_daemon_name') and self._daemon_name:
-            pid_info["name"] = self._daemon_name
+        if hasattr(self, '_name') and self._name:
+            pid_info["name"] = self._name
         pid_path.write_text(json.dumps(pid_info))
         os.chmod(str(pid_path), 0o600)
 
@@ -341,15 +339,18 @@ class DaemonServer:
             from ai_guardian.daemon import DEFAULT_REST_PORT
             from ai_guardian.config_loaders import _load_config_file
 
+            full_cfg = {}
             daemon_cfg = {}
             try:
                 cfg, _err = _load_config_file()
                 if cfg:
+                    full_cfg = cfg
                     daemon_cfg = cfg.get("daemon", {})
             except Exception:
                 pass
 
-            self._daemon_name = daemon_cfg.get("name")
+            import socket as socket_mod
+            self._name = full_cfg.get("name") or socket_mod.gethostname()
             cfg_port = daemon_cfg.get("rest_port", DEFAULT_REST_PORT)
 
             default_host = "127.0.0.1"
@@ -358,7 +359,7 @@ class DaemonServer:
             host = daemon_cfg.get("rest_host", default_host)
             self._rest_api = DaemonRestAPI(
                 state=self.state, host=host, port=cfg_port,
-                daemon_name=self._daemon_name,
+                name=self._name,
             )
             self._rest_port = self._rest_api.start()
             self._write_pid_file()

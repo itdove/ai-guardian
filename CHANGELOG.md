@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Container engine auto-detection (podman preferred) with manual override (`daemon.container_engine`)
   - Kubernetes discovery opt-in (`daemon.tray.discover_kubernetes`) with user-scoped pod filtering
   - Manual targets via `~/.config/ai-guardian/tray-targets.json` with auth token support
-  - Configurable daemon name (`daemon.name` in config) displayed in tray and REST API
+  - Instance name (`name` in config, defaults to hostname) displayed in Console banner, tray, REST API, and MCP
   - Daemon is now always headless — tray is a separate process (`ai-guardian tray start/stop`)
   - `ai-guardian tray stop` command to cleanly stop the standalone tray
   - Tray lock file prevents duplicate tray instances across all platforms

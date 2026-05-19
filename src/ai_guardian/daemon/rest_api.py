@@ -52,12 +52,12 @@ class _RestHandler(BaseHTTPRequestHandler):
             "paused": stats.get("paused", False),
             "uptime_seconds": stats.get("uptime_seconds", 0),
             "version": self._get_version(),
-            "name": getattr(self.server, 'daemon_name', None) or "ai-guardian",
+            "name": getattr(self.server, 'instance_name', None) or "ai-guardian",
         }
 
     def _get_stats(self):
         stats = self.server.daemon_state.get_stats()
-        name = getattr(self.server, 'daemon_name', None)
+        name = getattr(self.server, 'instance_name', None)
         if name:
             stats["name"] = name
         return stats
@@ -110,19 +110,19 @@ class _RestHandler(BaseHTTPRequestHandler):
 class DaemonRestAPI:
     """Minimal REST API for tray-to-daemon communication."""
 
-    def __init__(self, state, host="127.0.0.1", port=0, daemon_name=None):
+    def __init__(self, state, host="127.0.0.1", port=0, name=None):
         """Initialize REST API server.
 
         Args:
             state: DaemonState instance for querying stats and controlling pause
             host: Bind address (127.0.0.1 for local, 0.0.0.0 for containers)
             port: Port to bind (0 for OS-assigned)
-            daemon_name: Human-friendly name for this daemon
+            name: Human-friendly name for this daemon
         """
         self._state = state
         self._host = host
         self._port = port
-        self._daemon_name = daemon_name
+        self._name = name
         self._server = None
         self._thread = None
 
@@ -130,7 +130,7 @@ class DaemonRestAPI:
         """Start HTTP server in background thread. Returns bound port."""
         self._server = HTTPServer((self._host, self._port), _RestHandler)
         self._server.daemon_state = self._state
-        self._server.daemon_name = self._daemon_name
+        self._server.instance_name = self._name
         actual_port = self._server.server_address[1]
 
         self._thread = threading.Thread(

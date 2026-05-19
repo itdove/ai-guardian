@@ -138,15 +138,15 @@ class TestDiscoverLocal:
 class TestDiscoverContainers:
     """Tests for container discovery.
 
-    All tests mock _probe_daemon and _exec_daemon_name to avoid
+    All tests mock _probe_daemon and _exec_instance_name to avoid
     actual HTTP/exec calls during container discovery.
     """
 
     def _patch_probes(self, d, probe_return=None):
-        """Patch _probe_daemon and _exec_daemon_name on a discovery instance."""
+        """Patch _probe_daemon and _exec_instance_name on a discovery instance."""
         return (
             mock.patch.object(d, "_probe_daemon", return_value=probe_return),
-            mock.patch.object(d, "_exec_daemon_name", return_value=None),
+            mock.patch.object(d, "_exec_instance_name", return_value=None),
         )
 
     def test_no_engine_returns_empty(self):
