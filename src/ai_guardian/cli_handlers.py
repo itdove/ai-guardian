@@ -352,6 +352,11 @@ def _handle_daemon_command(args):
 
 def _handle_tray_command(args):
     """Handle the standalone tray subcommand (Issue #527)."""
+    if getattr(args, "uninstall", False):
+        return _handle_tray_uninstall()
+    if getattr(args, "install", False):
+        return _handle_tray_install(getattr(args, "autostart", False))
+
     tray_command = getattr(args, "tray_command", None)
 
     if tray_command == "stop":
@@ -371,6 +376,51 @@ def _handle_tray_command(args):
 
     print("Usage: ai-guardian tray {start|stop|restart}")
     return 1
+
+
+def _handle_tray_install(autostart=False):
+    """Create a desktop shortcut and optionally enable autostart."""
+    from ai_guardian.daemon.desktop import get_desktop_integration
+
+    desktop = get_desktop_integration()
+
+    if desktop.shortcut_exists():
+        print("Desktop shortcut already exists.")
+    else:
+        if desktop.install_shortcut():
+            print("Created AI Guardian shortcut in Applications menu.")
+        else:
+            print("Failed to create desktop shortcut.", file=sys.stderr)
+            return 1
+
+    if autostart:
+        if desktop.autostart_exists():
+            print("Autostart already configured.")
+        else:
+            if desktop.install_autostart():
+                print("Configured to start on login.")
+            else:
+                print("Failed to configure autostart.", file=sys.stderr)
+                return 1
+    return 0
+
+
+def _handle_tray_uninstall():
+    """Remove desktop shortcut and autostart configuration."""
+    from ai_guardian.daemon.desktop import get_desktop_integration
+
+    desktop = get_desktop_integration()
+
+    removed_shortcut = desktop.uninstall_shortcut()
+    removed_autostart = desktop.uninstall_autostart()
+
+    if removed_shortcut:
+        print("Removed desktop shortcut.")
+    if removed_autostart:
+        print("Removed autostart configuration.")
+    if not removed_shortcut and not removed_autostart:
+        print("No desktop shortcut or autostart found.")
+    return 0
 
 
 def _handle_tray_stop():
@@ -438,6 +488,23 @@ def _handle_tray_start(args):
             file=sys.stderr,
         )
         return 1
+
+    try:
+        if sys.stdin.isatty():
+            from ai_guardian.daemon.desktop import get_desktop_integration
+
+            desktop = get_desktop_integration()
+            if not desktop.shortcut_exists():
+                answer = input("No desktop shortcut found. Create one? [Y/n] ").strip().lower()
+                if answer in ("", "y", "yes"):
+                    if desktop.install_shortcut():
+                        print("Created AI Guardian shortcut in Applications menu.")
+                        answer = input("Start on login? [y/N] ").strip().lower()
+                        if answer in ("y", "yes"):
+                            if desktop.install_autostart():
+                                print("Configured to start on login.")
+    except Exception:
+        pass
 
     config = {}
     try:

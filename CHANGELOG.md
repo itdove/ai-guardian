@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Desktop shortcut and autostart for tray** (Issue #649)
+  - `ai-guardian tray --install` creates a desktop shortcut (Applications menu)
+  - `ai-guardian tray --install --autostart` additionally configures launch on login
+  - `ai-guardian tray --uninstall` removes shortcut and autostart configuration
+  - First-run detection: prompts to create shortcut on first `ai-guardian tray` launch
+  - Linux: `.desktop` file in `~/.local/share/applications/` and `~/.config/autostart/`
+  - macOS: `.app` wrapper in `~/Applications/` and launchd plist in `~/Library/LaunchAgents/`
+  - Windows: Start Menu shortcut and startup folder shortcut (via PowerShell)
+  - Shortcut launches tray without requiring a terminal window
+
 - **Multi-Daemon Tray Client with Podman Auto-Discovery** (Issue #527)
   - New discovery engine (`discovery.py`) finds daemons across local, Podman/Docker containers, Kubernetes pods, and manual targets
   - Cascading container discovery: label filter (`ai-guardian.daemon=true`) with port filter fallback

@@ -1,0 +1,412 @@
+"""Desktop shortcut and autostart integration for the ai-guardian tray."""
+
+import logging
+import os
+import platform
+import shutil
+import stat
+import subprocess
+import sys
+from abc import ABC, abstractmethod
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+def get_desktop_integration():
+    """Return the platform-appropriate DesktopIntegration instance."""
+    system = platform.system()
+    if system == "Linux":
+        return LinuxDesktop()
+    if system == "Darwin":
+        return MacOSDesktop()
+    if system == "Windows":
+        return WindowsDesktop()
+    return _UnsupportedDesktop()
+
+
+def _get_executable_command():
+    """Resolve the command to launch ai-guardian tray."""
+    executable = shutil.which("ai-guardian")
+    if executable:
+        return [os.path.abspath(executable)]
+    return [sys.executable, "-m", "ai_guardian"]
+
+
+def _prepare_icon(size=256):
+    """Generate a square icon from the bundled banner and cache it in state dir.
+
+    Returns the path to the cached icon, or None if the source icon is missing.
+    """
+    from ai_guardian.config_utils import get_state_dir
+
+    state_dir = get_state_dir()
+    cached = state_dir / f"icon-{size}.png"
+    if cached.exists():
+        return cached
+
+    from ai_guardian.daemon.tray import DaemonTray
+
+    source_path = DaemonTray._find_icon_path()
+    if source_path is None:
+        return None
+
+    try:
+        from PIL import Image
+
+        img = Image.open(source_path).convert("RGBA")
+        w, h = img.size
+        shield_size = min(w, h)
+        left = (w - shield_size) // 2
+        img = img.crop((left, 0, left + shield_size, shield_size))
+        img = img.resize((size, size), Image.LANCZOS)
+
+        state_dir.mkdir(parents=True, exist_ok=True)
+        img.save(str(cached), "PNG")
+        return cached
+    except Exception:
+        logger.debug("Failed to prepare icon", exc_info=True)
+        return None
+
+
+def _prepare_ico():
+    """Generate a .ico file for Windows from the cached PNG icon."""
+    from ai_guardian.config_utils import get_state_dir
+
+    state_dir = get_state_dir()
+    ico_path = state_dir / "icon.ico"
+    if ico_path.exists():
+        return ico_path
+
+    png_path = _prepare_icon(256)
+    if png_path is None:
+        return None
+
+    try:
+        from PIL import Image
+
+        img = Image.open(str(png_path))
+        state_dir.mkdir(parents=True, exist_ok=True)
+        img.save(str(ico_path), format="ICO", sizes=[(256, 256), (48, 48), (32, 32), (16, 16)])
+        return ico_path
+    except Exception:
+        logger.debug("Failed to prepare .ico", exc_info=True)
+        return None
+
+
+class DesktopIntegration(ABC):
+    @abstractmethod
+    def shortcut_exists(self) -> bool: ...
+
+    @abstractmethod
+    def autostart_exists(self) -> bool: ...
+
+    @abstractmethod
+    def install_shortcut(self) -> bool: ...
+
+    @abstractmethod
+    def install_autostart(self) -> bool: ...
+
+    @abstractmethod
+    def uninstall_shortcut(self) -> bool: ...
+
+    @abstractmethod
+    def uninstall_autostart(self) -> bool: ...
+
+
+class _UnsupportedDesktop(DesktopIntegration):
+    def shortcut_exists(self):
+        return False
+
+    def autostart_exists(self):
+        return False
+
+    def install_shortcut(self):
+        logger.warning("Desktop shortcuts not supported on %s", platform.system())
+        return False
+
+    def install_autostart(self):
+        return False
+
+    def uninstall_shortcut(self):
+        return False
+
+    def uninstall_autostart(self):
+        return False
+
+
+class LinuxDesktop(DesktopIntegration):
+    SHORTCUT_DIR = Path("~/.local/share/applications").expanduser()
+    AUTOSTART_DIR = Path("~/.config/autostart").expanduser()
+    FILENAME = "ai-guardian-tray.desktop"
+
+    @property
+    def shortcut_path(self):
+        return self.SHORTCUT_DIR / self.FILENAME
+
+    @property
+    def autostart_path(self):
+        return self.AUTOSTART_DIR / self.FILENAME
+
+    def shortcut_exists(self):
+        return self.shortcut_path.exists()
+
+    def autostart_exists(self):
+        return self.autostart_path.exists()
+
+    def _build_desktop_entry(self, autostart=False):
+        cmd = _get_executable_command()
+        exec_line = " ".join(cmd) + " tray start"
+        icon_path = _prepare_icon()
+
+        lines = [
+            "[Desktop Entry]",
+            "Type=Application",
+            "Name=AI Guardian",
+            "Comment=Security tray for AI coding agents",
+            f"Exec={exec_line}",
+            "Terminal=false",
+            "Categories=Development;Security;",
+            "StartupNotify=false",
+        ]
+        if icon_path:
+            lines.append(f"Icon={icon_path}")
+        if autostart:
+            lines.append("X-GNOME-Autostart-enabled=true")
+        return "\n".join(lines) + "\n"
+
+    def install_shortcut(self):
+        try:
+            self.SHORTCUT_DIR.mkdir(parents=True, exist_ok=True)
+            self.shortcut_path.write_text(self._build_desktop_entry())
+            self.shortcut_path.chmod(self.shortcut_path.stat().st_mode | stat.S_IXUSR)
+            return True
+        except OSError:
+            logger.debug("Failed to install Linux shortcut", exc_info=True)
+            return False
+
+    def install_autostart(self):
+        try:
+            self.AUTOSTART_DIR.mkdir(parents=True, exist_ok=True)
+            self.autostart_path.write_text(self._build_desktop_entry(autostart=True))
+            self.autostart_path.chmod(self.autostart_path.stat().st_mode | stat.S_IXUSR)
+            return True
+        except OSError:
+            logger.debug("Failed to install Linux autostart", exc_info=True)
+            return False
+
+    def uninstall_shortcut(self):
+        if not self.shortcut_path.exists():
+            return False
+        try:
+            self.shortcut_path.unlink()
+            return True
+        except OSError:
+            return False
+
+    def uninstall_autostart(self):
+        if not self.autostart_path.exists():
+            return False
+        try:
+            self.autostart_path.unlink()
+            return True
+        except OSError:
+            return False
+
+
+class MacOSDesktop(DesktopIntegration):
+    APP_DIR = Path("~/Applications").expanduser()
+    APP_NAME = "AI Guardian.app"
+    LAUNCHD_DIR = Path("~/Library/LaunchAgents").expanduser()
+    PLIST_NAME = "com.ai-guardian.tray.plist"
+
+    @property
+    def app_path(self):
+        return self.APP_DIR / self.APP_NAME
+
+    @property
+    def plist_path(self):
+        return self.LAUNCHD_DIR / self.PLIST_NAME
+
+    def shortcut_exists(self):
+        return self.app_path.exists()
+
+    def autostart_exists(self):
+        return self.plist_path.exists()
+
+    def install_shortcut(self):
+        try:
+            contents = self.app_path / "Contents"
+            macos_dir = contents / "MacOS"
+            resources_dir = contents / "Resources"
+
+            macos_dir.mkdir(parents=True, exist_ok=True)
+            resources_dir.mkdir(parents=True, exist_ok=True)
+
+            cmd = _get_executable_command()
+            exec_line = " ".join(cmd) + " tray start"
+            script_path = macos_dir / "ai-guardian-tray"
+            script_path.write_text(f"#!/bin/bash\nexec {exec_line}\n")
+            script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+            icon_path = _prepare_icon()
+            if icon_path:
+                shutil.copy2(str(icon_path), str(resources_dir / "icon.png"))
+
+            import plistlib
+            info_plist = {
+                "CFBundleName": "AI Guardian",
+                "CFBundleDisplayName": "AI Guardian",
+                "CFBundleIdentifier": "com.ai-guardian.tray",
+                "CFBundleVersion": "1.0",
+                "CFBundlePackageType": "APPL",
+                "CFBundleExecutable": "ai-guardian-tray",
+                "LSUIElement": True,
+            }
+            if icon_path:
+                info_plist["CFBundleIconFile"] = "icon.png"
+
+            with open(contents / "Info.plist", "wb") as f:
+                plistlib.dump(info_plist, f)
+
+            return True
+        except OSError:
+            logger.debug("Failed to install macOS app bundle", exc_info=True)
+            return False
+
+    def install_autostart(self):
+        try:
+            self.LAUNCHD_DIR.mkdir(parents=True, exist_ok=True)
+
+            cmd = _get_executable_command() + ["tray", "start"]
+
+            import plistlib
+            plist_data = {
+                "Label": "com.ai-guardian.tray",
+                "ProgramArguments": cmd,
+                "RunAtLoad": True,
+                "KeepAlive": False,
+            }
+
+            with open(self.plist_path, "wb") as f:
+                plistlib.dump(plist_data, f)
+
+            return True
+        except OSError:
+            logger.debug("Failed to install macOS autostart", exc_info=True)
+            return False
+
+    def uninstall_shortcut(self):
+        if not self.app_path.exists():
+            return False
+        try:
+            shutil.rmtree(self.app_path)
+            return True
+        except OSError:
+            return False
+
+    def uninstall_autostart(self):
+        if not self.plist_path.exists():
+            return False
+        try:
+            subprocess.run(
+                ["launchctl", "unload", str(self.plist_path)],
+                capture_output=True,
+                timeout=5,
+            )
+        except Exception:
+            pass
+        try:
+            self.plist_path.unlink()
+            return True
+        except OSError:
+            return False
+
+
+class WindowsDesktop(DesktopIntegration):
+    LNK_NAME = "AI Guardian.lnk"
+
+    @property
+    def _start_menu_dir(self):
+        appdata = os.environ.get("APPDATA", "")
+        return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+
+    @property
+    def _startup_dir(self):
+        appdata = os.environ.get("APPDATA", "")
+        return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+
+    @property
+    def shortcut_path(self):
+        return self._start_menu_dir / self.LNK_NAME
+
+    @property
+    def autostart_path(self):
+        return self._startup_dir / self.LNK_NAME
+
+    def shortcut_exists(self):
+        return self.shortcut_path.exists()
+
+    def autostart_exists(self):
+        return self.autostart_path.exists()
+
+    def _create_lnk(self, lnk_path):
+        cmd = _get_executable_command()
+        ico_path = _prepare_ico()
+
+        if len(cmd) == 1:
+            target = cmd[0]
+            arguments = "tray start"
+        else:
+            pythonw = shutil.which("pythonw")
+            target = pythonw if pythonw else cmd[0]
+            arguments = "-m ai_guardian tray start"
+
+        lnk_path.parent.mkdir(parents=True, exist_ok=True)
+
+        ps_lines = [
+            "$WshShell = New-Object -ComObject WScript.Shell",
+            f"$Shortcut = $WshShell.CreateShortcut('{lnk_path}')",
+            f"$Shortcut.TargetPath = '{target}'",
+            f"$Shortcut.Arguments = '{arguments}'",
+            "$Shortcut.WindowStyle = 7",
+        ]
+        if ico_path:
+            ps_lines.append(f"$Shortcut.IconLocation = '{ico_path}'")
+        ps_lines.append("$Shortcut.Save()")
+
+        ps_script = "; ".join(ps_lines)
+        try:
+            subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_script],
+                capture_output=True,
+                timeout=10,
+            )
+            return lnk_path.exists()
+        except Exception:
+            logger.debug("Failed to create Windows shortcut", exc_info=True)
+            return False
+
+    def install_shortcut(self):
+        return self._create_lnk(self.shortcut_path)
+
+    def install_autostart(self):
+        return self._create_lnk(self.autostart_path)
+
+    def uninstall_shortcut(self):
+        if not self.shortcut_path.exists():
+            return False
+        try:
+            self.shortcut_path.unlink()
+            return True
+        except OSError:
+            return False
+
+    def uninstall_autostart(self):
+        if not self.autostart_path.exists():
+            return False
+        try:
+            self.autostart_path.unlink()
+            return True
+        except OSError:
+            return False
