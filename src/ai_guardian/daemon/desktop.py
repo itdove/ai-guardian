@@ -33,6 +33,28 @@ def _get_executable_command():
     return [sys.executable, "-m", "ai_guardian"]
 
 
+def _find_banner_icon():
+    """Find the full-color ai-guardian banner image for desktop shortcuts."""
+    import importlib.resources
+
+    try:
+        ref = importlib.resources.files("ai_guardian") / "images" / "ai-guardian.png"
+        with importlib.resources.as_file(ref) as p:
+            if p.exists():
+                return str(p)
+    except Exception:
+        pass
+
+    src_dir = Path(__file__).resolve().parent.parent
+    for candidate in [
+        src_dir / "images" / "ai-guardian.png",
+        src_dir.parent.parent / "images" / "ai-guardian.png",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
 def _prepare_icon(size=256):
     """Generate a square icon from the bundled banner and cache it in state dir.
 
@@ -45,9 +67,7 @@ def _prepare_icon(size=256):
     if cached.exists():
         return cached
 
-    from ai_guardian.daemon.tray import DaemonTray
-
-    source_path = DaemonTray._find_icon_path()
+    source_path = _find_banner_icon()
     if source_path is None:
         return None
 

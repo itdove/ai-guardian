@@ -65,7 +65,7 @@ class TestPrepareIcon:
 
     def test_returns_none_when_no_source_icon(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        with mock.patch("ai_guardian.daemon.tray.DaemonTray._find_icon_path", return_value=None):
+        with mock.patch("ai_guardian.daemon.desktop._find_banner_icon", return_value=None):
             result = _prepare_icon(256)
         assert result is None
 
@@ -78,7 +78,7 @@ class TestPrepareIcon:
         source_path = tmp_path / "source.png"
         source_img.save(str(source_path))
 
-        with mock.patch("ai_guardian.daemon.tray.DaemonTray._find_icon_path", return_value=str(source_path)):
+        with mock.patch("ai_guardian.daemon.desktop._find_banner_icon", return_value=str(source_path)):
             result = _prepare_icon(256)
 
         assert result is not None
