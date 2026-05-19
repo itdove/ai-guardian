@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-05-19
+
 ### Added
 
 - **Desktop shortcut and autostart for tray** (Issue #649)
@@ -103,6 +105,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - State file: `~/.local/state/ai-guardian/daemon_sessions.json`
   - Flush pending state on daemon shutdown for clean exit
 
+- **Tray Local Setup submenu for IDE hook configuration** (Issue #669)
+  - New "Local Setup" submenu in tray for configuring IDE hooks without terminal
+  - Section headers for Hooks, Config, and IDE entries
+  - "Create Config" entry generates `ai-guardian.json` if missing
+
+- **Setup preserves existing config with `--force` override** (Issue #668)
+  - `ai-guardian setup` no longer overwrites existing `ai-guardian.json`
+  - New `--force` flag to explicitly overwrite existing configuration
+
 ### Changed
 
 - **BREAKING: Daemon no longer launches system tray automatically** (Issue #527)
@@ -112,9 +123,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `--no-tray` flag on `daemon start` is deprecated (daemon is always headless)
   - This separation enables the tray to manage multiple daemons (local + containers) independently
 
-- **Replaced subprocess-based container discovery with Docker Python SDK** (Issue #659)
+- **Replaced subprocess-based container discovery with Docker Python SDK** (Issues #659, #654, #672)
   - Container discovery now uses `docker` Python SDK (`docker>=7.0,<9`) instead of subprocess calls
+  - Multi-engine discovery: scans both Podman and Docker simultaneously instead of picking one
+  - Container engine detected via API instead of socket path heuristic
   - Faster and more reliable container detection with native API access
+
+- **Simplified tray menu layout and reordered items** (Issues #655, #656)
+  - Single-daemon layout optimized for common case (no daemon submenu when only one daemon)
+  - Statistics entries moved below Metrics in Console menu
+  - Improved config-aware local daemon discovery
 
 - **Refactored monolithic `__init__.py` into focused modules** (Issues #619, #620, #607)
   - Extracted CLI entry points to `cli.py` and `cli_handlers.py`
@@ -189,6 +207,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Suppress stderr logging (INFO/DEBUG) when running `ai-guardian console` or `ai-guardian tui`
   - File logging remains at full verbosity for debugging
   - MCP permission check results still available in Console MCP panel
+
+- **Bug: paused daemon returns `null` causing Claude Code errors** (Issue #618)
+  - Return valid JSON string instead of `None` when daemon is paused
+  - Prevents "Failed with non-blocking status" errors in Claude Code
+
+- **Bug: tray Console launch fails on macOS before shell init** (Issue #599)
+  - Defer tray Console command until after shell initialization on macOS
 
 - **Bug: unlisted MCP servers always blocked** (Issue #595, AAP-75435)
   - Switch permission rules to last-match-wins evaluation (consistent with directory_rules)
@@ -1631,7 +1656,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/itdove/ai-guardian/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/itdove/ai-guardian/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/itdove/ai-guardian/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/itdove/ai-guardian/compare/v1.6.0...v1.6.1
