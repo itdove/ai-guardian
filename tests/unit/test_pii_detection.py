@@ -117,6 +117,58 @@ class TestPIIDetection:
         # Should NOT be redacted (fails Luhn)
         assert "1234567890123456" in result['redacted_text']
 
+    def test_credit_card_all_zeros_not_detected(self):
+        """All-zeros passes Luhn but has invalid prefix — should NOT be detected (issue #694)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "ID: 0000000000000000"
+        result = redactor.redact(text)
+        assert "0000000000000000" in result['redacted_text']
+
+    def test_credit_card_invalid_prefix_not_detected(self):
+        """16-digit number with prefix 9 — no card network uses this (issue #694)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Tracking: 9876543210987654"
+        result = redactor.redact(text)
+        assert "9876543210987654" in result['redacted_text']
+
+    def test_credit_card_prefix_7_not_detected(self):
+        """Numbers starting with 7 — no major card network (issue #694)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Reference: 7000000000000000"
+        result = redactor.redact(text)
+        assert "7000000000000000" in result['redacted_text']
+
+    def test_credit_card_prefix_1_not_detected(self):
+        """Numbers starting with 1 — no major card network (issue #694)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "ID: 1000000000000001"
+        result = redactor.redact(text)
+        assert "1000000000000001" in result['redacted_text']
+
+    def test_credit_card_mastercard_detected(self):
+        """Valid Mastercard prefix (51-55) with valid Luhn — should be detected."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Card: 5425233430109903"
+        result = redactor.redact(text)
+        assert "5425233430109903" not in result['redacted_text']
+        assert "****9903" in result['redacted_text']
+
+    def test_credit_card_jcb_detected(self):
+        """Valid JCB prefix (35) with valid Luhn — should be detected."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Card: 3530111333300000"
+        result = redactor.redact(text)
+        assert "3530111333300000" not in result['redacted_text']
+        assert "****0000" in result['redacted_text']
+
+    def test_credit_card_discover_detected(self):
+        """Valid Discover prefix (6011) with valid Luhn — should be detected."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Card: 6011000990139424"
+        result = redactor.redact(text)
+        assert "6011000990139424" not in result['redacted_text']
+        assert "****9424" in result['redacted_text']
+
     # --- Phone ---
 
     def test_phone_standard(self):
@@ -633,6 +685,45 @@ class TestLuhnValidation:
 
     def test_luhn_with_separators(self):
         assert SecretRedactor._luhn_check("4532-0151-1283-0366") is True
+
+
+class TestCreditCardIINValidation:
+    """Test IIN/BIN prefix validation for credit card detection (issue #694)."""
+
+    def test_valid_cc_prefixes_constant_exists(self):
+        """VALID_CC_PREFIXES class constant is defined."""
+        assert hasattr(SecretRedactor, 'VALID_CC_PREFIXES')
+        assert isinstance(SecretRedactor.VALID_CC_PREFIXES, tuple)
+        assert len(SecretRedactor.VALID_CC_PREFIXES) > 0
+
+    def test_visa_prefix_accepted(self):
+        """Visa prefix (4) is in valid prefixes."""
+        assert any(p == '4' for p in SecretRedactor.VALID_CC_PREFIXES)
+
+    def test_amex_prefixes_accepted(self):
+        """Amex prefixes (34, 37) are in valid prefixes."""
+        assert '34' in SecretRedactor.VALID_CC_PREFIXES
+        assert '37' in SecretRedactor.VALID_CC_PREFIXES
+
+    def test_prefix_0_rejected(self):
+        """Prefix 0 is not a valid card network."""
+        assert not '0'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+
+    def test_prefix_1_rejected(self):
+        """Prefix 1 is not a valid card network."""
+        assert not '1'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+
+    def test_prefix_7_rejected(self):
+        """Prefix 7 is not a valid card network."""
+        assert not '7000'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+
+    def test_prefix_8_rejected(self):
+        """Prefix 8 is not a valid card network."""
+        assert not '8000'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+
+    def test_prefix_9_rejected(self):
+        """Prefix 9 is not a valid card network."""
+        assert not '9000'.startswith(SecretRedactor.VALID_CC_PREFIXES)
 
 
 class TestIBANValidation:
