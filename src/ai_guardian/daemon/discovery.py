@@ -184,7 +184,14 @@ class DaemonDiscovery:
 
         from ai_guardian.daemon.client import is_daemon_running
         if is_daemon_running():
-            target.status = "running"
+            if target.port:
+                api_data = self._probe_daemon(target.port)
+                if api_data and api_data.get("paused"):
+                    target.status = "paused"
+                else:
+                    target.status = "running"
+            else:
+                target.status = "running"
             target.last_seen = time.monotonic()
         else:
             target.status = "stopped"
@@ -344,11 +351,13 @@ class DaemonDiscovery:
             if host_port:
                 api_data = self._probe_daemon(host_port)
                 if api_data:
-                    status = "running"
+                    status = "paused" if api_data.get("paused") else "running"
                     if not labels.get("ai-guardian.name") and api_data.get("name"):
                         name = api_data["name"]
 
-            if not labels.get("ai-guardian.name") and status != "running":
+            if not labels.get("ai-guardian.name") and status not in (
+                "running", "paused"
+            ):
                 exec_name = self._sdk_exec_instance_name(c)
                 if exec_name:
                     name = exec_name
@@ -487,11 +496,13 @@ class DaemonDiscovery:
             if host_port:
                 api_data = self._probe_daemon(host_port)
                 if api_data:
-                    status = "running"
+                    status = "paused" if api_data.get("paused") else "running"
                     if not labels.get("ai-guardian.name") and api_data.get("name"):
                         name = api_data["name"]
 
-            if not labels.get("ai-guardian.name") and status != "running":
+            if not labels.get("ai-guardian.name") and status not in (
+                "running", "paused"
+            ):
                 exec_name = self._exec_instance_name(engine, container_id)
                 if exec_name:
                     name = exec_name

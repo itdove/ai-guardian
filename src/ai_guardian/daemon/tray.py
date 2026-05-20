@@ -620,7 +620,8 @@ class DaemonTray:
 
         Prefers: current selection (if still running) > running local > first running.
         """
-        if (self._active_target and self._active_target.status == "running"):
+        if (self._active_target
+                and self._active_target.status in ("running", "paused")):
             for t in self._targets:
                 if (t.name == self._active_target.name
                         and t.runtime == self._active_target.runtime):
@@ -628,12 +629,12 @@ class DaemonTray:
                     return
 
         for t in self._targets:
-            if t.runtime == "local" and t.status == "running":
+            if t.runtime == "local" and t.status in ("running", "paused"):
                 self._active_target = t
                 return
 
         for t in self._targets:
-            if t.status == "running":
+            if t.status in ("running", "paused"):
                 self._active_target = t
                 return
 
@@ -700,11 +701,11 @@ class DaemonTray:
 
         def _single_running(_item):
             return (self._is_single_daemon()
-                    and self._targets[0].status == "running")
+                    and self._targets[0].status in ("running", "paused"))
 
         def _single_not_running(_item):
             return (self._is_single_daemon()
-                    and self._targets[0].status != "running")
+                    and self._targets[0].status not in ("running", "paused"))
 
         def _header_label(_item):
             if not self._targets:
@@ -1082,7 +1083,7 @@ class DaemonTray:
 
             def _is_slot_running(_item, slot=idx):
                 return (slot < len(self._targets)
-                        and self._targets[slot].status == "running")
+                        and self._targets[slot].status in ("running", "paused"))
 
             items.append(
                 pystray.MenuItem(
@@ -1165,16 +1166,16 @@ class DaemonTray:
                                 pystray.MenuItem("30 minutes", _mk_pause(30)),
                                 pystray.MenuItem("1 hour", _mk_pause(60)),
                             ),
-                            visible=lambda _i, s=idx: (
+                            visible=lambda _i, s=idx, _sf=stats_fns: (
                                 _is_slot_running(_i, s)
-                                and not stats_fns[9](_i)
+                                and not _sf[9](_i)
                             ),
                         ),
                         pystray.MenuItem(
                             stats_fns[10], _mk_resume(),
-                            visible=lambda _i, s=idx: (
+                            visible=lambda _i, s=idx, _sf=stats_fns: (
                                 _is_slot_running(_i, s)
-                                and stats_fns[9](_i)
+                                and _sf[9](_i)
                             ),
                         ),
                         pystray.Menu.SEPARATOR,
@@ -1182,7 +1183,9 @@ class DaemonTray:
                             "Start daemon", _mk_restart(),
                             visible=lambda _i, s=idx: (
                                 s < len(self._targets)
-                                and self._targets[s].status != "running"
+                                and self._targets[s].status not in (
+                                    "running", "paused"
+                                )
                             ),
                         ),
                         pystray.MenuItem(

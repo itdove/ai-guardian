@@ -614,6 +614,145 @@ class TestGetDockerClients:
             assert clients[0][1] == "podman"
 
 
+class TestDiscoverPausedState:
+    """Tests for paused state detection from API response (issue #696)."""
+
+    def _patch_probes(self, d, probe_return=None):
+        return (
+            mock.patch.object(d, "_probe_daemon", return_value=probe_return),
+            mock.patch.object(d, "_sdk_exec_instance_name", return_value=None),
+        )
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_sdk_container_paused_status(self):
+        """Container with paused API response gets status='paused'."""
+        container = _make_mock_container()
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
+
+        d = DaemonDiscovery()
+        p1, p2 = self._patch_probes(d, probe_return={"paused": True})
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+            targets = d.discover_containers()
+
+        assert len(targets) == 1
+        assert targets[0].status == "paused"
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_sdk_container_running_status(self):
+        """Container with paused=False API response gets status='running'."""
+        container = _make_mock_container()
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
+
+        d = DaemonDiscovery()
+        p1, p2 = self._patch_probes(d, probe_return={"paused": False})
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+            targets = d.discover_containers()
+
+        assert len(targets) == 1
+        assert targets[0].status == "running"
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_sdk_container_no_paused_field(self):
+        """Container with no paused field in API response gets status='running'."""
+        container = _make_mock_container()
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
+
+        d = DaemonDiscovery()
+        p1, p2 = self._patch_probes(d, probe_return={"running": True})
+        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+            targets = d.discover_containers()
+
+        assert len(targets) == 1
+        assert targets[0].status == "running"
+
+    @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
+    def test_sdk_paused_container_still_resolves_exec_name(self):
+        """Paused container should NOT fall through to exec name resolution."""
+        container = _make_mock_container(labels={})
+        mock_client = mock.MagicMock()
+        mock_client.containers.list.return_value = [container]
+        mock_client.close = mock.MagicMock()
+
+        d = DaemonDiscovery()
+        with mock.patch.object(d, "_probe_daemon", return_value={"paused": True}), \
+             mock.patch.object(d, "_sdk_exec_instance_name", return_value="exec-name") as mock_exec:
+            with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]):
+                targets = d.discover_containers()
+
+        mock_exec.assert_not_called()
+        assert targets[0].status == "paused"
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_local_daemon_paused_via_api(self, mock_running, mock_pid, tmp_path):
+        """Local daemon with paused API response gets status='paused'."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
+            json.dump({"pid": 12345, "rest_port": 54321}, f)
+            f.flush()
+            from pathlib import Path
+            mock_pid.return_value = Path(f.name)
+
+        try:
+            d = DaemonDiscovery()
+            with mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            ), mock.patch.object(d, "_probe_daemon", return_value={"paused": True}):
+                target = d.discover_local()
+            assert target.status == "paused"
+        finally:
+            os.unlink(f.name)
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_local_daemon_running_via_api(self, mock_running, mock_pid, tmp_path):
+        """Local daemon with paused=False API response gets status='running'."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
+            json.dump({"pid": 12345, "rest_port": 54321}, f)
+            f.flush()
+            from pathlib import Path
+            mock_pid.return_value = Path(f.name)
+
+        try:
+            d = DaemonDiscovery()
+            with mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            ), mock.patch.object(d, "_probe_daemon", return_value={"paused": False}):
+                target = d.discover_local()
+            assert target.status == "running"
+        finally:
+            os.unlink(f.name)
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_local_daemon_no_port_stays_running(self, mock_running, mock_pid, tmp_path):
+        """Local daemon without REST port cannot check pause, defaults to running."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
+        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
+
+        d = DaemonDiscovery()
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        ):
+            target = d.discover_local()
+        assert target.status == "running"
+
+
 class TestSdkFindHostPort:
     def test_finds_port_from_sdk_format(self):
         c = _make_mock_container(

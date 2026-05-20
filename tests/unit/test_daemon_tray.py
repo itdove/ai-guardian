@@ -827,6 +827,69 @@ class TestSyncPauseState:
             mock_update.assert_not_called()
 
 
+class TestPausedTargetMenuVisibility:
+    """Tests for paused target handling in menu visibility (issue #696)."""
+
+    def _make_tray(self, targets=None):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        if targets is not None:
+            tray._targets = targets
+        return tray
+
+    def test_single_running_includes_paused(self):
+        """_single_running returns True for paused targets."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="paused"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True):
+            assert tray._is_single_daemon() is True
+            fn = lambda _item: (
+                tray._is_single_daemon()
+                and tray._targets[0].status in ("running", "paused")
+            )
+            assert fn(None) is True
+
+    def test_single_not_running_excludes_paused(self):
+        """_single_not_running returns False for paused targets."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="paused"),
+        ])
+        fn = lambda _item: (
+            tray._is_single_daemon()
+            and tray._targets[0].status not in ("running", "paused")
+        )
+        assert fn(None) is False
+
+    def test_auto_select_prefers_paused_over_unknown(self):
+        """_auto_select_target selects paused targets over unknown ones."""
+        tray = self._make_tray([
+            DaemonTarget(name="unknown-one", runtime="container", status="unknown"),
+            DaemonTarget(name="paused-local", runtime="local", status="paused"),
+        ])
+        tray._active_target = None
+        tray._auto_select_target()
+        assert tray._active_target.name == "paused-local"
+
+    def test_auto_select_keeps_paused_target(self):
+        """_auto_select_target keeps currently active paused target."""
+        paused_target = DaemonTarget(name="local", runtime="local", status="paused")
+        tray = self._make_tray([paused_target])
+        tray._active_target = paused_target
+        tray._auto_select_target()
+        assert tray._active_target.name == "local"
+
+    def test_daemon_status_label_paused(self):
+        """Status label shows paused icon for paused daemon."""
+        t = DaemonTarget(name="my-host", runtime="local", status="paused")
+        label = DaemonTray._daemon_status_label(t)
+        assert "◐" in label
+        assert "my-host" in label
+
+
 class TestResumeMenuLabelFormats:
     """Tests for resume menu label formatting (issue #684)."""
 
