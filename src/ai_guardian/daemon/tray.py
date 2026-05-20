@@ -238,8 +238,30 @@ class DaemonTray:
         """Record config reload (no visual change with monochrome icons)."""
         pass
 
+    @staticmethod
+    def _ensure_macos_activation_policy():
+        """Set NSApplicationActivationPolicyAccessory on macOS.
+
+        When launched from an .app bundle wrapper, the process may lose
+        its Info.plist association after exec, so LSUIElement=True has no
+        effect.  Setting the policy explicitly ensures the status bar
+        icon appears regardless of launch method (issue #691).
+        """
+        import platform
+        if platform.system() != "Darwin":
+            return
+        try:
+            import AppKit
+            app = AppKit.NSApplication.sharedApplication()
+            app.setActivationPolicy_(
+                AppKit.NSApplicationActivationPolicyAccessory
+            )
+        except Exception:
+            pass
+
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
+        self._ensure_macos_activation_policy()
         menu = pystray.Menu(
             *self._build_single_daemon_menu_items(),
             *self._build_multi_daemon_menu_items(),
