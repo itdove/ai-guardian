@@ -71,6 +71,8 @@ import re
 import urllib.parse
 from typing import Tuple, Optional, Dict, Any, List, Set
 
+from ai_guardian.patterns import BUNDLED_FILES
+
 logger = logging.getLogger(__name__)
 
 
@@ -192,13 +194,16 @@ class SSRFProtector:
             ip_ranges_to_use = merged_patterns.get('blocked_ip_ranges', [])
             domains_to_use = merged_patterns.get('blocked_domains', [])
         else:
-            # Use hardcoded default patterns
-            ip_ranges_to_use = [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES]
+            # Load from bundled TOML (primary source, fallback to hardcoded)
+            toml_data = self._load_patterns_from_toml()
+            ip_ranges_to_use = toml_data.get("ip_ranges",
+                [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES])
             # Add additional IPs from local config
             for ip in self.config.get("additional_blocked_ips", []):
                 ip_ranges_to_use.append({"cidr": ip})
 
-            domains_to_use = [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+            domains_to_use = toml_data.get("domains",
+                [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS])
             # Add additional domains from local config
             for domain in self.config.get("additional_blocked_domains", []):
                 domains_to_use.append({"domain": domain})
@@ -267,6 +272,39 @@ class SSRFProtector:
             f"{len(self._blocked_domain_patterns)} wildcard patterns, and "
             f"{len(self._path_based_rules)} path-based rules"
         )
+
+    @staticmethod
+    def _load_patterns_from_toml() -> Dict[str, Any]:
+        """Load SSRF patterns from bundled TOML. Falls back to empty dict."""
+        try:
+            toml_path = BUNDLED_FILES.get("ssrf")
+            if toml_path and toml_path.exists():
+                from ai_guardian.patterns.toml_parser import load_toml_file
+                raw_rules = load_toml_file(toml_path)
+                ip_ranges = []
+                domains = []
+                for raw in raw_rules:
+                    match_type = raw.get("match_type", "")
+                    group = raw.get("group", "")
+                    if match_type == "cidr":
+                        ip_ranges.append({
+                            "cidr": raw.get("cidr", ""),
+                            "description": raw.get("description", ""),
+                            "immutable": raw.get("tier") == "immutable",
+                        })
+                    elif match_type == "literal" and group == "blocked_domain":
+                        domains.append({
+                            "domain": raw.get("source", ""),
+                            "description": raw.get("description", ""),
+                            "immutable": raw.get("tier") == "immutable",
+                        })
+                logger.info(f"SSRF Protection: Loaded from TOML: {len(ip_ranges)} IP ranges, {len(domains)} domains")
+                return {"ip_ranges": ip_ranges, "domains": domains}
+            else:
+                return {}
+        except Exception as e:
+            logger.warning(f"Failed to load ssrf.toml: {e}, using hardcoded patterns")
+            return {}
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
         """

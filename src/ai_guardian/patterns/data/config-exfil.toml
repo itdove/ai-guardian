@@ -1,0 +1,60 @@
+# Config file exfiltration detection patterns for ai-guardian
+# Source: Extracted from ConfigFileScanner.CORE_EXFIL_PATTERNS
+# Match type: regex (all rules)
+# Patterns 3, 7, 8 are immutable (cannot be overridden by user config)
+
+[[rules]]
+id = "curl_with_env_vars"
+match_type = "regex"
+regex = '''curl.*\$\{?[A-Z_][A-Z0-9_]*\}?'''
+description = "curl command with environment variable"
+tier = "overridable"
+
+[[rules]]
+id = "wget_with_env_vars"
+match_type = "regex"
+regex = '''wget.*\$\{?[A-Z_][A-Z0-9_]*\}?'''
+description = "wget command with environment variable"
+tier = "overridable"
+
+[[rules]]
+id = "env_piped_to_curl"
+match_type = "regex"
+regex = '''\benv\s*\|.*\bcurl\b'''
+description = "env piped to curl (credential exfiltration)"
+tier = "immutable"
+
+[[rules]]
+id = "printenv_exfil"
+match_type = "regex"
+regex = '''\bprintenv\b.*\|.*\bcurl\b'''
+description = "printenv command piped to curl"
+tier = "overridable"
+
+[[rules]]
+id = "file_exfil"
+match_type = "regex"
+regex = '''\bcat\s+(?:/etc/|~/\.ssh/|~/\.aws/).*\|.*\bcurl\b'''
+description = "file exfiltration via curl"
+tier = "overridable"
+
+[[rules]]
+id = "base64_exfil"
+match_type = "regex"
+regex = '''\bbase64\b.*\|.*\bcurl\b'''
+description = "base64 encoded data piped to curl"
+tier = "overridable"
+
+[[rules]]
+id = "aws_s3_exfil"
+match_type = "regex"
+regex = '''\baws\s+s3\s+(?:cp|sync)\b'''
+description = "AWS S3 upload command"
+tier = "immutable"
+
+[[rules]]
+id = "gcp_storage_exfil"
+match_type = "regex"
+regex = '''\bgcloud\s+storage\s+cp\b'''
+description = "GCP Cloud Storage upload command"
+tier = "immutable"

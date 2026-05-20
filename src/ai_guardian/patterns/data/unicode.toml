@@ -1,0 +1,883 @@
+# Unicode attack detection patterns for ai-guardian
+# Source: Extracted from UnicodeAttackDetector class
+# Categories: zero-width chars, bidi overrides, bidi formatting,
+#             tag characters, RTL scripts, emoji ZWJ ranges, homoglyphs
+
+# --- Zero-Width Characters (invisible, used for obfuscation) ---
+
+[[rules]]
+id = "zw-space"
+match_type = "literal"
+source = "​"
+target = ""
+description = "Zero-width space"
+group = "zero_width"
+
+[[rules]]
+id = "zw-non-joiner"
+match_type = "literal"
+source = "‌"
+target = ""
+description = "Zero-width non-joiner"
+group = "zero_width"
+
+[[rules]]
+id = "zw-joiner"
+match_type = "literal"
+source = "‍"
+target = ""
+description = "Zero-width joiner"
+group = "zero_width"
+
+[[rules]]
+id = "zw-no-break-space"
+match_type = "literal"
+source = "﻿"
+target = ""
+description = "Zero-width no-break space / BOM"
+group = "zero_width"
+
+[[rules]]
+id = "zw-word-joiner"
+match_type = "literal"
+source = "⁠"
+target = ""
+description = "Word joiner"
+group = "zero_width"
+
+[[rules]]
+id = "zw-function-application"
+match_type = "literal"
+source = "⁡"
+target = ""
+description = "Function application"
+group = "zero_width"
+
+[[rules]]
+id = "zw-invisible-times"
+match_type = "literal"
+source = "⁢"
+target = ""
+description = "Invisible times"
+group = "zero_width"
+
+[[rules]]
+id = "zw-invisible-separator"
+match_type = "literal"
+source = "⁣"
+target = ""
+description = "Invisible separator"
+group = "zero_width"
+
+[[rules]]
+id = "zw-invisible-plus"
+match_type = "literal"
+source = "⁤"
+target = ""
+description = "Invisible plus"
+group = "zero_width"
+
+# --- Bidi Override Characters (dangerous, can reverse text display) ---
+
+[[rules]]
+id = "bidi-rtl-override"
+match_type = "literal"
+source = "‮"
+target = ""
+description = "Right-to-left override"
+group = "bidi_override"
+
+[[rules]]
+id = "bidi-ltr-override"
+match_type = "literal"
+source = "‭"
+target = ""
+description = "Left-to-right override"
+group = "bidi_override"
+
+# --- Bidi Formatting Characters ---
+
+[[rules]]
+id = "bidi-ltr-embedding"
+match_type = "literal"
+source = "‪"
+target = ""
+description = "Left-to-right embedding"
+group = "bidi_formatting"
+
+[[rules]]
+id = "bidi-rtl-embedding"
+match_type = "literal"
+source = "‫"
+target = ""
+description = "Right-to-left embedding"
+group = "bidi_formatting"
+
+[[rules]]
+id = "bidi-pop-directional"
+match_type = "literal"
+source = "‬"
+target = ""
+description = "Pop directional formatting"
+group = "bidi_formatting"
+
+[[rules]]
+id = "bidi-ltr-mark"
+match_type = "literal"
+source = "‎"
+target = ""
+description = "Left-to-right mark"
+group = "bidi_formatting"
+
+[[rules]]
+id = "bidi-rtl-mark"
+match_type = "literal"
+source = "‏"
+target = ""
+description = "Right-to-left mark"
+group = "bidi_formatting"
+
+# --- Tag Character Range (used for invisible tagging attacks) ---
+
+[[rules]]
+id = "tag-characters"
+match_type = "range"
+start = 917504
+end = 917631
+description = "Tag character range (U+E0000-U+E007F)"
+
+# --- RTL Script Ranges (for mixed-script detection) ---
+
+[[rules]]
+id = "rtl-hebrew"
+match_type = "range"
+start = 0x0590
+end = 0x05FF
+description = "Hebrew script range"
+group = "rtl_scripts"
+
+[[rules]]
+id = "rtl-arabic"
+match_type = "range"
+start = 0x0600
+end = 0x06FF
+description = "Arabic script range"
+group = "rtl_scripts"
+
+[[rules]]
+id = "rtl-syriac"
+match_type = "range"
+start = 0x0700
+end = 0x074F
+description = "Syriac script range"
+group = "rtl_scripts"
+
+[[rules]]
+id = "rtl-thaana"
+match_type = "range"
+start = 0x0780
+end = 0x07BF
+description = "Thaana script range"
+group = "rtl_scripts"
+
+[[rules]]
+id = "rtl-nko"
+match_type = "range"
+start = 0x07C0
+end = 0x07FF
+description = "NKo script range"
+group = "rtl_scripts"
+
+[[rules]]
+id = "rtl-samaritan"
+match_type = "range"
+start = 0x0800
+end = 0x083F
+description = "Samaritan script range"
+group = "rtl_scripts"
+
+# --- Emoji ZWJ Ranges (for emoji-based obfuscation) ---
+
+[[rules]]
+id = "emoji-symbols"
+match_type = "range"
+start = 0x1F300
+end = 0x1F9FF
+description = "Emoji and symbols range"
+group = "emoji_zwj"
+
+[[rules]]
+id = "emoji-misc-symbols"
+match_type = "range"
+start = 0x2600
+end = 0x26FF
+description = "Miscellaneous symbols range"
+group = "emoji_zwj"
+
+[[rules]]
+id = "emoji-dingbats"
+match_type = "range"
+start = 0x2700
+end = 0x27BF
+description = "Dingbats range"
+group = "emoji_zwj"
+
+[[rules]]
+id = "emoji-variation-selectors"
+match_type = "range"
+start = 0xFE00
+end = 0xFE0F
+description = "Variation selectors range"
+group = "emoji_zwj"
+
+# --- Homoglyph Patterns (visually similar characters from other scripts) ---
+
+# Cyrillic -> Latin
+
+[[rules]]
+id = "homoglyph-cyrillic-a"
+match_type = "literal"
+source = "а"
+target = "a"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-e"
+match_type = "literal"
+source = "е"
+target = "e"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-o"
+match_type = "literal"
+source = "о"
+target = "o"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-p"
+match_type = "literal"
+source = "р"
+target = "p"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-c"
+match_type = "literal"
+source = "с"
+target = "c"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-y"
+match_type = "literal"
+source = "у"
+target = "y"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-x"
+match_type = "literal"
+source = "х"
+target = "x"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-i"
+match_type = "literal"
+source = "і"
+target = "i"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-j"
+match_type = "literal"
+source = "ј"
+target = "j"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-s"
+match_type = "literal"
+source = "ѕ"
+target = "s"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-h"
+match_type = "literal"
+source = "һ"
+target = "h"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-d"
+match_type = "literal"
+source = "ԁ"
+target = "d"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-g"
+match_type = "literal"
+source = "ԍ"
+target = "g"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-q"
+match_type = "literal"
+source = "ԛ"
+target = "q"
+script = "Cyrillic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cyrillic-w"
+match_type = "literal"
+source = "ԝ"
+target = "w"
+script = "Cyrillic"
+group = "homoglyph"
+
+# Greek -> Latin
+
+[[rules]]
+id = "homoglyph-greek-a"
+match_type = "literal"
+source = "α"
+target = "a"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-e"
+match_type = "literal"
+source = "ε"
+target = "e"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-o"
+match_type = "literal"
+source = "ο"
+target = "o"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-i"
+match_type = "literal"
+source = "ι"
+target = "i"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-y"
+match_type = "literal"
+source = "υ"
+target = "y"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-v"
+match_type = "literal"
+source = "ν"
+target = "v"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-n"
+match_type = "literal"
+source = "π"
+target = "n"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-t"
+match_type = "literal"
+source = "τ"
+target = "t"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-p"
+match_type = "literal"
+source = "ρ"
+target = "p"
+script = "Greek"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-greek-u"
+match_type = "literal"
+source = "μ"
+target = "u"
+script = "Greek"
+group = "homoglyph"
+
+# Mathematical Bold -> Latin (a-z)
+
+[[rules]]
+id = "homoglyph-mathbold-a"
+match_type = "literal"
+source = "\U0001d41a"
+target = "a"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-b"
+match_type = "literal"
+source = "\U0001d41b"
+target = "b"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-c"
+match_type = "literal"
+source = "\U0001d41c"
+target = "c"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-d"
+match_type = "literal"
+source = "\U0001d41d"
+target = "d"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-e"
+match_type = "literal"
+source = "\U0001d41e"
+target = "e"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-f"
+match_type = "literal"
+source = "\U0001d41f"
+target = "f"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-g"
+match_type = "literal"
+source = "\U0001d420"
+target = "g"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-h"
+match_type = "literal"
+source = "\U0001d421"
+target = "h"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-i"
+match_type = "literal"
+source = "\U0001d422"
+target = "i"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-j"
+match_type = "literal"
+source = "\U0001d423"
+target = "j"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-k"
+match_type = "literal"
+source = "\U0001d424"
+target = "k"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-l"
+match_type = "literal"
+source = "\U0001d425"
+target = "l"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-m"
+match_type = "literal"
+source = "\U0001d426"
+target = "m"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-n"
+match_type = "literal"
+source = "\U0001d427"
+target = "n"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-o"
+match_type = "literal"
+source = "\U0001d428"
+target = "o"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-p"
+match_type = "literal"
+source = "\U0001d429"
+target = "p"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-q"
+match_type = "literal"
+source = "\U0001d42a"
+target = "q"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-r"
+match_type = "literal"
+source = "\U0001d42b"
+target = "r"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-s"
+match_type = "literal"
+source = "\U0001d42c"
+target = "s"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-t"
+match_type = "literal"
+source = "\U0001d42d"
+target = "t"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-u"
+match_type = "literal"
+source = "\U0001d42e"
+target = "u"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-v"
+match_type = "literal"
+source = "\U0001d42f"
+target = "v"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-w"
+match_type = "literal"
+source = "\U0001d430"
+target = "w"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-x"
+match_type = "literal"
+source = "\U0001d431"
+target = "x"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-y"
+match_type = "literal"
+source = "\U0001d432"
+target = "y"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-mathbold-z"
+match_type = "literal"
+source = "\U0001d433"
+target = "z"
+script = "Mathematical Bold"
+group = "homoglyph"
+
+# Fullwidth Latin -> ASCII
+
+[[rules]]
+id = "homoglyph-fullwidth-A"
+match_type = "literal"
+source = "Ａ"
+target = "A"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-B"
+match_type = "literal"
+source = "Ｂ"
+target = "B"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-C"
+match_type = "literal"
+source = "Ｃ"
+target = "C"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-D"
+match_type = "literal"
+source = "Ｄ"
+target = "D"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-E"
+match_type = "literal"
+source = "Ｅ"
+target = "E"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-a"
+match_type = "literal"
+source = "ａ"
+target = "a"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-b"
+match_type = "literal"
+source = "ｂ"
+target = "b"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-c"
+match_type = "literal"
+source = "ｃ"
+target = "c"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-d"
+match_type = "literal"
+source = "ｄ"
+target = "d"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-fullwidth-e"
+match_type = "literal"
+source = "ｅ"
+target = "e"
+script = "Fullwidth Latin"
+group = "homoglyph"
+
+# Cherokee/Coptic -> Latin
+
+[[rules]]
+id = "homoglyph-cherokee-A"
+match_type = "literal"
+source = "ꬺ"
+target = "A"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-B"
+match_type = "literal"
+source = "ᏼ"
+target = "B"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-C"
+match_type = "literal"
+source = "Ꮿ"
+target = "C"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-D"
+match_type = "literal"
+source = "Ꭰ"
+target = "D"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-E"
+match_type = "literal"
+source = "Ꮌ"
+target = "E"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-H"
+match_type = "literal"
+source = "Ꮛ"
+target = "H"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-I"
+match_type = "literal"
+source = "Ꮦ"
+target = "I"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-J"
+match_type = "literal"
+source = "Ꮋ"
+target = "J"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-K"
+match_type = "literal"
+source = "Ꮆ"
+target = "K"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-M"
+match_type = "literal"
+source = "Ꮗ"
+target = "M"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-coptic-O"
+match_type = "literal"
+source = "ⲟ"
+target = "O"
+script = "Coptic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-P"
+match_type = "literal"
+source = "Ꮂ"
+target = "P"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-S"
+match_type = "literal"
+source = "Ꮪ"
+target = "S"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-T"
+match_type = "literal"
+source = "Ꭲ"
+target = "T"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-V"
+match_type = "literal"
+source = "Ꭹ"
+target = "V"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-W"
+match_type = "literal"
+source = "Ꮓ"
+target = "W"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-coptic-X"
+match_type = "literal"
+source = "ⲭ"
+target = "X"
+script = "Coptic"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-Y"
+match_type = "literal"
+source = "Ꮝ"
+target = "Y"
+script = "Cherokee"
+group = "homoglyph"
+
+[[rules]]
+id = "homoglyph-cherokee-Z"
+match_type = "literal"
+source = "Ꮣ"
+target = "Z"
+script = "Cherokee"
+group = "homoglyph"

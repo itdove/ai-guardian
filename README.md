@@ -91,7 +91,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | Violation Logging | JSON audit trail of all blocked operations | [docs/VIOLATION_LOGGING.md](https://github.com/itdove/ai-guardian/blob/main/docs/VIOLATION_LOGGING.md) |
 | Sanitize Command | Clean sensitive data from files | [docs/security/SECRET_REDACTION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/SECRET_REDACTION.md) |
 | Interactive Console | TUI for managing configuration visually | [docs/CONSOLE.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONSOLE.md) |
-| Scanner Management | Install and manage 7 scanner engines | [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) |
+| Scanner Management | Install and manage 8 scanner engines (including built-in toml-patterns) | [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) |
 | Pre-commit Hook | Scan staged files for secrets before commit | [docs/PRE_COMMIT.md](https://github.com/itdove/ai-guardian/blob/main/docs/PRE_COMMIT.md) |
 | Inline Annotations | Suppress false positives with `ai-guardian:allow` and block annotations | [docs/ANNOTATIONS.md](https://github.com/itdove/ai-guardian/blob/main/docs/ANNOTATIONS.md) |
 | Self-Protection | Prevents AI from disabling its own security controls | [docs/SECURITY_DESIGN.md](https://github.com/itdove/ai-guardian/blob/main/docs/SECURITY_DESIGN.md) |
@@ -100,6 +100,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | Project Config Overlay | Per-repo config with immutable fields and global-only section protection | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#2-project-level-config-overlay-new-in-v180) |
 | Multi-Daemon Tray | Discover and manage daemons across local, Podman/Docker, and Kubernetes | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) |
 | Desktop Shortcut & Autostart | Install tray as desktop app with optional login startup | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#desktop-shortcuts) |
+| TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
 
 ## Default Behavior (No Configuration File)
 

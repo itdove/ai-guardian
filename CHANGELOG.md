@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Internal Python scanner with TOML patterns** (Issue #678)
+  - New `toml-patterns` scanner engine — runs in-process (~1-5ms), no binary required
+  - 267 bundled pattern rules across 6 TOML files: secrets (44), PII (13),
+    prompt injection (73), unicode attacks (107), config exfiltration (8), SSRF (22)
+  - `PatternCache` class with pre-compiled matchers for regex, literal, CIDR, range, and glob
+  - Multi-format pattern server support via `pattern_servers` config array
+  - Parser registry with `ai-guardian` and `gitleaks` format parsers (extensible)
+  - Luhn and IBAN validators extracted to `patterns/validators.py`
+  - RE2 regex compatibility validation at load time
+  - All existing config keys preserved (allowlists, ignore files, annotations, action levels)
+  - Pattern lister (`ai-guardian patterns list`) now reads counts from TOML files
+  - Configure via: `"engines": ["toml-patterns"]` (works without gitleaks/betterleaks installed)
+
 ## [1.8.1] - 2026-05-20
 
 ### Fixed

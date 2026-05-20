@@ -173,6 +173,30 @@ ENGINE_PRESETS = {
     ),
 }
 
+# Built-in Python scanner presets (no binary required)
+_PYTHON_SCANNER_PRESETS = {"toml-patterns"}
+
+
+def _build_python_preset(preset_name: str, scanner_config: Optional[dict] = None) -> Optional[EngineConfig]:
+    """Build an EngineConfig for a built-in Python scanner preset."""
+    if preset_name == "toml-patterns":
+        try:
+            from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
+            scanner = TomlPatternsScanner()
+            if scanner_config:
+                scanner.configure(scanner_config)
+            return EngineConfig(
+                type="python",
+                binary="__python__",
+                command_template=[],
+                python_scanner=scanner,
+            )
+        except Exception as e:
+            logging.warning(f"Failed to load toml-patterns scanner: {e}")
+            return None
+    logging.warning(f"Unknown Python scanner preset: {preset_name}")
+    return None
+
 
 def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
     """
@@ -186,6 +210,8 @@ def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
         EngineConfig if spec is valid, None otherwise
     """
     if isinstance(engine_spec, str):
+        if engine_spec in _PYTHON_SCANNER_PRESETS:
+            return _build_python_preset(engine_spec)
         if engine_spec not in ENGINE_PRESETS:
             logging.warning(f"Unknown engine preset: {engine_spec}")
             return None
@@ -193,6 +219,8 @@ def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
 
     # Dictionary: preset with overrides or custom engine
     engine_type = engine_spec.get("type")
+    if engine_type in _PYTHON_SCANNER_PRESETS:
+        return _build_python_preset(engine_type, scanner_config=engine_spec.get("scanner_config"))
     if engine_type in ENGINE_PRESETS:
         engine_config = copy.deepcopy(ENGINE_PRESETS[engine_type])
         if "binary" in engine_spec:

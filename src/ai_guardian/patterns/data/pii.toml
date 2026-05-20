@@ -1,0 +1,113 @@
+# PII detection patterns for ai-guardian
+# Source: Extracted from SecretRedactor.PII_PATTERNS
+# Action is configured in ai-guardian.json scan_pii.action, NOT here
+# Type filtering via scan_pii.types uses the pii_type field
+
+[[rules]]
+id = "pii-ssn"
+match_type = "regex"
+regex = '''\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b'''
+redaction_strategy = "full_redact"
+description = "SSN"
+pii_type = "ssn"
+
+[[rules]]
+id = "pii-credit-card"
+match_type = "regex"
+regex = '''\b(?:\d{4}[- ]?){3}\d{4}\b'''
+redaction_strategy = "credit_card"
+description = "Credit Card Number"
+pii_type = "credit_card"
+validation = "credit_card"
+
+[[rules]]
+id = "pii-us-phone"
+match_type = "regex"
+regex = '''(?<!\d)(?:\+1[- ]?)?\(?\d{3}\)?[- .]\d{3}[- .]\d{4}(?!\d)'''
+redaction_strategy = "full_redact"
+description = "US Phone Number"
+pii_type = "phone"
+re2_compat = false
+
+[[rules]]
+id = "pii-email"
+match_type = "regex"
+regex = '''\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'''
+redaction_strategy = "pii_email"
+description = "Email Address"
+pii_type = "email"
+
+[[rules]]
+id = "pii-us-passport"
+match_type = "regex"
+regex = '''\b[A-Z]\d{8}\b'''
+redaction_strategy = "full_redact"
+description = "US Passport Number"
+pii_type = "us_passport"
+
+[[rules]]
+id = "pii-iban"
+match_type = "regex"
+regex = '''\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b'''
+redaction_strategy = "iban"
+description = "IBAN"
+pii_type = "iban"
+validation = "iban"
+
+[[rules]]
+id = "pii-intl-phone"
+match_type = "regex"
+regex = '''\+\d{1,3}(?:[- .]?\d){6,14}(?!\d)'''
+redaction_strategy = "full_redact"
+description = "International Phone Number"
+pii_type = "intl_phone"
+
+[[rules]]
+id = "pii-medical-id"
+match_type = "regex"
+regex = '''(?i)(?:MRN|Patient\s*(?:ID|No\.?|Number|#)|Medical\s*Record(?:\s*(?:No\.?|Number|#))?)\s*[:#]?\s*\d{6,10}'''
+redaction_strategy = "full_redact"
+description = "Medical Record Number"
+pii_type = "medical_id"
+
+[[rules]]
+id = "pii-passport"
+match_type = "regex"
+regex = '''(?i)(?:passport\s*(?:no\.?|number|#)?)\s*[:#]?\s*[A-Z0-9]{6,12}'''
+redaction_strategy = "full_redact"
+description = "Passport Number"
+pii_type = "passport"
+
+[[rules]]
+id = "pii-canada-sin"
+match_type = "regex"
+regex = '''(?<!\d)\d{3}[- ]\d{3}[- ]\d{3}(?!\d)'''
+redaction_strategy = "canada_sin"
+description = "Canadian SIN"
+pii_type = "canada_sin"
+re2_compat = false
+
+[[rules]]
+id = "pii-uk-nin"
+match_type = "regex"
+regex = '''\b[A-Z]{2}\d{6}[A-D]\b'''
+redaction_strategy = "full_redact"
+description = "UK National Insurance Number"
+pii_type = "uk_nin"
+
+[[rules]]
+id = "pii-india-aadhaar"
+match_type = "regex"
+regex = '''(?<!\d)\d{4}[- ]\d{4}[- ]\d{4}(?![- ]\d)'''
+redaction_strategy = "full_redact"
+description = "Indian Aadhaar Number"
+pii_type = "india_aadhaar"
+re2_compat = false
+
+[[rules]]
+id = "pii-street-address"
+match_type = "regex"
+regex = '''\b\d+\s+(?:\w+\s+){0,3}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Road|Rd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir)\.?\b'''
+redaction_strategy = "full_redact"
+description = "Street Address"
+pii_type = "address"
