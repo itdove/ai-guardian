@@ -1,0 +1,25 @@
+# Fixture: AI Guardian native format patterns for CI compatibility testing.
+# Used by scripts/check_parser_compat.py and tests/unit/test_check_parser_compat.py
+
+[[rules]]
+id = "fixture-api-key"
+match_type = "regex"
+regex = '''(FIXTURE_KEY_[A-Za-z0-9]{20,})'''
+redaction_strategy = "preserve_prefix_suffix"
+description = "Test API Key (fixture)"
+keywords = ["FIXTURE_KEY_"]
+
+[[rules]]
+id = "fixture-token"
+match_type = "regex"
+regex = '''(FIXTURE_TOKEN_[A-Za-z0-9]{36,})'''
+redaction_strategy = "preserve_prefix_suffix"
+description = "Test Token (fixture)"
+keywords = ["FIXTURE_TOKEN_"]
+
+[[rules]]
+id = "fixture-generic-secret"
+match_type = "regex"
+regex = '''(?i)fixture_secret\s*[:=]\s*['"]?([A-Za-z0-9+/]{32,})['"]?'''
+redaction_strategy = "full_redact"
+description = "Generic Secret Key (fixture)"

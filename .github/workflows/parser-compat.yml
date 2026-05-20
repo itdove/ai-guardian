@@ -1,0 +1,189 @@
+name: Parser Compatibility Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Mondays at 3 AM UTC
+    - cron: '0 3 * * 1'
+
+jobs:
+  parser-compat-check:
+    name: Verify Parser Compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install requests
+
+      - name: Run parser compatibility check
+        run: |
+          python scripts/check_parser_compat.py --compat-check --output compat-results.json
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compat-results
+          path: compat-results.json
+
+  format-version-check:
+    name: Check Pattern Format Versions
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install requests
+
+      - name: Check format versions
+        id: check-formats
+        continue-on-error: true
+        run: |
+          python scripts/check_parser_compat.py --format-version-check --output format-results.json
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Read results file
+        id: read-results
+        if: always()
+        run: |
+          if [ -f format-results.json ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for existing parser-compat issue
+        id: check-issue
+        if: steps.check-formats.outcome == 'failure' && steps.read-results.outputs.has_results == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'parser-compat',
+              state: 'open'
+            });
+
+            if (issues.length > 0) {
+              console.log(`Found existing issue #${issues[0].number}`);
+              core.setOutput('exists', 'true');
+              core.setOutput('issue_number', issues[0].number);
+            } else {
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Comment on existing issue
+        if: steps.check-formats.outcome == 'failure' && steps.check-issue.outputs.exists == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('format-results.json', 'utf8'));
+
+            let changes = [];
+            for (const [format, info] of Object.entries(results)) {
+              if (info.status !== 'ok' && info.status !== 'skipped' && info.status !== 'error') {
+                let detail = `**${format}**:`;
+                if (info.new_fields?.length) detail += ` new fields: \`${info.new_fields.join('`, `')}\``;
+                if (info.missing_required?.length) detail += ` missing required: \`${info.missing_required.join('`, `')}\``;
+                if (info.removed_fields?.length) detail += ` removed fields: \`${info.removed_fields.join('`, `')}\``;
+                changes.push(`- ${detail}`);
+              }
+            }
+
+            if (changes.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.check-issue.outputs.issue_number }},
+                body: `⏰ **Weekly Format Check Update**\n\nFormat changes still detected:\n\n${changes.join('\n')}\n\nLast checked: ${new Date().toISOString().split('T')[0]}\n**Workflow Run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+              });
+            }
+
+      - name: Create new parser-compat issue
+        if: steps.check-formats.outcome == 'failure' && steps.check-issue.outputs.exists == 'false'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('format-results.json', 'utf8'));
+
+            let changes = [];
+            for (const [format, info] of Object.entries(results)) {
+              if (info.status !== 'ok' && info.status !== 'skipped' && info.status !== 'error') {
+                let detail = `### ${format}\n- Status: \`${info.status}\``;
+                if (info.new_fields?.length) detail += `\n- New fields: \`${info.new_fields.join('`, `')}\``;
+                if (info.missing_required?.length) detail += `\n- Missing required fields: \`${info.missing_required.join('`, `')}\``;
+                if (info.removed_fields?.length) detail += `\n- Removed fields: \`${info.removed_fields.join('`, `')}\``;
+                if (info.actual_rule_fields) detail += `\n- Actual fields: \`${info.actual_rule_fields.join('`, `')}\``;
+                if (info.expected_rule_fields) detail += `\n- Expected fields: \`${info.expected_rule_fields.join('`, `')}\``;
+                changes.push(detail);
+              }
+            }
+
+            if (changes.length > 0) {
+              const issueBody = `## Pattern Server Format Change Detected
+
+            Automated weekly check found format changes in pattern server responses.
+
+            ${changes.join('\n\n')}
+
+            ## Action Required
+
+            1. Review the format changes above
+            2. Update \`EXPECTED_SCHEMAS\` in \`scripts/check_parser_compat.py\` if changes are intentional
+            3. Update parser in \`src/ai_guardian/patterns/server_parsers.py\` if parsing logic needs adjustment
+            4. Run tests: \`pytest tests/unit/test_check_parser_compat.py -v\`
+            5. Close this issue
+
+            ## Raw Results
+
+            \`\`\`json
+            ${JSON.stringify(results, null, 2)}
+            \`\`\`
+
+            ---
+            **Triggered**: ${new Date().toISOString()}
+            **Workflow Run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+
+            This issue will be updated weekly until format schemas are aligned.`;
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🔍 Pattern server format change detected — parser update may be needed',
+                labels: ['parser-compat', 'maintenance'],
+                body: issueBody
+              });
+            }
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: format-results
+          path: format-results.json
