@@ -2,8 +2,8 @@ name: Prompt Injection Pattern Research Reminder
 
 on:
   schedule:
-    # Run on 1st of every month at 9am UTC
-    - cron: '0 9 1 * *'
+    # Run twice-monthly on 1st and 15th at 9am UTC
+    - cron: '0 9 1,15 * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -45,7 +45,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: ${{ steps.check-existing.outputs.issue_number }},
-              body: `⏰ **Monthly Reminder**
+              body: `⏰ **Twice-monthly Reminder**
 
               This pattern research review is still open. Please complete the review or close this issue if already done.
 
@@ -62,7 +62,7 @@ jobs:
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Monthly: Review prompt injection pattern sources for updates`,
+              title: `Twice-monthly: Review prompt injection pattern sources for updates`,
               labels: ['pattern-research-reminder', 'research', 'security', 'maintenance'],
               body: `## 🔍 Scheduled Pattern Research Review
 
@@ -138,7 +138,7 @@ jobs:
 
               ---
 
-              **⏰ Next Reminder**: Approximately ${new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]} (1st of next month)
+              **⏰ Next Reminder**: Approximately ${(() => { const d = new Date(); const day = d.getDate(); if (day < 15) { d.setDate(15); } else { d.setMonth(d.getMonth() + 1); d.setDate(1); } return d.toISOString().split('T')[0]; })()} (1st or 15th of the month)
               `
             });
 

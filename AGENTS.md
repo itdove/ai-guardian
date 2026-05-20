@@ -1069,7 +1069,7 @@ Check the [Hermes Security Patterns](https://github.com/fullsend-ai/experiments/
 - Unicode attack variations
 - Config file exfiltration patterns
 
-**Recommended Frequency**: Monthly review or when planning new features
+**Recommended Frequency**: Twice-monthly review (1st and 15th) or when planning new features
 
 **How to Integrate New Patterns:**
 
@@ -1121,13 +1121,13 @@ Consider monitoring:
 
 ### Periodic Pattern Maintenance
 
-**Automated Workflow**: AI Guardian uses GitHub Actions to create monthly reminder issues for pattern research. This ensures patterns stay up-to-date with latest security research.
+**Automated Workflow**: AI Guardian uses GitHub Actions to create twice-monthly reminder issues (1st and 15th) for pattern research. This ensures patterns stay up-to-date with latest security research.
 
-**Last Research Review**: _[Update after each review - see monthly reminder issues]_
+**Last Research Review**: _[Update after each review - see twice-monthly reminder issues]_
 
-#### Monthly Research Process
+#### Twice-monthly Research Process
 
-On the 1st of each month, a GitHub Actions workflow automatically creates a reminder issue (`.github/workflows/pattern-research-reminder.yml`) with:
+On the 1st and 15th of each month, a GitHub Actions workflow automatically creates a reminder issue (`.github/workflows/pattern-research-reminder.yml`) with:
 
 - **Duplicate Prevention**: Checks for existing open reminders before creating new ones
 - **Research Checklist**: Pre-populated list of security sources to review
@@ -1143,7 +1143,7 @@ Review these sources in order of priority:
 **Priority 1 (Always Check):**
 1. **Hermes Security Patterns** - https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns
    - Focus: Novel prompt injection techniques, jailbreak patterns, obfuscation methods
-   - Update frequency: Active research project, check monthly
+   - Update frequency: Active research project, check twice-monthly
 
 2. **OWASP LLM Top 10** - https://owasp.org/www-project-top-10-for-large-language-model-applications/
    - Focus: Industry-standard threat categories, real-world attack patterns
@@ -1209,7 +1209,7 @@ When a new pattern passes evaluation:
 1. **Create Pattern Enhancement Issue**
    - Use `.github/ISSUE_TEMPLATE/pattern-enhancement.md`
    - Fill in source information, examples, detection logic
-   - Link to monthly research reminder issue
+   - Link to twice-monthly research reminder issue
 
 2. **Implement Detection**
    - Add pattern to appropriate category in `src/ai_guardian/prompt_injection.py`
@@ -1232,7 +1232,7 @@ When a new pattern passes evaluation:
    - Run `ai-guardian patterns list` to confirm the new category/patterns are visible
 
 6. **Submit PR**
-   - Reference pattern enhancement issue and monthly reminder
+   - Reference pattern enhancement issue and twice-monthly reminder
    - Include test results and false positive analysis
 
 #### Example: Adding a New Pattern
@@ -1303,9 +1303,9 @@ def test_legitimate_unicode_not_blocked():
 
 #### Tracking Last Review
 
-Update this section after each monthly research review:
+Update this section after each twice-monthly research review:
 
-**Last Research Review**: _2026-05-01_ *(Update this date after completing monthly review)*
+**Last Research Review**: _2026-05-01_ *(Update this date after completing twice-monthly review)*
 
 **Review Summary** *(Keep last 3 months)*:
 - **2026-05-01**: No new patterns found. Reviewed Hermes Security Patterns (Apache-2.0, no new commits since April repo move), OWASP LLM Top 10 2025 and new OWASP Top 10 for Agentic Applications 2026 (ASI01-ASI10), arXiv papers (2601.17548, 2603.21642), and "Comment and Control" attack disclosure. Evaluated 6 candidate patterns (MCP tool poisoning, memory poisoning, cross-context injection, process env snooping, rug pulls, agent goal hijacking) - all rejected (architectural/protocol-level attacks not suitable for regex detection, or duplicates of existing patterns). The 2026 threat landscape is shifting toward agentic/protocol attacks addressed by AI Guardian's MCP security features and hooks, not the pattern module. See issue #336.
