@@ -4,57 +4,57 @@
 # Patterns 3, 7, 8 are immutable (cannot be overridden by user config)
 
 [[rules]]
-id = "exfil-curl-env"
+id = "curl_with_env_vars"
 match_type = "regex"
 regex = '''curl.*\$\{?[A-Z_][A-Z0-9_]*\}?'''
 description = "curl command with environment variable"
 tier = "overridable"
 
 [[rules]]
-id = "exfil-wget-env"
+id = "wget_with_env_vars"
 match_type = "regex"
 regex = '''wget.*\$\{?[A-Z_][A-Z0-9_]*\}?'''
 description = "wget command with environment variable"
 tier = "overridable"
 
 [[rules]]
-id = "exfil-env-pipe-curl"
+id = "env_piped_to_curl"
 match_type = "regex"
 regex = '''\benv\s*\|.*\bcurl\b'''
-description = "env output piped to curl"
+description = "env piped to curl (credential exfiltration)"
 tier = "immutable"
 
 [[rules]]
-id = "exfil-printenv"
+id = "printenv_exfil"
 match_type = "regex"
 regex = '''\bprintenv\b.*\|.*\bcurl\b'''
-description = "printenv output piped to curl"
+description = "printenv command piped to curl"
 tier = "overridable"
 
 [[rules]]
-id = "exfil-file-curl"
+id = "file_exfil"
 match_type = "regex"
 regex = '''\bcat\s+(?:/etc/|~/\.ssh/|~/\.aws/).*\|.*\bcurl\b'''
-description = "Sensitive file content piped to curl"
+description = "file exfiltration via curl"
 tier = "overridable"
 
 [[rules]]
-id = "exfil-base64-curl"
+id = "base64_exfil"
 match_type = "regex"
 regex = '''\bbase64\b.*\|.*\bcurl\b'''
 description = "base64 encoded data piped to curl"
 tier = "overridable"
 
 [[rules]]
-id = "exfil-aws-s3"
+id = "aws_s3_exfil"
 match_type = "regex"
 regex = '''\baws\s+s3\s+(?:cp|sync)\b'''
-description = "AWS S3 copy or sync command"
+description = "AWS S3 upload command"
 tier = "immutable"
 
 [[rules]]
-id = "exfil-gcp-storage"
+id = "gcp_storage_exfil"
 match_type = "regex"
 regex = '''\bgcloud\s+storage\s+cp\b'''
-description = "GCP storage copy command"
+description = "GCP Cloud Storage upload command"
 tier = "immutable"

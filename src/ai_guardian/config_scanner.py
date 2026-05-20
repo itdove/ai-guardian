@@ -22,6 +22,7 @@ from typing import Tuple, Optional, Dict, Any, List
 
 from ai_guardian.config_utils import validate_regex_pattern
 from ai_guardian.utils.path_matching import match_ignore_pattern
+from ai_guardian.patterns import BUNDLED_FILES
 
 logger = logging.getLogger(__name__)
 
@@ -159,8 +160,8 @@ class ConfigFileScanner:
             merged_patterns = self._load_patterns_via_server(pattern_server_config)
             self.all_patterns = merged_patterns.get('patterns', [])
         else:
-            # Use hardcoded core patterns + local additional patterns
-            self.all_patterns = self.CORE_EXFIL_PATTERNS.copy()
+            # Load from bundled TOML (primary source, fallback to hardcoded)
+            self.all_patterns = self._load_patterns_from_toml()
             # Add local additional patterns
             for idx, pattern in enumerate(self.config.get("additional_patterns", [])):
                 if isinstance(pattern, str):
@@ -199,6 +200,30 @@ class ConfigFileScanner:
 
         # Build complete config file list
         self._config_file_patterns = self.DEFAULT_CONFIG_FILES + self.additional_files
+
+    def _load_patterns_from_toml(self) -> List[Dict]:
+        """Load config exfil patterns from bundled TOML. Falls back to hardcoded."""
+        try:
+            toml_path = BUNDLED_FILES.get("config_exfil")
+            if toml_path and toml_path.exists():
+                from ai_guardian.patterns.toml_parser import load_toml_file
+                raw_rules = load_toml_file(toml_path)
+                result = []
+                for raw in raw_rules:
+                    if raw.get("match_type", "regex") == "regex":
+                        result.append({
+                            "name": raw.get("id", "unknown"),
+                            "pattern": raw.get("regex", ""),
+                            "description": raw.get("description", ""),
+                        })
+                logger.info(f"Config File Scanner: Loaded {len(result)} patterns from TOML")
+                return result
+            else:
+                logger.warning("Bundled config-exfil.toml not found, using hardcoded patterns")
+                return self.CORE_EXFIL_PATTERNS.copy()
+        except Exception as e:
+            logger.warning(f"Failed to load config-exfil.toml: {e}, using hardcoded patterns")
+            return self.CORE_EXFIL_PATTERNS.copy()
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
         """

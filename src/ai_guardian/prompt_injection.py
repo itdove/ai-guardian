@@ -28,6 +28,7 @@ from ai_guardian.config_utils import is_expired, validate_regex_pattern
 from ai_guardian import allowlist_utils
 from ai_guardian.tool_policy import _strip_bash_heredoc_content
 from ai_guardian.utils.path_matching import match_ignore_pattern
+from ai_guardian.patterns import BUNDLED_FILES
 
 logger = logging.getLogger(__name__)
 
@@ -214,22 +215,71 @@ class UnicodeAttackDetector:
         self.allow_rtl_languages = self.config.get("allow_rtl_languages", True)
         self.allow_emoji = self.config.get("allow_emoji", True)
 
+        # Load patterns from bundled TOML or fall back to class attributes
+        toml_data = self._load_patterns_from_toml()
+        zero_width = toml_data.get("zero_width_chars", self.ZERO_WIDTH_CHARS)
+        bidi_override = toml_data.get("bidi_override_chars", self.BIDI_OVERRIDE_CHARS)
+        bidi_formatting = toml_data.get("bidi_formatting_chars", self.BIDI_FORMATTING_CHARS)
+
         # Pre-compile character sets for O(1) lookup (immutable patterns)
-        self._zero_width_set = set(self.ZERO_WIDTH_CHARS)
-        self._bidi_override_set = set(self.BIDI_OVERRIDE_CHARS)
-        self._bidi_formatting_set = set(self.BIDI_FORMATTING_CHARS)
+        self._zero_width_set = set(zero_width)
+        self._bidi_override_set = set(bidi_override)
+        self._bidi_formatting_set = set(bidi_formatting)
 
         # Build homoglyph lookup table for fast checking
-        # Load from pattern server if configured, otherwise use hardcoded defaults
+        # Load from pattern server if configured, otherwise use TOML/hardcoded defaults
         pattern_server_config = self.config.get('pattern_server')
         if pattern_server_config:
             logger.info("Unicode Attack Detection: Loading homoglyph patterns via pattern server")
             homoglyph_patterns = self._load_homoglyphs_via_server(pattern_server_config)
         else:
-            homoglyph_patterns = self.HOMOGLYPH_PATTERNS
+            homoglyph_patterns = toml_data.get("homoglyph_patterns", self.HOMOGLYPH_PATTERNS)
 
         self._homoglyph_map = {homoglyph: latin for homoglyph, latin in homoglyph_patterns}
         logger.info(f"Unicode Attack Detection: Loaded {len(self._homoglyph_map)} homoglyph patterns")
+
+    @staticmethod
+    def _load_patterns_from_toml() -> Dict[str, Any]:
+        """Load unicode attack patterns from bundled TOML.
+
+        Returns dict with keys: zero_width_chars, bidi_override_chars,
+        bidi_formatting_chars, homoglyph_patterns. Falls back to empty
+        dict on error (caller uses class attributes).
+        """
+        try:
+            toml_path = BUNDLED_FILES.get("unicode")
+            if toml_path and toml_path.exists():
+                from ai_guardian.patterns.toml_parser import load_toml_file
+                raw_rules = load_toml_file(toml_path)
+                result: Dict[str, Any] = {
+                    "zero_width_chars": [],
+                    "bidi_override_chars": [],
+                    "bidi_formatting_chars": [],
+                    "homoglyph_patterns": [],
+                }
+                for raw in raw_rules:
+                    match_type = raw.get("match_type", "")
+                    group = raw.get("group", "")
+                    if match_type == "literal":
+                        source = raw.get("source", "")
+                        target = raw.get("target", "")
+                        if group == "zero_width":
+                            result["zero_width_chars"].append(source)
+                        elif group == "bidi_override":
+                            result["bidi_override_chars"].append(source)
+                        elif group == "bidi_formatting":
+                            result["bidi_formatting_chars"].append(source)
+                        elif group == "homoglyph":
+                            result["homoglyph_patterns"].append((source, target))
+                logger.info(f"Unicode Attack Detection: Loaded patterns from TOML: "
+                            f"zero_width={len(result['zero_width_chars'])}, "
+                            f"homoglyphs={len(result['homoglyph_patterns'])}")
+                return result
+            else:
+                return {}
+        except Exception as e:
+            logger.warning(f"Failed to load unicode.toml: {e}, using hardcoded patterns")
+            return {}
 
     def _load_homoglyphs_via_server(self, pattern_server_config: Dict) -> List[Tuple[str, str]]:
         """
@@ -736,25 +786,28 @@ class PromptInjectionDetector:
         self.ignore_tools = self.config.get("ignore_tools", [])
         self.action = self.config.get("action", "block")
 
+        # Load patterns from bundled TOML (primary source, fallback to class attributes)
+        toml_patterns = self._load_patterns_from_toml()
+
         # Compile regex patterns for performance
         # Critical patterns - always checked
         self._compiled_critical = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-            for pattern in self.CRITICAL_PATTERNS
+            for pattern in toml_patterns.get("critical", self.CRITICAL_PATTERNS)
         ]
         # Documentation patterns - only checked for user prompts
         self._compiled_documentation = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-            for pattern in self.DOCUMENTATION_PATTERNS
+            for pattern in toml_patterns.get("documentation", self.DOCUMENTATION_PATTERNS)
         ]
         # Jailbreak patterns - only checked for user prompts
         self._compiled_jailbreak = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-            for pattern in self.JAILBREAK_PATTERNS
+            for pattern in toml_patterns.get("jailbreak", self.JAILBREAK_PATTERNS)
         ]
         self._compiled_suspicious = [
             re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-            for pattern in self.SUSPICIOUS_PATTERNS
+            for pattern in toml_patterns.get("suspicious", self.SUSPICIOUS_PATTERNS)
         ]
 
         # Compile allowlist patterns (filter expired ones first)
@@ -784,6 +837,35 @@ class PromptInjectionDetector:
         if "enabled" not in unicode_config:
             unicode_config["enabled"] = True
         self.unicode_detector = UnicodeAttackDetector(unicode_config)
+
+    @staticmethod
+    def _load_patterns_from_toml() -> Dict[str, List[str]]:
+        """Load prompt injection patterns from bundled TOML, grouped by confidence level.
+
+        Returns dict mapping group name to list of regex strings.
+        Falls back to empty dict on error (caller uses class attributes).
+        """
+        try:
+            toml_path = BUNDLED_FILES.get("prompt_injection")
+            if toml_path and toml_path.exists():
+                from ai_guardian.patterns.toml_parser import load_toml_file
+                raw_rules = load_toml_file(toml_path)
+                groups: Dict[str, List[str]] = {}
+                for raw in raw_rules:
+                    if raw.get("match_type", "regex") == "regex":
+                        group = raw.get("group", "critical")
+                        regex = raw.get("regex", "")
+                        if regex:
+                            groups.setdefault(group, []).append(regex)
+                logger.info(f"Prompt Injection: Loaded patterns from TOML: "
+                            f"{', '.join(f'{k}={len(v)}' for k, v in groups.items())}")
+                return groups
+            else:
+                logger.warning("Bundled prompt-injection.toml not found, using hardcoded patterns")
+                return {}
+        except Exception as e:
+            logger.warning(f"Failed to load prompt-injection.toml: {e}, using hardcoded patterns")
+            return {}
 
     def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
         """Extract the pattern string from a pattern entry."""
