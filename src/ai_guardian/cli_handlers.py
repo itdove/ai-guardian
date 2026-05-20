@@ -303,7 +303,15 @@ def _handle_daemon_command(args):
 
             blocked = stats.get("blocked_count", 0)
             req_count = stats.get("request_count", 0)
-            paused = " (PAUSED)" if stats.get("paused") else ""
+            paused = ""
+            if stats.get("paused"):
+                remaining = stats.get("pause_remaining_seconds", 0)
+                if remaining > 0:
+                    mins = int(remaining // 60)
+                    secs = int(remaining % 60)
+                    paused = f" (PAUSED — {mins}m {secs}s left)"
+                else:
+                    paused = " (PAUSED — indefinite)"
 
             reload_ago = stats.get("last_config_reload_seconds_ago")
             if reload_ago is not None:

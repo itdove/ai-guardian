@@ -214,7 +214,15 @@ class DaemonPanelContent(Static):
                 hours = int(uptime // 3600)
                 minutes = int((uptime % 3600) // 60)
                 uptime_str = f"{hours}h {minutes}m" if hours else f"{minutes}m"
-                paused = " [yellow](PAUSED)[/yellow]" if stats.get("paused") else ""
+                paused = ""
+                if stats.get("paused"):
+                    remaining = stats.get("pause_remaining_seconds", 0)
+                    if remaining > 0:
+                        mins = int(remaining // 60)
+                        secs = int(remaining % 60)
+                        paused = f" [yellow](PAUSED — {mins}m {secs}s left)[/yellow]"
+                    else:
+                        paused = " [yellow](PAUSED — indefinite)[/yellow]"
 
                 pid_path = get_pid_path()
                 pid = "?"
