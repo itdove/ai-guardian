@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Parser Compatibility CI** — weekly GitHub Actions workflow verifying pattern server parser compatibility (Issue #685)
+  - `parser-compat-check` job: fetches patterns, parses via `PARSER_REGISTRY`, compiles via `PatternCache`
+  - `format-version-check` job: detects schema drift, creates/updates GitHub issues with `parser-compat` label
+  - New script: `scripts/check_parser_compat.py` with `--compat-check` and `--format-version-check` modes
+  - Fixture: `tests/fixtures/ai_guardian_native_patterns.toml` for ai-guardian native format testing
+
 - **Internal Python scanner with TOML patterns** (Issue #678)
   - New `toml-patterns` scanner engine — runs in-process (~1-5ms), no binary required
   - 267 bundled pattern rules across 6 TOML files: secrets (44), PII (13),
