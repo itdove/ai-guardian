@@ -126,6 +126,19 @@ class SecretRedactor:
         (r'\b([A-Za-z0-9+/]{100,}={0,2})\b', 'preserve_prefix_suffix', 'Very Long Base64 Secret'),
     ]
 
+    VALID_CC_PREFIXES = (
+        '4',
+        '51', '52', '53', '54', '55',
+        '2221', '2222', '2223', '2224', '2225', '2226', '2227', '2228', '2229',
+        '223', '224', '225', '226', '227', '228', '229',
+        '23', '24', '25', '26',
+        '270', '271', '2720',
+        '34', '37',
+        '6011', '65', '644', '645', '646', '647', '648', '649',
+        '35',
+        '30', '36', '38', '39',
+    )
+
     # PII pattern definitions keyed by type for selective loading (Issue #262)
     PII_PATTERNS = {
         'ssn': (r'\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b', 'full_redact', 'SSN'),
@@ -682,13 +695,15 @@ class SecretRedactor:
 
     def _redact_credit_card(self, match: re.Match) -> Tuple[str, Dict]:
         """
-        Redact credit card number after Luhn validation.
+        Redact credit card number after Luhn and IIN/BIN prefix validation.
 
-        Returns (None, None) if the number fails Luhn check (not a real CC).
+        Returns (None, None) if the number fails validation (not a real CC).
         """
         number = match.group(0)
         digits_only = re.sub(r'[- ]', '', number)
         if not self._luhn_check(digits_only):
+            return (None, None)
+        if not digits_only.startswith(self.VALID_CC_PREFIXES):
             return (None, None)
         last_four = digits_only[-4:]
         return (f"[HIDDEN CREDIT CARD ****{last_four}]", {'method': 'credit_card', 'last_four': last_four})

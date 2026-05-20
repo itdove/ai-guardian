@@ -18,7 +18,7 @@ regex = '''\b(?:\d{4}[- ]?){3}\d{4}\b'''
 redaction_strategy = "credit_card"
 description = "Credit Card Number"
 pii_type = "credit_card"
-validation = "luhn"
+validation = "credit_card"
 
 [[rules]]
 id = "pii-us-phone"

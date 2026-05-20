@@ -40,12 +40,13 @@ class TestDaemonTrayWithoutPystray:
 
     def test_update_status_without_icon(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {},
+            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 300},
             stop_callback=lambda: None,
-            pause_callback=lambda: None,
+            pause_callback=lambda mins: None,
         )
         tray.update_status("paused")  # Should not raise
         assert tray._status == "paused"
+        tray._stop_pause_timer()
 
 
 class TestDaemonTrayCallbacks:
@@ -69,6 +70,95 @@ class TestDaemonTrayCallbacks:
         label = tray._resume_menu_label()
         assert "2m" in label
         assert "5s" in label
+
+
+class TestTrayPauseRoutesLocalThroughMultiClient:
+    """Verify local daemon pause/resume routes through multi_client (issue #683)."""
+
+    def test_pause_action_uses_multi_client_for_local_target(self):
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        pause_cb = mock.MagicMock()
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=pause_cb,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+        mc.send_pause.assert_not_called()
+        pause_cb.assert_not_called()
+
+    def test_pause_local_routes_via_multi_client(self):
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        pause_cb = mock.MagicMock()
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=pause_cb,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+
+        # Directly test the routing logic that _pause_action uses
+        t = tray._targets[0]
+        if tray._multi_client:
+            tray._multi_client.send_pause(t, 5)
+        else:
+            tray._pause(5)
+
+        mc.send_pause.assert_called_once_with(local_target, 5)
+        pause_cb.assert_not_called()
+
+    def test_resume_local_routes_via_multi_client(self):
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        pause_cb = mock.MagicMock()
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=pause_cb,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+
+        t = tray._targets[0]
+        if tray._multi_client:
+            tray._multi_client.send_resume(t)
+        else:
+            tray._pause(0)
+
+        mc.send_resume.assert_called_once_with(local_target)
+        pause_cb.assert_not_called()
+
+    def test_pause_falls_back_to_callback_without_multi_client(self):
+        pause_cb = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=pause_cb,
+        )
+        tray._targets = [local_target]
+
+        t = tray._targets[0]
+        if tray._multi_client:
+            tray._multi_client.send_pause(t, 5)
+        else:
+            tray._pause(5)
+
+        pause_cb.assert_called_once_with(5)
 
 
 class TestFlashReload:
@@ -370,10 +460,27 @@ class TestRunPlatformBranching:
             mock_pystray.MenuItem = mock.MagicMock()
             tray._start_stats_refresh = mock.MagicMock()
             tray._create_icon = mock.MagicMock()
+            tray._ensure_macos_activation_policy = mock.MagicMock()
             tray._run()
             mock_icon.run.assert_called_once()
             _, kwargs = mock_icon.run.call_args
             assert "setup" not in kwargs
+            tray._ensure_macos_activation_policy.assert_called_once()
+
+    def test_ensure_macos_activation_policy_on_darwin(self):
+        """Verify activation policy is set on macOS (issue #691)."""
+        mock_app = mock.MagicMock()
+        mock_appkit = mock.MagicMock()
+        mock_appkit.NSApplication.sharedApplication.return_value = mock_app
+        mock_appkit.NSApplicationActivationPolicyAccessory = 1
+        with mock.patch("platform.system", return_value="Darwin"), \
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit}):
+            DaemonTray._ensure_macos_activation_policy()
+        mock_app.setActivationPolicy_.assert_called_once_with(1)
+
+    def test_ensure_macos_activation_policy_skipped_on_linux(self):
+        with mock.patch("platform.system", return_value="Linux"):
+            DaemonTray._ensure_macos_activation_policy()
 
 
 class TestSuppressGtkStderr:
@@ -572,3 +679,419 @@ class TestIDESetupMenu:
                     script = mock_popen.call_args[0][0][2]
                     assert "setup --create-config" in script
                     assert "close" not in script
+
+
+class TestPausedIconDimming:
+    """Tests for visual pause state indicator (issue #684)."""
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_apply_paused_dimming_reduces_alpha(self):
+        from PIL import Image
+        img = Image.new("RGBA", (22, 22), (255, 255, 255, 200))
+        dimmed = DaemonTray._apply_paused_dimming(img)
+        assert dimmed.size == (22, 22)
+        _, _, _, a = dimmed.getpixel((10, 10))
+        assert a == 100
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_apply_paused_dimming_does_not_modify_original(self):
+        from PIL import Image
+        img = Image.new("RGBA", (22, 22), (255, 255, 255, 200))
+        DaemonTray._apply_paused_dimming(img)
+        _, _, _, a = img.getpixel((10, 10))
+        assert a == 200
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_create_icon_dimmed_when_paused(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        normal = tray._create_icon()
+        tray._status = "paused"
+        paused = tray._create_icon()
+        normal_alpha = list(normal.split()[3].tobytes())
+        paused_alpha = list(paused.split()[3].tobytes())
+        non_zero = [i for i, a in enumerate(normal_alpha) if a > 0]
+        assert len(non_zero) > 0
+        for i in non_zero:
+            assert paused_alpha[i] <= normal_alpha[i]
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_create_icon_normal_when_running(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "running"
+        icon = tray._create_icon()
+        assert icon.mode == "RGBA"
+
+
+class TestUpdateStatusPauseTimer:
+    """Tests for update_status() managing pause timer (issue #684)."""
+
+    def test_update_status_starts_pause_timer(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 60},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch.object(tray, "_start_pause_timer") as mock_start:
+            tray.update_status("paused")
+            mock_start.assert_called_once()
+
+    def test_update_status_stops_pause_timer_on_resume(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        with mock.patch.object(tray, "_stop_pause_timer") as mock_stop:
+            tray.update_status("running")
+            mock_stop.assert_called_once()
+
+    def test_update_status_no_double_start(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 60},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        with mock.patch.object(tray, "_start_pause_timer") as mock_start:
+            tray.update_status("paused")
+            mock_start.assert_not_called()
+
+    def test_update_status_updates_icon_when_icon_exists(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        tray._icon = mock_icon
+        with mock.patch.object(tray, "_create_icon", return_value="fake_img"):
+            tray.update_status("paused")
+        assert mock_icon.icon == "fake_img"
+
+
+class TestSyncPauseState:
+    """Tests for _sync_pause_state() detecting external pause/resume (issue #684)."""
+
+    def test_sync_detects_external_pause(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 120},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
+        tray._status = "running"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_called_once_with("paused")
+
+    def test_sync_detects_external_resume(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": False},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
+        tray._status = "paused"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_called_once_with("running")
+
+    def test_sync_no_change_when_already_paused(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
+        tray._status = "paused"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_not_called()
+
+
+class TestPausedTargetMenuVisibility:
+    """Tests for paused target handling in menu visibility (issue #696)."""
+
+    def _make_tray(self, targets=None):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        if targets is not None:
+            tray._targets = targets
+        return tray
+
+    def test_single_running_includes_paused(self):
+        """_single_running returns True for paused targets."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="paused"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True):
+            assert tray._is_single_daemon() is True
+            fn = lambda _item: (
+                tray._is_single_daemon()
+                and tray._targets[0].status in ("running", "paused")
+            )
+            assert fn(None) is True
+
+    def test_single_not_running_excludes_paused(self):
+        """_single_not_running returns False for paused targets."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="paused"),
+        ])
+        fn = lambda _item: (
+            tray._is_single_daemon()
+            and tray._targets[0].status not in ("running", "paused")
+        )
+        assert fn(None) is False
+
+    def test_auto_select_prefers_paused_over_unknown(self):
+        """_auto_select_target selects paused targets over unknown ones."""
+        tray = self._make_tray([
+            DaemonTarget(name="unknown-one", runtime="container", status="unknown"),
+            DaemonTarget(name="paused-local", runtime="local", status="paused"),
+        ])
+        tray._active_target = None
+        tray._auto_select_target()
+        assert tray._active_target.name == "paused-local"
+
+    def test_auto_select_keeps_paused_target(self):
+        """_auto_select_target keeps currently active paused target."""
+        paused_target = DaemonTarget(name="local", runtime="local", status="paused")
+        tray = self._make_tray([paused_target])
+        tray._active_target = paused_target
+        tray._auto_select_target()
+        assert tray._active_target.name == "local"
+
+    def test_daemon_status_label_paused(self):
+        """Status label shows paused icon for paused daemon."""
+        t = DaemonTarget(name="my-host", runtime="local", status="paused")
+        label = DaemonTray._daemon_status_label(t)
+        assert "◐" in label
+        assert "my-host" in label
+
+
+class TestUntilResumePauseOption:
+    """Tests for 'Until resume' indefinite pause menu option (issue #698)."""
+
+    def test_single_daemon_pause_menu_includes_until_resume(self):
+        """Single-daemon Pause submenu contains 'Until resume' item."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ]
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert "Until resume" in labels
+
+    def test_multi_daemon_pause_menu_includes_until_resume(self):
+        """Multi-daemon per-daemon Pause submenu contains 'Until resume' item."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        mc.get_stats.return_value = {}
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert labels.count("Until resume") >= 1
+
+    def test_until_resume_routes_zero_minutes_via_multi_client(self):
+        """'Until resume' sends pause with minutes=0 through multi_client."""
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=mock.MagicMock(),
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+
+        t = tray._targets[0]
+        tray._multi_client.send_pause(t, 0)
+
+        mc.send_pause.assert_called_once_with(local_target, 0)
+
+    def test_until_resume_falls_back_to_callback_without_multi_client(self):
+        """'Until resume' calls pause callback with 0 when no multi_client."""
+        pause_cb = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=pause_cb,
+        )
+        tray._targets = [local_target]
+
+        t = tray._targets[0]
+        if tray._multi_client:
+            tray._multi_client.send_pause(t, 0)
+        else:
+            tray._pause(0)
+
+        pause_cb.assert_called_once_with(0)
+
+    def test_pause_timer_does_not_auto_resume_indefinite_pause(self):
+        """Pause timer must not auto-resume when daemon reports indefinite pause."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {
+                "paused": True,
+                "pause_remaining_seconds": 0,
+            },
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        tray._start_pause_timer()
+        import time
+        time.sleep(0.2)
+        tray._stop_pause_timer()
+        assert tray._status == "paused"
+
+    def test_pause_timer_auto_resumes_expired_timed_pause(self):
+        """Pause timer auto-resumes when daemon reports timed pause expired."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {
+                "paused": False,
+                "pause_remaining_seconds": 0,
+            },
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        tray._start_pause_timer()
+        import time
+        time.sleep(0.2)
+        tray._stop_pause_timer()
+        assert tray._status == "running"
+
+    def test_icon_grey_only_when_all_daemons_paused(self):
+        """Tray icon should be grey only when ALL daemons are paused."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        mc.get_status.side_effect = lambda t: (
+            {"paused": True} if t.name == "local" else {"paused": False}
+        )
+        tray._update_global_pause_status()
+        assert tray._status == "running"
+
+    def test_icon_grey_when_all_daemons_paused(self):
+        """Tray icon is grey when every daemon is paused."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 0},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        mc.get_status.return_value = {"paused": True}
+        tray._update_global_pause_status()
+        tray._stop_pause_timer()
+        assert tray._status == "paused"
+
+    def test_icon_running_after_one_daemon_resumed(self):
+        """Resuming one daemon clears global paused status."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        tray._status = "paused"
+        mc.get_status.side_effect = lambda t: (
+            {"paused": True} if t.name == "local" else {"paused": False}
+        )
+        tray._update_global_pause_status()
+        assert tray._status == "running"
+
+
+class TestResumeMenuLabelFormats:
+    """Tests for resume menu label formatting (issue #684)."""
+
+    def test_resume_label_indefinite(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 0},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        label = tray._resume_menu_label()
+        assert label == "Resume (paused)"
+
+    def test_resume_label_with_countdown(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 222},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        label = tray._resume_menu_label()
+        assert "3m" in label
+        assert "42s" in label

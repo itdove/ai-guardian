@@ -343,6 +343,140 @@ class TestDaemonServerPausedHook:
         assert "exit_code" in result
 
 
+class TestDaemonServerPauseResumeProtocol:
+    """Test socket protocol handlers for pause and resume messages (issue #683)."""
+
+    @pytest.fixture
+    def running_server(self, monkeypatch):
+        import tempfile
+        d = tempfile.mkdtemp(prefix="ag")
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
+        from pathlib import Path
+
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        sock_path = Path(d) / "daemon.sock"
+        for _ in range(30):
+            if sock_path.exists():
+                break
+            time.sleep(0.1)
+
+        yield server, sock_path
+
+        server.stop()
+        thread.join(timeout=3)
+        import shutil
+        shutil.rmtree(d, ignore_errors=True)
+
+    def _connect(self, sock_path, timeout=2.0):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect(str(sock_path))
+        return sock
+
+    def test_pause_message_pauses_daemon(self, running_server):
+        server, sock_path = running_server
+        assert not server.state.paused
+
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "pause", "data": {"minutes": 5}}
+            sock.sendall(encode_message(msg))
+            response = decode_message(sock, timeout=2.0)
+            assert response["type"] == "response"
+            assert response["data"]["status"] == "paused"
+            assert response["data"]["minutes"] == 5
+        finally:
+            sock.close()
+
+        assert server.state.paused
+
+    def test_resume_message_resumes_daemon(self, running_server):
+        server, sock_path = running_server
+        server.state.pause(10)
+        assert server.state.paused
+
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "resume"}
+            sock.sendall(encode_message(msg))
+            response = decode_message(sock, timeout=2.0)
+            assert response["type"] == "response"
+            assert response["data"]["status"] == "resumed"
+        finally:
+            sock.close()
+
+        assert not server.state.paused
+
+    def test_pause_indefinite(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "pause", "data": {"minutes": 0}}
+            sock.sendall(encode_message(msg))
+            response = decode_message(sock, timeout=2.0)
+            assert response["data"]["status"] == "paused"
+            assert response["data"]["minutes"] == 0
+        finally:
+            sock.close()
+
+        assert server.state.paused
+        assert server.state.pause_remaining_seconds() == 0.0
+
+    def test_pause_then_hook_returns_empty(self, running_server):
+        server, sock_path = running_server
+
+        # Pause via socket
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "pause", "data": {"minutes": 5}}
+            sock.sendall(encode_message(msg))
+            decode_message(sock, timeout=2.0)
+        finally:
+            sock.close()
+
+        # Hook request should be bypassed
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_hook_request({
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls"},
+            })))
+            response = decode_message(sock, timeout=5.0)
+            assert response["data"]["output"] == "{}"
+            assert response["data"]["exit_code"] == 0
+        finally:
+            sock.close()
+
+    def test_resume_then_hook_processes_normally(self, running_server):
+        server, sock_path = running_server
+        server.state.pause(5)
+
+        # Resume via socket
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "resume"}
+            sock.sendall(encode_message(msg))
+            decode_message(sock, timeout=2.0)
+        finally:
+            sock.close()
+
+        # Hook should be processed normally
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_hook_request({
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "hello",
+            })))
+            response = decode_message(sock, timeout=5.0)
+            assert "exit_code" in response["data"]
+        finally:
+            sock.close()
+
+
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
         from pathlib import Path

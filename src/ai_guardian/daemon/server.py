@@ -62,6 +62,9 @@ class DaemonServer:
         The daemon runs headless — use 'ai-guardian tray' for the system
         tray client.
         """
+        from ai_guardian.daemon.path_env import ensure_scanner_path
+        ensure_scanner_path()
+
         self._cleanup_stale()
         self._write_pid_file()
         self._setup_signals()
@@ -212,6 +215,13 @@ class DaemonServer:
                 return
             elif msg_type == "status":
                 response = make_response(self.state.get_stats())
+            elif msg_type == "pause":
+                minutes = request.get("data", {}).get("minutes", 0)
+                self.state.pause(minutes)
+                response = make_response({"status": "paused", "minutes": minutes})
+            elif msg_type == "resume":
+                self.state.resume()
+                response = make_response({"status": "resumed"})
             elif msg_type == "reload_config":
                 self.state.force_reload_config()
                 response = make_response({"status": "config_reloaded"})

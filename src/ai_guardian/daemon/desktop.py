@@ -262,10 +262,19 @@ class MacOSDesktop(DesktopIntegration):
             macos_dir.mkdir(parents=True, exist_ok=True)
             resources_dir.mkdir(parents=True, exist_ok=True)
 
-            cmd = _get_executable_command()
-            exec_line = " ".join(shlex.quote(c) for c in cmd) + " tray start"
             script_path = macos_dir / "ai-guardian-tray"
-            script_path.write_text(f"#!/bin/bash\nexec {exec_line}\n")
+            script_path.write_text(
+                f"#!{sys.executable}\n"
+                "import os, sys\n"
+                "for d in ['/opt/homebrew/bin', '/opt/homebrew/sbin',\n"
+                "          '/usr/local/bin', '/usr/local/sbin',\n"
+                "          os.path.expanduser('~/.local/bin')]:\n"
+                "    if os.path.isdir(d) and d not in os.environ.get('PATH', ''):\n"
+                "        os.environ['PATH'] = d + ':' + os.environ.get('PATH', '')\n"
+                "sys.argv = ['ai-guardian', 'tray', 'start']\n"
+                "from ai_guardian.__main__ import main\n"
+                "raise SystemExit(main())\n"
+            )
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
             icon_path = _prepare_icon()
@@ -281,6 +290,7 @@ class MacOSDesktop(DesktopIntegration):
                 "CFBundlePackageType": "APPL",
                 "CFBundleExecutable": "ai-guardian-tray",
                 "LSUIElement": True,
+                "NSPrincipalClass": "NSApplication",
             }
             if icon_path:
                 info_plist["CFBundleIconFile"] = "icon.png"
@@ -300,11 +310,22 @@ class MacOSDesktop(DesktopIntegration):
             cmd = _get_executable_command() + ["tray", "start"]
 
             import plistlib
+            augmented_path = os.pathsep.join(
+                filter(None, [
+                    "/opt/homebrew/bin",
+                    "/opt/homebrew/sbin",
+                    "/usr/local/bin",
+                    "/usr/local/sbin",
+                    str(Path.home() / ".local" / "bin"),
+                    os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
+                ])
+            )
             plist_data = {
                 "Label": "com.ai-guardian.tray",
                 "ProgramArguments": cmd,
                 "RunAtLoad": True,
                 "KeepAlive": False,
+                "EnvironmentVariables": {"PATH": augmented_path},
             }
 
             with open(self.plist_path, "wb") as f:

@@ -62,9 +62,42 @@ def iban_check(iban_str: str) -> bool:
     return int(numeric) % 97 == 1
 
 
+VALID_CC_PREFIXES = (
+    '4',
+    '51', '52', '53', '54', '55',
+    '2221', '2222', '2223', '2224', '2225', '2226', '2227', '2228', '2229',
+    '223', '224', '225', '226', '227', '228', '229',
+    '23', '24', '25', '26',
+    '270', '271', '2720',
+    '34', '37',
+    '6011', '65', '644', '645', '646', '647', '648', '649',
+    '35',
+    '30', '36', '38', '39',
+)
+
+
+def credit_card_check(number_str: str) -> bool:
+    """Validate a credit card number using Luhn + IIN/BIN prefix check.
+
+    Args:
+        number_str: String containing digits (may include spaces/dashes)
+
+    Returns:
+        True if passes both Luhn checksum AND has a valid card network prefix
+    """
+    import re
+    digits_only = re.sub(r'[- ]', '', number_str)
+    if not luhn_check(digits_only):
+        return False
+    if not digits_only.startswith(VALID_CC_PREFIXES):
+        return False
+    return True
+
+
 VALIDATOR_REGISTRY: dict = {
     "luhn": luhn_check,
     "iban": iban_check,
+    "credit_card": credit_card_check,
 }
 
 

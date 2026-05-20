@@ -303,7 +303,15 @@ def _handle_daemon_command(args):
 
             blocked = stats.get("blocked_count", 0)
             req_count = stats.get("request_count", 0)
-            paused = " (PAUSED)" if stats.get("paused") else ""
+            paused = ""
+            if stats.get("paused"):
+                remaining = stats.get("pause_remaining_seconds", 0)
+                if remaining > 0:
+                    mins = int(remaining // 60)
+                    secs = int(remaining % 60)
+                    paused = f" (PAUSED — {mins}m {secs}s left)"
+                else:
+                    paused = " (PAUSED — indefinite)"
 
             reload_ago = stats.get("last_config_reload_seconds_ago")
             if reload_ago is not None:
@@ -462,6 +470,9 @@ def _handle_tray_start(args):
     """Start the standalone multi-daemon tray client."""
     import subprocess
 
+    from ai_guardian.daemon.path_env import ensure_scanner_path
+    ensure_scanner_path()
+
     if getattr(args, "background", False):
         from ai_guardian.daemon import get_executable_command
         cmd = get_executable_command() + ["tray", "start"]
@@ -534,10 +545,19 @@ def _handle_tray_start(args):
     from ai_guardian.daemon.client import send_status_request
     get_stats = lambda: send_status_request() or {}
 
+    from ai_guardian.daemon.discovery import DaemonTarget
+    _local_target = DaemonTarget("local", "local")
+
+    def _pause_callback(mins):
+        if mins > 0:
+            multi_client.send_pause(_local_target, mins)
+        else:
+            multi_client.send_resume(_local_target)
+
     tray = DaemonTray(
         get_stats_callback=get_stats,
         stop_callback=lambda: None,
-        pause_callback=lambda mins: None,
+        pause_callback=_pause_callback,
         discovery=discovery,
         multi_client=multi_client,
         standalone=True,

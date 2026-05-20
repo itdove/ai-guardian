@@ -22,6 +22,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pattern lister (`ai-guardian patterns list`) now reads counts from TOML files
   - Configure via: `"engines": ["toml-patterns"]` (works without gitleaks/betterleaks installed)
 
+## [1.8.1] - 2026-05-20
+
+### Fixed
+
+- **Credit card PII detection false positives — Luhn check alone is insufficient** (Issue #694)
+  - Added IIN/BIN prefix validation after Luhn check in `_redact_credit_card()`
+  - Numbers starting with 0, 1, 7, 8, 9 (no major card network) are no longer flagged
+  - Valid prefixes retained: Visa (4), Mastercard (51-55, 2221-2720), Amex (34, 37), Discover (6011, 65, 644-649), JCB (35), Diners Club (30, 36, 38, 39)
+  - All-zeros and coincidental numeric IDs no longer trigger false positives
+
+- **Pause state not visually indicated — no countdown, no icon change, no CLI remaining time** (Issue #684)
+  - Tray icon now dims (50% alpha) when daemon is paused, reverts to normal on resume
+  - Tray "Resume" menu item shows live countdown: `Resume (3m 42s left)`
+  - Pause/Resume menu items are now mutually exclusive (Pause hidden when paused, Resume hidden when running)
+  - `ai-guardian daemon status` now shows remaining time: `(PAUSED — 3m 42s left)` or `(PAUSED — indefinite)`
+  - Console TUI daemon panel shows remaining time when paused
+  - Connected existing `_start_pause_timer()` infrastructure to pause/resume actions
+  - Added `_sync_pause_state()` to detect external pause/resume (e.g., via CLI) during periodic stats refresh
+
+- **macOS .app tray shortcut does not show menu bar icon on macOS 26.5** (Issue #691)
+  - Set `NSApplicationActivationPolicyAccessory` explicitly before pystray creates the status bar item
+  - Replaced bash wrapper script with Python wrapper to avoid exec chain losing bundle association
+  - Added `NSPrincipalClass: NSApplication` to the .app bundle's Info.plist
+  - Re-install shortcut with `ai-guardian tray --uninstall && ai-guardian tray --install` to apply
+
+- **Desktop shortcut/autostart launches tray with minimal PATH — scanners not found** (Issue #689)
+  - Added `ensure_scanner_path()` utility that augments PATH with common binary locations
+  - Probes well-known directories (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`) for scanner binaries
+  - Reads user's login shell PATH as fallback for non-standard install locations
+  - Called early in both daemon and tray startup
+  - Fixed macOS `.app` wrapper script to augment PATH before exec
+  - Fixed macOS launchd plist to include `EnvironmentVariables` with augmented PATH
+
+- **Tray pause does not work for local daemon** (Issue #683)
+  - Added `pause` and `resume` message handlers to daemon socket protocol in `server.py`
+  - Fixed tray routing to use `multi_client` for local daemon targets instead of no-op callback
+  - Replaced no-op `pause_callback` lambda in standalone tray with proper socket-based callback
+  - Fixed auto-resume timer to route through `multi_client` when available
+
 ### Changed
 
 - **Pattern research reminder frequency** (Issue #681)
@@ -1678,7 +1717,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/itdove/ai-guardian/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/itdove/ai-guardian/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/itdove/ai-guardian/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/itdove/ai-guardian/compare/v1.6.1...v1.6.2

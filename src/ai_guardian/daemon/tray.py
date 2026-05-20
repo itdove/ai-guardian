@@ -227,19 +227,48 @@ class DaemonTray:
         _remove_tray_lock()
 
     def update_status(self, status):
-        """Update tray icon status.
+        """Update tray icon status and manage pause timer.
 
         Args:
             status: "running", "paused", or "error"
         """
+        prev = self._status
         self._status = status
+        if self._icon:
+            self._icon.icon = self._create_icon()
+        if status == "paused" and prev != "paused":
+            self._start_pause_timer()
+        elif status != "paused" and prev == "paused":
+            self._stop_pause_timer()
 
     def flash_reload(self):
         """Record config reload (no visual change with monochrome icons)."""
         pass
 
+    @staticmethod
+    def _ensure_macos_activation_policy():
+        """Set NSApplicationActivationPolicyAccessory on macOS.
+
+        When launched from an .app bundle wrapper, the process may lose
+        its Info.plist association after exec, so LSUIElement=True has no
+        effect.  Setting the policy explicitly ensures the status bar
+        icon appears regardless of launch method (issue #691).
+        """
+        import platform
+        if platform.system() != "Darwin":
+            return
+        try:
+            import AppKit
+            app = AppKit.NSApplication.sharedApplication()
+            app.setActivationPolicy_(
+                AppKit.NSApplicationActivationPolicyAccessory
+            )
+        except Exception:
+            pass
+
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
+        self._ensure_macos_activation_policy()
         menu = pystray.Menu(
             *self._build_single_daemon_menu_items(),
             *self._build_multi_daemon_menu_items(),
@@ -263,12 +292,26 @@ class DaemonTray:
     def _create_icon(self):
         """Create tray icon from monochrome shield template images."""
         icon_path = self._find_tray_icon_path()
+        img = None
         if icon_path is not None:
             try:
-                return Image.open(icon_path).convert("RGBA")
+                img = Image.open(icon_path).convert("RGBA")
             except Exception:
                 pass
-        return self._create_fallback_icon(22)
+        if img is None:
+            img = self._create_fallback_icon(22)
+        if self._status == "paused":
+            img = self._apply_paused_dimming(img)
+        return img
+
+    @staticmethod
+    def _apply_paused_dimming(img):
+        """Reduce alpha to ~50% to indicate paused state."""
+        img = img.copy()
+        alpha = img.split()[3]
+        alpha = alpha.point(lambda a: a // 2)
+        img.putalpha(alpha)
+        return img
 
     @staticmethod
     def _get_tray_icon_size():
@@ -476,9 +519,9 @@ class DaemonTray:
             while self._pause_timer_running and self._status == "paused":
                 stats = self._get_stats()
                 remaining = stats.get("pause_remaining_seconds", 0)
-                if remaining <= 0 and self._status == "paused":
+                still_paused = stats.get("paused", False)
+                if remaining <= 0 and self._status == "paused" and not still_paused:
                     self._status = "running"
-                    self._pause(0)
                     self._dispatch_to_main(self._refresh_icon_running)
                     break
                 self._dispatch_to_main(self._refresh_menu)
@@ -511,13 +554,48 @@ class DaemonTray:
                 pass
 
     def _refresh_icon_running(self):
-        """Refresh menu to reflect resumed state (main thread)."""
+        """Refresh icon and menu to reflect resumed state (main thread)."""
+        self._status = "running"
+        if self._icon:
+            self._icon.icon = self._create_icon()
         self._refresh_menu()
 
     def _stop_pause_timer(self):
         """Stop the pause countdown timer."""
         self._pause_timer_running = False
         self._pause_timer = None
+
+    def _sync_pause_state(self):
+        """Sync tray status from daemon stats (handles external pause/resume)."""
+        if self._is_multi_daemon():
+            self._update_global_pause_status()
+            return
+        stats = self._get_stats()
+        is_paused = stats.get("paused", False)
+        if is_paused and self._status != "paused":
+            self.update_status("paused")
+        elif not is_paused and self._status == "paused":
+            self.update_status("running")
+
+    def _update_global_pause_status(self):
+        """Set tray icon to paused only when ALL daemons are paused."""
+        if not self._targets:
+            return
+        all_paused = True
+        for t in self._targets:
+            if t.status not in ("running", "paused"):
+                continue
+            if self._multi_client:
+                stats = self._multi_client.get_status(t) or {}
+            else:
+                stats = self._get_stats()
+            if not stats.get("paused", False):
+                all_paused = False
+                break
+        if all_paused:
+            self.update_status("paused")
+        else:
+            self.update_status("running")
 
     def _start_stats_refresh(self):
         """Start a background thread that refreshes menu counters periodically."""
@@ -528,6 +606,7 @@ class DaemonTray:
             while self._stats_refresh_running:
                 time.sleep(10)
                 if self._stats_refresh_running and self._icon:
+                    self._dispatch_to_main(self._sync_pause_state)
                     self._dispatch_to_main(self._refresh_menu)
 
         thread = threading.Thread(
@@ -561,7 +640,8 @@ class DaemonTray:
 
         Prefers: current selection (if still running) > running local > first running.
         """
-        if (self._active_target and self._active_target.status == "running"):
+        if (self._active_target
+                and self._active_target.status in ("running", "paused")):
             for t in self._targets:
                 if (t.name == self._active_target.name
                         and t.runtime == self._active_target.runtime):
@@ -569,12 +649,12 @@ class DaemonTray:
                     return
 
         for t in self._targets:
-            if t.runtime == "local" and t.status == "running":
+            if t.runtime == "local" and t.status in ("running", "paused"):
                 self._active_target = t
                 return
 
         for t in self._targets:
-            if t.status == "running":
+            if t.status in ("running", "paused"):
                 self._active_target = t
                 return
 
@@ -641,11 +721,11 @@ class DaemonTray:
 
         def _single_running(_item):
             return (self._is_single_daemon()
-                    and self._targets[0].status == "running")
+                    and self._targets[0].status in ("running", "paused"))
 
         def _single_not_running(_item):
             return (self._is_single_daemon()
-                    and self._targets[0].status != "running")
+                    and self._targets[0].status not in ("running", "paused"))
 
         def _header_label(_item):
             if not self._targets:
@@ -666,19 +746,21 @@ class DaemonTray:
             def action(_, __):
                 if self._targets:
                     t = self._targets[0]
-                    if self._multi_client and t.runtime != "local":
+                    if self._multi_client:
                         self._multi_client.send_pause(t, minutes)
                     else:
                         self._pause(minutes)
+                    self.update_status("paused")
             return action
 
         def _resume_action(_, __):
             if self._targets:
                 t = self._targets[0]
-                if self._multi_client and t.runtime != "local":
+                if self._multi_client:
                     self._multi_client.send_resume(t)
                 else:
                     self._pause(0)
+                self.update_status("running")
 
         def _stop_action(_, __):
             if self._targets and self._multi_client:
@@ -838,10 +920,21 @@ class DaemonTray:
                     pystray.MenuItem("15 minutes", _pause_action(15)),
                     pystray.MenuItem("30 minutes", _pause_action(30)),
                     pystray.MenuItem("1 hour", _pause_action(60)),
+                    pystray.MenuItem("Until resume", _pause_action(0)),
                 ),
-                visible=_single_running,
+                visible=lambda _: (
+                    _single_running(_)
+                    and not _get_stats(_).get("paused")
+                ),
             ),
-            pystray.MenuItem("Resume", _resume_action, visible=_single_running),
+            pystray.MenuItem(
+                lambda _: self._resume_menu_label(),
+                _resume_action,
+                visible=lambda _: (
+                    _single_running(_)
+                    and _get_stats(_).get("paused")
+                ),
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Start daemon", _restart_action,
                              visible=_single_not_running),
@@ -888,20 +981,22 @@ class DaemonTray:
                 def action(_, __):
                     if slot < len(self._targets):
                         t = self._targets[slot]
-                        if self._multi_client and t.runtime != "local":
+                        if self._multi_client:
                             self._multi_client.send_pause(t, minutes)
                         else:
                             self._pause(minutes)
+                        self._update_global_pause_status()
                 return action
 
             def _mk_resume(slot=idx):
                 def action(_, __):
                     if slot < len(self._targets):
                         t = self._targets[slot]
-                        if self._multi_client and t.runtime != "local":
+                        if self._multi_client:
                             self._multi_client.send_resume(t)
                         else:
                             self._pause(0)
+                        self._update_global_pause_status()
                 return action
 
             def _mk_stop(slot=idx):
@@ -988,15 +1083,28 @@ class DaemonTray:
                         return f"Config reloaded: {self._format_time_ago(ago)}"
                     return "Config: loaded"
 
+                def is_paused(_item):
+                    return _get(_item).get("paused", False)
+
+                def resume_label(_item):
+                    s = _get(_item)
+                    remaining = s.get("pause_remaining_seconds", 0)
+                    if remaining > 0:
+                        mins = int(remaining // 60)
+                        secs = int(remaining % 60)
+                        return f"Resume ({mins}m {secs}s left)"
+                    return "Resume (paused)"
+
                 return (requests, blocked, warned, logged,
                         violations, critical, warning_sev,
-                        last_block, config_reload)
+                        last_block, config_reload,
+                        is_paused, resume_label)
 
             stats_fns = _mk_stats()
 
             def _is_slot_running(_item, slot=idx):
                 return (slot < len(self._targets)
-                        and self._targets[slot].status == "running")
+                        and self._targets[slot].status in ("running", "paused"))
 
             items.append(
                 pystray.MenuItem(
@@ -1078,19 +1186,28 @@ class DaemonTray:
                                 pystray.MenuItem("15 minutes", _mk_pause(15)),
                                 pystray.MenuItem("30 minutes", _mk_pause(30)),
                                 pystray.MenuItem("1 hour", _mk_pause(60)),
+                                pystray.MenuItem("Until resume", _mk_pause(0)),
                             ),
-                            visible=_is_slot_running,
+                            visible=lambda _i, s=idx, _sf=stats_fns: (
+                                _is_slot_running(_i, s)
+                                and not _sf[9](_i)
+                            ),
                         ),
                         pystray.MenuItem(
-                            "Resume", _mk_resume(),
-                            visible=_is_slot_running,
+                            stats_fns[10], _mk_resume(),
+                            visible=lambda _i, s=idx, _sf=stats_fns: (
+                                _is_slot_running(_i, s)
+                                and _sf[9](_i)
+                            ),
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
                             "Start daemon", _mk_restart(),
                             visible=lambda _i, s=idx: (
                                 s < len(self._targets)
-                                and self._targets[s].status != "running"
+                                and self._targets[s].status not in (
+                                    "running", "paused"
+                                )
                             ),
                         ),
                         pystray.MenuItem(
