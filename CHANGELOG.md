@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Credit card PII detection false positives — Luhn check alone is insufficient** (Issue #694)
+  - Added IIN/BIN prefix validation after Luhn check in `_redact_credit_card()`
+  - Numbers starting with 0, 1, 7, 8, 9 (no major card network) are no longer flagged
+  - Valid prefixes retained: Visa (4), Mastercard (51-55, 2221-2720), Amex (34, 37), Discover (6011, 65, 644-649), JCB (35), Diners Club (30, 36, 38, 39)
+  - All-zeros and coincidental numeric IDs no longer trigger false positives
+
 - **Pause state not visually indicated — no countdown, no icon change, no CLI remaining time** (Issue #684)
   - Tray icon now dims (50% alpha) when daemon is paused, reverts to normal on resume
   - Tray "Resume" menu item shows live countdown: `Resume (3m 42s left)`
