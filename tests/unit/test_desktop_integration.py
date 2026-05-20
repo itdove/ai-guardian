@@ -266,6 +266,18 @@ class TestMacOSDesktop:
         assert "#!/bin/bash" in content
         assert "/usr/local/bin/ai-guardian tray start" in content
 
+    def test_app_bundle_script_augments_path(self, macos):
+        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
+                        return_value=["/usr/local/bin/ai-guardian"]):
+            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+                macos.install_shortcut()
+
+        script = macos.app_path / "Contents" / "MacOS" / "ai-guardian-tray"
+        content = script.read_text()
+        assert "/opt/homebrew/bin" in content
+        assert "/usr/local/bin" in content
+        assert "export PATH" in content
+
     def test_info_plist_has_lsuielement(self, macos):
         import plistlib
 
@@ -331,6 +343,21 @@ class TestMacOSDesktop:
             plist = plistlib.load(f)
 
         assert plist["ProgramArguments"] == ["/usr/local/bin/ai-guardian", "tray", "start"]
+
+    def test_plist_has_environment_variables_with_path(self, macos):
+        import plistlib
+
+        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
+                        return_value=["/usr/local/bin/ai-guardian"]):
+            macos.install_autostart()
+
+        with open(macos.plist_path, "rb") as f:
+            plist = plistlib.load(f)
+
+        assert "EnvironmentVariables" in plist
+        path_value = plist["EnvironmentVariables"]["PATH"]
+        assert "/opt/homebrew/bin" in path_value
+        assert "/usr/local/bin" in path_value
 
     def test_uninstall_shortcut_removes_app_bundle(self, macos):
         with mock.patch("ai_guardian.daemon.desktop._get_executable_command",

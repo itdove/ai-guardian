@@ -62,6 +62,9 @@ class DaemonServer:
         The daemon runs headless — use 'ai-guardian tray' for the system
         tray client.
         """
+        from ai_guardian.daemon.path_env import ensure_scanner_path
+        ensure_scanner_path()
+
         self._cleanup_stale()
         self._write_pid_file()
         self._setup_signals()

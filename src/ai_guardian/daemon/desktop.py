@@ -265,7 +265,14 @@ class MacOSDesktop(DesktopIntegration):
             cmd = _get_executable_command()
             exec_line = " ".join(shlex.quote(c) for c in cmd) + " tray start"
             script_path = macos_dir / "ai-guardian-tray"
-            script_path.write_text(f"#!/bin/bash\nexec {exec_line}\n")
+            script_path.write_text(
+                "#!/bin/bash\n"
+                'for d in /opt/homebrew/bin /opt/homebrew/sbin'
+                ' /usr/local/bin /usr/local/sbin "$HOME/.local/bin"; do\n'
+                '  [ -d "$d" ] && export PATH="$d:$PATH"\n'
+                "done\n"
+                f"exec {exec_line}\n"
+            )
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
             icon_path = _prepare_icon()
@@ -300,11 +307,22 @@ class MacOSDesktop(DesktopIntegration):
             cmd = _get_executable_command() + ["tray", "start"]
 
             import plistlib
+            augmented_path = os.pathsep.join(
+                filter(None, [
+                    "/opt/homebrew/bin",
+                    "/opt/homebrew/sbin",
+                    "/usr/local/bin",
+                    "/usr/local/sbin",
+                    str(Path.home() / ".local" / "bin"),
+                    os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
+                ])
+            )
             plist_data = {
                 "Label": "com.ai-guardian.tray",
                 "ProgramArguments": cmd,
                 "RunAtLoad": True,
                 "KeepAlive": False,
+                "EnvironmentVariables": {"PATH": augmented_path},
             }
 
             with open(self.plist_path, "wb") as f:

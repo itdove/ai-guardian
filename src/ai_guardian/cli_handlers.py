@@ -462,6 +462,9 @@ def _handle_tray_start(args):
     """Start the standalone multi-daemon tray client."""
     import subprocess
 
+    from ai_guardian.daemon.path_env import ensure_scanner_path
+    ensure_scanner_path()
+
     if getattr(args, "background", False):
         from ai_guardian.daemon import get_executable_command
         cmd = get_executable_command() + ["tray", "start"]
