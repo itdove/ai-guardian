@@ -478,7 +478,10 @@ class DaemonTray:
                 remaining = stats.get("pause_remaining_seconds", 0)
                 if remaining <= 0 and self._status == "paused":
                     self._status = "running"
-                    self._pause(0)
+                    if self._multi_client and self._targets:
+                        self._multi_client.send_resume(self._targets[0])
+                    else:
+                        self._pause(0)
                     self._dispatch_to_main(self._refresh_icon_running)
                     break
                 self._dispatch_to_main(self._refresh_menu)
@@ -666,7 +669,7 @@ class DaemonTray:
             def action(_, __):
                 if self._targets:
                     t = self._targets[0]
-                    if self._multi_client and t.runtime != "local":
+                    if self._multi_client:
                         self._multi_client.send_pause(t, minutes)
                     else:
                         self._pause(minutes)
@@ -675,7 +678,7 @@ class DaemonTray:
         def _resume_action(_, __):
             if self._targets:
                 t = self._targets[0]
-                if self._multi_client and t.runtime != "local":
+                if self._multi_client:
                     self._multi_client.send_resume(t)
                 else:
                     self._pause(0)
@@ -888,7 +891,7 @@ class DaemonTray:
                 def action(_, __):
                     if slot < len(self._targets):
                         t = self._targets[slot]
-                        if self._multi_client and t.runtime != "local":
+                        if self._multi_client:
                             self._multi_client.send_pause(t, minutes)
                         else:
                             self._pause(minutes)
@@ -898,7 +901,7 @@ class DaemonTray:
                 def action(_, __):
                     if slot < len(self._targets):
                         t = self._targets[slot]
-                        if self._multi_client and t.runtime != "local":
+                        if self._multi_client:
                             self._multi_client.send_resume(t)
                         else:
                             self._pause(0)

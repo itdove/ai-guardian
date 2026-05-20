@@ -28,6 +28,37 @@ class TestLocalRouting:
         mock_popen.assert_called_once()
 
 
+class TestLocalPauseResumeRouting:
+    """Test local daemon pause/resume via socket (issue #683)."""
+
+    @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=True)
+    def test_pause_local_sends_socket_message(self, mock_send):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.send_pause(target, 5)
+        assert result is True
+        mock_send.assert_called_once_with(
+            {"version": 1, "type": "pause", "data": {"minutes": 5}}
+        )
+
+    @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=True)
+    def test_resume_local_sends_socket_message(self, mock_send):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.send_resume(target)
+        assert result is True
+        mock_send.assert_called_once_with(
+            {"version": 1, "type": "resume"}
+        )
+
+    @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=False)
+    def test_pause_local_returns_false_on_failure(self, mock_send):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.send_pause(target, 10)
+        assert result is False
+
+
 class TestContainerRouting:
     def test_status_via_rest(self):
         client = MultiDaemonClient()

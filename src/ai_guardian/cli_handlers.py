@@ -534,10 +534,19 @@ def _handle_tray_start(args):
     from ai_guardian.daemon.client import send_status_request
     get_stats = lambda: send_status_request() or {}
 
+    from ai_guardian.daemon.discovery import DaemonTarget
+    _local_target = DaemonTarget("local", "local")
+
+    def _pause_callback(mins):
+        if mins > 0:
+            multi_client.send_pause(_local_target, mins)
+        else:
+            multi_client.send_resume(_local_target)
+
     tray = DaemonTray(
         get_stats_callback=get_stats,
         stop_callback=lambda: None,
-        pause_callback=lambda mins: None,
+        pause_callback=_pause_callback,
         discovery=discovery,
         multi_client=multi_client,
         standalone=True,

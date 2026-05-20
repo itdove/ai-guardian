@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Tray pause does not work for local daemon** (Issue #683)
+  - Added `pause` and `resume` message handlers to daemon socket protocol in `server.py`
+  - Fixed tray routing to use `multi_client` for local daemon targets instead of no-op callback
+  - Replaced no-op `pause_callback` lambda in standalone tray with proper socket-based callback
+  - Fixed auto-resume timer to route through `multi_client` when available
+
 ### Changed
 
 - **Pattern research reminder frequency** (Issue #681)
