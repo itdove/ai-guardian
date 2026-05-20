@@ -40,12 +40,13 @@ class TestDaemonTrayWithoutPystray:
 
     def test_update_status_without_icon(self):
         tray = DaemonTray(
-            get_stats_callback=lambda: {},
+            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 300},
             stop_callback=lambda: None,
-            pause_callback=lambda: None,
+            pause_callback=lambda mins: None,
         )
         tray.update_status("paused")  # Should not raise
         assert tray._status == "paused"
+        tray._stop_pause_timer()
 
 
 class TestDaemonTrayCallbacks:
@@ -678,3 +679,172 @@ class TestIDESetupMenu:
                     script = mock_popen.call_args[0][0][2]
                     assert "setup --create-config" in script
                     assert "close" not in script
+
+
+class TestPausedIconDimming:
+    """Tests for visual pause state indicator (issue #684)."""
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_apply_paused_dimming_reduces_alpha(self):
+        from PIL import Image
+        img = Image.new("RGBA", (22, 22), (255, 255, 255, 200))
+        dimmed = DaemonTray._apply_paused_dimming(img)
+        assert dimmed.size == (22, 22)
+        _, _, _, a = dimmed.getpixel((10, 10))
+        assert a == 100
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_apply_paused_dimming_does_not_modify_original(self):
+        from PIL import Image
+        img = Image.new("RGBA", (22, 22), (255, 255, 255, 200))
+        DaemonTray._apply_paused_dimming(img)
+        _, _, _, a = img.getpixel((10, 10))
+        assert a == 200
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_create_icon_dimmed_when_paused(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        normal = tray._create_icon()
+        tray._status = "paused"
+        paused = tray._create_icon()
+        normal_alpha = list(normal.split()[3].tobytes())
+        paused_alpha = list(paused.split()[3].tobytes())
+        non_zero = [i for i, a in enumerate(normal_alpha) if a > 0]
+        assert len(non_zero) > 0
+        for i in non_zero:
+            assert paused_alpha[i] <= normal_alpha[i]
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed"
+    )
+    def test_create_icon_normal_when_running(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "running"
+        icon = tray._create_icon()
+        assert icon.mode == "RGBA"
+
+
+class TestUpdateStatusPauseTimer:
+    """Tests for update_status() managing pause timer (issue #684)."""
+
+    def test_update_status_starts_pause_timer(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 60},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch.object(tray, "_start_pause_timer") as mock_start:
+            tray.update_status("paused")
+            mock_start.assert_called_once()
+
+    def test_update_status_stops_pause_timer_on_resume(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        with mock.patch.object(tray, "_stop_pause_timer") as mock_stop:
+            tray.update_status("running")
+            mock_stop.assert_called_once()
+
+    def test_update_status_no_double_start(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 60},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        with mock.patch.object(tray, "_start_pause_timer") as mock_start:
+            tray.update_status("paused")
+            mock_start.assert_not_called()
+
+    def test_update_status_updates_icon_when_icon_exists(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        tray._icon = mock_icon
+        with mock.patch.object(tray, "_create_icon", return_value="fake_img"):
+            tray.update_status("paused")
+        assert mock_icon.icon == "fake_img"
+
+
+class TestSyncPauseState:
+    """Tests for _sync_pause_state() detecting external pause/resume (issue #684)."""
+
+    def test_sync_detects_external_pause(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 120},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "running"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_called_once_with("paused")
+
+    def test_sync_detects_external_resume(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": False},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_called_once_with("running")
+
+    def test_sync_no_change_when_already_paused(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_not_called()
+
+
+class TestResumeMenuLabelFormats:
+    """Tests for resume menu label formatting (issue #684)."""
+
+    def test_resume_label_indefinite(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 0},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        label = tray._resume_menu_label()
+        assert label == "Resume (paused)"
+
+    def test_resume_label_with_countdown(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"pause_remaining_seconds": 222},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        label = tray._resume_menu_label()
+        assert "3m" in label
+        assert "42s" in label

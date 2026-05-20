@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pause state not visually indicated — no countdown, no icon change, no CLI remaining time** (Issue #684)
+  - Tray icon now dims (50% alpha) when daemon is paused, reverts to normal on resume
+  - Tray "Resume" menu item shows live countdown: `Resume (3m 42s left)`
+  - Pause/Resume menu items are now mutually exclusive (Pause hidden when paused, Resume hidden when running)
+  - `ai-guardian daemon status` now shows remaining time: `(PAUSED — 3m 42s left)` or `(PAUSED — indefinite)`
+  - Console TUI daemon panel shows remaining time when paused
+  - Connected existing `_start_pause_timer()` infrastructure to pause/resume actions
+  - Added `_sync_pause_state()` to detect external pause/resume (e.g., via CLI) during periodic stats refresh
+
 - **macOS .app tray shortcut does not show menu bar icon on macOS 26.5** (Issue #691)
   - Set `NSApplicationActivationPolicyAccessory` explicitly before pystray creates the status bar item
   - Replaced bash wrapper script with Python wrapper to avoid exec chain losing bundle association
