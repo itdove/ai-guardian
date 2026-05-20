@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Pattern research reminder frequency** (Issue #681)
+  - Changed from monthly (1st of month) to twice-monthly (1st and 15th)
+  - Updated workflow cron schedule, issue title, and reminder text
+  - Updated AGENTS.md documentation to reflect new frequency
+
 ## [1.8.0] - 2026-05-19
 
 ### Added
