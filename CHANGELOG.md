@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Desktop shortcut/autostart launches tray with minimal PATH — scanners not found** (Issue #689)
+  - Added `ensure_scanner_path()` utility that augments PATH with common binary locations
+  - Probes well-known directories (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`) for scanner binaries
+  - Reads user's login shell PATH as fallback for non-standard install locations
+  - Called early in both daemon and tray startup
+  - Fixed macOS `.app` wrapper script to augment PATH before exec
+  - Fixed macOS launchd plist to include `EnvironmentVariables` with augmented PATH
+
 - **Tray pause does not work for local daemon** (Issue #683)
   - Added `pause` and `resume` message handlers to daemon socket protocol in `server.py`
   - Fixed tray routing to use `multi_client` for local daemon targets instead of no-op callback
