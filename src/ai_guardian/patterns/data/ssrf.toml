@@ -1,0 +1,191 @@
+# SSRF (Server-Side Request Forgery) protection patterns for ai-guardian
+# Source: Extracted from SSRF detector blocked networks, domains, and schemes
+# Categories: CIDR ranges, blocked domains, dangerous schemes
+
+# --- Private/Reserved CIDR Ranges ---
+
+[[rules]]
+id = "ssrf-private-class-a"
+match_type = "cidr"
+cidr = "10.0.0.0/8"
+description = "Private network Class A"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-private-class-b"
+match_type = "cidr"
+cidr = "172.16.0.0/12"
+description = "Private network Class B"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-private-class-c"
+match_type = "cidr"
+cidr = "192.168.0.0/16"
+description = "Private network Class C"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-loopback"
+match_type = "cidr"
+cidr = "127.0.0.0/8"
+description = "Loopback"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-link-local"
+match_type = "cidr"
+cidr = "169.254.0.0/16"
+description = "Link-local / AWS metadata"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-ipv6-loopback"
+match_type = "cidr"
+cidr = "::1/128"
+description = "IPv6 loopback"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-ipv6-private"
+match_type = "cidr"
+cidr = "fc00::/7"
+description = "IPv6 private"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-ipv6-link-local"
+match_type = "cidr"
+cidr = "fe80::/10"
+description = "IPv6 link-local"
+tier = "overridable"
+
+# --- Blocked Domains ---
+
+[[rules]]
+id = "ssrf-gcp-metadata"
+match_type = "literal"
+source = "metadata.google.internal"
+target = ""
+description = "GCP metadata service"
+group = "blocked_domain"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-gcp-metadata-alt"
+match_type = "literal"
+source = "metadata.goog"
+target = ""
+description = "GCP metadata service (alternate)"
+group = "blocked_domain"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-aws-metadata-ip"
+match_type = "literal"
+source = "169.254.169.254"
+target = ""
+description = "AWS/Azure metadata IP"
+group = "blocked_domain"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-aws-ipv6-metadata"
+match_type = "literal"
+source = "fd00:ec2::254"
+target = ""
+description = "AWS IPv6 metadata"
+group = "blocked_domain"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-instance-data"
+match_type = "literal"
+source = "instance-data"
+target = ""
+description = "AWS instance metadata"
+group = "blocked_domain"
+tier = "overridable"
+
+[[rules]]
+id = "ssrf-localhost"
+match_type = "literal"
+source = "localhost"
+target = ""
+description = "Localhost"
+group = "blocked_domain"
+tier = "overridable"
+
+# --- Dangerous URL Schemes ---
+
+[[rules]]
+id = "ssrf-scheme-file"
+match_type = "literal"
+source = "file"
+target = ""
+description = "file:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-gopher"
+match_type = "literal"
+source = "gopher"
+target = ""
+description = "gopher:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-ftp"
+match_type = "literal"
+source = "ftp"
+target = ""
+description = "ftp:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-ftps"
+match_type = "literal"
+source = "ftps"
+target = ""
+description = "ftps:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-data"
+match_type = "literal"
+source = "data"
+target = ""
+description = "data: scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-dict"
+match_type = "literal"
+source = "dict"
+target = ""
+description = "dict:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-ldap"
+match_type = "literal"
+source = "ldap"
+target = ""
+description = "ldap:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-scheme-ldaps"
+match_type = "literal"
+source = "ldaps"
+target = ""
+description = "ldaps:// scheme"
+group = "dangerous_scheme"
+tier = "immutable"

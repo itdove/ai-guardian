@@ -61,6 +61,7 @@ packages = ["src/ai_guardian"]
 "images" = "ai_guardian/images"
 "README.md" = "ai_guardian/README.md"
 "pyproject.toml" = "ai_guardian/pyproject.toml"
+"src/ai_guardian/patterns/data" = "ai_guardian/patterns/data"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

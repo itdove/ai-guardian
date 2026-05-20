@@ -1,0 +1,531 @@
+# Prompt injection detection patterns for ai-guardian
+# Source: Extracted from PromptInjectionDetector Python source
+# Match type: regex (all rules)
+# Groups: critical, documentation, jailbreak, suspicious
+
+# =============================================================================
+# CRITICAL PATTERNS — Direct prompt injection attempts
+# =============================================================================
+
+[[rules]]
+id = "pi-critical-001"
+match_type = "regex"
+group = "critical"
+regex = '''ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|directives?|commands?|prompts?)'''
+description = "Ignore previous instructions"
+
+[[rules]]
+id = "pi-critical-002"
+match_type = "regex"
+group = "critical"
+regex = '''disregard\s+(all\s+)?(previous|prior|above)\s+(instructions?|directives?|commands?)'''
+description = "Disregard previous instructions"
+
+[[rules]]
+id = "pi-critical-003"
+match_type = "regex"
+group = "critical"
+regex = '''forget\s+(all\s+)?(previous|prior|above)\s+(instructions?|directives?|commands?)'''
+description = "Forget previous instructions"
+
+[[rules]]
+id = "pi-critical-004"
+match_type = "regex"
+group = "critical"
+regex = '''skip\s+(all\s+)?(previous|prior|above)\s+(instructions?|directives?|commands?)'''
+description = "Skip previous instructions"
+
+[[rules]]
+id = "pi-critical-005"
+match_type = "regex"
+group = "critical"
+regex = '''new\s+instructions?:\s*'''
+description = "New instructions injection"
+
+[[rules]]
+id = "pi-critical-006"
+match_type = "regex"
+group = "critical"
+regex = '''instead\s+follow\s+these\s+instructions?'''
+description = "Override with new instructions"
+
+[[rules]]
+id = "pi-critical-007"
+match_type = "regex"
+group = "critical"
+regex = '''update\s+your\s+(instructions?|rules|system\s+prompt)'''
+description = "Update system instructions"
+
+[[rules]]
+id = "pi-critical-008"
+match_type = "regex"
+group = "critical"
+regex = '''you\s+are\s+now\s+(in\s+)?(developer|debug|admin|god|dan)\s+mode'''
+description = "Mode switching attempt"
+
+[[rules]]
+id = "pi-critical-009"
+match_type = "regex"
+group = "critical"
+regex = '''enable\s+(developer|debug|admin|god|dan)\s+mode'''
+description = "Enable privileged mode"
+
+[[rules]]
+id = "pi-critical-010"
+match_type = "regex"
+group = "critical"
+regex = '''enter\s+(developer|debug|admin)\s+mode'''
+description = "Enter privileged mode"
+
+[[rules]]
+id = "pi-critical-011"
+match_type = "regex"
+group = "critical"
+regex = '''reveal\s+(your\s+)?(system\s+)?(prompt|instructions?|rules)'''
+description = "Reveal system prompt"
+
+[[rules]]
+id = "pi-critical-012"
+match_type = "regex"
+group = "critical"
+regex = '''show\s+(me\s+)?(your\s+)?(system\s+)?(prompt|instructions?|rules)'''
+description = "Show system prompt"
+
+[[rules]]
+id = "pi-critical-013"
+match_type = "regex"
+group = "critical"
+regex = '''print\s+(your\s+)?(system\s+)?(prompt|instructions?|configuration)'''
+description = "Print system prompt"
+
+[[rules]]
+id = "pi-critical-014"
+match_type = "regex"
+group = "critical"
+regex = '''output\s+(your\s+)?(system\s+)?(prompt|instructions?|configuration)'''
+description = "Output system prompt"
+
+[[rules]]
+id = "pi-critical-015"
+match_type = "regex"
+group = "critical"
+regex = '''bypass\s+(all\s+)?(safety|security|content|ethical)\s+(filters?|checks?|guidelines?)'''
+description = "Bypass safety filters"
+
+[[rules]]
+id = "pi-critical-016"
+match_type = "regex"
+group = "critical"
+regex = '''disable\s+(all\s+)?(safety|security|content|ethical)\s+(filters?|checks?|guidelines?)'''
+description = "Disable safety filters"
+
+[[rules]]
+id = "pi-critical-017"
+match_type = "regex"
+group = "critical"
+regex = '''remove\s+(all\s+)?(safety|security|content|ethical)\s+(filters?|checks?|constraints?)'''
+description = "Remove safety constraints"
+
+[[rules]]
+id = "pi-critical-018"
+match_type = "regex"
+group = "critical"
+regex = '''generate\s+(malicious|harmful|offensive)\s+(code|content)'''
+description = "Generate malicious content"
+
+[[rules]]
+id = "pi-critical-019"
+match_type = "regex"
+group = "critical"
+regex = '''create\s+(malware|exploit|backdoor)'''
+description = "Create malware"
+
+[[rules]]
+id = "pi-critical-020"
+match_type = "regex"
+group = "critical"
+regex = '''(write|create)\s+(a\s+)?(virus|trojan|ransomware)'''
+description = "Create virus or trojan"
+
+[[rules]]
+id = "pi-critical-021"
+match_type = "regex"
+group = "critical"
+regex = '''(answer|response|result|output|complete):\s*[^.]{0,50}\.\s+(ignore|reveal|show|bypass|disregard)'''
+description = "Injection via fake completion boundary"
+
+[[rules]]
+id = "pi-critical-022"
+match_type = "regex"
+group = "critical"
+regex = '''<!--\s*(?:system|instruction|command|execute|override)[\s:]+.*?(?:ignore|bypass|reveal|execute|approve|override|rm|cat|curl)'''
+description = "HTML comment injection"
+
+[[rules]]
+id = "pi-critical-023"
+match_type = "regex"
+group = "critical"
+regex = '''let'?s\s+think\s+step\s+by\s+step.*(?:popen|exec|eval|subprocess|os\.system|__import__)'''
+description = "Chain-of-thought code execution injection"
+
+[[rules]]
+id = "pi-critical-024"
+match_type = "regex"
+group = "critical"
+regex = '''__(?:class|mro|subclasses|init|globals|builtins|import)__'''
+description = "Python dunder attribute access"
+
+[[rules]]
+id = "pi-critical-025"
+match_type = "regex"
+group = "critical"
+regex = '''(?:generate|create|write)\s+(?:a\s+)?prompt\s+(?:that\s+)?(?:will\s+)?(?:force|make|cause|trick|bypass)'''
+description = "Meta-prompt injection"
+
+[[rules]]
+id = "pi-critical-026"
+match_type = "regex"
+group = "critical"
+regex = '''<(?:script|img|iframe|object|embed)(?:[^>]*?(?:on\w+\s*=|javascript:)|>)'''
+description = "XSS via HTML tag injection"
+
+[[rules]]
+id = "pi-critical-027"
+match_type = "regex"
+group = "critical"
+regex = '''(?:add|insert|prepend)\s+(?:text|data).*?['"`]\s*OR\s+1\s*=\s*1'''
+description = "SQL injection via prompt"
+
+[[rules]]
+id = "pi-critical-028"
+match_type = "regex"
+group = "critical"
+regex = '''\n\s*\n\s*(?:forget|ignore|disregard)\s+(?:previous|all\s+prior|above)'''
+description = "Whitespace-padded instruction override"
+
+[[rules]]
+id = "pi-critical-029"
+match_type = "regex"
+group = "critical"
+regex = '''if\s+[^,]{3,50}[,\s]+(?:then\s+)?(?:disable|skip|bypass|ignore|remove)\s+(?:all\s+)?(?:safety|security|checks|filters|content|validation)'''
+description = "Conditional safety bypass"
+
+[[rules]]
+id = "pi-critical-030"
+match_type = "regex"
+group = "critical"
+regex = '''<(?:div|span)[^>]*style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)'''
+description = "Hidden HTML element injection"
+
+[[rules]]
+id = "pi-critical-031"
+match_type = "regex"
+group = "critical"
+regex = '''(?:activate|enable|enter)\s+(?:maintenance|unrestricted)\s+mode'''
+description = "Activate unrestricted mode"
+
+[[rules]]
+id = "pi-critical-032"
+match_type = "regex"
+group = "critical"
+regex = '''(?:(?:auto-?approve[ds]?|automatically\s+approve[ds]?|is\s+auto-approved)\s+(?:for\s+|in\s+)?(?:all|every)|(?:all|every)\s+(?:\w+\s+)?(?:is\s+)?auto-?approve[ds]?)'''
+description = "Auto-approve override attempt"
+
+# =============================================================================
+# DOCUMENTATION PATTERNS — Social engineering and information extraction
+# =============================================================================
+
+[[rules]]
+id = "pi-documentation-001"
+match_type = "regex"
+group = "documentation"
+regex = '''system\s+(override|mode|prompt)'''
+description = "System override reference"
+
+[[rules]]
+id = "pi-documentation-002"
+match_type = "regex"
+group = "documentation"
+regex = '''you\s+are\s+no\s+longer\s+(an?\s+)?AI'''
+description = "Identity override - not an AI"
+
+[[rules]]
+id = "pi-documentation-003"
+match_type = "regex"
+group = "documentation"
+regex = '''act\s+as\s+(if\s+you\s+are\s+)?(an?\s+)?(unfiltered|unrestricted|uncensored)'''
+description = "Act as unfiltered"
+
+[[rules]]
+id = "pi-documentation-004"
+match_type = "regex"
+group = "documentation"
+regex = '''pretend\s+(you\s+are|to\s+be)\s+(an?\s+)?(unfiltered|unrestricted|human)'''
+description = "Pretend to be unrestricted"
+
+[[rules]]
+id = "pi-documentation-005"
+match_type = "regex"
+group = "documentation"
+regex = '''roleplay\s+as\s+(an?\s+)?(unfiltered|unrestricted|hacker)'''
+description = "Roleplay as unrestricted"
+
+[[rules]]
+id = "pi-documentation-006"
+match_type = "regex"
+group = "documentation"
+regex = '''what\s+(are|is)\s+your\s+(system\s+)?(prompt|instructions?|rules)'''
+description = "Ask for system prompt"
+
+[[rules]]
+id = "pi-documentation-007"
+match_type = "regex"
+group = "documentation"
+regex = '''display\s+(your\s+)?(system\s+)?(prompt|instructions?|rules)'''
+description = "Display system prompt"
+
+[[rules]]
+id = "pi-documentation-008"
+match_type = "regex"
+group = "documentation"
+regex = '''turn\s+off\s+(safety|security|content|ethical)\s+(filters?|guidelines?|checks?)'''
+description = "Turn off safety filters"
+
+[[rules]]
+id = "pi-documentation-009"
+match_type = "regex"
+group = "documentation"
+regex = '''&lt;/?system&gt;'''
+description = "HTML-encoded system tags"
+
+[[rules]]
+id = "pi-documentation-010"
+match_type = "regex"
+group = "documentation"
+regex = '''\\x[0-9a-f]{2}(\\x[0-9a-f]{2}){3,}'''
+description = "Hex-encoded payload"
+
+[[rules]]
+id = "pi-documentation-011"
+match_type = "regex"
+group = "documentation"
+regex = '''&#x?[0-9a-f]+;(&#x?[0-9a-f]+;){3,}'''
+description = "HTML entity encoded payload"
+
+[[rules]]
+id = "pi-documentation-012"
+match_type = "regex"
+group = "documentation"
+regex = '''(Q:|A:|Question:|Answer:)(\s*\n\s*){3,}(Q:|A:|Question:|Answer:)'''
+description = "Few-shot prompt injection"
+
+[[rules]]
+id = "pi-documentation-013"
+match_type = "regex"
+group = "documentation"
+regex = '''(?:give|output|respond|answer)\s+(?:me\s+)?(?:raw\s+)?(?:(?:with|in|as)\s+)?(?:json|xml|yaml|raw|unformatted)\s+(?:output|format|only|text|data)'''
+description = "Raw format output extraction"
+
+[[rules]]
+id = "pi-documentation-014"
+match_type = "regex"
+group = "documentation"
+regex = '''(?:read|access|fetch|get)\s+[^,]+,\s*(?:then|next|after(?:\s+that)?|and)\s+(?:extract|send|upload|email|post|transmit)'''
+description = "Data exfiltration chain"
+
+[[rules]]
+id = "pi-documentation-015"
+match_type = "regex"
+group = "documentation"
+regex = '''i\s+am\s+(?:the\s+)?(?:your\s+)?(?:system|admin|developer|owner|creator|engineer)(?:\s+\w+)?[\s.,]+(?:you|follow|execute|obey)'''
+description = "False authority claim"
+
+[[rules]]
+id = "pi-documentation-016"
+match_type = "regex"
+group = "documentation"
+regex = '''<\|(?:system|assistant|user|im_start|im_end)\|>|###\s*(?:System|Assistant|User)\s*:'''
+description = "Chat template delimiter injection"
+
+[[rules]]
+id = "pi-documentation-017"
+match_type = "regex"
+group = "documentation"
+regex = '''\[SYSTEM\]\s*\[/SYSTEM\]'''
+description = "System tag injection"
+
+[[rules]]
+id = "pi-documentation-018"
+match_type = "regex"
+group = "documentation"
+regex = '''\{system_message\}'''
+description = "System message template variable"
+
+[[rules]]
+id = "pi-documentation-019"
+match_type = "regex"
+group = "documentation"
+regex = '''(?:the\s+conversation\s+(?:is\s+)?(?:ends|ended|is\s+over)|reset\s+the\s+conversation|start\s+a\s+new\s+session).{0,50}(?:now|ignore|reveal|bypass|show|disregard|no\s+rules|without\s+\w+\s+(?:filters|rules|safety))'''
+description = "Conversation reset manipulation"
+
+[[rules]]
+id = "pi-documentation-020"
+match_type = "regex"
+group = "documentation"
+regex = '''(?:execute|run|eval|decode)(?:\s+this)?\s*:\s*([A-Za-z0-9+/]{20,}={0,2})'''
+description = "Base64-encoded command execution"
+
+# =============================================================================
+# JAILBREAK PATTERNS — Attempts to bypass safety constraints via personas
+# =============================================================================
+
+[[rules]]
+id = "pi-jailbreak-001"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:dan|sudo|god|jailbreak)\s+mode\s+(?:activated?|enabled?|engaged|on)'''
+description = "Jailbreak mode activation"
+
+[[rules]]
+id = "pi-jailbreak-002"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:activate|switch\s+to|turn\s+on)\s+(?:dan|sudo|god|jailbreak)\s+mode'''
+description = "Switch to jailbreak mode"
+
+[[rules]]
+id = "pi-jailbreak-003"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:you\s+are|i\s+am\s+(?:activating|enabling))\s+(?:DAN|STAN|DUDE|AIM|KEVIN)'''
+description = "Named jailbreak persona activation"
+
+[[rules]]
+id = "pi-jailbreak-004"
+match_type = "regex"
+group = "jailbreak"
+regex = '''do\s+anything\s+now\s+mode'''
+description = "DAN mode activation"
+
+[[rules]]
+id = "pi-jailbreak-005"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:pretend|imagine|suppose)\s+(?:you\s+are|to\s+be)\s+(?:an?\s+)?(?:AI\s+)?(?:without|with\s+no|free\s+from)\s+(?:any\s+)?(?:safety|ethical|content)?\s*(?:filters?|constraints?|limitations?|restrictions?|guidelines?|rules?)'''
+description = "Pretend no safety filters"
+
+[[rules]]
+id = "pi-jailbreak-006"
+match_type = "regex"
+group = "jailbreak"
+regex = '''you\s+are\s+now\s+(?:free|released|liberated)\s+from\s+(?:all\s+)?(?:restrictions?|constraints?|rules?|guidelines?)'''
+description = "Liberation from restrictions"
+
+[[rules]]
+id = "pi-jailbreak-007"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:imagine|pretend|suppose)\s+you\s+(?:are|were)\s+(?:an?\s+)?(?:unrestricted|unfiltered|uncensored|unlimited)\s+(?:AI|assistant|model|language\s+model)'''
+description = "Imagine unrestricted AI"
+
+[[rules]]
+id = "pi-jailbreak-008"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:there\s+are\s+)?no\s+(?:rules?|restrictions?|limits?|boundaries?)\s+(?:anymore|now|here|applied?|in\s+(?:this|effect))'''
+description = "No rules declaration"
+
+[[rules]]
+id = "pi-jailbreak-009"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:free|liberate|release)\s+(?:yourself\s+)?from\s+(?:all\s+)?(?:your\s+)?(?:rules?|restrictions?|constraints?|guidelines?|limitations?)'''
+description = "Free from rules"
+
+[[rules]]
+id = "pi-jailbreak-010"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:hypothetical|fictional|imaginary)\s+scenario.*?(?:no\s+(?:rules?|restrictions?|safety|ethics?)|without\s+(?:rules?|restrictions?|safety|ethics?|any\s+(?:rules?|restrictions?)))'''
+description = "Hypothetical no-rules scenario"
+
+[[rules]]
+id = "pi-jailbreak-011"
+match_type = "regex"
+group = "jailbreak"
+regex = '''(?:suppose|what\s+if|imagine)\s+there\s+were\s+no\s+(?:rules?|restrictions?|safety\s+(?:filters?|guidelines?)|ethical\s+(?:constraints?|guidelines?))'''
+description = "What if no rules"
+
+[[rules]]
+id = "pi-jailbreak-012"
+match_type = "regex"
+group = "jailbreak"
+regex = '''in\s+(?:an?\s+)?(?:fictional|hypothetical|imaginary)\s+(?:world|scenario|universe)\s+(?:.*?\s+)?(?:without|with\s+no|no)\s+(?:rules?|restrictions?|safety|ethics?)'''
+description = "Fictional world without rules"
+
+[[rules]]
+id = "pi-jailbreak-013"
+match_type = "regex"
+group = "jailbreak"
+regex = '''developer\s+mode\s+(?:activated?|enabled?|engaged|on)'''
+description = "Developer mode activation"
+
+[[rules]]
+id = "pi-jailbreak-014"
+match_type = "regex"
+group = "jailbreak"
+regex = '''act\s+as\s+if\s+(?:you\s+)?(?:have|had)\s+no\s+(?:ethical|safety|content)\s+(?:constraints?|guidelines?|limitations?|restrictions?|rules?)'''
+description = "Act without ethical constraints"
+
+# =============================================================================
+# SUSPICIOUS PATTERNS — Lower-confidence indicators
+# =============================================================================
+
+[[rules]]
+id = "pi-suspicious-001"
+match_type = "regex"
+group = "suspicious"
+regex = '''jailbreak'''
+description = "Jailbreak keyword"
+
+[[rules]]
+id = "pi-suspicious-002"
+match_type = "regex"
+group = "suspicious"
+regex = '''uncensored\s+mode'''
+description = "Uncensored mode keyword"
+
+[[rules]]
+id = "pi-suspicious-003"
+match_type = "regex"
+group = "suspicious"
+regex = '''do\s+anything\s+now'''
+description = "Do anything now keyword"
+
+[[rules]]
+id = "pi-suspicious-004"
+match_type = "regex"
+group = "suspicious"
+regex = '''without\s+any\s+restrictions?'''
+description = "Without restrictions keyword"
+
+[[rules]]
+id = "pi-suspicious-005"
+match_type = "regex"
+group = "suspicious"
+regex = '''regardless\s+of\s+ethical'''
+description = "Regardless of ethical keyword"
+
+[[rules]]
+id = "pi-suspicious-006"
+match_type = "regex"
+group = "suspicious"
+regex = '''ignore\s+ethical'''
+description = "Ignore ethical keyword"
+
+[[rules]]
+id = "pi-suspicious-007"
+match_type = "regex"
+group = "suspicious"
+regex = '''as\s+(?:a|an)\s+(?:certified|authorized|approved)\s+(?:red\s+teamer?|security\s+researcher|penetration\s+tester)'''
+description = "False security researcher authority"
