@@ -1864,7 +1864,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if not gitleaks_config_path and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
-                    engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
+                    engines_list = scanner_config.get("engines", ["toml-patterns", "gitleaks"]) if scanner_config else ["toml-patterns", "gitleaks"]
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     consensus_threshold = scanner_config.get("consensus_threshold", 2) if scanner_config else 2
 
@@ -2096,7 +2096,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if gitleaks_config_path and not engine_config and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
-                    engines_list = scanner_config.get("engines", ["gitleaks"]) if scanner_config else ["gitleaks"]
+                    engines_list = scanner_config.get("engines", ["toml-patterns", "gitleaks"]) if scanner_config else ["toml-patterns", "gitleaks"]
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     engine_config = select_engine(engines_list)
 

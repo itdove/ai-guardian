@@ -30,8 +30,8 @@ class SecretRedactor:
     Uses different masking strategies to preserve debugging context while hiding secrets.
     """
 
-    # Pattern definitions: (regex, strategy, secret_type)
-    # Strategy determines how the secret is masked
+    # Legacy pattern definitions — kept as fallback documentation.
+    # Primary source is now patterns/data/secrets.toml (Issue #678)
     PATTERNS = [
         # OpenAI API Keys
         (r'(sk-[A-Za-z0-9]{20,})', 'preserve_prefix_suffix', 'OpenAI API Key'),
@@ -304,10 +304,11 @@ class SecretRedactor:
                 return result
             else:
                 logger.warning("Bundled secrets.toml not found, using hardcoded patterns")
-                return [(p, s, t) for p, s, t in self.PATTERNS]
+                logger.error("Bundled secrets.toml not found — patterns directory may be missing from install")
+                return []
         except Exception as e:
-            logger.warning(f"Failed to load secrets.toml: {e}, using hardcoded patterns")
-            return [(p, s, t) for p, s, t in self.PATTERNS]
+            logger.error(f"Failed to load secrets.toml: {e}")
+            return []
 
     def _load_pii_patterns(self) -> Dict:
         """Load PII patterns from bundled TOML, returning dict keyed by pii_type.
@@ -333,10 +334,11 @@ class SecretRedactor:
                 return result
             else:
                 logger.warning("Bundled pii.toml not found, using hardcoded PII patterns")
-                return self.PII_PATTERNS
+                logger.error("Bundled pii.toml not found — patterns directory may be missing from install")
+                return {}
         except Exception as e:
-            logger.warning(f"Failed to load pii.toml: {e}, using hardcoded PII patterns")
-            return self.PII_PATTERNS
+            logger.error(f"Failed to load pii.toml: {e}")
+            return {}
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> List:
         """
@@ -363,16 +365,15 @@ class SecretRedactor:
                 logger.info(f"Loaded {len(server_patterns)} patterns from pattern server/cache/defaults")
                 return server_patterns
             else:
-                logger.warning("Pattern server returned no patterns, using hardcoded defaults")
-                return [(p, s, t) for p, s, t in self.PATTERNS]
+                logger.warning("Pattern server returned no patterns, falling back to bundled TOML")
+                return self._load_patterns_from_toml()
 
         except ImportError:
-            logger.error("pattern_loader module not available, using hardcoded defaults")
-            return [(p, s, t) for p, s, t in self.PATTERNS]
+            logger.error("pattern_loader module not available, falling back to bundled TOML")
+            return self._load_patterns_from_toml()
         except Exception as e:
             logger.error(f"Error loading patterns from pattern server: {e}")
-            logger.info("Falling back to hardcoded default patterns")
-            return [(p, s, t) for p, s, t in self.PATTERNS]
+            return self._load_patterns_from_toml()
 
     def redact(self, text: str) -> Dict:
         """

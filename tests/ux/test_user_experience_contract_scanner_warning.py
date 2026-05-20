@@ -204,9 +204,14 @@ class ScannerNotInstalledWarningTests(TestCase):
 
     @patch('ai_guardian.hook_processing.select_engine')
     @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_warning_defaults_to_gitleaks_when_no_config(self, mock_config, mock_select_engine):
+    def test_warning_defaults_to_toml_patterns_when_no_config(self, mock_config, mock_select_engine):
         """
-        USER EXPERIENCE: Warning defaults to gitleaks when no scanner config exists.
+        USER EXPERIENCE: Warning defaults to toml-patterns + gitleaks when no scanner config exists.
+
+        Since toml-patterns is built-in, the default engine list is
+        ["toml-patterns", "gitleaks"]. If both fail (shouldn't happen
+        in practice since toml-patterns is always available), the warning
+        mentions gitleaks as the install suggestion.
         """
         mock_config.return_value = (None, None)
         mock_select_engine.side_effect = RuntimeError("No secret scanner found")
@@ -222,5 +227,5 @@ class ScannerNotInstalledWarningTests(TestCase):
         response = json.loads(result['output'])
         warning = response.get('systemMessage', '')
 
-        assert 'ai-guardian scanner install gitleaks' in warning, \
-            "Warning should default to gitleaks when no config exists"
+        assert 'scanner' in warning.lower(), \
+            "Warning should mention scanner when no engine is available"

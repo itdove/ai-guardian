@@ -12,7 +12,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ai_guardian.patterns import BUNDLED_FILES
+from ai_guardian.patterns.toml_parser import load_toml_file
+
 logger = logging.getLogger(__name__)
+
+
+def _count_toml_rules(category: str, **filters) -> int:
+    """Count rules in a bundled TOML file, optionally filtered by field values."""
+    path = BUNDLED_FILES.get(category)
+    if not path or not path.exists():
+        return 0
+    try:
+        rules = load_toml_file(path)
+        if not filters:
+            return len(rules)
+        return sum(1 for r in rules if all(r.get(k) == v for k, v in filters.items()))
+    except Exception:
+        return 0
 
 EXCLUDED_KEYS = {
     "enabled", "action", "immutable", "detector", "sensitivity",
@@ -163,13 +180,11 @@ class PatternLister:
         return keys
 
     def _build_prompt_injection_category(self) -> PatternCategory:
-        from ai_guardian.prompt_injection import PromptInjectionDetector
-
         groups = [
-            BuiltInGroup("CRITICAL_PATTERNS", len(PromptInjectionDetector.CRITICAL_PATTERNS), "always checked"),
-            BuiltInGroup("DOCUMENTATION_PATTERNS", len(PromptInjectionDetector.DOCUMENTATION_PATTERNS), "user prompts only"),
-            BuiltInGroup("JAILBREAK_PATTERNS", len(PromptInjectionDetector.JAILBREAK_PATTERNS), "user prompts only"),
-            BuiltInGroup("SUSPICIOUS_PATTERNS", len(PromptInjectionDetector.SUSPICIOUS_PATTERNS), "medium/high sensitivity"),
+            BuiltInGroup("CRITICAL_PATTERNS", _count_toml_rules("prompt_injection", group="critical"), "always checked"),
+            BuiltInGroup("DOCUMENTATION_PATTERNS", _count_toml_rules("prompt_injection", group="documentation"), "user prompts only"),
+            BuiltInGroup("JAILBREAK_PATTERNS", _count_toml_rules("prompt_injection", group="jailbreak"), "user prompts only"),
+            BuiltInGroup("SUSPICIOUS_PATTERNS", _count_toml_rules("prompt_injection", group="suspicious"), "medium/high sensitivity"),
         ]
 
         schema = self._load_schema()
@@ -188,13 +203,11 @@ class PatternLister:
         )
 
     def _build_unicode_detection_category(self) -> PatternCategory:
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
-
         groups = [
-            BuiltInGroup("Zero-width chars", len(UnicodeAttackDetector.ZERO_WIDTH_CHARS), "invisible characters"),
-            BuiltInGroup("Bidi override chars", len(UnicodeAttackDetector.BIDI_OVERRIDE_CHARS), "visual deception"),
-            BuiltInGroup("Bidi formatting chars", len(UnicodeAttackDetector.BIDI_FORMATTING_CHARS), "context-aware"),
-            BuiltInGroup("Homoglyph patterns", len(UnicodeAttackDetector.HOMOGLYPH_PATTERNS), "look-alike pairs"),
+            BuiltInGroup("Zero-width chars", _count_toml_rules("unicode", group="zero_width"), "invisible characters"),
+            BuiltInGroup("Bidi override chars", _count_toml_rules("unicode", group="bidi_override"), "visual deception"),
+            BuiltInGroup("Bidi formatting chars", _count_toml_rules("unicode", group="bidi_formatting"), "context-aware"),
+            BuiltInGroup("Homoglyph patterns", _count_toml_rules("unicode", group="homoglyph"), "look-alike pairs"),
         ]
 
         schema = self._load_schema()
@@ -215,10 +228,8 @@ class PatternLister:
         )
 
     def _build_pii_category(self) -> PatternCategory:
-        from ai_guardian.secret_redactor import SecretRedactor
-
         groups = [
-            BuiltInGroup("PII patterns", len(SecretRedactor.PII_PATTERNS), ""),
+            BuiltInGroup("PII patterns", _count_toml_rules("pii"), ""),
         ]
 
         schema = self._load_schema()
@@ -234,12 +245,10 @@ class PatternLister:
         )
 
     def _build_ssrf_category(self) -> PatternCategory:
-        from ai_guardian.ssrf_protector import SSRFProtector
-
         groups = [
-            BuiltInGroup("Blocked IP ranges", len(SSRFProtector.CORE_BLOCKED_IP_RANGES), "RFC 1918 + loopback"),
-            BuiltInGroup("Blocked domains", len(SSRFProtector.CORE_BLOCKED_DOMAINS), "cloud metadata"),
-            BuiltInGroup("Dangerous schemes", len(SSRFProtector.DANGEROUS_SCHEMES), "file://, gopher://, etc."),
+            BuiltInGroup("Blocked IP ranges", _count_toml_rules("ssrf", match_type="cidr"), "RFC 1918 + loopback"),
+            BuiltInGroup("Blocked domains", _count_toml_rules("ssrf", group="blocked_domain"), "cloud metadata"),
+            BuiltInGroup("Dangerous schemes", _count_toml_rules("ssrf", group="dangerous_scheme"), "file://, gopher://, etc."),
         ]
 
         schema = self._load_schema()
@@ -255,10 +264,8 @@ class PatternLister:
         )
 
     def _build_config_scanning_category(self) -> PatternCategory:
-        from ai_guardian.config_scanner import ConfigFileScanner
-
         groups = [
-            BuiltInGroup("Exfiltration patterns", len(ConfigFileScanner.CORE_EXFIL_PATTERNS), "credential theft"),
+            BuiltInGroup("Exfiltration patterns", _count_toml_rules("config_exfil"), "credential theft"),
         ]
 
         schema = self._load_schema()
@@ -274,10 +281,8 @@ class PatternLister:
         )
 
     def _build_secret_redaction_category(self) -> PatternCategory:
-        from ai_guardian.secret_redactor import SecretRedactor
-
         groups = [
-            BuiltInGroup("Secret patterns", len(SecretRedactor.PATTERNS), "API keys, tokens, credentials"),
+            BuiltInGroup("Secret patterns", _count_toml_rules("secrets"), "API keys, tokens, credentials"),
         ]
 
         schema = self._load_schema()
