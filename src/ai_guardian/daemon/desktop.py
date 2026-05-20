@@ -262,16 +262,18 @@ class MacOSDesktop(DesktopIntegration):
             macos_dir.mkdir(parents=True, exist_ok=True)
             resources_dir.mkdir(parents=True, exist_ok=True)
 
-            cmd = _get_executable_command()
-            exec_line = " ".join(shlex.quote(c) for c in cmd) + " tray start"
             script_path = macos_dir / "ai-guardian-tray"
             script_path.write_text(
-                "#!/bin/bash\n"
-                'for d in /opt/homebrew/bin /opt/homebrew/sbin'
-                ' /usr/local/bin /usr/local/sbin "$HOME/.local/bin"; do\n'
-                '  [ -d "$d" ] && export PATH="$d:$PATH"\n'
-                "done\n"
-                f"exec {exec_line}\n"
+                f"#!{sys.executable}\n"
+                "import os, sys\n"
+                "for d in ['/opt/homebrew/bin', '/opt/homebrew/sbin',\n"
+                "          '/usr/local/bin', '/usr/local/sbin',\n"
+                "          os.path.expanduser('~/.local/bin')]:\n"
+                "    if os.path.isdir(d) and d not in os.environ.get('PATH', ''):\n"
+                "        os.environ['PATH'] = d + ':' + os.environ.get('PATH', '')\n"
+                "sys.argv = ['ai-guardian', 'tray', 'start']\n"
+                "from ai_guardian.__main__ import main\n"
+                "raise SystemExit(main())\n"
             )
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
@@ -288,6 +290,7 @@ class MacOSDesktop(DesktopIntegration):
                 "CFBundlePackageType": "APPL",
                 "CFBundleExecutable": "ai-guardian-tray",
                 "LSUIElement": True,
+                "NSPrincipalClass": "NSApplication",
             }
             if icon_path:
                 info_plist["CFBundleIconFile"] = "icon.png"

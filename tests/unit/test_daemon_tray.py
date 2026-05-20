@@ -459,10 +459,27 @@ class TestRunPlatformBranching:
             mock_pystray.MenuItem = mock.MagicMock()
             tray._start_stats_refresh = mock.MagicMock()
             tray._create_icon = mock.MagicMock()
+            tray._ensure_macos_activation_policy = mock.MagicMock()
             tray._run()
             mock_icon.run.assert_called_once()
             _, kwargs = mock_icon.run.call_args
             assert "setup" not in kwargs
+            tray._ensure_macos_activation_policy.assert_called_once()
+
+    def test_ensure_macos_activation_policy_on_darwin(self):
+        """Verify activation policy is set on macOS (issue #691)."""
+        mock_app = mock.MagicMock()
+        mock_appkit = mock.MagicMock()
+        mock_appkit.NSApplication.sharedApplication.return_value = mock_app
+        mock_appkit.NSApplicationActivationPolicyAccessory = 1
+        with mock.patch("platform.system", return_value="Darwin"), \
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit}):
+            DaemonTray._ensure_macos_activation_policy()
+        mock_app.setActivationPolicy_.assert_called_once_with(1)
+
+    def test_ensure_macos_activation_policy_skipped_on_linux(self):
+        with mock.patch("platform.system", return_value="Linux"):
+            DaemonTray._ensure_macos_activation_policy()
 
 
 class TestSuppressGtkStderr:

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **macOS .app tray shortcut does not show menu bar icon on macOS 26.5** (Issue #691)
+  - Set `NSApplicationActivationPolicyAccessory` explicitly before pystray creates the status bar item
+  - Replaced bash wrapper script with Python wrapper to avoid exec chain losing bundle association
+  - Added `NSPrincipalClass: NSApplication` to the .app bundle's Info.plist
+  - Re-install shortcut with `ai-guardian tray --uninstall && ai-guardian tray --install` to apply
+
 - **Desktop shortcut/autostart launches tray with minimal PATH — scanners not found** (Issue #689)
   - Added `ensure_scanner_path()` utility that augments PATH with common binary locations
   - Probes well-known directories (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`) for scanner binaries
