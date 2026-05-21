@@ -746,6 +746,94 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         event = ai_guardian.detect_hook_event(hook_data)
         self.assertEqual(event, "posttooluse")
 
+    def test_ide_detection_gemini(self):
+        """Test IDE type detection for Gemini CLI via transcript_path"""
+        hook_data = {
+            "hook_event_name": "BeforeTool",
+            "tool_name": "read_file",
+            "tool_input": {"path": "/tmp/test.txt"},
+            "session_id": "abc-123",
+            "transcript_path": "/tmp/transcript.json",
+            "cwd": "/tmp",
+            "timestamp": "2026-01-01T00:00:00Z"
+        }
+        ide_type = ai_guardian.detect_ide_type(hook_data)
+        self.assertEqual(ide_type, ai_guardian.IDEType.GEMINI_CLI)
+
+    def test_ide_detection_gemini_env_override(self):
+        """Test IDE type detection with gemini environment override"""
+        hook_data = {"prompt": "test"}
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "gemini"}):
+            ide_type = ai_guardian.detect_ide_type(hook_data)
+            self.assertEqual(ide_type, ai_guardian.IDEType.GEMINI_CLI)
+
+    def test_detect_hook_event_gemini_before_tool(self):
+        """Test hook event detection for Gemini BeforeTool"""
+        hook_data = {"hook_event_name": "BeforeTool", "tool_name": "read_file"}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "pretooluse")
+
+    def test_detect_hook_event_gemini_after_tool(self):
+        """Test hook event detection for Gemini AfterTool"""
+        hook_data = {"hook_event_name": "AfterTool", "tool_name": "read_file", "tool_response": {}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "posttooluse")
+
+    def test_detect_hook_event_gemini_before_agent(self):
+        """Test hook event detection for Gemini BeforeAgent"""
+        hook_data = {"hook_event_name": "BeforeAgent", "prompt": "hello"}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "prompt")
+
+    def test_format_response_gemini_block(self):
+        """Test Gemini CLI block response format"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.GEMINI_CLI,
+            has_secrets=True,
+            error_message="Secret detected in tool input",
+            hook_event="pretooluse"
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertEqual(output["decision"], "deny")
+        self.assertEqual(output["reason"], "Secret detected in tool input")
+
+    def test_format_response_gemini_allow(self):
+        """Test Gemini CLI allow response format"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.GEMINI_CLI,
+            has_secrets=False,
+            hook_event="pretooluse"
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertNotIn("decision", output)
+
+    def test_format_response_gemini_posttooluse_block(self):
+        """Test Gemini CLI PostToolUse block response"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.GEMINI_CLI,
+            has_secrets=True,
+            error_message="Secrets found in output",
+            hook_event="posttooluse"
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertEqual(output["decision"], "deny")
+        self.assertIn("Secrets found", output["reason"])
+
+    def test_format_response_gemini_prompt_with_security_message(self):
+        """Test Gemini CLI prompt response with security instructions"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.GEMINI_CLI,
+            has_secrets=False,
+            hook_event="prompt",
+            security_message="Security rules..."
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertEqual(output["systemMessage"], "Security rules...")
+
     def test_extract_file_content_tool_use_format(self):
         """Test file extraction from tool_use.parameters format"""
         import tempfile

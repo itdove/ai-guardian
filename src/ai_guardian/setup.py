@@ -221,6 +221,30 @@ class IDESetup:
                     ]
                 }
             }
+        },
+        "gemini": {
+            "name": "Google Gemini CLI",
+            "config_path": "~/.gemini/settings.json",
+            "config_dir_env_var": None,
+            "config_filename": "settings.json",
+            "hooks": {
+                "hooks": [
+                    {
+                        "event": "BeforeAgent",
+                        "command": "ai-guardian"
+                    },
+                    {
+                        "event": "BeforeTool",
+                        "matcher": ".*",
+                        "command": "ai-guardian"
+                    },
+                    {
+                        "event": "AfterTool",
+                        "matcher": ".*",
+                        "command": "ai-guardian"
+                    }
+                ]
+            }
         }
     }
 
@@ -546,6 +570,32 @@ class IDESetup:
 
             return existing_config, warnings
 
+        elif ide_type == "gemini":
+            if "hooks" not in existing_config:
+                existing_config["hooks"] = []
+
+            template_hooks = ai_guardian_hooks.get("hooks", [])
+
+            other_hooks = [
+                h for h in existing_config["hooks"]
+                if not (isinstance(h, dict) and h.get("command") == "ai-guardian")
+            ]
+
+            ag_events = {h.get("event") for h in template_hooks if isinstance(h, dict)}
+            other_same_event = [
+                h for h in other_hooks
+                if isinstance(h, dict) and h.get("event") in ag_events
+            ]
+            if other_same_event:
+                hook_names = [h.get("command", "unknown") for h in other_same_event]
+                warnings.append(
+                    f"⚠️  Found other hooks for same events [{', '.join(hook_names)}]. "
+                    f"ai-guardian has been placed first to ensure warnings display correctly."
+                )
+
+            existing_config["hooks"] = template_hooks + other_hooks
+            return existing_config, warnings
+
         return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
@@ -603,6 +653,13 @@ class IDESetup:
                             for h in hook_list:
                                 if isinstance(h, dict) and h.get("command") == "ai-guardian":
                                     return True
+
+            elif ide_type == "gemini":
+                hooks = config.get("hooks", [])
+                if isinstance(hooks, list):
+                    for h in hooks:
+                        if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                            return True
 
             return False
 
@@ -669,6 +726,8 @@ class IDESetup:
             elif ide_type == "codex":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
             elif ide_type == "windsurf":
+                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+            elif ide_type == "gemini":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
 
             self._last_merged_config = merged_config
@@ -2028,6 +2087,11 @@ _MCP_IDE_CONFIGS = {
         "config_file": "~/.windsurf/mcp.json",
         "config_key": "mcpServers",
         "skill_dir": ".windsurf/skills",
+    },
+    "gemini": {
+        "config_file": "~/.gemini/settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".gemini/skills",
     },
 }
 

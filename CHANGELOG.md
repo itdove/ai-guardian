@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gemini CLI Hook Support** (Issue #634)
+  - `ai-guardian setup --ide gemini` installs hooks to `~/.gemini/settings.json`
+  - BeforeAgent, BeforeTool, and AfterTool hooks configured with `.*` matcher
+  - Auto-detection via `transcript_path` field (unique to Gemini CLI)
+  - Hook event mapping: `BeforeTool` → PRE_TOOL_USE, `AfterTool` → POST_TOOL_USE, `BeforeAgent` → PROMPT
+  - New `IDEType.GEMINI_CLI` with structured JSON response format (`decision: "deny"`, `reason`, `systemMessage`)
+  - `AI_GUARDIAN_IDE_TYPE=gemini` env var override supported
+  - MCP server registration at `~/.gemini/settings.json`
+
 - **Windsurf Hook Support** (Issue #674)
   - `ai-guardian setup --ide windsurf` installs hooks to `~/.codeium/windsurf/hooks.json`
   - All pre-hooks configured: `pre_user_prompt`, `pre_run_command`, `pre_read_code`, `pre_write_code`, `pre_mcp_tool_use`
