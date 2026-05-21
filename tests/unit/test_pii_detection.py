@@ -246,6 +246,29 @@ class TestPIIDetection:
         # Invalid mod-97 should not be redacted
         assert "GB00XXXX12345678901234" in result['redacted_text']
 
+    def test_iban_space_separated(self):
+        """Detect valid IBAN in space-separated format (Issue #677)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "IBAN: GB29 NWBK 6016 1331 9268 19"
+        result = redactor.redact(text)
+        assert "GB29 NWBK 6016 1331 9268 19" not in result['redacted_text']
+        assert len(result['redactions']) > 0
+
+    def test_iban_space_separated_de(self):
+        """Detect valid German IBAN in space-separated format (Issue #677)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "IBAN: DE89 3704 0044 0532 0130 00"
+        result = redactor.redact(text)
+        assert "DE89 3704 0044 0532 0130 00" not in result['redacted_text']
+        assert len(result['redactions']) > 0
+
+    def test_iban_space_separated_invalid(self):
+        """Invalid space-separated IBAN should NOT be detected."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Not IBAN: GB00 XXXX 1234 5678 9012 34"
+        result = redactor.redact(text)
+        assert "GB00 XXXX 1234 5678 9012 34" in result['redacted_text']
+
     # --- International Phone ---
 
     def test_intl_phone(self):
@@ -740,6 +763,13 @@ class TestIBANValidation:
 
     def test_iban_too_short(self):
         assert SecretRedactor._iban_check("GB29") is False
+
+    def test_iban_valid_with_spaces(self):
+        """Validator strips spaces before validation (Issue #677)."""
+        assert SecretRedactor._iban_check("GB29 NWBK 6016 1331 9268 19") is True
+
+    def test_iban_valid_de_with_spaces(self):
+        assert SecretRedactor._iban_check("DE89 3704 0044 0532 0130 00") is True
 
 
 class TestPIIPerformance:
