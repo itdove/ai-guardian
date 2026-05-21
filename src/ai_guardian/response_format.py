@@ -32,6 +32,7 @@ class IDEType(Enum):
     CLAUDE_CODE = "claude_code"  # Exit codes: 0=allow, 2=block
     CURSOR = "cursor"  # JSON: {"continue": bool, "user_message": str}
     GITHUB_COPILOT = "github_copilot"  # JSON: {"permissionDecision": "allow"|"deny"}
+    GEMINI_CLI = "gemini_cli"  # JSON: {"decision": "deny", "reason": str}
     UNKNOWN = "unknown"  # Default to Claude Code format
 
 
@@ -57,8 +58,14 @@ def detect_ide_type(hook_data):
         return IDEType.CLAUDE_CODE
     elif ide_override == "windsurf":
         return IDEType.CLAUDE_CODE
+    elif ide_override == "gemini":
+        return IDEType.GEMINI_CLI
 
     # Auto-detect based on input structure
+    # Gemini CLI detection - transcript_path field is unique to Gemini CLI
+    if "transcript_path" in hook_data:
+        return IDEType.GEMINI_CLI
+
     # Windsurf detection - check for agent_action_name field (unique to Windsurf)
     if "agent_action_name" in hook_data:
         return IDEType.CLAUDE_CODE
@@ -141,6 +148,26 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEv
                 "output": None,
                 "exit_code": 2 if has_secrets else 0
             })
+    elif ide_type == IDEType.GEMINI_CLI:
+        if has_secrets and error_message:
+            final_error = error_message
+            if warning_message:
+                final_error = f"{warning_message}\n\n{error_message}"
+            response = {"decision": "deny", "reason": final_error}
+        else:
+            response = {}
+            parts = []
+            if hook_event == HookEvent.PROMPT and security_message:
+                parts.append(security_message)
+            if warning_message:
+                parts.append(warning_message)
+            if parts:
+                response["systemMessage"] = "\n\n".join(parts)
+
+        return _add_metadata({
+            "output": json.dumps(response),
+            "exit_code": 0
+        })
     elif ide_type == IDEType.CURSOR:
         final_error = error_message
         if has_secrets and error_message and warning_message:
@@ -274,6 +301,15 @@ def detect_hook_event(hook_data):
             return HookEvent.POST_TOOL_USE
 
     event_name = hook_data.get("hook_event_name", "").lower()
+
+    # Gemini CLI event names
+    if event_name == "beforetool":
+        return HookEvent.PRE_TOOL_USE
+    elif event_name == "aftertool":
+        return HookEvent.POST_TOOL_USE
+    elif event_name in ("beforeagent", "sessionstart"):
+        return HookEvent.PROMPT
+
     if event_name in ["userpromptsubmit", "beforesubmitprompt"]:
         return HookEvent.PROMPT
     elif event_name in ["pretooluse"]:

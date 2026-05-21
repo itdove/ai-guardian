@@ -1089,6 +1089,169 @@ class TestCodexSetup:
         assert len(warnings) > 0
 
 
+class TestGeminiSetup:
+    """Test cases for Gemini CLI setup."""
+
+    def test_gemini_in_ide_configs(self):
+        """Verify Gemini entry exists in IDE_CONFIGS with correct keys."""
+        assert "gemini" in IDESetup.IDE_CONFIGS
+        gemini_cfg = IDESetup.IDE_CONFIGS["gemini"]
+        assert gemini_cfg["name"] == "Google Gemini CLI"
+        assert gemini_cfg["config_path"] == "~/.gemini/settings.json"
+        assert gemini_cfg["config_filename"] == "settings.json"
+        assert "hooks" in gemini_cfg
+
+    def test_gemini_hooks_use_array_format(self):
+        """Verify Gemini hooks use array format with event/matcher/command."""
+        hooks_config = IDESetup.IDE_CONFIGS["gemini"]["hooks"]
+        hooks = hooks_config["hooks"]
+        assert isinstance(hooks, list)
+        assert len(hooks) == 3
+
+        events = [h["event"] for h in hooks]
+        assert "BeforeAgent" in events
+        assert "BeforeTool" in events
+        assert "AfterTool" in events
+
+        for h in hooks:
+            assert h["command"] == "ai-guardian"
+
+    def test_gemini_tool_hooks_have_matcher(self):
+        """Verify BeforeTool and AfterTool hooks have matcher field."""
+        hooks = IDESetup.IDE_CONFIGS["gemini"]["hooks"]["hooks"]
+        for h in hooks:
+            if h["event"] in ("BeforeTool", "AfterTool"):
+                assert h["matcher"] == ".*"
+
+    def test_setup_ide_hooks_gemini_new(self, tmp_path):
+        """Test setting up Gemini hooks in new config."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'gemini': {
+                    'name': 'Google Gemini CLI',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'settings.json',
+                    'hooks': IDESetup.IDE_CONFIGS['gemini']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('gemini', dry_run=False, force=False)
+
+            assert success is True
+            assert config_file.exists()
+
+            with open(config_file) as f:
+                config = json.load(f)
+
+            assert 'hooks' in config
+            assert isinstance(config['hooks'], list)
+            assert len(config['hooks']) == 3
+            commands = [h['command'] for h in config['hooks']]
+            assert all(c == 'ai-guardian' for c in commands)
+
+    def test_setup_ide_hooks_gemini_dry_run(self, tmp_path):
+        """Test dry-run mode for Gemini."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'gemini': {
+                    'name': 'Google Gemini CLI',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'settings.json',
+                    'hooks': IDESetup.IDE_CONFIGS['gemini']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('gemini', dry_run=True, force=False)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert not config_file.exists()
+
+    def test_check_hooks_configured_gemini(self, tmp_path):
+        """Test detection of existing Gemini hooks."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+        config = {
+            'hooks': [
+                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'ai-guardian'}
+            ]
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, 'gemini') is True
+
+    def test_check_hooks_not_configured_gemini(self, tmp_path):
+        """Test returns False when no ai-guardian hooks present."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+        config = {
+            'hooks': [
+                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'other-tool'}
+            ]
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, 'gemini') is False
+
+    def test_merge_hooks_gemini_new(self):
+        """Test merging Gemini hooks into empty config."""
+        setup = IDESetup()
+        existing_config = {}
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS['gemini']['hooks']
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'gemini')
+
+        assert 'hooks' in merged
+        assert isinstance(merged['hooks'], list)
+        assert len(merged['hooks']) == 3
+        assert len(warnings) == 0
+
+    def test_merge_hooks_gemini_existing(self):
+        """Test merging Gemini hooks preserves other hooks."""
+        setup = IDESetup()
+        existing_config = {
+            'hooks': [
+                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'other-tool'}
+            ]
+        }
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS['gemini']['hooks']
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'gemini')
+
+        assert len(merged['hooks']) == 4
+        assert merged['hooks'][0]['command'] == 'ai-guardian'
+        assert merged['hooks'][3]['command'] == 'other-tool'
+        assert len(warnings) > 0
+
+    def test_merge_hooks_gemini_replaces_existing_ai_guardian(self):
+        """Test that merging replaces existing ai-guardian hooks."""
+        setup = IDESetup()
+        existing_config = {
+            'hooks': [
+                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'ai-guardian'},
+                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'other-tool'}
+            ]
+        }
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS['gemini']['hooks']
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'gemini')
+
+        ag_hooks = [h for h in merged['hooks'] if h.get('command') == 'ai-guardian']
+        other_hooks = [h for h in merged['hooks'] if h.get('command') != 'ai-guardian']
+        assert len(ag_hooks) == 3
+        assert len(other_hooks) == 1
+
+
 class TestSetupHooks:
     """Test cases for setup_hooks function."""
 
