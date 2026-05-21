@@ -2666,3 +2666,125 @@ class TestSetupDaemonReload:
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True
+
+
+class TestKiroSetup:
+    """Test cases for Kiro (AWS) setup."""
+
+    def test_kiro_in_ide_configs(self):
+        """Verify Kiro entry exists in IDE_CONFIGS with correct keys."""
+        assert "kiro" in IDESetup.IDE_CONFIGS
+        kiro_cfg = IDESetup.IDE_CONFIGS["kiro"]
+        assert kiro_cfg["name"] == "Kiro"
+        assert kiro_cfg["config_path"] == ".kiro/hooks"
+        assert kiro_cfg.get("script_based") is True
+        assert "hook_scripts" in kiro_cfg
+
+    def test_kiro_hooks_are_script_based(self):
+        """Verify Kiro uses script-based hooks with correct event names."""
+        kiro_cfg = IDESetup.IDE_CONFIGS["kiro"]
+        assert kiro_cfg["script_based"] is True
+        scripts = kiro_cfg["hook_scripts"]
+        assert "PreToolUse" in scripts
+        assert "PostToolUse" in scripts
+        assert "PromptSubmit" in scripts
+
+    def test_kiro_script_content(self):
+        """Verify script content calls ai-guardian."""
+        kiro_cfg = IDESetup.IDE_CONFIGS["kiro"]
+        content = kiro_cfg["script_content"]
+        assert content.startswith("#!/bin/sh")
+        assert "ai-guardian" in content
+
+    def test_setup_ide_hooks_kiro_new(self, tmp_path):
+        """Test setting up Kiro hooks creates executable scripts."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.kiro' / 'hooks'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'kiro': {
+                    'name': 'Kiro',
+                    'config_path': str(hooks_dir),
+                    'config_dir_env_var': None,
+                    'config_filename': None,
+                    'script_based': True,
+                    'hook_scripts': IDESetup.IDE_CONFIGS['kiro']['hook_scripts'],
+                    'script_content': IDESetup.IDE_CONFIGS['kiro']['script_content'],
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('kiro', dry_run=False, force=False)
+
+            assert success is True
+            assert hooks_dir.exists()
+
+            for script_name in ['PreToolUse', 'PostToolUse', 'PromptSubmit']:
+                script_path = hooks_dir / script_name
+                assert script_path.exists()
+                content = script_path.read_text()
+                assert 'ai-guardian' in content
+                import stat
+                assert script_path.stat().st_mode & stat.S_IXUSR
+
+    def test_setup_ide_hooks_kiro_dry_run(self, tmp_path):
+        """Test dry-run mode for Kiro."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.kiro' / 'hooks'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'kiro': {
+                    'name': 'Kiro',
+                    'config_path': str(hooks_dir),
+                    'config_dir_env_var': None,
+                    'config_filename': None,
+                    'script_based': True,
+                    'hook_scripts': IDESetup.IDE_CONFIGS['kiro']['hook_scripts'],
+                    'script_content': IDESetup.IDE_CONFIGS['kiro']['script_content'],
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('kiro', dry_run=True, force=False)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert not hooks_dir.exists()
+
+    def test_check_hooks_configured_kiro(self, tmp_path):
+        """Test detection of existing Kiro hook scripts."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.kiro' / 'hooks'
+        hooks_dir.mkdir(parents=True)
+        script = hooks_dir / 'PreToolUse'
+        script.write_text("#!/bin/sh\nai-guardian\n")
+
+        assert setup.check_hooks_configured(hooks_dir, 'kiro') is True
+
+    def test_check_hooks_not_configured_kiro(self, tmp_path):
+        """Test returns False when no ai-guardian scripts present."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.kiro' / 'hooks'
+        hooks_dir.mkdir(parents=True)
+        script = hooks_dir / 'PreToolUse'
+        script.write_text("#!/bin/sh\nother-tool\n")
+
+        assert setup.check_hooks_configured(hooks_dir, 'kiro') is False
+
+    def test_check_hooks_not_configured_kiro_empty(self, tmp_path):
+        """Test returns False when hooks directory doesn't exist."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.kiro' / 'hooks'
+
+        assert setup.check_hooks_configured(hooks_dir, 'kiro') is False
+
+    def test_kiro_in_mcp_ide_configs(self):
+        """Verify Kiro MCP config entry."""
+        from ai_guardian.setup import _MCP_IDE_CONFIGS
+        assert "kiro" in _MCP_IDE_CONFIGS
+        kiro_mcp = _MCP_IDE_CONFIGS["kiro"]
+        assert kiro_mcp["config_file"] == "~/.kiro/settings.json"
+        assert kiro_mcp["config_key"] == "mcpServers"
+        assert kiro_mcp["skill_dir"] == ".kiro/skills"
