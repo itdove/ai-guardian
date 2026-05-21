@@ -111,7 +111,10 @@ class DaemonDiscovery:
 
     def discover_all(self) -> List[DaemonTarget]:
         """Run all discovery methods in parallel, return merged list."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import (
+            ThreadPoolExecutor, as_completed,
+            TimeoutError as FuturesTimeoutError,
+        )
 
         daemon_cfg = self._config.get("daemon", {})
         tray_cfg = daemon_cfg.get("tray", {})
@@ -143,7 +146,7 @@ class DaemonDiscovery:
                         results.extend(result)
                 except Exception as e:
                     logger.debug("Discovery stage %s failed: %s", name, e)
-        except TimeoutError:
+        except FuturesTimeoutError:
             logger.debug(
                 "Discovery timed out after %.1fs, returning partial results",
                 overall_timeout,
