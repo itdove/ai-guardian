@@ -75,7 +75,7 @@ def main():
         )
         setup_parser.add_argument(
             "--ide",
-            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro"],
+            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie"],
             help="Specify IDE type (auto-detected if not provided)"
         )
         setup_parser.add_argument(
@@ -168,6 +168,12 @@ def main():
             action="store_true",
             default=None,
             help="Remove MCP security advisor server configuration"
+        )
+        setup_parser.add_argument(
+            "--rules",
+            action="store_true",
+            default=None,
+            help="Install AI guidelines/rules file instructing the agent to use ai-guardian MCP tools"
         )
 
         # Violations subcommand
@@ -801,6 +807,7 @@ def main():
                 list_profiles=args.list_profiles,
                 mcp=args.mcp if args.mcp else None,
                 no_mcp=args.no_mcp if args.no_mcp else None,
+                rules=args.rules if args.rules else None,
             )
             return 0 if success else 1
 

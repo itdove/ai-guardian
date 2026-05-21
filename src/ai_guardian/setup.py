@@ -273,6 +273,13 @@ class IDESetup:
             "hook_scripts": ["PreToolUse", "PostToolUse", "PromptSubmit"],
             "script_content": "#!/bin/sh\nai-guardian\n",
         },
+        "junie": {
+            "name": "Junie",
+            "config_path": ".junie/guidelines",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "mcp_only": True,
+        },
         "augment": {
             "name": "Augment Code",
             "config_path": "~/.augment/settings.json",
@@ -903,6 +910,15 @@ class IDESetup:
             ide_config = self.IDE_CONFIGS[ide_type]
             config_path = Path(self.get_config_path(ide_type)).expanduser()
             ide_name = ide_config["name"]
+
+            if ide_config.get("mcp_only"):
+                msg = (
+                    f"{ide_name} does not support hooks.\n"
+                    f"Use --mcp to install MCP server, or --rules to install guidelines file.\n"
+                    f"  ai-guardian setup --ide {ide_type} --mcp\n"
+                    f"  ai-guardian setup --ide {ide_type} --rules"
+                )
+                return True, msg
 
             # Check if hooks already configured
             if not force and self.check_hooks_configured(config_path, ide_type):
@@ -1922,6 +1938,7 @@ def setup_hooks(
     list_profiles: bool = False,
     mcp: Optional[bool] = None,
     no_mcp: Optional[bool] = None,
+    rules: Optional[bool] = None,
 ) -> bool:
     """
     Setup IDE hooks with optional remote config and default config creation.
@@ -1960,6 +1977,7 @@ def setup_hooks(
             profile=profile,
             mcp=mcp,
             no_mcp=no_mcp,
+            rules=rules,
         )
 
     setup = IDESetup()
@@ -2167,6 +2185,10 @@ def setup_hooks(
     if success and (mcp or no_mcp):
         _handle_mcp_setup(setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run)
 
+    # Handle rules/guidelines file installation (Issue #637)
+    if success and rules:
+        _handle_rules_setup(ide_type, dry_run=dry_run, force=force)
+
     if success and not dry_run:
         _notify_daemon_reload()
 
@@ -2182,6 +2204,7 @@ def _setup_hooks_json_output(
     profile: Optional[str] = None,
     mcp: Optional[bool] = None,
     no_mcp: Optional[bool] = None,
+    rules: Optional[bool] = None,
 ) -> bool:
     """Run setup and output results as clean JSON with no log text (Issue #518)."""
     setup = IDESetup()
@@ -2277,6 +2300,16 @@ def _setup_hooks_json_output(
         result["mcp_config_path"] = str(Path(mcp_path).expanduser()) if mcp_path else None
         result["mcp_servers"] = {"ai-guardian": dict(_MCP_SERVER_ENTRY)}
 
+    # Handle rules/guidelines file setup (Issue #637)
+    if success and rules:
+        with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
+            _handle_rules_setup(ide_type, dry_run=dry_run, force=force)
+        rules_config = _RULES_IDE_CONFIGS.get(ide_type)
+        if rules_config:
+            result["rules_path"] = str(
+                Path(rules_config["rules_dir"]) / rules_config["rules_file"]
+            )
+
     print(json.dumps(result, indent=2))
     return result.get("success", False)
 
@@ -2331,6 +2364,11 @@ _MCP_IDE_CONFIGS = {
         "config_file": "~/.kiro/settings.json",
         "config_key": "mcpServers",
         "skill_dir": ".kiro/skills",
+    },
+    "junie": {
+        "config_file": "~/.junie/mcp.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".junie/skills",
     },
 }
 
@@ -2423,3 +2461,82 @@ def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) ->
         print(f"  MCP: Removed ai-guardian MCP server from {config_path}")
     else:
         print("  MCP: ai-guardian MCP server not found in config")
+
+
+# Rules/guidelines file locations per IDE
+_RULES_IDE_CONFIGS = {
+    "junie": {
+        "rules_dir": ".junie",
+        "rules_file": "guidelines.md",
+    },
+}
+
+_RULES_FILE_CONTENT = """\
+# AI Guardian Security Guidelines
+
+You have access to ai-guardian MCP tools. Use them **before acting** to check
+security proactively.
+
+## Required Checks
+
+- **Before accessing files** outside the current project or in unfamiliar
+  directories, call `check_path` to verify the path is allowed.
+- **Before running commands** that contain URLs, credentials, or file paths,
+  call `check_command` to verify the command is safe.
+- **Before outputting text** that could contain secrets or PII, call
+  `sanitize_text` to redact sensitive content.
+
+## When Something Is Blocked
+
+If an operation fails or is flagged, call `get_violations(limit=1)` to
+understand the reason. Report the violation type to the user. Do **not**
+attempt to work around the block.
+
+## Available MCP Tools
+
+| Tool | Purpose |
+|------|---------|
+| `check_path` | Verify a file path is allowed before reading/writing |
+| `check_command` | Verify a shell command is safe before execution |
+| `check_mcp_trust` | Check if an MCP server is trusted |
+| `sanitize_text` | Redact secrets and PII from text before output |
+| `get_violations` | Get recent security violations and block reasons |
+| `get_config` | View current security configuration |
+| `scan_directory` | Scan a directory for security issues |
+| `doctor` | Check ai-guardian setup health |
+
+## Boundaries
+
+These tools are read-only security advisors. Do not use their results to
+circumvent protections. If a path is denied or a command is blocked, that
+is the security policy working as intended.
+"""
+
+
+def _handle_rules_setup(
+    ide_type: str,
+    dry_run: bool = False,
+    force: bool = False,
+) -> None:
+    """Install AI guidelines/rules file for an IDE."""
+    rules_config = _RULES_IDE_CONFIGS.get(ide_type)
+    if not rules_config:
+        print(f"  Rules: IDE '{ide_type}' does not support guidelines files")
+        return
+
+    rules_dir = Path(rules_config["rules_dir"])
+    rules_path = rules_dir / rules_config["rules_file"]
+
+    if dry_run:
+        print(f"  Rules: Would create {rules_path}")
+        return
+
+    if rules_path.exists() and not force:
+        print(f"  Rules: {rules_path} already exists. Use --force to overwrite.")
+        return
+
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    with open(rules_path, "w", encoding="utf-8") as f:
+        f.write(_RULES_FILE_CONTENT)
+
+    print(f"  Rules: Created {rules_path}")

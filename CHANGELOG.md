@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Junie (JetBrains) MCP-only integration** (Issue #637)
+  - `ai-guardian setup --ide junie --mcp` registers MCP server at `~/.junie/mcp.json`
+  - `ai-guardian setup --ide junie --rules` installs security guidelines file at `.junie/guidelines.md`
+  - New `--rules` CLI flag for installing AI guidelines/rules files instructing agents to use MCP tools
+  - MCP-only: Junie does not support hooks, integration is advisory via MCP tools and guidelines
+  - `.junie/guidelines.md` added to config scanner patterns for prompt injection detection
+
 - **Updated CONTRIBUTING.md with contribution paths** (Issue #727)
   - Explain how to contribute via GitHub Discussions (bug reports, feature requests, questions)
   - Explain fork + PR workflow (not affected by interaction limits)
