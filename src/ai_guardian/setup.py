@@ -280,6 +280,13 @@ class IDESetup:
             "config_filename": None,
             "mcp_only": True,
         },
+        "aiderdesk": {
+            "name": "AiderDesk",
+            "config_path": "~/.aider-desk/extensions/ai-guardian",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "extension_based": True,
+        },
         "augment": {
             "name": "Augment Code",
             "config_path": "~/.augment/settings.json",
@@ -743,6 +750,19 @@ class IDESetup:
             if not config_path.exists():
                 return False
 
+            # Extension-based hooks (AiderDesk): check directory for index.ts
+            if ide_type == "aiderdesk":
+                ext_dir = config_path if config_path.is_dir() else config_path.parent
+                index_path = ext_dir / "index.ts"
+                if index_path.exists():
+                    try:
+                        content = index_path.read_text(encoding="utf-8")
+                        if "ai-guardian" in content:
+                            return True
+                    except Exception:
+                        pass
+                return False
+
             # Script-based hooks (Cline, ZooCode, Kiro): check directory for scripts
             if ide_type in ("cline", "zoocode", "kiro"):
                 hooks_dir = config_path if config_path.is_dir() else config_path.parent
@@ -886,6 +906,65 @@ class IDESetup:
 
         return True, message
 
+    def _setup_extension_based_hooks(
+        self,
+        ide_type: str,
+        ide_config: Dict,
+        ext_dir: Path,
+        dry_run: bool = False,
+    ) -> Tuple[bool, str]:
+        """
+        Setup extension-based hooks (AiderDesk).
+
+        Creates a TypeScript extension that delegates to ai-guardian CLI.
+
+        Args:
+            ide_type: IDE type ('aiderdesk')
+            ide_config: IDE configuration from IDE_CONFIGS
+            ext_dir: Path to extension directory
+            dry_run: If True, show what would be changed without applying
+
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        ide_name = ide_config["name"]
+        index_path = ext_dir / "index.ts"
+        package_path = ext_dir / "package.json"
+
+        if dry_run:
+            message = f"[DRY RUN] Would configure {ide_name} extension at {ext_dir}:\n"
+            message += f"  Create: {index_path}\n"
+            message += f"  Create: {package_path}\n"
+            return True, message
+
+        ext_dir.mkdir(parents=True, exist_ok=True)
+
+        package_path.write_text(_AIDERDESK_PACKAGE_JSON, encoding="utf-8")
+        index_path.write_text(_AIDERDESK_EXTENSION_TS, encoding="utf-8")
+
+        gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
+
+        message = f"✓ Successfully configured {ide_name} extension at {ext_dir}\n"
+        message += f"  Created: index.ts, package.json\n"
+        message += f"\n  {gitleaks_message}\n"
+
+        if not gitleaks_installed:
+            message += (
+                "\n  ⚠️  WARNING: Secret scanning will be disabled without Gitleaks!\n"
+                "      AI Guardian requires Gitleaks for secret detection.\n"
+            )
+
+        message += f"\n  Next steps:\n"
+        step = 1
+        if not gitleaks_installed:
+            message += f"  {step}. Install Gitleaks (see above)\n"
+            step += 1
+        message += f"  {step}. Run: cd {ext_dir} && npm install\n"
+        step += 1
+        message += f"  {step}. Restart {ide_name} (extension hot-reloads automatically)\n"
+
+        return True, message
+
     def setup_ide_hooks(
         self,
         ide_type: str,
@@ -923,6 +1002,10 @@ class IDESetup:
             # Check if hooks already configured
             if not force and self.check_hooks_configured(config_path, ide_type):
                 return False, f"ai-guardian hooks already configured for {ide_name}. Use --force to overwrite."
+
+            # Extension-based IDEs (AiderDesk): create TypeScript extension
+            if ide_config.get("extension_based"):
+                return self._setup_extension_based_hooks(ide_type, ide_config, config_path, dry_run)
 
             # Script-based IDEs (Cline, ZooCode): create executable scripts
             if ide_config.get("script_based"):
@@ -2370,6 +2453,11 @@ _MCP_IDE_CONFIGS = {
         "config_key": "mcpServers",
         "skill_dir": ".junie/skills",
     },
+    "aiderdesk": {
+        "config_file": "~/.aider-desk/settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".aider-desk/skills",
+    },
 }
 
 _MCP_SERVER_ENTRY = {
@@ -2540,3 +2628,137 @@ def _handle_rules_setup(
         f.write(_RULES_FILE_CONTENT)
 
     print(f"  Rules: Created {rules_path}")
+
+
+# AiderDesk extension file contents (Issue #639)
+_AIDERDESK_PACKAGE_JSON = """\
+{
+  "name": "ai-guardian-aiderdesk",
+  "version": "1.0.0",
+  "description": "AI Guardian security extension for AiderDesk",
+  "main": "index.ts",
+  "dependencies": {
+    "@aiderdesk/extensions": ">=0.55.0"
+  }
+}
+"""
+
+_AIDERDESK_EXTENSION_TS = """\
+import type { Extension, ExtensionContext } from '@aiderdesk/extensions';
+import { execSync } from 'child_process';
+
+export default class AiGuardianExtension implements Extension {
+  static metadata = {
+    name: 'AI Guardian',
+    version: '1.0.0',
+    description: 'Security scanning for tool calls, prompts, and file access',
+    author: 'ai-guardian',
+  };
+
+  private runGuardian(
+    hookData: Record<string, unknown>,
+  ): { blocked: boolean; error?: string; output?: string } {
+    try {
+      const input = JSON.stringify(hookData);
+      const result = execSync('ai-guardian', {
+        input,
+        encoding: 'utf-8',
+        timeout: 30000,
+        env: { ...process.env, AI_GUARDIAN_IDE_TYPE: 'aiderdesk' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      return { blocked: false, output: result?.trim() || undefined };
+    } catch (err: any) {
+      if (err.status === 1) {
+        const errorMsg =
+          err.stderr?.toString().trim() || 'Blocked by ai-guardian';
+        return { blocked: true, error: errorMsg };
+      }
+      return { blocked: false };
+    }
+  }
+
+  async onToolApproval(event: any, context: ExtensionContext) {
+    const hookData = {
+      hook_event_name: 'pre_tool_use',
+      tool_name: event.toolName,
+      tool_input: event.input || {},
+    };
+    const result = this.runGuardian(hookData);
+    if (result.blocked) {
+      context.log(`Blocked tool: ${event.toolName} - ${result.error}`, 'warn');
+      return { blocked: true };
+    }
+  }
+
+  async onToolCalled(event: any, context: ExtensionContext) {
+    const hookData = {
+      hook_event_name: 'pre_tool_use',
+      tool_name: event.toolName,
+      tool_input: event.input || {},
+    };
+    const result = this.runGuardian(hookData);
+    if (result.blocked) {
+      context.log(`Blocked tool: ${event.toolName} - ${result.error}`, 'warn');
+      return { blocked: true, output: { error: result.error } };
+    }
+  }
+
+  async onToolFinished(event: any, context: ExtensionContext) {
+    const output =
+      typeof event.output === 'string'
+        ? event.output
+        : JSON.stringify(event.output || '');
+    const hookData = {
+      hook_event_name: 'post_tool_use',
+      tool_name: event.toolName,
+      tool_response: { output },
+    };
+    const result = this.runGuardian(hookData);
+    if (result.output) {
+      return { output: result.output };
+    }
+  }
+
+  async onPromptStarted(event: any, context: ExtensionContext) {
+    const hookData = {
+      hook_event_name: 'prompt_submit',
+      prompt: event.prompt || '',
+    };
+    const result = this.runGuardian(hookData);
+    if (result.blocked) {
+      context.log(`Blocked prompt - ${result.error}`, 'warn');
+      return { blocked: true };
+    }
+  }
+
+  async onFilesAdded(event: any, context: ExtensionContext) {
+    const files = event.files || [];
+    for (const file of files) {
+      const hookData = {
+        hook_event_name: 'pre_tool_use',
+        tool_name: 'Read',
+        tool_input: { file_path: file.path || file },
+      };
+      const result = this.runGuardian(hookData);
+      if (result.blocked) {
+        context.log(`Blocked file: ${file.path || file} - ${result.error}`, 'warn');
+        return { files: [] };
+      }
+    }
+  }
+
+  async onBeforeCommit(event: any, context: ExtensionContext) {
+    const hookData = {
+      hook_event_name: 'pre_tool_use',
+      tool_name: 'Bash',
+      tool_input: { command: `git commit -m "${event.message || ''}"` },
+    };
+    const result = this.runGuardian(hookData);
+    if (result.blocked) {
+      context.log(`Blocked commit - ${result.error}`, 'warn');
+      return { blocked: true };
+    }
+  }
+}
+"""
