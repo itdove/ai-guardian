@@ -1402,6 +1402,188 @@ class TestClineSetup:
                 assert (hooks_dir / script_name).exists()
 
 
+class TestAugmentSetup:
+    """Test cases for Augment Code setup."""
+
+    def test_augment_in_ide_configs(self):
+        """Verify Augment entry exists in IDE_CONFIGS with correct keys."""
+        assert "augment" in IDESetup.IDE_CONFIGS
+        aug_cfg = IDESetup.IDE_CONFIGS["augment"]
+        assert aug_cfg["name"] == "Augment Code"
+        assert aug_cfg["config_path"] == "~/.augment/settings.json"
+        assert aug_cfg["config_filename"] == "settings.json"
+        assert "hooks" in aug_cfg
+
+    def test_augment_hook_structure(self):
+        """Verify Augment hooks use nested hooks.hooks structure."""
+        hooks = IDESetup.IDE_CONFIGS["augment"]["hooks"]
+        assert "hooks" in hooks
+        inner = hooks["hooks"]
+        assert "PreToolUse" in inner
+        assert "PostToolUse" in inner
+
+    def test_augment_hooks_use_pipe_matcher(self):
+        """Verify Augment hooks use pipe-separated tool matcher."""
+        inner = IDESetup.IDE_CONFIGS["augment"]["hooks"]["hooks"]
+        matcher = inner["PreToolUse"][0]["matcher"]
+        assert "launch-process" in matcher
+        assert "str-replace-editor" in matcher
+        assert "save-file" in matcher
+        assert "view" in matcher
+
+    def test_augment_hooks_have_timeout(self):
+        """Verify Augment hooks include timeout field."""
+        inner = IDESetup.IDE_CONFIGS["augment"]["hooks"]["hooks"]
+        for event in ["PreToolUse", "PostToolUse"]:
+            hook_entry = inner[event][0]["hooks"][0]
+            assert hook_entry["timeout"] == 5000
+
+    def test_setup_ide_hooks_augment_new(self, tmp_path):
+        """Test setting up Augment hooks in new config."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'augment': {
+                    'name': 'Augment Code',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'settings.json',
+                    'hooks': IDESetup.IDE_CONFIGS['augment']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('augment', dry_run=False, force=False)
+
+            assert success is True
+            assert config_file.exists()
+
+            with open(config_file) as f:
+                config = json.load(f)
+
+            assert 'hooks' in config
+            assert 'PreToolUse' in config['hooks']
+            assert 'PostToolUse' in config['hooks']
+            assert config['hooks']['PreToolUse'][0]['hooks'][0]['command'] == 'ai-guardian'
+
+    def test_setup_ide_hooks_augment_dry_run(self, tmp_path):
+        """Test dry-run mode for Augment."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'augment': {
+                    'name': 'Augment Code',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'settings.json',
+                    'hooks': IDESetup.IDE_CONFIGS['augment']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('augment', dry_run=True, force=False)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert not config_file.exists()
+
+    def test_check_hooks_configured_augment(self, tmp_path):
+        """Test detection of existing Augment hooks."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': 'launch-process|str-replace-editor|save-file|view',
+                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, 'augment') is True
+
+    def test_check_hooks_not_configured_augment(self, tmp_path):
+        """Test returns False when no ai-guardian hooks present."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': 'launch-process',
+                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, 'augment') is False
+
+    def test_setup_ide_hooks_augment_force(self, tmp_path):
+        """Test force overwrite of existing Augment hooks."""
+        setup = IDESetup()
+        config_file = tmp_path / 'settings.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': 'launch-process',
+                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'augment': {
+                    'name': 'Augment Code',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'settings.json',
+                    'hooks': IDESetup.IDE_CONFIGS['augment']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('augment', dry_run=False, force=True)
+
+            assert success is True
+            backup_file = config_file.with_suffix('.json.backup')
+            assert backup_file.exists()
+
+    def test_merge_hooks_augment_preserves_other_hooks(self):
+        """Test that merging Augment hooks preserves existing non-ai-guardian hooks."""
+        setup = IDESetup()
+        existing_config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': 'launch-process|str-replace-editor|save-file|view|remove-files',
+                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
+                    }
+                ]
+            }
+        }
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS['augment']['hooks']
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'augment')
+
+        pre_tool_hooks = merged['hooks']['PreToolUse'][0]['hooks']
+        assert pre_tool_hooks[0]['command'] == 'ai-guardian'
+        assert pre_tool_hooks[1]['command'] == 'other-tool'
+        assert len(warnings) > 0
+
+
 class TestSetupHooks:
     """Test cases for setup_hooks function."""
 

@@ -132,6 +132,15 @@ FILE_READING_TOOLS = frozenset({
     "ReadFile",
 })
 
+# Augment Code uses different tool names — map to canonical names for policy checking.
+_AUGMENT_TOOL_MAP = {
+    "launch-process": "Bash",
+    "str-replace-editor": "Edit",
+    "save-file": "Write",
+    "view": "Read",
+    "remove-files": "Delete",
+}
+
 
 def _is_path_excluded(file_path, config):
     """
@@ -536,6 +545,10 @@ def extract_tool_result(hook_data):
         if not tool_name:
             tool_name = "unknown"
             logging.info("extract_tool_result: tool_name defaulted to 'unknown'")
+
+        # Augment Code: normalize tool names
+        if tool_name in _AUGMENT_TOOL_MAP:
+            tool_name = _AUGMENT_TOOL_MAP[tool_name]
 
         if tool_name in STATE_MODIFY_TOOLS:
             logging.debug(f"Skipping PostToolUse scan for state-modifying tool: {tool_name}")
@@ -3051,6 +3064,12 @@ def process_hook_data(hook_data, daemon_state=None):
             elif "tool_name" in hook_data:
                 tool_name = hook_data["tool_name"]
                 tool_input = hook_data.get("tool_input", {})
+
+            # Augment Code: map tool names and handle mcp: prefix
+            if tool_name and tool_name in _AUGMENT_TOOL_MAP:
+                tool_name = _AUGMENT_TOOL_MAP[tool_name]
+            elif tool_name and tool_name.startswith("mcp:"):
+                tool_name = "mcp__" + tool_name[4:].replace(":", "__")
 
             # Create composite tool identifier for more granular ignore patterns
             # For Skill tool: "Skill:code-review"

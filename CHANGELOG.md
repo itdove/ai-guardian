@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Explain how to become a collaborator
   - README.md updated to link to Discussions for bug reports and feature requests
 
+- **Augment Code hook support** (Issue #638)
+  - Auto-detect Augment via `is_mcp_tool` field in hook input
+  - Uses Claude Code response format (JSON + exit code 2 for blocking)
+  - Tool name mapping: `launch-process` → Bash, `str-replace-editor` → Edit, `save-file` → Write, `view` → Read
+  - MCP tool support via `mcp:*` prefix mapping to `mcp__*` convention
+  - `ai-guardian setup --ide augment` generates `~/.augment/settings.json` hook config
+  - `AI_GUARDIAN_IDE_TYPE=augment` env var override supported
+  - Enterprise deployment: system-level `/etc/augment/settings.json` immutable hooks
+
 - **Cline / ZooCode hook support** (Issue #635)
   - Auto-detect Cline via `clineVersion` field in hook input
   - Response format: `{"cancel": true, "reason": "..."}` for blocking

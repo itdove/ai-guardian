@@ -2,7 +2,7 @@
 Response formatting and IDE detection for AI Guardian hooks.
 
 Handles multi-IDE response formatting (Claude Code, Cursor, GitHub Copilot,
-Gemini CLI, Cline/ZooCode) and hook event detection.
+Gemini CLI, Cline/ZooCode, Augment Code) and hook event detection.
 """
 
 import json
@@ -63,6 +63,8 @@ def detect_ide_type(hook_data):
         return IDEType.GEMINI_CLI
     elif ide_override in ("cline", "zoocode"):
         return IDEType.CLINE
+    elif ide_override == "augment":
+        return IDEType.CLAUDE_CODE
 
     # Auto-detect based on input structure
     # Cline/ZooCode detection - clineVersion field is unique to Cline
@@ -95,6 +97,10 @@ def detect_ide_type(hook_data):
         hook_data.get("hook_event_name") in ["beforeSubmitPrompt", "preToolUse"]
     ):
         return IDEType.CURSOR
+
+    # Augment Code detection - is_mcp_tool field is unique to Augment
+    if "is_mcp_tool" in hook_data and "tool_name" in hook_data:
+        return IDEType.CLAUDE_CODE
 
     # Claude Code sends UserPromptSubmit or PreToolUse
     if "hook_event_name" in hook_data and hook_data.get("hook_event_name") in ["UserPromptSubmit", "PreToolUse"]:
