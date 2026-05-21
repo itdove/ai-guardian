@@ -1007,6 +1007,7 @@ When adding any new feature, check:
 - [ ] **Tray menu** — Does it produce a quick status or count? → Add to tray in `daemon/tray.py`
 - [ ] **Console panel** — Does it have configurable settings? → Add Console UI in `tui/`
 - [ ] **CLI command** — Does it need a standalone command? → Add to CLI in `__init__.py`
+- [ ] **Multi-agent compatibility** — Does it affect hook responses? → Test with all supported IDEs (Claude Code, Cursor, GitHub Copilot). Verify `format_response()` returns correct format for each `IDEType`.
 
 ---
 
