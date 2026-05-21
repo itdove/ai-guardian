@@ -138,6 +138,52 @@ class IDESetup:
                     }
                 ]
             }
+        },
+        "codex": {
+            "name": "OpenAI Codex",
+            "config_path": "~/.codex/hooks.json",
+            "config_dir_env_var": None,
+            "config_filename": "hooks.json",
+            "hooks": {
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian",
+                                "timeout": 30,
+                                "statusMessage": "🛡️ Scanning prompt..."
+                            }
+                        ]
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian",
+                                "timeout": 30,
+                                "statusMessage": "🛡️ Checking tool permissions..."
+                            }
+                        ]
+                    }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian",
+                                "timeout": 30,
+                                "statusMessage": "🛡️ Scanning tool output..."
+                            }
+                        ]
+                    }
+                ]
+            }
         }
     }
 
@@ -395,6 +441,58 @@ class IDESetup:
 
             return existing_config, warnings
 
+        elif ide_type == "codex":
+            # Codex: same nested structure as Claude Code (hooks.json)
+            if "hooks" not in existing_config:
+                existing_config["hooks"] = {}
+
+            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+                if hook_name not in ai_guardian_hooks:
+                    continue
+
+                if hook_name not in existing_config["hooks"]:
+                    existing_config["hooks"][hook_name] = []
+
+                hook_list = existing_config["hooks"][hook_name]
+                template_entry = ai_guardian_hooks[hook_name][0]
+                target_matcher = template_entry.get("matcher")
+
+                matched_entry = None
+                matched_idx = -1
+                for idx, entry in enumerate(hook_list):
+                    if isinstance(entry, dict) and entry.get("matcher") == target_matcher:
+                        matched_entry = entry
+                        matched_idx = idx
+                        break
+
+                if matched_entry is None:
+                    existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
+                    continue
+
+                if "hooks" not in matched_entry:
+                    matched_entry["hooks"] = []
+
+                hooks_array = matched_entry["hooks"]
+                other_hooks = []
+                for hook in hooks_array:
+                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                        continue
+                    other_hooks.append(hook)
+
+                ai_guardian_hook = template_entry["hooks"][0]
+
+                if other_hooks:
+                    hook_names = [h.get("command", "unknown") for h in other_hooks if isinstance(h, dict)]
+                    warnings.append(
+                        f"⚠️  {hook_name}: Found other hooks [{', '.join(hook_names)}]. "
+                        f"ai-guardian has been placed first to ensure warnings display correctly."
+                    )
+
+                matched_entry["hooks"] = [ai_guardian_hook] + other_hooks
+                existing_config["hooks"][hook_name][matched_idx] = matched_entry
+
+            return existing_config, warnings
+
         return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
@@ -415,7 +513,7 @@ class IDESetup:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
 
-            if ide_type == "claude":
+            if ide_type in ("claude", "codex"):
                 hooks = config.get("hooks", {})
                 # Check if UserPromptSubmit, PreToolUse, or PostToolUse hooks contain ai-guardian
                 for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
@@ -502,6 +600,8 @@ class IDESetup:
                 merged_config["userPromptSubmitted"] = ide_config["hooks"]["userPromptSubmitted"]
                 merged_config["preToolUse"] = ide_config["hooks"]["preToolUse"]
                 # Fall through to common config-write path (don't return early)
+            elif ide_type == "codex":
+                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
 
             self._last_merged_config = merged_config
 
@@ -1850,6 +1950,11 @@ _MCP_IDE_CONFIGS = {
     "copilot": {
         "config_key": "mcpServers",
         "skill_dir": ".github/skills",
+    },
+    "codex": {
+        "config_file": "codex.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".codex/skills",
     },
 }
 

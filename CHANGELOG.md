@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Codex Hook Support** (Issue #673)
+  - `ai-guardian setup --ide codex` installs hooks to `~/.codex/hooks.json`
+  - PreToolUse, PostToolUse, UserPromptSubmit hooks configured with 30s timeout
+  - Codex added to tray "Local Setup..." menu automatically via IDE_CONFIGS
+  - MCP server registration for Codex projects (project-level `codex.json`)
+  - Codex uses Claude Code response format (identical input/output schema)
+  - `AI_GUARDIAN_IDE_TYPE=codex` env var override supported
+  - `ai-guardian doctor` counts Codex hooks
+
 - **PII pattern server support** (Issue #644)
   - New `PIIPatternLoader` class for loading PII patterns from a remote pattern server
   - `scan_pii.pattern_server` config option with URL, endpoint, auth, and cache settings

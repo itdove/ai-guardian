@@ -685,7 +685,7 @@ class Doctor:
             configured = setup.check_hooks_configured(config_path, ide_type)
             if configured:
                 # For Claude Code, check which hooks are present
-                if ide_type == "claude":
+                if ide_type in ("claude", "codex"):
                     hook_count = self._count_claude_hooks(config_path)
                     results.append(f"{ide_name}: {hook_count}/3 hooks")
                     if hook_count < 3:
