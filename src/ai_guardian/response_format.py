@@ -55,8 +55,14 @@ def detect_ide_type(hook_data):
         return IDEType.GITHUB_COPILOT
     elif ide_override == "codex":
         return IDEType.CLAUDE_CODE
+    elif ide_override == "windsurf":
+        return IDEType.CLAUDE_CODE
 
     # Auto-detect based on input structure
+    # Windsurf detection - check for agent_action_name field (unique to Windsurf)
+    if "agent_action_name" in hook_data:
+        return IDEType.CLAUDE_CODE
+
     # GitHub Copilot detection - check for toolName field (most specific)
     if "toolName" in hook_data:
         return IDEType.GITHUB_COPILOT
@@ -254,6 +260,19 @@ def detect_hook_event(hook_data):
     Returns:
         HookEvent: HookEvent.PROMPT, HookEvent.PRE_TOOL_USE, HookEvent.POST_TOOL_USE, or HookEvent.BEFORE_READ_FILE
     """
+    # Windsurf uses agent_action_name instead of hook_event_name
+    agent_action = hook_data.get("agent_action_name", "").lower()
+    if agent_action:
+        if agent_action == "pre_user_prompt":
+            return HookEvent.PROMPT
+        elif agent_action in ("pre_read_code",):
+            return HookEvent.BEFORE_READ_FILE
+        elif agent_action in ("pre_run_command", "pre_write_code", "pre_mcp_tool_use"):
+            return HookEvent.PRE_TOOL_USE
+        elif agent_action in ("post_run_command", "post_read_code", "post_write_code",
+                              "post_mcp_tool_use"):
+            return HookEvent.POST_TOOL_USE
+
     event_name = hook_data.get("hook_event_name", "").lower()
     if event_name in ["userpromptsubmit", "beforesubmitprompt"]:
         return HookEvent.PROMPT

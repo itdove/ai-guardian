@@ -75,7 +75,7 @@ def main():
         )
         setup_parser.add_argument(
             "--ide",
-            choices=["claude", "cursor", "copilot", "codex"],
+            choices=["claude", "cursor", "copilot", "codex", "windsurf"],
             help="Specify IDE type (auto-detected if not provided)"
         )
         setup_parser.add_argument(
