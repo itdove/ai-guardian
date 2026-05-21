@@ -245,6 +245,24 @@ class IDESetup:
                     }
                 ]
             }
+        },
+        "cline": {
+            "name": "Cline",
+            "config_path": ".clinerules/hooks",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "script_based": True,
+            "hook_scripts": ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
+            "script_content": "#!/bin/sh\nai-guardian\n",
+        },
+        "zoocode": {
+            "name": "ZooCode",
+            "config_path": ".clinerules/hooks",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "script_based": True,
+            "hook_scripts": ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
+            "script_content": "#!/bin/sh\nai-guardian\n",
         }
     }
 
@@ -613,6 +631,21 @@ class IDESetup:
             if not config_path.exists():
                 return False
 
+            # Script-based hooks (Cline, ZooCode): check directory for scripts
+            if ide_type in ("cline", "zoocode"):
+                hooks_dir = config_path if config_path.is_dir() else config_path.parent
+                ide_config = self.IDE_CONFIGS.get(ide_type, {})
+                for script_name in ide_config.get("hook_scripts", []):
+                    script_path = hooks_dir / script_name
+                    if script_path.exists():
+                        try:
+                            content = script_path.read_text(encoding="utf-8")
+                            if "ai-guardian" in content:
+                                return True
+                        except Exception:
+                            pass
+                return False
+
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
 
@@ -666,6 +699,69 @@ class IDESetup:
         except Exception:
             return False
 
+    def _setup_script_based_hooks(
+        self,
+        ide_type: str,
+        ide_config: Dict,
+        hooks_dir: Path,
+        dry_run: bool = False,
+    ) -> Tuple[bool, str]:
+        """
+        Setup script-based hooks (Cline, ZooCode).
+
+        Creates executable scripts in the hooks directory instead of merging
+        into a JSON config file.
+
+        Args:
+            ide_type: IDE type ('cline' or 'zoocode')
+            ide_config: IDE configuration from IDE_CONFIGS
+            hooks_dir: Path to hooks directory
+            dry_run: If True, show what would be changed without applying
+
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        ide_name = ide_config["name"]
+        hook_scripts = ide_config.get("hook_scripts", [])
+        script_content = ide_config.get("script_content", "#!/bin/sh\nai-guardian\n")
+
+        if dry_run:
+            message = f"[DRY RUN] Would configure {ide_name} hooks at {hooks_dir}:\n"
+            for script_name in hook_scripts:
+                message += f"  Create: {hooks_dir / script_name}\n"
+            message += f"  Script content:\n    {script_content.strip()}\n"
+            return True, message
+
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+
+        created = []
+        for script_name in hook_scripts:
+            script_path = hooks_dir / script_name
+            script_path.write_text(script_content, encoding="utf-8")
+            script_path.chmod(0o755)
+            created.append(script_name)
+
+        gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
+
+        message = f"✓ Successfully configured {ide_name} hooks at {hooks_dir}\n"
+        message += f"  Created scripts: {', '.join(created)}\n"
+        message += f"\n  {gitleaks_message}\n"
+
+        if not gitleaks_installed:
+            message += (
+                "\n  ⚠️  WARNING: Secret scanning will be disabled without Gitleaks!\n"
+                "      AI Guardian requires Gitleaks for secret detection.\n"
+            )
+
+        message += f"\n  Next steps:\n"
+        if not gitleaks_installed:
+            message += f"  1. Install Gitleaks (see above)\n"
+            message += f"  2. Restart {ide_name} for changes to take effect\n"
+        else:
+            message += f"  1. Restart {ide_name} for changes to take effect\n"
+
+        return True, message
+
     def setup_ide_hooks(
         self,
         ide_type: str,
@@ -694,6 +790,10 @@ class IDESetup:
             # Check if hooks already configured
             if not force and self.check_hooks_configured(config_path, ide_type):
                 return False, f"ai-guardian hooks already configured for {ide_name}. Use --force to overwrite."
+
+            # Script-based IDEs (Cline, ZooCode): create executable scripts
+            if ide_config.get("script_based"):
+                return self._setup_script_based_hooks(ide_type, ide_config, config_path, dry_run)
 
             # Load existing config or create new
             existing_config = {}
@@ -2092,6 +2192,16 @@ _MCP_IDE_CONFIGS = {
         "config_file": "~/.gemini/settings.json",
         "config_key": "mcpServers",
         "skill_dir": ".gemini/skills",
+    },
+    "cline": {
+        "config_file": "~/.cline/mcp_settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".clinerules/skills",
+    },
+    "zoocode": {
+        "config_file": "~/.cline/mcp_settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".clinerules/skills",
     },
 }
 

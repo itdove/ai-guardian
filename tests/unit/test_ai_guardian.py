@@ -834,6 +834,115 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         output = json.loads(result["output"])
         self.assertEqual(output["systemMessage"], "Security rules...")
 
+    def test_ide_detection_cline(self):
+        """Test IDE type detection for Cline via clineVersion"""
+        hook_data = {
+            "clineVersion": "3.38.3",
+            "hookName": "PreToolUse",
+            "timestamp": "2026-05-18T00:00:00Z",
+            "taskId": "abc-123",
+            "workspaceRoots": ["/tmp/project"],
+            "toolName": "write_file",
+            "toolParams": {"path": "/tmp/test.txt"}
+        }
+        ide_type = ai_guardian.detect_ide_type(hook_data)
+        self.assertEqual(ide_type, ai_guardian.IDEType.CLINE)
+
+    def test_ide_detection_cline_env_override(self):
+        """Test IDE type detection with cline environment override"""
+        hook_data = {"prompt": "test"}
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "cline"}):
+            ide_type = ai_guardian.detect_ide_type(hook_data)
+            self.assertEqual(ide_type, ai_guardian.IDEType.CLINE)
+
+    def test_ide_detection_zoocode_env_override(self):
+        """Test IDE type detection with zoocode environment override"""
+        hook_data = {"prompt": "test"}
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "zoocode"}):
+            ide_type = ai_guardian.detect_ide_type(hook_data)
+            self.assertEqual(ide_type, ai_guardian.IDEType.CLINE)
+
+    def test_detect_hook_event_cline_pretooluse(self):
+        """Test hook event detection for Cline PreToolUse via hookName"""
+        hook_data = {"hookName": "PreToolUse", "toolName": "write_file", "clineVersion": "3.38.3"}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "pretooluse")
+
+    def test_detect_hook_event_cline_posttooluse(self):
+        """Test hook event detection for Cline PostToolUse via hookName"""
+        hook_data = {"hookName": "PostToolUse", "toolName": "write_file", "clineVersion": "3.38.3"}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "posttooluse")
+
+    def test_detect_hook_event_cline_userpromptsubmit(self):
+        """Test hook event detection for Cline UserPromptSubmit via hookName"""
+        hook_data = {"hookName": "UserPromptSubmit", "clineVersion": "3.38.3"}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "prompt")
+
+    def test_format_response_cline_block(self):
+        """Test Cline block response format"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.CLINE,
+            has_secrets=True,
+            error_message="Secret detected in tool input",
+            hook_event="pretooluse"
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertTrue(output["cancel"])
+        self.assertEqual(output["reason"], "Secret detected in tool input")
+
+    def test_format_response_cline_allow(self):
+        """Test Cline allow response format"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.CLINE,
+            has_secrets=False,
+            hook_event="pretooluse"
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertNotIn("cancel", output)
+
+    def test_format_response_cline_posttooluse_block(self):
+        """Test Cline PostToolUse block response"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.CLINE,
+            has_secrets=True,
+            error_message="Secrets found in output",
+            hook_event="posttooluse"
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertTrue(output["cancel"])
+        self.assertIn("Secrets found", output["reason"])
+
+    def test_format_response_cline_prompt_with_security_message(self):
+        """Test Cline prompt response with security instructions"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.CLINE,
+            has_secrets=False,
+            hook_event="prompt",
+            security_message="Security rules..."
+        )
+        self.assertEqual(result["exit_code"], 0)
+        output = json.loads(result["output"])
+        self.assertEqual(output["message"], "Security rules...")
+
+    def test_format_response_cline_block_with_warning(self):
+        """Test Cline block response includes warning message"""
+        result = ai_guardian.format_response(
+            ai_guardian.IDEType.CLINE,
+            has_secrets=True,
+            error_message="Secret detected",
+            hook_event="pretooluse",
+            warning_message="Log mode warning"
+        )
+        output = json.loads(result["output"])
+        self.assertTrue(output["cancel"])
+        self.assertIn("Log mode warning", output["reason"])
+        self.assertIn("Secret detected", output["reason"])
+
     def test_extract_file_content_tool_use_format(self):
         """Test file extraction from tool_use.parameters format"""
         import tempfile

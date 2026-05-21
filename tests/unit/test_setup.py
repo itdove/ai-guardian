@@ -1252,6 +1252,156 @@ class TestGeminiSetup:
         assert len(other_hooks) == 1
 
 
+class TestClineSetup:
+    """Test cases for Cline/ZooCode setup."""
+
+    def test_cline_in_ide_configs(self):
+        """Verify Cline entry exists in IDE_CONFIGS with correct keys."""
+        assert "cline" in IDESetup.IDE_CONFIGS
+        cline_cfg = IDESetup.IDE_CONFIGS["cline"]
+        assert cline_cfg["name"] == "Cline"
+        assert cline_cfg["config_path"] == ".clinerules/hooks"
+        assert cline_cfg.get("script_based") is True
+        assert "hook_scripts" in cline_cfg
+
+    def test_zoocode_in_ide_configs(self):
+        """Verify ZooCode entry exists as alias with same structure."""
+        assert "zoocode" in IDESetup.IDE_CONFIGS
+        zoo_cfg = IDESetup.IDE_CONFIGS["zoocode"]
+        assert zoo_cfg["name"] == "ZooCode"
+        assert zoo_cfg["config_path"] == ".clinerules/hooks"
+        assert zoo_cfg.get("script_based") is True
+        assert zoo_cfg["hook_scripts"] == IDESetup.IDE_CONFIGS["cline"]["hook_scripts"]
+
+    def test_cline_hooks_are_script_based(self):
+        """Verify Cline uses script-based hooks with correct event names."""
+        cline_cfg = IDESetup.IDE_CONFIGS["cline"]
+        assert cline_cfg["script_based"] is True
+        scripts = cline_cfg["hook_scripts"]
+        assert "PreToolUse" in scripts
+        assert "PostToolUse" in scripts
+        assert "UserPromptSubmit" in scripts
+
+    def test_cline_script_content(self):
+        """Verify script content calls ai-guardian."""
+        cline_cfg = IDESetup.IDE_CONFIGS["cline"]
+        content = cline_cfg["script_content"]
+        assert content.startswith("#!/bin/sh")
+        assert "ai-guardian" in content
+
+    def test_setup_ide_hooks_cline_new(self, tmp_path):
+        """Test setting up Cline hooks creates executable scripts."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'cline': {
+                    'name': 'Cline',
+                    'config_path': str(hooks_dir),
+                    'config_dir_env_var': None,
+                    'config_filename': None,
+                    'script_based': True,
+                    'hook_scripts': IDESetup.IDE_CONFIGS['cline']['hook_scripts'],
+                    'script_content': IDESetup.IDE_CONFIGS['cline']['script_content'],
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('cline', dry_run=False, force=False)
+
+            assert success is True
+            assert hooks_dir.exists()
+
+            for script_name in ['PreToolUse', 'PostToolUse', 'UserPromptSubmit']:
+                script_path = hooks_dir / script_name
+                assert script_path.exists()
+                content = script_path.read_text()
+                assert 'ai-guardian' in content
+                import stat
+                assert script_path.stat().st_mode & stat.S_IXUSR
+
+    def test_setup_ide_hooks_cline_dry_run(self, tmp_path):
+        """Test dry-run mode for Cline."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'cline': {
+                    'name': 'Cline',
+                    'config_path': str(hooks_dir),
+                    'config_dir_env_var': None,
+                    'config_filename': None,
+                    'script_based': True,
+                    'hook_scripts': IDESetup.IDE_CONFIGS['cline']['hook_scripts'],
+                    'script_content': IDESetup.IDE_CONFIGS['cline']['script_content'],
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('cline', dry_run=True, force=False)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert not hooks_dir.exists()
+
+    def test_check_hooks_configured_cline(self, tmp_path):
+        """Test detection of existing Cline hook scripts."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+        hooks_dir.mkdir(parents=True)
+        script = hooks_dir / 'PreToolUse'
+        script.write_text("#!/bin/sh\nai-guardian\n")
+
+        assert setup.check_hooks_configured(hooks_dir, 'cline') is True
+
+    def test_check_hooks_not_configured_cline(self, tmp_path):
+        """Test returns False when no ai-guardian scripts present."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+        hooks_dir.mkdir(parents=True)
+        script = hooks_dir / 'PreToolUse'
+        script.write_text("#!/bin/sh\nother-tool\n")
+
+        assert setup.check_hooks_configured(hooks_dir, 'cline') is False
+
+    def test_check_hooks_not_configured_cline_empty(self, tmp_path):
+        """Test returns False when hooks directory doesn't exist."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+
+        assert setup.check_hooks_configured(hooks_dir, 'cline') is False
+
+    def test_setup_ide_hooks_cline_force(self, tmp_path):
+        """Test force flag overwrites existing Cline scripts."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+        hooks_dir.mkdir(parents=True)
+        old_script = hooks_dir / 'PreToolUse'
+        old_script.write_text("#!/bin/sh\nai-guardian\n")
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'cline': {
+                    'name': 'Cline',
+                    'config_path': str(hooks_dir),
+                    'config_dir_env_var': None,
+                    'config_filename': None,
+                    'script_based': True,
+                    'hook_scripts': IDESetup.IDE_CONFIGS['cline']['hook_scripts'],
+                    'script_content': IDESetup.IDE_CONFIGS['cline']['script_content'],
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('cline', dry_run=False, force=True)
+            assert success is True
+
+            for script_name in ['PreToolUse', 'PostToolUse', 'UserPromptSubmit']:
+                assert (hooks_dir / script_name).exists()
+
+
 class TestSetupHooks:
     """Test cases for setup_hooks function."""
 

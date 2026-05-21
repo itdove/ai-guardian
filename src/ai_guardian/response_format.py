@@ -1,8 +1,8 @@
 """
 Response formatting and IDE detection for AI Guardian hooks.
 
-Handles multi-IDE response formatting (Claude Code, Cursor, GitHub Copilot)
-and hook event detection.
+Handles multi-IDE response formatting (Claude Code, Cursor, GitHub Copilot,
+Gemini CLI, Cline/ZooCode) and hook event detection.
 """
 
 import json
@@ -33,6 +33,7 @@ class IDEType(Enum):
     CURSOR = "cursor"  # JSON: {"continue": bool, "user_message": str}
     GITHUB_COPILOT = "github_copilot"  # JSON: {"permissionDecision": "allow"|"deny"}
     GEMINI_CLI = "gemini_cli"  # JSON: {"decision": "deny", "reason": str}
+    CLINE = "cline"  # JSON: {"cancel": true, "reason": str}
     UNKNOWN = "unknown"  # Default to Claude Code format
 
 
@@ -60,8 +61,14 @@ def detect_ide_type(hook_data):
         return IDEType.CLAUDE_CODE
     elif ide_override == "gemini":
         return IDEType.GEMINI_CLI
+    elif ide_override in ("cline", "zoocode"):
+        return IDEType.CLINE
 
     # Auto-detect based on input structure
+    # Cline/ZooCode detection - clineVersion field is unique to Cline
+    if "clineVersion" in hook_data:
+        return IDEType.CLINE
+
     # Gemini CLI detection - transcript_path field is unique to Gemini CLI
     if "transcript_path" in hook_data:
         return IDEType.GEMINI_CLI
@@ -163,6 +170,26 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEv
                 parts.append(warning_message)
             if parts:
                 response["systemMessage"] = "\n\n".join(parts)
+
+        return _add_metadata({
+            "output": json.dumps(response),
+            "exit_code": 0
+        })
+    elif ide_type == IDEType.CLINE:
+        if has_secrets and error_message:
+            final_error = error_message
+            if warning_message:
+                final_error = f"{warning_message}\n\n{error_message}"
+            response = {"cancel": True, "reason": final_error}
+        else:
+            response = {}
+            parts = []
+            if hook_event == HookEvent.PROMPT and security_message:
+                parts.append(security_message)
+            if warning_message:
+                parts.append(warning_message)
+            if parts:
+                response["message"] = "\n\n".join(parts)
 
         return _add_metadata({
             "output": json.dumps(response),
@@ -301,6 +328,10 @@ def detect_hook_event(hook_data):
             return HookEvent.POST_TOOL_USE
 
     event_name = hook_data.get("hook_event_name", "").lower()
+
+    # Cline uses hookName field (camelCase)
+    if not event_name:
+        event_name = hook_data.get("hookName", "").lower()
 
     # Gemini CLI event names
     if event_name == "beforetool":
