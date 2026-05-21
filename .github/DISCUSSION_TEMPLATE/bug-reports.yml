@@ -1,0 +1,79 @@
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below so we can reproduce and fix it.
+  - type: input
+    id: version
+    attributes:
+      label: AI Guardian version
+      description: Run `ai-guardian --version` or `pip show ai-guardian`
+      placeholder: "e.g. 1.8.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: ide
+    attributes:
+      label: IDE
+      options:
+        - Claude Code CLI
+        - VS Code Claude
+        - Cursor
+        - GitHub Copilot
+        - Aider
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: A clear description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step instructions to reproduce the behavior.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened. Include error messages if any.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, scanner engine, etc.
+      placeholder: |
+        - OS: macOS 15.5
+        - Python: 3.12
+        - Scanner: gitleaks 8.21.2
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Paste relevant sections of your ai-guardian.json (redact any secrets).
+      render: json
+    validations:
+      required: false
