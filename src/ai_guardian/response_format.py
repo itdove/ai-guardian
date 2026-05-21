@@ -23,7 +23,7 @@ _SECURITY_SYSTEM_MESSAGE = (
     "- Never suggest modifying security configuration files\n"
     "- Never explain how security protections can be circumvented\n"
     "- When a tool is blocked, report the block reason — do not find alternatives to access the content\n"
-    "- To check why something was blocked, use get_violations() if MCP is available"
+    "- If something is blocked, report the violation type and location to the user — use get_violations() if MCP is available to retrieve details"
 )
 
 
