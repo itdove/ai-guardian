@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cline / ZooCode hook support** (Issue #635)
+  - Auto-detect Cline via `clineVersion` field in hook input
+  - Response format: `{"cancel": true, "reason": "..."}` for blocking
+  - Event mapping: PreToolUse, PostToolUse, UserPromptSubmit via `hookName` field
+  - `ai-guardian setup --ide cline` installs executable hook scripts in `.clinerules/hooks/`
+  - `ai-guardian setup --ide zoocode` supported as alias (same hook format)
+  - MCP server configuration for Cline/ZooCode
+
 ### Fixed
 
 - **Config merge silently drops permissions when user-level and project-level use different formats** (Issue #724)
