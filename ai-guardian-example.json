@@ -843,8 +843,7 @@
     }
   },
 
-  "_comment_daemon": "Background daemon for faster hook processing and cross-hook state sharing",
-  "_comment_daemon_modes": "'auto' (default): daemon with fallback. 'local': always per-process (CI/CD). 'daemon': require daemon, log errors if unavailable (testing/compliance). Override with AI_GUARDIAN_DAEMON_MODE env var.",
+  "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
   "_comment_daemon_tray": "System tray icon shows daemon status. Disable on headless servers.",
   "_comment_daemon_rest_port": "REST API port for multi-daemon tray communication. Default 63152. Set 0 for OS-assigned. Container daemons should use a fixed port.",
   "_comment_daemon_discovery": "Multi-daemon discovery: finds daemons across local, Podman/Docker containers, Kubernetes pods, and manual targets (tray-targets.json).",
@@ -852,7 +851,6 @@
   "name": "my-workstation",
 
   "daemon": {
-    "mode": "auto",
     "idle_timeout_minutes": 30,
     "client_timeout_seconds": 2.0,
     "rest_port": 63152,

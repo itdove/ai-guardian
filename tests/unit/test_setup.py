@@ -1796,28 +1796,25 @@ class TestSetupDaemonReload:
 
     def test_create_config_calls_daemon_reload(self, tmp_path, capsys):
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True) as mock_check, \
              mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=True) as mock_reload:
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True
-        mock_check.assert_called_once()
         mock_reload.assert_called_once()
         assert "Daemon reloaded" in capsys.readouterr().out
 
     def test_create_config_no_reload_when_daemon_not_running(self, tmp_path, capsys):
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False) as mock_check, \
-             mock.patch("ai_guardian.daemon.client.send_reload_config") as mock_reload:
+             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=False) as mock_reload:
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True
-        mock_check.assert_called_once()
-        mock_reload.assert_not_called()
+        mock_reload.assert_called_once()
+        assert "Daemon reloaded" not in capsys.readouterr().out
 
     def test_reload_silences_exceptions(self, tmp_path, capsys):
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", side_effect=Exception("fail")):
+             mock.patch("ai_guardian.daemon.client.send_reload_config", side_effect=Exception("fail")):
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True

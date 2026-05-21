@@ -650,11 +650,8 @@ HELP_DOCS = {
         "[bold]Daemon[/bold]\n\n"
         "Background daemon service for faster hook processing "
         "and cross-hook state sharing.\n\n"
-        "[bold]Modes:[/bold]\n"
-        "  - [green]auto[/green]: Use daemon if running, fall back to local (default)\n"
-        "  - [yellow]local[/yellow]: Always per-process, for CI/CD and containers\n"
-        "  - [red]daemon[/red]: Require daemon, log errors if unavailable (testing)\n\n"
-        "[bold]Override:[/bold] AI_GUARDIAN_DAEMON_MODE env var > config file"
+        "The daemon auto-starts on any CLI command and falls back\n"
+        "to direct processing if it cannot start."
     ),
     "panel-regex-tester": (
         "[bold]Regex Tester[/bold]\n\n"

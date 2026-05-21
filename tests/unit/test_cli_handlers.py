@@ -13,23 +13,8 @@ from ai_guardian.cli_handlers import (
 
 
 class TestGetDaemonMode:
-    def test_default_is_auto(self):
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(None, None)):
-            assert _get_daemon_mode() == "auto"
-
-    def test_reads_env_var(self, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_DAEMON_MODE", "daemon")
-        assert _get_daemon_mode() == "daemon"
-
-    def test_reads_from_config(self):
-        config = {"daemon": {"mode": "local"}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
-            assert _get_daemon_mode() == "local"
-
-    def test_invalid_env_var_falls_through(self, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_DAEMON_MODE", "invalid")
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(None, None)):
-            assert _get_daemon_mode() == "auto"
+    def test_always_returns_auto(self):
+        assert _get_daemon_mode() == "auto"
 
 
 class TestGetClientTimeout:
@@ -54,25 +39,8 @@ class TestGetClientTimeout:
 
 
 class TestSetDaemonModeInConfig:
-    def test_writes_config(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("ai_guardian.cli_handlers.get_config_dir", lambda: tmp_path)
-        config_path = tmp_path / "ai-guardian.json"
-
+    def test_is_noop(self):
         _set_daemon_mode_in_config("daemon")
-
-        config = json.loads(config_path.read_text())
-        assert config["daemon"]["mode"] == "daemon"
-
-    def test_updates_existing_config(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("ai_guardian.cli_handlers.get_config_dir", lambda: tmp_path)
-        config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({"existing": "value"}))
-
-        _set_daemon_mode_in_config("local")
-
-        config = json.loads(config_path.read_text())
-        assert config["daemon"]["mode"] == "local"
-        assert config["existing"] == "value"
 
 
 class TestDaemonReloadCommand:

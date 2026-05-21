@@ -197,9 +197,8 @@
       "annotation_suppressed"
     ]
   },
-  "_comment_daemon": "Background daemon for faster hook processing. Modes: 'auto' (default, daemon with fallback), 'local' (per-process, CI/CD), 'daemon' (require daemon, for testing). Override with AI_GUARDIAN_DAEMON_MODE env var.",
+  "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
   "daemon": {
-    "mode": "auto",
     "idle_timeout_minutes": 30,
     "client_timeout_seconds": 2.0,
     "tray": {
