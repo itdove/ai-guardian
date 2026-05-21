@@ -74,6 +74,28 @@ def _get_mtime(path):
         return None
 
 
+def _normalize_permissions(config):
+    """Normalize old list-format permissions to new dict format before merge.
+
+    Converts ``"permissions": [...]`` (deprecated) to
+    ``"permissions": {"enabled": true, "rules": [...]}``.
+    """
+    if config is None:
+        return config
+    permissions = config.get("permissions")
+    if isinstance(permissions, list):
+        logger.warning(
+            "DEPRECATED: permissions as array format detected. "
+            "Update to: {\"permissions\": {\"enabled\": true, \"rules\": [...]}}"
+        )
+        config = dict(config)
+        config["permissions"] = {
+            "enabled": True,
+            "rules": permissions,
+        }
+    return config
+
+
 def _load_config_file():
     """
     Load ai-guardian.json configuration with project-level overlay.
@@ -152,6 +174,10 @@ def _load_config_file():
             if error_msg:
                 logger.warning(f"Ignoring invalid project config: {error_msg}")
                 project_config = None
+
+        # Normalize permissions format before merge (list → dict)
+        global_config = _normalize_permissions(global_config)
+        project_config = _normalize_permissions(project_config)
 
         # Merge (use `is not None` — empty dict {} is a valid config)
         if global_config is not None and project_config is not None:

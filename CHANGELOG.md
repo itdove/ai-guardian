@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Config merge silently drops permissions when user-level and project-level use different formats** (Issue #724)
+  - Old list-format permissions (`"permissions": [...]`) now auto-normalized to dict format before merge
+  - User-level (list) + project-level (dict) merge preserves both rule sets
+  - Deprecation warning logged when old format detected
+  - Fixes block-reinject loop that caused security rules to appear on every prompt
+
 - **Daemon start -b silently fails in containers (stale PID file)** (Issue #715)
   - `_cleanup_stale()` now verifies socket connectivity when PID is alive, handling PID recycling in containers
   - `daemon status` cleans up stale PID files when daemon is not running
