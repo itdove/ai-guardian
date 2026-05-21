@@ -34,6 +34,7 @@ class IDEType(Enum):
     GITHUB_COPILOT = "github_copilot"  # JSON: {"permissionDecision": "allow"|"deny"}
     GEMINI_CLI = "gemini_cli"  # JSON: {"decision": "deny", "reason": str}
     CLINE = "cline"  # JSON: {"cancel": true, "reason": str}
+    KIRO = "kiro"  # Exit codes: 0=allow, 1=block; stdout→context, stderr→agent on error
     UNKNOWN = "unknown"  # Default to Claude Code format
 
 
@@ -65,6 +66,8 @@ def detect_ide_type(hook_data):
         return IDEType.CLINE
     elif ide_override == "augment":
         return IDEType.CLAUDE_CODE
+    elif ide_override == "kiro":
+        return IDEType.KIRO
 
     # Auto-detect based on input structure
     # Cline/ZooCode detection - clineVersion field is unique to Cline
@@ -97,6 +100,10 @@ def detect_ide_type(hook_data):
         hook_data.get("hook_event_name") in ["beforeSubmitPrompt", "preToolUse"]
     ):
         return IDEType.CURSOR
+
+    # Kiro detection - kiro_hook_type or kiro_version field
+    if "kiro_hook_type" in hook_data or "kiro_version" in hook_data:
+        return IDEType.KIRO
 
     # Augment Code detection - is_mcp_tool field is unique to Augment
     if "is_mcp_tool" in hook_data and "tool_name" in hook_data:
@@ -201,6 +208,30 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEv
             "output": json.dumps(response),
             "exit_code": 0
         })
+    elif ide_type == IDEType.KIRO:
+        # Kiro: exit 0=allow (stdout→agent context), exit 1=block (stderr→agent)
+        if has_secrets and error_message:
+            final_error = error_message
+            if warning_message:
+                final_error = f"{warning_message}\n\n{error_message}"
+            print(final_error, file=sys.stderr)
+            return _add_metadata({
+                "output": None,
+                "exit_code": 1
+            })
+        else:
+            parts = []
+            if hook_event == HookEvent.PROMPT and security_message:
+                parts.append(security_message)
+            if warning_message:
+                parts.append(warning_message)
+            if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
+                parts.append(modified_output)
+            output = "\n\n".join(parts) if parts else None
+            return _add_metadata({
+                "output": output,
+                "exit_code": 0
+            })
     elif ide_type == IDEType.CURSOR:
         final_error = error_message
         if has_secrets and error_message and warning_message:
@@ -346,6 +377,16 @@ def detect_hook_event(hook_data):
         return HookEvent.POST_TOOL_USE
     elif event_name in ("beforeagent", "sessionstart"):
         return HookEvent.PROMPT
+
+    # Kiro event names
+    if event_name in ("prompt_submit", "promptsubmit"):
+        return HookEvent.PROMPT
+    elif event_name == "agent_stop":
+        return HookEvent.POST_TOOL_USE
+    elif event_name == "pre_tool_use":
+        return HookEvent.PRE_TOOL_USE
+    elif event_name == "post_tool_use":
+        return HookEvent.POST_TOOL_USE
 
     if event_name in ["userpromptsubmit", "beforesubmitprompt"]:
         return HookEvent.PROMPT

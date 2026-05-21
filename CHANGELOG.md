@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Explain how to become a collaborator
   - README.md updated to link to Discussions for bug reports and feature requests
 
+- **Kiro (AWS) hook support** (Issue #636)
+  - New `IDEType.KIRO` with exit code-based blocking (exit 0 = allow, exit 1 = block)
+  - Kiro sends stdout to agent context on success, stderr on error
+  - Auto-detect Kiro via `kiro_hook_type` or `kiro_version` fields in hook input
+  - `AI_GUARDIAN_IDE_TYPE=kiro` env var override supported
+  - Hook event mapping: `prompt_submit`, `pre_tool_use`, `post_tool_use`, `agent_stop`
+  - `ai-guardian setup --ide kiro` generates hook scripts in `.kiro/hooks/`
+  - MCP server configuration for Kiro
+
 - **Augment Code hook support** (Issue #638)
   - Auto-detect Augment via `is_mcp_tool` field in hook input
   - Uses Claude Code response format (JSON + exit code 2 for blocking)

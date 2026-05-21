@@ -264,6 +264,15 @@ class IDESetup:
             "hook_scripts": ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
             "script_content": "#!/bin/sh\nai-guardian\n",
         },
+        "kiro": {
+            "name": "Kiro",
+            "config_path": ".kiro/hooks",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "script_based": True,
+            "hook_scripts": ["PreToolUse", "PostToolUse", "PromptSubmit"],
+            "script_content": "#!/bin/sh\nai-guardian\n",
+        },
         "augment": {
             "name": "Augment Code",
             "config_path": "~/.augment/settings.json",
@@ -727,8 +736,8 @@ class IDESetup:
             if not config_path.exists():
                 return False
 
-            # Script-based hooks (Cline, ZooCode): check directory for scripts
-            if ide_type in ("cline", "zoocode"):
+            # Script-based hooks (Cline, ZooCode, Kiro): check directory for scripts
+            if ide_type in ("cline", "zoocode", "kiro"):
                 hooks_dir = config_path if config_path.is_dir() else config_path.parent
                 ide_config = self.IDE_CONFIGS.get(ide_type, {})
                 for script_name in ide_config.get("hook_scripts", []):
@@ -2317,6 +2326,11 @@ _MCP_IDE_CONFIGS = {
         "config_file": "~/.augment/settings.json",
         "config_key": "mcpServers",
         "skill_dir": ".augment/skills",
+    },
+    "kiro": {
+        "config_file": "~/.kiro/settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".kiro/skills",
     },
 }
 
