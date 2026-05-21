@@ -361,8 +361,22 @@ def _handle_daemon_command(args):
             args.no_tray = False
         return _handle_daemon_command(args)
 
+    elif cmd == "reload":
+        from ai_guardian.daemon.client import is_daemon_running, send_reload_config
+
+        if not is_daemon_running():
+            print("ai-guardian daemon is not running", file=sys.stderr)
+            return 1
+
+        if send_reload_config(timeout=_get_client_timeout()):
+            print("ai-guardian daemon: config reloaded")
+            return 0
+        else:
+            print("Failed to reload daemon config", file=sys.stderr)
+            return 1
+
     else:
-        print("Usage: ai-guardian daemon {start|stop|status|restart}")
+        print("Usage: ai-guardian daemon {start|stop|status|restart|reload}")
         return 1
 
 

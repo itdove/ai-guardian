@@ -20,6 +20,17 @@ from typing import Any, Dict, List, Optional, Tuple
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
 
 
+def _notify_daemon_reload():
+    """Notify daemon to reload config if running. Silent on failure."""
+    try:
+        from ai_guardian.daemon.client import is_daemon_running, send_reload_config
+        if is_daemon_running():
+            if send_reload_config():
+                print("Daemon reloaded with new configuration")
+    except Exception:
+        pass
+
+
 class IDESetup:
     """Handle IDE hook setup and configuration."""
 
@@ -1617,6 +1628,8 @@ def setup_hooks(
         else:
             # If only creating config (no IDE setup or remote config), return early
             if ide_type is None and not remote_config_url and not migrate_pattern_server and not mcp and not no_mcp:
+                if config_success:
+                    _notify_daemon_reload()
                 return config_success
 
     # Handle pattern_server migration if requested
@@ -1709,6 +1722,9 @@ def setup_hooks(
     # Handle MCP server installation (Issue #477)
     if success and (mcp or no_mcp):
         _handle_mcp_setup(setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run)
+
+    if success and not dry_run:
+        _notify_daemon_reload()
 
     return success
 

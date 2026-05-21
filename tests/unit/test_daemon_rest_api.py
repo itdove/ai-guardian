@@ -17,6 +17,7 @@ class MockDaemonState:
     def __init__(self):
         self._paused = False
         self._pause_minutes = 0
+        self._config_reloaded = False
 
     def get_stats(self):
         return {
@@ -33,6 +34,9 @@ class MockDaemonState:
     def resume(self):
         self._paused = False
         self._pause_minutes = 0
+
+    def force_reload_config(self):
+        self._config_reloaded = True
 
 
 @pytest.fixture
@@ -93,6 +97,17 @@ class TestRestAPIEndpoints:
             data = json.loads(resp.read())
         assert data["status"] == "resumed"
         assert state._paused is False
+
+    def test_post_reload(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/reload"
+        req = Request(url, data=b"", method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Content-Length", "0")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert data["status"] == "config_reloaded"
+        assert state._config_reloaded is True
 
     def test_unknown_path_returns_404(self, rest_api):
         api, port, state = rest_api

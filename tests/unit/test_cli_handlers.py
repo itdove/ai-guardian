@@ -75,6 +75,44 @@ class TestSetDaemonModeInConfig:
         assert config["existing"] == "value"
 
 
+class TestDaemonReloadCommand:
+    def test_reload_when_running(self, capsys):
+        args = mock.MagicMock()
+        args.daemon_command = "reload"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True), \
+             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=True), \
+             mock.patch("ai_guardian.cli_handlers._get_client_timeout", return_value=2.0):
+            result = _handle_daemon_command(args)
+
+        assert result == 0
+        assert "config reloaded" in capsys.readouterr().out
+
+    def test_reload_when_not_running(self, capsys):
+        args = mock.MagicMock()
+        args.daemon_command = "reload"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
+             mock.patch("ai_guardian.daemon.client.send_reload_config") as mock_reload:
+            result = _handle_daemon_command(args)
+
+        assert result == 1
+        assert "not running" in capsys.readouterr().err
+        mock_reload.assert_not_called()
+
+    def test_reload_send_fails(self, capsys):
+        args = mock.MagicMock()
+        args.daemon_command = "reload"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True), \
+             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=False), \
+             mock.patch("ai_guardian.cli_handlers._get_client_timeout", return_value=2.0):
+            result = _handle_daemon_command(args)
+
+        assert result == 1
+        assert "Failed" in capsys.readouterr().err
+
+
 class TestBackwardCompatImports:
     def test_import_from_package_level(self):
         from ai_guardian import _handle_violations_command as hvc

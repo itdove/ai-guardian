@@ -42,6 +42,16 @@ from ai_guardian.cli_handlers import (
 logger = logging.getLogger(__name__)
 
 
+def _ensure_daemon_started():
+    """Auto-start daemon if not running. Silent — no output on success or failure."""
+    try:
+        from ai_guardian.daemon.client import is_daemon_running, start_daemon_background
+        if not is_daemon_running():
+            start_daemon_background()
+    except Exception:
+        pass
+
+
 def main():
     """Main entry point for the hook."""
     # If arguments are provided, handle them
@@ -563,6 +573,7 @@ def main():
         daemon_sub.add_parser("stop", help="Stop running daemon")
         daemon_sub.add_parser("status", help="Show daemon status")
         daemon_sub.add_parser("restart", help="Restart daemon")
+        daemon_sub.add_parser("reload", help="Force config reload without restart")
 
         # Standalone tray subcommand (Issue #527)
         tray_parser = subparsers.add_parser(
@@ -764,6 +775,10 @@ def main():
         )
 
         args = parser.parse_args()
+
+        # Auto-start daemon for CLI commands (Issue #680)
+        if args.command and args.command != "daemon":
+            _ensure_daemon_started()
 
         # Handle setup command
         if args.command == "setup":
