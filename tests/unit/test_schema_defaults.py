@@ -176,10 +176,6 @@ class TestSchemaDefaults(unittest.TestCase):
         sd = SchemaDefaults.get()
         assert sd.get_default("daemon.idle_timeout_minutes") == 30
 
-    def test_daemon_mode_default(self):
-        sd = SchemaDefaults.get()
-        assert sd.get_default("daemon.mode") == "auto"
-
     def test_definitions_console_default(self):
         sd = SchemaDefaults.get()
         assert sd.get_default("console.editor_theme") == "monokai"

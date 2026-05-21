@@ -13,16 +13,10 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Static, Select, Button, Label, Input
 from textual.reactive import reactive
 
-from ai_guardian.config_utils import get_config_dir, get_state_dir
+from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import SchemaDefaults
 
 logger = logging.getLogger(__name__)
-
-DAEMON_MODES = [
-    ("auto — daemon with fallback to direct", "auto"),
-    ("local — always per-process (CI/CD)", "local"),
-    ("daemon — require daemon, log errors (testing)", "daemon"),
-]
 
 
 class DaemonPanelContent(Static):
@@ -33,7 +27,6 @@ class DaemonPanelContent(Static):
     def compose(self) -> ComposeResult:
         sd = SchemaDefaults.get()
         config = self._load_daemon_config()
-        current_mode = config.get("mode", "auto")
         idle_timeout = config.get("idle_timeout_minutes", 30)
         client_timeout = config.get("client_timeout_seconds", 2.0)
         tray_enabled = config.get("tray", {}).get("enabled", True)
@@ -41,15 +34,7 @@ class DaemonPanelContent(Static):
         yield Static("[bold]Daemon Configuration[/bold]\n", classes="section-header")
 
         with Vertical(classes="form-group"):
-            yield Static("Mode")
-            yield Select(
-                DAEMON_MODES,
-                value=current_mode,
-                id="daemon-mode",
-                allow_blank=False,
-            )
-            yield Static(
-                "[dim]Override with AI_GUARDIAN_DAEMON_MODE env var[/dim]",
+            yield Static("[dim]Daemon auto-starts on any command and falls back to direct if unavailable[/dim]",
                 classes="help-text",
             )
 
@@ -127,9 +112,8 @@ class DaemonPanelContent(Static):
                 self.app.notify("Daemon is already running", severity="warning")
                 return
 
-            self._update_mode_in_config("auto")
             if start_daemon_background():
-                self.app.notify("Daemon started (mode set to 'auto')", severity="information")
+                self.app.notify("Daemon started", severity="information")
             else:
                 self.app.notify("Failed to start daemon", severity="error")
         except Exception as e:
@@ -140,38 +124,18 @@ class DaemonPanelContent(Static):
         try:
             from ai_guardian.daemon.client import is_daemon_running, send_shutdown
 
-            self._update_mode_in_config("local")
             if not is_daemon_running():
-                self.app.notify("Daemon is not running (mode set to 'local')", severity="information")
+                self.app.notify("Daemon is not running", severity="information")
             elif send_shutdown():
-                self.app.notify("Daemon stopped (mode set to 'local')", severity="information")
+                self.app.notify("Daemon stopped", severity="information")
             else:
                 self.app.notify("Failed to stop daemon", severity="error")
         except Exception as e:
             self.app.notify(f"Stop failed: {e}", severity="error")
         self._refresh_status()
 
-    def _update_mode_in_config(self, mode):
-        config_path = get_config_dir() / "ai-guardian.json"
-        if config_path.exists():
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-        else:
-            config = {}
-        if "daemon" not in config:
-            config["daemon"] = {}
-        config["daemon"]["mode"] = mode
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-
-        # Update the mode dropdown
-        try:
-            self.query_one("#daemon-mode", Select).value = mode
-        except Exception:
-            pass
-
     def _save_config(self):
         try:
-            mode_select = self.query_one("#daemon-mode", Select)
             idle_input = self.query_one("#daemon-idle-timeout", Input)
             client_input = self.query_one("#daemon-client-timeout", Input)
             tray_select = self.query_one("#daemon-tray-enabled", Select)
@@ -182,19 +146,24 @@ class DaemonPanelContent(Static):
             else:
                 full_config = {}
 
-            full_config["daemon"] = {
-                "mode": mode_select.value,
-                "idle_timeout_minutes": int(idle_input.value or 30),
-                "client_timeout_seconds": float(client_input.value or 2.0),
-                "tray": {
-                    "enabled": tray_select.value,
-                },
-            }
+            daemon_config = full_config.get("daemon", {})
+            daemon_config["idle_timeout_minutes"] = int(idle_input.value or 30)
+            daemon_config["client_timeout_seconds"] = float(client_input.value or 2.0)
+            daemon_config["tray"] = {"enabled": tray_select.value}
+            daemon_config.pop("mode", None)
+            full_config["daemon"] = daemon_config
 
             config_path.parent.mkdir(parents=True, exist_ok=True)
             config_path.write_text(
                 json.dumps(full_config, indent=2) + "\n", encoding="utf-8"
             )
+
+            try:
+                from ai_guardian.daemon.client import send_reload_config
+                send_reload_config()
+            except Exception:
+                pass
+
             self.app.notify("Daemon config saved", severity="information")
         except Exception as e:
             self.app.notify(f"Save failed: {e}", severity="error")

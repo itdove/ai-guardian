@@ -164,30 +164,10 @@ def _handle_violations_command(args):
 
 
 def _get_daemon_mode(config=None):
-    """Get daemon mode from environment variable or config.
+    """Deprecated: daemon mode is no longer used. Always returns 'auto'.
 
-    Args:
-        config: Pre-loaded config dict (skips _load_config_file when provided)
-
-    Returns:
-        str: "auto", "local", or "daemon"
+    Kept for backward compatibility with existing imports.
     """
-    valid_modes = ("auto", "local", "daemon")
-    env_mode = os.environ.get("AI_GUARDIAN_DAEMON_MODE", "").lower()
-    if env_mode in valid_modes:
-        return env_mode
-
-    try:
-        if config is None:
-            config, _ = _load_config_file()
-        if config:
-            daemon_config = config.get("daemon", {})
-            mode = daemon_config.get("mode", "auto")
-            if mode in valid_modes:
-                return mode
-    except Exception:
-        pass
-
     return "auto"
 
 
@@ -217,21 +197,11 @@ def _get_client_timeout(config=None):
 
 
 def _set_daemon_mode_in_config(mode):
-    """Update daemon mode in the config file."""
-    try:
-        config_path = get_config_dir() / "ai-guardian.json"
-        if config_path.exists():
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-        else:
-            config = {}
-        if "daemon" not in config:
-            config["daemon"] = {}
-        config["daemon"]["mode"] = mode
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-        logging.info(f"Daemon mode set to '{mode}'")
-    except Exception as e:
-        logging.warning(f"Failed to update daemon mode in config: {e}")
+    """Deprecated: daemon mode is no longer used. No-op.
+
+    Kept for backward compatibility with existing imports.
+    """
+    pass
 
 
 def _handle_daemon_command(args):
@@ -239,12 +209,11 @@ def _handle_daemon_command(args):
     cmd = getattr(args, "daemon_command", None)
 
     if cmd == "start":
-        _set_daemon_mode_in_config("auto")
         if args.background:
             from ai_guardian.daemon.client import start_daemon_background
 
             if start_daemon_background():
-                print("ai-guardian daemon started (mode set to 'auto')")
+                print("ai-guardian daemon started")
                 return 0
             else:
                 print("Failed to start daemon in background", file=sys.stderr)
@@ -266,13 +235,12 @@ def _handle_daemon_command(args):
     elif cmd == "stop":
         from ai_guardian.daemon.client import is_daemon_running, send_shutdown
 
-        _set_daemon_mode_in_config("local")
         if not is_daemon_running():
-            print("ai-guardian daemon is not running (mode set to 'local')")
+            print("ai-guardian daemon is not running")
             return 0
 
         if send_shutdown(timeout=_get_client_timeout()):
-            print("ai-guardian daemon stopped (mode set to 'local')")
+            print("ai-guardian daemon stopped")
             return 0
         else:
             print("Failed to stop daemon", file=sys.stderr)
@@ -323,7 +291,6 @@ def _handle_daemon_command(args):
             print(f"Uptime: {uptime_str}")
             print(f"Hooks processed: {req_count} ({blocked} blocked)")
             print(f"Config: {config_str}")
-            print(f"Mode: {_get_daemon_mode()} (daemon active)")
 
             sock_path = get_socket_path()
             if sock_path.exists():
@@ -361,8 +328,22 @@ def _handle_daemon_command(args):
             args.no_tray = False
         return _handle_daemon_command(args)
 
+    elif cmd == "reload":
+        from ai_guardian.daemon.client import is_daemon_running, send_reload_config
+
+        if not is_daemon_running():
+            print("ai-guardian daemon is not running", file=sys.stderr)
+            return 1
+
+        if send_reload_config(timeout=_get_client_timeout()):
+            print("ai-guardian daemon: config reloaded")
+            return 0
+        else:
+            print("Failed to reload daemon config", file=sys.stderr)
+            return 1
+
     else:
-        print("Usage: ai-guardian daemon {start|stop|status|restart}")
+        print("Usage: ai-guardian daemon {start|stop|status|restart|reload}")
         return 1
 
 

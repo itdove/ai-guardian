@@ -1507,14 +1507,8 @@
     },
     "daemon": {
       "type": "object",
-      "description": "Background daemon configuration. Controls whether ai-guardian runs as a long-lived daemon process for faster hook response times and cross-hook state sharing. Two modes: 'auto' (default, try daemon then fall back to direct) and 'direct' (always per-process, for CI/CD).",
+      "description": "Background daemon configuration. The daemon auto-starts on any CLI command and falls back to direct processing if it cannot start.",
       "properties": {
-        "mode": {
-          "type": "string",
-          "enum": ["auto", "local", "daemon"],
-          "default": "auto",
-          "description": "Daemon mode. 'auto': use daemon if running, start lazily, fall back to local. 'local': always per-process (CI/CD, containers). 'daemon': require daemon, log errors if unavailable (for testing/compliance)."
-        },
         "idle_timeout_minutes": {
           "type": "integer",
           "default": 30,

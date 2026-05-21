@@ -32,14 +32,22 @@ from ai_guardian.hook_processing import (
 )
 from ai_guardian.cli_handlers import (
     _handle_violations_command,
-    _get_daemon_mode,
     _get_client_timeout,
-    _set_daemon_mode_in_config,
     _handle_daemon_command,
     _handle_tray_command,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_daemon_started():
+    """Auto-start daemon if not running. Silent — no output on success or failure."""
+    try:
+        from ai_guardian.daemon.client import is_daemon_running, start_daemon_background
+        if not is_daemon_running():
+            start_daemon_background()
+    except Exception:
+        pass
 
 
 def main():
@@ -563,6 +571,7 @@ def main():
         daemon_sub.add_parser("stop", help="Stop running daemon")
         daemon_sub.add_parser("status", help="Show daemon status")
         daemon_sub.add_parser("restart", help="Restart daemon")
+        daemon_sub.add_parser("reload", help="Force config reload without restart")
 
         # Standalone tray subcommand (Issue #527)
         tray_parser = subparsers.add_parser(
@@ -764,6 +773,11 @@ def main():
         )
 
         args = parser.parse_args()
+
+        # Auto-start daemon for CLI commands (Issue #680)
+        _no_autostart = {"daemon", "mcp-server", "tray"}
+        if args.command and args.command not in _no_autostart:
+            _ensure_daemon_started()
 
         # Handle setup command
         if args.command == "setup":
@@ -1227,52 +1241,39 @@ def main():
         _hook_config, _ = _load_config_file()
     except Exception:
         pass
-    daemon_mode = _get_daemon_mode(config=_hook_config)
     hook_data = None
     response = None
     stdin_consumed = False
 
-    if daemon_mode in ("auto", "daemon"):
-        try:
-            from ai_guardian.daemon.client import (
-                is_daemon_running,
-                send_hook_request,
-                start_daemon_background,
-            )
+    try:
+        from ai_guardian.daemon.client import (
+            is_daemon_running,
+            send_hook_request,
+            start_daemon_background,
+        )
 
-            stdin_content = sys.stdin.read()
-            stdin_consumed = True
-            hook_data = json.loads(stdin_content)
+        stdin_content = sys.stdin.read()
+        stdin_consumed = True
+        hook_data = json.loads(stdin_content)
 
-            if not is_daemon_running():
-                logging.info("Daemon not running, starting...")
-                started = start_daemon_background()
-                if not started:
-                    logging.warning("Failed to start daemon")
+        running = is_daemon_running()
+        if not running:
+            logging.info("Daemon not running, starting...")
+            running = start_daemon_background()
 
-            if is_daemon_running():
-                logging.info("Daemon is running, forwarding hook request")
-                response = send_hook_request(hook_data, timeout=_get_client_timeout(config=_hook_config))
-                if response is not None:
-                    logging.info("Daemon processed hook request")
-                elif daemon_mode == "daemon":
-                    logging.error("Daemon returned no response (daemon mode)")
-                else:
-                    logging.warning("Daemon returned no response, falling back to direct")
+        if running:
+            logging.info("Daemon is running, forwarding hook request")
+            response = send_hook_request(hook_data, timeout=_get_client_timeout(config=_hook_config))
+            if response is not None:
+                logging.info("Daemon processed hook request")
             else:
-                if daemon_mode == "daemon":
-                    logging.error("Daemon unavailable (daemon mode)")
-                else:
-                    logging.info("Daemon unavailable, falling back to direct")
-        except Exception as e:
-            if daemon_mode == "daemon":
-                logging.error(f"Daemon client error (daemon mode, no fallback): {e}")
-            else:
-                logging.info(f"Daemon client error, falling back to direct: {e}")
+                logging.warning("Daemon returned no response, falling back to direct")
+        else:
+            logging.info("Daemon unavailable, falling back to direct")
+    except Exception as e:
+        logging.info(f"Daemon client error, falling back to direct: {e}")
 
     if response is None:
-        if daemon_mode == "daemon":
-            logging.error("Daemon mode: failed to process via daemon, allowing through (fail-open)")
         if hook_data is not None:
             response = process_hook_data(hook_data)
         elif stdin_consumed:

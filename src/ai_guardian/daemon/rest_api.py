@@ -57,6 +57,9 @@ class _RestHandler(BaseHTTPRequestHandler):
         elif self.path == "/api/resume":
             self.server.daemon_state.resume()
             self._send_json({"status": "resumed"})
+        elif self.path == "/api/reload":
+            self.server.daemon_state.force_reload_config()
+            self._send_json({"status": "config_reloaded"})
         else:
             self._send_error(404, "Not found")
 

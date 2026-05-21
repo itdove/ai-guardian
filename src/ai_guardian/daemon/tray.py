@@ -170,7 +170,6 @@ class DaemonTray:
         self._thread = None
         self._pause_timer = None
         self._status = "running"
-        self._current_mode = self._read_mode_from_config()
         self._proactive_level = self._read_proactive_level()
         self._targets = []
         self._active_target = None
@@ -393,49 +392,6 @@ class DaemonTray:
             return f"{hours}h ago"
         days = hours // 24
         return f"{days}d ago"
-
-    def _on_change_mode(self, mode):
-        """Change daemon mode in config file."""
-        try:
-            import json
-            from ai_guardian.config_utils import get_config_dir
-
-            config_path = get_config_dir() / "ai-guardian.json"
-            if config_path.exists():
-                config = json.loads(config_path.read_text(encoding="utf-8"))
-            else:
-                config = {}
-
-            if "daemon" not in config:
-                config["daemon"] = {}
-            config["daemon"]["mode"] = mode
-
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            config_path.write_text(
-                json.dumps(config, indent=2) + "\n", encoding="utf-8"
-            )
-            self._current_mode = mode
-            logger.info(f"Daemon mode changed to '{mode}'")
-
-            from ai_guardian.daemon.client import send_reload_config
-            send_reload_config()
-        except Exception as e:
-            logger.debug(f"Failed to change mode: {e}")
-
-    @staticmethod
-    def _read_mode_from_config():
-        """Read current daemon mode from config file."""
-        try:
-            import json
-            from ai_guardian.config_utils import get_config_dir
-
-            config_path = get_config_dir() / "ai-guardian.json"
-            if config_path.exists():
-                config = json.loads(config_path.read_text(encoding="utf-8"))
-                return config.get("daemon", {}).get("mode", "auto")
-        except Exception:
-            pass
-        return "auto"
 
     def _on_change_proactive(self, level):
         """Change MCP proactive check level in config file."""
@@ -931,30 +887,6 @@ class DaemonTray:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                lambda _: f"Mode: {self._current_mode}",
-                pystray.Menu(
-                    pystray.MenuItem(
-                        "auto",
-                        lambda _, __: self._on_change_mode("auto"),
-                        checked=lambda _: self._current_mode == "auto",
-                        radio=True,
-                    ),
-                    pystray.MenuItem(
-                        "local",
-                        lambda _, __: self._on_change_mode("local"),
-                        checked=lambda _: self._current_mode == "local",
-                        radio=True,
-                    ),
-                    pystray.MenuItem(
-                        "daemon",
-                        lambda _, __: self._on_change_mode("daemon"),
-                        checked=lambda _: self._current_mode == "daemon",
-                        radio=True,
-                    ),
-                ),
-                visible=_single_vis,
-            ),
-            pystray.MenuItem(
                 lambda _: f"MCP Proactive: {self._proactive_level}",
                 pystray.Menu(
                     pystray.MenuItem(
@@ -1198,29 +1130,6 @@ class DaemonTray:
                             visible=_is_slot_running,
                         ),
                         pystray.Menu.SEPARATOR,
-                        pystray.MenuItem(
-                            lambda _: f"Mode: {self._current_mode}",
-                            pystray.Menu(
-                                pystray.MenuItem(
-                                    "auto",
-                                    lambda _, __: self._on_change_mode("auto"),
-                                    checked=lambda _: self._current_mode == "auto",
-                                    radio=True,
-                                ),
-                                pystray.MenuItem(
-                                    "local",
-                                    lambda _, __: self._on_change_mode("local"),
-                                    checked=lambda _: self._current_mode == "local",
-                                    radio=True,
-                                ),
-                                pystray.MenuItem(
-                                    "daemon",
-                                    lambda _, __: self._on_change_mode("daemon"),
-                                    checked=lambda _: self._current_mode == "daemon",
-                                    radio=True,
-                                ),
-                            ),
-                        ),
                         pystray.MenuItem(
                             lambda _: f"MCP Proactive: {self._proactive_level}",
                             pystray.Menu(

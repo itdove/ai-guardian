@@ -20,6 +20,16 @@ from typing import Any, Dict, List, Optional, Tuple
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
 
 
+def _notify_daemon_reload():
+    """Notify daemon to reload config if running. Silent on failure."""
+    try:
+        from ai_guardian.daemon.client import send_reload_config
+        if send_reload_config():
+            print("Daemon reloaded with new configuration")
+    except Exception:
+        pass
+
+
 class IDESetup:
     """Handle IDE hook setup and configuration."""
 
@@ -1054,9 +1064,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "retention_days": 30,
             "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed"]
         },
-        "_comment_daemon": "Background daemon for faster hook processing. Modes: 'auto' (default, daemon with fallback), 'local' (per-process, CI/CD), 'daemon' (require daemon, for testing). Override with AI_GUARDIAN_DAEMON_MODE env var.",
+        "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
         "daemon": {
-            "mode": "auto",
             "idle_timeout_minutes": 30,
             "client_timeout_seconds": 2.0,
             "tray": {
@@ -1617,6 +1626,8 @@ def setup_hooks(
         else:
             # If only creating config (no IDE setup or remote config), return early
             if ide_type is None and not remote_config_url and not migrate_pattern_server and not mcp and not no_mcp:
+                if config_success:
+                    _notify_daemon_reload()
                 return config_success
 
     # Handle pattern_server migration if requested
@@ -1709,6 +1720,9 @@ def setup_hooks(
     # Handle MCP server installation (Issue #477)
     if success and (mcp or no_mcp):
         _handle_mcp_setup(setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run)
+
+    if success and not dry_run:
+        _notify_daemon_reload()
 
     return success
 
