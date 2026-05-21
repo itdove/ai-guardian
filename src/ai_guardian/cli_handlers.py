@@ -487,7 +487,7 @@ def _handle_tray_start(args):
             print(f"Failed to start tray in background: {e}", file=sys.stderr)
             return 1
 
-    from ai_guardian.daemon.tray import DaemonTray, is_tray_available
+    from ai_guardian.daemon.tray import DaemonTray, is_tray_available, _is_tray_running
     from ai_guardian.daemon.discovery import DaemonDiscovery
     from ai_guardian.daemon.multi_client import MultiDaemonClient
 
@@ -557,6 +557,11 @@ def _handle_tray_start(args):
         multi_client=multi_client,
         standalone=True,
     )
+
+    existing_pid = _is_tray_running()
+    if existing_pid:
+        print(f"Tray is already running (pid {existing_pid})")
+        return 0
 
     print("ai-guardian tray started (multi-daemon mode)")
     tray.run_blocking()

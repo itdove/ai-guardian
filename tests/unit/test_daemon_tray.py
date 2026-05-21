@@ -8,6 +8,7 @@ from ai_guardian.daemon.discovery import DaemonTarget
 from ai_guardian.daemon.tray import (
     DaemonTray,
     is_tray_available,
+    _is_tray_running,
     _suppress_gtk_stderr,
     _restore_stderr,
 )
@@ -20,15 +21,15 @@ class TestIsTrayAvailable:
 
 
 class TestDaemonTrayWithoutPystray:
-    def test_start_without_pystray_is_noop(self):
+    def test_start_without_pystray_returns_false(self):
         with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", False):
             tray = DaemonTray(
                 get_stats_callback=lambda: {},
                 stop_callback=lambda: None,
                 pause_callback=lambda: None,
             )
-            tray.start()
-            # Should not raise, just log and return
+            result = tray.start()
+            assert result is False
 
     def test_stop_without_icon_is_noop(self):
         tray = DaemonTray(
@@ -1359,3 +1360,101 @@ class TestNonBlockingMenuRefresh:
                         break
 
         mock_discovery.request_refresh.assert_called_with(wait=False)
+
+
+class TestIsTrayRunningReturnsPid:
+    """Tests for _is_tray_running() returning PID instead of True (issue #713)."""
+
+    def test_returns_false_when_no_lock(self, tmp_path):
+        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=tmp_path / "tray.lock"):
+            assert _is_tray_running() is False
+
+    def test_returns_pid_when_alive(self, tmp_path):
+        import os
+        lock = tmp_path / "tray.lock"
+        lock.write_text(str(os.getpid()))
+        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock):
+            result = _is_tray_running()
+            assert result == os.getpid()
+
+    def test_returns_false_when_pid_dead(self, tmp_path):
+        lock = tmp_path / "tray.lock"
+        lock.write_text("999999999")
+        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock), \
+             mock.patch("ai_guardian.daemon.is_pid_alive", return_value=False):
+            assert _is_tray_running() is False
+            assert not lock.exists()
+
+    def test_returns_false_when_lock_has_bad_content(self, tmp_path):
+        lock = tmp_path / "tray.lock"
+        lock.write_text("not-a-number")
+        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock):
+            assert _is_tray_running() is False
+            assert not lock.exists()
+
+
+class TestRunBlockingReturnValue:
+    """Tests for run_blocking() returning False when already running (issue #713)."""
+
+    def test_returns_false_without_pystray(self):
+        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", False):
+            tray = DaemonTray(
+                get_stats_callback=lambda: {},
+                stop_callback=lambda: None,
+                pause_callback=lambda: None,
+            )
+            assert tray.run_blocking() is False
+
+    def test_returns_false_when_already_running(self):
+        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True), \
+             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=12345):
+            tray = DaemonTray(
+                get_stats_callback=lambda: {},
+                stop_callback=lambda: None,
+                pause_callback=lambda: None,
+            )
+            assert tray.run_blocking() is False
+
+
+class TestTrayStartAlreadyRunningMessage:
+    """Tests for CLI printing informative message when tray is already running (issue #713)."""
+
+    def test_prints_already_running_with_pid(self):
+        from ai_guardian.cli_handlers import _handle_tray_start
+        args = mock.MagicMock()
+        args.background = False
+        args.no_discover = False
+
+        with mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True), \
+             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=42), \
+             mock.patch("sys.stdin") as mock_stdin, \
+             mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=({}, None)), \
+             mock.patch("builtins.print") as mock_print:
+            mock_stdin.isatty.return_value = False
+            result = _handle_tray_start(args)
+
+        assert result == 0
+        mock_print.assert_called_once_with("Tray is already running (pid 42)")
+
+    def test_prints_success_when_not_running(self):
+        from ai_guardian.cli_handlers import _handle_tray_start
+        args = mock.MagicMock()
+        args.background = False
+        args.no_discover = False
+
+        with mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True), \
+             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False), \
+             mock.patch("sys.stdin") as mock_stdin, \
+             mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=({}, None)), \
+             mock.patch("ai_guardian.daemon.tray.DaemonTray") as MockTray, \
+             mock.patch("ai_guardian.daemon.discovery.DaemonDiscovery"), \
+             mock.patch("ai_guardian.daemon.multi_client.MultiDaemonClient"), \
+             mock.patch("ai_guardian.daemon.client.send_status_request", return_value={}), \
+             mock.patch("builtins.print") as mock_print:
+            mock_stdin.isatty.return_value = False
+            mock_tray_instance = MockTray.return_value
+            mock_tray_instance.run_blocking.return_value = None
+            result = _handle_tray_start(args)
+
+        assert result == 0
+        mock_print.assert_called_once_with("ai-guardian tray started (multi-daemon mode)")

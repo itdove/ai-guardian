@@ -21,7 +21,10 @@ def _get_tray_lock_path():
 
 
 def _is_tray_running():
-    """Check if another tray process is already running."""
+    """Check if another tray process is already running.
+
+    Returns the PID (int) of the running tray if found, otherwise False.
+    """
     from ai_guardian.daemon import is_pid_alive
 
     lock_path = _get_tray_lock_path()
@@ -30,7 +33,7 @@ def _is_tray_running():
     try:
         pid = int(lock_path.read_text().strip())
         if is_pid_alive(pid):
-            return True
+            return pid
         lock_path.unlink(missing_ok=True)
         return False
     except ValueError:
@@ -175,14 +178,17 @@ class DaemonTray:
         self._active_target = None
 
     def start(self):
-        """Start tray icon in a background thread."""
+        """Start tray icon in a background thread.
+
+        Returns True if started, False if already running or unavailable.
+        """
         if not HAS_PYSTRAY:
             logger.info("System tray not available (install pystray and Pillow)")
-            return
+            return False
 
         if _is_tray_running():
             logger.info("System tray already running (pid in tray.lock), skipping")
-            return
+            return False
 
         _write_tray_lock()
 
@@ -193,19 +199,22 @@ class DaemonTray:
             target=self._run, daemon=True, name="tray-icon"
         )
         self._thread.start()
+        return True
 
     def run_blocking(self):
         """Run tray icon on the current thread (blocks).
 
         Required on macOS where AppKit needs the main thread.
+        Returns True if started, False if already running or unavailable.
         """
         if not HAS_PYSTRAY:
             logger.info("System tray not available")
-            return
+            return False
 
-        if _is_tray_running():
-            logger.info("System tray already running (pid in tray.lock), skipping")
-            return
+        existing_pid = _is_tray_running()
+        if existing_pid:
+            logger.info("System tray already running (pid %s in tray.lock), skipping", existing_pid)
+            return False
 
         _write_tray_lock()
 
