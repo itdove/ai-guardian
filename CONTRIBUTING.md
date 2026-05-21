@@ -1,8 +1,22 @@
 # Contributing to AI Guardian
 
-Thank you for your interest in contributing! AI Guardian uses a standard fork-based workflow.
+Thank you for your interest in contributing! This repo uses `collaborators_only` interaction limits to prevent spam, which means only collaborators can open issues directly. There are still several ways to contribute.
 
-## Quick Start
+## How to Contribute
+
+### 1. Open a Discussion
+
+[GitHub Discussions](https://github.com/itdove/ai-guardian/discussions) are open to everyone and don't require collaborator access. Use them for:
+
+- **Bug reports** -- [Bug Reports](https://github.com/itdove/ai-guardian/discussions/categories/bug-reports) category
+- **Feature requests** -- [Ideas](https://github.com/itdove/ai-guardian/discussions/categories/ideas) category
+- **Questions** -- [Q&A](https://github.com/itdove/ai-guardian/discussions/categories/q-a) category
+
+Maintainers review discussions regularly and will convert them to issues when appropriate.
+
+### 2. Open a Pull Request
+
+Code contributions via fork + PR are always welcome and are not affected by interaction limits. PRs from forks work regardless of collaborator status.
 
 ```bash
 gh repo fork itdove/ai-guardian --clone
@@ -11,6 +25,10 @@ git checkout -b feature/your-change
 # make changes, commit, push
 gh pr create --web
 ```
+
+### 3. Becoming a Collaborator
+
+Active contributors may be invited as collaborators, which grants direct issue access. This happens after sustained quality contributions.
 
 ## Branch Naming
 

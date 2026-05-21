@@ -259,7 +259,10 @@ See [AGENTS.md](https://github.com/itdove/ai-guardian/blob/main/AGENTS.md) for t
 
 ## Contributing
 
-We welcome contributions via a **fork-based workflow**:
+We welcome contributions! This repo uses interaction limits, so:
+
+- **Bug reports & feature requests** -- use [GitHub Discussions](https://github.com/itdove/ai-guardian/discussions)
+- **Code contributions** -- fork + PR (not affected by interaction limits)
 
 ```bash
 gh repo fork itdove/ai-guardian --clone

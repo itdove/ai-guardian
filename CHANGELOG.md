@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Updated CONTRIBUTING.md with contribution paths** (Issue #727)
+  - Explain how to contribute via GitHub Discussions (bug reports, feature requests, questions)
+  - Explain fork + PR workflow (not affected by interaction limits)
+  - Explain how to become a collaborator
+  - README.md updated to link to Discussions for bug reports and feature requests
+
 - **Cline / ZooCode hook support** (Issue #635)
   - Auto-detect Cline via `clineVersion` field in hook input
   - Response format: `{"cancel": true, "reason": "..."}` for blocking
