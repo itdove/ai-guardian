@@ -80,6 +80,7 @@ CONFIG_FILE_PATTERNS = [
     ".cursorrules",
     "*.aider*",
     ".github/copilot-instructions.md",
+    ".junie/guidelines.md",
     "ai-guardian.json",
     ".ai-guardian.json",
 ]

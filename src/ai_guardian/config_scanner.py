@@ -115,6 +115,7 @@ class ConfigFileScanner:
         ".cursorrules",
         ".aider.conf.yml",
         ".github/CLAUDE.md",
+        ".junie/guidelines.md",
     ]
 
     # Documentation keywords that suggest this is an example, not malicious
