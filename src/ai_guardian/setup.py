@@ -184,6 +184,43 @@ class IDESetup:
                     }
                 ]
             }
+        },
+        "windsurf": {
+            "name": "Windsurf",
+            "config_path": "~/.codeium/windsurf/hooks.json",
+            "config_dir_env_var": None,
+            "config_filename": "hooks.json",
+            "hooks": {
+                "hooks": {
+                    "pre_user_prompt": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "pre_run_command": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "post_run_command": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "pre_read_code": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "post_read_code": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "pre_write_code": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "post_write_code": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "pre_mcp_tool_use": [
+                        {"command": "ai-guardian"}
+                    ],
+                    "post_mcp_tool_use": [
+                        {"command": "ai-guardian"}
+                    ]
+                }
+            }
         }
     }
 
@@ -493,6 +530,22 @@ class IDESetup:
 
             return existing_config, warnings
 
+        elif ide_type == "windsurf":
+            if "hooks" not in existing_config:
+                existing_config["hooks"] = {}
+
+            windsurf_events = [
+                "pre_user_prompt", "pre_run_command", "post_run_command",
+                "pre_read_code", "post_read_code", "pre_write_code",
+                "post_write_code", "pre_mcp_tool_use", "post_mcp_tool_use",
+            ]
+            template_hooks = ai_guardian_hooks.get("hooks", ai_guardian_hooks)
+            for event_name in windsurf_events:
+                if event_name in template_hooks:
+                    existing_config["hooks"][event_name] = template_hooks[event_name]
+
+            return existing_config, warnings
+
         return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
@@ -533,6 +586,19 @@ class IDESetup:
                                  "afterShellExecution", "postToolUse"]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
+                        if isinstance(hook_list, list):
+                            for h in hook_list:
+                                if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                    return True
+
+            elif ide_type == "windsurf":
+                hooks = config.get("hooks", {})
+                for event_name in ["pre_user_prompt", "pre_run_command", "pre_read_code",
+                                   "pre_write_code", "pre_mcp_tool_use",
+                                   "post_run_command", "post_read_code", "post_write_code",
+                                   "post_mcp_tool_use"]:
+                    if event_name in hooks:
+                        hook_list = hooks[event_name]
                         if isinstance(hook_list, list):
                             for h in hook_list:
                                 if isinstance(h, dict) and h.get("command") == "ai-guardian":
@@ -601,6 +667,8 @@ class IDESetup:
                 merged_config["preToolUse"] = ide_config["hooks"]["preToolUse"]
                 # Fall through to common config-write path (don't return early)
             elif ide_type == "codex":
+                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+            elif ide_type == "windsurf":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
 
             self._last_merged_config = merged_config
@@ -1955,6 +2023,11 @@ _MCP_IDE_CONFIGS = {
         "config_file": "codex.json",
         "config_key": "mcpServers",
         "skill_dir": ".codex/skills",
+    },
+    "windsurf": {
+        "config_file": "~/.windsurf/mcp.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".windsurf/skills",
     },
 }
 

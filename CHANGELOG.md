@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Windsurf Hook Support** (Issue #674)
+  - `ai-guardian setup --ide windsurf` installs hooks to `~/.codeium/windsurf/hooks.json`
+  - All pre-hooks configured: `pre_user_prompt`, `pre_run_command`, `pre_read_code`, `pre_write_code`, `pre_mcp_tool_use`
+  - All post-hooks configured: `post_run_command`, `post_read_code`, `post_write_code`, `post_mcp_tool_use`
+  - Auto-detection via `agent_action_name` field (unique to Windsurf)
+  - Hook event mapping: snake_case Windsurf events → ai-guardian HookEvent enum
+  - MCP server registration at `~/.windsurf/mcp.json`
+  - Windsurf automatically appears in tray "Local Setup..." submenu
+
 - **Codex Hook Support** (Issue #673)
   - `ai-guardian setup --ide codex` installs hooks to `~/.codex/hooks.json`
   - PreToolUse, PostToolUse, UserPromptSubmit hooks configured with 30s timeout

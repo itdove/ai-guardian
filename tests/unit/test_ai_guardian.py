@@ -687,6 +687,65 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         event = ai_guardian.detect_hook_event(hook_data)
         self.assertEqual(event, "pretooluse")
 
+    def test_ide_detection_windsurf(self):
+        """Test IDE type detection for Windsurf via agent_action_name"""
+        hook_data = {
+            "agent_action_name": "pre_run_command",
+            "trajectory_id": "abc-123",
+            "tool_info": {"command_line": "ls"},
+        }
+        ide_type = ai_guardian.detect_ide_type(hook_data)
+        self.assertEqual(ide_type, ai_guardian.IDEType.CLAUDE_CODE)
+
+    def test_ide_detection_windsurf_env_override(self):
+        """Test IDE type detection with windsurf environment override"""
+        hook_data = {"prompt": "test"}
+        with patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "windsurf"}):
+            ide_type = ai_guardian.detect_ide_type(hook_data)
+            self.assertEqual(ide_type, ai_guardian.IDEType.CLAUDE_CODE)
+
+    def test_detect_hook_event_windsurf_pre_user_prompt(self):
+        """Test hook event detection for Windsurf pre_user_prompt"""
+        hook_data = {"agent_action_name": "pre_user_prompt", "tool_info": {"user_prompt": "test"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "prompt")
+
+    def test_detect_hook_event_windsurf_pre_run_command(self):
+        """Test hook event detection for Windsurf pre_run_command"""
+        hook_data = {"agent_action_name": "pre_run_command", "tool_info": {"command_line": "ls"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "pretooluse")
+
+    def test_detect_hook_event_windsurf_pre_read_code(self):
+        """Test hook event detection for Windsurf pre_read_code"""
+        hook_data = {"agent_action_name": "pre_read_code", "tool_info": {"file_path": "/tmp/f.py"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "beforereadfile")
+
+    def test_detect_hook_event_windsurf_pre_write_code(self):
+        """Test hook event detection for Windsurf pre_write_code"""
+        hook_data = {"agent_action_name": "pre_write_code", "tool_info": {"file_path": "/tmp/f.py"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "pretooluse")
+
+    def test_detect_hook_event_windsurf_pre_mcp_tool_use(self):
+        """Test hook event detection for Windsurf pre_mcp_tool_use"""
+        hook_data = {"agent_action_name": "pre_mcp_tool_use", "tool_info": {"mcp_tool_name": "test"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "pretooluse")
+
+    def test_detect_hook_event_windsurf_post_run_command(self):
+        """Test hook event detection for Windsurf post_run_command"""
+        hook_data = {"agent_action_name": "post_run_command", "tool_info": {"command_line": "ls"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "posttooluse")
+
+    def test_detect_hook_event_windsurf_post_write_code(self):
+        """Test hook event detection for Windsurf post_write_code"""
+        hook_data = {"agent_action_name": "post_write_code", "tool_info": {"file_path": "/tmp/f.py"}}
+        event = ai_guardian.detect_hook_event(hook_data)
+        self.assertEqual(event, "posttooluse")
+
     def test_extract_file_content_tool_use_format(self):
         """Test file extraction from tool_use.parameters format"""
         import tempfile

@@ -385,6 +385,147 @@ class TestIDESetup:
             assert success is False
             assert 'Invalid JSON' in message
 
+    def test_merge_hooks_windsurf_new(self):
+        """Test merging Windsurf hooks into new config."""
+        setup = IDESetup()
+
+        existing_config = {}
+        ai_guardian_hooks = {
+            "hooks": {
+                "pre_user_prompt": [{"command": "ai-guardian"}],
+                "pre_run_command": [{"command": "ai-guardian"}],
+                "post_run_command": [{"command": "ai-guardian"}],
+            }
+        }
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, "windsurf")
+
+        assert "hooks" in merged
+        assert "pre_user_prompt" in merged["hooks"]
+        assert "pre_run_command" in merged["hooks"]
+        assert "post_run_command" in merged["hooks"]
+        assert len(warnings) == 0
+
+    def test_merge_hooks_windsurf_existing(self):
+        """Test merging Windsurf hooks preserves other events."""
+        setup = IDESetup()
+
+        existing_config = {
+            "hooks": {
+                "post_cascade_response": [{"command": "custom-logger"}],
+            }
+        }
+        ai_guardian_hooks = {
+            "hooks": {
+                "pre_user_prompt": [{"command": "ai-guardian"}],
+                "pre_run_command": [{"command": "ai-guardian"}],
+            }
+        }
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, "windsurf")
+
+        assert "post_cascade_response" in merged["hooks"]
+        assert "pre_user_prompt" in merged["hooks"]
+        assert "pre_run_command" in merged["hooks"]
+
+    def test_check_hooks_configured_windsurf(self, tmp_path):
+        """Test checking if Windsurf hooks are already configured."""
+        setup = IDESetup()
+
+        config_file = tmp_path / "hooks.json"
+        config = {
+            "hooks": {
+                "pre_user_prompt": [
+                    {"command": "ai-guardian"}
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, "windsurf") is True
+
+    def test_check_hooks_not_configured_windsurf(self, tmp_path):
+        """Test checking when Windsurf hooks are not configured."""
+        setup = IDESetup()
+
+        config_file = tmp_path / "hooks.json"
+        config = {"hooks": {"pre_user_prompt": [{"command": "other-tool"}]}}
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, "windsurf") is False
+
+    def test_setup_ide_hooks_windsurf_new(self, tmp_path):
+        """Test setting up Windsurf hooks in new config."""
+        setup = IDESetup()
+
+        config_file = tmp_path / "hooks.json"
+
+        with mock.patch.object(
+            setup,
+            "IDE_CONFIGS",
+            {
+                "windsurf": {
+                    "name": "Windsurf",
+                    "config_path": str(config_file),
+                    "config_dir_env_var": None,
+                    "config_filename": "hooks.json",
+                    "hooks": {
+                        "hooks": {
+                            "pre_user_prompt": [{"command": "ai-guardian"}],
+                            "pre_run_command": [{"command": "ai-guardian"}],
+                            "post_run_command": [{"command": "ai-guardian"}],
+                            "pre_read_code": [{"command": "ai-guardian"}],
+                            "pre_write_code": [{"command": "ai-guardian"}],
+                            "pre_mcp_tool_use": [{"command": "ai-guardian"}],
+                        }
+                    },
+                }
+            },
+        ), mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+            success, message = setup.setup_ide_hooks("windsurf", dry_run=False, force=False)
+
+            assert success is True
+            assert "Windsurf" in message
+
+            with open(config_file) as f:
+                written = json.load(f)
+            assert "hooks" in written
+            assert "pre_user_prompt" in written["hooks"]
+            assert "pre_run_command" in written["hooks"]
+            assert "pre_read_code" in written["hooks"]
+            assert "pre_write_code" in written["hooks"]
+            assert "pre_mcp_tool_use" in written["hooks"]
+
+    def test_setup_ide_hooks_windsurf_dry_run(self, tmp_path):
+        """Test dry run for Windsurf hooks."""
+        setup = IDESetup()
+
+        config_file = tmp_path / "hooks.json"
+
+        with mock.patch.object(
+            setup,
+            "IDE_CONFIGS",
+            {
+                "windsurf": {
+                    "name": "Windsurf",
+                    "config_path": str(config_file),
+                    "config_dir_env_var": None,
+                    "config_filename": "hooks.json",
+                    "hooks": {
+                        "hooks": {
+                            "pre_user_prompt": [{"command": "ai-guardian"}],
+                        }
+                    },
+                }
+            },
+        ):
+            success, message = setup.setup_ide_hooks("windsurf", dry_run=True, force=False)
+
+            assert success is True
+            assert "DRY RUN" in message
+            assert "Windsurf" in message
+            assert not config_file.exists()
+
     def test_setup_remote_config_new_file(self, tmp_path):
         """Test setting up remote config in new file."""
         setup = IDESetup()
