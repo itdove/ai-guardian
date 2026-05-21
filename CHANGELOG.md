@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OpenClaw plugin-based integration** (Issue #640)
+  - New integration using OpenClaw's TypeScript plugin system (`definePluginEntry`)
+  - `ai-guardian setup --ide openclaw` installs plugin to `~/.openclaw/plugins/ai-guardian/`
+  - Plugin hooks: before_tool_call (blocking), after_tool_call, message_received, session lifecycle
+  - Plugin delegates to `ai-guardian` CLI via child_process, reusing Kiro exit-code response format
+  - `AI_GUARDIAN_IDE_TYPE=openclaw` env var override supported
+  - MCP server configuration support for OpenClaw
+  - SOUL.md security guidelines injection via `--rules` flag
+  - Phase 1 only (plugin-level); Phase 2 (`tool:pre` internal hook) pending upstream #12311
+
 - **AiderDesk Extension support** (Issue #639)
   - New integration type: "extension-based" for IDEs using TypeScript/JS extension systems
   - `ai-guardian setup --ide aiderdesk` installs TypeScript extension to `~/.aider-desk/extensions/ai-guardian/`

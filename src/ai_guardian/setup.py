@@ -287,6 +287,13 @@ class IDESetup:
             "config_filename": None,
             "extension_based": True,
         },
+        "openclaw": {
+            "name": "OpenClaw",
+            "config_path": "~/.openclaw/plugins/ai-guardian",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "extension_based": True,
+        },
         "augment": {
             "name": "Augment Code",
             "config_path": "~/.augment/settings.json",
@@ -750,8 +757,9 @@ class IDESetup:
             if not config_path.exists():
                 return False
 
-            # Extension-based hooks (AiderDesk): check directory for index.ts
-            if ide_type == "aiderdesk":
+            # Extension-based hooks (AiderDesk, OpenClaw): check directory for index.ts
+            ide_config = self.IDE_CONFIGS.get(ide_type, {})
+            if ide_config.get("extension_based"):
                 ext_dir = config_path if config_path.is_dir() else config_path.parent
                 index_path = ext_dir / "index.ts"
                 if index_path.exists():
@@ -914,12 +922,12 @@ class IDESetup:
         dry_run: bool = False,
     ) -> Tuple[bool, str]:
         """
-        Setup extension-based hooks (AiderDesk).
+        Setup extension-based hooks (AiderDesk, OpenClaw).
 
-        Creates a TypeScript extension that delegates to ai-guardian CLI.
+        Creates a TypeScript extension/plugin that delegates to ai-guardian CLI.
 
         Args:
-            ide_type: IDE type ('aiderdesk')
+            ide_type: IDE type ('aiderdesk', 'openclaw')
             ide_config: IDE configuration from IDE_CONFIGS
             ext_dir: Path to extension directory
             dry_run: If True, show what would be changed without applying
@@ -939,8 +947,12 @@ class IDESetup:
 
         ext_dir.mkdir(parents=True, exist_ok=True)
 
-        package_path.write_text(_AIDERDESK_PACKAGE_JSON, encoding="utf-8")
-        index_path.write_text(_AIDERDESK_EXTENSION_TS, encoding="utf-8")
+        if ide_type == "openclaw":
+            package_path.write_text(_OPENCLAW_PACKAGE_JSON, encoding="utf-8")
+            index_path.write_text(_OPENCLAW_PLUGIN_TS, encoding="utf-8")
+        else:
+            package_path.write_text(_AIDERDESK_PACKAGE_JSON, encoding="utf-8")
+            index_path.write_text(_AIDERDESK_EXTENSION_TS, encoding="utf-8")
 
         gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
 
@@ -2458,6 +2470,11 @@ _MCP_IDE_CONFIGS = {
         "config_key": "mcpServers",
         "skill_dir": ".aider-desk/skills",
     },
+    "openclaw": {
+        "config_file": "~/.openclaw/settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".openclaw/skills",
+    },
 }
 
 _MCP_SERVER_ENTRY = {
@@ -2556,6 +2573,10 @@ _RULES_IDE_CONFIGS = {
     "junie": {
         "rules_dir": ".junie",
         "rules_file": "guidelines.md",
+    },
+    "openclaw": {
+        "rules_dir": ".",
+        "rules_file": "SOUL.md",
     },
 }
 
@@ -2761,4 +2782,99 @@ export default class AiGuardianExtension implements Extension {
     }
   }
 }
+"""
+
+
+# OpenClaw plugin file contents (Issue #640)
+_OPENCLAW_PACKAGE_JSON = """\
+{
+  "name": "ai-guardian-openclaw",
+  "version": "1.0.0",
+  "description": "AI Guardian security plugin for OpenClaw",
+  "main": "index.ts",
+  "openclaw": {
+    "hooks": ["ai-guardian"]
+  },
+  "dependencies": {
+    "openclaw": ">=0.1.0"
+  }
+}
+"""
+
+_OPENCLAW_PLUGIN_TS = """\
+import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
+import { execSync } from 'child_process';
+
+function runGuardian(
+  hookData: Record<string, unknown>,
+): { blocked: boolean; error?: string; output?: string } {
+  try {
+    const input = JSON.stringify(hookData);
+    const result = execSync('ai-guardian', {
+      input,
+      encoding: 'utf-8',
+      timeout: 30000,
+      env: { ...process.env, AI_GUARDIAN_IDE_TYPE: 'openclaw' },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return { blocked: false, output: result?.trim() || undefined };
+  } catch (err: any) {
+    if (err.status === 1) {
+      const errorMsg =
+        err.stderr?.toString().trim() || 'Blocked by ai-guardian';
+      return { blocked: true, error: errorMsg };
+    }
+    return { blocked: false };
+  }
+}
+
+export default definePluginEntry({
+  id: 'ai-guardian',
+  name: 'AI Guardian',
+  register(api) {
+    api.on('before_tool_call', async (event) => {
+      const hookData = {
+        hook_event_name: 'pre_tool_use',
+        tool_name: event.toolName,
+        tool_input: event.params || {},
+      };
+      const result = runGuardian(hookData);
+      if (result.blocked) {
+        return { block: true, blockReason: result.error };
+      }
+    });
+
+    api.on('after_tool_call', async (event) => {
+      const output =
+        typeof event.result === 'string'
+          ? event.result
+          : JSON.stringify(event.result || '');
+      const hookData = {
+        hook_event_name: 'post_tool_use',
+        tool_name: event.toolName,
+        tool_response: { output },
+      };
+      runGuardian(hookData);
+    });
+
+    api.on('message_received', async (event) => {
+      const hookData = {
+        hook_event_name: 'prompt_submit',
+        prompt: event.content || '',
+      };
+      const result = runGuardian(hookData);
+      if (result.blocked) {
+        return { cancel: true, cancelReason: result.error };
+      }
+    });
+
+    api.on('session_start', async () => {
+      runGuardian({ hook_event_name: 'prompt_submit', prompt: '' });
+    });
+
+    api.on('session_end', async () => {
+      // no-op: allow ai-guardian to log session end
+    });
+  },
+});
 """

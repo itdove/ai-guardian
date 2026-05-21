@@ -70,6 +70,8 @@ def detect_ide_type(hook_data):
         return IDEType.KIRO
     elif ide_override == "aiderdesk":
         return IDEType.KIRO
+    elif ide_override == "openclaw":
+        return IDEType.KIRO
 
     # Auto-detect based on input structure
     # Cline/ZooCode detection - clineVersion field is unique to Cline
