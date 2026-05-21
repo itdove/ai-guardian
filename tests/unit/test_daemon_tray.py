@@ -1235,7 +1235,9 @@ class TestWakeDetection:
         mock_center.addObserverForName_object_queue_usingBlock_.assert_called_once()
         call_args = mock_center.addObserverForName_object_queue_usingBlock_.call_args[0]
         assert call_args[0] == "NSWorkspaceDidWakeNotification"
-        assert tray._wake_observer is mock_center
+        center, token = tray._wake_observer
+        assert center is mock_center
+        assert token is mock_center.addObserverForName_object_queue_usingBlock_.return_value
 
     def test_register_wake_handler_graceful_without_pyobjc(self):
         tray = DaemonTray(
@@ -1255,9 +1257,10 @@ class TestWakeDetection:
             pause_callback=lambda mins: None,
         )
         mock_center = mock.MagicMock()
-        tray._wake_observer = mock_center
+        mock_token = mock.MagicMock()
+        tray._wake_observer = (mock_center, mock_token)
         tray._unregister_wake_handler()
-        mock_center.removeObserver_.assert_called_once_with(mock_center)
+        mock_center.removeObserver_.assert_called_once_with(mock_token)
         assert tray._wake_observer is None
 
     def test_unregister_wake_handler_noop_without_observer(self):

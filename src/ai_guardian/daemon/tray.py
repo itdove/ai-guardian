@@ -590,10 +590,10 @@ class DaemonTray:
                 logger.info("macOS wake notification received")
                 self._dispatch_to_main(self._rebuild_tray)
 
-            center.addObserverForName_object_queue_usingBlock_(
+            token = center.addObserverForName_object_queue_usingBlock_(
                 "NSWorkspaceDidWakeNotification", None, None, _on_wake,
             )
-            self._wake_observer = center
+            self._wake_observer = (center, token)
             logger.debug("Registered macOS wake notification handler")
         except Exception:
             logger.debug("macOS wake handler unavailable, using timer fallback")
@@ -603,7 +603,8 @@ class DaemonTray:
         if getattr(self, "_wake_observer", None) is None:
             return
         try:
-            self._wake_observer.removeObserver_(self._wake_observer)
+            center, token = self._wake_observer
+            center.removeObserver_(token)
         except Exception:
             pass
         self._wake_observer = None

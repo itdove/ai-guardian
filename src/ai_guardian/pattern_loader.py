@@ -540,6 +540,9 @@ class PIIPatternLoader(PatternLoader):
             merged = {"rules": list(server.get("rules", []))}
             logger.info(f"{self.feature_name}: Using pattern server patterns (replace mode)")
         else:
+            # Load defaults explicitly: the base class passes server data (not defaults)
+            # as `server` when a pattern server is configured, so defaults must be loaded
+            # here for the extend merge.
             default_patterns = self.get_default_patterns()
             merged = {"rules": list(default_patterns.get("rules", []))}
 

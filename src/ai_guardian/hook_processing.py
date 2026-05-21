@@ -102,6 +102,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_ENGINES = ["toml-patterns", "gitleaks"]
+
 # Keywords used to classify scanner error messages
 _AUTH_ERROR_KEYWORDS = frozenset({
     '401', '403', 'unauthorized', 'authentication',
@@ -1864,7 +1866,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if not gitleaks_config_path and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
-                    engines_list = scanner_config.get("engines", ["toml-patterns", "gitleaks"]) if scanner_config else ["toml-patterns", "gitleaks"]
+                    engines_list = scanner_config.get("engines", DEFAULT_ENGINES) if scanner_config else DEFAULT_ENGINES
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     consensus_threshold = scanner_config.get("consensus_threshold", 2) if scanner_config else 2
 
@@ -2096,7 +2098,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if gitleaks_config_path and not engine_config and HAS_SCANNER_ENGINE:
                 try:
                     scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
-                    engines_list = scanner_config.get("engines", ["toml-patterns", "gitleaks"]) if scanner_config else ["toml-patterns", "gitleaks"]
+                    engines_list = scanner_config.get("engines", DEFAULT_ENGINES) if scanner_config else DEFAULT_ENGINES
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
                     engine_config = select_engine(engines_list)
 

@@ -309,7 +309,6 @@ class PatternCache:
 
     def _scan_regex(self, content: str, rule: CompiledRule) -> List[ScanFinding]:
         findings = []
-        lines = content.split('\n')
         for match in rule.compiled.finditer(content):
             if not self._passes_validation(match.group(), rule):
                 continue
