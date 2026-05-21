@@ -9,6 +9,7 @@ is not installed.
 import logging
 import os
 import threading
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +218,7 @@ class DaemonTray:
     def stop(self):
         """Stop tray icon."""
         self._stats_refresh_running = False
+        self._unregister_wake_handler()
         if self._discovery:
             self._discovery.stop()
         if self._icon:
@@ -281,6 +283,7 @@ class DaemonTray:
             "ai-guardian", self._create_icon(), "AI Guardian Tray", menu
         )
         self._start_stats_refresh()
+        self._register_wake_handler()
         import platform
         if platform.system() == "Linux":
             saved_fd = _suppress_gtk_stderr()
@@ -560,6 +563,17 @@ class DaemonTray:
             self._icon.icon = self._create_icon()
         self._refresh_menu()
 
+    def _rebuild_tray(self):
+        """Rebuild tray icon and menu after system wake."""
+        if not self._icon:
+            return
+        try:
+            self._icon.icon = self._create_icon()
+            self._icon.update_menu()
+            logger.info("Tray icon rebuilt after system wake")
+        except Exception as e:
+            logger.debug("Failed to rebuild tray icon: %s", e)
+
     def _stop_pause_timer(self):
         """Stop the pause countdown timer."""
         self._pause_timer_running = False
@@ -597,14 +611,66 @@ class DaemonTray:
         else:
             self.update_status("running")
 
+    _REFRESH_INTERVAL = 10
+    _WAKE_GAP_THRESHOLD = 30
+
+    def _register_wake_handler(self):
+        """Register OS-level wake notification handler.
+
+        On macOS, subscribes to NSWorkspaceDidWakeNotification for
+        immediate wake detection.  Other platforms rely on timer gap
+        detection in _start_stats_refresh().
+        """
+        import platform
+        self._wake_observer = None
+        if platform.system() != "Darwin":
+            return
+        try:
+            from AppKit import NSWorkspace
+
+            center = NSWorkspace.sharedWorkspace().notificationCenter()
+
+            def _on_wake(notification):
+                logger.info("macOS wake notification received")
+                self._dispatch_to_main(self._rebuild_tray)
+
+            center.addObserverForName_object_queue_usingBlock_(
+                "NSWorkspaceDidWakeNotification", None, None, _on_wake,
+            )
+            self._wake_observer = center
+            logger.debug("Registered macOS wake notification handler")
+        except Exception:
+            logger.debug("macOS wake handler unavailable, using timer fallback")
+
+    def _unregister_wake_handler(self):
+        """Remove OS-level wake notification observer."""
+        if getattr(self, "_wake_observer", None) is None:
+            return
+        try:
+            self._wake_observer.removeObserver_(self._wake_observer)
+        except Exception:
+            pass
+        self._wake_observer = None
+
     def _start_stats_refresh(self):
         """Start a background thread that refreshes menu counters periodically."""
         self._stats_refresh_running = True
+        self._last_refresh_wallclock = time.time()
 
         def _refresh():
-            import time
             while self._stats_refresh_running:
-                time.sleep(10)
+                time.sleep(self._REFRESH_INTERVAL)
+                now = time.time()
+                elapsed = now - self._last_refresh_wallclock
+                self._last_refresh_wallclock = now
+
+                if elapsed > self._WAKE_GAP_THRESHOLD:
+                    logger.info(
+                        "System wake detected (%.1fs gap), rebuilding tray",
+                        elapsed,
+                    )
+                    self._dispatch_to_main(self._rebuild_tray)
+
                 if self._stats_refresh_running and self._icon:
                     self._dispatch_to_main(self._sync_pause_state)
                     self._dispatch_to_main(self._refresh_menu)

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tray icon remains functional after system wake from sleep/hibernate** (Issue #703)
+  - Cross-platform wake detection via wall-clock timer gap in stats refresh loop
+  - macOS immediate wake handler via `NSWorkspaceDidWakeNotification`
+  - Rebuilds icon and menu automatically on wake; graceful degradation if OS APIs unavailable
+
 - **IBAN space-separated format detection** (Issue #677)
   - IBAN regex now matches both compact (`GB29NWBK60161331926819`) and space-separated (`GB29 NWBK 6016 1331 9268 19`) formats
   - IBAN validator already stripped spaces; the fix is in the regex pattern in `pii.toml`

@@ -1095,3 +1095,207 @@ class TestResumeMenuLabelFormats:
         label = tray._resume_menu_label()
         assert "3m" in label
         assert "42s" in label
+
+
+class TestWakeDetection:
+    """Tests for system wake detection and tray rebuild (issue #703)."""
+
+    def test_rebuild_tray_refreshes_icon_and_menu(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        tray._icon = mock_icon
+        with mock.patch.object(tray, "_create_icon", return_value="new_img"):
+            tray._rebuild_tray()
+        assert mock_icon.icon == "new_img"
+        mock_icon.update_menu.assert_called_once()
+
+    def test_rebuild_tray_without_icon_is_noop(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = None
+        tray._rebuild_tray()  # Should not raise
+
+    def test_rebuild_tray_handles_exception(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        mock_icon.update_menu.side_effect = RuntimeError("broken")
+        tray._icon = mock_icon
+        tray._rebuild_tray()  # Should not raise
+
+    def test_stats_refresh_detects_sleep_gap(self):
+        """Timer gap > 30s triggers _rebuild_tray."""
+        import time as time_mod
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = mock.MagicMock()
+        rebuild_calls = []
+
+        def tracking_dispatch(func):
+            if func == tray._rebuild_tray:
+                rebuild_calls.append(True)
+
+        now = time_mod.time()
+        time_values = iter([now - 60, now])
+
+        with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
+            with mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch):
+                with mock.patch("ai_guardian.daemon.tray.time") as mock_time:
+                    mock_time.time = mock.MagicMock(side_effect=time_values)
+                    mock_time.sleep = mock.MagicMock(side_effect=lambda _: setattr(
+                        tray, "_stats_refresh_running", False
+                    ))
+                    tray._stats_refresh_running = True
+                    tray._start_stats_refresh()
+                    time_mod.sleep(0.3)
+
+        assert len(rebuild_calls) > 0
+
+    def test_stats_refresh_normal_tick_no_rebuild(self):
+        """Normal 10s tick does not trigger _rebuild_tray."""
+        import time
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = mock.MagicMock()
+        rebuild_calls = []
+
+        def tracking_dispatch(func):
+            if func == tray._rebuild_tray:
+                rebuild_calls.append(True)
+            try:
+                func()
+            except Exception:
+                pass
+
+        with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
+            with mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch):
+                tray._stats_refresh_running = True
+                tray._last_refresh_wallclock = time.time()
+                tray._start_stats_refresh()
+                time.sleep(0.3)
+                tray._stats_refresh_running = False
+                time.sleep(0.2)
+
+        assert len(rebuild_calls) == 0
+
+    def test_register_wake_handler_non_darwin_is_noop(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Linux"):
+            tray._register_wake_handler()
+        assert tray._wake_observer is None
+
+    def test_register_wake_handler_windows_is_noop(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Windows"):
+            tray._register_wake_handler()
+        assert tray._wake_observer is None
+
+    def test_register_wake_handler_macos_registers_observer(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_center = mock.MagicMock()
+        mock_workspace = mock.MagicMock()
+        mock_workspace.sharedWorkspace.return_value.notificationCenter.return_value = mock_center
+        mock_appkit = mock.MagicMock()
+        mock_appkit.NSWorkspace = mock_workspace
+
+        with mock.patch("platform.system", return_value="Darwin"), \
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit}):
+            tray._register_wake_handler()
+
+        mock_center.addObserverForName_object_queue_usingBlock_.assert_called_once()
+        call_args = mock_center.addObserverForName_object_queue_usingBlock_.call_args[0]
+        assert call_args[0] == "NSWorkspaceDidWakeNotification"
+        assert tray._wake_observer is mock_center
+
+    def test_register_wake_handler_graceful_without_pyobjc(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("platform.system", return_value="Darwin"), \
+             mock.patch.dict("sys.modules", {"AppKit": None}):
+            tray._register_wake_handler()
+        assert tray._wake_observer is None
+
+    def test_unregister_wake_handler_cleanup(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_center = mock.MagicMock()
+        tray._wake_observer = mock_center
+        tray._unregister_wake_handler()
+        mock_center.removeObserver_.assert_called_once_with(mock_center)
+        assert tray._wake_observer is None
+
+    def test_unregister_wake_handler_noop_without_observer(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._wake_observer = None
+        tray._unregister_wake_handler()  # Should not raise
+
+    def test_stop_calls_unregister_wake_handler(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch.object(tray, "_unregister_wake_handler") as mock_unreg:
+            tray.stop()
+            mock_unreg.assert_called_once()
+
+    def test_run_calls_register_wake_handler(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_icon = mock.MagicMock()
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
+             mock.patch("platform.system", return_value="Linux"), \
+             mock.patch.object(tray, "_register_wake_handler") as mock_reg:
+            mock_pystray.Icon.return_value = mock_icon
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.MenuItem = mock.MagicMock()
+            tray._start_stats_refresh = mock.MagicMock()
+            tray._create_icon = mock.MagicMock()
+            tray._ensure_macos_activation_policy = mock.MagicMock()
+            with mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=None), \
+                 mock.patch("ai_guardian.daemon.tray.threading"):
+                tray._run()
+            mock_reg.assert_called_once()
