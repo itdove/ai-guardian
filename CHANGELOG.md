@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **AiderDesk Extension support** (Issue #639)
+  - New integration type: "extension-based" for IDEs using TypeScript/JS extension systems
+  - `ai-guardian setup --ide aiderdesk` installs TypeScript extension to `~/.aider-desk/extensions/ai-guardian/`
+  - Extension hooks: onToolApproval, onToolCalled, onToolFinished, onPromptStarted, onFilesAdded, onBeforeCommit
+  - Extension delegates to `ai-guardian` CLI via child_process, reusing Kiro exit-code response format
+  - `AI_GUARDIAN_IDE_TYPE=aiderdesk` env var override supported
+  - MCP server configuration support for AiderDesk
+  - Note: AiderDesk uses JS/TS extensions (not shell hooks) — requires Node.js and `npm install`
+
 - **Junie (JetBrains) MCP-only integration** (Issue #637)
   - `ai-guardian setup --ide junie --mcp` registers MCP server at `~/.junie/mcp.json`
   - `ai-guardian setup --ide junie --rules` installs security guidelines file at `.junie/guidelines.md`
