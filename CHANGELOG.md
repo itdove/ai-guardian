@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **IBAN space-separated format detection** (Issue #677)
+  - IBAN regex now matches both compact (`GB29NWBK60161331926819`) and space-separated (`GB29 NWBK 6016 1331 9268 19`) formats
+  - IBAN validator already stripped spaces; the fix is in the regex pattern in `pii.toml`
+
 ### Added
 
 - **PII pattern server support** (Issue #644)
