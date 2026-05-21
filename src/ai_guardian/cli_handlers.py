@@ -247,11 +247,14 @@ def _handle_daemon_command(args):
             return 1
 
     elif cmd == "status":
-        from ai_guardian.daemon.client import is_daemon_running, send_status_request
+        from ai_guardian.daemon.client import is_daemon_running, send_status_request, cleanup_stale_pid
         from ai_guardian.daemon import get_pid_path, get_socket_path
 
         if not is_daemon_running():
-            print("ai-guardian daemon: not running")
+            if cleanup_stale_pid():
+                print("ai-guardian daemon: not running (cleaned up stale PID file)")
+            else:
+                print("ai-guardian daemon: not running")
             return 1
 
         stats = send_status_request(timeout=_get_client_timeout())
