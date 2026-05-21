@@ -19,9 +19,13 @@ import argparse
 import json
 import sys
 import time
-import tomllib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # type: ignore
 
 import requests
 
