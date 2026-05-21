@@ -739,7 +739,7 @@ class DaemonTray:
 
         def _single_vis_refresh(_item):
             if self._discovery:
-                self._discovery.request_refresh(wait=True, timeout=1.0)
+                self._discovery.request_refresh(wait=False)
             return self._is_single_daemon()
 
         def _single_running(_item):
@@ -963,7 +963,7 @@ class DaemonTray:
 
             def make_visible(_item, slot=idx):
                 if slot == 0 and self._discovery:
-                    self._discovery.request_refresh(wait=True, timeout=1.0)
+                    self._discovery.request_refresh(wait=False)
                 return self._is_multi_daemon() and slot < len(self._targets)
 
             def _mk_open_panel(panel=None, slot=idx):
