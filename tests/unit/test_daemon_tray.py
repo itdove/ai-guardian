@@ -1302,3 +1302,60 @@ class TestWakeDetection:
                  mock.patch("ai_guardian.daemon.tray.threading"):
                 tray._run()
             mock_reg.assert_called_once()
+
+
+class TestNonBlockingMenuRefresh:
+    """Tests for non-blocking menu refresh (issue #711)."""
+
+    def test_single_vis_refresh_does_not_block(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        mock_discovery = mock.MagicMock()
+        tray._discovery = mock_discovery
+        tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            first_call = mock_pystray.MenuItem.call_args_list[0]
+            vis_cb = first_call[1].get("visible") or first_call[0][2] if len(first_call[0]) > 2 else first_call[1].get("visible")
+            vis_cb(None)
+
+        mock_discovery.request_refresh.assert_called_once_with(wait=False)
+
+    def test_multi_vis_refresh_does_not_block(self):
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        mock_discovery = mock.MagicMock()
+        tray._discovery = mock_discovery
+        tray._targets = [
+            DaemonTarget(name="d1", runtime="local", status="running"),
+            DaemonTarget(name="d2", runtime="manual", status="running"),
+        ]
+        mc.get_stats.return_value = {}
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+            for call in mock_pystray.MenuItem.call_args_list:
+                vis_cb = call[1].get("visible")
+                if vis_cb is not None and callable(vis_cb):
+                    vis_cb(None)
+                    if mock_discovery.request_refresh.called:
+                        break
+
+        mock_discovery.request_refresh.assert_called_with(wait=False)

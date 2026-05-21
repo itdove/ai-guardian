@@ -970,3 +970,144 @@ class TestBackgroundDiscovery:
             assert d._thread is not None
             d.stop()
             assert not d._running
+
+
+class TestProbeDaemonSocketPreCheck:
+    """Tests for socket-level connect check in _probe_daemon (issue #711)."""
+
+    def test_returns_none_on_socket_timeout(self):
+        with mock.patch("socket.socket") as mock_socket_cls:
+            import socket
+            mock_sock = mock.MagicMock()
+            mock_sock.connect.side_effect = socket.timeout("timed out")
+            mock_socket_cls.return_value = mock_sock
+            assert DaemonDiscovery._probe_daemon(63152) is None
+            mock_sock.connect.assert_called_once_with(("127.0.0.1", 63152))
+
+    def test_returns_none_on_connection_refused(self):
+        with mock.patch("socket.socket") as mock_socket_cls:
+            mock_sock = mock.MagicMock()
+            mock_sock.connect.side_effect = ConnectionRefusedError
+            mock_socket_cls.return_value = mock_sock
+            assert DaemonDiscovery._probe_daemon(63152) is None
+
+    @mock.patch("urllib.request.urlopen")
+    def test_succeeds_after_socket_connect(self, mock_urlopen):
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = b'{"status": "running"}'
+        mock_resp.__enter__ = mock.MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        with mock.patch("socket.socket") as mock_socket_cls:
+            mock_sock = mock.MagicMock()
+            mock_socket_cls.return_value = mock_sock
+            result = DaemonDiscovery._probe_daemon(63152)
+            assert result == {"status": "running"}
+            mock_sock.connect.assert_called_once()
+            mock_sock.close.assert_called_once()
+
+    def test_accepts_host_parameter(self):
+        with mock.patch("socket.socket") as mock_socket_cls:
+            mock_sock = mock.MagicMock()
+            mock_sock.connect.side_effect = ConnectionRefusedError
+            mock_socket_cls.return_value = mock_sock
+            DaemonDiscovery._probe_daemon(63152, host="10.0.0.5")
+            mock_sock.connect.assert_called_once_with(("10.0.0.5", 63152))
+
+
+class TestDiscoverAllParallel:
+    """Tests for parallel discovery with ThreadPoolExecutor (issue #711)."""
+
+    def test_all_methods_run(self):
+        d = DaemonDiscovery()
+        local_target = DaemonTarget(name="local", runtime="local")
+        manual_targets = [DaemonTarget(name="m1", runtime="manual")]
+
+        with mock.patch.object(d, "discover_local", return_value=local_target) as ml, \
+             mock.patch.object(d, "discover_containers", return_value=[]) as mc, \
+             mock.patch.object(d, "discover_manual", return_value=manual_targets) as mm:
+            results = d.discover_all()
+            ml.assert_called_once()
+            mc.assert_called_once()
+            mm.assert_called_once()
+            assert len(results) == 2
+
+    def test_results_merged_correctly(self):
+        d = DaemonDiscovery()
+        local = DaemonTarget(name="local", runtime="local")
+        containers = [
+            DaemonTarget(name="c1", runtime="container"),
+            DaemonTarget(name="c2", runtime="container"),
+        ]
+        manual = [DaemonTarget(name="m1", runtime="manual")]
+
+        with mock.patch.object(d, "discover_local", return_value=local), \
+             mock.patch.object(d, "discover_containers", return_value=containers), \
+             mock.patch.object(d, "discover_manual", return_value=manual):
+            results = d.discover_all()
+            names = [t.name for t in results]
+            assert "local" in names
+            assert "c1" in names
+            assert "c2" in names
+            assert "m1" in names
+
+    def test_slow_method_does_not_block_others(self):
+        import time
+
+        d = DaemonDiscovery()
+        local = DaemonTarget(name="local", runtime="local")
+
+        def slow_containers():
+            time.sleep(30)
+            return []
+
+        with mock.patch.object(d, "discover_local", return_value=local), \
+             mock.patch.object(d, "discover_containers", side_effect=slow_containers), \
+             mock.patch.object(d, "discover_manual", return_value=[]):
+            start = time.monotonic()
+            results = d.discover_all()
+            elapsed = time.monotonic() - start
+            assert elapsed < 7
+            assert any(t.name == "local" for t in results)
+
+    def test_failing_method_does_not_affect_others(self):
+        d = DaemonDiscovery()
+        local = DaemonTarget(name="local", runtime="local")
+
+        with mock.patch.object(d, "discover_local", return_value=local), \
+             mock.patch.object(d, "discover_containers", side_effect=RuntimeError("boom")), \
+             mock.patch.object(d, "discover_manual", return_value=[]):
+            results = d.discover_all()
+            assert any(t.name == "local" for t in results)
+
+    def test_config_disables_containers(self):
+        d = DaemonDiscovery(config={
+            "daemon": {"tray": {"discover_containers": False}}
+        })
+        local = DaemonTarget(name="local", runtime="local")
+
+        with mock.patch.object(d, "discover_local", return_value=local), \
+             mock.patch.object(d, "discover_containers") as mc, \
+             mock.patch.object(d, "discover_manual", return_value=[]):
+            d.discover_all()
+            mc.assert_not_called()
+
+    def test_local_none_not_appended(self):
+        d = DaemonDiscovery()
+        with mock.patch.object(d, "discover_local", return_value=None), \
+             mock.patch.object(d, "discover_containers", return_value=[]), \
+             mock.patch.object(d, "discover_manual", return_value=[]):
+            results = d.discover_all()
+            assert len(results) == 0
+
+    def test_targets_stored_under_lock(self):
+        d = DaemonDiscovery()
+        local = DaemonTarget(name="local", runtime="local")
+
+        with mock.patch.object(d, "discover_local", return_value=local), \
+             mock.patch.object(d, "discover_containers", return_value=[]), \
+             mock.patch.object(d, "discover_manual", return_value=[]):
+            d.discover_all()
+            assert len(d.targets) == 1
+            assert d.targets[0].name == "local"

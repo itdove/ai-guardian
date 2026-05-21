@@ -169,8 +169,9 @@ class TestKubernetesRouting:
 
 
 class TestRestRequest:
+    @mock.patch.object(MultiDaemonClient, "_tcp_reachable", return_value=True)
     @mock.patch("ai_guardian.daemon.multi_client.urlopen")
-    def test_successful_get(self, mock_urlopen):
+    def test_successful_get(self, mock_urlopen, _mock_tcp):
         response_data = {"request_count": 100}
         mock_resp = mock.MagicMock()
         mock_resp.read.return_value = b'{"request_count": 100}'
@@ -190,8 +191,9 @@ class TestRestRequest:
         result = MultiDaemonClient._rest_request(target, "GET", "/api/stats")
         assert result is None
 
+    @mock.patch.object(MultiDaemonClient, "_tcp_reachable", return_value=True)
     @mock.patch("ai_guardian.daemon.multi_client.urlopen")
-    def test_auth_token_in_url_target(self, mock_urlopen):
+    def test_auth_token_in_url_target(self, mock_urlopen, _mock_tcp):
         mock_resp = mock.MagicMock()
         mock_resp.read.return_value = b'{}'
         mock_resp.__enter__ = mock.MagicMock(return_value=mock_resp)
@@ -213,3 +215,62 @@ class TestManualRouting:
         client = MultiDaemonClient()
         target = DaemonTarget(name="test", runtime="manual")
         assert client.send_restart(target) is False
+
+
+class TestTcpReachable:
+    """Tests for TCP reachability check (issue #711)."""
+
+    def test_reachable_host_returns_true(self):
+        with mock.patch("socket.socket") as mock_socket_cls:
+            mock_sock = mock.MagicMock()
+            mock_socket_cls.return_value = mock_sock
+            assert MultiDaemonClient._tcp_reachable("127.0.0.1", 63152) is True
+            mock_sock.connect.assert_called_once_with(("127.0.0.1", 63152))
+            mock_sock.close.assert_called_once()
+
+    def test_unreachable_host_returns_false(self):
+        with mock.patch("socket.socket") as mock_socket_cls:
+            mock_sock = mock.MagicMock()
+            mock_sock.connect.side_effect = OSError("Network unreachable")
+            mock_socket_cls.return_value = mock_sock
+            assert MultiDaemonClient._tcp_reachable("10.0.0.99", 63152) is False
+
+    def test_timeout_returns_false(self):
+        import socket
+        with mock.patch("socket.socket") as mock_socket_cls:
+            mock_sock = mock.MagicMock()
+            mock_sock.connect.side_effect = socket.timeout("timed out")
+            mock_socket_cls.return_value = mock_sock
+            assert MultiDaemonClient._tcp_reachable("10.0.0.99", 63152) is False
+
+
+class TestRestRequestReachabilityCheck:
+    """Tests for REST request socket pre-check (issue #711)."""
+
+    @mock.patch.object(MultiDaemonClient, "_tcp_reachable", return_value=False)
+    @mock.patch("ai_guardian.daemon.multi_client.urlopen")
+    def test_skips_request_on_unreachable_host(self, mock_urlopen, mock_reachable):
+        target = DaemonTarget(
+            name="remote", runtime="manual",
+            host="10.0.0.99", port=63152,
+        )
+        result = MultiDaemonClient._rest_request(target, "GET", "/api/status")
+        assert result is None
+        mock_urlopen.assert_not_called()
+
+    @mock.patch.object(MultiDaemonClient, "_tcp_reachable", return_value=True)
+    @mock.patch("ai_guardian.daemon.multi_client.urlopen")
+    def test_proceeds_on_reachable_host(self, mock_urlopen, mock_reachable):
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = b'{"status": "running"}'
+        mock_resp.__enter__ = mock.MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = mock.MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        target = DaemonTarget(
+            name="remote", runtime="manual",
+            host="10.0.0.99", port=63152,
+        )
+        result = MultiDaemonClient._rest_request(target, "GET", "/api/status")
+        assert result == {"status": "running"}
+        mock_urlopen.assert_called_once()

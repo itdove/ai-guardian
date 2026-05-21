@@ -110,23 +110,49 @@ class DaemonDiscovery:
             return list(self._targets)
 
     def discover_all(self) -> List[DaemonTarget]:
-        """Run all discovery methods, return merged list."""
-        results: List[DaemonTarget] = []
-
-        local = self.discover_local()
-        if local:
-            results.append(local)
+        """Run all discovery methods in parallel, return merged list."""
+        from concurrent.futures import (
+            ThreadPoolExecutor, as_completed,
+            TimeoutError as FuturesTimeoutError,
+        )
 
         daemon_cfg = self._config.get("daemon", {})
         tray_cfg = daemon_cfg.get("tray", {})
 
+        tasks = {"local": self.discover_local}
+
         if tray_cfg.get("discover_containers", True):
-            results.extend(self.discover_containers())
+            tasks["containers"] = self.discover_containers
 
         if tray_cfg.get("discover_kubernetes", False):
-            results.extend(self.discover_kubernetes())
+            tasks["kubernetes"] = self.discover_kubernetes
 
-        results.extend(self.discover_manual())
+        tasks["manual"] = self.discover_manual
+
+        results: List[DaemonTarget] = []
+        overall_timeout = 5.0
+
+        pool = ThreadPoolExecutor(max_workers=len(tasks))
+        futures = {pool.submit(fn): name for name, fn in tasks.items()}
+        try:
+            for future in as_completed(futures, timeout=overall_timeout):
+                name = futures[future]
+                try:
+                    result = future.result()
+                    if name == "local":
+                        if result:
+                            results.append(result)
+                    else:
+                        results.extend(result)
+                except Exception as e:
+                    logger.debug("Discovery stage %s failed: %s", name, e)
+        except FuturesTimeoutError:
+            logger.debug(
+                "Discovery timed out after %.1fs, returning partial results",
+                overall_timeout,
+            )
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
         with self._lock:
             self._targets = results
@@ -558,12 +584,21 @@ class DaemonDiscovery:
         return None
 
     @staticmethod
-    def _probe_daemon(port, timeout=1.0):
+    def _probe_daemon(port, host="127.0.0.1", timeout=1.0):
         """Probe a daemon's REST API. Returns status dict or None if unreachable."""
+        import socket as _socket
+        try:
+            sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            sock.connect((host, port))
+            sock.close()
+        except (OSError, _socket.timeout):
+            return None
+
         try:
             from urllib.request import urlopen
             import json as json_mod
-            url = f"http://127.0.0.1:{port}/api/status"
+            url = f"http://{host}:{port}/api/status"
             with urlopen(url, timeout=timeout) as resp:
                 return json_mod.loads(resp.read().decode("utf-8"))
         except Exception:

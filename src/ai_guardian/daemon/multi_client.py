@@ -225,6 +225,19 @@ class MultiDaemonClient:
     # --- REST transport ---
 
     @staticmethod
+    def _tcp_reachable(host: str, port: int, timeout: float = 2.0) -> bool:
+        """Fast TCP connect check. Returns True if host:port accepts connections."""
+        import socket
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            sock.connect((host, port))
+            sock.close()
+            return True
+        except (OSError, socket.timeout):
+            return False
+
+    @staticmethod
     def _rest_request(
         target: DaemonTarget,
         method: str,
@@ -237,6 +250,19 @@ class MultiDaemonClient:
         elif target.port:
             base = f"http://{target.host}:{target.port}"
         else:
+            return None
+
+        from urllib.parse import urlparse
+        parsed = urlparse(base)
+        check_host = parsed.hostname or target.host
+        check_port = parsed.port or target.port
+        if check_host and check_port and not MultiDaemonClient._tcp_reachable(
+            check_host, check_port
+        ):
+            logger.debug(
+                "TCP unreachable (%s:%s), skipping REST request",
+                check_host, check_port,
+            )
             return None
 
         url = f"{base}{path}"
