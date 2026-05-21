@@ -801,6 +801,14 @@ class ToolPolicyChecker:
             # Fail-closed: block on errors (security-critical path)
             return False, f"Policy check error: {e}", None
 
+    _AUGMENT_TOOL_MAP = {
+        "launch-process": "Bash",
+        "str-replace-editor": "Edit",
+        "save-file": "Write",
+        "view": "Read",
+        "remove-files": "Delete",
+    }
+
     def _extract_tool_info(self, hook_data: Dict) -> Tuple[Optional[str], Dict]:
         """
         Extract tool name and input from hook data.
@@ -834,6 +842,12 @@ class ToolPolicyChecker:
             elif "tool_name" in hook_data:
                 tool_name = hook_data["tool_name"]
                 tool_input = hook_data.get("tool_input", {})
+
+            # Augment Code: normalize tool names and mcp: prefix
+            if tool_name and tool_name in self._AUGMENT_TOOL_MAP:
+                tool_name = self._AUGMENT_TOOL_MAP[tool_name]
+            elif tool_name and tool_name.startswith("mcp:"):
+                tool_name = "mcp__" + tool_name[4:].replace(":", "__")
 
             return tool_name, tool_input
 

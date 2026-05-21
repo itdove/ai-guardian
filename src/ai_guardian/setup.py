@@ -263,6 +263,50 @@ class IDESetup:
             "script_based": True,
             "hook_scripts": ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
             "script_content": "#!/bin/sh\nai-guardian\n",
+        },
+        "augment": {
+            "name": "Augment Code",
+            "config_path": "~/.augment/settings.json",
+            "config_dir_env_var": None,
+            "config_filename": "settings.json",
+            "hooks": {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "launch-process|str-replace-editor|save-file|view|remove-files",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "ai-guardian",
+                                    "timeout": 5000
+                                }
+                            ],
+                            "metadata": {
+                                "includeUserContext": False,
+                                "includeMCPMetadata": False,
+                                "includeConversationData": False
+                            }
+                        }
+                    ],
+                    "PostToolUse": [
+                        {
+                            "matcher": "launch-process|str-replace-editor|save-file|view|remove-files",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "ai-guardian",
+                                    "timeout": 5000
+                                }
+                            ],
+                            "metadata": {
+                                "includeUserContext": False,
+                                "includeMCPMetadata": False,
+                                "includeConversationData": False
+                            }
+                        }
+                    ]
+                }
+            }
         }
     }
 
@@ -614,6 +658,58 @@ class IDESetup:
             existing_config["hooks"] = template_hooks + other_hooks
             return existing_config, warnings
 
+        elif ide_type == "augment":
+            if "hooks" not in existing_config:
+                existing_config["hooks"] = {}
+
+            template_hooks = ai_guardian_hooks.get("hooks", ai_guardian_hooks)
+            for hook_name in ["PreToolUse", "PostToolUse"]:
+                if hook_name not in template_hooks:
+                    continue
+
+                if hook_name not in existing_config["hooks"]:
+                    existing_config["hooks"][hook_name] = []
+
+                hook_list = existing_config["hooks"][hook_name]
+                template_entry = template_hooks[hook_name][0]
+                target_matcher = template_entry.get("matcher")
+
+                matched_entry = None
+                matched_idx = -1
+                for idx, entry in enumerate(hook_list):
+                    if isinstance(entry, dict) and entry.get("matcher") == target_matcher:
+                        matched_entry = entry
+                        matched_idx = idx
+                        break
+
+                if matched_entry is None:
+                    existing_config["hooks"][hook_name] = template_hooks[hook_name]
+                    continue
+
+                if "hooks" not in matched_entry:
+                    matched_entry["hooks"] = []
+
+                hooks_array = matched_entry["hooks"]
+                other_hooks_list = []
+                for hook in hooks_array:
+                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                        continue
+                    other_hooks_list.append(hook)
+
+                ai_guardian_hook = template_entry["hooks"][0]
+
+                if other_hooks_list:
+                    hook_names = [h.get("command", "unknown") for h in other_hooks_list if isinstance(h, dict)]
+                    warnings.append(
+                        f"⚠️  {hook_name}: Found other hooks [{', '.join(hook_names)}]. "
+                        f"ai-guardian has been placed first to ensure warnings display correctly."
+                    )
+
+                matched_entry["hooks"] = [ai_guardian_hook] + other_hooks_list
+                existing_config["hooks"][hook_name][matched_idx] = matched_entry
+
+            return existing_config, warnings
+
         return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
@@ -693,6 +789,18 @@ class IDESetup:
                     for h in hooks:
                         if isinstance(h, dict) and h.get("command") == "ai-guardian":
                             return True
+
+            elif ide_type == "augment":
+                hooks = config.get("hooks", {})
+                for hook_name in ["PreToolUse", "PostToolUse"]:
+                    if hook_name in hooks:
+                        hook_list = hooks[hook_name]
+                        if isinstance(hook_list, list):
+                            for hook_entry in hook_list:
+                                if isinstance(hook_entry, dict) and "hooks" in hook_entry:
+                                    for h in hook_entry["hooks"]:
+                                        if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                            return True
 
             return False
 
@@ -828,6 +936,8 @@ class IDESetup:
             elif ide_type == "windsurf":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
             elif ide_type == "gemini":
+                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+            elif ide_type == "augment":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
 
             self._last_merged_config = merged_config
@@ -2202,6 +2312,11 @@ _MCP_IDE_CONFIGS = {
         "config_file": "~/.cline/mcp_settings.json",
         "config_key": "mcpServers",
         "skill_dir": ".clinerules/skills",
+    },
+    "augment": {
+        "config_file": "~/.augment/settings.json",
+        "config_key": "mcpServers",
+        "skill_dir": ".augment/skills",
     },
 }
 
