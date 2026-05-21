@@ -300,6 +300,30 @@ class TestTCPConnection:
             thread.join(timeout=3)
 
 
+class TestIsPidAlive:
+    def test_own_process_is_alive(self):
+        from ai_guardian.daemon import is_pid_alive
+
+        assert is_pid_alive(os.getpid())
+
+    def test_nonexistent_pid(self):
+        from ai_guardian.daemon import is_pid_alive
+
+        assert not is_pid_alive(99999999)
+
+    def test_permission_error_means_alive(self):
+        from ai_guardian.daemon import is_pid_alive
+
+        with mock.patch("os.kill", side_effect=PermissionError("EPERM")):
+            assert is_pid_alive(12345)
+
+    def test_process_lookup_error_means_dead(self):
+        from ai_guardian.daemon import is_pid_alive
+
+        with mock.patch("os.kill", side_effect=ProcessLookupError("ESRCH")):
+            assert not is_pid_alive(12345)
+
+
 class TestCleanupStalePid:
     def test_no_pid_file_returns_false(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
@@ -331,6 +355,17 @@ class TestCleanupStalePid:
 
         with mock.patch(
             "ai_guardian.daemon.client.is_daemon_running", return_value=True
+        ):
+            assert not cleanup_stale_pid()
+            assert pid_path.exists()
+
+    def test_leaves_pid_file_when_process_alive_but_unresponsive(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid()}))
+
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running", return_value=False
         ):
             assert not cleanup_stale_pid()
             assert pid_path.exists()

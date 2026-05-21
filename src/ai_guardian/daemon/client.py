@@ -177,6 +177,10 @@ def send_reload_config(timeout=2.0):
 def cleanup_stale_pid():
     """Remove stale PID and socket files if daemon is not actually running.
 
+    Only cleans up when the process referenced by the PID file is truly
+    dead.  If the process is alive but the daemon socket is unresponsive,
+    the PID file is left intact so the daemon can recover.
+
     Returns:
         bool: True if a stale PID file was cleaned up
     """
@@ -186,6 +190,14 @@ def cleanup_stale_pid():
 
     if is_daemon_running():
         return False
+
+    try:
+        pid_info = json.loads(pid_path.read_text())
+        pid = pid_info.get("pid", 0)
+        if pid and is_pid_alive(pid):
+            return False
+    except (json.JSONDecodeError, OSError):
+        pass
 
     try:
         pid_path.unlink()

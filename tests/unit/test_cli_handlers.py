@@ -1,6 +1,7 @@
 """Tests for ai_guardian.cli_handlers module."""
 
 import json
+import os
 from unittest import mock
 
 from ai_guardian.cli_handlers import (
@@ -79,6 +80,52 @@ class TestDaemonReloadCommand:
 
         assert result == 1
         assert "Failed" in capsys.readouterr().err
+
+
+class TestDaemonStatusCommand:
+    def test_status_not_running(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        args = mock.MagicMock()
+        args.daemon_command = "status"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
+             mock.patch("ai_guardian.daemon.client.cleanup_stale_pid", return_value=False):
+            result = _handle_daemon_command(args)
+
+        assert result == 1
+        assert "not running" in capsys.readouterr().out
+
+    def test_status_process_alive_but_unresponsive(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid()}))
+
+        args = mock.MagicMock()
+        args.daemon_command = "status"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+            result = _handle_daemon_command(args)
+
+        output = capsys.readouterr().out
+        assert result == 1
+        assert "process alive" in output
+        assert "not responsive" in output
+        assert pid_path.exists()
+
+    def test_status_stale_pid_cleaned(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": 99999999}))
+
+        args = mock.MagicMock()
+        args.daemon_command = "status"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+            result = _handle_daemon_command(args)
+
+        output = capsys.readouterr().out
+        assert result == 1
+        assert "cleaned up stale PID file" in output
 
 
 class TestBackwardCompatImports:

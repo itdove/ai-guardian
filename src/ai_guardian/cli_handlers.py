@@ -248,9 +248,20 @@ def _handle_daemon_command(args):
 
     elif cmd == "status":
         from ai_guardian.daemon.client import is_daemon_running, send_status_request, cleanup_stale_pid
-        from ai_guardian.daemon import get_pid_path, get_socket_path
+        from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive
 
         if not is_daemon_running():
+            pid_path = get_pid_path()
+            if pid_path.exists():
+                try:
+                    pid_info = json.loads(pid_path.read_text())
+                    pid = pid_info.get("pid", 0)
+                    if pid and is_pid_alive(pid):
+                        print(f"ai-guardian daemon: process alive (pid {pid}) but not responsive")
+                        return 1
+                except (json.JSONDecodeError, OSError):
+                    pass
+
             if cleanup_stale_pid():
                 print("ai-guardian daemon: not running (cleaned up stale PID file)")
             else:
