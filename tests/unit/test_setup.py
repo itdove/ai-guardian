@@ -736,6 +736,218 @@ class TestConfigDirEnvironmentVariable:
             assert checker.config is not None
 
 
+class TestCodexSetup:
+    """Test cases for Codex IDE setup."""
+
+    def test_codex_in_ide_configs(self):
+        """Verify Codex entry exists in IDE_CONFIGS with correct keys."""
+        assert "codex" in IDESetup.IDE_CONFIGS
+        codex_cfg = IDESetup.IDE_CONFIGS["codex"]
+        assert codex_cfg["name"] == "OpenAI Codex"
+        assert codex_cfg["config_path"] == "~/.codex/hooks.json"
+        assert codex_cfg["config_filename"] == "hooks.json"
+        assert "hooks" in codex_cfg
+        hooks = codex_cfg["hooks"]
+        assert "UserPromptSubmit" in hooks
+        assert "PreToolUse" in hooks
+        assert "PostToolUse" in hooks
+
+    def test_codex_hooks_use_regex_matcher(self):
+        """Verify Codex PreToolUse/PostToolUse use regex matcher '.*'."""
+        hooks = IDESetup.IDE_CONFIGS["codex"]["hooks"]
+        assert hooks["PreToolUse"][0]["matcher"] == ".*"
+        assert hooks["PostToolUse"][0]["matcher"] == ".*"
+        assert "matcher" not in hooks["UserPromptSubmit"][0]
+
+    def test_codex_hooks_have_timeout(self):
+        """Verify Codex hooks include timeout field."""
+        hooks = IDESetup.IDE_CONFIGS["codex"]["hooks"]
+        for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+            hook_entry = hooks[event][0]["hooks"][0]
+            assert hook_entry["timeout"] == 30
+
+    def test_setup_ide_hooks_codex_new(self, tmp_path):
+        """Test setting up Codex hooks in new config."""
+        setup = IDESetup()
+        config_file = tmp_path / 'hooks.json'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'codex': {
+                    'name': 'OpenAI Codex',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'hooks.json',
+                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('codex', dry_run=False, force=False)
+
+            assert success is True
+            assert config_file.exists()
+
+            with open(config_file) as f:
+                config = json.load(f)
+
+            assert 'hooks' in config
+            assert 'UserPromptSubmit' in config['hooks']
+            assert 'PreToolUse' in config['hooks']
+            assert 'PostToolUse' in config['hooks']
+            assert config['hooks']['PreToolUse'][0]['matcher'] == '.*'
+            assert config['hooks']['PreToolUse'][0]['hooks'][0]['command'] == 'ai-guardian'
+
+    def test_setup_ide_hooks_codex_dry_run(self, tmp_path):
+        """Test dry-run mode for Codex."""
+        setup = IDESetup()
+        config_file = tmp_path / 'hooks.json'
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'codex': {
+                    'name': 'OpenAI Codex',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'hooks.json',
+                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('codex', dry_run=True, force=False)
+
+            assert success is True
+            assert '[DRY RUN]' in message
+            assert not config_file.exists()
+
+    def test_check_hooks_configured_codex(self, tmp_path):
+        """Test detection of existing Codex hooks."""
+        setup = IDESetup()
+        config_file = tmp_path / 'hooks.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': '.*',
+                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, 'codex') is True
+
+    def test_check_hooks_not_configured_codex(self, tmp_path):
+        """Test returns False when no ai-guardian hooks present."""
+        setup = IDESetup()
+        config_file = tmp_path / 'hooks.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': '.*',
+                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        assert setup.check_hooks_configured(config_file, 'codex') is False
+
+    def test_setup_ide_hooks_codex_already_configured(self, tmp_path):
+        """Test setup when Codex hooks already configured without force."""
+        setup = IDESetup()
+        config_file = tmp_path / 'hooks.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': '.*',
+                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'codex': {
+                    'name': 'OpenAI Codex',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'hooks.json',
+                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('codex', dry_run=False, force=False)
+
+            assert success is False
+            assert 'already configured' in message
+
+    def test_setup_ide_hooks_codex_force_overwrite(self, tmp_path):
+        """Test force overwrite of existing Codex hooks."""
+        setup = IDESetup()
+        config_file = tmp_path / 'hooks.json'
+        config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': '.*',
+                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
+                    }
+                ]
+            }
+        }
+        config_file.write_text(json.dumps(config))
+
+        with mock.patch.object(
+            setup, 'IDE_CONFIGS',
+            {
+                'codex': {
+                    'name': 'OpenAI Codex',
+                    'config_path': str(config_file),
+                    'config_dir_env_var': None,
+                    'config_filename': 'hooks.json',
+                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
+                }
+            }
+        ):
+            success, message = setup.setup_ide_hooks('codex', dry_run=False, force=True)
+
+            assert success is True
+
+            backup_file = config_file.with_suffix('.json.backup')
+            assert backup_file.exists()
+
+    def test_merge_hooks_codex_preserves_other_hooks(self, tmp_path):
+        """Test that merging Codex hooks preserves existing non-ai-guardian hooks."""
+        setup = IDESetup()
+        existing_config = {
+            'hooks': {
+                'PreToolUse': [
+                    {
+                        'matcher': '.*',
+                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
+                    }
+                ]
+            }
+        }
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS['codex']['hooks']
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'codex')
+
+        pre_tool_hooks = merged['hooks']['PreToolUse'][0]['hooks']
+        assert pre_tool_hooks[0]['command'] == 'ai-guardian'
+        assert pre_tool_hooks[1]['command'] == 'other-tool'
+        assert len(warnings) > 0
+
+
 class TestSetupHooks:
     """Test cases for setup_hooks function."""
 

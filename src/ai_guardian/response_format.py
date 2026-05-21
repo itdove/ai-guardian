@@ -53,6 +53,8 @@ def detect_ide_type(hook_data):
         return IDEType.CLAUDE_CODE
     elif ide_override == "github_copilot" or ide_override == "copilot":
         return IDEType.GITHUB_COPILOT
+    elif ide_override == "codex":
+        return IDEType.CLAUDE_CODE
 
     # Auto-detect based on input structure
     # GitHub Copilot detection - check for toolName field (most specific)
