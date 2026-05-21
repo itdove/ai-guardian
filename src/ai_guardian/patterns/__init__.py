@@ -26,5 +26,37 @@ BUNDLED_FILES = {
     "ssrf": DATA_DIR / "ssrf.toml",
 }
 
+import logging
+from typing import Any, Callable, List, TypeVar
+
+_logger = logging.getLogger(__name__)
+T = TypeVar("T")
+
+
+def load_bundled_rules(category: str, transform: Callable[[List[dict]], T],
+                       fallback: T, feature_name: str = "") -> T:
+    """Load rules from a bundled TOML file with fallback on error.
+
+    Args:
+        category: Key in BUNDLED_FILES (e.g., "secrets", "pii")
+        transform: Callable that converts raw rule dicts into the desired format
+        fallback: Value to return if the TOML file is missing or unparseable
+        feature_name: Label for log messages
+    """
+    try:
+        toml_path = BUNDLED_FILES.get(category)
+        if toml_path and toml_path.exists():
+            raw_rules = load_toml_file(toml_path)
+            result = transform(raw_rules)
+            _logger.info(f"{feature_name}: Loaded {len(result)} rules from {category}.toml")
+            return result
+        else:
+            _logger.error(f"Bundled {category}.toml not found — patterns directory may be missing from install")
+            return fallback
+    except Exception as e:
+        _logger.error(f"Failed to load {category}.toml: {e}")
+        return fallback
+
+
 __all__ = ["PatternCache", "CompiledRule", "load_toml_file", "compile_rule",
-           "DATA_DIR", "BUNDLED_FILES"]
+           "DATA_DIR", "BUNDLED_FILES", "load_bundled_rules"]

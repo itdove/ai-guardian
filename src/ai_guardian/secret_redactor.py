@@ -16,7 +16,7 @@ from typing import List, Dict, Tuple, Optional
 
 from ai_guardian.config_utils import validate_regex_pattern, is_feature_enabled
 from ai_guardian import allowlist_utils
-from ai_guardian.patterns import BUNDLED_FILES
+from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
 from ai_guardian.patterns.toml_parser import load_and_compile
 
 logger = logging.getLogger(__name__)
@@ -299,63 +299,32 @@ class SecretRedactor:
         logger.info(f"Secret Redaction: Loaded {len(self.compiled_patterns)} patterns")
 
     def _load_patterns_from_toml(self) -> List:
-        """Load secret patterns from bundled TOML, returning pre-compiled tuples.
-
-        Returns list in same format as the PATTERNS class attribute but with
-        the raw regex string preserved for the compilation loop in __init__.
-        Falls back to hardcoded PATTERNS on any error.
-        """
-        try:
-            toml_path = BUNDLED_FILES.get("secrets")
-            if toml_path and toml_path.exists():
-                from ai_guardian.patterns.toml_parser import load_toml_file
-                raw_rules = load_toml_file(toml_path)
-                result = []
-                for raw in raw_rules:
-                    if raw.get("match_type", "regex") == "regex":
-                        regex = raw.get("regex", "")
-                        strategy = raw.get("redaction_strategy", "preserve_prefix_suffix")
-                        desc = raw.get("description", "")
-                        result.append((regex, strategy, desc))
-                logger.info(f"Secret Redaction: Loaded {len(result)} patterns from secrets.toml")
-                return result
-            else:
-                logger.warning("Bundled secrets.toml not found, using hardcoded patterns")
-                logger.error("Bundled secrets.toml not found — patterns directory may be missing from install")
-                return []
-        except Exception as e:
-            logger.error(f"Failed to load secrets.toml: {e}")
-            return []
+        """Load secret patterns from bundled TOML. Falls back to hardcoded PATTERNS."""
+        def _transform(raw_rules):
+            return [
+                (raw.get("regex", ""), raw.get("redaction_strategy", "preserve_prefix_suffix"), raw.get("description", ""))
+                for raw in raw_rules if raw.get("match_type", "regex") == "regex"
+            ]
+        return load_bundled_rules("secrets", _transform,
+                                 [(p, s, t) for p, s, t in self.PATTERNS],
+                                 "Secret Redaction")
 
     def _load_pii_patterns(self) -> Dict:
-        """Load PII patterns from bundled TOML, returning dict keyed by pii_type.
-
-        Returns dict in same format as PII_PATTERNS class attribute.
-        Falls back to hardcoded PII_PATTERNS on any error.
-        """
-        try:
-            toml_path = BUNDLED_FILES.get("pii")
-            if toml_path and toml_path.exists():
-                from ai_guardian.patterns.toml_parser import load_toml_file
-                raw_rules = load_toml_file(toml_path)
-                result = {}
-                for raw in raw_rules:
-                    pii_type = raw.get("pii_type")
-                    if pii_type and raw.get("match_type", "regex") == "regex":
-                        result[pii_type] = (
-                            raw.get("regex", ""),
-                            raw.get("redaction_strategy", "full_redact"),
-                            raw.get("description", ""),
-                        )
-                logger.info(f"Secret Redaction: Loaded {len(result)} PII patterns from pii.toml")
-                return result
-            else:
-                logger.warning("Bundled pii.toml not found, using hardcoded PII patterns")
-                logger.error("Bundled pii.toml not found — patterns directory may be missing from install")
-                return {}
-        except Exception as e:
-            logger.error(f"Failed to load pii.toml: {e}")
-            return {}
+        """Load PII patterns from bundled TOML. Falls back to hardcoded PII_PATTERNS."""
+        def _transform(raw_rules):
+            result = {}
+            for raw in raw_rules:
+                pii_type = raw.get("pii_type")
+                if pii_type and raw.get("match_type", "regex") == "regex":
+                    result[pii_type] = (
+                        raw.get("regex", ""),
+                        raw.get("redaction_strategy", "full_redact"),
+                        raw.get("description", ""),
+                    )
+            return result
+        return load_bundled_rules("pii", _transform,
+                                 dict(self.PII_PATTERNS),
+                                 "PII Detection")
 
     def _load_pii_patterns_via_server(self, pattern_server_config: Dict) -> Dict:
         """Load PII patterns via pattern server with fallback to bundled TOML."""

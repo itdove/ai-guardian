@@ -71,7 +71,7 @@ import re
 import urllib.parse
 from typing import Tuple, Optional, Dict, Any, List, Set
 
-from ai_guardian.patterns import BUNDLED_FILES
+from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
 
 logger = logging.getLogger(__name__)
 
@@ -276,35 +276,26 @@ class SSRFProtector:
     @staticmethod
     def _load_patterns_from_toml() -> Dict[str, Any]:
         """Load SSRF patterns from bundled TOML. Falls back to empty dict."""
-        try:
-            toml_path = BUNDLED_FILES.get("ssrf")
-            if toml_path and toml_path.exists():
-                from ai_guardian.patterns.toml_parser import load_toml_file
-                raw_rules = load_toml_file(toml_path)
-                ip_ranges = []
-                domains = []
-                for raw in raw_rules:
-                    match_type = raw.get("match_type", "")
-                    group = raw.get("group", "")
-                    if match_type == "cidr":
-                        ip_ranges.append({
-                            "cidr": raw.get("cidr", ""),
-                            "description": raw.get("description", ""),
-                            "immutable": raw.get("tier") == "immutable",
-                        })
-                    elif match_type == "literal" and group == "blocked_domain":
-                        domains.append({
-                            "domain": raw.get("source", ""),
-                            "description": raw.get("description", ""),
-                            "immutable": raw.get("tier") == "immutable",
-                        })
-                logger.info(f"SSRF Protection: Loaded from TOML: {len(ip_ranges)} IP ranges, {len(domains)} domains")
-                return {"ip_ranges": ip_ranges, "domains": domains}
-            else:
-                return {}
-        except Exception as e:
-            logger.warning(f"Failed to load ssrf.toml: {e}, using hardcoded patterns")
-            return {}
+        def _transform(raw_rules):
+            ip_ranges = []
+            domains = []
+            for raw in raw_rules:
+                match_type = raw.get("match_type", "")
+                if match_type == "cidr":
+                    ip_ranges.append({
+                        "cidr": raw.get("cidr", ""),
+                        "description": raw.get("description", ""),
+                        "immutable": raw.get("tier") == "immutable",
+                    })
+                elif match_type == "literal" and raw.get("group", "") == "blocked_domain":
+                    domains.append({
+                        "domain": raw.get("source", ""),
+                        "description": raw.get("description", ""),
+                        "immutable": raw.get("tier") == "immutable",
+                    })
+            return {"ip_ranges": ip_ranges, "domains": domains}
+        return load_bundled_rules("ssrf", _transform, {},
+                                 "SSRF Protection")
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
         """

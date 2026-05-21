@@ -28,7 +28,7 @@ from ai_guardian.config_utils import is_expired, validate_regex_pattern
 from ai_guardian import allowlist_utils
 from ai_guardian.tool_policy import _strip_bash_heredoc_content
 from ai_guardian.utils.path_matching import match_ignore_pattern
-from ai_guardian.patterns import BUNDLED_FILES
+from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
 
 logger = logging.getLogger(__name__)
 
@@ -240,46 +240,30 @@ class UnicodeAttackDetector:
 
     @staticmethod
     def _load_patterns_from_toml() -> Dict[str, Any]:
-        """Load unicode attack patterns from bundled TOML.
-
-        Returns dict with keys: zero_width_chars, bidi_override_chars,
-        bidi_formatting_chars, homoglyph_patterns. Falls back to empty
-        dict on error (caller uses class attributes).
-        """
-        try:
-            toml_path = BUNDLED_FILES.get("unicode")
-            if toml_path and toml_path.exists():
-                from ai_guardian.patterns.toml_parser import load_toml_file
-                raw_rules = load_toml_file(toml_path)
-                result: Dict[str, Any] = {
-                    "zero_width_chars": [],
-                    "bidi_override_chars": [],
-                    "bidi_formatting_chars": [],
-                    "homoglyph_patterns": [],
-                }
-                for raw in raw_rules:
-                    match_type = raw.get("match_type", "")
+        """Load unicode attack patterns from bundled TOML. Falls back to empty dict."""
+        def _transform(raw_rules):
+            result: Dict[str, Any] = {
+                "zero_width_chars": [],
+                "bidi_override_chars": [],
+                "bidi_formatting_chars": [],
+                "homoglyph_patterns": [],
+            }
+            for raw in raw_rules:
+                if raw.get("match_type", "") == "literal":
+                    source = raw.get("source", "")
+                    target = raw.get("target", "")
                     group = raw.get("group", "")
-                    if match_type == "literal":
-                        source = raw.get("source", "")
-                        target = raw.get("target", "")
-                        if group == "zero_width":
-                            result["zero_width_chars"].append(source)
-                        elif group == "bidi_override":
-                            result["bidi_override_chars"].append(source)
-                        elif group == "bidi_formatting":
-                            result["bidi_formatting_chars"].append(source)
-                        elif group == "homoglyph":
-                            result["homoglyph_patterns"].append((source, target))
-                logger.info(f"Unicode Attack Detection: Loaded patterns from TOML: "
-                            f"zero_width={len(result['zero_width_chars'])}, "
-                            f"homoglyphs={len(result['homoglyph_patterns'])}")
-                return result
-            else:
-                return {}
-        except Exception as e:
-            logger.warning(f"Failed to load unicode.toml: {e}, using hardcoded patterns")
-            return {}
+                    if group == "zero_width":
+                        result["zero_width_chars"].append(source)
+                    elif group == "bidi_override":
+                        result["bidi_override_chars"].append(source)
+                    elif group == "bidi_formatting":
+                        result["bidi_formatting_chars"].append(source)
+                    elif group == "homoglyph":
+                        result["homoglyph_patterns"].append((source, target))
+            return result
+        return load_bundled_rules("unicode", _transform, {},
+                                 "Unicode Attack Detection")
 
     def _load_homoglyphs_via_server(self, pattern_server_config: Dict) -> List[Tuple[str, str]]:
         """
@@ -840,32 +824,17 @@ class PromptInjectionDetector:
 
     @staticmethod
     def _load_patterns_from_toml() -> Dict[str, List[str]]:
-        """Load prompt injection patterns from bundled TOML, grouped by confidence level.
-
-        Returns dict mapping group name to list of regex strings.
-        Falls back to empty dict on error (caller uses class attributes).
-        """
-        try:
-            toml_path = BUNDLED_FILES.get("prompt_injection")
-            if toml_path and toml_path.exists():
-                from ai_guardian.patterns.toml_parser import load_toml_file
-                raw_rules = load_toml_file(toml_path)
-                groups: Dict[str, List[str]] = {}
-                for raw in raw_rules:
-                    if raw.get("match_type", "regex") == "regex":
-                        group = raw.get("group", "critical")
-                        regex = raw.get("regex", "")
-                        if regex:
-                            groups.setdefault(group, []).append(regex)
-                logger.info(f"Prompt Injection: Loaded patterns from TOML: "
-                            f"{', '.join(f'{k}={len(v)}' for k, v in groups.items())}")
-                return groups
-            else:
-                logger.warning("Bundled prompt-injection.toml not found, using hardcoded patterns")
-                return {}
-        except Exception as e:
-            logger.warning(f"Failed to load prompt-injection.toml: {e}, using hardcoded patterns")
-            return {}
+        """Load prompt injection patterns from bundled TOML. Falls back to empty dict."""
+        def _transform(raw_rules):
+            groups: Dict[str, List[str]] = {}
+            for raw in raw_rules:
+                if raw.get("match_type", "regex") == "regex":
+                    regex = raw.get("regex", "")
+                    if regex:
+                        groups.setdefault(raw.get("group", "critical"), []).append(regex)
+            return groups
+        return load_bundled_rules("prompt_injection", _transform, {},
+                                 "Prompt Injection")
 
     def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
         """Extract the pattern string from a pattern entry."""
