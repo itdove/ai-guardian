@@ -27,7 +27,11 @@ from ai_guardian.config_utils import (
     set_project_dir_override,
     clear_project_dir_override,
 )
-from ai_guardian.config_loaders import _clear_config_cache, _load_config_file
+from ai_guardian.config_loaders import (
+    _clear_config_cache,
+    _load_config_file,
+    _normalize_permissions,
+)
 
 
 class TestDeepMerge:
@@ -535,3 +539,174 @@ class TestThreadLocalOverride:
             assert result is None
         finally:
             clear_project_dir_override()
+
+
+class TestNormalizePermissions:
+    """Tests for _normalize_permissions() — Issue #724."""
+
+    def test_list_format_normalized_to_dict(self):
+        config = {
+            "permissions": [
+                {"matcher": "Skill", "mode": "allow", "patterns": ["*"]},
+            ]
+        }
+        result = _normalize_permissions(config)
+        assert isinstance(result["permissions"], dict)
+        assert result["permissions"]["enabled"] is True
+        assert result["permissions"]["rules"] == config["permissions"]
+
+    def test_dict_format_unchanged(self):
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [{"matcher": "Skill", "mode": "deny"}],
+            }
+        }
+        result = _normalize_permissions(config)
+        assert result["permissions"] == config["permissions"]
+
+    def test_none_config_passes_through(self):
+        assert _normalize_permissions(None) is None
+
+    def test_missing_permissions_key_unchanged(self):
+        config = {"secret_scanning": {"enabled": True}}
+        result = _normalize_permissions(config)
+        assert "permissions" not in result
+
+    def test_does_not_mutate_input(self):
+        original_list = [{"matcher": "Skill", "mode": "allow"}]
+        config = {"permissions": original_list}
+        _normalize_permissions(config)
+        assert config["permissions"] is original_list
+
+    def test_deprecation_warning_logged(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING):
+            _normalize_permissions({
+                "permissions": [{"matcher": "Skill", "mode": "allow"}]
+            })
+        assert "DEPRECATED" in caplog.text
+        assert "array format" in caplog.text
+
+    def test_no_warning_for_dict_format(self, caplog):
+        import logging
+        with caplog.at_level(logging.WARNING):
+            _normalize_permissions({
+                "permissions": {"enabled": True, "rules": []}
+            })
+        assert "DEPRECATED" not in caplog.text
+
+
+class TestPermissionsMergeFormats:
+    """Integration tests for merging permissions across formats — Issue #724."""
+
+    def test_list_global_dict_project_preserves_both(self, _isolate_config_dir, tmp_path):
+        """User-level (old list) + project-level (new dict) merges both rule sets."""
+        global_config = {
+            "permissions": [
+                {"matcher": "mcp__*", "mode": "allow", "patterns": ["mcp__allowlist__*"]},
+                {"matcher": "Skill", "mode": "allow", "patterns": ["*"]},
+            ]
+        }
+        project_config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {"matcher": "Skill", "mode": "deny", "action": "warn"},
+                ],
+            }
+        }
+
+        global_path = _isolate_config_dir / "ai-guardian.json"
+        global_path.write_text(json.dumps(global_config))
+
+        project_path = tmp_path / "project_config.json"
+        project_path.write_text(json.dumps(project_config))
+
+        with mock.patch.dict(os.environ, {
+            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+        }):
+            _clear_config_cache()
+            config, error = _load_config_file()
+            assert error is None
+            assert isinstance(config["permissions"], dict)
+            assert config["permissions"]["enabled"] is True
+            assert len(config["permissions"]["rules"]) == 3
+
+    def test_dict_global_list_project_preserves_both(self, _isolate_config_dir, tmp_path):
+        """User-level (new dict) + project-level (old list) merges both rule sets."""
+        global_config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {"matcher": "mcp__*", "mode": "allow"},
+                ],
+            }
+        }
+        project_config = {
+            "permissions": [
+                {"matcher": "Skill", "mode": "deny"},
+            ]
+        }
+
+        global_path = _isolate_config_dir / "ai-guardian.json"
+        global_path.write_text(json.dumps(global_config))
+
+        project_path = tmp_path / "project_config.json"
+        project_path.write_text(json.dumps(project_config))
+
+        with mock.patch.dict(os.environ, {
+            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+        }):
+            _clear_config_cache()
+            config, error = _load_config_file()
+            assert error is None
+            assert isinstance(config["permissions"], dict)
+            assert config["permissions"]["enabled"] is True
+            assert len(config["permissions"]["rules"]) == 2
+
+    def test_both_list_format_merges_correctly(self, _isolate_config_dir, tmp_path):
+        """Both configs using old list format still merge correctly."""
+        global_config = {
+            "permissions": [
+                {"matcher": "mcp__*", "mode": "allow"},
+            ]
+        }
+        project_config = {
+            "permissions": [
+                {"matcher": "Skill", "mode": "deny"},
+            ]
+        }
+
+        global_path = _isolate_config_dir / "ai-guardian.json"
+        global_path.write_text(json.dumps(global_config))
+
+        project_path = tmp_path / "project_config.json"
+        project_path.write_text(json.dumps(project_config))
+
+        with mock.patch.dict(os.environ, {
+            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+        }):
+            _clear_config_cache()
+            config, error = _load_config_file()
+            assert error is None
+            assert isinstance(config["permissions"], dict)
+            assert len(config["permissions"]["rules"]) == 2
+
+    def test_single_config_list_format_normalized(self, _isolate_config_dir):
+        """Single config with old list format is still normalized."""
+        config_data = {
+            "permissions": [
+                {"matcher": "Skill", "mode": "allow"},
+            ]
+        }
+
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps(config_data))
+
+        _clear_config_cache()
+        config, error = _load_config_file()
+        assert error is None
+        assert isinstance(config["permissions"], dict)
+        assert config["permissions"]["enabled"] is True
+        assert len(config["permissions"]["rules"]) == 1
