@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Daemon start -b silently fails in containers (stale PID file)** (Issue #715)
+  - `_cleanup_stale()` now verifies socket connectivity when PID is alive, handling PID recycling in containers
+  - `daemon status` cleans up stale PID files when daemon is not running
+  - `start_daemon_background()` cleans up stale PID/socket files before spawning
+  - New `cleanup_stale_pid()` utility for consistent stale file cleanup
+
 - **Tray icon remains functional after system wake from sleep/hibernate** (Issue #703)
   - Cross-platform wake detection via wall-clock timer gap in stats refresh loop
   - macOS immediate wake handler via `NSWorkspaceDidWakeNotification`

@@ -374,20 +374,30 @@ class DaemonServer:
             logger.debug(f"REST API failed to start: {e}")
 
     def _cleanup_stale(self):
-        """Clean up stale socket and PID files from crashed daemon."""
+        """Clean up stale socket and PID files from crashed daemon.
+
+        Handles PID recycling in containers: when the PID is alive but
+        belongs to a different process (not our daemon), we verify via
+        socket connectivity before concluding the daemon is running.
+        """
         pid_path = get_pid_path()
         if pid_path.exists():
             try:
                 pid_info = json.loads(pid_path.read_text())
                 old_pid = pid_info.get("pid", 0)
                 if old_pid and _is_pid_alive(old_pid):
-                    raise RuntimeError(
-                        f"Daemon already running (pid {old_pid}). "
-                        f"Stop it first with: ai-guardian daemon stop"
+                    if self._is_old_daemon_responsive():
+                        raise RuntimeError(
+                            f"Daemon already running (pid {old_pid}). "
+                            f"Stop it first with: ai-guardian daemon stop"
+                        )
+                    logger.info(
+                        f"Cleaned up stale PID file (pid {old_pid}, "
+                        f"process exists but is not ai-guardian daemon)"
                     )
-                # Stale PID file — clean up
+                else:
+                    logger.info(f"Cleaned up stale PID file (pid {old_pid})")
                 pid_path.unlink()
-                logger.info(f"Cleaned up stale PID file (pid {old_pid})")
             except (json.JSONDecodeError, OSError):
                 pid_path.unlink(missing_ok=True)
 
@@ -395,6 +405,36 @@ class DaemonServer:
         if sock_path.exists() and not self._use_tcp:
             sock_path.unlink()
             logger.info("Cleaned up stale socket file")
+
+    def _is_old_daemon_responsive(self):
+        """Check if an existing daemon responds on the socket."""
+        from ai_guardian.daemon.protocol import make_ping
+        try:
+            sock_path = get_socket_path()
+            if self._use_tcp:
+                pid_path = get_pid_path()
+                pid_info = json.loads(pid_path.read_text())
+                port = pid_info.get("port")
+                if not port:
+                    return False
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1.0)
+                sock.connect(("127.0.0.1", port))
+            else:
+                if not sock_path.exists():
+                    return False
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.settimeout(1.0)
+                sock.connect(str(sock_path))
+            try:
+                from ai_guardian.daemon.protocol import decode_message, encode_message
+                sock.sendall(encode_message(make_ping()))
+                response = decode_message(sock, timeout=1.0)
+                return response.get("type") == "pong"
+            finally:
+                sock.close()
+        except Exception:
+            return False
 
     def _socket_info(self):
         """Get human-readable socket info string."""

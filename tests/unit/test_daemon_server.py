@@ -100,8 +100,48 @@ class TestDaemonServerLifecycle:
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
 
         server = DaemonServer(idle_timeout=5)
-        with pytest.raises(RuntimeError, match="already running"):
-            server.start()
+        with mock.patch.object(
+            server, "_is_old_daemon_responsive", return_value=True
+        ):
+            with pytest.raises(RuntimeError, match="already running"):
+                server.start()
+
+    def test_server_cleans_stale_pid_with_recycled_pid(self, short_state_dir):
+        """PID file references a live process that is NOT the daemon (recycled PID).
+
+        In containers, PIDs recycle quickly. _cleanup_stale() should verify
+        socket connectivity, not just PID liveness.
+        """
+        from pathlib import Path
+        pid_path = Path(short_state_dir) / "daemon.pid"
+        # Use current process PID — it's alive but not a daemon
+        pid_path.write_text(json.dumps({"pid": os.getpid()}))
+        # No socket file exists, so the daemon is not actually running
+
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+        # Should NOT raise RuntimeError — should clean up stale PID
+        server._cleanup_stale()
+        assert not pid_path.exists()
+
+    def test_server_cleans_stale_pid_with_dead_process(self, short_state_dir):
+        """PID file references a dead process — straightforward stale case."""
+        from pathlib import Path
+        pid_path = Path(short_state_dir) / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": 99999999}))
+
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+        server._cleanup_stale()
+        assert not pid_path.exists()
+
+    def test_server_cleans_stale_socket_file(self, short_state_dir):
+        """Stale socket file from crashed daemon is cleaned up."""
+        from pathlib import Path
+        sock_path = Path(short_state_dir) / "daemon.sock"
+        sock_path.write_text("")  # Create a stale socket file
+
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+        server._cleanup_stale()
+        assert not sock_path.exists()
 
 
 class TestDaemonServerProtocol:

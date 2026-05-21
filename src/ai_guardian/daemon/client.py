@@ -174,6 +174,35 @@ def send_reload_config(timeout=2.0):
         return False
 
 
+def cleanup_stale_pid():
+    """Remove stale PID and socket files if daemon is not actually running.
+
+    Returns:
+        bool: True if a stale PID file was cleaned up
+    """
+    pid_path = get_pid_path()
+    if not pid_path.exists():
+        return False
+
+    if is_daemon_running():
+        return False
+
+    try:
+        pid_path.unlink()
+        logger.info("Cleaned up stale PID file")
+    except OSError:
+        pass
+
+    sock_path = get_socket_path()
+    if sock_path.exists():
+        try:
+            sock_path.unlink()
+        except OSError:
+            pass
+
+    return True
+
+
 def start_daemon_background():
     """Start daemon as a background process for lazy start in auto mode.
 
@@ -181,6 +210,8 @@ def start_daemon_background():
         bool: True if daemon started successfully
     """
     try:
+        cleanup_stale_pid()
+
         # Find the ai-guardian command
         cmd = _find_executable()
         daemon_cmd = cmd + ["daemon", "start"]
