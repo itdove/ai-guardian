@@ -869,3 +869,144 @@ class TestPIIAllowlistPatterns:
         text = "Email: noreply@anthropic.com"
         result = redactor.redact(text)
         assert len(result['redactions']) == 1
+
+
+class TestPIIPatternLoader:
+    """Test PIIPatternLoader class (Issue #644)."""
+
+    def test_loader_loads_bundled_defaults(self):
+        """PIIPatternLoader loads patterns from bundled pii.toml."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        result = loader.load_patterns()
+        rules = result.get("rules", [])
+        assert len(rules) > 0
+        pii_types = {r.get("pii_type") for r in rules}
+        assert "ssn" in pii_types
+        assert "credit_card" in pii_types
+        assert "email" in pii_types
+
+    def test_loader_immutable_empty(self):
+        """PIIPatternLoader has no immutable patterns."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        immutable = loader.get_immutable_patterns()
+        assert immutable == {"rules": []}
+
+    def test_loader_merge_extend_mode(self):
+        """Server patterns extend defaults when override_mode is extend."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        immutable = {"rules": []}
+        defaults = {"rules": [
+            {"id": "pii-ssn", "pii_type": "ssn", "match_type": "regex", "regex": "test"},
+        ]}
+        server = {"rules": [
+            {"id": "pii-custom", "pii_type": "custom_id", "match_type": "regex", "regex": "custom"},
+        ]}
+        merged = loader.merge_patterns(immutable, server, None)
+        ids = [r["id"] for r in merged["rules"]]
+        assert "pii-ssn" in ids
+        assert "pii-custom" in ids
+
+    def test_loader_merge_replace_mode(self):
+        """Server patterns replace defaults when override_mode is replace."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        immutable = {"rules": []}
+        server = {
+            "metadata": {"override_mode": "replace"},
+            "rules": [
+                {"id": "pii-custom-only", "pii_type": "custom", "match_type": "regex", "regex": "custom"},
+            ],
+        }
+        merged = loader.merge_patterns(immutable, server, None)
+        ids = [r["id"] for r in merged["rules"]]
+        assert "pii-custom-only" in ids
+        assert len(merged["rules"]) == 1
+
+    def test_loader_merge_server_overrides_by_id(self):
+        """Server rules override defaults with matching id in extend mode."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        immutable = {"rules": []}
+        defaults = {"rules": [
+            {"id": "pii-ssn", "pii_type": "ssn", "regex": "old-pattern"},
+            {"id": "pii-email", "pii_type": "email", "regex": "email-pattern"},
+        ]}
+        server = {"rules": [
+            {"id": "pii-ssn", "pii_type": "ssn", "regex": "new-pattern"},
+        ]}
+        merged = loader.merge_patterns(immutable, server, None)
+        ssn_rules = [r for r in merged["rules"] if r["id"] == "pii-ssn"]
+        assert len(ssn_rules) == 1
+        assert ssn_rules[0]["regex"] == "new-pattern"
+        email_rules = [r for r in merged["rules"] if r["id"] == "pii-email"]
+        assert len(email_rules) == 1
+
+    def test_loader_merge_local_additions(self):
+        """Local additional_pii_patterns are always additive."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        immutable = {"rules": []}
+        defaults = {"rules": [
+            {"id": "pii-ssn", "pii_type": "ssn", "regex": "ssn-pattern"},
+        ]}
+        local = {
+            "additional_pii_patterns": [
+                {"id": "pii-local", "pii_type": "local_id", "regex": "local-pattern"},
+            ]
+        }
+        merged = loader.merge_patterns(immutable, defaults, local)
+        ids = [r["id"] for r in merged["rules"]]
+        assert "pii-ssn" in ids
+        assert "pii-local" in ids
+
+    def test_loader_pattern_type(self):
+        """PIIPatternLoader has correct pattern_type for server API."""
+        from ai_guardian.pattern_loader import PIIPatternLoader
+
+        loader = PIIPatternLoader()
+        assert loader.pattern_type == "pii"
+        assert loader.feature_name == "PII Detection"
+
+
+class TestPIIPatternServerWiring:
+    """Test that SecretRedactor uses PIIPatternLoader when pattern_server configured (Issue #644)."""
+
+    def test_pii_with_pattern_server_none_uses_bundled(self):
+        """When pattern_server is None, bundled pii.toml is used (no regression)."""
+        config = {
+            'enabled': True,
+            'pii_types': ['ssn', 'credit_card'],
+            'action': 'block',
+            'pattern_server': None,
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config)
+        text = "SSN: 123-45-6789"
+        result = redactor.redact(text)
+        assert "123-45-6789" not in result['redacted_text']
+
+    def test_pii_without_pattern_server_key_uses_bundled(self):
+        """When pattern_server key is absent, bundled pii.toml is used."""
+        config = {
+            'enabled': True,
+            'pii_types': ['ssn'],
+            'action': 'block',
+        }
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=config)
+        text = "SSN: 123-45-6789"
+        result = redactor.redact(text)
+        assert "123-45-6789" not in result['redacted_text']
+
+    def test_pii_defaults_include_pattern_server(self):
+        """_PII_DEFAULTS includes pattern_server key."""
+        from ai_guardian.config_loaders import _PII_DEFAULTS
+        assert 'pattern_server' in _PII_DEFAULTS
+        assert _PII_DEFAULTS['pattern_server'] is None

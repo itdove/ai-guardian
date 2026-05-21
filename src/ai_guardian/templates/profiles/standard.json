@@ -75,7 +75,8 @@
     "action": "block",
     "ignore_files": [],
     "ignore_tools": [],
-    "allowlist_patterns": []
+    "allowlist_patterns": [],
+    "pattern_server": null
   },
   "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
   "ssrf_protection": {

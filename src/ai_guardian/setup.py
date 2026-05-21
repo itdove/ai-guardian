@@ -927,7 +927,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "action": "block",
             "ignore_files": [],
             "ignore_tools": [],
-            "allowlist_patterns": []
+            "allowlist_patterns": [],
+            "pattern_server": None
         },
 
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",

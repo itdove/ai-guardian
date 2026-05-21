@@ -10,6 +10,7 @@ Supports three-tier pattern system:
 Implements fallback chain: pattern server → cache → hardcoded defaults
 
 NEW in v1.5.0: Pattern server support for SSRF, Unicode, Config Scanner, and Secret Redaction.
+NEW in v1.9.0: Pattern server support for PII Detection.
 """
 
 import logging
@@ -17,6 +18,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 
 from ai_guardian.pattern_server import PatternServerClient
+from ai_guardian.patterns import BUNDLED_FILES
 
 logger = logging.getLogger(__name__)
 
@@ -494,5 +496,64 @@ class SecretPatternLoader(PatternLoader):
         # Always add local patterns (additive)
         if local and "additional_patterns" in local:
             merged["patterns"].extend(local["additional_patterns"])
+
+        return merged
+
+
+class PIIPatternLoader(PatternLoader):
+    """
+    Pattern loader for PII Detection.
+
+    Immutable: None (all PII patterns can be enterprise-customized)
+    Overridable: All PII types (SSN, credit card, phone, email, etc.)
+    """
+
+    def __init__(self):
+        super().__init__("PII Detection", "pii")
+
+    def get_immutable_patterns(self) -> Dict[str, Any]:
+        return {"rules": []}
+
+    def get_default_patterns(self) -> Dict[str, Any]:
+        toml_path = BUNDLED_FILES.get("pii")
+        if toml_path and toml_path.exists():
+            try:
+                from ai_guardian.patterns.toml_parser import load_toml_file
+
+                raw_rules = load_toml_file(toml_path)
+                return {"rules": raw_rules}
+            except Exception as e:
+                logger.error(f"Failed to load bundled pii.toml: {e}")
+        return {"rules": []}
+
+    def merge_patterns(
+        self,
+        immutable: Dict[str, Any],
+        server: Optional[Dict[str, Any]],
+        local: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        override_mode = "extend"
+        if server and "metadata" in server:
+            override_mode = server["metadata"].get("override_mode", "extend")
+
+        if override_mode == "replace" and server:
+            merged = {"rules": list(server.get("rules", []))}
+            logger.info(f"{self.feature_name}: Using pattern server patterns (replace mode)")
+        else:
+            default_patterns = self.get_default_patterns()
+            merged = {"rules": list(default_patterns.get("rules", []))}
+
+            if server:
+                server_rules = server.get("rules", [])
+                existing_ids = {r.get("id") for r in merged["rules"] if r.get("id")}
+                for rule in server_rules:
+                    rule_id = rule.get("id")
+                    if rule_id and rule_id in existing_ids:
+                        merged["rules"] = [r if r.get("id") != rule_id else rule for r in merged["rules"]]
+                    else:
+                        merged["rules"].append(rule)
+
+        if local and "additional_pii_patterns" in local:
+            merged["rules"].extend(local["additional_pii_patterns"])
 
         return merged

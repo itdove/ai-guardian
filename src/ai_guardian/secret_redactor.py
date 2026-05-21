@@ -267,11 +267,15 @@ class SecretRedactor:
             except (re.error, KeyError, TypeError) as e:
                 logger.warning(f"Failed to compile custom pattern: {e}")
 
-        # Load PII patterns if enabled (Issue #262)
+        # Load PII patterns if enabled (Issue #262, pattern server support #644)
         if is_feature_enabled(self.pii_config.get('enabled'), default=False):
             pii_types = self.pii_config.get('pii_types',
                 ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'])
-            pii_patterns = self._load_pii_patterns()
+            pii_pattern_server = self.pii_config.get('pattern_server')
+            if pii_pattern_server:
+                pii_patterns = self._load_pii_patterns_via_server(pii_pattern_server)
+            else:
+                pii_patterns = self._load_pii_patterns()
             for pii_type in pii_types:
                 if pii_type in pii_patterns:
                     pattern, strategy, label = pii_patterns[pii_type]
@@ -352,6 +356,42 @@ class SecretRedactor:
         except Exception as e:
             logger.error(f"Failed to load pii.toml: {e}")
             return {}
+
+    def _load_pii_patterns_via_server(self, pattern_server_config: Dict) -> Dict:
+        """Load PII patterns via pattern server with fallback to bundled TOML."""
+        try:
+            from ai_guardian.pattern_loader import PIIPatternLoader
+
+            loader = PIIPatternLoader()
+            merged = loader.load_patterns(
+                pattern_server_config=pattern_server_config,
+                local_config=self.pii_config,
+            )
+
+            rules = merged.get("rules", [])
+            result = {}
+            for raw in rules:
+                pii_type = raw.get("pii_type")
+                if pii_type and raw.get("match_type", "regex") == "regex":
+                    result[pii_type] = (
+                        raw.get("regex", ""),
+                        raw.get("redaction_strategy", "full_redact"),
+                        raw.get("description", ""),
+                    )
+
+            if result:
+                logger.info(f"PII Detection: Loaded {len(result)} patterns via pattern server")
+                return result
+
+            logger.warning("PII pattern server returned no patterns, falling back to bundled TOML")
+            return self._load_pii_patterns()
+
+        except ImportError:
+            logger.error("pattern_loader module not available, falling back to bundled TOML")
+            return self._load_pii_patterns()
+        except Exception as e:
+            logger.error(f"Error loading PII patterns from pattern server: {e}")
+            return self._load_pii_patterns()
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> List:
         """

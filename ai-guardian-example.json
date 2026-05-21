@@ -420,7 +420,14 @@
       "\\b[\\w.+-]+@anthropic\\.com\\b",
       "\\b[\\w.+-]+@example\\.(com|org|net)\\b",
       {"pattern": "\\b555-0[0-9]{3}\\b", "valid_until": "2026-06-01T00:00:00Z"}
-    ]
+    ],
+    "_comment_pattern_server": "OPTIONAL: PII patterns from a pattern server (NEW in v1.9.0). Extends or replaces bundled pii.toml. Same architecture as secret_scanning pattern server.",
+    "_pattern_server_example": {
+      "url": "https://pii-patterns.internal.com",
+      "patterns_endpoint": "/patterns/pii/v1",
+      "auth": {"method": "bearer", "token_env": "AI_GUARDIAN_PII_PATTERNS_TOKEN"},
+      "cache": {"refresh_interval_hours": 168, "expire_after_hours": 720}
+    }
   },
 
   "annotations": {
