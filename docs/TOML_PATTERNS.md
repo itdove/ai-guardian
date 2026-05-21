@@ -86,7 +86,9 @@ keywords = ["sk-"]
 
 ## Pattern Servers
 
-Each violation type can load patterns from one or more remote servers. Servers are configured per section and support different TOML formats:
+Each violation type can load patterns from one or more remote servers. Servers are configured per section and support different TOML formats.
+
+### Secret Scanning
 
 ```json
 {
@@ -106,6 +108,72 @@ Each violation type can load patterns from one or more remote servers. Servers a
   }
 }
 ```
+
+### PII Detection (v1.9.0+)
+
+PII patterns support the same pattern server architecture. The server must return a TOML file with `[[rules]]` in ai-guardian native format (with `pii_type` fields).
+
+```json
+{
+  "scan_pii": {
+    "pattern_server": {
+      "url": "https://pii-patterns.company.com",
+      "patterns_endpoint": "/patterns/pii/v1",
+      "auth": { "method": "bearer", "token_env": "PII_PATTERNS_TOKEN" },
+      "cache": { "refresh_interval_hours": 168, "expire_after_hours": 720 }
+    }
+  }
+}
+```
+
+**Server response format** — the endpoint must return a TOML file with `[[rules]]`. Each rule needs `id`, `match_type`, `regex`, `pii_type`, and optionally `redaction_strategy` and `validation`:
+
+```toml
+# Example PII pattern server response
+# Extends bundled pii.toml with locale-specific patterns
+
+[[rules]]
+id = "pii-french-phone"
+match_type = "regex"
+description = "French phone number"
+regex = '''(?:(?:\+33|0033|0)\s?[1-9])(?:[\s.-]?\d{2}){4}'''
+redaction_strategy = "full_redact"
+pii_type = "phone"
+
+[[rules]]
+id = "pii-german-iban"
+match_type = "regex"
+description = "German IBAN"
+regex = '''\bDE\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}\b'''
+redaction_strategy = "iban"
+pii_type = "iban"
+validation = "iban"
+
+[[rules]]
+id = "pii-french-name-context"
+match_type = "regex"
+description = "French contextual name pattern"
+regex = '''(?i)(?:je m'appelle|mon nom est|prénom|nom)\s*:?\s*([A-ZÀ-Ö][a-zà-ö]+)'''
+redaction_strategy = "full_redact"
+pii_type = "person"
+re2_compat = false
+```
+
+**Key fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique identifier — matching `id` overrides the bundled default |
+| `match_type` | Yes | Must be `regex` for PII patterns |
+| `regex` | Yes | Python regex pattern (use triple-quotes for readability) |
+| `pii_type` | Yes | Category for `scan_pii.pii_types` filtering |
+| `redaction_strategy` | No | `full_redact` (default), `credit_card`, `pii_email`, `iban`, `canada_sin` |
+| `validation` | No | Post-match validator: `credit_card` (Luhn + IIN) or `iban` (mod-97) |
+| `re2_compat` | No | Set `false` for patterns using lookbehinds or other Python-only features |
+
+**Merge strategy**: Server rules with matching `id` override bundled defaults; new rules are appended. Set `metadata.override_mode` to `"replace"` in the server response to replace all defaults instead of extending.
+
+**Note**: No public PII pattern servers exist today. Projects like [PrivAiTe](https://github.com/crp4222/PrivAiTe) provide contextual PII patterns in YAML format — these could be converted to the TOML format above and served via a custom endpoint, but PrivAiTe itself is not a pattern server. [privaite-bench](https://github.com/crp4222/privaite-bench) provides 75 test documents across 5 languages that could be used to validate detection quality.
 
 ### Supported Formats
 

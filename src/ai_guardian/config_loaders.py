@@ -343,7 +343,8 @@ _PII_DEFAULTS = {
     'action': 'block',
     'ignore_files': [],
     'ignore_tools': [],
-    'allowlist_patterns': []
+    'allowlist_patterns': [],
+    'pattern_server': None,
 }
 
 

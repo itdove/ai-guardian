@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PII pattern server support** (Issue #644)
+  - New `PIIPatternLoader` class for loading PII patterns from a remote pattern server
+  - `scan_pii.pattern_server` config option with URL, endpoint, auth, and cache settings
+  - Three-tier merge: server patterns extend or replace bundled defaults by matching `id`
+  - Local `additional_pii_patterns` always additive on top of server/default patterns
+  - Same architecture as secret scanning, SSRF, and Unicode pattern servers
+  - Fallback chain: pattern server → cache → bundled `pii.toml`
+
 - **Parser Compatibility CI** — weekly GitHub Actions workflow verifying pattern server parser compatibility (Issue #685)
   - `parser-compat-check` job: fetches patterns, parses via `PARSER_REGISTRY`, compiles via `PatternCache`
   - `format-version-check` job: detects schema drift, creates/updates GitHub issues with `parser-compat` label

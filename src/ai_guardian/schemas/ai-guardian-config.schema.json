@@ -637,6 +637,28 @@
             ]
           },
           "default": []
+        },
+        "pattern_server": {
+          "type": ["object", "null"],
+          "description": "OPTIONAL/ADVANCED: PII patterns from a pattern server (NEW in v1.9.0). Configure to use enterprise or community PII patterns that can be updated without code changes. Supports extend (add to defaults) and replace (override defaults) modes.",
+          "additionalProperties": true,
+          "properties": {
+            "url": {
+              "type": ["string", "null"],
+              "description": "Pattern server base URL (required if using pattern server)"
+            },
+            "patterns_endpoint": {
+              "type": "string",
+              "description": "Endpoint path for PII patterns (appended to url)",
+              "default": "/patterns/pii/v1"
+            },
+            "auth": {
+              "$ref": "#/definitions/pattern_server_auth"
+            },
+            "cache": {
+              "$ref": "#/definitions/pattern_server_cache"
+            }
+          }
         }
       },
       "additionalProperties": true
