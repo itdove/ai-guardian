@@ -192,6 +192,7 @@ class DaemonTray:
         self._pause_timer = None
         self._status = "running"
         self._proactive_level = self._read_proactive_level()
+        self._mcp_installed = self._is_mcp_installed()
         self._targets = []
         self._active_target = None
 
@@ -459,6 +460,35 @@ class DaemonTray:
         except Exception:
             pass
         return "medium"
+
+    @staticmethod
+    def _is_mcp_installed():
+        """Check if ai-guardian MCP server is configured in any supported IDE."""
+        import json
+        from pathlib import Path
+
+        ide_mcp_configs = [
+            ("~/.claude.json", "mcpServers"),
+            ("~/.cursor/mcp.json", "mcpServers"),
+            ("~/.windsurf/mcp.json", "mcpServers"),
+            ("~/.gemini/settings.json", "mcpServers"),
+            ("~/.cline/mcp_settings.json", "mcpServers"),
+            ("~/.augment/settings.json", "mcpServers"),
+            ("~/.kiro/settings.json", "mcpServers"),
+            ("~/.junie/mcp.json", "mcpServers"),
+            ("~/.aider-desk/settings.json", "mcpServers"),
+            ("~/.openclaw/settings.json", "mcpServers"),
+        ]
+        for config_file, key in ide_mcp_configs:
+            try:
+                path = Path(config_file).expanduser()
+                if path.exists():
+                    config = json.loads(path.read_text(encoding="utf-8"))
+                    if "ai-guardian" in config.get(key, {}):
+                        return True
+            except Exception:
+                continue
+        return False
 
     @staticmethod
     def _resolve_cli_cmd(*args):
@@ -936,7 +966,7 @@ class DaemonTray:
                         radio=True,
                     ),
                 ),
-                visible=_single_vis,
+                visible=lambda _: _single_vis(_) and self._mcp_installed,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
@@ -1180,6 +1210,7 @@ class DaemonTray:
                                     radio=True,
                                 ),
                             ),
+                            visible=lambda _: _is_slot_running(_) and self._mcp_installed,
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(

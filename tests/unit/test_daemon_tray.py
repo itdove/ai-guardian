@@ -1458,3 +1458,64 @@ class TestTrayStartAlreadyRunningMessage:
 
         assert result == 0
         mock_print.assert_called_once_with("ai-guardian tray started (multi-daemon mode)")
+
+
+class TestMcpProactiveMenuVisibility:
+    """Tests for MCP Proactive menu visibility based on MCP installation (issue #726)."""
+
+    def test_is_mcp_installed_returns_true_when_ide_config_has_entry(self, tmp_path):
+        """Detects ai-guardian MCP server entry in an IDE config file."""
+        import json
+
+        config_file = tmp_path / ".claude.json"
+        config_file.write_text(json.dumps({
+            "mcpServers": {
+                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
+            }
+        }))
+        with mock.patch(
+            "ai_guardian.daemon.tray.DaemonTray._is_mcp_installed",
+            wraps=DaemonTray._is_mcp_installed,
+        ):
+            with mock.patch("pathlib.Path.expanduser", return_value=config_file):
+                assert DaemonTray._is_mcp_installed() is True
+
+    def test_is_mcp_installed_returns_false_when_no_ide_configs(self, tmp_path):
+        """Returns False when no IDE config files contain ai-guardian."""
+        missing = tmp_path / "nonexistent.json"
+        with mock.patch("pathlib.Path.expanduser", return_value=missing):
+            assert DaemonTray._is_mcp_installed() is False
+
+    def test_is_mcp_installed_returns_false_when_no_mcp_entry(self, tmp_path):
+        """Returns False when IDE config exists but has no ai-guardian entry."""
+        import json
+
+        config_file = tmp_path / ".claude.json"
+        config_file.write_text(json.dumps({"mcpServers": {"other-tool": {}}}))
+        with mock.patch("pathlib.Path.expanduser", return_value=config_file):
+            assert DaemonTray._is_mcp_installed() is False
+
+    def test_is_mcp_installed_handles_corrupt_json(self, tmp_path):
+        """Gracefully handles corrupt JSON config files."""
+        config_file = tmp_path / ".claude.json"
+        config_file.write_text("not valid json {{{")
+        with mock.patch("pathlib.Path.expanduser", return_value=config_file):
+            assert DaemonTray._is_mcp_installed() is False
+
+    def test_mcp_installed_cached_at_init(self):
+        """_mcp_installed is set during __init__."""
+        with mock.patch.object(DaemonTray, "_is_mcp_installed", return_value=False):
+            tray = DaemonTray(
+                get_stats_callback=lambda: {},
+                stop_callback=lambda: None,
+                pause_callback=lambda mins: None,
+            )
+            assert tray._mcp_installed is False
+
+        with mock.patch.object(DaemonTray, "_is_mcp_installed", return_value=True):
+            tray = DaemonTray(
+                get_stats_callback=lambda: {},
+                stop_callback=lambda: None,
+                pause_callback=lambda mins: None,
+            )
+            assert tray._mcp_installed is True
