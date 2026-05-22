@@ -162,7 +162,9 @@ def resolve_command(command: Union[str, Dict[str, str]]) -> Optional[str]:
     if not isinstance(command, dict):
         return None
     system = platform.system().lower()
-    return command.get(system) or command.get("default")
+    if system in command:
+        return command[system]
+    return command.get("default")
 
 
 PARAM_PREFIX = "tray."
@@ -262,12 +264,14 @@ def send_notification(title: str, message: str) -> bool:
         elif system == "Linux":
             subprocess.run(["notify-send", title, message], timeout=5)
         elif system == "Windows":
+            ttl = title.replace("'", "''")
+            msg = message.replace("'", "''")
             ps = (
-                f'[System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null; '
-                f'$n = New-Object System.Windows.Forms.NotifyIcon; '
-                f'$n.Icon = [System.Drawing.SystemIcons]::Information; '
-                f'$n.Visible = $true; '
-                f'$n.ShowBalloonTip(5000, "{title}", "{message}", "Info")'
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                "$n = New-Object System.Windows.Forms.NotifyIcon; "
+                "$n.Icon = [System.Drawing.SystemIcons]::Information; "
+                "$n.Visible = $true; "
+                f"$n.ShowBalloonTip(5000, '{ttl}', '{msg}', 'Info')"
             )
             subprocess.run(["powershell", "-Command", ps], timeout=10)
         else:

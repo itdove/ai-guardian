@@ -1304,33 +1304,31 @@ class DaemonTray:
         import subprocess
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
-        if item_type == "terminal":
-            _launch_in_terminal(shlex.split(command_str), keep_open=True)
-        elif item_type == "notification":
-            try:
+        try:
+            cmd_parts = shlex.split(command_str)
+        except ValueError:
+            logger.warning("Malformed plugin command: %s", command_str)
+            return
+
+        try:
+            if item_type == "terminal":
+                _launch_in_terminal(cmd_parts, keep_open=True)
+            elif item_type == "notification":
                 result = subprocess.run(
-                    shlex.split(command_str),
-                    capture_output=True, text=True, timeout=60,
+                    cmd_parts, capture_output=True, text=True, timeout=60,
                 )
                 from ai_guardian.daemon.tray_plugins import send_notification
                 send_notification("AI Guardian", result.stdout.strip() or "(no output)")
-            except Exception:
-                pass
-        elif item_type == "clipboard":
-            try:
+            elif item_type == "clipboard":
                 result = subprocess.run(
-                    shlex.split(command_str),
-                    capture_output=True, text=True, timeout=60,
+                    cmd_parts, capture_output=True, text=True, timeout=60,
                 )
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
                 copy_to_clipboard(result.stdout.strip())
-            except Exception:
-                pass
-        else:
-            try:
-                subprocess.run(shlex.split(command_str), timeout=60)
-            except Exception:
-                pass
+            else:
+                subprocess.run(cmd_parts, timeout=60)
+        except Exception:
+            pass
 
     def _execute_plugin_command_with_params(self, plugin_item_dict):
         """Launch tray-prompt for parameter collection, then execute."""
@@ -1541,16 +1539,10 @@ class DaemonTray:
 
     def _on_restart_tray(self, icon, item):
         """Restart the tray process."""
-        import shutil
         import subprocess
         import sys
 
-        executable = shutil.which("ai-guardian")
-        cmd = (
-            [executable, "tray", "start"]
-            if executable
-            else [sys.executable, "-m", "ai_guardian", "tray", "start"]
-        )
+        cmd = [sys.executable, "-m", "ai_guardian", "tray", "start"]
         self.stop()
         self._stop()
         try:

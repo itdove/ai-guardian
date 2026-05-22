@@ -66,7 +66,8 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
             subprocess.Popen(["osascript", "-e", script])
         elif system == "Windows":
             flag = "/k" if keep_open else "/c"
-            subprocess.Popen(["cmd", flag, "start", "/max"] + cmd_parts)
+            win_parts = (["cls", "&&"] if clear else []) + cmd_parts
+            subprocess.Popen(["cmd", flag, "start", "/max"] + win_parts)
         else:
             if keep_open:
                 shell_cmd = cmd_str + '; echo; read -rp "Press Enter to close..."'

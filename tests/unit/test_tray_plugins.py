@@ -273,6 +273,12 @@ class TestResolveCommand:
             result = resolve_command({"darwin": "open ."})
             assert result == "open ."
 
+    def test_empty_string_platform_value_not_falsy_fallthrough(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Darwin"
+            result = resolve_command({"darwin": "", "default": "fallback"})
+            assert result == ""
+
 
 class TestSubstituteParams:
     def test_substitutes_single_param(self):

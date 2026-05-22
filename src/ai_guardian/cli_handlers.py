@@ -616,33 +616,36 @@ def _handle_tray_prompt(args):
     if result is None:
         return 0
 
-    cmd_parts = shlex.split(result)
+    try:
+        cmd_parts = shlex.split(result)
+    except ValueError as e:
+        prompt_logger.error("Malformed command: %s", e)
+        return 1
     if not cmd_parts:
         return 0
 
     cmd_type = getattr(args, "type", "terminal")
-    if cmd_type == "terminal":
-        os.execvp(cmd_parts[0], cmd_parts)
-    else:
-        try:
-            if cmd_type in ("notification", "clipboard"):
-                proc = subprocess.run(
-                    cmd_parts, capture_output=True, text=True, timeout=60,
-                )
-                output = proc.stdout.strip()
-                if cmd_type == "notification":
-                    from ai_guardian.daemon.tray_plugins import send_notification
-                    send_notification("AI Guardian", output or "(no output)")
-                else:
-                    from ai_guardian.daemon.tray_plugins import copy_to_clipboard
-                    copy_to_clipboard(output)
-                return proc.returncode
+    try:
+        if cmd_type == "terminal":
+            os.execvp(cmd_parts[0], cmd_parts)
+        elif cmd_type in ("notification", "clipboard"):
+            proc = subprocess.run(
+                cmd_parts, capture_output=True, text=True, timeout=60,
+            )
+            output = proc.stdout.strip()
+            if cmd_type == "notification":
+                from ai_guardian.daemon.tray_plugins import send_notification
+                send_notification("AI Guardian", output or "(no output)")
             else:
-                proc = subprocess.run(cmd_parts, timeout=60)
-                return proc.returncode
-        except subprocess.TimeoutExpired:
-            prompt_logger.error("Command timed out")
-            return 1
-        except OSError as e:
-            prompt_logger.error("Error executing command: %s", e)
-            return 1
+                from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                copy_to_clipboard(output)
+            return proc.returncode
+        else:
+            proc = subprocess.run(cmd_parts, timeout=60)
+            return proc.returncode
+    except subprocess.TimeoutExpired:
+        prompt_logger.error("Command timed out")
+        return 1
+    except OSError as e:
+        prompt_logger.error("Error executing command: %s", e)
+        return 1
