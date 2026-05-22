@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Daemon troubleshooting guide** (Issue #737)
+  - New `docs/TROUBLESHOOTING.md` covering daemon startup, tray display, container, and general issues
+  - Covers stale lock files, port conflicts, config reload, auto-start failures, and container race conditions
+
 - **Built-in Shell menu item in tray** (Issue #706)
   - Opens an interactive terminal shell matching the daemon's runtime type
   - Local daemon: opens user's default shell (`$SHELL` or `/bin/sh`)

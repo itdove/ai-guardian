@@ -11,6 +11,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [TOML Pattern Engine](TOML_PATTERNS.md) | Built-in Python scanner with 267 pre-compiled TOML patterns |
 | [Console Guide](CONSOLE.md) | Interactive TUI for managing configuration |
 | [Hook Ordering](HOOKS.md) | How hooks work and ordering requirements |
+| [Troubleshooting](TROUBLESHOOTING.md) | Daemon, tray, and container issue resolution |
 
 ## Security Features
 
