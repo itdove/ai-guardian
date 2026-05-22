@@ -630,16 +630,25 @@ class DaemonTray:
         config_error = stats.get("config_error")
         if config_error and not self._config_error_notified:
             self._config_error_notified = True
-            try:
-                from ai_guardian.daemon.tray_plugins import send_notification
-                send_notification(
-                    "AI Guardian",
-                    "Config error detected — run Doctor from tray menu for details",
-                )
-            except Exception:
-                pass
+            threading.Thread(
+                target=self._send_config_error_notification,
+                daemon=True,
+                name="config-error-notify",
+            ).start()
         elif not config_error and self._config_error_notified:
             self._config_error_notified = False
+
+    @staticmethod
+    def _send_config_error_notification():
+        """Send config error OS notification (runs in background thread)."""
+        try:
+            from ai_guardian.daemon.tray_plugins import send_notification
+            send_notification(
+                "AI Guardian",
+                "Config error detected — run Doctor from tray menu for details",
+            )
+        except Exception:
+            pass
 
     def _update_global_pause_status(self):
         """Set tray icon to paused only when ALL daemons are paused."""

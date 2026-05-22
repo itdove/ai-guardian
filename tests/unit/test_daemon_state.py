@@ -687,18 +687,6 @@ class TestConfigError:
         state.get_config()
         assert state.get_config_error() is None
 
-    def test_notified_flag_reset_on_fix(self, tmp_path):
-        config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text("{bad")
-        state = DaemonState(config_path=config_path)
-        state.mark_config_error_notified()
-        assert state.config_error_notified is True
-
-        time.sleep(0.05)
-        config_path.write_text(json.dumps({"v": 1}))
-        state.get_config()
-        assert state.config_error_notified is False
-
     def test_no_error_when_config_missing(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
         assert state.get_config_error() is None

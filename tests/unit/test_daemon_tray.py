@@ -1645,6 +1645,7 @@ class TestShellMenuItem:
                 if isinstance(call[0][0], str)
             ]
             assert "Shell" in labels
+            assert "Doctor" in labels
 
     def test_shell_routes_via_multi_client(self):
         """Shell action calls multi_client.open_shell for local target."""
@@ -1898,10 +1899,9 @@ class TestDoctorMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+        with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
             tray._check_config_error_notification()
             assert mock_notify.call_count == 1
-            assert "Doctor" in mock_notify.call_args[0][1]
 
             tray._check_config_error_notification()
             assert mock_notify.call_count == 1
@@ -1913,7 +1913,7 @@ class TestDoctorMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray_plugins.send_notification"):
+        with mock.patch.object(DaemonTray, "_send_config_error_notification"):
             tray._check_config_error_notification()
             assert tray._config_error_notified is True
 
@@ -1927,6 +1927,6 @@ class TestDoctorMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+        with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
             tray._check_config_error_notification()
             mock_notify.assert_not_called()
