@@ -49,11 +49,12 @@ def _launch_in_terminal(cmd_parts, keep_open=False):
                     '        end if\n'
                     '    end repeat\n'
                 )
+            cmd_escaped = cmd_str.replace("\\", "\\\\").replace('"', '\\"')
             script = (
                 'tell application "Terminal"\n'
                 '    set currentTab to do script ""\n'
                 '    delay 2\n'
-                f'    do script "{cmd_str}" in currentTab\n'
+                f'    do script "{cmd_escaped}" in currentTab\n'
                 '    activate\n'
                 '    set zoomed of front window to true\n'
                 f'{auto_close}'
@@ -140,6 +141,17 @@ class MultiDaemonClient:
             self._container_console(target, cmd)
         elif target.runtime == "kubernetes":
             self._kubectl_console(target, cmd)
+
+    def get_plugins(self, target: DaemonTarget) -> Optional[dict]:
+        """Get tray plugin definitions from a daemon."""
+        if target.runtime == "local":
+            return self._local_plugins()
+        return self._rest_request(target, "GET", "/api/tray-plugins")
+
+    @staticmethod
+    def _local_plugins() -> dict:
+        from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
+        return plugins_to_dict(load_plugins())
 
     def export_support(self, target: DaemonTarget) -> Optional[str]:
         """Export support bundle."""

@@ -574,3 +574,74 @@ def _handle_tray_start(args):
     print("ai-guardian tray started (multi-daemon mode)")
     tray.run_blocking()
     return 0
+
+
+def _handle_tray_prompt(args):
+    """Handle the tray-prompt subcommand: show Textual form and execute."""
+    import json
+    import os
+    import shlex
+    import subprocess
+
+    try:
+        params = json.loads(args.params)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid params JSON: {e}", file=sys.stderr)
+        return 1
+
+    if not isinstance(params, list):
+        print("Error: --params must be a JSON array", file=sys.stderr)
+        return 1
+
+    if not sys.stdin.isatty():
+        print("Error: tray-prompt requires an interactive terminal.", file=sys.stderr)
+        return 1
+
+    try:
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+    except ImportError as e:
+        print(f"Error: TUI dependencies not available: {e}", file=sys.stderr)
+        return 1
+
+    app = TrayPromptApp(
+        params=params,
+        command_template=args.template,
+        command_type=getattr(args, "type", "terminal"),
+    )
+    result = app.run()
+
+    if result is None:
+        return 0
+
+    print(f"Executing: {result}")
+    cmd_parts = shlex.split(result)
+    if not cmd_parts:
+        return 0
+
+    cmd_type = getattr(args, "type", "terminal")
+    if cmd_type == "terminal":
+        os.execvp(cmd_parts[0], cmd_parts)
+    else:
+        try:
+            if cmd_type in ("notification", "clipboard"):
+                proc = subprocess.run(
+                    cmd_parts, capture_output=True, text=True, timeout=60,
+                )
+                output = proc.stdout.strip()
+                if cmd_type == "notification":
+                    from ai_guardian.daemon.tray_plugins import send_notification
+                    send_notification("AI Guardian", output or "(no output)")
+                else:
+                    from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                    copy_to_clipboard(output)
+                    print(f"Copied to clipboard: {output}")
+                return proc.returncode
+            else:
+                proc = subprocess.run(cmd_parts, timeout=60)
+                return proc.returncode
+        except subprocess.TimeoutExpired:
+            print("Command timed out", file=sys.stderr)
+            return 1
+        except OSError as e:
+            print(f"Error executing command: {e}", file=sys.stderr)
+            return 1

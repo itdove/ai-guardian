@@ -35,6 +35,7 @@ from ai_guardian.cli_handlers import (
     _get_client_timeout,
     _handle_daemon_command,
     _handle_tray_command,
+    _handle_tray_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -624,6 +625,28 @@ def main():
             help="Remove desktop shortcut and autostart"
         )
 
+        # Tray prompt subcommand (Issue #590)
+        tray_prompt_parser = subparsers.add_parser(
+            "tray-prompt",
+            help="Show parameter input form for tray plugin commands"
+        )
+        tray_prompt_parser.add_argument(
+            "--params",
+            required=True,
+            help="JSON array of parameter definitions"
+        )
+        tray_prompt_parser.add_argument(
+            "--template",
+            required=True,
+            help="Command template with {param} placeholders"
+        )
+        tray_prompt_parser.add_argument(
+            "--type",
+            default="terminal",
+            choices=["terminal", "background", "notification", "clipboard"],
+            help="Command execution type"
+        )
+
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
             "mcp-server",
@@ -1125,6 +1148,10 @@ def main():
         # Handle tray command (Issue #527)
         if args.command == "tray":
             return _handle_tray_command(args)
+
+        # Handle tray-prompt command (Issue #590)
+        if args.command == "tray-prompt":
+            return _handle_tray_prompt(args)
 
         # Handle mcp-server command (Issue #477)
         if args.command == "mcp-server":

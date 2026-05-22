@@ -59,3 +59,8 @@ def get_pid_path():
 def get_tray_targets_path():
     """Get the path for manual tray daemon targets config."""
     return get_config_dir() / "tray-targets.json"
+
+
+def get_tray_plugins_dir():
+    """Get the directory for tray plugin JSON files."""
+    return get_config_dir() / "tray-plugins"

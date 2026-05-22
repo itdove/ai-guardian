@@ -27,6 +27,8 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self._get_stats())
         elif self.path == "/api/health":
             self._send_json({"status": "ok"})
+        elif self.path == "/api/tray-plugins":
+            self._send_json(self._get_tray_plugins())
         else:
             self._send_error(404, "Not found")
 
@@ -93,6 +95,15 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
         return getattr(self.server, 'instance_name', None) or "ai-guardian"
+
+    @staticmethod
+    def _get_tray_plugins():
+        try:
+            from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
+            return plugins_to_dict(load_plugins())
+        except Exception as e:
+            logger.debug("Failed to load tray plugins: %s", e)
+            return {"plugins": []}
 
     @staticmethod
     def _get_version():

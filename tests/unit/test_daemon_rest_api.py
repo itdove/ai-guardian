@@ -118,6 +118,50 @@ class TestRestAPIEndpoints:
         assert exc_info.value.code == 404
 
 
+class TestTrayPluginsEndpoint:
+    def test_get_tray_plugins_returns_plugins(self, rest_api, tmp_path):
+        api, port, state = rest_api
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "TestPlugin",
+            "items": [{"label": "Hello", "command": "echo hi", "type": "background"}]
+        }))
+        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir",
+                         return_value=plugins_dir):
+            url = f"http://127.0.0.1:{port}/api/tray-plugins"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert "plugins" in data
+        assert len(data["plugins"]) == 1
+        assert data["plugins"][0]["name"] == "TestPlugin"
+
+    def test_get_tray_plugins_returns_empty_when_no_dir(self, rest_api, tmp_path):
+        api, port, state = rest_api
+        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir",
+                         return_value=tmp_path / "nonexistent"):
+            url = f"http://127.0.0.1:{port}/api/tray-plugins"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data == {"plugins": []}
+
+    def test_get_tray_plugins_with_multiple_plugins(self, rest_api, tmp_path):
+        api, port, state = rest_api
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        for i in range(2):
+            (plugins_dir / f"p{i}.json").write_text(json.dumps({
+                "name": f"Plugin{i}",
+                "items": [{"label": f"Item{i}", "command": f"cmd{i}"}]
+            }))
+        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir",
+                         return_value=plugins_dir):
+            url = f"http://127.0.0.1:{port}/api/tray-plugins"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert len(data["plugins"]) == 2
+
+
 class TestRestAPILifecycle:
     def test_start_binds_port(self):
         state = MockDaemonState()
