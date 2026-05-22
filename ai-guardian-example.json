@@ -856,6 +856,8 @@
     "rest_port": 63152,
     "tray": {
       "enabled": true,
+      "auto_install": true,
+      "_comment_auto_install": "Auto-install tray shortcut + autostart on first CLI run. Skipped on headless/CI. Set false to disable.",
       "discovery_interval_seconds": 15,
       "discover_containers": true,
       "discover_kubernetes": false,

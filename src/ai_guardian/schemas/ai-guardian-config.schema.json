@@ -1567,6 +1567,11 @@
               "default": true,
               "description": "Enable Podman/Docker container daemon discovery."
             },
+            "auto_install": {
+              "type": "boolean",
+              "default": true,
+              "description": "Auto-install tray shortcut, autostart, and start tray on first CLI invocation. Set false to disable. Skipped on headless servers and CI/CD environments."
+            },
             "discover_kubernetes": {
               "type": "boolean",
               "default": false,

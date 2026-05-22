@@ -49,6 +49,12 @@ def _ensure_daemon_started():
     except Exception:
         pass
 
+    try:
+        from ai_guardian.daemon.auto_setup import auto_setup_tray
+        auto_setup_tray()
+    except Exception:
+        pass
+
 
 def main():
     """Main entry point for the hook."""

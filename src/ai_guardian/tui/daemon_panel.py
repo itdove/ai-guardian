@@ -29,7 +29,9 @@ class DaemonPanelContent(Static):
         config = self._load_daemon_config()
         idle_timeout = config.get("idle_timeout_minutes", 30)
         client_timeout = config.get("client_timeout_seconds", 2.0)
-        tray_enabled = config.get("tray", {}).get("enabled", True)
+        tray_config = config.get("tray", {})
+        tray_enabled = tray_config.get("enabled", True)
+        tray_auto_install = tray_config.get("auto_install", True)
 
         yield Static("[bold]Daemon Configuration[/bold]\n", classes="section-header")
 
@@ -71,6 +73,19 @@ class DaemonPanelContent(Static):
                 value=tray_enabled,
                 id="daemon-tray-enabled",
                 allow_blank=False,
+            )
+
+        with Vertical(classes="form-group"):
+            yield Static("Auto-Install Tray")
+            yield Select(
+                [("Enabled", True), ("Disabled", False)],
+                value=tray_auto_install,
+                id="daemon-tray-auto-install",
+                allow_blank=False,
+            )
+            yield Static(
+                "[dim]Auto-install shortcut and autostart on first CLI run (default: Enabled)[/dim]",
+                classes="help-text",
             )
 
         yield Static("")
@@ -139,6 +154,7 @@ class DaemonPanelContent(Static):
             idle_input = self.query_one("#daemon-idle-timeout", Input)
             client_input = self.query_one("#daemon-client-timeout", Input)
             tray_select = self.query_one("#daemon-tray-enabled", Select)
+            auto_install_select = self.query_one("#daemon-tray-auto-install", Select)
 
             config_path = get_config_dir() / "ai-guardian.json"
             if config_path.exists():
@@ -149,7 +165,10 @@ class DaemonPanelContent(Static):
             daemon_config = full_config.get("daemon", {})
             daemon_config["idle_timeout_minutes"] = int(idle_input.value or 30)
             daemon_config["client_timeout_seconds"] = float(client_input.value or 2.0)
-            daemon_config["tray"] = {"enabled": tray_select.value}
+            daemon_config["tray"] = {
+                "enabled": tray_select.value,
+                "auto_install": auto_install_select.value,
+            }
             daemon_config.pop("mode", None)
             full_config["daemon"] = daemon_config
 
