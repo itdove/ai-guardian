@@ -198,6 +198,11 @@ class DaemonTray:
         self._daemon_plugins = {}
         self._last_plugins_hash = {}
         self._config_error_notified = False
+        self._discovery_animating = False
+        self._discovery_anim_stop = threading.Event()
+        self._discovery_timer = None
+        self._discovery_frames = None
+        self._is_initial_discovery = True
 
     def start(self):
         """Start tray icon in a background thread.
@@ -215,6 +220,8 @@ class DaemonTray:
         _write_tray_lock()
 
         if self._discovery:
+            self._is_initial_discovery = True
+            self._start_discovery_animation(delay=0)
             self._discovery.start_background_discovery(self._on_targets_updated)
 
         self._thread = threading.Thread(
@@ -241,12 +248,15 @@ class DaemonTray:
         _write_tray_lock()
 
         if self._discovery:
+            self._is_initial_discovery = True
+            self._start_discovery_animation(delay=0)
             self._discovery.start_background_discovery(self._on_targets_updated)
 
         self._run()
 
     def stop(self):
         """Stop tray icon."""
+        self._stop_discovery_animation()
         self._stats_refresh_running = False
         self._unregister_wake_handler()
         if self._discovery:
@@ -266,6 +276,7 @@ class DaemonTray:
         """
         prev = self._status
         self._status = status
+        self._invalidate_discovery_frames()
         if self._icon:
             self._icon.icon = self._create_icon()
         if status == "paused" and prev != "paused":
@@ -409,6 +420,86 @@ class DaemonTray:
         except Exception:
             pass
         return image
+
+    def _generate_discovery_frames(self):
+        """Generate rotated icon frames for discovery animation."""
+        if self._discovery_frames is not None:
+            return self._discovery_frames
+        base = self._create_icon()
+        frames = [base]
+        for angle in (90, 180, 270):
+            frames.append(base.rotate(angle, resample=Image.Resampling.BICUBIC))
+        self._discovery_frames = frames
+        return frames
+
+    def _invalidate_discovery_frames(self):
+        """Clear cached animation frames."""
+        self._discovery_frames = None
+
+    def _start_discovery_animation(self, delay=0.5):
+        """Schedule discovery animation after delay (0 for immediate)."""
+        self._cancel_discovery_timer()
+        self._discovery_anim_stop.clear()
+        if delay <= 0:
+            self._begin_discovery_animation()
+        else:
+            self._discovery_timer = threading.Timer(
+                delay, self._begin_discovery_animation
+            )
+            self._discovery_timer.daemon = True
+            self._discovery_timer.start()
+
+    def _begin_discovery_animation(self):
+        """Start the frame-cycling animation loop in a daemon thread."""
+        if self._discovery_anim_stop.is_set():
+            return
+        self._discovery_animating = True
+        thread = threading.Thread(
+            target=self._animate_discovery_loop,
+            daemon=True, name="discovery-anim",
+        )
+        thread.start()
+
+    def _animate_discovery_loop(self):
+        """Cycle through rotated icon frames until discovery completes."""
+        frames = self._generate_discovery_frames()
+        idx = 0
+        while not self._discovery_anim_stop.is_set():
+            if self._icon:
+                frame = frames[idx % len(frames)]
+                self._dispatch_to_main(lambda f=frame: self._set_icon_frame(f))
+            idx += 1
+            self._discovery_anim_stop.wait(timeout=0.2)
+        self._discovery_animating = False
+
+    def _set_icon_frame(self, frame):
+        """Set the tray icon to a specific frame (main thread)."""
+        if self._icon:
+            self._icon.icon = frame
+
+    def _stop_discovery_animation(self):
+        """Stop discovery animation and restore normal icon."""
+        self._cancel_discovery_timer()
+        self._discovery_anim_stop.set()
+        if self._icon:
+            self._dispatch_to_main(self._refresh_icon_after_discovery)
+
+    def _cancel_discovery_timer(self):
+        """Cancel the pending discovery animation timer."""
+        if self._discovery_timer is not None:
+            self._discovery_timer.cancel()
+            self._discovery_timer = None
+
+    def _refresh_icon_after_discovery(self):
+        """Restore normal icon after discovery animation (main thread)."""
+        if self._icon:
+            self._icon.icon = self._create_icon()
+
+    def _request_discovery_refresh(self, **kwargs):
+        """Request discovery refresh with animation support."""
+        if self._discovery:
+            self._start_discovery_animation(delay=0.5)
+            self._discovery.request_refresh(**kwargs)
 
     @staticmethod
     def _format_time_ago(seconds):
@@ -757,6 +848,8 @@ class DaemonTray:
 
     def _on_targets_updated(self, targets):
         """Callback from background discovery with updated target list."""
+        self._stop_discovery_animation()
+        self._is_initial_discovery = False
         self._targets = targets
         self._auto_select_target()
         logger.info(f"Discovery updated: {len(targets)} target(s) found")
@@ -845,8 +938,7 @@ class DaemonTray:
             return self._is_single_daemon()
 
         def _single_vis_refresh(_item):
-            if self._discovery:
-                self._discovery.request_refresh(wait=False)
+            self._request_discovery_refresh(wait=False)
             return self._is_single_daemon()
 
         def _single_running(_item):
@@ -1115,8 +1207,8 @@ class DaemonTray:
                 return self._daemon_status_label(self._targets[slot])
 
             def make_visible(_item, slot=idx):
-                if slot == 0 and self._discovery:
-                    self._discovery.request_refresh(wait=False)
+                if slot == 0:
+                    self._request_discovery_refresh(wait=False)
                 return self._is_multi_daemon() and slot < len(self._targets)
 
             def _mk_open_panel(panel=None, slot=idx):

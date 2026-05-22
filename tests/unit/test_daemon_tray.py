@@ -1930,3 +1930,186 @@ class TestDoctorMenuItem:
         with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
             tray._check_config_error_notification()
             mock_notify.assert_not_called()
+
+
+class TestDiscoveryAnimation:
+    """Tests for tray icon animation during slow daemon discovery (#743)."""
+
+    def _make_tray(self, **kwargs):
+        return DaemonTray(
+            get_stats_callback=kwargs.get("get_stats_callback", lambda: {}),
+            stop_callback=kwargs.get("stop_callback", lambda: None),
+            pause_callback=kwargs.get("pause_callback", lambda mins: None),
+            discovery=kwargs.get("discovery", None),
+        )
+
+    def test_init_state_defaults(self):
+        tray = self._make_tray()
+        assert tray._discovery_animating is False
+        assert tray._discovery_timer is None
+        assert tray._discovery_frames is None
+        assert tray._is_initial_discovery is True
+        assert not tray._discovery_anim_stop.is_set()
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed",
+    )
+    def test_generate_discovery_frames_returns_four_images(self):
+        from PIL import Image
+        tray = self._make_tray()
+        frames = tray._generate_discovery_frames()
+        assert len(frames) == 4
+        for f in frames:
+            assert isinstance(f, Image.Image)
+            assert f.mode == "RGBA"
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed",
+    )
+    def test_generate_discovery_frames_caches_result(self):
+        tray = self._make_tray()
+        first = tray._generate_discovery_frames()
+        second = tray._generate_discovery_frames()
+        assert first is second
+
+    @pytest.mark.skipif(
+        not is_tray_available(),
+        reason="pystray/Pillow not installed",
+    )
+    def test_invalidate_clears_frame_cache(self):
+        tray = self._make_tray()
+        first = tray._generate_discovery_frames()
+        tray._invalidate_discovery_frames()
+        assert tray._discovery_frames is None
+        second = tray._generate_discovery_frames()
+        assert first is not second
+
+    def test_start_animation_immediate_calls_begin(self):
+        tray = self._make_tray()
+        with mock.patch.object(tray, "_begin_discovery_animation") as m:
+            tray._start_discovery_animation(delay=0)
+            m.assert_called_once()
+
+    def test_start_animation_delayed_creates_timer(self):
+        tray = self._make_tray()
+        with mock.patch.object(tray, "_begin_discovery_animation"):
+            tray._start_discovery_animation(delay=0.5)
+            assert tray._discovery_timer is not None
+            assert tray._discovery_timer.daemon is True
+            tray._cancel_discovery_timer()
+
+    def test_stop_animation_cancels_timer(self):
+        timer = mock.MagicMock()
+        tray = self._make_tray()
+        tray._discovery_timer = timer
+        tray._stop_discovery_animation()
+        timer.cancel.assert_called_once()
+        assert tray._discovery_timer is None
+
+    def test_stop_animation_sets_stop_event(self):
+        tray = self._make_tray()
+        assert not tray._discovery_anim_stop.is_set()
+        tray._stop_discovery_animation()
+        assert tray._discovery_anim_stop.is_set()
+
+    def test_stop_animation_restores_icon(self):
+        tray = self._make_tray()
+        tray._icon = mock.MagicMock()
+        with mock.patch.object(
+            DaemonTray, "_dispatch_to_main", side_effect=lambda fn: fn()
+        ):
+            with mock.patch.object(tray, "_create_icon", return_value="normal_icon"):
+                tray._stop_discovery_animation()
+                assert tray._icon.icon == "normal_icon"
+
+    def test_begin_animation_skips_if_already_stopped(self):
+        tray = self._make_tray()
+        tray._discovery_anim_stop.set()
+        with mock.patch("threading.Thread") as mock_thread:
+            tray._begin_discovery_animation()
+            mock_thread.assert_not_called()
+        assert tray._discovery_animating is False
+
+    def test_begin_animation_starts_thread(self):
+        tray = self._make_tray()
+        tray._discovery_anim_stop.clear()
+        with mock.patch("threading.Thread") as mock_thread:
+            mock_thread.return_value = mock.MagicMock()
+            tray._begin_discovery_animation()
+            mock_thread.assert_called_once()
+            mock_thread.return_value.start.assert_called_once()
+            assert tray._discovery_animating is True
+
+    def test_start_calls_animation_before_discovery(self):
+        disc = mock.MagicMock()
+        tray = self._make_tray(discovery=disc)
+        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True), \
+             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False), \
+             mock.patch("ai_guardian.daemon.tray._write_tray_lock"), \
+             mock.patch.object(tray, "_start_discovery_animation") as mock_anim, \
+             mock.patch.object(tray, "_run"):
+            tray.start()
+            mock_anim.assert_called_once_with(delay=0)
+            disc.start_background_discovery.assert_called_once()
+
+    def test_on_targets_updated_stops_animation(self):
+        tray = self._make_tray()
+        tray._is_initial_discovery = True
+        with mock.patch.object(tray, "_stop_discovery_animation") as mock_stop:
+            tray._on_targets_updated([
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ])
+            mock_stop.assert_called_once()
+        assert tray._is_initial_discovery is False
+
+    def test_stop_cleans_up_animation(self):
+        tray = self._make_tray()
+        with mock.patch.object(tray, "_stop_discovery_animation") as mock_stop:
+            tray.stop()
+            mock_stop.assert_called_once()
+
+    def test_request_discovery_refresh_starts_delayed_animation(self):
+        disc = mock.MagicMock()
+        tray = self._make_tray(discovery=disc)
+        with mock.patch.object(tray, "_start_discovery_animation") as mock_anim:
+            tray._request_discovery_refresh(wait=False)
+            mock_anim.assert_called_once_with(delay=0.5)
+            disc.request_refresh.assert_called_once_with(wait=False)
+
+    def test_request_discovery_refresh_noop_without_discovery(self):
+        tray = self._make_tray()
+        tray._request_discovery_refresh(wait=False)
+
+    def test_fast_discovery_no_animation(self):
+        tray = self._make_tray()
+        tray._icon = mock.MagicMock()
+        original_icon = tray._icon.icon
+        with mock.patch.object(tray, "_begin_discovery_animation"):
+            tray._start_discovery_animation(delay=0.5)
+            tray._stop_discovery_animation()
+        assert tray._discovery_timer is None
+        assert tray._discovery_anim_stop.is_set()
+
+    def test_no_animation_without_discovery(self):
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True), \
+             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False), \
+             mock.patch("ai_guardian.daemon.tray._write_tray_lock"), \
+             mock.patch.object(tray, "_start_discovery_animation") as mock_anim, \
+             mock.patch.object(tray, "_run"):
+            tray.start()
+            mock_anim.assert_not_called()
+
+    def test_update_status_invalidates_frames(self):
+        tray = self._make_tray()
+        tray._discovery_frames = ["fake_frame"]
+        tray.update_status("paused")
+        assert tray._discovery_frames is None
+        tray._stop_pause_timer()
+
+    def test_cancel_discovery_timer_is_idempotent(self):
+        tray = self._make_tray()
+        tray._cancel_discovery_timer()
+        assert tray._discovery_timer is None
