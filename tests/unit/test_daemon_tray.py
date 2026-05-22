@@ -257,7 +257,7 @@ class TestCrossPlatform:
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            with mock.patch("sys.executable", "/usr/bin/python3"):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     tray._launch_console()
                     mock_popen.assert_called_once()
@@ -265,7 +265,7 @@ class TestCrossPlatform:
                     assert "osascript" in mock_popen.call_args[0][0][0]
                     assert 'do script ""' in script
                     assert "delay 2" in script
-                    assert '/usr/local/bin/ai-guardian console' in script
+                    assert '/usr/bin/python3 -m ai_guardian console' in script
 
     def test_console_launch_macos_deferred_command(self):
         """Command is sent after shell init to avoid interactive prompts (issue #599)."""
@@ -275,7 +275,7 @@ class TestCrossPlatform:
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            with mock.patch("sys.executable", "/usr/bin/python3"):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     tray._launch_console()
                     script = mock_popen.call_args[0][0][2]
@@ -285,20 +285,19 @@ class TestCrossPlatform:
                     assert do_script_lines[0] == 'set currentTab to do script ""'
                     assert "in currentTab" in do_script_lines[1]
 
-    def test_console_launch_macos_fallback_sys_executable(self):
-        """Falls back to sys.executable when shutil.which returns None."""
+    def test_console_launch_macos_uses_same_venv(self):
+        """_resolve_cli_cmd always uses sys.executable for venv consistency."""
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value=None):
-                with mock.patch("sys.executable", "/usr/bin/python3"):
-                    with mock.patch("subprocess.Popen") as mock_popen:
-                        tray._launch_console()
-                        script = mock_popen.call_args[0][0][2]
-                        assert "/usr/bin/python3 -m ai_guardian console" in script
+            with mock.patch("sys.executable", "/custom/venv/bin/python"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    tray._launch_console()
+                    script = mock_popen.call_args[0][0][2]
+                    assert "/custom/venv/bin/python -m ai_guardian console" in script
 
     def test_console_launch_windows(self):
         tray = DaemonTray(
@@ -598,7 +597,7 @@ class TestIDESetupMenu:
 
     def test_launch_ide_setup_builds_correct_command(self):
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            with mock.patch("sys.executable", "/usr/bin/python3"):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     DaemonTray._launch_ide_setup("claude")
                     mock_popen.assert_called_once()
@@ -607,36 +606,33 @@ class TestIDESetupMenu:
 
     def test_launch_ide_setup_keeps_terminal_open_macos(self):
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            with mock.patch("sys.executable", "/usr/bin/python3"):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     DaemonTray._launch_ide_setup("claude")
                     script = mock_popen.call_args[0][0][2]
                     assert "close" not in script
                     assert "repeat" not in script
 
-    def test_launch_ide_setup_fallback_sys_executable(self):
+    def test_launch_ide_setup_uses_same_venv(self):
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value=None):
-                with mock.patch("sys.executable", "/usr/bin/python3"):
-                    with mock.patch("subprocess.Popen") as mock_popen:
-                        DaemonTray._launch_ide_setup("cursor")
-                        script = mock_popen.call_args[0][0][2]
-                        assert "/usr/bin/python3 -m ai_guardian setup --ide cursor" in script
+            with mock.patch("sys.executable", "/custom/venv/bin/python"):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    DaemonTray._launch_ide_setup("cursor")
+                    script = mock_popen.call_args[0][0][2]
+                    assert "/custom/venv/bin/python -m ai_guardian setup --ide cursor" in script
 
     def test_launch_ide_setup_linux_keeps_terminal_open(self):
         with mock.patch("platform.system", return_value="Linux"):
-            with mock.patch("shutil.which", side_effect=lambda x: {
-                "ai-guardian": "/usr/bin/ai-guardian",
-                "gnome-terminal": "/usr/bin/gnome-terminal",
-            }.get(x)):
-                with mock.patch("subprocess.Popen") as mock_popen:
-                    DaemonTray._launch_ide_setup("copilot")
-                    mock_popen.assert_called_once()
-                    args = mock_popen.call_args[0][0]
-                    assert "gnome-terminal" in args[0]
-                    shell_cmd = args[-1]
-                    assert "setup --ide copilot" in shell_cmd
-                    assert "Press Enter to close" in shell_cmd
+            with mock.patch("sys.executable", "/usr/bin/python3"):
+                with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/gnome-terminal" if x == "gnome-terminal" else None):
+                    with mock.patch("subprocess.Popen") as mock_popen:
+                        DaemonTray._launch_ide_setup("copilot")
+                        mock_popen.assert_called_once()
+                        args = mock_popen.call_args[0][0]
+                        assert "gnome-terminal" in args[0]
+                        shell_cmd = args[-1]
+                        assert "setup --ide copilot" in shell_cmd
+                        assert "Press Enter to close" in shell_cmd
 
     def test_build_ide_setup_menu_returns_items(self):
         tray = DaemonTray(
@@ -674,7 +670,7 @@ class TestIDESetupMenu:
 
     def test_launch_create_config_builds_correct_command(self):
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            with mock.patch("sys.executable", "/usr/bin/python3"):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     DaemonTray._launch_create_config()
                     script = mock_popen.call_args[0][0][2]
@@ -1519,3 +1515,178 @@ class TestMcpProactiveMenuVisibility:
                 pause_callback=lambda mins: None,
             )
             assert tray._mcp_installed is True
+
+
+class TestPluginMenuItems:
+    """Tests for tray plugin menu integration (issue #590)."""
+
+    def _make_tray(self, targets=None, multi_client=None):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=multi_client,
+        )
+        if targets is not None:
+            tray._targets = targets
+        return tray
+
+    def test_daemon_plugins_initialized_empty(self):
+        tray = self._make_tray()
+        assert tray._daemon_plugins == {}
+        assert tray._last_plugins_hash == {}
+
+    def test_get_daemon_plugins_returns_empty_for_unknown_slot(self):
+        tray = self._make_tray()
+        assert tray._get_daemon_plugins(0) == []
+
+    def test_get_daemon_plugins_returns_plugins_for_known_slot(self):
+        from ai_guardian.daemon.tray_plugins import Plugin, PluginItem
+        tray = self._make_tray()
+        tray._daemon_plugins[0] = [
+            Plugin(name="Test", items=[PluginItem(label="Run", command="echo")])
+        ]
+        plugins = tray._get_daemon_plugins(0)
+        assert len(plugins) == 1
+        assert plugins[0].name == "Test"
+
+    def test_poll_plugins_updates_daemon_plugins(self):
+        mc = mock.MagicMock()
+        mc._local_plugins.return_value = {
+            "plugins": [{
+                "name": "TestPlugin",
+                "items": [{"label": "Hello", "command": "echo", "type": "background"}]
+            }]
+        }
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        tray = self._make_tray(targets=[local_target], multi_client=mc)
+        tray._poll_plugins()
+        assert 0 in tray._daemon_plugins
+        assert len(tray._daemon_plugins[0]) == 1
+        assert tray._daemon_plugins[0][0].name == "TestPlugin"
+
+    def test_poll_plugins_skips_stopped_remote_daemons(self):
+        mc = mock.MagicMock()
+        stopped = DaemonTarget(name="remote", runtime="container", status="stopped")
+        tray = self._make_tray(targets=[stopped], multi_client=mc)
+        tray._poll_plugins()
+        mc.get_plugins.assert_not_called()
+
+    def test_poll_plugins_loads_local_even_when_stopped(self):
+        mc = mock.MagicMock()
+        mc._local_plugins.return_value = {
+            "plugins": [{"name": "Local", "items": [{"label": "A", "command": "b"}]}]
+        }
+        stopped_local = DaemonTarget(name="local", runtime="local", status="stopped")
+        tray = self._make_tray(targets=[stopped_local], multi_client=mc)
+        tray._poll_plugins()
+        mc._local_plugins.assert_called_once()
+        assert 0 in tray._daemon_plugins
+
+    def test_poll_plugins_no_rebuild_when_unchanged(self):
+        mc = mock.MagicMock()
+        mc._local_plugins.return_value = {
+            "plugins": [{"name": "P", "items": [{"label": "A", "command": "b"}]}]
+        }
+        local = DaemonTarget(name="local", runtime="local", status="running")
+        tray = self._make_tray(targets=[local], multi_client=mc)
+        tray._poll_plugins()
+        first_plugins = tray._daemon_plugins[0]
+        tray._poll_plugins()
+        assert tray._daemon_plugins[0] is first_plugins
+
+    def test_build_single_daemon_plugin_items_returns_list(self):
+        tray = self._make_tray(targets=[
+            DaemonTarget(name="local", runtime="local", status="running")
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            items = tray._build_single_daemon_plugin_items()
+        assert isinstance(items, list)
+        assert len(items) > 0
+
+    def test_build_multi_daemon_plugin_slots_returns_list(self):
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            items = tray._build_multi_daemon_plugin_slots(0)
+        assert isinstance(items, list)
+        assert len(items) == tray._MAX_PLUGIN_SLOTS
+
+    def test_execute_plugin_command_terminal(self):
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            DaemonTray._execute_plugin_command("echo hello", "terminal")
+            mock_launch.assert_called_once()
+            assert mock_launch.call_args[0][0] == ["echo", "hello"]
+            assert mock_launch.call_args[1]["keep_open"] is True
+
+    def test_execute_plugin_command_info(self):
+        with mock.patch("subprocess.run") as mock_run:
+            DaemonTray._execute_plugin_command("echo hello", "background")
+            mock_run.assert_called_once()
+
+    def test_execute_plugin_command_notification(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="Pod count: 3\n")
+            with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+                DaemonTray._execute_plugin_command("kubectl get pods | wc -l", "notification")
+                mock_run.assert_called_once()
+                mock_notify.assert_called_once_with("AI Guardian", "Pod count: 3")
+
+    def test_execute_plugin_command_clipboard(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="10.0.0.5\n")
+            with mock.patch("ai_guardian.daemon.tray_plugins.copy_to_clipboard") as mock_copy:
+                DaemonTray._execute_plugin_command("kubectl get svc -o ip", "clipboard")
+                mock_run.assert_called_once()
+                mock_copy.assert_called_once_with("10.0.0.5")
+
+    def test_execute_plugin_command_notification_no_output(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="")
+            with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+                DaemonTray._execute_plugin_command("true", "notification")
+                mock_notify.assert_called_once_with("AI Guardian", "(no output)")
+
+    def test_execute_plugin_command_with_params(self):
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Deploy",
+            "command": "deploy {tray.env}",
+            "type": "terminal",
+            "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
+        }
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/usr/bin/python3"):
+                tray._execute_plugin_command_with_params(item_dict)
+                mock_launch.assert_called_once()
+                cmd = mock_launch.call_args[0][0]
+                assert "tray-prompt" in " ".join(cmd)
+
+    def test_execute_plugin_command_with_params_platform_map(self):
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Shell",
+            "command": {"darwin": "open .", "default": "xdg-open ."},
+            "type": "terminal",
+            "params": []
+        }
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/usr/bin/python3"):
+                tray._execute_plugin_command_with_params(item_dict)
+                mock_launch.assert_called_once()
+
+    def test_execute_plugin_command_with_params_no_match(self):
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Shell",
+            "command": {"windows": "start ."},
+            "type": "terminal",
+            "params": []
+        }
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                tray._execute_plugin_command_with_params(item_dict)
+                mock_launch.assert_not_called()

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tray menu plugin system** (Issue #590)
+  - Custom menu items via JSON files in `~/.config/ai-guardian/tray-plugins/`
+  - Four command types: `terminal`, `background`, `notification`, `clipboard`
+  - Interactive parameters with Textual form (text inputs and dropdowns)
+  - Platform-aware commands via platform map (`darwin`/`linux`/`windows`/`default`)
+  - REST API endpoint `GET /api/tray-plugins` for multi-daemon plugin discovery
+  - Local plugins load even when daemon is stopped
+  - `_resolve_cli_cmd` now uses `sys.executable` to guarantee same virtualenv as tray
+  - AppleScript command escaping fix for double quotes in terminal launches
+
 - **Auto-install tray on first run** (Issue #728)
   - First `ai-guardian` CLI invocation auto-installs desktop shortcut, configures login autostart, and starts tray in background
   - Silent and non-blocking — log messages only, no interactive prompts

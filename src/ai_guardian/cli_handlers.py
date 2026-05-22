@@ -574,3 +574,78 @@ def _handle_tray_start(args):
     print("ai-guardian tray started (multi-daemon mode)")
     tray.run_blocking()
     return 0
+
+
+def _handle_tray_prompt(args):
+    """Handle the tray-prompt subcommand: show Textual form and execute."""
+    import json
+    import logging as log_mod
+    import os
+    import shlex
+    import subprocess
+
+    prompt_logger = log_mod.getLogger("ai_guardian.tray_prompt")
+
+    try:
+        params = json.loads(args.params)
+    except json.JSONDecodeError as e:
+        prompt_logger.error("Invalid params JSON: %s", e)
+        return 1
+
+    if not isinstance(params, list):
+        prompt_logger.error("--params must be a JSON array")
+        return 1
+
+    if not sys.stdin.isatty():
+        prompt_logger.error("tray-prompt requires an interactive terminal")
+        return 1
+
+    try:
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+    except ImportError as e:
+        prompt_logger.error("TUI dependencies not available: %s", e)
+        return 1
+
+    app = TrayPromptApp(
+        params=params,
+        command_template=args.template,
+        command_type=getattr(args, "type", "terminal"),
+    )
+    result = app.run()
+
+    if result is None:
+        return 0
+
+    try:
+        cmd_parts = shlex.split(result)
+    except ValueError as e:
+        prompt_logger.error("Malformed command: %s", e)
+        return 1
+    if not cmd_parts:
+        return 0
+
+    cmd_type = getattr(args, "type", "terminal")
+    try:
+        if cmd_type == "terminal":
+            os.execvp(cmd_parts[0], cmd_parts)
+        elif cmd_type in ("notification", "clipboard"):
+            proc = subprocess.run(
+                cmd_parts, capture_output=True, text=True, timeout=60,
+            )
+            output = proc.stdout.strip()
+            if cmd_type == "notification":
+                from ai_guardian.daemon.tray_plugins import send_notification
+                send_notification("AI Guardian", output or "(no output)")
+            else:
+                from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                copy_to_clipboard(output)
+            return proc.returncode
+        else:
+            proc = subprocess.run(cmd_parts, timeout=60)
+            return proc.returncode
+    except subprocess.TimeoutExpired:
+        prompt_logger.error("Command timed out")
+        return 1
+    except OSError as e:
+        prompt_logger.error("Error executing command: %s", e)
+        return 1

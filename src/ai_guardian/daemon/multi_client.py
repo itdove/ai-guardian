@@ -24,15 +24,18 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 5.0
 
 
-def _launch_in_terminal(cmd_parts, keep_open=False):
+def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
     """Launch a command in a new terminal window.
 
     Args:
         cmd_parts: Command and arguments to run.
         keep_open: If True, keep the terminal open after the command
             finishes so the user can read the output.
+        clear: If True, clear the terminal before running the command.
     """
     cmd_str = " ".join(shlex.quote(p) for p in cmd_parts)
+    if clear:
+        cmd_str = "clear; " + cmd_str
     try:
         system = platform.system()
         if system == "Darwin":
@@ -49,11 +52,12 @@ def _launch_in_terminal(cmd_parts, keep_open=False):
                     '        end if\n'
                     '    end repeat\n'
                 )
+            cmd_escaped = cmd_str.replace("\\", "\\\\").replace('"', '\\"')
             script = (
                 'tell application "Terminal"\n'
                 '    set currentTab to do script ""\n'
                 '    delay 2\n'
-                f'    do script "{cmd_str}" in currentTab\n'
+                f'    do script "{cmd_escaped}" in currentTab\n'
                 '    activate\n'
                 '    set zoomed of front window to true\n'
                 f'{auto_close}'
@@ -62,7 +66,8 @@ def _launch_in_terminal(cmd_parts, keep_open=False):
             subprocess.Popen(["osascript", "-e", script])
         elif system == "Windows":
             flag = "/k" if keep_open else "/c"
-            subprocess.Popen(["cmd", flag, "start", "/max"] + cmd_parts)
+            win_parts = (["cls", "&&"] if clear else []) + cmd_parts
+            subprocess.Popen(["cmd", flag, "start", "/max"] + win_parts)
         else:
             if keep_open:
                 shell_cmd = cmd_str + '; echo; read -rp "Press Enter to close..."'
@@ -140,6 +145,17 @@ class MultiDaemonClient:
             self._container_console(target, cmd)
         elif target.runtime == "kubernetes":
             self._kubectl_console(target, cmd)
+
+    def get_plugins(self, target: DaemonTarget) -> Optional[dict]:
+        """Get tray plugin definitions from a daemon."""
+        if target.runtime == "local":
+            return self._local_plugins()
+        return self._rest_request(target, "GET", "/api/tray-plugins")
+
+    @staticmethod
+    def _local_plugins() -> dict:
+        from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
+        return plugins_to_dict(load_plugins())
 
     def export_support(self, target: DaemonTarget) -> Optional[str]:
         """Export support bundle."""

@@ -73,7 +73,11 @@ _suppress_logging = (
     or "mcp-server" in sys.argv
     or ("setup" in sys.argv and "--json" in sys.argv)
 )
-if not _suppress_logging:
+_quiet_stderr = "tray-prompt" in sys.argv
+if _quiet_stderr:
+    _stderr_handler.setLevel(logging.CRITICAL)
+    import platform
+elif not _suppress_logging:
     logger.info(f"AI Guardian v{__version__} initialized")
     logger.info(f"Python {sys.version.split()[0]}")
     import platform

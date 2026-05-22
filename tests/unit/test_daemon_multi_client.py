@@ -274,3 +274,47 @@ class TestRestRequestReachabilityCheck:
         result = MultiDaemonClient._rest_request(target, "GET", "/api/status")
         assert result == {"status": "running"}
         mock_urlopen.assert_called_once()
+
+
+class TestGetPlugins:
+    """Tests for get_plugins() routing (issue #590)."""
+
+    @mock.patch.object(MultiDaemonClient, "_local_plugins")
+    def test_local_target_calls_local_plugins(self, mock_local):
+        mock_local.return_value = {"plugins": [{"name": "Test", "items": []}]}
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.get_plugins(target)
+        assert result == {"plugins": [{"name": "Test", "items": []}]}
+        mock_local.assert_called_once()
+
+    @mock.patch.object(MultiDaemonClient, "_rest_request")
+    def test_container_target_uses_rest(self, mock_rest):
+        mock_rest.return_value = {"plugins": []}
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="sandbox", runtime="container",
+            container_engine="podman", container_id="abc123def456",
+            host="127.0.0.1", port=63152,
+        )
+        result = client.get_plugins(target)
+        mock_rest.assert_called_once_with(target, "GET", "/api/tray-plugins")
+        assert result == {"plugins": []}
+
+    @mock.patch.object(MultiDaemonClient, "_rest_request")
+    def test_manual_target_uses_rest(self, mock_rest):
+        mock_rest.return_value = {"plugins": [{"name": "P", "items": []}]}
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="remote", runtime="manual",
+            host="10.0.0.1", port=63152,
+        )
+        result = client.get_plugins(target)
+        mock_rest.assert_called_once_with(target, "GET", "/api/tray-plugins")
+
+    @mock.patch.object(MultiDaemonClient, "_rest_request", return_value=None)
+    def test_returns_none_on_network_failure(self, mock_rest):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="remote", runtime="manual", host="10.0.0.1", port=63152)
+        result = client.get_plugins(target)
+        assert result is None

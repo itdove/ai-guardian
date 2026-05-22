@@ -207,6 +207,126 @@ ai-guardian tray stop               # Stop running tray
 ai-guardian tray restart            # Restart tray
 ```
 
+## Tray Plugins
+
+Plugins add custom menu items to the tray. Each daemon loads plugins from its own `tray-plugins/` directory and serves them via the REST API. The tray fetches and displays them automatically.
+
+### Creating a Plugin
+
+Create a JSON file in `~/.config/ai-guardian/tray-plugins/`:
+
+```json
+{
+    "name": "My Tools",
+    "items": [
+        {
+            "label": "Say Hello",
+            "command": "echo 'Hello {tray.name}!'",
+            "type": "terminal",
+            "params": [
+                {"name": "name", "hint": "Your name", "default": "World"}
+            ]
+        },
+        {
+            "label": "Pod Count",
+            "command": "kubectl get pods --no-headers | wc -l",
+            "type": "notification"
+        },
+        {
+            "label": "Copy Pod IP",
+            "command": "kubectl get svc my-app -o jsonpath='{.spec.clusterIP}'",
+            "type": "clipboard"
+        },
+        {
+            "label": "Rebuild",
+            "command": "make build",
+            "type": "background"
+        }
+    ]
+}
+```
+
+Each `.json` file in the directory becomes a submenu in the tray.
+
+### Command Types
+
+| Type | Behavior |
+|------|----------|
+| `terminal` | Opens a new terminal window and runs the command |
+| `background` | Runs silently with no visible output |
+| `notification` | Runs silently, shows stdout as a system notification |
+| `clipboard` | Runs silently, copies stdout to the system clipboard |
+
+### Interactive Parameters
+
+Items with `params` show a form before executing. The user fills in values, then the placeholders `{tray.name}` in the command are substituted.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Matches `{tray.name}` placeholder in command |
+| `hint` | No | Help text shown as label/placeholder |
+| `default` | No | Pre-filled value |
+| `options` | No | List of allowed values — renders as dropdown |
+
+Example with a dropdown:
+
+```json
+{
+    "label": "Deploy Branch",
+    "command": "make deploy BRANCH={tray.branch} ENV={tray.environment}",
+    "type": "terminal",
+    "params": [
+        {"name": "branch", "hint": "Git branch", "default": "main"},
+        {"name": "environment", "default": "dev", "options": ["dev", "staging", "prod"]}
+    ]
+}
+```
+
+Items without `params` execute immediately on click.
+
+### Platform-Aware Commands
+
+Commands can vary by platform using a command map instead of a string:
+
+```json
+{
+    "label": "Open Shell",
+    "command": {
+        "darwin": "open -a Terminal",
+        "linux": "gnome-terminal",
+        "windows": "cmd.exe /k",
+        "default": "bash"
+    },
+    "type": "terminal"
+}
+```
+
+Platform keys match `platform.system().lower()`: `darwin`, `linux`, `windows`. The `default` key is the fallback. If no key matches and no default is set, the menu item is hidden on that platform.
+
+### Plugin Discovery via REST API
+
+The tray does not read plugin files directly. Each daemon serves its plugins via:
+
+```
+GET /api/tray-plugins
+```
+
+This means plugins work uniformly across all daemon types:
+
+| Daemon | Plugin location |
+|--------|----------------|
+| Local | `~/.config/ai-guardian/tray-plugins/` |
+| Container | `/home/user/.config/ai-guardian/tray-plugins/` inside the container |
+| Remote | `~/.config/ai-guardian/tray-plugins/` on the remote host |
+
+The tray polls plugins alongside the stats refresh (every 10 seconds). Local plugins load even when the daemon is stopped.
+
+### Plugin Limits
+
+- Up to 8 plugins per daemon
+- Up to 12 items per plugin
+- These are pre-allocated pystray slots (macOS requires fixed menu structure)
+
 ## Migration from v1.7.x
 
 In v1.7.x, `ai-guardian daemon start` launched both the daemon and the system tray. In v1.8.0+, these are separate:
