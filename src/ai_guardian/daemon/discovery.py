@@ -801,6 +801,7 @@ class DaemonDiscovery:
                 self._last_refresh = time.monotonic()
             except Exception as e:
                 logger.debug("Initial discovery error: %s", e)
+                callback([])
 
             while self._running:
                 self._refresh_event.wait()
@@ -814,6 +815,7 @@ class DaemonDiscovery:
                     self._last_refresh = time.monotonic()
                 except Exception as e:
                     logger.debug("Background discovery error: %s", e)
+                    callback([])
                 finally:
                     with self._done_lock:
                         for evt in self._pending_done:

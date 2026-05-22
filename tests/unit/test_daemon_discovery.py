@@ -971,6 +971,21 @@ class TestBackgroundDiscovery:
             d.stop()
             assert not d._running
 
+    @mock.patch.object(DaemonDiscovery, "discover_all")
+    def test_callback_called_with_empty_list_on_exception(self, mock_discover):
+        mock_discover.side_effect = RuntimeError("discovery failed")
+
+        received = []
+        d = DaemonDiscovery()
+        d.start_background_discovery(lambda t: received.append(t))
+
+        import time
+        time.sleep(0.3)
+        d.stop()
+
+        assert len(received) >= 1
+        assert received[0] == []
+
 
 class TestProbeDaemonSocketPreCheck:
     """Tests for socket-level connect check in _probe_daemon (issue #711)."""
