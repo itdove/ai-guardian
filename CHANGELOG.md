@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Auto-install tray on first run** (Issue #728)
+  - First `ai-guardian` CLI invocation auto-installs desktop shortcut, configures login autostart, and starts tray in background
+  - Silent and non-blocking — log messages only, no interactive prompts
+  - Skipped on headless servers (no DISPLAY), CI/CD environments, and when pystray is not available
+  - Opt-out via config: `{"daemon": {"tray": {"auto_install": false}}}`
+  - Works on macOS (LaunchAgent + .app bundle), Linux (.desktop files), and Windows (Start Menu shortcuts)
+
 - **Multi-agent hook adapter architecture** (Issue #633)
   - New `hook_adapters` package with abstract `HookAdapter` base class and `NormalizedHookInput` dataclass
   - Concrete adapters for all 12 supported agents: Claude Code, Cursor, GitHub Copilot, Codex, Windsurf, Gemini CLI, Cline/ZooCode, Kiro, Augment Code, AiderDesk, OpenClaw, Junie

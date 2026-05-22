@@ -1629,7 +1629,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "idle_timeout_minutes": 30,
             "client_timeout_seconds": 2.0,
             "tray": {
-                "enabled": True
+                "enabled": True,
+                "auto_install": True
             }
         },
 
