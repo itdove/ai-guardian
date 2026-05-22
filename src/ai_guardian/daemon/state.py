@@ -83,6 +83,10 @@ class DaemonState:
         self._project_dir_last_seen = {}  # project_dir -> monotonic timestamp
         self._last_project_config_reload_at = None  # unix timestamp
 
+        # Config error tracking (#742)
+        self._config_error = None  # error message string or None
+        self._config_error_notified = False  # True after tray showed notification
+
         # Security injection tracking (#584)
         self._security_injected_sessions = set()
         self._security_reinject_sessions = set()
@@ -294,9 +298,13 @@ class DaemonState:
 
             self._last_config_reload_at = time.time()
 
+            self._config_error = None
+            self._config_error_notified = False
+
             logger.info(f"Config loaded from {self._config_path}")
             return True
         except (json.JSONDecodeError, OSError) as e:
+            self._config_error = str(e)
             logger.error(f"Failed to reload config: {e}")
             return False
 
@@ -543,7 +551,23 @@ class DaemonState:
                 "last_project_config_reload_at": self._last_project_config_reload_at,
                 "last_project_config_reload_seconds_ago": last_project_reload_seconds_ago,
                 "project_configs_tracked": len(self._project_config_mtimes),
+                "config_error": self._config_error,
             }
+
+    def get_config_error(self):
+        """Get current config error message, if any."""
+        with self._lock:
+            return self._config_error
+
+    def mark_config_error_notified(self):
+        """Mark that the tray has shown a notification for the current error."""
+        with self._lock:
+            self._config_error_notified = True
+
+    @property
+    def config_error_notified(self):
+        with self._lock:
+            return self._config_error_notified
 
     def _pause_remaining_locked(self):
         """Get remaining pause seconds (must be called with lock held)."""
