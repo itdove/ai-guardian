@@ -908,6 +908,7 @@ class TestUntilResumePauseOption:
             mock_pystray.Menu = mock.MagicMock()
             mock_pystray.Menu.SEPARATOR = mock.MagicMock()
             tray._build_single_daemon_menu_items()
+            tray._build_single_daemon_daemon_items()
 
             labels = [
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list
@@ -1515,6 +1516,179 @@ class TestMcpProactiveMenuVisibility:
                 pause_callback=lambda mins: None,
             )
             assert tray._mcp_installed is True
+
+
+class TestMcpProactiveMultiDaemonClosure:
+    """Regression test for MCP Proactive visibility in multi-daemon mode.
+
+    The visibility lambda must capture the loop slot via default argument,
+    not close over the _is_slot_running name (which would always reference
+    the last iteration's function).
+    """
+
+    def test_mcp_visible_in_first_daemon_slot(self):
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        tray._mcp_installed = True
+        mc.get_status.return_value = {}
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+            mcp_calls = [
+                call for call in mock_pystray.MenuItem.call_args_list
+                if len(call[0]) > 0
+                and callable(call[0][0])
+                and not isinstance(call[0][0], mock.MagicMock)
+            ]
+            mcp_vis_results = []
+            for call in mcp_calls:
+                label_fn = call[0][0]
+                vis_fn = call[1].get("visible")
+                try:
+                    label = label_fn(None)
+                except Exception:
+                    continue
+                if "MCP" in str(label) and vis_fn:
+                    mcp_vis_results.append(vis_fn(None))
+
+            assert len(mcp_vis_results) >= 2
+            assert mcp_vis_results[0] is True
+            assert mcp_vis_results[1] is True
+
+
+class TestShellMenuItem:
+    """Tests for Shell menu item in tray (issue #706)."""
+
+    def test_single_daemon_menu_includes_shell(self):
+        """Single-daemon flat menu contains 'Shell' item."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ]
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert "Shell" in labels
+
+    def test_single_daemon_shell_after_mcp(self):
+        """Shell item appears after MCP Proactive section in single-daemon menu."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ]
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert labels[-1] == "Shell"
+
+    def test_multi_daemon_menu_includes_shell(self):
+        """Multi-daemon per-daemon submenu contains 'Shell' item."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        mc.get_stats.return_value = {}
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert "Shell" in labels
+
+    def test_shell_routes_via_multi_client(self):
+        """Shell action calls multi_client.open_shell for local target."""
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+
+        tray._multi_client.open_shell(local_target)
+        mc.open_shell.assert_called_once_with(local_target)
+
+    def test_shell_falls_back_without_multi_client(self):
+        """Shell action falls back to _launch_shell without multi_client."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        tray._targets = [local_target]
+
+        with mock.patch.object(DaemonTray, "_launch_shell") as mock_shell:
+            t = tray._targets[0]
+            if tray._multi_client:
+                tray._multi_client.open_shell(t)
+            else:
+                tray._launch_shell()
+            mock_shell.assert_called_once()
+
+    def test_launch_shell_uses_shell_env(self):
+        """_launch_shell opens user's $SHELL in a terminal."""
+        with mock.patch("os.environ", {"SHELL": "/bin/zsh"}):
+            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                DaemonTray._launch_shell()
+                mock_launch.assert_called_once_with(["/bin/zsh"], keep_open=True)
+
+    def test_launch_shell_defaults_to_sh(self):
+        """_launch_shell defaults to /bin/sh when SHELL not set."""
+        with mock.patch.dict("os.environ", {}, clear=True):
+            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                DaemonTray._launch_shell()
+                mock_launch.assert_called_once_with(["/bin/sh"], keep_open=True)
 
 
 class TestPluginMenuItems:

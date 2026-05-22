@@ -276,6 +276,100 @@ class TestRestRequestReachabilityCheck:
         mock_urlopen.assert_called_once()
 
 
+class TestOpenShellRouting:
+    """Tests for open_shell() routing per runtime (issue #706)."""
+
+    @mock.patch.object(MultiDaemonClient, "_local_shell")
+    def test_local_routes_to_local_shell(self, mock_shell):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        client.open_shell(target)
+        mock_shell.assert_called_once()
+
+    @mock.patch.object(MultiDaemonClient, "_container_shell")
+    def test_container_routes_to_container_shell(self, mock_shell):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="container",
+            container_id="abc123def456abc123", container_engine="podman"
+        )
+        client.open_shell(target)
+        mock_shell.assert_called_once_with(target)
+
+    @mock.patch.object(MultiDaemonClient, "_kubectl_shell")
+    def test_kubernetes_routes_to_kubectl_shell(self, mock_shell):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="kubernetes",
+            pod_name="guardian-abc", namespace="ai-sdlc"
+        )
+        client.open_shell(target)
+        mock_shell.assert_called_once_with(target)
+
+    def test_manual_runtime_is_noop(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="test", runtime="manual")
+        client.open_shell(target)
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_local_shell_uses_shell_env(self, mock_launch):
+        with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
+            MultiDaemonClient._local_shell()
+        mock_launch.assert_called_once_with(["/bin/zsh"], keep_open=True)
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_local_shell_defaults_to_sh(self, mock_launch):
+        with mock.patch.dict("os.environ", {}, clear=True):
+            MultiDaemonClient._local_shell()
+        mock_launch.assert_called_once_with(["/bin/sh"], keep_open=True)
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_container_shell_builds_exec_command(self, mock_launch):
+        target = DaemonTarget(
+            name="test", runtime="container",
+            container_id="abc123def456abc123", container_engine="podman"
+        )
+        MultiDaemonClient._container_shell(target)
+        mock_launch.assert_called_once()
+        cmd = mock_launch.call_args[0][0]
+        assert cmd == ["podman", "exec", "-it", "abc123def456abc123", "/bin/sh"]
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_container_shell_uses_docker_engine(self, mock_launch):
+        target = DaemonTarget(
+            name="test", runtime="container",
+            container_id="abc123def456abc123", container_engine="docker"
+        )
+        MultiDaemonClient._container_shell(target)
+        cmd = mock_launch.call_args[0][0]
+        assert cmd[0] == "docker"
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_kubectl_shell_builds_exec_command(self, mock_launch):
+        target = DaemonTarget(
+            name="test", runtime="kubernetes",
+            pod_name="guardian-abc", namespace="ai-sdlc"
+        )
+        MultiDaemonClient._kubectl_shell(target)
+        mock_launch.assert_called_once()
+        cmd = mock_launch.call_args[0][0]
+        assert cmd == [
+            "kubectl", "exec", "-it", "guardian-abc",
+            "-n", "ai-sdlc", "--", "/bin/sh",
+        ]
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_kubectl_shell_defaults_namespace(self, mock_launch):
+        target = DaemonTarget(
+            name="test", runtime="kubernetes",
+            pod_name="guardian-abc", namespace=None
+        )
+        MultiDaemonClient._kubectl_shell(target)
+        cmd = mock_launch.call_args[0][0]
+        assert "-n" in cmd
+        assert cmd[cmd.index("-n") + 1] == "default"
+
+
 class TestGetPlugins:
     """Tests for get_plugins() routing (issue #590)."""
 

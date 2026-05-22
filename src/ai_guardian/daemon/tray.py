@@ -303,6 +303,7 @@ class DaemonTray:
         menu = pystray.Menu(
             *self._build_single_daemon_menu_items(),
             *self._build_single_daemon_plugin_items(),
+            *self._build_single_daemon_daemon_items(),
             *self._build_multi_daemon_menu_items(),
             pystray.Menu.SEPARATOR,
             *self._build_ide_setup_menu_items(),
@@ -513,6 +514,15 @@ class DaemonTray:
         if panel:
             cmd_parts.extend(["--panel", panel])
         _launch_in_terminal(cmd_parts)
+
+    @staticmethod
+    def _launch_shell():
+        """Launch the user's default shell in a new terminal window."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        import os
+        shell = os.environ.get("SHELL", "/bin/sh")
+        _launch_in_terminal([shell], keep_open=True)
 
     @staticmethod
     def _launch_ide_setup(ide_key):
@@ -827,6 +837,16 @@ class DaemonTray:
                         self._launch_console(panel)
             return action
 
+        def _open_shell():
+            def action(_, __):
+                if self._targets:
+                    t = self._targets[0]
+                    if self._multi_client:
+                        self._multi_client.open_shell(t)
+                    else:
+                        self._launch_shell()
+            return action
+
         def _pause_action(minutes):
             def action(_, __):
                 if self._targets:
@@ -922,6 +942,16 @@ class DaemonTray:
                 return f"Config reloaded: {self._format_time_ago(ago)}"
             return "Config: loaded"
 
+        self._single_daemon_closures = {
+            "pause_action": _pause_action,
+            "resume_action": _resume_action,
+            "stop_action": _stop_action,
+            "restart_action": _restart_action,
+            "single_running": _single_running,
+            "single_not_running": _single_not_running,
+            "get_stats": _get_stats,
+        }
+
         return [
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
@@ -974,6 +1004,27 @@ class DaemonTray:
                 visible=lambda _: _single_vis(_) and self._mcp_installed,
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Shell", _open_shell(), visible=_single_vis),
+        ]
+
+    def _build_single_daemon_daemon_items(self):
+        """Build daemon operation items for single-daemon mode.
+
+        Pause/Resume and Start/Stop/Restart grouped together without
+        internal separators. Separated from preceding items by a
+        separator. Must be called after _build_single_daemon_menu_items().
+        """
+        c = self._single_daemon_closures
+        _pause_action = c["pause_action"]
+        _resume_action = c["resume_action"]
+        _stop_action = c["stop_action"]
+        _restart_action = c["restart_action"]
+        _single_running = c["single_running"]
+        _single_not_running = c["single_not_running"]
+        _get_stats = c["get_stats"]
+
+        return [
+            pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Pause...",
                 pystray.Menu(
@@ -996,7 +1047,6 @@ class DaemonTray:
                     and _get_stats(_).get("paused")
                 ),
             ),
-            pystray.Menu.SEPARATOR,
             pystray.MenuItem("Start daemon", _restart_action,
                              visible=_single_not_running),
             pystray.MenuItem("Stop daemon", _stop_action,
@@ -1036,6 +1086,16 @@ class DaemonTray:
                             self._multi_client.open_console(t, panel)
                         else:
                             self._launch_console(panel)
+                return action
+
+            def _mk_open_shell(slot=idx):
+                def action(_, __):
+                    if slot < len(self._targets):
+                        t = self._targets[slot]
+                        if self._multi_client:
+                            self._multi_client.open_shell(t)
+                        else:
+                            self._launch_shell()
                 return action
 
             def _mk_pause(minutes, slot=idx):
@@ -1194,7 +1254,6 @@ class DaemonTray:
                             ),
                             visible=_is_slot_running,
                         ),
-                        *multi_plugin_items,
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
                             lambda _: f"MCP Proactive: {self._proactive_level}",
@@ -1218,8 +1277,12 @@ class DaemonTray:
                                     radio=True,
                                 ),
                             ),
-                            visible=lambda _: _is_slot_running(_) and self._mcp_installed,
+                            visible=lambda _i, s=idx: _is_slot_running(_i, s) and self._mcp_installed,
                         ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem("Shell", _mk_open_shell()),
+                        pystray.Menu.SEPARATOR,
+                        *multi_plugin_items,
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
                             "Pause...",
@@ -1242,7 +1305,6 @@ class DaemonTray:
                                 and _sf[9](_i)
                             ),
                         ),
-                        pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
                             "Start daemon", _mk_restart(),
                             visible=lambda _i, s=idx: (
