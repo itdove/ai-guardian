@@ -146,6 +146,15 @@ class MultiDaemonClient:
         elif target.runtime == "kubernetes":
             self._kubectl_console(target, cmd)
 
+    def open_shell(self, target: DaemonTarget):
+        """Open an interactive shell for the target daemon."""
+        if target.runtime == "local":
+            self._local_shell()
+        elif target.runtime == "container":
+            self._container_shell(target)
+        elif target.runtime == "kubernetes":
+            self._kubectl_shell(target)
+
     def get_plugins(self, target: DaemonTarget) -> Optional[dict]:
         """Get tray plugin definitions from a daemon."""
         if target.runtime == "local":
@@ -225,6 +234,12 @@ class MultiDaemonClient:
         from ai_guardian.daemon import get_executable_command
         cmd_parts = get_executable_command() + cmd[1:]
         _launch_in_terminal(cmd_parts)
+
+    @staticmethod
+    def _local_shell():
+        """Open default shell in a new terminal window."""
+        shell = os.environ.get("SHELL", "/bin/sh")
+        _launch_in_terminal([shell], keep_open=True)
 
     @staticmethod
     def _local_exec(cmd: List[str]) -> Optional[str]:
@@ -328,6 +343,13 @@ class MultiDaemonClient:
         exec_cmd = [engine, "exec", "-it", target.container_id] + cmd
         _launch_in_terminal(exec_cmd)
 
+    @staticmethod
+    def _container_shell(target: DaemonTarget):
+        """Open interactive shell inside container in a new terminal."""
+        engine = target.container_engine or "podman"
+        exec_cmd = [engine, "exec", "-it", target.container_id, "/bin/sh"]
+        _launch_in_terminal(exec_cmd, keep_open=True)
+
     # --- Kubernetes transport ---
 
     @staticmethod
@@ -361,3 +383,13 @@ class MultiDaemonClient:
             "--",
         ] + cmd
         _launch_in_terminal(exec_cmd)
+
+    @staticmethod
+    def _kubectl_shell(target: DaemonTarget):
+        """Open interactive shell inside K8s pod in a new terminal."""
+        exec_cmd = [
+            "kubectl", "exec", "-it", target.pod_name,
+            "-n", target.namespace or "default",
+            "--", "/bin/sh",
+        ]
+        _launch_in_terminal(exec_cmd, keep_open=True)

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Built-in Shell menu item in tray** (Issue #706)
+  - Opens an interactive terminal shell matching the daemon's runtime type
+  - Local daemon: opens user's default shell (`$SHELL` or `/bin/sh`)
+  - Container daemon: runs `podman/docker exec -it {container_id} /bin/sh`
+  - Kubernetes daemon: runs `kubectl exec -it {pod} -n {namespace} -- /bin/sh`
+  - Present in both single-daemon (flat) and multi-daemon (per-daemon submenu) layouts
+  - No configuration required — auto-detects runtime from discovery
+
 - **Tray menu plugin system** (Issue #590)
   - Custom menu items via JSON files in `~/.config/ai-guardian/tray-plugins/`
   - Four command types: `terminal`, `background`, `notification`, `clipboard`
@@ -93,7 +101,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ai-guardian setup --ide zoocode` supported as alias (same hook format)
   - MCP server configuration for Cline/ZooCode
 
+### Changed
+
+- **Tray menu layout reorganization** (Issue #706)
+  - Shell in its own separated section above daemon operations
+  - Custom plugin menus in their own separated section
+  - Pause/Resume and Start/Stop/Restart daemon grouped together (both are daemon operations)
+
 ### Fixed
+
+- **MCP Proactive menu hidden in multi-daemon tray** (Issue #706)
+  - Closure-in-loop bug: visibility lambda closed over `_is_slot_running` name instead of capturing the slot index
+  - All daemon submenus referenced the last loop iteration's slot (slot 7), causing `7 < len(targets)` to be False
+  - Fixed by capturing slot via default argument: `lambda _i, s=idx: _is_slot_running(_i, s)`
 
 - **Config merge silently drops permissions when user-level and project-level use different formats** (Issue #724)
   - Old list-format permissions (`"permissions": [...]`) now auto-normalized to dict format before merge
