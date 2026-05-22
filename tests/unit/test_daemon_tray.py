@@ -2136,7 +2136,7 @@ class TestDiscoveryAnimation:
              mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]), \
              mock.patch.object(tray, "_start_stats_refresh"), \
              mock.patch.object(tray, "_register_wake_handler"), \
-             mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray:
+             mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_icon = mock.MagicMock()
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
@@ -2158,7 +2158,7 @@ class TestDiscoveryAnimation:
              mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]), \
              mock.patch.object(tray, "_start_stats_refresh"), \
              mock.patch.object(tray, "_register_wake_handler"), \
-             mock.patch("ai_guardian.daemon.tray.pystray") as mock_pystray:
+             mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_icon = mock.MagicMock()
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
