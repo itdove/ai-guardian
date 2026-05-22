@@ -221,7 +221,7 @@ Create a JSON file in `~/.config/ai-guardian/tray-plugins/`:
     "items": [
         {
             "label": "Say Hello",
-            "command": "echo 'Hello {name}!'",
+            "command": "echo 'Hello {tray.name}!'",
             "type": "terminal",
             "params": [
                 {"name": "name", "hint": "Your name", "default": "World"}
@@ -259,11 +259,11 @@ Each `.json` file in the directory becomes a submenu in the tray.
 
 ### Interactive Parameters
 
-Items with `params` show a form before executing. The user fills in values, then the placeholders `{name}` in the command are substituted.
+Items with `params` show a form before executing. The user fills in values, then the placeholders `{tray.name}` in the command are substituted.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | Yes | Matches `{name}` placeholder in command |
+| `name` | Yes | Matches `{tray.name}` placeholder in command |
 | `hint` | No | Help text shown as label/placeholder |
 | `default` | No | Pre-filled value |
 | `options` | No | List of allowed values — renders as dropdown |
@@ -273,7 +273,7 @@ Example with a dropdown:
 ```json
 {
     "label": "Deploy Branch",
-    "command": "make deploy BRANCH={branch} ENV={environment}",
+    "command": "make deploy BRANCH={tray.branch} ENV={tray.environment}",
     "type": "terminal",
     "params": [
         {"name": "branch", "hint": "Git branch", "default": "main"},

@@ -165,23 +165,28 @@ def resolve_command(command: Union[str, Dict[str, str]]) -> Optional[str]:
     return command.get(system) or command.get("default")
 
 
+PARAM_PREFIX = "tray."
+
+
 def substitute_params(template: str, values: Dict[str, str]) -> str:
-    """Substitute {param} placeholders in a command template.
+    """Substitute {tray.param} placeholders in a command template.
+
+    Uses the ``{tray.name}`` namespace to avoid collisions with shell
+    variables (``$name``/``${name}``) and other brace patterns in commands.
 
     Args:
-        template: Command string with {name} placeholders.
+        template: Command string with {tray.name} placeholders.
         values: Mapping of parameter names to values.
 
     Returns:
-        Command with placeholders replaced. Missing params become empty.
+        Command with placeholders replaced. Unmatched {tray.*} become empty.
+        Non-tray braces like {json} are left untouched.
     """
-    try:
-        return template.format_map(values)
-    except KeyError:
-        result = template
-        for key, val in values.items():
-            result = result.replace("{" + key + "}", val)
-        return re.sub(r"\{(\w+)\}", "", result)
+    result = template
+    for key, val in values.items():
+        result = result.replace("{" + PARAM_PREFIX + key + "}", val)
+    result = re.sub(r"\{" + re.escape(PARAM_PREFIX) + r"(\w+)\}", "", result)
+    return result
 
 
 def plugins_to_dict(plugins: List[Plugin]) -> dict:

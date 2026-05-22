@@ -123,7 +123,7 @@ class TestLoadPlugins:
             "name": "Test",
             "items": [{
                 "label": "Deploy",
-                "command": "deploy {branch}",
+                "command": "deploy {tray.branch}",
                 "type": "terminal",
                 "params": [
                     {"name": "branch", "hint": "Git branch", "default": "main"}
@@ -276,18 +276,18 @@ class TestResolveCommand:
 
 class TestSubstituteParams:
     def test_substitutes_single_param(self):
-        result = substitute_params("echo {msg}", {"msg": "hello"})
+        result = substitute_params("echo {tray.msg}", {"msg": "hello"})
         assert result == "echo hello"
 
     def test_substitutes_multiple_params(self):
         result = substitute_params(
-            "deploy --branch {branch} --env {env}",
+            "deploy --branch {tray.branch} --env {tray.env}",
             {"branch": "main", "env": "prod"},
         )
         assert result == "deploy --branch main --env prod"
 
     def test_missing_param_replaced_with_empty(self):
-        result = substitute_params("echo {missing}", {})
+        result = substitute_params("echo {tray.missing}", {})
         assert result == "echo "
 
     def test_no_params_returns_original(self):
@@ -295,12 +295,20 @@ class TestSubstituteParams:
         assert result == "echo hello"
 
     def test_extra_values_ignored(self):
-        result = substitute_params("echo {a}", {"a": "1", "b": "2"})
+        result = substitute_params("echo {tray.a}", {"a": "1", "b": "2"})
         assert result == "echo 1"
 
     def test_partial_params_fills_known_clears_unknown(self):
-        result = substitute_params("{a} and {b}", {"a": "yes"})
+        result = substitute_params("{tray.a} and {tray.b}", {"a": "yes"})
         assert result == "yes and "
+
+    def test_non_tray_braces_left_untouched(self):
+        result = substitute_params("echo {json} and {tray.name}", {"name": "hi"})
+        assert result == "echo {json} and hi"
+
+    def test_shell_variables_left_untouched(self):
+        result = substitute_params("echo $HOME {tray.x}", {"x": "val"})
+        assert result == "echo $HOME val"
 
 
 class TestPluginsToDict:
@@ -322,7 +330,7 @@ class TestPluginsToDict:
             name="Deploy",
             items=[PluginItem(
                 label="Go",
-                command="deploy {env}",
+                command="deploy {tray.env}",
                 type="terminal",
                 params=[PluginParam(name="env", hint="Environment", default="dev", options=["dev", "prod"])]
             )]
@@ -361,7 +369,7 @@ class TestPluginsToDict:
                 PluginItem(label="Simple", command="echo 1", type="background"),
                 PluginItem(
                     label="Params",
-                    command="deploy {env}",
+                    command="deploy {tray.env}",
                     type="terminal",
                     params=[PluginParam(name="env", hint="Env", default="dev")],
                 ),

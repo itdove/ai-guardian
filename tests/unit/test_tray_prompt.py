@@ -32,7 +32,7 @@ class TestHandleTrayPrompt:
         from ai_guardian.cli_handlers import _handle_tray_prompt
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
-        args.template = "echo {x}"
+        args.template = "echo {tray.x}"
         args.type = "terminal"
         with mock.patch("sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = False
@@ -43,7 +43,7 @@ class TestHandleTrayPrompt:
         from ai_guardian.cli_handlers import _handle_tray_prompt
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
-        args.template = "echo {x}"
+        args.template = "echo {tray.x}"
         args.type = "terminal"
         with mock.patch("sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
@@ -55,7 +55,7 @@ class TestHandleTrayPrompt:
         from ai_guardian.cli_handlers import _handle_tray_prompt
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
-        args.template = "echo {x}"
+        args.template = "echo {tray.x}"
         args.type = "background"
         mock_app = mock.MagicMock()
         mock_app.run.return_value = None
@@ -89,9 +89,9 @@ class TestTrayPromptAppCreation:
     def test_app_stores_params(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
         params = [{"name": "env", "hint": "Environment", "default": "dev"}]
-        app = TrayPromptApp(params, "deploy {env}", "terminal")
+        app = TrayPromptApp(params, "deploy {tray.env}", "terminal")
         assert app._params == params
-        assert app._command_template == "deploy {env}"
+        assert app._command_template == "deploy {tray.env}"
         assert app._command_type == "terminal"
 
     def test_app_with_empty_params(self):
@@ -102,5 +102,5 @@ class TestTrayPromptAppCreation:
     def test_app_with_options_param(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
         params = [{"name": "env", "options": ["dev", "staging", "prod"]}]
-        app = TrayPromptApp(params, "deploy {env}")
+        app = TrayPromptApp(params, "deploy {tray.env}")
         assert app._params[0]["options"] == ["dev", "staging", "prod"]

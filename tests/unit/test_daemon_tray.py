@@ -1654,7 +1654,7 @@ class TestPluginMenuItems:
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
-            "command": "deploy {env}",
+            "command": "deploy {tray.env}",
             "type": "terminal",
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
