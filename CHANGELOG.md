@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Multi-agent hook adapter architecture** (Issue #633)
+  - New `hook_adapters` package with abstract `HookAdapter` base class and `NormalizedHookInput` dataclass
+  - Concrete adapters for all 12 supported agents: Claude Code, Cursor, GitHub Copilot, Codex, Windsurf, Gemini CLI, Cline/ZooCode, Kiro, Augment Code, AiderDesk, OpenClaw, Junie
+  - Adapter registry with auto-detection from hook input structure and `AI_GUARDIAN_IDE_TYPE` env var override
+  - `response_format.py` refactored to delegate to adapters (backward-compatible wrappers preserved)
+  - `process_hook_data()` uses single-pass adapter detection and normalization
+  - New `docs/AGENT_SUPPORT.md` with full agent capability matrix, hook event mapping, and response format documentation
+  - 104 new tests covering detection, normalization, response formatting, and backward compatibility
+
 - **OpenClaw plugin-based integration** (Issue #640)
   - New integration using OpenClaw's TypeScript plugin system (`definePluginEntry`)
   - `ai-guardian setup --ide openclaw` installs plugin to `~/.openclaw/plugins/ai-guardian/`

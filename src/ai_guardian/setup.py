@@ -1431,6 +1431,9 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Python-based custom scanners: {type: python, module/path: ..., class: ...}. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
             "engines": [
                 {
+                    "type": "toml-patterns"
+                },
+                {
                     "type": "gitleaks",
                     "binary": "gitleaks",
                     "pattern_server": {
@@ -2773,7 +2776,7 @@ export default class AiGuardianExtension implements Extension {
     const hookData = {
       hook_event_name: 'pre_tool_use',
       tool_name: 'Bash',
-      tool_input: { command: `git commit -m "${event.message || ''}"` },
+      tool_input: { command: 'git commit -m ' + JSON.stringify(event.message || '') },
     };
     const result = this.runGuardian(hookData);
     if (result.blocked) {

@@ -12,6 +12,7 @@ import os
 import platform
 import signal
 import socket
+import stat
 import threading
 import time
 
@@ -66,6 +67,7 @@ class DaemonServer:
         ensure_scanner_path()
 
         self._cleanup_stale()
+        self._acquire_pid_lock()
         self._write_pid_file()
         self._setup_signals()
         self._server_socket = self._setup_socket()
@@ -126,6 +128,14 @@ class DaemonServer:
         if pid_path.exists():
             try:
                 pid_path.unlink()
+            except OSError:
+                pass
+
+        # Clean up lock file
+        lock_path = getattr(self, '_lock_path', None)
+        if lock_path and os.path.exists(lock_path):
+            try:
+                os.unlink(lock_path)
             except OSError:
                 pass
 
@@ -373,6 +383,70 @@ class DaemonServer:
         except Exception as e:
             logger.debug(f"REST API failed to start: {e}")
 
+    @staticmethod
+    def _is_pid_active(pid):
+        """Check if a PID belongs to a live (non-zombie) process."""
+        if not _is_pid_alive(pid):
+            return False
+        # Linux: check /proc/<pid>/status for zombie state
+        try:
+            with open(f"/proc/{pid}/status") as f:
+                for line in f:
+                    if line.startswith("State:"):
+                        return "Z" not in line
+        except (FileNotFoundError, PermissionError, OSError):
+            pass
+        # macOS/BSD: use ps to check process state
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["ps", "-o", "state=", "-p", str(pid)],
+                capture_output=True, text=True, timeout=2,
+            )
+            if result.returncode == 0:
+                state = result.stdout.strip()
+                return bool(state) and "Z" not in state
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        return _is_pid_alive(pid)
+
+    def _acquire_pid_lock(self):
+        """Atomically create a lock file to prevent concurrent daemon starts.
+
+        Uses O_CREAT|O_EXCL for atomic creation — the first process wins,
+        all others get FileExistsError immediately. This closes the TOCTOU
+        race between _cleanup_stale() and _write_pid_file() that allowed
+        multiple daemons to start simultaneously in containers.
+        """
+        pid_path = get_pid_path()
+        lock_path = str(pid_path) + ".lock"
+        try:
+            fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            self._lock_path = lock_path
+        except FileExistsError:
+            try:
+                lock_content = open(lock_path).read().strip()
+                lock_pid = int(lock_content) if lock_content else 0
+                if lock_pid and self._is_pid_active(lock_pid):
+                    raise RuntimeError(
+                        f"Another daemon is starting (pid {lock_pid}). "
+                        f"Stop it first with: ai-guardian daemon stop"
+                    )
+                os.unlink(lock_path)
+                fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                os.write(fd, str(os.getpid()).encode())
+                os.close(fd)
+                self._lock_path = lock_path
+            except (FileExistsError, RuntimeError):
+                raise
+            except Exception:
+                raise RuntimeError(
+                    "Another daemon start is in progress. "
+                    "Stop it first with: ai-guardian daemon stop"
+                )
+
     def _cleanup_stale(self):
         """Clean up stale socket and PID files from crashed daemon.
 
@@ -400,6 +474,21 @@ class DaemonServer:
                 pid_path.unlink()
             except (json.JSONDecodeError, OSError):
                 pid_path.unlink(missing_ok=True)
+
+        # Clean up stale lock file from crashed prior start (including zombies)
+        lock_path = str(pid_path) + ".lock"
+        if os.path.exists(lock_path):
+            try:
+                lock_content = open(lock_path).read().strip()
+                lock_pid = int(lock_content) if lock_content else 0
+                if not lock_pid or not self._is_pid_active(lock_pid):
+                    os.unlink(lock_path)
+                    logger.info("Cleaned up stale daemon lock file")
+            except (ValueError, OSError):
+                try:
+                    os.unlink(lock_path)
+                except OSError:
+                    pass
 
         sock_path = get_socket_path()
         if sock_path.exists() and not self._use_tcp:

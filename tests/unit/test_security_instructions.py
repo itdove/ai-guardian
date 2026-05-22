@@ -269,18 +269,19 @@ class TestProcessHookDataSecurityMessage(TestCase):
         output = json.loads(result['output'])
         self.assertNotIn("SECURITY RULES", json.dumps(output))
 
-    @patch('ai_guardian.hook_processing.detect_ide_type')
+    @patch('ai_guardian.hook_processing.detect_adapter')
     @patch('ai_guardian.hook_processing._load_security_instructions_config')
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_security_message_not_injected_for_cursor(
-        self, mock_pattern_config, mock_redaction_config, mock_si_config, mock_ide_type
+        self, mock_pattern_config, mock_redaction_config, mock_si_config, mock_detect_adapter
     ):
         """Cursor IDE should not get security message injection."""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
         mock_si_config.return_value = (None, None)
-        mock_ide_type.return_value = IDEType.CURSOR
+        from ai_guardian.hook_adapters import CursorAdapter
+        mock_detect_adapter.return_value = CursorAdapter()
 
         hook_data = {
             "hook_event_name": "UserPromptSubmit",

@@ -3,12 +3,13 @@ Response formatting and IDE detection for AI Guardian hooks.
 
 Handles multi-IDE response formatting (Claude Code, Cursor, GitHub Copilot,
 Gemini CLI, Cline/ZooCode, Augment Code) and hook event detection.
+
+This module provides backward-compatible wrapper functions that delegate
+to the hook_adapters package. New code should use the adapter API directly.
 """
 
-import json
 import logging
 import os
-import sys
 from enum import Enum
 
 from ai_guardian.constants import HookEvent
@@ -42,88 +43,25 @@ def detect_ide_type(hook_data):
     """
     Detect which IDE is calling the hook based on input format.
 
+    Delegates to the hook_adapters registry. Preserved for backward
+    compatibility — new code should use detect_adapter() directly.
+
     Args:
         hook_data: Parsed JSON input from the IDE
 
     Returns:
         IDEType: The detected IDE type
     """
-    # Check for environment variable override
-    ide_override = os.environ.get("AI_GUARDIAN_IDE_TYPE", "").lower()
-    if ide_override == "cursor":
-        return IDEType.CURSOR
-    elif ide_override == "claude":
-        return IDEType.CLAUDE_CODE
-    elif ide_override == "github_copilot" or ide_override == "copilot":
-        return IDEType.GITHUB_COPILOT
-    elif ide_override == "codex":
-        return IDEType.CLAUDE_CODE
-    elif ide_override == "windsurf":
-        return IDEType.CLAUDE_CODE
-    elif ide_override == "gemini":
-        return IDEType.GEMINI_CLI
-    elif ide_override in ("cline", "zoocode"):
-        return IDEType.CLINE
-    elif ide_override == "augment":
-        return IDEType.CLAUDE_CODE
-    elif ide_override == "kiro":
-        return IDEType.KIRO
-    elif ide_override == "aiderdesk":
-        return IDEType.KIRO
-    elif ide_override == "openclaw":
-        return IDEType.KIRO
-
-    # Auto-detect based on input structure
-    # Cline/ZooCode detection - clineVersion field is unique to Cline
-    if "clineVersion" in hook_data:
-        return IDEType.CLINE
-
-    # Gemini CLI detection - transcript_path field is unique to Gemini CLI
-    if "transcript_path" in hook_data:
-        return IDEType.GEMINI_CLI
-
-    # Windsurf detection - check for agent_action_name field (unique to Windsurf)
-    if "agent_action_name" in hook_data:
-        return IDEType.CLAUDE_CODE
-
-    # GitHub Copilot detection - check for toolName field (most specific)
-    if "toolName" in hook_data:
-        return IDEType.GITHUB_COPILOT
-
-    # GitHub Copilot detection - timestamp + cwd + prompt pattern
-    if "timestamp" in hook_data and "cwd" in hook_data:
-        return IDEType.GITHUB_COPILOT
-
-    # Cursor sends cursor_version field
-    if "cursor_version" in hook_data:
-        return IDEType.CURSOR
-
-    # Cursor typically sends hook_name or beforeSubmitPrompt event
-    if "hook_name" in hook_data or (
-        "hook_event_name" in hook_data and
-        hook_data.get("hook_event_name") in ["beforeSubmitPrompt", "preToolUse"]
-    ):
-        return IDEType.CURSOR
-
-    # Kiro detection - kiro_hook_type or kiro_version field
-    if "kiro_hook_type" in hook_data or "kiro_version" in hook_data:
-        return IDEType.KIRO
-
-    # Augment Code detection - is_mcp_tool field is unique to Augment
-    if "is_mcp_tool" in hook_data and "tool_name" in hook_data:
-        return IDEType.CLAUDE_CODE
-
-    # Claude Code sends UserPromptSubmit or PreToolUse
-    if "hook_event_name" in hook_data and hook_data.get("hook_event_name") in ["UserPromptSubmit", "PreToolUse"]:
-        return IDEType.CLAUDE_CODE
-
-    # Default to Claude Code format (exit codes)
-    return IDEType.CLAUDE_CODE
+    from ai_guardian.hook_adapters import detect_adapter
+    return detect_adapter(hook_data).ide_type
 
 
 def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEvent.PROMPT, warning_message=None, modified_output=None, violation_type=None, security_message=None):
     """
     Format the response based on IDE type and hook event.
+
+    Delegates to the appropriate hook adapter. Preserved for backward
+    compatibility — new code should use adapter.format_response() directly.
 
     Args:
         ide_type: IDEType enum value
@@ -139,215 +77,25 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEv
         dict with 'output' (str to print), 'exit_code' (int), and optional
         daemon metadata: '_blocked' (True when has_secrets=True)
     """
-    def _add_metadata(result):
-        if has_secrets:
-            result["_blocked"] = True
-        if violation_type:
-            result["_violation_type"] = violation_type
-        return result
-
-    if ide_type == IDEType.GITHUB_COPILOT:
-        if hook_event == HookEvent.PRE_TOOL_USE:
-            response = {}
-            if has_secrets:
-                response["permissionDecision"] = "deny"
-                if error_message:
-                    final_error = error_message
-                    if warning_message:
-                        final_error = f"{warning_message}\n\n{error_message}"
-                    response["permissionDecisionReason"] = final_error
-
-            return _add_metadata({
-                "output": json.dumps(response),
-                "exit_code": 0
-            })
-        else:
-            if has_secrets and error_message:
-                final_error = error_message
-                if warning_message:
-                    final_error = f"{warning_message}\n\n{error_message}"
-                print(final_error, file=sys.stderr)
-
-            return _add_metadata({
-                "output": None,
-                "exit_code": 2 if has_secrets else 0
-            })
-    elif ide_type == IDEType.GEMINI_CLI:
-        if has_secrets and error_message:
-            final_error = error_message
-            if warning_message:
-                final_error = f"{warning_message}\n\n{error_message}"
-            response = {"decision": "deny", "reason": final_error}
-        else:
-            response = {}
-            parts = []
-            if hook_event == HookEvent.PROMPT and security_message:
-                parts.append(security_message)
-            if warning_message:
-                parts.append(warning_message)
-            if parts:
-                response["systemMessage"] = "\n\n".join(parts)
-
-        return _add_metadata({
-            "output": json.dumps(response),
-            "exit_code": 0
-        })
-    elif ide_type == IDEType.CLINE:
-        if has_secrets and error_message:
-            final_error = error_message
-            if warning_message:
-                final_error = f"{warning_message}\n\n{error_message}"
-            response = {"cancel": True, "reason": final_error}
-        else:
-            response = {}
-            parts = []
-            if hook_event == HookEvent.PROMPT and security_message:
-                parts.append(security_message)
-            if warning_message:
-                parts.append(warning_message)
-            if parts:
-                response["message"] = "\n\n".join(parts)
-
-        return _add_metadata({
-            "output": json.dumps(response),
-            "exit_code": 0
-        })
-    elif ide_type == IDEType.KIRO:
-        # Kiro: exit 0=allow (stdout→agent context), exit 1=block (stderr→agent)
-        if has_secrets and error_message:
-            final_error = error_message
-            if warning_message:
-                final_error = f"{warning_message}\n\n{error_message}"
-            print(final_error, file=sys.stderr)
-            return _add_metadata({
-                "output": None,
-                "exit_code": 1
-            })
-        else:
-            parts = []
-            if hook_event == HookEvent.PROMPT and security_message:
-                parts.append(security_message)
-            if warning_message:
-                parts.append(warning_message)
-            if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
-                parts.append(modified_output)
-            output = "\n\n".join(parts) if parts else None
-            return _add_metadata({
-                "output": output,
-                "exit_code": 0
-            })
-    elif ide_type == IDEType.CURSOR:
-        final_error = error_message
-        if has_secrets and error_message and warning_message:
-            final_error = f"{warning_message}\n\n{error_message}"
-
-        if hook_event == HookEvent.PRE_TOOL_USE:
-            response = {
-                "decision": "deny" if has_secrets else "allow",
-            }
-            if has_secrets and final_error:
-                response["reason"] = final_error
-        elif hook_event == HookEvent.BEFORE_READ_FILE:
-            response = {
-                "permission": "deny" if has_secrets else "allow",
-            }
-            if has_secrets and final_error:
-                response["user_message"] = final_error
-        else:
-            response = {
-                "continue": not has_secrets,
-            }
-            if has_secrets and final_error:
-                response["user_message"] = final_error
-
-        return _add_metadata({
-            "output": json.dumps(response),
-            "exit_code": 0
-        })
-    else:
-        # Claude Code
-        if hook_event == HookEvent.POST_TOOL_USE:
-            if has_secrets:
-                final_error = error_message or "Secrets detected in tool output"
-                if warning_message:
-                    final_error = f"{warning_message}\n\n{final_error}"
-                response = {
-                    "decision": "block",
-                    "reason": final_error,
-                    "hookSpecificOutput": {
-                        "hookEventName": "PostToolUse",
-                        "additionalContext": "Tool output contained sensitive information and was blocked by ai-guardian"
-                    }
-                }
-            else:
-                response = {}
-                if warning_message:
-                    response["systemMessage"] = warning_message
-                if modified_output is not None:
-                    if "hookSpecificOutput" not in response:
-                        response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
-                    response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
-                    response["hookSpecificOutput"]["updatedMCPToolOutput"] = modified_output
-
-            return _add_metadata({
-                "output": json.dumps(response),
-                "exit_code": 0
-            })
-        elif hook_event == HookEvent.PROMPT:
-            if has_secrets and error_message:
-                final_error = error_message
-                if warning_message:
-                    final_error = f"{warning_message}\n\n{error_message}"
-                response = {
-                    "decision": "block",
-                    "reason": final_error,
-                    "hookSpecificOutput": {
-                        "hookEventName": "UserPromptSubmit"
-                    }
-                }
-            else:
-                response = {}
-                parts = []
-                if security_message:
-                    parts.append(security_message)
-                if warning_message:
-                    parts.append(warning_message)
-                if parts:
-                    response["systemMessage"] = "\n\n".join(parts)
-
-            return _add_metadata({
-                "output": json.dumps(response),
-                "exit_code": 0
-            })
-        else:
-            # PreToolUse
-            if has_secrets and error_message:
-                final_error = error_message
-                if warning_message:
-                    final_error = f"{warning_message}\n\n{error_message}"
-                response = {
-                    "hookSpecificOutput": {
-                        "permissionDecision": "deny",
-                        "hookEventName": "PreToolUse"
-                    },
-                    "systemMessage": final_error
-                }
-            elif warning_message:
-                response = {
-                    "systemMessage": warning_message
-                }
-            else:
-                response = {}
-
-            return _add_metadata({
-                "output": json.dumps(response),
-                "exit_code": 0
-            })
+    from ai_guardian.hook_adapters import get_adapter_by_ide_type
+    adapter = get_adapter_by_ide_type(ide_type)
+    return adapter.format_response(
+        has_secrets=has_secrets,
+        error_message=error_message,
+        hook_event=hook_event,
+        warning_message=warning_message,
+        modified_output=modified_output,
+        violation_type=violation_type,
+        security_message=security_message,
+    )
 
 
 def detect_hook_event(hook_data):
     """
     Detect which hook event triggered this call.
+
+    Delegates to the hook_adapters registry. Preserved for backward
+    compatibility — new code should use adapter.normalize_input() directly.
 
     Args:
         hook_data: Parsed JSON input from the IDE
@@ -355,68 +103,7 @@ def detect_hook_event(hook_data):
     Returns:
         HookEvent: HookEvent.PROMPT, HookEvent.PRE_TOOL_USE, HookEvent.POST_TOOL_USE, or HookEvent.BEFORE_READ_FILE
     """
-    # Windsurf uses agent_action_name instead of hook_event_name
-    agent_action = hook_data.get("agent_action_name", "").lower()
-    if agent_action:
-        if agent_action == "pre_user_prompt":
-            return HookEvent.PROMPT
-        elif agent_action in ("pre_read_code",):
-            return HookEvent.BEFORE_READ_FILE
-        elif agent_action in ("pre_run_command", "pre_write_code", "pre_mcp_tool_use"):
-            return HookEvent.PRE_TOOL_USE
-        elif agent_action in ("post_run_command", "post_read_code", "post_write_code",
-                              "post_mcp_tool_use"):
-            return HookEvent.POST_TOOL_USE
-
-    event_name = hook_data.get("hook_event_name", "").lower()
-
-    # Cline uses hookName field (camelCase)
-    if not event_name:
-        event_name = hook_data.get("hookName", "").lower()
-
-    # Gemini CLI event names
-    if event_name == "beforetool":
-        return HookEvent.PRE_TOOL_USE
-    elif event_name == "aftertool":
-        return HookEvent.POST_TOOL_USE
-    elif event_name in ("beforeagent", "sessionstart"):
-        return HookEvent.PROMPT
-
-    # Kiro event names
-    if event_name in ("prompt_submit", "promptsubmit"):
-        return HookEvent.PROMPT
-    elif event_name == "agent_stop":
-        return HookEvent.POST_TOOL_USE
-    elif event_name == "pre_tool_use":
-        return HookEvent.PRE_TOOL_USE
-    elif event_name == "post_tool_use":
-        return HookEvent.POST_TOOL_USE
-
-    if event_name in ["userpromptsubmit", "beforesubmitprompt"]:
-        return HookEvent.PROMPT
-    elif event_name in ["pretooluse"]:
-        return HookEvent.PRE_TOOL_USE
-    elif event_name in ["posttooluse"]:
-        return HookEvent.POST_TOOL_USE
-    elif event_name in ["beforereadfile"]:
-        return HookEvent.BEFORE_READ_FILE
-
-    hook_name = hook_data.get("hook_name", "").lower()
-    if hook_name in ["beforesubmitprompt"]:
-        return HookEvent.PROMPT
-    elif hook_name in ["pretooluse"]:
-        return HookEvent.PRE_TOOL_USE
-
-    if "toolName" in hook_data:
-        return HookEvent.PRE_TOOL_USE
-
-    if "tool_response" in hook_data:
-        return HookEvent.POST_TOOL_USE
-
-    if "tool_use" in hook_data or "tool" in hook_data or "tool_name" in hook_data:
-        return HookEvent.PRE_TOOL_USE
-
-    if "prompt" in hook_data or "message" in hook_data or "userMessage" in hook_data:
-        return HookEvent.PROMPT
-
-    return HookEvent.PROMPT
+    from ai_guardian.hook_adapters import detect_adapter
+    adapter = detect_adapter(hook_data)
+    normalized = adapter.normalize_input(hook_data)
+    return normalized.event

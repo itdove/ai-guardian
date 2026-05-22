@@ -48,6 +48,8 @@ class PatternCache:
     Loads patterns from TOML files and/or raw rule dicts, compiles them
     into Python objects, and provides scan/redact operations.
 
+    _IP_PATTERN: Pre-compiled regex for extracting IPv4 addresses in CIDR scanning.
+
     Usage::
 
         cache = PatternCache()
@@ -55,6 +57,8 @@ class PatternCache:
         findings = cache.scan("text with sk-abc123xyz...", categories=["secret"])
         result = cache.redact("text with sk-abc123xyz...", categories=["secret"])
     """
+
+    _IP_PATTERN = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 
     def __init__(self):
         self._rules: List[CompiledRule] = []
@@ -98,6 +102,9 @@ class PatternCache:
 
         self._rebuild_indices()
         self.loaded_at = time.time()
+        if toml_paths and not self._rules:
+            logger.warning("PatternCache: loaded 0 rules from %d file(s) — scanning will find nothing",
+                           len(toml_paths))
         logger.info(f"PatternCache loaded: {len(self._rules)} rules across "
                      f"{len(self._rules_by_category)} categories")
 
@@ -345,8 +352,7 @@ class PatternCache:
 
     def _scan_cidr(self, content: str, rule: CompiledRule) -> List[ScanFinding]:
         findings = []
-        ip_pattern = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
-        for match in ip_pattern.finditer(content):
+        for match in self._IP_PATTERN.finditer(content):
             try:
                 addr = ipaddress.ip_address(match.group())
                 if addr in rule.compiled:

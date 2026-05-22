@@ -68,8 +68,8 @@ class PreToolUseNoAutoApproveTests(TestCase):
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.detect_ide_type')
-    def test_edit_operation_no_auto_approve_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
+    @patch('ai_guardian.hook_processing.detect_adapter')
+    def test_edit_operation_no_auto_approve_github_copilot(self, mock_detect_adapter, mock_pattern_config, mock_redaction_config):
         """
         Verify Edit operations don't auto-approve when clean (GitHub Copilot).
 
@@ -82,7 +82,8 @@ class PreToolUseNoAutoApproveTests(TestCase):
         """
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
-        mock_ide_type.return_value = ai_guardian.IDEType.GITHUB_COPILOT
+        from ai_guardian.hook_adapters import CopilotAdapter
+        mock_detect_adapter.return_value = CopilotAdapter()
 
         # GitHub Copilot format
         hook_data = {
@@ -151,14 +152,15 @@ class PreToolUseNoAutoApproveTests(TestCase):
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.detect_ide_type')
-    def test_write_operation_no_auto_approve_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
+    @patch('ai_guardian.hook_processing.detect_adapter')
+    def test_write_operation_no_auto_approve_github_copilot(self, mock_detect_adapter, mock_pattern_config, mock_redaction_config):
         """
         Verify Write operations don't auto-approve when clean (GitHub Copilot).
         """
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
-        mock_ide_type.return_value = ai_guardian.IDEType.GITHUB_COPILOT
+        from ai_guardian.hook_adapters import CopilotAdapter
+        mock_detect_adapter.return_value = CopilotAdapter()
 
         # GitHub Copilot format
         hook_data = {

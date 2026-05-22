@@ -71,15 +71,28 @@ class _RestHandler(BaseHTTPRequestHandler):
             "paused": stats.get("paused", False),
             "uptime_seconds": stats.get("uptime_seconds", 0),
             "version": self._get_version(),
-            "name": getattr(self.server, 'instance_name', None) or "ai-guardian",
+            "name": self._get_instance_name(),
         }
 
     def _get_stats(self):
         stats = self.server.daemon_state.get_stats()
-        name = getattr(self.server, 'instance_name', None)
+        name = self._get_instance_name()
         if name:
             stats["name"] = name
         return stats
+
+    def _get_instance_name(self):
+        """Get instance name from current config, falling back to startup value."""
+        try:
+            from ai_guardian.config_loaders import _load_config_file
+            cfg, _ = _load_config_file()
+            if cfg:
+                name = cfg.get("name")
+                if name:
+                    return name
+        except Exception:
+            pass
+        return getattr(self.server, 'instance_name', None) or "ai-guardian"
 
     @staticmethod
     def _get_version():
