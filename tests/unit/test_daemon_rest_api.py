@@ -25,6 +25,7 @@ class MockDaemonState:
             "blocked_count": 3,
             "paused": self._paused,
             "uptime_seconds": 300.0,
+            "config_error": None,
         }
 
     def pause(self, minutes):

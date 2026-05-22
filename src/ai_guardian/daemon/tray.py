@@ -197,6 +197,7 @@ class DaemonTray:
         self._active_target = None
         self._daemon_plugins = {}
         self._last_plugins_hash = {}
+        self._config_error_notified = False
 
     def start(self):
         """Start tray icon in a background thread.
@@ -525,6 +526,13 @@ class DaemonTray:
         _launch_in_terminal([shell], keep_open=True)
 
     @staticmethod
+    def _launch_doctor():
+        """Launch ai-guardian doctor in a new terminal window."""
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        _launch_in_terminal(DaemonTray._resolve_cli_cmd("doctor"), keep_open=True)
+
+    @staticmethod
     def _launch_ide_setup(ide_key):
         """Launch ai-guardian setup --ide <name> in a new terminal window."""
         from ai_guardian.daemon.multi_client import _launch_in_terminal
@@ -616,6 +624,32 @@ class DaemonTray:
         elif not is_paused and self._status == "paused":
             self.update_status("running")
 
+    def _check_config_error_notification(self):
+        """Show OS notification once when a config error is detected."""
+        stats = self._get_stats()
+        config_error = stats.get("config_error")
+        if config_error and not self._config_error_notified:
+            self._config_error_notified = True
+            threading.Thread(
+                target=self._send_config_error_notification,
+                daemon=True,
+                name="config-error-notify",
+            ).start()
+        elif not config_error and self._config_error_notified:
+            self._config_error_notified = False
+
+    @staticmethod
+    def _send_config_error_notification():
+        """Send config error OS notification (runs in background thread)."""
+        try:
+            from ai_guardian.daemon.tray_plugins import send_notification
+            send_notification(
+                "AI Guardian",
+                "Config error detected — run Doctor from tray menu for details",
+            )
+        except Exception:
+            pass
+
     def _update_global_pause_status(self):
         """Set tray icon to paused only when ALL daemons are paused."""
         if not self._targets:
@@ -699,6 +733,7 @@ class DaemonTray:
 
                 if self._stats_refresh_running and self._icon:
                     self._dispatch_to_main(self._sync_pause_state)
+                    self._check_config_error_notification()
                     self._poll_plugins()
                     self._dispatch_to_main(self._refresh_menu)
 
@@ -845,6 +880,11 @@ class DaemonTray:
                         self._multi_client.open_shell(t)
                     else:
                         self._launch_shell()
+            return action
+
+        def _open_doctor():
+            def action(_, __):
+                self._launch_doctor()
             return action
 
         def _pause_action(minutes):
@@ -1005,6 +1045,7 @@ class DaemonTray:
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Shell", _open_shell(), visible=_single_vis),
+            pystray.MenuItem("Doctor", _open_doctor(), visible=_single_vis),
         ]
 
     def _build_single_daemon_daemon_items(self):
@@ -1281,6 +1322,7 @@ class DaemonTray:
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem("Shell", _mk_open_shell()),
+                        pystray.MenuItem("Doctor", lambda _, __: self._launch_doctor()),
                         pystray.Menu.SEPARATOR,
                         *multi_plugin_items,
                         pystray.Menu.SEPARATOR,

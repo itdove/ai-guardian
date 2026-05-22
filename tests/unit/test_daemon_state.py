@@ -656,3 +656,37 @@ class TestSessionPersistence:
         file_stat = os.stat(sessions_file)
         mode = file_stat.st_mode & 0o777
         assert mode == 0o600
+
+
+class TestConfigError:
+    """Verify config_error tracking in DaemonState (#742)."""
+
+    def test_no_error_on_valid_config(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        state = DaemonState(config_path=config_path)
+        assert state.get_config_error() is None
+        assert state.get_stats()["config_error"] is None
+
+    def test_error_set_on_invalid_json(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text("{invalid json")
+        state = DaemonState(config_path=config_path)
+        assert state.get_config_error() is not None
+        assert "invalid" in state.get_config_error().lower() or "expect" in state.get_config_error().lower()
+        assert state.get_stats()["config_error"] is not None
+
+    def test_error_cleared_on_valid_reload(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text("{bad")
+        state = DaemonState(config_path=config_path)
+        assert state.get_config_error() is not None
+
+        time.sleep(0.05)
+        config_path.write_text(json.dumps({"v": 2}))
+        state.get_config()
+        assert state.get_config_error() is None
+
+    def test_no_error_when_config_missing(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state.get_config_error() is None

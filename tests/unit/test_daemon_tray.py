@@ -1614,7 +1614,11 @@ class TestShellMenuItem:
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
-            assert labels[-1] == "Shell"
+            assert "Shell" in labels
+            assert "Doctor" in labels
+            shell_idx = labels.index("Shell")
+            doctor_idx = labels.index("Doctor")
+            assert doctor_idx == shell_idx + 1
 
     def test_multi_daemon_menu_includes_shell(self):
         """Multi-daemon per-daemon submenu contains 'Shell' item."""
@@ -1641,6 +1645,7 @@ class TestShellMenuItem:
                 if isinstance(call[0][0], str)
             ]
             assert "Shell" in labels
+            assert "Doctor" in labels
 
     def test_shell_routes_via_multi_client(self):
         """Shell action calls multi_client.open_shell for local target."""
@@ -1864,3 +1869,64 @@ class TestPluginMenuItems:
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 tray._execute_plugin_command_with_params(item_dict)
                 mock_launch.assert_not_called()
+
+
+class TestDoctorMenuItem:
+    """Verify Doctor menu item and config error notification (#742)."""
+
+    def test_launch_doctor_calls_launch_in_terminal(self):
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/usr/bin/python3"):
+                DaemonTray._launch_doctor()
+                mock_launch.assert_called_once()
+                cmd = mock_launch.call_args[0][0]
+                assert "doctor" in cmd
+                assert mock_launch.call_args[1].get("keep_open", True) is True
+
+    def test_launch_doctor_uses_same_venv(self):
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/custom/venv/bin/python"):
+                DaemonTray._launch_doctor()
+                cmd = mock_launch.call_args[0][0]
+                assert cmd[0] == "/custom/venv/bin/python"
+                assert cmd[1] == "-m"
+                assert cmd[2] == "ai_guardian"
+                assert cmd[3] == "doctor"
+
+    def test_config_error_notification_shown_once(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"config_error": "parse error"},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
+            tray._check_config_error_notification()
+            assert mock_notify.call_count == 1
+
+            tray._check_config_error_notification()
+            assert mock_notify.call_count == 1
+
+    def test_config_error_notification_resets_when_fixed(self):
+        error_state = {"config_error": "parse error"}
+        tray = DaemonTray(
+            get_stats_callback=lambda: error_state,
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch.object(DaemonTray, "_send_config_error_notification"):
+            tray._check_config_error_notification()
+            assert tray._config_error_notified is True
+
+            error_state["config_error"] = None
+            tray._check_config_error_notification()
+            assert tray._config_error_notified is False
+
+    def test_no_notification_without_config_error(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"config_error": None},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
+            tray._check_config_error_notification()
+            mock_notify.assert_not_called()
