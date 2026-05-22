@@ -24,15 +24,18 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 5.0
 
 
-def _launch_in_terminal(cmd_parts, keep_open=False):
+def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
     """Launch a command in a new terminal window.
 
     Args:
         cmd_parts: Command and arguments to run.
         keep_open: If True, keep the terminal open after the command
             finishes so the user can read the output.
+        clear: If True, clear the terminal before running the command.
     """
     cmd_str = " ".join(shlex.quote(p) for p in cmd_parts)
+    if clear:
+        cmd_str = "clear; " + cmd_str
     try:
         system = platform.system()
         if system == "Darwin":

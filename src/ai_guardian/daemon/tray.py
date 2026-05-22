@@ -1350,7 +1350,7 @@ class DaemonTray:
             "--template", resolved_cmd,
             "--type", plugin_item_dict.get("type", "terminal"),
         )
-        _launch_in_terminal(prompt_cmd, keep_open=True)
+        _launch_in_terminal(prompt_cmd, keep_open=True, clear=True)
 
     def _build_single_daemon_plugin_items(self):
         """Build plugin menu items for single-daemon mode.

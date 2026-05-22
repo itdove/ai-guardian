@@ -579,28 +579,31 @@ def _handle_tray_start(args):
 def _handle_tray_prompt(args):
     """Handle the tray-prompt subcommand: show Textual form and execute."""
     import json
+    import logging as log_mod
     import os
     import shlex
     import subprocess
 
+    prompt_logger = log_mod.getLogger("ai_guardian.tray_prompt")
+
     try:
         params = json.loads(args.params)
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid params JSON: {e}", file=sys.stderr)
+        prompt_logger.error("Invalid params JSON: %s", e)
         return 1
 
     if not isinstance(params, list):
-        print("Error: --params must be a JSON array", file=sys.stderr)
+        prompt_logger.error("--params must be a JSON array")
         return 1
 
     if not sys.stdin.isatty():
-        print("Error: tray-prompt requires an interactive terminal.", file=sys.stderr)
+        prompt_logger.error("tray-prompt requires an interactive terminal")
         return 1
 
     try:
         from ai_guardian.tui.tray_prompt import TrayPromptApp
     except ImportError as e:
-        print(f"Error: TUI dependencies not available: {e}", file=sys.stderr)
+        prompt_logger.error("TUI dependencies not available: %s", e)
         return 1
 
     app = TrayPromptApp(
@@ -613,7 +616,6 @@ def _handle_tray_prompt(args):
     if result is None:
         return 0
 
-    print(f"Executing: {result}")
     cmd_parts = shlex.split(result)
     if not cmd_parts:
         return 0
@@ -634,14 +636,13 @@ def _handle_tray_prompt(args):
                 else:
                     from ai_guardian.daemon.tray_plugins import copy_to_clipboard
                     copy_to_clipboard(output)
-                    print(f"Copied to clipboard: {output}")
                 return proc.returncode
             else:
                 proc = subprocess.run(cmd_parts, timeout=60)
                 return proc.returncode
         except subprocess.TimeoutExpired:
-            print("Command timed out", file=sys.stderr)
+            prompt_logger.error("Command timed out")
             return 1
         except OSError as e:
-            print(f"Error executing command: {e}", file=sys.stderr)
+            prompt_logger.error("Error executing command: %s", e)
             return 1
