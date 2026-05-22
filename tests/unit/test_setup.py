@@ -2208,8 +2208,9 @@ class TestCreateDefaultConfig:
         )
 
         engines = ss['engines']
-        assert len(engines) == 1
-        engine = engines[0]
+        assert len(engines) == 2
+        assert engines[0]['type'] == 'toml-patterns'
+        engine = engines[1]
         assert isinstance(engine, dict)
         assert engine['type'] == 'gitleaks'
         assert 'pattern_server' in engine

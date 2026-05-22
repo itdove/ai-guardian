@@ -155,6 +155,18 @@
               },
               {
                 "type": "object",
+                "description": "Built-in TOML pattern scanner (runs in-process, no binary needed)",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "toml-patterns"
+                  }
+                },
+                "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
                 "description": "Python-based custom scanner (runs in-process, no binary needed)",
                 "properties": {
                   "type": {

@@ -38,6 +38,14 @@ class HookEvent(str, Enum):
     BEFORE_READ_FILE = "beforereadfile"
 
 
+AUGMENT_TOOL_MAP = {
+    "launch-process": "Bash",
+    "str-replace-editor": "Edit",
+    "save-file": "Write",
+    "view": "Read",
+    "remove-files": "Delete",
+}
+
 ALL_VIOLATION_TYPES = tuple(v.value for v in ViolationType)
 ALL_HOOK_EVENTS = tuple(e.value for e in HookEvent)
 ALL_ACTION_MODES = tuple(a.value for a in ActionMode)

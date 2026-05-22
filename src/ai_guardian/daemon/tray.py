@@ -42,12 +42,30 @@ def _is_tray_running():
 
 
 def _write_tray_lock():
-    """Write tray lock file with current PID."""
+    """Write tray lock file with current PID.
+
+    Uses O_CREAT|O_EXCL for atomic creation to prevent concurrent tray
+    starts from racing past the _is_tray_running() check.
+    """
+    from ai_guardian.daemon import is_pid_alive
+
     lock_path = _get_tray_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    os.write(fd, str(os.getpid()).encode())
-    os.close(fd)
+    try:
+        fd = os.open(str(lock_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+    except FileExistsError:
+        try:
+            old_pid = int(lock_path.read_text().strip())
+            if is_pid_alive(old_pid):
+                raise RuntimeError(f"Tray already starting (pid {old_pid})")
+        except (ValueError, OSError):
+            pass
+        lock_path.unlink(missing_ok=True)
+        fd = os.open(str(lock_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
 
 
 def _remove_tray_lock():

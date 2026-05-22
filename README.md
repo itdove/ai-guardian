@@ -101,6 +101,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --mcp --install
 | Multi-Daemon Tray | Discover and manage daemons across local, Podman/Docker, and Kubernetes | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) |
 | Desktop Shortcut & Autostart | Install tray as desktop app with optional login startup | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#desktop-shortcuts) |
 | TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
+| Multi-Agent Support | Hook adapters for 12 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
 
 ## Default Behavior (No Configuration File)
 

@@ -226,12 +226,13 @@ class PreToolUsePermissionTests(TestCase):
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.detect_ide_type')
-    def test_pretooluse_no_permission_override_for_edit_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
+    @patch('ai_guardian.hook_processing.detect_adapter')
+    def test_pretooluse_no_permission_override_for_edit_github_copilot(self, mock_detect_adapter, mock_pattern_config, mock_redaction_config):
         """Verify PreToolUse does NOT auto-approve Edit operations (GitHub Copilot)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
-        mock_ide_type.return_value = ai_guardian.IDEType.GITHUB_COPILOT
+        from ai_guardian.hook_adapters import CopilotAdapter
+        mock_detect_adapter.return_value = CopilotAdapter()
 
         # GitHub Copilot format: toolName and toolArgs (JSON string)
         hook_data = {
@@ -296,12 +297,13 @@ class PreToolUsePermissionTests(TestCase):
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.detect_ide_type')
-    def test_pretooluse_no_permission_override_for_write_github_copilot(self, mock_ide_type, mock_pattern_config, mock_redaction_config):
+    @patch('ai_guardian.hook_processing.detect_adapter')
+    def test_pretooluse_no_permission_override_for_write_github_copilot(self, mock_detect_adapter, mock_pattern_config, mock_redaction_config):
         """Verify PreToolUse does NOT auto-approve Write operations (GitHub Copilot)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
-        mock_ide_type.return_value = ai_guardian.IDEType.GITHUB_COPILOT
+        from ai_guardian.hook_adapters import CopilotAdapter
+        mock_detect_adapter.return_value = CopilotAdapter()
 
         # GitHub Copilot format: toolName and toolArgs (JSON string)
         hook_data = {

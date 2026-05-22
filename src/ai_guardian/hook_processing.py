@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from ai_guardian.config_utils import get_config_dir, get_state_dir, is_feature_enabled
-from ai_guardian.constants import ActionMode, ViolationType, HookEvent
+from ai_guardian.constants import ActionMode, ViolationType, HookEvent, AUGMENT_TOOL_MAP
 from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
 from ai_guardian.config_loaders import (
@@ -43,10 +43,9 @@ from ai_guardian.config_loaders import (
 from ai_guardian.response_format import (
     _SECURITY_SYSTEM_MESSAGE,
     IDEType,
-    detect_ide_type,
     format_response,
-    detect_hook_event,
 )
+from ai_guardian.hook_adapters import detect_adapter
 
 # Conditional imports for optional features
 try:
@@ -132,14 +131,8 @@ FILE_READING_TOOLS = frozenset({
     "ReadFile",
 })
 
-# Augment Code uses different tool names — map to canonical names for policy checking.
-_AUGMENT_TOOL_MAP = {
-    "launch-process": "Bash",
-    "str-replace-editor": "Edit",
-    "save-file": "Write",
-    "view": "Read",
-    "remove-files": "Delete",
-}
+# Augment Code tool name mapping imported from constants (single source of truth).
+_AUGMENT_TOOL_MAP = AUGMENT_TOOL_MAP
 
 
 def _is_path_excluded(file_path, config):
@@ -2616,23 +2609,22 @@ def process_hook_data(hook_data, daemon_state=None):
         now = datetime.now(timezone.utc)
         violation_logger = ViolationLogger() if HAS_VIOLATION_LOGGER else None
 
-        # Detect which IDE is calling
-        ide_type = detect_ide_type(hook_data)
+        # Detect adapter and normalize input in a single pass
+        adapter = detect_adapter(hook_data)
+        ide_type = adapter.ide_type
+        normalized = adapter.normalize_input(hook_data)
+        hook_event = normalized.event
 
         # Disable logging for Cursor (it's sensitive to stderr output)
         if ide_type == IDEType.CURSOR:
             logging.disable(logging.CRITICAL)
         else:
-            logging.info(f"Detected IDE type: {ide_type.value}")
-
-        # Detect which hook event triggered this call
-        hook_event = detect_hook_event(hook_data)
-        if ide_type != IDEType.CURSOR:
+            logging.info(f"Detected IDE type: {ide_type.value} (adapter: {adapter.name})")
             logging.info(f"Detected hook event: {hook_event}")
 
-        # Extract correlation IDs from hook data (available in both PreToolUse and PostToolUse)
-        hook_tool_use_id = hook_data.get("tool_use_id")
-        hook_session_id = hook_data.get("session_id")
+        # Use correlation IDs from normalized input
+        hook_tool_use_id = normalized.tool_use_id or hook_data.get("tool_use_id")
+        hook_session_id = normalized.session_id or hook_data.get("session_id")
 
         # Create cross-hook context manager for PreToolUse/PostToolUse correlation
         context_mgr = None
@@ -3043,32 +3035,11 @@ def process_hook_data(hook_data, daemon_state=None):
         tool_name = None
         tool_identifier = None  # Composite identifier like "Skill:code-review" or "mcp__server__tool"
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
-            # Extract tool name and input from hook_data
-            tool_input = {}
-            if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
-                tool_name = hook_data["tool_use"].get("name")
-                # Try both "parameters" (PreToolUse) and "input" (PostToolUse)
-                tool_input = hook_data["tool_use"].get("parameters") or hook_data["tool_use"].get("input", {})
-            elif "tool" in hook_data and isinstance(hook_data["tool"], dict):
-                tool_name = hook_data["tool"].get("name")
-                tool_input = hook_data.get("tool_input", {})
-            elif "toolName" in hook_data:
-                # GitHub Copilot format
-                tool_name = hook_data["toolName"]
-                # toolArgs is a JSON string in Copilot format
-                if "toolArgs" in hook_data:
-                    try:
-                        tool_input = json.loads(hook_data["toolArgs"])
-                    except (json.JSONDecodeError, TypeError):
-                        tool_input = {}
-            elif "tool_name" in hook_data:
-                tool_name = hook_data["tool_name"]
-                tool_input = hook_data.get("tool_input", {})
+            tool_name = normalized.tool_name
+            tool_input = normalized.tool_input
 
-            # Augment Code: map tool names and handle mcp: prefix
-            if tool_name and tool_name in _AUGMENT_TOOL_MAP:
-                tool_name = _AUGMENT_TOOL_MAP[tool_name]
-            elif tool_name and tool_name.startswith("mcp:"):
+            # Normalize mcp: prefix to mcp__ format (agent-agnostic)
+            if tool_name and tool_name.startswith("mcp:"):
                 tool_name = "mcp__" + tool_name[4:].replace(":", "__")
 
             # Create composite tool identifier for more granular ignore patterns

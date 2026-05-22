@@ -423,7 +423,7 @@ class DaemonDiscovery:
                  "import json; "
                  "f=open('/etc/ai-guardian/ai-guardian.json'); "
                  "c=json.load(f); "
-                 "n=c.get('daemon',{}).get('name',''); "
+                 "n=c.get('name') or c.get('daemon',{}).get('name',''); "
                  "print(n)"],
                 demux=False,
             )
@@ -441,7 +441,7 @@ class DaemonDiscovery:
             )
             if exit_code == 0:
                 data = json.loads(output.decode("utf-8", errors="replace"))
-                return data.get("daemon", {}).get("name")
+                return data.get("name") or data.get("daemon", {}).get("name")
         except Exception:
             pass
 
@@ -557,7 +557,7 @@ class DaemonDiscovery:
                  "import json; "
                  "f=open('/etc/ai-guardian/ai-guardian.json'); "
                  "c=json.load(f); "
-                 "n=c.get('daemon',{}).get('name',''); "
+                 "n=c.get('name') or c.get('daemon',{}).get('name',''); "
                  "print(n)"
                  ],
                 capture_output=True, text=True, timeout=timeout,
@@ -577,7 +577,7 @@ class DaemonDiscovery:
             )
             if result.returncode == 0:
                 data = json.loads(result.stdout)
-                return data.get("daemon", {}).get("name")
+                return data.get("name") or data.get("daemon", {}).get("name")
         except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError):
             pass
 
@@ -596,8 +596,16 @@ class DaemonDiscovery:
             return None
 
         try:
+            import ipaddress as _ipaddr
             from urllib.request import urlopen
             import json as json_mod
+            if host not in ("127.0.0.1", "localhost", "::1"):
+                try:
+                    if not _ipaddr.ip_address(host).is_private:
+                        logger.warning("Refusing HTTP probe to non-private host: %s", host)
+                        return None
+                except ValueError:
+                    pass
             url = f"http://{host}:{port}/api/status"
             with urlopen(url, timeout=timeout) as resp:
                 return json_mod.loads(resp.read().decode("utf-8"))
