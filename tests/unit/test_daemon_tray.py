@@ -2128,6 +2128,7 @@ class TestDiscoveryAnimation:
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
         with mock.patch.object(tray, "_start_discovery_animation") as mock_anim, \
+             mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()), \
              mock.patch.object(tray, "_ensure_macos_activation_policy"), \
              mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]), \
              mock.patch.object(tray, "_build_single_daemon_plugin_items", return_value=[]), \
@@ -2150,6 +2151,7 @@ class TestDiscoveryAnimation:
     def test_run_skips_animation_without_discovery(self):
         tray = self._make_tray()
         with mock.patch.object(tray, "_start_discovery_animation") as mock_anim, \
+             mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()), \
              mock.patch.object(tray, "_ensure_macos_activation_policy"), \
              mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]), \
              mock.patch.object(tray, "_build_single_daemon_plugin_items", return_value=[]), \
