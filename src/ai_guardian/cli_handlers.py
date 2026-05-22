@@ -234,8 +234,16 @@ def _handle_daemon_command(args):
 
     elif cmd == "stop":
         from ai_guardian.daemon.client import is_daemon_running, send_shutdown
+        from ai_guardian.daemon import get_pid_path
 
         if not is_daemon_running():
+            # Clean up stale lock file even when daemon isn't running
+            lock_path = str(get_pid_path()) + ".lock"
+            if os.path.exists(lock_path):
+                try:
+                    os.unlink(lock_path)
+                except OSError:
+                    pass
             print("ai-guardian daemon is not running")
             return 0
 

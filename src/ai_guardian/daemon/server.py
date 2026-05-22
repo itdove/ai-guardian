@@ -388,12 +388,25 @@ class DaemonServer:
         """Check if a PID belongs to a live (non-zombie) process."""
         if not _is_pid_alive(pid):
             return False
+        # Linux: check /proc/<pid>/status for zombie state
         try:
             with open(f"/proc/{pid}/status") as f:
                 for line in f:
                     if line.startswith("State:"):
                         return "Z" not in line
         except (FileNotFoundError, PermissionError, OSError):
+            pass
+        # macOS/BSD: use ps to check process state
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["ps", "-o", "state=", "-p", str(pid)],
+                capture_output=True, text=True, timeout=2,
+            )
+            if result.returncode == 0:
+                state = result.stdout.strip()
+                return bool(state) and "Z" not in state
+        except (subprocess.TimeoutExpired, OSError):
             pass
         return _is_pid_alive(pid)
 
