@@ -344,9 +344,48 @@ class DaemonTray:
                 pass
         if img is None:
             img = self._create_fallback_icon(22)
+        if self._needs_dark_icon():
+            img = self._invert_icon(img)
         if self._status == "paused":
             img = self._apply_paused_dimming(img)
         return img
+
+    @staticmethod
+    def _needs_dark_icon():
+        """Check if the panel has a light background requiring a dark icon.
+
+        GNOME with a light GTK theme renders the panel light, making
+        the default white icon invisible.
+        """
+        import platform
+        if platform.system() != "Linux":
+            return False
+        import os
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+        if "GNOME" not in desktop.upper():
+            return False
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.interface",
+                 "color-scheme"],
+                capture_output=True, text=True, timeout=3,
+            )
+            scheme = result.stdout.strip().strip("'\"")
+            return scheme != "prefer-dark"
+        except Exception:
+            return False
+
+    @staticmethod
+    def _invert_icon(img):
+        """Invert a white monochrome icon to dark, preserving alpha."""
+        img = img.copy()
+        r, g, b, a = img.split()
+        from PIL import ImageOps
+        r = ImageOps.invert(r)
+        g = ImageOps.invert(g)
+        b = ImageOps.invert(b)
+        return Image.merge("RGBA", (r, g, b, a))
 
     @staticmethod
     def _apply_paused_dimming(img):
@@ -531,19 +570,19 @@ class DaemonTray:
             self._icon.icon = self._create_icon()
 
     def _request_discovery_refresh(self, **kwargs):
-        """Request discovery refresh with animation support.
+        """Request discovery refresh.
 
-        Debounces rapid calls from menu visibility callbacks to prevent
-        animation restart loops on KDE/GNOME.
+        Debounces calls to prevent overlapping refreshes.  Skips animation
+        for periodic background refreshes — animation only runs on the
+        initial discovery at startup.
         """
         import time
         now = time.monotonic()
-        if now - self._last_discovery_refresh < 5.0:
+        if now - self._last_discovery_refresh < 15.0:
             return
         if self._discovery and not self._refreshing_from_discovery:
             self._last_discovery_refresh = now
             self._discovery_in_progress = True
-            self._start_discovery_animation(delay=0.5)
             self._discovery.request_refresh(**kwargs)
 
     @staticmethod
@@ -871,6 +910,7 @@ class DaemonTray:
                     self._dispatch_to_main(self._sync_pause_state)
                     self._check_config_error_notification()
                     self._poll_plugins()
+                    self._request_discovery_refresh(wait=False)
                     self._dispatch_to_main(self._refresh_menu)
 
         thread = threading.Thread(
@@ -987,7 +1027,6 @@ class DaemonTray:
             return self._is_single_daemon()
 
         def _single_vis_refresh(_item):
-            self._request_discovery_refresh(wait=False)
             return self._is_single_daemon()
 
         def _single_running(_item):
@@ -1261,8 +1300,6 @@ class DaemonTray:
                 return self._daemon_status_label(self._targets[slot])
 
             def make_visible(_item, slot=idx):
-                if slot == 0:
-                    self._request_discovery_refresh(wait=False)
                 return self._is_multi_daemon() and slot < len(self._targets)
 
             def _mk_open_panel(panel=None, slot=idx):

@@ -428,6 +428,42 @@ class TestDaemonTrayIcon:
             assert img.mode in ("RGBA", "P"), f"{name}: expected RGBA mode"
 
 
+class TestIconInversion:
+    """Tests for dark icon on light GNOME panels (issue #754)."""
+
+    def test_needs_dark_icon_false_on_macos(self):
+        with mock.patch("platform.system", return_value="Darwin"):
+            assert DaemonTray._needs_dark_icon() is False
+
+    def test_needs_dark_icon_false_on_kde(self):
+        with mock.patch("platform.system", return_value="Linux"), \
+             mock.patch.dict("os.environ", {"XDG_CURRENT_DESKTOP": "KDE"}):
+            assert DaemonTray._needs_dark_icon() is False
+
+    def test_needs_dark_icon_true_on_gnome_light(self):
+        with mock.patch("platform.system", return_value="Linux"), \
+             mock.patch.dict("os.environ", {"XDG_CURRENT_DESKTOP": "GNOME"}), \
+             mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="'default'\n")
+            assert DaemonTray._needs_dark_icon() is True
+
+    def test_needs_dark_icon_false_on_gnome_dark(self):
+        with mock.patch("platform.system", return_value="Linux"), \
+             mock.patch.dict("os.environ", {"XDG_CURRENT_DESKTOP": "GNOME"}), \
+             mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="'prefer-dark'\n")
+            assert DaemonTray._needs_dark_icon() is False
+
+    @pytest.mark.skipif(not is_tray_available(), reason="Pillow not installed")
+    def test_invert_icon_makes_dark(self):
+        from PIL import Image as PILImage
+        img = PILImage.new("RGBA", (22, 22), (255, 255, 255, 200))
+        inverted = DaemonTray._invert_icon(img)
+        r, g, b, a = inverted.split()
+        assert list(r.getdata())[0] == 0
+        assert list(a.getdata())[0] == 200
+
+
 class TestRunPlatformBranching:
     """Verify _run() never passes setup= callback (issue #564, #602)."""
 
@@ -1314,9 +1350,14 @@ class TestWakeDetection:
 
 
 class TestNonBlockingMenuRefresh:
-    """Tests for non-blocking menu refresh (issue #711)."""
+    """Tests for non-blocking menu refresh (issue #711, #754).
 
-    def test_single_vis_refresh_does_not_block(self):
+    Visibility callbacks must NOT trigger discovery refresh — that causes
+    animation loops on GNOME/KDE.  Discovery refresh is now driven by
+    the stats-refresh timer instead.
+    """
+
+    def test_single_vis_callback_does_not_trigger_discovery(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
@@ -1336,9 +1377,9 @@ class TestNonBlockingMenuRefresh:
             vis_cb = first_call[1].get("visible") or first_call[0][2] if len(first_call[0]) > 2 else first_call[1].get("visible")
             vis_cb(None)
 
-        mock_discovery.request_refresh.assert_called_once_with(wait=False)
+        mock_discovery.request_refresh.assert_not_called()
 
-    def test_multi_vis_refresh_does_not_block(self):
+    def test_multi_vis_callback_does_not_trigger_discovery(self):
         mc = mock.MagicMock()
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -1364,10 +1405,8 @@ class TestNonBlockingMenuRefresh:
                 vis_cb = call[1].get("visible")
                 if vis_cb is not None and callable(vis_cb):
                     vis_cb(None)
-                    if mock_discovery.request_refresh.called:
-                        break
 
-        mock_discovery.request_refresh.assert_called_with(wait=False)
+        mock_discovery.request_refresh.assert_not_called()
 
 
 class TestIsTrayRunningReturnsPid:
@@ -2221,14 +2260,12 @@ class TestDiscoveryAnimation:
             tray.stop()
             mock_stop.assert_called_once()
 
-    def test_request_discovery_refresh_starts_delayed_animation(self):
+    def test_request_discovery_refresh_triggers_refresh(self):
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
         tray._last_discovery_refresh = 0.0
-        with mock.patch.object(tray, "_start_discovery_animation") as mock_anim:
-            tray._request_discovery_refresh(wait=False)
-            mock_anim.assert_called_once_with(delay=0.5)
-            disc.request_refresh.assert_called_once_with(wait=False)
+        tray._request_discovery_refresh(wait=False)
+        disc.request_refresh.assert_called_once_with(wait=False)
 
     def test_request_discovery_refresh_noop_without_discovery(self):
         tray = self._make_tray()
@@ -2315,16 +2352,14 @@ class TestDiscoveryAnimation:
             assert tray._discovery_in_progress is True
 
     def test_request_discovery_refresh_debounces_rapid_calls(self):
-        """Rapid visibility-check calls must not restart animation (issue #754)."""
+        """Rapid calls must be debounced to a single refresh (issue #754)."""
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
         tray._last_discovery_refresh = 0.0
-        with mock.patch.object(tray, "_start_discovery_animation") as mock_anim:
-            tray._request_discovery_refresh(wait=False)
-            tray._request_discovery_refresh(wait=False)
-            tray._request_discovery_refresh(wait=False)
-            mock_anim.assert_called_once()
-            disc.request_refresh.assert_called_once()
+        tray._request_discovery_refresh(wait=False)
+        tray._request_discovery_refresh(wait=False)
+        tray._request_discovery_refresh(wait=False)
+        disc.request_refresh.assert_called_once()
 
     def test_discovery_refresh_skipped_during_discovery_callback(self):
         disc = mock.MagicMock()
