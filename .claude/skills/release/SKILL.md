@@ -40,10 +40,11 @@ Automates the release management workflow for any project, following semantic ve
 When invoked with arguments (e.g., `/release minor`), this skill guides you through:
 
 1. **Safety Checks**: Verify prerequisites before starting
-2. **Version Management**: Update version in both required files
-3. **CHANGELOG Management**: Update CHANGELOG.md with proper format
-4. **Git Operations**: Create branches, commits, and tags
-5. **Post-Release Guidance**: Provide checklist for manual steps (maintainers only)
+2. **Release Readiness CI**: Trigger automated readiness workflow and wait for results
+3. **Version Management**: Update version in both required files
+4. **CHANGELOG Management**: Update CHANGELOG.md with proper format
+5. **Git Operations**: Create branches, commits, and tags
+6. **Post-Release Guidance**: Provide checklist for manual steps (maintainers only)
 
 ## Release Types
 
@@ -58,14 +59,15 @@ When invoked with arguments (e.g., `/release minor`), this skill guides you thro
 
 **Steps**:
 1. Verify prerequisites (clean working directory, tests pass, CHANGELOG updated)
-2. Documentation review (mandatory — see checklist below)
-3. Create release branch (e.g., `release-1.2`)
-4. Determine new version based on release type
-5. Update version in both files (remove `-dev` suffix)
-6. Update CHANGELOG.md (move Unreleased to version section with date)
-7. Commit changes with proper commit message format
-8. Provide instructions for tagging and verification
-9. Provide post-release checklist
+2. Run release readiness CI (mandatory — see Release Readiness CI section below)
+3. Documentation review (mandatory — see checklist below)
+4. Create release branch (e.g., `release-1.2`)
+5. Determine new version based on release type
+6. Update version in both files (remove `-dev` suffix)
+7. Update CHANGELOG.md (move Unreleased to version section with date)
+8. Commit changes with proper commit message format
+9. Provide instructions for tagging and verification
+10. Provide post-release checklist
 
 ### Hotfix Release (`/release hotfix <tag>`)
 
@@ -216,6 +218,47 @@ EOF
 - Wrong branch → Abort, guide to correct branch
 - Missing CHANGELOG updates → Abort, ask user to update CHANGELOG
 
+## Release Readiness CI (mandatory)
+
+Before creating the release branch, trigger the automated release readiness workflow to validate install, upgrade, IDE setup, daemon, detection, config, and MCP server functionality.
+
+**Workflow**: `.github/workflows/release-readiness.yml`
+
+**Steps**:
+
+1. **Trigger the workflow** on the current branch:
+   ```bash
+   gh workflow run release-readiness.yml --ref $(git branch --show-current)
+   ```
+
+2. **Wait for completion** (polls every 30 seconds):
+   ```bash
+   # Get the run ID
+   sleep 5
+   RUN_ID=$(gh run list --workflow=release-readiness.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+
+   # Wait for it to finish
+   gh run watch "$RUN_ID"
+   ```
+
+3. **Check results**:
+   - If **all jobs pass**: proceed with the release
+   - If **any job fails**: abort the release and investigate
+     ```bash
+     gh run view "$RUN_ID" --log-failed
+     ```
+
+**Jobs validated**:
+- `fresh-install` — Clean install across Python 3.9–3.14
+- `upgrade-from-previous` — Upgrade from last stable release
+- `multi-agent-setup` — All IDE adapters (claude, cursor, copilot, etc.)
+- `daemon-lifecycle` — Daemon start/status/reload/pause/resume/stop
+- `detection-end-to-end` — Secret, PII, and prompt injection detection
+- `config-validation` — Config profiles, migration, doctor checks
+- `mcp-server` — MCP server initialize and tool call response
+
+**Skipping**: The readiness check may be skipped for hotfix releases (`/release hotfix`) when the fix is urgent, but this should be documented in the release notes.
+
 ## Documentation Review (mandatory)
 
 Before creating the release branch, compare docs against changes since the previous release tag:
@@ -346,13 +389,14 @@ Before creating the release branch, compare docs against changes since the previ
 1. **Auto-detect version files** (first run only): Scan for common version file patterns
 2. **Parse arguments**: Determine release type (major/minor/patch/hotfix/test)
 3. **Run safety checks**: Verify prerequisites before proceeding
-4. **Documentation review**: Run the mandatory documentation review checklist (regular releases only)
-5. **Calculate new version**: Based on current version and release type
-6. **Update version files**: Edit all detected version files atomically
-7. **Update CHANGELOG**: Move Unreleased to version section with date
-8. **Create commits**: Use proper commit message format
-9. **Provide guidance**: Show commands for tagging and next steps
-10. **Validate**: Ensure versions match between all files
+4. **Release readiness CI**: Trigger `release-readiness.yml` workflow and wait for all jobs to pass (regular releases only, may skip for urgent hotfixes)
+5. **Documentation review**: Run the mandatory documentation review checklist (regular releases only)
+6. **Calculate new version**: Based on current version and release type
+7. **Update version files**: Edit all detected version files atomically
+8. **Update CHANGELOG**: Move Unreleased to version section with date
+9. **Create commits**: Use proper commit message format
+10. **Provide guidance**: Show commands for tagging and next steps
+11. **Validate**: Ensure versions match between all files
 
 **Error Recovery**:
 - If any step fails, provide clear error message and recovery steps

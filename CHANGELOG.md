@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Release-readiness CI workflow** (Issue #761)
+  - New `release-readiness.yml` workflow with 7 validation jobs
+  - Fresh install test across Python 3.9–3.14
+  - Upgrade path test from previous stable release (v1.8.1)
+  - Multi-agent IDE setup validation (claude, cursor, copilot, gemini, codex, windsurf, cline, augment, kiro)
+  - Daemon lifecycle test (start/status/reload/pause/resume/stop + REST API)
+  - End-to-end detection test (secrets, PII, prompt injection, false positives)
+  - Config validation (profiles, migration, doctor, show-config)
+  - MCP server initialization and tool call response test
+  - Release skill updated to trigger workflow before releasing
+
 - **Build wheel artifact workflow** (Issue #515)
   - New GitHub Actions workflow builds and uploads a wheel on PRs, merges to main, and on-demand
   - PEP 440 local version identifiers for traceability (`+pr123`, `+main.abc1234`, `+username`)
