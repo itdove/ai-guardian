@@ -15,6 +15,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: |
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -26,15 +28,34 @@ jobs:
 
       - name: Set version suffix
         run: |
+          BASE_VERSION=$(python -c "
+          import re
+          with open('pyproject.toml') as f:
+              m = re.search(r'version = \"([^\"]+)\"', f.read())
+          print(m.group(1))
+          ")
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "VERSION_SUFFIX=+pr${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+            SUFFIX="+pr${{ github.event.pull_request.number }}"
+            TAG_LABEL="${{ github.event.pull_request.number }}"
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             LABEL="${{ github.event.inputs.label || github.actor }}"
-            echo "VERSION_SUFFIX=+${LABEL}" >> $GITHUB_ENV
+            SUFFIX="+${LABEL}"
+            TAG_LABEL="${LABEL}"
           else
-            SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-            echo "VERSION_SUFFIX=+main.${SHORT_SHA}" >> $GITHUB_ENV
+            # Extract PR number from merge commit message (e.g., "Merge pull request #123 from ...")
+            PR_NUM=$(git log -1 --pretty=%s | grep -oP '#\K[0-9]+' | head -1 || true)
+            if [ -n "$PR_NUM" ]; then
+              SUFFIX="+pr${PR_NUM}"
+              TAG_LABEL="${PR_NUM}"
+            else
+              SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+              SUFFIX="+main.${SHORT_SHA}"
+              TAG_LABEL="main.${SHORT_SHA}"
+            fi
           fi
+          echo "VERSION_SUFFIX=${SUFFIX}" >> $GITHUB_ENV
+          echo "FULL_VERSION=${BASE_VERSION}${SUFFIX}" >> $GITHUB_ENV
+          echo "RC_TAG=rc-${BASE_VERSION}-${TAG_LABEL}" >> $GITHUB_ENV
 
       - name: Build wheel with version suffix
         run: |
@@ -58,3 +79,21 @@ jobs:
           name: ai-guardian-wheel
           path: dist/*.whl
           retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}
+
+      - name: Create RC release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RC_TAG }}
+          name: "RC: ${{ env.FULL_VERSION }}"
+          body: |
+            Development build — for testing only.
+            Stable versions: `pip install ai-guardian` ([PyPI](https://pypi.org/project/ai-guardian/))
+
+            ```bash
+            pip install ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.RC_TAG }}/$(ls dist/*.whl | xargs basename)
+            ```
+          prerelease: true
+          files: dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
