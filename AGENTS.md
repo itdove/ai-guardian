@@ -410,7 +410,19 @@ ai-guardian/
    - Runs on: version tags (v*)
    - Actions: Build, publish to PyPI, create GitHub Release
 
-4. **Integration Tests** (`.github/workflows/integration-tests.yml`)
+4. **Release Readiness** (`.github/workflows/release-readiness.yml`)
+   - Runs on: workflow_dispatch, push to release-* branches
+   - Jobs:
+     - **fresh-install**: Clean install across Python 3.9–3.14 (version, doctor, config profiles, patterns, show-config)
+     - **upgrade-from-previous**: Upgrade from previous stable release, permissions migration
+     - **multi-agent-setup**: All IDE adapters (claude, cursor, copilot, gemini, codex, windsurf, cline, augment, kiro)
+     - **daemon-lifecycle**: Start/status/reload/REST API (health, status, pause, resume)/stop
+     - **detection-end-to-end**: Secrets, PII Phase 1+2, prompt injection, false positive check
+     - **config-validation**: Doctor, permissions migration, profiles, config merge (project + user level)
+     - **mcp-server**: JSON-RPC initialize and tool call response
+   - **⚠️ IMPORTANT**: When adding new CLI commands, config options, IDE adapters, detection patterns, or daemon endpoints, update this workflow to test them. The `/release` skill runs this workflow as a gate before releasing.
+
+5. **Integration Tests** (`.github/workflows/integration-tests.yml`)
    - Runs on: schedule (daily 2 AM UTC), workflow_dispatch, pull requests
    - Jobs:
      - **version-check**: Verifies scanner versions exist (runs on all triggers)
