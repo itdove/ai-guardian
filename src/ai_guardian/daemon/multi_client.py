@@ -155,6 +155,25 @@ class MultiDaemonClient:
         elif target.runtime == "kubernetes":
             self._kubectl_shell(target)
 
+    def open_doctor(self, target: DaemonTarget):
+        """Open doctor for the target daemon in a new terminal."""
+        cmd = ["ai-guardian", "doctor"]
+        if target.runtime == "local":
+            from ai_guardian.daemon import get_executable_command
+            cmd_parts = get_executable_command() + cmd[1:]
+            _launch_in_terminal(cmd_parts, keep_open=True)
+        elif target.runtime == "container":
+            engine = target.container_engine or "podman"
+            exec_cmd = [engine, "exec", "-it", target.container_id] + cmd
+            _launch_in_terminal(exec_cmd, keep_open=True)
+        elif target.runtime == "kubernetes":
+            exec_cmd = [
+                "kubectl", "exec", "-it", target.pod_name,
+                "-n", target.namespace or "default",
+                "--",
+            ] + cmd
+            _launch_in_terminal(exec_cmd, keep_open=True)
+
     def get_plugins(self, target: DaemonTarget) -> Optional[dict]:
         """Get tray plugin definitions from a daemon."""
         if target.runtime == "local":
