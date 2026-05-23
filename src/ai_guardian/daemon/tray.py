@@ -987,7 +987,12 @@ class DaemonTray:
 
         def _open_doctor():
             def action(_, __):
-                self._launch_doctor()
+                if self._targets:
+                    t = self._targets[0]
+                    if self._multi_client:
+                        self._multi_client.open_doctor(t)
+                    else:
+                        self._launch_doctor()
             return action
 
         def _pause_action(minutes):
@@ -1242,6 +1247,16 @@ class DaemonTray:
                             self._launch_shell()
                 return action
 
+            def _mk_doctor(slot=idx):
+                def action(_, __):
+                    if slot < len(self._targets):
+                        t = self._targets[slot]
+                        if self._multi_client:
+                            self._multi_client.open_doctor(t)
+                        else:
+                            self._launch_doctor()
+                return action
+
             def _mk_pause(minutes, slot=idx):
                 def action(_, __):
                     if slot < len(self._targets):
@@ -1425,7 +1440,7 @@ class DaemonTray:
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem("Shell", _mk_open_shell()),
-                        pystray.MenuItem("Doctor", lambda _, __: self._launch_doctor()),
+                        pystray.MenuItem("Doctor", _mk_doctor()),
                         pystray.Menu.SEPARATOR,
                         *multi_plugin_items,
                         pystray.Menu.SEPARATOR,

@@ -370,6 +370,83 @@ class TestOpenShellRouting:
         assert cmd[cmd.index("-n") + 1] == "default"
 
 
+class TestOpenDoctorRouting:
+    """Tests for open_doctor() routing per runtime (issue #746)."""
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_local_routes_to_local_doctor(self, mock_launch):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        client.open_doctor(target)
+        mock_launch.assert_called_once()
+        cmd = mock_launch.call_args[0][0]
+        assert "doctor" in cmd
+        assert mock_launch.call_args[1].get("keep_open") is True
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_container_routes_to_container_exec(self, mock_launch):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="container",
+            container_id="abc123def456abc123", container_engine="podman"
+        )
+        client.open_doctor(target)
+        mock_launch.assert_called_once()
+        cmd = mock_launch.call_args[0][0]
+        assert cmd[0] == "podman"
+        assert "exec" in cmd
+        assert "-it" in cmd
+        assert "abc123def456abc123" in cmd
+        assert "doctor" in cmd
+        assert mock_launch.call_args[1].get("keep_open") is True
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_container_uses_docker_engine(self, mock_launch):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="container",
+            container_id="abc123def456abc123", container_engine="docker"
+        )
+        client.open_doctor(target)
+        cmd = mock_launch.call_args[0][0]
+        assert cmd[0] == "docker"
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_kubernetes_routes_to_kubectl_exec(self, mock_launch):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="kubernetes",
+            pod_name="guardian-abc", namespace="ai-sdlc"
+        )
+        client.open_doctor(target)
+        mock_launch.assert_called_once()
+        cmd = mock_launch.call_args[0][0]
+        assert cmd[0] == "kubectl"
+        assert "exec" in cmd
+        assert "-it" in cmd
+        assert "guardian-abc" in cmd
+        assert "-n" in cmd
+        assert "ai-sdlc" in cmd
+        assert "doctor" in cmd
+        assert mock_launch.call_args[1].get("keep_open") is True
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_kubernetes_defaults_namespace(self, mock_launch):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="kubernetes",
+            pod_name="guardian-abc", namespace=None
+        )
+        client.open_doctor(target)
+        cmd = mock_launch.call_args[0][0]
+        assert cmd[cmd.index("-n") + 1] == "default"
+
+    def test_manual_runtime_is_noop(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="test", runtime="manual")
+        client.open_doctor(target)
+
+
 class TestGetPlugins:
     """Tests for get_plugins() routing (issue #590)."""
 

@@ -1932,6 +1932,130 @@ class TestDoctorMenuItem:
             mock_notify.assert_not_called()
 
 
+class TestDoctorRoutesViaMultiClient:
+    """Verify Doctor routes through multi_client for all runtimes (issue #746)."""
+
+    def test_single_daemon_doctor_routes_via_multi_client(self):
+        """Single-daemon Doctor routes through multi_client.open_doctor."""
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            items = tray._build_single_daemon_menu_items()
+
+        doctor_calls = [
+            call for call in mock_pystray.MenuItem.call_args_list
+            if isinstance(call[0][0], str) and call[0][0] == "Doctor"
+        ]
+        assert len(doctor_calls) == 1
+        action_fn = doctor_calls[0][0][1]
+        action_fn(None, None)
+        mc.open_doctor.assert_called_once_with(local_target)
+
+    def test_single_daemon_doctor_falls_back_without_multi_client(self):
+        """Doctor falls back to _launch_doctor without multi_client."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        tray._targets = [local_target]
+
+        with mock.patch.object(DaemonTray, "_launch_doctor") as mock_doctor:
+            t = tray._targets[0]
+            if tray._multi_client:
+                tray._multi_client.open_doctor(t)
+            else:
+                tray._launch_doctor()
+            mock_doctor.assert_called_once()
+
+    def test_multi_daemon_doctor_routes_via_multi_client(self):
+        """Multi-daemon Doctor routes through multi_client.open_doctor."""
+        mc = mock.MagicMock()
+        container_target = DaemonTarget(
+            name="sandbox", runtime="container",
+            container_engine="podman", container_id="abc123def456abc123",
+            status="running",
+        )
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            container_target,
+        ]
+        mc.get_status.return_value = {}
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+        doctor_calls = [
+            call for call in mock_pystray.MenuItem.call_args_list
+            if isinstance(call[0][0], str) and call[0][0] == "Doctor"
+        ]
+        assert len(doctor_calls) >= 2
+
+        doctor_calls[1][0][1](None, None)
+        mc.open_doctor.assert_called_once_with(container_target)
+
+    def test_multi_daemon_doctor_slot_captures_correctly(self):
+        """Each daemon slot's Doctor factory captures the correct slot index."""
+        mc = mock.MagicMock()
+        targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="container", runtime="container",
+                         container_engine="podman", container_id="abc123def456abc123",
+                         status="running"),
+            DaemonTarget(name="k8s", runtime="kubernetes",
+                         pod_name="guardian-abc", namespace="ai-sdlc",
+                         status="running"),
+        ]
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = targets
+        mc.get_status.return_value = {}
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+        doctor_calls = [
+            call for call in mock_pystray.MenuItem.call_args_list
+            if isinstance(call[0][0], str) and call[0][0] == "Doctor"
+        ]
+
+        doctor_calls[0][0][1](None, None)
+        mc.open_doctor.assert_called_with(targets[0])
+
+        mc.open_doctor.reset_mock()
+        doctor_calls[2][0][1](None, None)
+        mc.open_doctor.assert_called_with(targets[2])
+
+
 class TestDiscoveryAnimation:
     """Tests for tray icon animation during slow daemon discovery (#743)."""
 
