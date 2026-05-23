@@ -32,6 +32,9 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
         keep_open: If True, keep the terminal open after the command
             finishes so the user can read the output.
         clear: If True, clear the terminal before running the command.
+
+    Returns:
+        True if a terminal was launched, False otherwise.
     """
     cmd_str = " ".join(shlex.quote(p) for p in cmd_parts)
     if clear:
@@ -64,10 +67,12 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
                 'end tell'
             )
             subprocess.Popen(["osascript", "-e", script])
+            return True
         elif system == "Windows":
             flag = "/k" if keep_open else "/c"
             win_parts = (["cls", "&&"] if clear else []) + cmd_parts
             subprocess.Popen(["cmd", flag, "start", "/max"] + win_parts)
+            return True
         else:
             if keep_open:
                 shell_cmd = cmd_str + '; echo; read -rp "Press Enter to close..."'
@@ -81,9 +86,18 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
             ]:
                 if shutil.which(term):
                     subprocess.Popen([term] + args + cmd_parts)
-                    break
+                    return True
+            else:
+                logger.warning(
+                    "No supported terminal emulator found. "
+                    "Tried: gnome-terminal, kgx, konsole, "
+                    "xfce4-terminal, xterm. Install one of these to use "
+                    "Console/Shell/Doctor from the tray."
+                )
+                return False
     except OSError as e:
-        logger.debug("Failed to launch terminal: %s", e)
+        logger.warning("Failed to launch terminal: %s", e)
+        return False
 
 
 class MultiDaemonClient:

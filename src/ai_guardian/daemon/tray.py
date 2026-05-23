@@ -205,6 +205,7 @@ class DaemonTray:
         self._is_initial_discovery = True
         self._discovery_in_progress = False
         self._refreshing_from_discovery = False
+        self._last_discovery_refresh = 0.0
 
     def start(self):
         """Start tray icon in a background thread.
@@ -327,7 +328,7 @@ class DaemonTray:
         import platform
         if platform.system() == "Linux":
             saved_fd = _suppress_gtk_stderr()
-            threading.Timer(2.0, _restore_stderr, args=[saved_fd]).start()
+            threading.Timer(0.5, _restore_stderr, args=[saved_fd]).start()
             self._icon.run()
         else:
             self._icon.run()
@@ -343,9 +344,48 @@ class DaemonTray:
                 pass
         if img is None:
             img = self._create_fallback_icon(22)
+        if self._needs_dark_icon():
+            img = self._invert_icon(img)
         if self._status == "paused":
             img = self._apply_paused_dimming(img)
         return img
+
+    @staticmethod
+    def _needs_dark_icon():
+        """Check if the panel has a light background requiring a dark icon.
+
+        GNOME with a light GTK theme renders the panel light, making
+        the default white icon invisible.
+        """
+        import platform
+        if platform.system() != "Linux":
+            return False
+        import os
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+        if "GNOME" not in desktop.upper():
+            return False
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.interface",
+                 "color-scheme"],
+                capture_output=True, text=True, timeout=3,
+            )
+            scheme = result.stdout.strip().strip("'\"")
+            return scheme != "prefer-dark"
+        except Exception:
+            return False
+
+    @staticmethod
+    def _invert_icon(img):
+        """Invert a white monochrome icon to dark, preserving alpha."""
+        img = img.copy()
+        r, g, b, a = img.split()
+        from PIL import ImageOps
+        r = ImageOps.invert(r)
+        g = ImageOps.invert(g)
+        b = ImageOps.invert(b)
+        return Image.merge("RGBA", (r, g, b, a))
 
     @staticmethod
     def _apply_paused_dimming(img):
@@ -369,7 +409,12 @@ class DaemonTray:
 
     @staticmethod
     def _find_tray_icon_path():
-        """Find the monochrome tray icon for the current platform."""
+        """Find the monochrome tray icon for the current platform.
+
+        Uses three strategies to ensure the returned path remains valid
+        after this method returns (important for AppIndicator on GNOME/KDE
+        which reads the icon asynchronously).
+        """
         from pathlib import Path
         import platform
         import importlib.resources
@@ -383,16 +428,39 @@ class DaemonTray:
         else:
             names = ["tray-icon-22.png", "tray-icon-32.png"]
 
+        # Strategy 1: If importlib.resources returns a real filesystem Path
+        # (editable install or unpacked wheel), use it directly.
+        for name in names:
+            try:
+                ref = (importlib.resources.files("ai_guardian")
+                       / "images" / name)
+                if isinstance(ref, Path) and ref.exists():
+                    return str(ref)
+            except Exception:
+                pass
+
+        # Strategy 2: For zipped wheels, extract via as_file() and copy to
+        # a persistent temp directory so the path survives context exit.
         for name in names:
             try:
                 ref = (importlib.resources.files("ai_guardian")
                        / "images" / name)
                 with importlib.resources.as_file(ref) as p:
                     if p.exists():
-                        return str(p)
+                        import shutil
+                        import tempfile
+                        persistent_dir = (
+                            Path(tempfile.gettempdir()) / "ai-guardian-icons"
+                        )
+                        persistent_dir.mkdir(parents=True, exist_ok=True)
+                        dest = persistent_dir / name
+                        if not dest.exists():
+                            shutil.copy2(str(p), str(dest))
+                        return str(dest)
             except Exception:
                 pass
 
+        # Strategy 3: Filesystem fallback (development layout).
         src_dir = Path(__file__).resolve().parent.parent
         candidates_dirs = [
             src_dir / "images",
@@ -502,10 +570,19 @@ class DaemonTray:
             self._icon.icon = self._create_icon()
 
     def _request_discovery_refresh(self, **kwargs):
-        """Request discovery refresh with animation support."""
+        """Request discovery refresh.
+
+        Debounces calls to prevent overlapping refreshes.  Skips animation
+        for periodic background refreshes — animation only runs on the
+        initial discovery at startup.
+        """
+        import time
+        now = time.monotonic()
+        if now - self._last_discovery_refresh < 15.0:
+            return
         if self._discovery and not self._refreshing_from_discovery:
+            self._last_discovery_refresh = now
             self._discovery_in_progress = True
-            self._start_discovery_animation(delay=0.5)
             self._discovery.request_refresh(**kwargs)
 
     @staticmethod
@@ -668,16 +745,31 @@ class DaemonTray:
 
     @staticmethod
     def _dispatch_to_main(func):
-        """Dispatch a callable to the main thread (macOS-safe)."""
+        """Dispatch a callable to the GUI main loop.
+
+        macOS: uses PyObjCTools.AppHelper.callAfter.
+        Linux: uses GLib.idle_add to schedule on the GTK main loop,
+               avoiding thread-safety issues that cause blank menu text.
+        Other: calls directly.
+        """
         try:
             from PyObjCTools.AppHelper import callAfter
             callAfter(func)
+            return
         except ImportError:
-            # Not on macOS or PyObjC not available — call directly
-            try:
-                func()
-            except Exception:
-                pass
+            pass
+        try:
+            import platform
+            if platform.system() == "Linux":
+                from gi.repository import GLib
+                GLib.idle_add(func)
+                return
+        except (ImportError, ValueError):
+            pass
+        try:
+            func()
+        except Exception:
+            pass
 
     def _refresh_menu(self):
         """Refresh the tray menu (must be called on main thread)."""
@@ -833,6 +925,7 @@ class DaemonTray:
                     self._dispatch_to_main(self._sync_pause_state)
                     self._check_config_error_notification()
                     self._poll_plugins()
+                    self._request_discovery_refresh(wait=False)
                     self._dispatch_to_main(self._refresh_menu)
 
         thread = threading.Thread(
@@ -949,7 +1042,6 @@ class DaemonTray:
             return self._is_single_daemon()
 
         def _single_vis_refresh(_item):
-            self._request_discovery_refresh(wait=False)
             return self._is_single_daemon()
 
         def _single_running(_item):
@@ -1223,8 +1315,6 @@ class DaemonTray:
                 return self._daemon_status_label(self._targets[slot])
 
             def make_visible(_item, slot=idx):
-                if slot == 0:
-                    self._request_discovery_refresh(wait=False)
                 return self._is_multi_daemon() and slot < len(self._targets)
 
             def _mk_open_panel(panel=None, slot=idx):

@@ -489,3 +489,50 @@ class TestGetPlugins:
         target = DaemonTarget(name="remote", runtime="manual", host="10.0.0.1", port=63152)
         result = client.get_plugins(target)
         assert result is None
+
+
+class TestLaunchInTerminalErrorHandling:
+    """Tests for terminal launch error handling (issue #754)."""
+
+    @mock.patch("platform.system", return_value="Linux")
+    @mock.patch("shutil.which", return_value=None)
+    def test_logs_warning_when_no_terminal_found(self, _mock_which, _mock_sys):
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        with mock.patch("ai_guardian.daemon.multi_client.logger") as mock_logger:
+            result = _launch_in_terminal(["echo", "hello"])
+            assert result is False
+            mock_logger.warning.assert_called_once()
+            assert "No supported terminal" in mock_logger.warning.call_args[0][0]
+
+    @mock.patch("platform.system", return_value="Linux")
+    @mock.patch("shutil.which", return_value="/usr/bin/gnome-terminal")
+    @mock.patch("subprocess.Popen", side_effect=OSError("Permission denied"))
+    def test_logs_warning_on_popen_failure(self, _popen, _which, _sys):
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        with mock.patch("ai_guardian.daemon.multi_client.logger") as mock_logger:
+            result = _launch_in_terminal(["echo", "hello"])
+            assert result is False
+            mock_logger.warning.assert_called_once()
+            assert "Failed to launch" in mock_logger.warning.call_args[0][0]
+
+    @mock.patch("platform.system", return_value="Linux")
+    @mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/konsole" if x == "konsole" else None)
+    @mock.patch("subprocess.Popen")
+    def test_returns_true_on_success(self, _popen, _which, _sys):
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        result = _launch_in_terminal(["echo", "hello"])
+        assert result is True
+
+    @mock.patch("platform.system", return_value="Darwin")
+    @mock.patch("subprocess.Popen")
+    def test_macos_returns_true(self, _popen, _sys):
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        result = _launch_in_terminal(["echo", "hello"])
+        assert result is True
+
+    @mock.patch("platform.system", return_value="Windows")
+    @mock.patch("subprocess.Popen")
+    def test_windows_returns_true(self, _popen, _sys):
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        result = _launch_in_terminal(["echo", "hello"])
+        assert result is True
