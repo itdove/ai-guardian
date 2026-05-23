@@ -205,6 +205,7 @@ class DaemonTray:
         self._is_initial_discovery = True
         self._discovery_in_progress = False
         self._refreshing_from_discovery = False
+        self._last_discovery_refresh = 0.0
 
     def start(self):
         """Start tray icon in a background thread.
@@ -530,8 +531,17 @@ class DaemonTray:
             self._icon.icon = self._create_icon()
 
     def _request_discovery_refresh(self, **kwargs):
-        """Request discovery refresh with animation support."""
+        """Request discovery refresh with animation support.
+
+        Debounces rapid calls from menu visibility callbacks to prevent
+        animation restart loops on KDE/GNOME.
+        """
+        import time
+        now = time.monotonic()
+        if now - self._last_discovery_refresh < 5.0:
+            return
         if self._discovery and not self._refreshing_from_discovery:
+            self._last_discovery_refresh = now
             self._discovery_in_progress = True
             self._start_discovery_animation(delay=0.5)
             self._discovery.request_refresh(**kwargs)

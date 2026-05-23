@@ -2224,6 +2224,7 @@ class TestDiscoveryAnimation:
     def test_request_discovery_refresh_starts_delayed_animation(self):
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
+        tray._last_discovery_refresh = 0.0
         with mock.patch.object(tray, "_start_discovery_animation") as mock_anim:
             tray._request_discovery_refresh(wait=False)
             mock_anim.assert_called_once_with(delay=0.5)
@@ -2308,9 +2309,22 @@ class TestDiscoveryAnimation:
     def test_request_discovery_refresh_sets_in_progress(self):
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
+        tray._last_discovery_refresh = 0.0
         with mock.patch.object(tray, "_start_discovery_animation"):
             tray._request_discovery_refresh(wait=False)
             assert tray._discovery_in_progress is True
+
+    def test_request_discovery_refresh_debounces_rapid_calls(self):
+        """Rapid visibility-check calls must not restart animation (issue #754)."""
+        disc = mock.MagicMock()
+        tray = self._make_tray(discovery=disc)
+        tray._last_discovery_refresh = 0.0
+        with mock.patch.object(tray, "_start_discovery_animation") as mock_anim:
+            tray._request_discovery_refresh(wait=False)
+            tray._request_discovery_refresh(wait=False)
+            tray._request_discovery_refresh(wait=False)
+            mock_anim.assert_called_once()
+            disc.request_refresh.assert_called_once()
 
     def test_discovery_refresh_skipped_during_discovery_callback(self):
         disc = mock.MagicMock()
