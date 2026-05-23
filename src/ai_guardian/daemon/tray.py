@@ -745,16 +745,31 @@ class DaemonTray:
 
     @staticmethod
     def _dispatch_to_main(func):
-        """Dispatch a callable to the main thread (macOS-safe)."""
+        """Dispatch a callable to the GUI main loop.
+
+        macOS: uses PyObjCTools.AppHelper.callAfter.
+        Linux: uses GLib.idle_add to schedule on the GTK main loop,
+               avoiding thread-safety issues that cause blank menu text.
+        Other: calls directly.
+        """
         try:
             from PyObjCTools.AppHelper import callAfter
             callAfter(func)
+            return
         except ImportError:
-            # Not on macOS or PyObjC not available — call directly
-            try:
-                func()
-            except Exception:
-                pass
+            pass
+        try:
+            import platform
+            if platform.system() == "Linux":
+                from gi.repository import GLib
+                GLib.idle_add(func)
+                return
+        except (ImportError, ValueError):
+            pass
+        try:
+            func()
+        except Exception:
+            pass
 
     def _refresh_menu(self):
         """Refresh the tray menu (must be called on main thread)."""
