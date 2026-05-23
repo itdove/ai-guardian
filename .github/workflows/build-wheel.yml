@@ -1,0 +1,60 @@
+name: Build Wheel
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Build label (used in wheel version)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set version suffix
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "VERSION_SUFFIX=+pr${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            LABEL="${{ github.event.inputs.label || github.actor }}"
+            echo "VERSION_SUFFIX=+${LABEL}" >> $GITHUB_ENV
+          else
+            SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+            echo "VERSION_SUFFIX=+main.${SHORT_SHA}" >> $GITHUB_ENV
+          fi
+
+      - name: Build wheel with version suffix
+        run: |
+          pip install build
+          python -c "
+          import re
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          content = re.sub(
+              r'version = \"([^\"]+)\"',
+              r'version = \"\1${{ env.VERSION_SUFFIX }}\"',
+              content, count=1
+          )
+          with open('pyproject.toml', 'w') as f:
+              f.write(content)
+          "
+          python -m build --wheel
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ai-guardian-wheel
+          path: dist/*.whl
+          retention-days: ${{ github.event_name == 'pull_request' && 7 || 30 }}

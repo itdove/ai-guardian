@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Build wheel artifact workflow** (Issue #515)
+  - New GitHub Actions workflow builds and uploads a wheel on PRs, merges to main, and on-demand
+  - PEP 440 local version identifiers for traceability (`+pr123`, `+main.abc1234`, `+username`)
+  - Fork PRs blocked to prevent abuse; 7-day retention for PRs, 30-day for main
+
 - **Daemon troubleshooting guide** (Issue #737)
   - New `docs/TROUBLESHOOTING.md` covering daemon startup, tray display, container, and general issues
   - Covers stale lock files, port conflicts, config reload, auto-start failures, and container race conditions
