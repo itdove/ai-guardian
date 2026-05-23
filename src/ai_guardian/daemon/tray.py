@@ -192,7 +192,9 @@ class DaemonTray:
         self._pause_timer = None
         self._status = "running"
         self._proactive_level = self._read_proactive_level()
-        self._mcp_installed = self._is_mcp_installed()
+        self._mcp_installed_local = self._is_mcp_installed()
+        self._mcp_installed = self._mcp_installed_local
+        self._mcp_installed_per_daemon = {}
         self._targets = []
         self._active_target = None
         self._daemon_plugins = {}
@@ -649,6 +651,7 @@ class DaemonTray:
 
         ide_mcp_configs = [
             ("~/.claude.json", "mcpServers"),
+            ("~/.claude/settings.json", "mcpServers"),
             ("~/.cursor/mcp.json", "mcpServers"),
             ("~/.windsurf/mcp.json", "mcpServers"),
             ("~/.gemini/settings.json", "mcpServers"),
@@ -669,6 +672,22 @@ class DaemonTray:
             except Exception:
                 continue
         return False
+
+    def _is_mcp_for_current_target(self):
+        """Check MCP installed status for the current single-daemon target."""
+        if not self._targets:
+            return self._mcp_installed_local
+        target = self._targets[0]
+        key = (target.name, target.runtime)
+        return self._mcp_installed_per_daemon.get(key, self._mcp_installed_local)
+
+    def _is_mcp_for_slot(self, idx):
+        """Check MCP installed status for a multi-daemon slot."""
+        if idx >= len(self._targets):
+            return self._mcp_installed_local
+        target = self._targets[idx]
+        key = (target.name, target.runtime)
+        return self._mcp_installed_per_daemon.get(key, self._mcp_installed_local)
 
     @staticmethod
     def _resolve_cli_cmd(*args):
@@ -1132,8 +1151,12 @@ class DaemonTray:
                 _cache["stats"] = result or {}
             else:
                 _cache["stats"] = self._get_stats()
+            stats = _cache["stats"]
+            if stats and "mcp_installed" in stats:
+                key = (target.name, target.runtime)
+                self._mcp_installed_per_daemon[key] = stats["mcp_installed"]
             _cache["time"] = now
-            return _cache["stats"]
+            return stats
 
         def _s_requests(_item):
             s = _get_stats(_item)
@@ -1241,7 +1264,7 @@ class DaemonTray:
                         radio=True,
                     ),
                 ),
-                visible=lambda _: _single_vis(_) and self._mcp_installed,
+                visible=lambda _: _single_vis(_) and self._is_mcp_for_current_target(),
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Shell", _open_shell(), visible=_single_vis),
@@ -1403,8 +1426,12 @@ class DaemonTray:
                         _cache["stats"] = result or {}
                     else:
                         _cache["stats"] = self._get_stats()
+                    stats = _cache["stats"]
+                    if stats and "mcp_installed" in stats:
+                        key = (target.name, target.runtime)
+                        self._mcp_installed_per_daemon[key] = stats["mcp_installed"]
                     _cache["time"] = now
-                    return _cache["stats"]
+                    return stats
 
                 def requests(_item):
                     s = _get(_item)
@@ -1526,7 +1553,7 @@ class DaemonTray:
                                     radio=True,
                                 ),
                             ),
-                            visible=lambda _i, s=idx: _is_slot_running(_i, s) and self._mcp_installed,
+                            visible=lambda _i, s=idx: _is_slot_running(_i, s) and self._is_mcp_for_slot(s),
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem("Shell", _mk_open_shell()),

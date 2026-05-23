@@ -5,6 +5,7 @@ import os
 import re
 import time
 import threading
+from unittest import mock
 
 import pytest
 
@@ -690,3 +691,39 @@ class TestConfigError:
     def test_no_error_when_config_missing(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
         assert state.get_config_error() is None
+
+
+class TestMcpInstalled:
+    def test_mcp_installed_in_stats(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        stats = state.get_stats()
+        assert "mcp_installed" in stats
+        assert isinstance(stats["mcp_installed"], bool)
+
+    def test_mcp_installed_true_when_config_exists(self, tmp_path):
+        config_file = tmp_path / ".claude.json"
+        config_file.write_text(json.dumps({
+            "mcpServers": {
+                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
+            }
+        }))
+        with mock.patch("pathlib.Path.expanduser", return_value=config_file):
+            assert DaemonState._check_mcp_installed() is True
+
+    def test_mcp_installed_false_when_no_configs(self, tmp_path):
+        missing = tmp_path / "nonexistent.json"
+        with mock.patch("pathlib.Path.expanduser", return_value=missing):
+            assert DaemonState._check_mcp_installed() is False
+
+    def test_mcp_installed_refreshed_on_config_reload(self, tmp_path):
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+        state = DaemonState(config_path=config_path)
+        original = state._mcp_installed
+        with mock.patch.object(
+            DaemonState, "_check_mcp_installed", return_value=not original
+        ):
+            time.sleep(0.05)
+            config_path.write_text(json.dumps({"v": 2}))
+            state.force_reload_config()
+            assert state._mcp_installed is not original

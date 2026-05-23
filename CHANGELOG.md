@@ -121,6 +121,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MCP tray check works for remote daemons** (Issue #756)
+  - Daemon now self-reports `mcp_installed` status in `/api/stats` and `/api/status` responses
+  - Tray queries each daemon for its MCP installation status instead of checking only local filesystem
+  - MCP Proactive menu correctly shown/hidden per daemon in multi-daemon mode
+  - MCP check also looks in `~/.claude/settings.json` for users who configured MCP there
+  - `ai-guardian setup --mcp` now warns if MCP entry found in `~/.claude/settings.json` (hooks file)
+
 - **MCP Proactive menu hidden in multi-daemon tray** (Issue #706)
   - Closure-in-loop bug: visibility lambda closed over `_is_slot_running` name instead of capturing the slot index
   - All daemon submenus referenced the last loop iteration's slot (slot 7), causing `7 < len(targets)` to be False
