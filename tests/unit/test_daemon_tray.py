@@ -383,6 +383,17 @@ class TestDaemonTrayIcon:
         if result is not None:
             assert "22" in result
 
+    def test_find_tray_icon_path_persists_beyond_context(self):
+        """Icon path must remain valid after method returns (issue #754)."""
+        with mock.patch("platform.system", return_value="Linux"):
+            result = DaemonTray._find_tray_icon_path()
+        if result is not None:
+            from pathlib import Path
+            assert Path(result).exists(), (
+                f"Icon path {result} does not exist — "
+                "as_file() context manager may have cleaned it up"
+            )
+
     def test_all_required_tray_icon_sizes_exist(self):
         from pathlib import Path
         images_dir = Path(__file__).resolve().parent.parent.parent / "images"
@@ -442,7 +453,7 @@ class TestRunPlatformBranching:
             _, kwargs = mock_icon.run.call_args
             assert "setup" not in kwargs
             mock_threading.Timer.assert_called_once_with(
-                2.0, _restore_stderr, args=[42]
+                0.5, _restore_stderr, args=[42]
             )
             mock_threading.Timer.return_value.start.assert_called_once()
 

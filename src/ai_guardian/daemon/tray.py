@@ -327,7 +327,7 @@ class DaemonTray:
         import platform
         if platform.system() == "Linux":
             saved_fd = _suppress_gtk_stderr()
-            threading.Timer(2.0, _restore_stderr, args=[saved_fd]).start()
+            threading.Timer(0.5, _restore_stderr, args=[saved_fd]).start()
             self._icon.run()
         else:
             self._icon.run()
@@ -369,7 +369,12 @@ class DaemonTray:
 
     @staticmethod
     def _find_tray_icon_path():
-        """Find the monochrome tray icon for the current platform."""
+        """Find the monochrome tray icon for the current platform.
+
+        Uses three strategies to ensure the returned path remains valid
+        after this method returns (important for AppIndicator on GNOME/KDE
+        which reads the icon asynchronously).
+        """
         from pathlib import Path
         import platform
         import importlib.resources
@@ -383,16 +388,39 @@ class DaemonTray:
         else:
             names = ["tray-icon-22.png", "tray-icon-32.png"]
 
+        # Strategy 1: If importlib.resources returns a real filesystem Path
+        # (editable install or unpacked wheel), use it directly.
+        for name in names:
+            try:
+                ref = (importlib.resources.files("ai_guardian")
+                       / "images" / name)
+                if isinstance(ref, Path) and ref.exists():
+                    return str(ref)
+            except Exception:
+                pass
+
+        # Strategy 2: For zipped wheels, extract via as_file() and copy to
+        # a persistent temp directory so the path survives context exit.
         for name in names:
             try:
                 ref = (importlib.resources.files("ai_guardian")
                        / "images" / name)
                 with importlib.resources.as_file(ref) as p:
                     if p.exists():
-                        return str(p)
+                        import shutil
+                        import tempfile
+                        persistent_dir = (
+                            Path(tempfile.gettempdir()) / "ai-guardian-icons"
+                        )
+                        persistent_dir.mkdir(parents=True, exist_ok=True)
+                        dest = persistent_dir / name
+                        if not dest.exists():
+                            shutil.copy2(str(p), str(dest))
+                        return str(dest)
             except Exception:
                 pass
 
+        # Strategy 3: Filesystem fallback (development layout).
         src_dir = Path(__file__).resolve().parent.parent
         candidates_dirs = [
             src_dir / "images",
