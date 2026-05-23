@@ -2536,6 +2536,22 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
 
     print(f"  MCP: Added ai-guardian MCP server to {config_path}")
 
+    # Warn if MCP entry exists in settings.json (hooks file) for Claude
+    if ide_type == "claude":
+        settings_path = Path("~/.claude/settings.json").expanduser()
+        try:
+            if settings_path.exists():
+                settings = json.load(open(settings_path, "r"))
+                if "ai-guardian" in settings.get("mcpServers", {}):
+                    print(
+                        "  MCP: Warning: ai-guardian MCP entry found in "
+                        f"{settings_path} (hooks file).\n"
+                        "  MCP servers should be in ~/.claude.json. "
+                        "Remove the entry from settings.json to avoid conflicts."
+                    )
+        except (json.JSONDecodeError, OSError):
+            pass
+
 
 def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -> None:
     """Remove MCP server entry from IDE config."""

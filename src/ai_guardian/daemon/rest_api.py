@@ -74,6 +74,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             "uptime_seconds": stats.get("uptime_seconds", 0),
             "version": self._get_version(),
             "name": self._get_instance_name(),
+            "mcp_installed": stats.get("mcp_installed", False),
         }
 
     def _get_stats(self):

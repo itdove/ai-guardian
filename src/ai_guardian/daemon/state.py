@@ -96,6 +96,9 @@ class DaemonState:
         self._sessions_dirty = False
         self._debounce_timer = None
 
+        # MCP installed detection (#756)
+        self._mcp_installed = self._check_mcp_installed()
+
         # Initial config load
         self._reload_config()
 
@@ -298,6 +301,7 @@ class DaemonState:
             self._last_config_reload_at = time.time()
 
             self._config_error = None
+            self._mcp_installed = self._check_mcp_installed()
 
             logger.info(f"Config loaded from {self._config_path}")
             return True
@@ -313,6 +317,33 @@ class DaemonState:
             return hashlib.sha256(content).hexdigest()
         except OSError:
             return ""
+
+    @staticmethod
+    def _check_mcp_installed():
+        """Check if ai-guardian MCP server is configured in any supported IDE."""
+        ide_mcp_configs = [
+            ("~/.claude.json", "mcpServers"),
+            ("~/.claude/settings.json", "mcpServers"),
+            ("~/.cursor/mcp.json", "mcpServers"),
+            ("~/.windsurf/mcp.json", "mcpServers"),
+            ("~/.gemini/settings.json", "mcpServers"),
+            ("~/.cline/mcp_settings.json", "mcpServers"),
+            ("~/.augment/settings.json", "mcpServers"),
+            ("~/.kiro/settings.json", "mcpServers"),
+            ("~/.junie/mcp.json", "mcpServers"),
+            ("~/.aider-desk/settings.json", "mcpServers"),
+            ("~/.openclaw/settings.json", "mcpServers"),
+        ]
+        for config_file, key in ide_mcp_configs:
+            try:
+                path = Path(config_file).expanduser()
+                if path.exists():
+                    config = json.loads(path.read_text(encoding="utf-8"))
+                    if "ai-guardian" in config.get(key, {}):
+                        return True
+            except Exception:
+                continue
+        return False
 
     # --- Project config tracking (#617) ---
 
@@ -550,6 +581,7 @@ class DaemonState:
                 "last_project_config_reload_seconds_ago": last_project_reload_seconds_ago,
                 "project_configs_tracked": len(self._project_config_mtimes),
                 "config_error": self._config_error,
+                "mcp_installed": self._mcp_installed,
             }
 
     def get_config_error(self):

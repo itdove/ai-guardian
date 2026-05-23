@@ -1550,13 +1550,14 @@ class TestMcpProactiveMenuVisibility:
             assert DaemonTray._is_mcp_installed() is False
 
     def test_mcp_installed_cached_at_init(self):
-        """_mcp_installed is set during __init__."""
+        """_mcp_installed and _mcp_installed_local are set during __init__."""
         with mock.patch.object(DaemonTray, "_is_mcp_installed", return_value=False):
             tray = DaemonTray(
                 get_stats_callback=lambda: {},
                 stop_callback=lambda: None,
                 pause_callback=lambda mins: None,
             )
+            assert tray._mcp_installed_local is False
             assert tray._mcp_installed is False
 
         with mock.patch.object(DaemonTray, "_is_mcp_installed", return_value=True):
@@ -1565,7 +1566,23 @@ class TestMcpProactiveMenuVisibility:
                 stop_callback=lambda: None,
                 pause_callback=lambda mins: None,
             )
+            assert tray._mcp_installed_local is True
             assert tray._mcp_installed is True
+
+    def test_is_mcp_installed_checks_claude_settings_json(self, tmp_path):
+        """Detects ai-guardian MCP entry in ~/.claude/settings.json."""
+        import json
+
+        settings_dir = tmp_path / ".claude"
+        settings_dir.mkdir()
+        config_file = settings_dir / "settings.json"
+        config_file.write_text(json.dumps({
+            "mcpServers": {
+                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
+            }
+        }))
+        with mock.patch("pathlib.Path.expanduser", return_value=config_file):
+            assert DaemonTray._is_mcp_installed() is True
 
 
 class TestMcpProactiveMultiDaemonClosure:
@@ -1588,7 +1605,12 @@ class TestMcpProactiveMultiDaemonClosure:
             DaemonTarget(name="local", runtime="local", status="running"),
             DaemonTarget(name="remote", runtime="container", status="running"),
         ]
+        tray._mcp_installed_local = True
         tray._mcp_installed = True
+        tray._mcp_installed_per_daemon = {
+            ("local", "local"): True,
+            ("remote", "container"): True,
+        }
         mc.get_status.return_value = {}
 
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:

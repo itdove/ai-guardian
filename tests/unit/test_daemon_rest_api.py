@@ -26,6 +26,7 @@ class MockDaemonState:
             "paused": self._paused,
             "uptime_seconds": 300.0,
             "config_error": None,
+            "mcp_installed": False,
         }
 
     def pause(self, minutes):
@@ -66,6 +67,14 @@ class TestRestAPIEndpoints:
         assert data["running"] is True
         assert data["name"] == "ai-guardian"
 
+    def test_status_includes_mcp_installed(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/status"
+        with urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "mcp_installed" in data
+        assert data["mcp_installed"] is False
+
     def test_get_stats(self, rest_api):
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/stats"
@@ -73,6 +82,14 @@ class TestRestAPIEndpoints:
             data = json.loads(resp.read())
         assert data["request_count"] == 42
         assert data["blocked_count"] == 3
+
+    def test_stats_includes_mcp_installed(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/stats"
+        with urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "mcp_installed" in data
+        assert data["mcp_installed"] is False
 
     def test_post_pause(self, rest_api):
         api, port, state = rest_api

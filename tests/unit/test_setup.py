@@ -2789,3 +2789,76 @@ class TestKiroSetup:
         assert kiro_mcp["config_file"] == "~/.kiro/settings.json"
         assert kiro_mcp["config_key"] == "mcpServers"
         assert kiro_mcp["skill_dir"] == ".kiro/skills"
+
+
+class TestMcpMigrationWarning:
+    """Tests for MCP migration warning when MCP entry found in settings.json (#756)."""
+
+    def test_warn_when_mcp_in_settings_json(self, tmp_path, capsys):
+        """Warns when ai-guardian MCP entry found in ~/.claude/settings.json."""
+        from ai_guardian.setup import _install_mcp_config, _MCP_IDE_CONFIGS, IDESetup
+
+        claude_json = tmp_path / ".claude.json"
+        settings_dir = tmp_path / ".claude"
+        settings_dir.mkdir()
+        settings_json = settings_dir / "settings.json"
+        settings_json.write_text(json.dumps({
+            "mcpServers": {
+                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
+            }
+        }))
+
+        with mock.patch.dict(
+            _MCP_IDE_CONFIGS,
+            {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(claude_json)}},
+        ):
+            with mock.patch(
+                "ai_guardian.setup.Path",
+                side_effect=lambda p: Path(str(p).replace("~/.claude/settings.json", str(settings_json))),
+            ):
+                setup = IDESetup()
+                _install_mcp_config(setup, "claude", dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "Warning" in captured.out
+        assert "settings.json" in captured.out
+
+    def test_no_warn_when_mcp_only_in_claude_json(self, tmp_path, capsys):
+        """No warning when MCP only in ~/.claude.json (correct location)."""
+        from ai_guardian.setup import _install_mcp_config, _MCP_IDE_CONFIGS, IDESetup
+
+        claude_json = tmp_path / ".claude.json"
+        settings_dir = tmp_path / ".claude"
+        settings_dir.mkdir()
+        settings_json = settings_dir / "settings.json"
+        settings_json.write_text(json.dumps({"hooks": {}}))
+
+        with mock.patch.dict(
+            _MCP_IDE_CONFIGS,
+            {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(claude_json)}},
+        ):
+            with mock.patch(
+                "ai_guardian.setup.Path",
+                side_effect=lambda p: Path(str(p).replace("~/.claude/settings.json", str(settings_json))),
+            ):
+                setup = IDESetup()
+                _install_mcp_config(setup, "claude", dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "Warning" not in captured.out
+
+    def test_no_warn_for_non_claude_ide(self, tmp_path, capsys):
+        """No migration check runs for non-claude IDEs."""
+        from ai_guardian.setup import _install_mcp_config, _MCP_IDE_CONFIGS, IDESetup
+
+        cursor_json = tmp_path / "mcp.json"
+
+        with mock.patch.dict(
+            _MCP_IDE_CONFIGS,
+            {"cursor": {**_MCP_IDE_CONFIGS["cursor"], "config_file": str(cursor_json)}},
+        ):
+            setup = IDESetup()
+            _install_mcp_config(setup, "cursor", dry_run=False)
+
+        captured = capsys.readouterr()
+        assert "Warning" not in captured.out
