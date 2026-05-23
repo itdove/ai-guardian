@@ -242,6 +242,8 @@ git clone https://github.com/itdove/ai-guardian.git
 cd ai-guardian && pip install -e .
 ```
 
+> **Dev builds:** CI builds a wheel on every PR and merge. Download from the [Actions tab](https://github.com/itdove/ai-guardian/actions/workflows/build-wheel.yml) for testing; use PyPI for stable releases.
+
 ## Testing
 
 ```bash
