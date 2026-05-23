@@ -231,18 +231,20 @@ See [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/ma
 ## Installation
 
 ```bash
-pip install ai-guardian                   # Basic
+pip install ai-guardian                   # Stable release from PyPI
 pip install ai-guardian[skill-discovery]  # With auto-discovery from GitHub/GitLab
 ```
 
-Or from source:
+> **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`pip install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
+
+For development and contributing:
 
 ```bash
 git clone https://github.com/itdove/ai-guardian.git
 cd ai-guardian && pip install -e .
 ```
 
-> **Dev builds:** CI builds a wheel on every PR and merge. Download from the [Actions tab](https://github.com/itdove/ai-guardian/actions/workflows/build-wheel.yml) for testing; use PyPI for stable releases.
+> **Dev builds:** CI builds a wheel on every PR and merge. Download from the [Actions tab](https://github.com/itdove/ai-guardian/actions/workflows/build-wheel.yml) for testing only; use PyPI for stable releases.
 
 ## Testing
 
