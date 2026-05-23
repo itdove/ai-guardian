@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **README install section warns against installing from main branch** (Issue #755)
+  - PyPI is the stable channel; main branch contains unreleased dev code
+  - CI wheel artifacts renamed from `ai-guardian-wheel` to `ai-guardian-dev-wheel`
+
 ### Added
 
 - **Build wheel artifact workflow** (Issue #515)
