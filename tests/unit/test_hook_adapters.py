@@ -198,7 +198,7 @@ class TestAutoDetection:
         assert isinstance(adapter, CopilotAdapter)
 
     def test_detect_copilot_from_timestamp_cwd(self):
-        adapter = detect_adapter({"timestamp": "2026-01-01T00:00:00Z", "cwd": "/home"})
+        adapter = detect_adapter({"hook_event_name": "preToolUse", "timestamp": "2026-01-01T00:00:00Z", "cwd": "/home"})
         assert isinstance(adapter, CopilotAdapter)
 
     def test_detect_cursor_from_cursor_version(self):

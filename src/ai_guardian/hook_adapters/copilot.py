@@ -35,7 +35,7 @@ class CopilotAdapter(HookAdapter):
             return True
         if "timestamp" in hook_data and "cwd" in hook_data:
             event = hook_data.get("hook_event_name", "")
-            if event in ("userPromptSubmitted", "preToolUse", "postToolUse", ""):
+            if event in ("userPromptSubmitted", "preToolUse", "postToolUse"):
                 return True
         return False
 

@@ -2695,7 +2695,7 @@ class TestDiscoveryAnimation:
             tray._on_targets_updated([
                 DaemonTarget(name="local", runtime="local", status="running"),
             ])
-        assert tray._refresh_menu in dispatched
+        assert tray._refresh_menu_and_clear_discovery_flag in dispatched
 
     def test_stop_cleans_up_animation(self):
         tray = self._make_tray()
@@ -2816,11 +2816,10 @@ class TestDiscoveryAnimation:
     def test_on_targets_updated_sets_refreshing_guard(self):
         tray = self._make_tray()
         guard_values = []
-        orig_dispatch = DaemonTray._dispatch_to_main
 
         def tracking_dispatch(fn):
             guard_values.append(tray._refreshing_from_discovery)
-            orig_dispatch(fn)
+            fn()
 
         with mock.patch.object(
             DaemonTray, "_dispatch_to_main", side_effect=tracking_dispatch

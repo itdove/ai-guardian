@@ -23,6 +23,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
 
+from ai_guardian.constants import AUGMENT_TOOL_MAP
+
 try:
     from jsonschema import Draft7Validator, ValidationError as JsonSchemaValidationError
     HAS_JSONSCHEMA = True
@@ -801,13 +803,7 @@ class ToolPolicyChecker:
             # Fail-closed: block on errors (security-critical path)
             return False, f"Policy check error: {e}", None
 
-    _AUGMENT_TOOL_MAP = {
-        "launch-process": "Bash",
-        "str-replace-editor": "Edit",
-        "save-file": "Write",
-        "view": "Read",
-        "remove-files": "Delete",
-    }
+    _AUGMENT_TOOL_MAP = AUGMENT_TOOL_MAP
 
     def _extract_tool_info(self, hook_data: Dict) -> Tuple[Optional[str], Dict]:
         """

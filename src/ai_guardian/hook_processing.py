@@ -871,8 +871,19 @@ def _advance_transcript_position(hook_data: dict) -> None:
                 old_pos = positions[transcript_path]
                 if file_size > old_pos:
                     positions[transcript_path] = file_size
-                    with open(pos_file, 'w', encoding='utf-8') as f:
-                        json.dump(positions, f)
+                    import tempfile as _tf
+                    fd, tmp_path = _tf.mkstemp(
+                        dir=str(state_dir), prefix=".transcript-pos-", suffix=".tmp"
+                    )
+                    try:
+                        os.write(fd, json.dumps(positions).encode("utf-8"))
+                        os.close(fd)
+                        os.replace(tmp_path, str(pos_file))
+                    except BaseException:
+                        os.close(fd)
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
+                        raise
             finally:
                 if _HAS_FCNTL:
                     fcntl.flock(lf, fcntl.LOCK_UN)
