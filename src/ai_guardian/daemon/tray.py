@@ -288,22 +288,40 @@ class DaemonTray:
 
     @staticmethod
     def _ensure_macos_activation_policy():
-        """Set NSApplicationActivationPolicyAccessory on macOS.
+        """Set NSApplicationActivationPolicyAccessory and bundle identity on macOS.
 
         When launched from an .app bundle wrapper, the process may lose
         its Info.plist association after exec, so LSUIElement=True has no
         effect.  Setting the policy explicitly ensures the status bar
         icon appears regardless of launch method (issue #691).
+
+        Also sets the process bundle identifier to match the installed
+        .app so macOS notification center displays the AI Guardian icon
+        instead of the generic Python icon (issue #769).
         """
         import platform
         if platform.system() != "Darwin":
             return
         try:
             import AppKit
+            import Foundation
+            info = Foundation.NSBundle.mainBundle().infoDictionary()
+            if info.get("CFBundleIdentifier") is None:
+                info["CFBundleIdentifier"] = "com.itdove.ai-guardian.tray"
+                info["CFBundleName"] = "AI Guardian Tray"
             app = AppKit.NSApplication.sharedApplication()
             app.setActivationPolicy_(
                 AppKit.NSApplicationActivationPolicyAccessory
             )
+            try:
+                from ai_guardian.daemon.tray_plugins import _find_icon
+                icns_path = _find_icon("ai-guardian.icns")
+                if icns_path:
+                    icon_image = AppKit.NSImage.alloc().initWithContentsOfFile_(icns_path)
+                    if icon_image:
+                        app.setApplicationIconImage_(icon_image)
+            except Exception:
+                pass
         except Exception:
             pass
 

@@ -520,14 +520,50 @@ class TestRunPlatformBranching:
         mock_appkit = mock.MagicMock()
         mock_appkit.NSApplication.sharedApplication.return_value = mock_app
         mock_appkit.NSApplicationActivationPolicyAccessory = 1
+        mock_foundation = mock.MagicMock()
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = {}
         with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": mock_appkit}):
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}):
             DaemonTray._ensure_macos_activation_policy()
         mock_app.setActivationPolicy_.assert_called_once_with(1)
 
     def test_ensure_macos_activation_policy_skipped_on_linux(self):
         with mock.patch("platform.system", return_value="Linux"):
             DaemonTray._ensure_macos_activation_policy()
+
+    def test_ensure_macos_sets_bundle_id_and_app_icon(self):
+        """Verify bundle ID and app icon are set on macOS (issue #769)."""
+        mock_app = mock.MagicMock()
+        mock_appkit = mock.MagicMock()
+        mock_appkit.NSApplication.sharedApplication.return_value = mock_app
+        mock_appkit.NSApplicationActivationPolicyAccessory = 1
+        mock_info = {}
+        mock_foundation = mock.MagicMock()
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = mock_info
+        mock_image = mock.MagicMock()
+        mock_appkit.NSImage.alloc.return_value.initWithContentsOfFile_.return_value = mock_image
+        with mock.patch("platform.system", return_value="Darwin"), \
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}), \
+             mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="/path/to/icon.icns"):
+            DaemonTray._ensure_macos_activation_policy()
+        assert mock_info["CFBundleIdentifier"] == "com.itdove.ai-guardian.tray"
+        assert mock_info["CFBundleName"] == "AI Guardian Tray"
+        mock_app.setApplicationIconImage_.assert_called_once_with(mock_image)
+
+    def test_ensure_macos_no_icon_when_not_found(self):
+        """Verify graceful skip when icon file is missing (issue #769)."""
+        mock_app = mock.MagicMock()
+        mock_appkit = mock.MagicMock()
+        mock_appkit.NSApplication.sharedApplication.return_value = mock_app
+        mock_appkit.NSApplicationActivationPolicyAccessory = 1
+        mock_info = {}
+        mock_foundation = mock.MagicMock()
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = mock_info
+        with mock.patch("platform.system", return_value="Darwin"), \
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}), \
+             mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""):
+            DaemonTray._ensure_macos_activation_policy()
+        mock_app.setApplicationIconImage_.assert_not_called()
 
 
 class TestSuppressGtkStderr:

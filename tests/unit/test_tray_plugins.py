@@ -435,6 +435,53 @@ class TestSendNotification:
                 script = mock_run.call_args[0][0][2]
                 assert '\\"' in script
 
+    def test_linux_includes_icon_flag(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Linux"
+            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="/path/to/icon.png"):
+                with mock.patch("subprocess.run") as mock_run:
+                    from ai_guardian.daemon.tray_plugins import send_notification
+                    result = send_notification("Title", "Hello")
+                    assert result is True
+                    args = mock_run.call_args[0][0]
+                    assert "--icon" in args
+                    assert "/path/to/icon.png" in args
+
+    def test_linux_no_icon_when_not_found(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Linux"
+            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""):
+                with mock.patch("subprocess.run") as mock_run:
+                    from ai_guardian.daemon.tray_plugins import send_notification
+                    result = send_notification("Title", "Hello")
+                    assert result is True
+                    args = mock_run.call_args[0][0]
+                    assert "--icon" not in args
+
+    def test_windows_loads_custom_icon(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Windows"
+            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="C:\\icons\\shield.png"):
+                with mock.patch("subprocess.run") as mock_run:
+                    from ai_guardian.daemon.tray_plugins import send_notification
+                    result = send_notification("Title", "Hello")
+                    assert result is True
+                    ps_cmd = mock_run.call_args[0][0][2]
+                    assert "Bitmap" in ps_cmd
+                    assert "shield.png" in ps_cmd
+
+    def test_windows_fallback_icon_when_not_found(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Windows"
+            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""):
+                with mock.patch("subprocess.run") as mock_run:
+                    from ai_guardian.daemon.tray_plugins import send_notification
+                    result = send_notification("Title", "Hello")
+                    assert result is True
+                    ps_cmd = mock_run.call_args[0][0][2]
+                    assert "SystemIcons" in ps_cmd
+                    assert "Bitmap" not in ps_cmd
+
 
 class TestCopyToClipboard:
     def test_macos_uses_pbcopy(self):

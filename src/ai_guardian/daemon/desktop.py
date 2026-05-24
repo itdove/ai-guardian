@@ -237,7 +237,7 @@ class MacOSDesktop(DesktopIntegration):
     APP_DIR = Path("~/Applications").expanduser()
     APP_NAME = "AI Guardian Tray.app"
     LAUNCHD_DIR = Path("~/Library/LaunchAgents").expanduser()
-    PLIST_NAME = "com.ai-guardian.tray.plist"
+    PLIST_NAME = "com.itdove.ai-guardian.tray.plist"
 
     @property
     def app_path(self):
@@ -252,6 +252,13 @@ class MacOSDesktop(DesktopIntegration):
 
     def autostart_exists(self):
         return self.plist_path.exists()
+
+    @staticmethod
+    def _find_icns():
+        """Find the ai-guardian.icns file for the .app bundle."""
+        from ai_guardian.daemon.tray_plugins import _find_icon
+        path = _find_icon("ai-guardian.icns")
+        return path if path else None
 
     def install_shortcut(self):
         try:
@@ -277,23 +284,30 @@ class MacOSDesktop(DesktopIntegration):
             )
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-            icon_path = _prepare_icon()
-            if icon_path:
-                shutil.copy2(str(icon_path), str(resources_dir / "icon.png"))
+            icns_path = self._find_icns()
+            icon_file = None
+            if icns_path:
+                shutil.copy2(str(icns_path), str(resources_dir / "ai-guardian.icns"))
+                icon_file = "ai-guardian.icns"
+            else:
+                fallback = _prepare_icon()
+                if fallback:
+                    shutil.copy2(str(fallback), str(resources_dir / "icon.png"))
+                    icon_file = "icon.png"
 
             import plistlib
             info_plist = {
                 "CFBundleName": "AI Guardian Tray",
                 "CFBundleDisplayName": "AI Guardian Tray",
-                "CFBundleIdentifier": "com.ai-guardian.tray",
+                "CFBundleIdentifier": "com.itdove.ai-guardian.tray",
                 "CFBundleVersion": "1.0",
                 "CFBundlePackageType": "APPL",
                 "CFBundleExecutable": "ai-guardian-tray",
                 "LSUIElement": True,
                 "NSPrincipalClass": "NSApplication",
             }
-            if icon_path:
-                info_plist["CFBundleIconFile"] = "icon.png"
+            if icon_file:
+                info_plist["CFBundleIconFile"] = icon_file
 
             with open(contents / "Info.plist", "wb") as f:
                 plistlib.dump(info_plist, f)
@@ -321,7 +335,7 @@ class MacOSDesktop(DesktopIntegration):
                 ])
             )
             plist_data = {
-                "Label": "com.ai-guardian.tray",
+                "Label": "com.itdove.ai-guardian.tray",
                 "ProgramArguments": cmd,
                 "RunAtLoad": True,
                 "KeepAlive": False,
@@ -345,22 +359,28 @@ class MacOSDesktop(DesktopIntegration):
         except OSError:
             return False
 
+    _OLD_PLIST_NAME = "com.ai-guardian.tray.plist"
+
     def uninstall_autostart(self):
-        if not self.plist_path.exists():
-            return False
-        try:
-            subprocess.run(
-                ["launchctl", "unload", str(self.plist_path)],
-                capture_output=True,
-                timeout=5,
-            )
-        except Exception:
-            pass
-        try:
-            self.plist_path.unlink()
-            return True
-        except OSError:
-            return False
+        removed = False
+        for name in (self.PLIST_NAME, self._OLD_PLIST_NAME):
+            path = self.LAUNCHD_DIR / name
+            if not path.exists():
+                continue
+            try:
+                subprocess.run(
+                    ["launchctl", "unload", str(path)],
+                    capture_output=True,
+                    timeout=5,
+                )
+            except Exception:
+                pass
+            try:
+                path.unlink()
+                removed = True
+            except OSError:
+                pass
+        return removed
 
 
 class WindowsDesktop(DesktopIntegration):

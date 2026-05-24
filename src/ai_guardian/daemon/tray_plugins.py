@@ -315,7 +315,13 @@ def show_dialog(title: str, message: str) -> bool:
 
 
 def send_notification(title: str, message: str) -> bool:
-    """Show a system notification. Returns True on success."""
+    """Show a system notification with the AI Guardian icon.
+
+    On macOS the icon comes from the app-level NSApplication icon set at
+    tray startup.  On Linux ``--icon`` is passed to ``notify-send``.
+    On Windows a custom icon is loaded from PNG for the balloon tip.
+    Returns True on success.
+    """
     import subprocess
     system = platform.system()
     try:
@@ -326,14 +332,34 @@ def send_notification(title: str, message: str) -> bool:
             script = f'display notification ("{msg}") with title "{ttl}"'
             subprocess.run(["osascript", "-e", script], timeout=5)
         elif system == "Linux":
-            subprocess.run(["notify-send", title, message], timeout=5)
+            icon_args: list[str] = []
+            png_path = _find_icon("ai-guardian-320.png")
+            if png_path:
+                icon_args = ["--icon", png_path]
+            subprocess.run(
+                ["notify-send"] + icon_args + [title, message], timeout=5,
+            )
         elif system == "Windows":
             ttl = title.replace("'", "''")
             msg = message.replace("'", "''")
+            png_path = _find_icon("ai-guardian-320.png")
+            if png_path:
+                ps_icon_path = png_path.replace("\\", "\\\\").replace("'", "''")
+                icon_line = (
+                    "try { "
+                    f"$bmp = [System.Drawing.Bitmap]::new('{ps_icon_path}'); "
+                    "$n.Icon = [System.Drawing.Icon]::FromHandle($bmp.GetHicon()) "
+                    "} catch { "
+                    "$n.Icon = [System.Drawing.SystemIcons]::Information "
+                    "}; "
+                )
+            else:
+                icon_line = "$n.Icon = [System.Drawing.SystemIcons]::Information; "
             ps = (
                 "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
                 "$n = New-Object System.Windows.Forms.NotifyIcon; "
-                "$n.Icon = [System.Drawing.SystemIcons]::Information; "
+                f"{icon_line}"
                 "$n.Visible = $true; "
                 f"$n.ShowBalloonTip(5000, '{ttl}', '{msg}', 'Info')"
             )
