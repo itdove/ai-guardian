@@ -520,8 +520,10 @@ class TestRunPlatformBranching:
         mock_appkit = mock.MagicMock()
         mock_appkit.NSApplication.sharedApplication.return_value = mock_app
         mock_appkit.NSApplicationActivationPolicyAccessory = 1
+        mock_foundation = mock.MagicMock()
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = {}
         with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": mock_appkit}):
+             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}):
             DaemonTray._ensure_macos_activation_policy()
         mock_app.setActivationPolicy_.assert_called_once_with(1)
 
