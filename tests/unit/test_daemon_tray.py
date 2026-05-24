@@ -866,8 +866,28 @@ class TestUpdateStatusPauseTimer:
         mock_icon = mock.MagicMock()
         tray._icon = mock_icon
         with mock.patch.object(tray, "_create_icon", return_value="fake_img"):
-            tray.update_status("paused")
+            with mock.patch.object(
+                DaemonTray, "_dispatch_to_main",
+                side_effect=lambda func: func(),
+            ):
+                tray.update_status("paused")
         assert mock_icon.icon == "fake_img"
+
+    def test_update_status_dispatches_icon_to_main_thread(self):
+        """Icon update must go through _dispatch_to_main (issue #774)."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._icon = mock.MagicMock()
+        with mock.patch.object(
+            DaemonTray, "_dispatch_to_main"
+        ) as mock_dispatch:
+            tray.update_status("paused")
+            assert mock_dispatch.call_count >= 1
+            first_call_arg = mock_dispatch.call_args_list[0][0][0]
+            assert callable(first_call_arg)
 
 
 class TestSyncPauseState:
