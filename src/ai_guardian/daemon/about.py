@@ -1,6 +1,7 @@
 """Shared About info for daemon, tray, and REST API."""
 
 import platform
+import socket
 import sys
 
 PROJECT_URL = "https://github.com/itdove/ai-guardian"
@@ -38,8 +39,24 @@ def get_about_info() -> dict:
     except Exception:
         pass
 
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = "unknown"
+
+    name = None
+    try:
+        from ai_guardian.config_loaders import _load_config_file
+        cfg, _ = _load_config_file()
+        if cfg:
+            name = cfg.get("name")
+    except Exception:
+        pass
+
     return {
         "version": __version__,
+        "name": name or "ai-guardian",
+        "hostname": hostname,
         "python": py_ver,
         "platform": plat_str,
         "config_path": config_path,
@@ -51,6 +68,16 @@ def get_about_info() -> dict:
 def format_about_text(info: dict) -> str:
     """Format an about info dict into display text."""
     lines = [f"AI Guardian v{info.get('version', 'unknown')}"]
+
+    name = info.get("name")
+    hostname = info.get("hostname")
+    if name and hostname and name != hostname:
+        lines.append(f"Name: {name} ({hostname})")
+    elif name:
+        lines.append(f"Name: {name}")
+    elif hostname:
+        lines.append(f"Host: {hostname}")
+
     lines.append(f"Python: {info.get('python', 'unknown')}")
     lines.append(f"Platform: {info.get('platform', 'unknown')}")
 

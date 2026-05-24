@@ -251,6 +251,69 @@ def dict_to_plugins(data: dict) -> List[Plugin]:
     return plugins
 
 
+def _find_icon(filename: str) -> str:
+    """Find an icon file in the images directory."""
+    from pathlib import Path
+    candidates = [
+        Path(__file__).resolve().parent.parent / "images" / filename,
+        Path(__file__).resolve().parent.parent.parent.parent / "images" / filename,
+    ]
+    try:
+        from importlib.resources import files
+        candidates.insert(0, Path(str(files("ai_guardian") / "images" / filename)))
+    except Exception:
+        pass
+    for p in candidates:
+        if p.exists():
+            return str(p)
+    return ""
+
+
+def show_dialog(title: str, message: str) -> bool:
+    """Show a modal dialog box. Returns True on success.
+
+    Uses platform-native dialogs: AppleScript on macOS, zenity/kdialog
+    on Linux, PowerShell on Windows.
+    """
+    import subprocess
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            msg = message.replace("\\", "\\\\").replace('"', '\\"')
+            ttl = title.replace("\\", "\\\\").replace('"', '\\"')
+            icon_clause = ""
+            icns_path = _find_icon("ai-guardian.icns")
+            if icns_path:
+                icon_clause = f' with icon file (POSIX file "{icns_path}" as alias)'
+            script = (
+                f'display dialog "{msg}" with title "{ttl}" '
+                f'buttons {{"OK"}} default button "OK"{icon_clause}'
+            )
+            subprocess.run(["osascript", "-e", script], timeout=30)
+        elif system == "Linux":
+            icon_args = []
+            png_path = _find_icon("ai-guardian-320.png")
+            if png_path:
+                icon_args = ["--icon-name", png_path]
+            subprocess.run(
+                ["zenity", "--info", "--title", title, "--text", message] + icon_args,
+                timeout=30,
+            )
+        elif system == "Windows":
+            ttl = title.replace("'", "''")
+            msg = message.replace("'", "''")
+            ps = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                f"[System.Windows.Forms.MessageBox]::Show('{msg}', '{ttl}', 'OK', 'Information')"
+            )
+            subprocess.run(["powershell", "-Command", ps], timeout=30)
+        else:
+            return False
+        return True
+    except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
+        return False
+
+
 def send_notification(title: str, message: str) -> bool:
     """Show a system notification. Returns True on success."""
     import subprocess

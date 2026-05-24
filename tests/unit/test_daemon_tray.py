@@ -2054,28 +2054,34 @@ class TestAboutMenuItem:
             text = DaemonTray._build_about_text()
         assert "Scanners: none installed" in text
 
-    def test_on_about_calls_icon_notify(self):
+    def test_on_about_calls_show_dialog(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        mock_icon = mock.MagicMock()
-        tray._icon = mock_icon
-        tray._on_about(mock_icon, mock.MagicMock())
-        mock_icon.notify.assert_called_once()
-        args = mock_icon.notify.call_args[0]
-        assert "AI Guardian v" in args[0]
-        assert args[1] == "AI Guardian"
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(mock.MagicMock(), mock.MagicMock())
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            mock_dialog.assert_called_once()
+            assert mock_dialog.call_args[0][0] == "About AI Guardian"
+            assert "AI Guardian v" in mock_dialog.call_args[0][1]
 
-    def test_on_about_no_error_without_icon(self):
+    def test_on_about_no_error_on_failure(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        tray._icon = None
-        tray._on_about(None, None)  # Should not raise
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog", side_effect=Exception("fail")):
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(None, None)
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()  # Should not raise
 
     def test_about_menu_item_present_in_run(self):
         """About menu item is included in the global menu section."""
@@ -2102,10 +2108,10 @@ class TestAboutMenuItem:
                 if isinstance(call[0][0], str)
             ]
             assert "About" in labels
-            about_idx = labels.index("About")
-            assert "Restart" in labels
-            restart_idx = labels.index("Restart")
-            assert about_idx < restart_idx
+            assert "Quit" in labels
+            quit_idx = labels.index("Quit")
+            last_about_idx = len(labels) - 1 - labels[::-1].index("About")
+            assert last_about_idx > quit_idx
 
     def test_multi_daemon_about_includes_daemon_list(self):
         tray = DaemonTray(
@@ -2121,14 +2127,16 @@ class TestAboutMenuItem:
             ("local", "local"): "1.9.0",
             ("sandbox", "container"): "1.8.0",
         }
-        mock_icon = mock.MagicMock()
-        tray._icon = mock_icon
-        tray._on_about(mock_icon, mock.MagicMock())
-        mock_icon.notify.assert_called_once()
-        text = mock_icon.notify.call_args[0][0]
-        assert "Daemons: 2 connected" in text
-        assert "local v1.9.0" in text
-        assert "sandbox v1.8.0" in text
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(mock.MagicMock(), mock.MagicMock())
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            text = mock_dialog.call_args[0][1]
+            assert "Daemons: 2 connected" in text
+            assert "local v1.9.0" in text
+            assert "sandbox v1.8.0" in text
 
     def test_single_daemon_about_no_daemon_list(self):
         tray = DaemonTray(
@@ -2139,11 +2147,14 @@ class TestAboutMenuItem:
         tray._targets = [
             DaemonTarget(name="local", runtime="local", status="running"),
         ]
-        mock_icon = mock.MagicMock()
-        tray._icon = mock_icon
-        tray._on_about(mock_icon, mock.MagicMock())
-        text = mock_icon.notify.call_args[0][0]
-        assert "Daemons:" not in text
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(mock.MagicMock(), mock.MagicMock())
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            text = mock_dialog.call_args[0][1]
+            assert "Daemons:" not in text
 
     def test_per_daemon_about_calls_multi_client(self):
         mc = mock.MagicMock()
@@ -2160,15 +2171,18 @@ class TestAboutMenuItem:
         )
         target = DaemonTarget(name="sandbox", runtime="container", status="running")
         tray._targets = [target]
-        mock_icon = mock.MagicMock()
-        tray._icon = mock_icon
-        action = tray._on_daemon_about(0)
-        action(None, None)
-        mc.get_about.assert_called_once_with(target)
-        mock_icon.notify.assert_called_once()
-        text = mock_icon.notify.call_args[0][0]
-        assert "AI Guardian v1.8.0" in text
-        assert "Linux" in text
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            action = tray._on_daemon_about(0)
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                action(None, None)
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            mc.get_about.assert_called_once_with(target)
+            mock_dialog.assert_called_once()
+            text = mock_dialog.call_args[0][1]
+            assert "AI Guardian v1.8.0" in text
+            assert "Linux" in text
 
     def test_per_daemon_about_caches_result(self):
         mc = mock.MagicMock()
@@ -2185,11 +2199,19 @@ class TestAboutMenuItem:
         )
         target = DaemonTarget(name="sandbox", runtime="container", status="running")
         tray._targets = [target]
-        tray._icon = mock.MagicMock()
-        action = tray._on_daemon_about(0)
-        action(None, None)
-        action(None, None)
-        mc.get_about.assert_called_once()
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog"):
+            action = tray._on_daemon_about(0)
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                action(None, None)
+                show_fn1 = mock_thread.call_args[1]["target"]
+            show_fn1()
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                action(None, None)
+                show_fn2 = mock_thread.call_args[1]["target"]
+            show_fn2()
+            mc.get_about.assert_called_once()
 
     def test_multi_daemon_submenu_includes_about(self):
         mc = mock.MagicMock()

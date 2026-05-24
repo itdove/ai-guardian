@@ -317,9 +317,10 @@ class DaemonTray:
             *self._build_multi_daemon_menu_items(),
             pystray.Menu.SEPARATOR,
             *self._build_ide_setup_menu_items(),
-            pystray.MenuItem("About", self._on_about),
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("About", self._on_about),
         )
         self._icon = pystray.Icon(
             "ai-guardian", self._create_icon(), "AI Guardian Tray", menu
@@ -737,37 +738,41 @@ class DaemonTray:
         return format_about_text(get_about_info())
 
     def _on_about(self, icon, item):
-        """Show About info via pystray notification."""
-        try:
-            text = self._build_about_text()
-            if self._is_multi_daemon():
-                text += self._format_daemon_list()
-            if self._icon:
-                self._icon.notify(text, "AI Guardian")
-        except Exception:
-            pass
+        """Show About info via OS dialog."""
+        def _show():
+            try:
+                from ai_guardian.daemon.tray_plugins import show_dialog
+                text = self._build_about_text()
+                if self._is_multi_daemon():
+                    text += self._format_daemon_list()
+                show_dialog("About AI Guardian", text)
+            except Exception:
+                pass
+        threading.Thread(target=_show, daemon=True, name="about-dialog").start()
 
     def _on_daemon_about(self, slot):
-        """Show About info for a specific daemon via pystray notification."""
+        """Show About info for a specific daemon via OS dialog."""
         def action(_, __):
             if slot >= len(self._targets):
                 return
             target = self._targets[slot]
-            try:
-                info = self._daemon_about_cache.get(slot)
-                if info is None and self._multi_client:
-                    info = self._multi_client.get_about(target)
+            def _show():
+                try:
+                    from ai_guardian.daemon.tray_plugins import show_dialog
+                    info = self._daemon_about_cache.get(slot)
+                    if info is None and self._multi_client:
+                        info = self._multi_client.get_about(target)
+                        if info:
+                            self._daemon_about_cache[slot] = info
                     if info:
-                        self._daemon_about_cache[slot] = info
-                if info:
-                    from ai_guardian.daemon.about import format_about_text
-                    text = format_about_text(info)
-                else:
-                    text = self._build_about_text()
-                if self._icon:
-                    self._icon.notify(text, target.name)
-            except Exception:
-                pass
+                        from ai_guardian.daemon.about import format_about_text
+                        text = format_about_text(info)
+                    else:
+                        text = self._build_about_text()
+                    show_dialog(f"About {target.name}", text)
+                except Exception:
+                    pass
+            threading.Thread(target=_show, daemon=True, name="daemon-about-dialog").start()
         return action
 
     def _format_daemon_list(self):
@@ -1700,7 +1705,6 @@ class DaemonTray:
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem("Shell", _mk_open_shell()),
                         pystray.MenuItem("Doctor", _mk_doctor()),
-                        pystray.MenuItem("About", self._on_daemon_about(idx)),
                         pystray.Menu.SEPARATOR,
                         *multi_plugin_items,
                         pystray.Menu.SEPARATOR,
@@ -1742,6 +1746,8 @@ class DaemonTray:
                             "Restart daemon", _mk_restart(),
                             visible=_is_slot_running,
                         ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem("About", self._on_daemon_about(idx)),
                     ),
                     visible=make_visible,
                 )
