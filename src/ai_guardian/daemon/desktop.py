@@ -285,8 +285,15 @@ class MacOSDesktop(DesktopIntegration):
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
             icns_path = self._find_icns()
+            icon_file = None
             if icns_path:
                 shutil.copy2(str(icns_path), str(resources_dir / "ai-guardian.icns"))
+                icon_file = "ai-guardian.icns"
+            else:
+                fallback = _prepare_icon()
+                if fallback:
+                    shutil.copy2(str(fallback), str(resources_dir / "icon.png"))
+                    icon_file = "icon.png"
 
             import plistlib
             info_plist = {
@@ -299,8 +306,8 @@ class MacOSDesktop(DesktopIntegration):
                 "LSUIElement": True,
                 "NSPrincipalClass": "NSApplication",
             }
-            if icns_path:
-                info_plist["CFBundleIconFile"] = "ai-guardian.icns"
+            if icon_file:
+                info_plist["CFBundleIconFile"] = icon_file
 
             with open(contents / "Info.plist", "wb") as f:
                 plistlib.dump(info_plist, f)
@@ -352,22 +359,28 @@ class MacOSDesktop(DesktopIntegration):
         except OSError:
             return False
 
+    _OLD_PLIST_NAME = "com.ai-guardian.tray.plist"
+
     def uninstall_autostart(self):
-        if not self.plist_path.exists():
-            return False
-        try:
-            subprocess.run(
-                ["launchctl", "unload", str(self.plist_path)],
-                capture_output=True,
-                timeout=5,
-            )
-        except Exception:
-            pass
-        try:
-            self.plist_path.unlink()
-            return True
-        except OSError:
-            return False
+        removed = False
+        for name in (self.PLIST_NAME, self._OLD_PLIST_NAME):
+            path = self.LAUNCHD_DIR / name
+            if not path.exists():
+                continue
+            try:
+                subprocess.run(
+                    ["launchctl", "unload", str(path)],
+                    capture_output=True,
+                    timeout=5,
+                )
+            except Exception:
+                pass
+            try:
+                path.unlink()
+                removed = True
+            except OSError:
+                pass
+        return removed
 
 
 class WindowsDesktop(DesktopIntegration):

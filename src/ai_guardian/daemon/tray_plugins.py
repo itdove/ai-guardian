@@ -344,7 +344,7 @@ def send_notification(title: str, message: str) -> bool:
             msg = message.replace("'", "''")
             png_path = _find_icon("ai-guardian-320.png")
             if png_path:
-                ps_icon_path = png_path.replace("\\", "\\\\")
+                ps_icon_path = png_path.replace("\\", "\\\\").replace("'", "''")
                 icon_line = (
                     "try { "
                     f"$bmp = [System.Drawing.Bitmap]::new('{ps_icon_path}'); "
