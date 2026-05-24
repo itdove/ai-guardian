@@ -6,6 +6,11 @@ secret scanning, PII detection, violation logging, transcript scanning,
 and the main process_hook_data() entry point.
 """
 
+try:
+    import fcntl
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
 import fnmatch
 import glob
 import hashlib
@@ -817,6 +822,62 @@ def _save_transcript_positions(positions: Dict[str, int]) -> None:
             json.dump(pruned, f)
     except Exception as e:
         logging.debug(f"Failed to save transcript positions: {e}")
+
+
+def _advance_transcript_position(hook_data: dict) -> None:
+    """Advance transcript position to current file size after PostToolUse.
+
+    Prevents stale warnings when the next session rescans unscanned tail bytes.
+    Only advances entries that scan_transcript_incremental has already
+    initialized — never creates new entries, so the first-scan skip logic
+    in scan_transcript_incremental is preserved.
+
+    Uses file locking (where available) for atomic read-modify-write to
+    prevent concurrent sessions from clobbering each other's updates.
+
+    Skips file-existence pruning to avoid discarding valid entries when
+    the transcript is transiently unavailable (e.g. NFS).
+    """
+    transcript_path = _get_transcript_path(hook_data)
+    if not transcript_path:
+        return
+    try:
+        file_size = os.path.getsize(transcript_path)
+    except OSError:
+        return
+
+    state_dir = get_state_dir()
+    pos_file = state_dir / "transcript_positions.json"
+    lock_file = state_dir / "transcript_positions.lock"
+
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        with open(lock_file, 'w') as lf:
+            if _HAS_FCNTL:
+                fcntl.flock(lf, fcntl.LOCK_EX)
+            try:
+                positions = {}
+                try:
+                    with open(pos_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    if isinstance(data, dict):
+                        positions = data
+                except (FileNotFoundError, json.JSONDecodeError):
+                    pass
+
+                if transcript_path not in positions:
+                    return
+
+                old_pos = positions[transcript_path]
+                if file_size > old_pos:
+                    positions[transcript_path] = file_size
+                    with open(pos_file, 'w', encoding='utf-8') as f:
+                        json.dump(positions, f)
+            finally:
+                if _HAS_FCNTL:
+                    fcntl.flock(lf, fcntl.LOCK_UN)
+    except OSError as e:
+        logging.debug(f"Failed to advance transcript position: {e}")
 
 
 def _load_seen_findings() -> Dict[str, Dict[str, str]]:
@@ -2669,6 +2730,10 @@ def process_hook_data(hook_data, daemon_state=None):
                 logging.debug(f"Security instructions config load failed (non-fatal): {e}")
 
         # Handle PostToolUse event - scan tool output before sending to AI
+        # Note: PreToolUse does NOT need _advance_transcript_position because
+        # every allowed PreToolUse is followed by a PostToolUse that advances
+        # past both the PreToolUse and PostToolUse content.  Blocked PreToolUse
+        # events add minimal content that is deduplicated on rescan.
         if hook_event == HookEvent.POST_TOOL_USE:
             logging.info("Processing PostToolUse hook...")
 
@@ -2678,6 +2743,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if tool_output is None:
                 # No output to scan - allow
+                _advance_transcript_position(hook_data)
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             # Create composite tool identifier for more granular ignore patterns
@@ -2765,6 +2831,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 default=True
             ):
                 logging.info("Secret scanning is disabled - skipping PostToolUse scan")
+                _advance_transcript_position(hook_data)
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
             ignore_files = secret_config.get("ignore_files", []) if secret_config else []
@@ -2810,6 +2877,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if not has_secrets and error_message:
                 # Scanner not available - display warning but allow operation
+                _advance_transcript_position(hook_data)
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                      warning_message=error_message)
 
@@ -2825,6 +2893,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                          error_message=error_message,
                                          hook_event=hook_event,
                                          violation_type=ViolationType.SECRET_DETECTED)
+                    _advance_transcript_position(hook_data)
                     return result
 
                 # Determine action mode (always redact when secrets detected)
@@ -2917,6 +2986,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                              warning_message=warning_msg, modified_output=redacted_text)
                         result["_warning"] = True
                         result["_violation_type"] = ViolationType.SECRET_REDACTION
+                        _advance_transcript_position(hook_data)
                         return result
 
                     except Exception as redact_error:
@@ -2929,6 +2999,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                              error_message=error_message,
                                              hook_event=hook_event,
                                              violation_type=ViolationType.SECRET_REDACTION)
+                        _advance_transcript_position(hook_data)
                         return result
                 else:
                     # Redaction disabled - block to prevent secrets from reaching AI model
@@ -2939,6 +3010,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                          error_message=error_message,
                                          hook_event=hook_event,
                                          violation_type=ViolationType.SECRET_DETECTED)
+                    _advance_transcript_position(hook_data)
                     return result
 
             logging.info(f"✓ No secrets detected in {tool_identifier} output")
@@ -2973,6 +3045,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                              error_message=pii_warning,
                                              violation_type=ViolationType.PII_DETECTED)
+                        _advance_transcript_position(hook_data)
                         return result
 
                     if has_pii and pii_redactions:
@@ -2995,6 +3068,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
                                                  error_message=pii_warning,
                                                  violation_type=ViolationType.PII_DETECTED)
+                            _advance_transcript_position(hook_data)
                             return result
                         elif pii_action == 'redact':
                             # Restore original content on annotation-suppressed lines
@@ -3009,22 +3083,27 @@ def process_hook_data(hook_data, daemon_state=None):
                                                  warning_message=pii_warning, modified_output=redacted_text)
                             result["_warning"] = True
                             result["_violation_type"] = ViolationType.PII_DETECTED
+                            _advance_transcript_position(hook_data)
                             return result
                         elif pii_action == 'warn':
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                                  warning_message=pii_warning)
                             result["_warning"] = True
                             result["_violation_type"] = ViolationType.PII_DETECTED
+                            _advance_transcript_position(hook_data)
                             return result
                         elif pii_action == 'log-only':
                             result = format_response(ide_type, has_secrets=False, hook_event=hook_event)
                             result["_log_only"] = 1
                             result["_violation_type"] = ViolationType.PII_DETECTED
+                            _advance_transcript_position(hook_data)
                             return result
                         else:
                             logging.warning(f"Unknown PII action '{pii_action}', allowing through")
+                            _advance_transcript_position(hook_data)
                             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
+            _advance_transcript_position(hook_data)
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
@@ -3618,6 +3697,13 @@ def process_hook_data(hook_data, daemon_state=None):
         logging.error(f"Unexpected error processing hook data: {e}")
         import traceback
         logging.error(traceback.format_exc())
+        # Best-effort position advance so PostToolUse exceptions don't leave
+        # the transcript position stale for the next session.
+        try:
+            if hook_event == HookEvent.POST_TOOL_USE:
+                _advance_transcript_position(hook_data)
+        except Exception:
+            pass
         # Fail-open: allow operation on errors
         return {"output": None, "exit_code": 0}
 

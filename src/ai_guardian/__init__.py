@@ -133,6 +133,7 @@ from ai_guardian.hook_processing import (  # noqa: F401
     _should_skip_pii_scan,
     _build_directory_denied_message,
     extract_file_content_from_tool,
+    _advance_transcript_position,
     _get_transcript_path,
     _load_transcript_positions,
     _save_transcript_positions,
