@@ -279,7 +279,9 @@ class DaemonTray:
         self._status = status
         self._invalidate_discovery_frames()
         if self._icon:
-            self._icon.icon = self._create_icon()
+            self._dispatch_to_main(
+                lambda: setattr(self._icon, 'icon', self._create_icon())
+            )
         if status == "paused" and prev != "paused":
             self._start_pause_timer()
         elif status != "paused" and prev == "paused":
