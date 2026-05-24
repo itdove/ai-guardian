@@ -237,7 +237,7 @@ class MacOSDesktop(DesktopIntegration):
     APP_DIR = Path("~/Applications").expanduser()
     APP_NAME = "AI Guardian Tray.app"
     LAUNCHD_DIR = Path("~/Library/LaunchAgents").expanduser()
-    PLIST_NAME = "com.ai-guardian.tray.plist"
+    PLIST_NAME = "com.itdove.ai-guardian.tray.plist"
 
     @property
     def app_path(self):
@@ -252,6 +252,13 @@ class MacOSDesktop(DesktopIntegration):
 
     def autostart_exists(self):
         return self.plist_path.exists()
+
+    @staticmethod
+    def _find_icns():
+        """Find the ai-guardian.icns file for the .app bundle."""
+        from ai_guardian.daemon.tray_plugins import _find_icon
+        path = _find_icon("ai-guardian.icns")
+        return path if path else None
 
     def install_shortcut(self):
         try:
@@ -277,23 +284,23 @@ class MacOSDesktop(DesktopIntegration):
             )
             script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-            icon_path = _prepare_icon()
-            if icon_path:
-                shutil.copy2(str(icon_path), str(resources_dir / "icon.png"))
+            icns_path = self._find_icns()
+            if icns_path:
+                shutil.copy2(str(icns_path), str(resources_dir / "ai-guardian.icns"))
 
             import plistlib
             info_plist = {
                 "CFBundleName": "AI Guardian Tray",
                 "CFBundleDisplayName": "AI Guardian Tray",
-                "CFBundleIdentifier": "com.ai-guardian.tray",
+                "CFBundleIdentifier": "com.itdove.ai-guardian.tray",
                 "CFBundleVersion": "1.0",
                 "CFBundlePackageType": "APPL",
                 "CFBundleExecutable": "ai-guardian-tray",
                 "LSUIElement": True,
                 "NSPrincipalClass": "NSApplication",
             }
-            if icon_path:
-                info_plist["CFBundleIconFile"] = "icon.png"
+            if icns_path:
+                info_plist["CFBundleIconFile"] = "ai-guardian.icns"
 
             with open(contents / "Info.plist", "wb") as f:
                 plistlib.dump(info_plist, f)
@@ -321,7 +328,7 @@ class MacOSDesktop(DesktopIntegration):
                 ])
             )
             plist_data = {
-                "Label": "com.ai-guardian.tray",
+                "Label": "com.itdove.ai-guardian.tray",
                 "ProgramArguments": cmd,
                 "RunAtLoad": True,
                 "KeepAlive": False,

@@ -306,14 +306,14 @@ class TestMacOSDesktop:
         assert plist["NSPrincipalClass"] == "NSApplication"
 
     def test_install_shortcut_copies_icon(self, macos, tmp_path):
-        icon = tmp_path / "icon.png"
-        icon.write_bytes(b"PNG_DATA")
+        icon = tmp_path / "ai-guardian.icns"
+        icon.write_bytes(b"ICNS_DATA")
         with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
                         return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=icon):
+            with mock.patch.object(MacOSDesktop, "_find_icns", return_value=str(icon)):
                 macos.install_shortcut()
 
-        resources_icon = macos.app_path / "Contents" / "Resources" / "icon.png"
+        resources_icon = macos.app_path / "Contents" / "Resources" / "ai-guardian.icns"
         assert resources_icon.exists()
 
     def test_shortcut_exists_true_after_install(self, macos):
@@ -343,7 +343,7 @@ class TestMacOSDesktop:
             plist = plistlib.load(f)
 
         assert plist["RunAtLoad"] is True
-        assert plist["Label"] == "com.ai-guardian.tray"
+        assert plist["Label"] == "com.itdove.ai-guardian.tray"
 
     def test_plist_has_correct_program_arguments(self, macos):
         import plistlib
