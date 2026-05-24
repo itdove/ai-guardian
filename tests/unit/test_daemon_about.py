@@ -1,0 +1,111 @@
+"""Tests for shared about info module."""
+
+from unittest import mock
+
+from ai_guardian.daemon.about import get_about_info, format_about_text, PROJECT_URL
+
+
+class TestGetAboutInfo:
+    def test_returns_dict_with_required_keys(self):
+        info = get_about_info()
+        assert isinstance(info, dict)
+        assert "version" in info
+        assert "python" in info
+        assert "platform" in info
+        assert "config_path" in info
+        assert "scanners" in info
+        assert "url" in info
+
+    def test_version_is_string(self):
+        info = get_about_info()
+        assert isinstance(info["version"], str)
+        assert info["version"] != ""
+
+    def test_python_version_format(self):
+        import sys
+        info = get_about_info()
+        expected = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        assert info["python"] == expected
+
+    def test_platform_is_string(self):
+        info = get_about_info()
+        assert isinstance(info["platform"], str)
+        assert len(info["platform"]) > 0
+
+    def test_scanners_is_list(self):
+        info = get_about_info()
+        assert isinstance(info["scanners"], list)
+
+    def test_url_is_project_url(self):
+        info = get_about_info()
+        assert info["url"] == PROJECT_URL
+
+    def test_scanner_entries_have_name_and_version(self):
+        from ai_guardian.scanner_manager import InstalledScanner
+        fake = [InstalledScanner(name="gitleaks", version="8.30.1",
+                                 path="/usr/bin/gitleaks", is_default=True)]
+        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_installed",
+                        return_value=fake):
+            info = get_about_info()
+        assert len(info["scanners"]) >= 1
+        assert info["scanners"][0]["name"] == "gitleaks"
+        assert info["scanners"][0]["version"] == "8.30.1"
+
+
+class TestFormatAboutText:
+    def test_contains_version(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "macOS 26.5 arm64", "config_path": "/tmp/cfg",
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "AI Guardian v1.9.0" in text
+
+    def test_contains_python(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "Linux 5.15 x86_64", "config_path": None,
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "Python: 3.12.11" in text
+
+    def test_contains_platform(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "Linux 5.15 x86_64", "config_path": None,
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "Platform: Linux 5.15 x86_64" in text
+
+    def test_contains_config_path(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "macOS", "config_path": "/home/user/.config/ai-guardian/ai-guardian.json",
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "Config: /home/user/.config/ai-guardian/ai-guardian.json" in text
+
+    def test_no_config_when_none(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "macOS", "config_path": None,
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "Config:" not in text
+
+    def test_contains_scanners(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "macOS", "config_path": None,
+                "scanners": [{"name": "gitleaks", "version": "8.30.1"}],
+                "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "gitleaks 8.30.1" in text
+
+    def test_no_scanners(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "macOS", "config_path": None,
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert "Scanners: none installed" in text
+
+    def test_contains_url(self):
+        info = {"version": "1.9.0", "python": "3.12.11",
+                "platform": "macOS", "config_path": None,
+                "scanners": [], "url": PROJECT_URL}
+        text = format_about_text(info)
+        assert PROJECT_URL in text

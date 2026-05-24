@@ -200,6 +200,9 @@ class DaemonTray:
         self._daemon_plugins = {}
         self._last_plugins_hash = {}
         self._config_error_notified = False
+        self._version_mismatch_notified = set()
+        self._daemon_versions = {}
+        self._daemon_about_cache = {}
         self._discovery_animating = False
         self._discovery_anim_stop = threading.Event()
         self._discovery_timer = None
@@ -314,6 +317,7 @@ class DaemonTray:
             *self._build_multi_daemon_menu_items(),
             pystray.Menu.SEPARATOR,
             *self._build_ide_setup_menu_items(),
+            pystray.MenuItem("About", self._on_about),
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
         )
@@ -727,6 +731,63 @@ class DaemonTray:
         _launch_in_terminal(DaemonTray._resolve_cli_cmd("doctor"), keep_open=True)
 
     @staticmethod
+    def _build_about_text():
+        """Build the About dialog text with tray process info."""
+        from ai_guardian.daemon.about import get_about_info, format_about_text
+        return format_about_text(get_about_info())
+
+    def _on_about(self, icon, item):
+        """Show About info via pystray notification."""
+        try:
+            text = self._build_about_text()
+            if self._is_multi_daemon():
+                text += self._format_daemon_list()
+            if self._icon:
+                self._icon.notify(text, "AI Guardian")
+        except Exception:
+            pass
+
+    def _on_daemon_about(self, slot):
+        """Show About info for a specific daemon via pystray notification."""
+        def action(_, __):
+            if slot >= len(self._targets):
+                return
+            target = self._targets[slot]
+            try:
+                info = self._daemon_about_cache.get(slot)
+                if info is None and self._multi_client:
+                    info = self._multi_client.get_about(target)
+                    if info:
+                        self._daemon_about_cache[slot] = info
+                if info:
+                    from ai_guardian.daemon.about import format_about_text
+                    text = format_about_text(info)
+                else:
+                    text = self._build_about_text()
+                if self._icon:
+                    self._icon.notify(text, target.name)
+            except Exception:
+                pass
+        return action
+
+    def _format_daemon_list(self):
+        """Format connected daemons list for multi-daemon About."""
+        if not self._targets:
+            return ""
+        lines = [f"\nDaemons: {len(self._targets)} connected"]
+        for target in self._targets:
+            key = (target.name, target.runtime)
+            ver = self._daemon_versions.get(key, "?")
+            icon = {"running": "●", "paused": "◐", "stopped": "⚠"}.get(
+                target.status, "○"
+            )
+            suffix = ""
+            if key in self._version_mismatch_notified:
+                suffix = " ⟳"
+            lines.append(f"  {icon} {target.name} v{ver}{suffix}")
+        return "\n".join(lines)
+
+    @staticmethod
     def _launch_ide_setup(ide_key):
         """Launch ai-guardian setup --ide <name> in a new terminal window."""
         from ai_guardian.daemon.multi_client import _launch_in_terminal
@@ -859,6 +920,70 @@ class DaemonTray:
         except Exception:
             pass
 
+    @staticmethod
+    def _parse_version_tuple(version_str):
+        """Parse version string into (major, minor, patch) tuple.
+
+        Handles formats like '1.9.0', 'v1.9.0', '1.9.0-dev'.
+        Returns None if parsing fails.
+        """
+        import re
+        if not version_str or version_str == "unknown":
+            return None
+        match = re.match(r'v?(\d+)\.(\d+)\.(\d+)', version_str)
+        if match:
+            return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        return None
+
+    def _check_version_mismatch(self):
+        """Check each daemon's version against the tray version and warn on mismatch."""
+        try:
+            from ai_guardian import __version__ as tray_version
+        except ImportError:
+            return
+
+        tray_tuple = self._parse_version_tuple(tray_version)
+        if tray_tuple is None:
+            return
+
+        for target in self._targets:
+            if target.status not in ("running", "paused"):
+                continue
+            key = (target.name, target.runtime)
+            daemon_version = self._daemon_versions.get(key)
+            if daemon_version is None:
+                continue
+
+            daemon_tuple = self._parse_version_tuple(daemon_version)
+            if daemon_tuple is None:
+                continue
+
+            if daemon_tuple < tray_tuple:
+                if key not in self._version_mismatch_notified:
+                    self._version_mismatch_notified.add(key)
+                    name = target.name
+                    threading.Thread(
+                        target=self._send_version_mismatch_notification,
+                        args=(name, daemon_version, tray_version),
+                        daemon=True,
+                        name="version-mismatch-notify",
+                    ).start()
+            elif key in self._version_mismatch_notified:
+                self._version_mismatch_notified.discard(key)
+
+    @staticmethod
+    def _send_version_mismatch_notification(daemon_name, daemon_version, tray_version):
+        """Send version mismatch OS notification (runs in background thread)."""
+        try:
+            from ai_guardian.daemon.tray_plugins import send_notification
+            send_notification(
+                "AI Guardian",
+                f"Daemon '{daemon_name}' is running v{daemon_version} — "
+                f"upgrade to v{tray_version} recommended",
+            )
+        except Exception:
+            pass
+
     def _update_global_pause_status(self):
         """Set tray icon to paused only when ALL daemons are paused."""
         if not self._targets:
@@ -943,6 +1068,7 @@ class DaemonTray:
                 if self._stats_refresh_running and self._icon:
                     self._dispatch_to_main(self._sync_pause_state)
                     self._check_config_error_notification()
+                    self._check_version_mismatch()
                     self._poll_plugins()
                     self._request_discovery_refresh(wait=False)
                     self._dispatch_to_main(self._refresh_menu)
@@ -1051,6 +1177,16 @@ class DaemonTray:
             label += " — daemon not running"
         return label
 
+    def _version_annotated_label(self, target):
+        """Format daemon label with version mismatch indicator if needed."""
+        label = self._daemon_status_label(target)
+        key = (target.name, target.runtime)
+        if key in self._version_mismatch_notified:
+            daemon_ver = self._daemon_versions.get(key, "")
+            if daemon_ver:
+                label += f" — v{daemon_ver} ⟳"
+        return label
+
     def _build_single_daemon_menu_items(self):
         """Build flat menu items for single-daemon mode.
 
@@ -1074,7 +1210,7 @@ class DaemonTray:
         def _header_label(_item):
             if not self._targets:
                 return ""
-            return self._daemon_status_label(self._targets[0])
+            return self._version_annotated_label(self._targets[0])
 
         def _open_panel(panel=None):
             def action(_, __):
@@ -1152,9 +1288,12 @@ class DaemonTray:
             else:
                 _cache["stats"] = self._get_stats()
             stats = _cache["stats"]
-            if stats and "mcp_installed" in stats:
+            if stats:
                 key = (target.name, target.runtime)
-                self._mcp_installed_per_daemon[key] = stats["mcp_installed"]
+                if "mcp_installed" in stats:
+                    self._mcp_installed_per_daemon[key] = stats["mcp_installed"]
+                if "version" in stats:
+                    self._daemon_versions[key] = stats["version"]
             _cache["time"] = now
             return stats
 
@@ -1335,7 +1474,7 @@ class DaemonTray:
             def make_label(_item, slot=idx):
                 if slot >= len(self._targets):
                     return ""
-                return self._daemon_status_label(self._targets[slot])
+                return self._version_annotated_label(self._targets[slot])
 
             def make_visible(_item, slot=idx):
                 return self._is_multi_daemon() and slot < len(self._targets)
@@ -1427,9 +1566,12 @@ class DaemonTray:
                     else:
                         _cache["stats"] = self._get_stats()
                     stats = _cache["stats"]
-                    if stats and "mcp_installed" in stats:
+                    if stats:
                         key = (target.name, target.runtime)
-                        self._mcp_installed_per_daemon[key] = stats["mcp_installed"]
+                        if "mcp_installed" in stats:
+                            self._mcp_installed_per_daemon[key] = stats["mcp_installed"]
+                        if "version" in stats:
+                            self._daemon_versions[key] = stats["version"]
                     _cache["time"] = now
                     return stats
 
@@ -1558,6 +1700,7 @@ class DaemonTray:
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem("Shell", _mk_open_shell()),
                         pystray.MenuItem("Doctor", _mk_doctor()),
+                        pystray.MenuItem("About", self._on_daemon_about(idx)),
                         pystray.Menu.SEPARATOR,
                         *multi_plugin_items,
                         pystray.Menu.SEPARATOR,

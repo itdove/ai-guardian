@@ -336,6 +336,38 @@ See [RELEASING.md](RELEASING.md) for detailed instructions, or use the `/release
 
 ---
 
+## REST API & Version Compatibility
+
+### Backward Compatibility Contract
+
+The system tray is the controlling component and connects to daemons across local, container, and Kubernetes runtimes. The tray version MUST always be >= every connected daemon's version. The tray detects version mismatches and warns the user to upgrade outdated daemons.
+
+**Rules for contributors:**
+
+1. **Tray must tolerate missing fields.** Use defensive `.get(key, default)` when reading daemon API responses — older daemons may not return newer fields (e.g., `stats.get("mcp_installed", False)`).
+
+2. **Never remove or rename existing API fields.** Adding new fields is safe; removing or renaming breaks older trays connecting to newer daemons.
+
+3. **Never change field semantics.** A field's type and meaning must remain stable across versions.
+
+4. **New endpoints are safe.** Older trays will never call endpoints they don't know about.
+
+5. **Test with older daemon versions.** When adding new tray features that depend on new API fields, verify the tray still works when the field is absent.
+
+### REST API Endpoints
+
+| Endpoint | Method | Key Response Fields |
+|----------|--------|---------------------|
+| `/api/health` | GET | `status` |
+| `/api/status` | GET | `running`, `paused`, `uptime_seconds`, `version`, `name`, `mcp_installed` |
+| `/api/stats` | GET | All fields from `DaemonState.get_stats()` + `name` |
+| `/api/pause` | POST | `status`, `minutes` (requires auth token) |
+| `/api/resume` | POST | `status` (requires auth token) |
+| `/api/reload` | POST | `status` (requires auth token) |
+| `/api/tray-plugins` | GET | `plugins` array |
+
+---
+
 ## Code Quality
 
 ### Linting

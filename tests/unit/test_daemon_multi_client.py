@@ -491,6 +491,37 @@ class TestGetPlugins:
         assert result is None
 
 
+class TestGetAbout:
+    """Tests for get_about() routing (issue #766)."""
+
+    @mock.patch.object(MultiDaemonClient, "_local_about")
+    def test_local_target_calls_local_about(self, mock_local):
+        mock_local.return_value = {"version": "1.9.0", "python": "3.12.11"}
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.get_about(target)
+        assert result["version"] == "1.9.0"
+        mock_local.assert_called_once()
+
+    @mock.patch.object(MultiDaemonClient, "_rest_request")
+    def test_container_target_uses_rest(self, mock_rest):
+        mock_rest.return_value = {"version": "1.8.0"}
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="sandbox", runtime="container",
+            container_engine="podman", container_id="abc123def456",
+            host="127.0.0.1", port=63152,
+        )
+        result = client.get_about(target)
+        mock_rest.assert_called_once_with(target, "GET", "/api/about")
+
+    def test_local_about_returns_dict(self):
+        result = MultiDaemonClient._local_about()
+        assert isinstance(result, dict)
+        assert "version" in result
+        assert "python" in result
+
+
 class TestLaunchInTerminalErrorHandling:
     """Tests for terminal launch error handling (issue #754)."""
 

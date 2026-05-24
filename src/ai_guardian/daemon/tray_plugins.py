@@ -258,8 +258,9 @@ def send_notification(title: str, message: str) -> bool:
     try:
         if system == "Darwin":
             msg = message.replace("\\", "\\\\").replace('"', '\\"')
+            msg = msg.replace("\n", '" & return & "')
             ttl = title.replace("\\", "\\\\").replace('"', '\\"')
-            script = f'display notification "{msg}" with title "{ttl}"'
+            script = f'display notification ("{msg}") with title "{ttl}"'
             subprocess.run(["osascript", "-e", script], timeout=5)
         elif system == "Linux":
             subprocess.run(["notify-send", title, message], timeout=5)

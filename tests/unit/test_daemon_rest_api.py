@@ -21,6 +21,7 @@ class MockDaemonState:
 
     def get_stats(self):
         return {
+            "version": "1.9.0-dev",
             "request_count": 42,
             "blocked_count": 3,
             "paused": self._paused,
@@ -90,6 +91,25 @@ class TestRestAPIEndpoints:
             data = json.loads(resp.read())
         assert "mcp_installed" in data
         assert data["mcp_installed"] is False
+
+    def test_stats_includes_version(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/stats"
+        with urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "version" in data
+        assert isinstance(data["version"], str)
+
+    def test_about_endpoint(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/about"
+        with urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "version" in data
+        assert "python" in data
+        assert "platform" in data
+        assert "scanners" in data
+        assert "url" in data
 
     def test_post_pause(self, rest_api):
         api, port, state = rest_api

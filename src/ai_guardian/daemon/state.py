@@ -559,6 +559,7 @@ class DaemonState:
                 )
 
             return {
+                "version": self._get_version(),
                 "uptime_seconds": uptime,
                 "request_count": self._request_count,
                 "blocked_count": self._blocked_count,
@@ -583,6 +584,14 @@ class DaemonState:
                 "config_error": self._config_error,
                 "mcp_installed": self._mcp_installed,
             }
+
+    @staticmethod
+    def _get_version():
+        try:
+            from ai_guardian import __version__
+            return __version__
+        except ImportError:
+            return "unknown"
 
     def get_config_error(self):
         """Get current config error message, if any."""
