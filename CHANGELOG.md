@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`daemon status` and `daemon stop` no longer cause daemon auto-restart** (Issue #775)
+  - `daemon stop` writes a stop-requested marker that suppresses auto-start
+  - `start_daemon_background()` respects the marker as a final guard
+  - `daemon start` clears the marker so auto-start resumes after explicit start
+  - Prevents background CLI invocations from restarting a stopped daemon
+
 ### Changed
 
 - **README install section warns against installing from main branch** (Issue #755)

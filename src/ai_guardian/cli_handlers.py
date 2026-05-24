@@ -209,6 +209,16 @@ def _handle_daemon_command(args):
     cmd = getattr(args, "daemon_command", None)
 
     if cmd == "start":
+        # Clear stop-requested marker so auto-start resumes (#775)
+        try:
+            from ai_guardian.daemon import get_state_dir
+            marker = get_state_dir() / "daemon.stop-requested"
+            if marker.exists():
+                marker.unlink(missing_ok=True)
+                logging.info("Cleared stop-requested marker (explicit daemon start)")
+        except OSError:
+            pass
+
         if args.background:
             from ai_guardian.daemon.client import start_daemon_background
 
@@ -234,7 +244,15 @@ def _handle_daemon_command(args):
 
     elif cmd == "stop":
         from ai_guardian.daemon.client import is_daemon_running, send_shutdown
-        from ai_guardian.daemon import get_pid_path
+        from ai_guardian.daemon import get_pid_path, get_state_dir
+
+        # Write stop-requested marker so auto-start is suppressed briefly
+        try:
+            marker = get_state_dir() / "daemon.stop-requested"
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+        except OSError:
+            pass
 
         if not is_daemon_running():
             # Clean up stale lock file even when daemon isn't running

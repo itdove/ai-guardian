@@ -41,9 +41,27 @@ from ai_guardian.cli_handlers import (
 logger = logging.getLogger(__name__)
 
 
+def _is_stop_requested():
+    """Check if daemon was explicitly stopped and should not be auto-started.
+
+    The marker is written by ``daemon stop`` and cleared by ``daemon start``.
+    """
+    try:
+        from ai_guardian.daemon import get_state_dir
+        marker = get_state_dir() / "daemon.stop-requested"
+        return marker.exists()
+    except Exception:
+        pass
+    return False
+
+
 def _ensure_daemon_started():
     """Auto-start daemon if not running. Silent — no output on success or failure."""
     try:
+        if _is_stop_requested():
+            logging.debug("Skipping daemon auto-start: recent stop requested")
+            return
+
         from ai_guardian.daemon.client import is_daemon_running, start_daemon_background
         if not is_daemon_running():
             start_daemon_background()
@@ -1297,7 +1315,7 @@ def main():
         hook_data = json.loads(stdin_content)
 
         running = is_daemon_running()
-        if not running:
+        if not running and not _is_stop_requested():
             logging.info("Daemon not running, starting...")
             running = start_daemon_background()
 

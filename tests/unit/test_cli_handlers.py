@@ -128,6 +128,44 @@ class TestDaemonStatusCommand:
         assert "cleaned up stale PID file" in output
 
 
+class TestDaemonStopCommand:
+    """Issue #775: daemon stop must not auto-start and must report not running."""
+
+    def test_stop_not_running(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        args = mock.MagicMock()
+        args.daemon_command = "stop"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+            result = _handle_daemon_command(args)
+
+        assert result == 0
+        assert "not running" in capsys.readouterr().out
+
+    def test_stop_not_running_does_not_start_daemon(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        args = mock.MagicMock()
+        args.daemon_command = "stop"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
+             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+            _handle_daemon_command(args)
+
+        mock_start.assert_not_called()
+
+    def test_status_not_running_does_not_start_daemon(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        args = mock.MagicMock()
+        args.daemon_command = "status"
+
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
+             mock.patch("ai_guardian.daemon.client.cleanup_stale_pid", return_value=False), \
+             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+            _handle_daemon_command(args)
+
+        mock_start.assert_not_called()
+
+
 class TestBackwardCompatImports:
     def test_import_from_package_level(self):
         from ai_guardian import _handle_violations_command as hvc
