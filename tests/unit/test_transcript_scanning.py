@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from ai_guardian import (
+    _advance_transcript_position,
     _extract_secret_type_from_error,
     _extract_text_from_transcript_line,
     _finding_fingerprint,
@@ -1038,6 +1039,144 @@ class TestSecretFingerprintStability(unittest.TestCase):
         mock_gitleaks.return_value = (True, "Secret detected again")
         result2 = scan_transcript_incremental(str(transcript))
         self.assertEqual(result2, [], "Same 'unknown' type should be deduped")
+
+
+class TestAdvanceTranscriptPosition(unittest.TestCase):
+    """Test _advance_transcript_position helper (Issue #764)."""
+
+    def test_advances_position_to_file_size(self):
+        """Position should be updated to current file size for known transcripts."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"text": "hello"}\n')
+        file_size = os.path.getsize(str(transcript))
+
+        # Initialize entry (simulates scan_transcript_incremental first-scan)
+        _save_transcript_positions({str(transcript): 0})
+
+        _advance_transcript_position({"transcript_path": str(transcript)})
+
+        positions = _load_transcript_positions()
+        self.assertEqual(positions[str(transcript)], file_size)
+
+    def test_skips_unseen_transcript(self):
+        """Should not create a new entry for transcripts not yet initialized
+        by scan_transcript_incremental — preserves first-scan skip logic."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"text": "hello"}\n')
+
+        _advance_transcript_position({"transcript_path": str(transcript)})
+
+        positions = _load_transcript_positions()
+        self.assertNotIn(str(transcript), positions)
+
+    def test_no_write_when_position_unchanged(self):
+        """Position file should not be rewritten when position hasn't changed."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"text": "hello"}\n')
+        file_size = os.path.getsize(str(transcript))
+
+        _save_transcript_positions({str(transcript): file_size})
+
+        state_dir = Path(__file__).parent  # unused, just need the real state dir
+        from ai_guardian.config_utils import get_state_dir
+        pos_file = get_state_dir() / "transcript_positions.json"
+        mtime_before = os.path.getmtime(str(pos_file))
+
+        import time
+        time.sleep(0.05)
+
+        _advance_transcript_position({"transcript_path": str(transcript)})
+
+        mtime_after = os.path.getmtime(str(pos_file))
+        self.assertEqual(mtime_before, mtime_after,
+                         "Position file should not be rewritten when position is unchanged")
+
+    def test_no_transcript_path(self):
+        """Should be a no-op when hook_data has no transcript path."""
+        _advance_transcript_position({"prompt": "hello"})
+        # No error raised — success
+
+    def test_nonexistent_transcript_file(self):
+        """Should be a no-op when transcript file doesn't exist."""
+        _advance_transcript_position({"transcript_path": "/nonexistent/file.jsonl"})
+        # No error raised — success
+
+    def test_advances_past_old_position(self):
+        """When transcript grows, position should advance to new size."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"text": "line1"}\n')
+        old_size = os.path.getsize(str(transcript))
+
+        _save_transcript_positions({str(transcript): old_size})
+
+        with open(str(transcript), 'a') as f:
+            f.write('{"text": "line2 added after PostToolUse"}\n')
+
+        new_size = os.path.getsize(str(transcript))
+        self.assertGreater(new_size, old_size)
+
+        _advance_transcript_position({"transcript_path": str(transcript)})
+
+        positions = _load_transcript_positions()
+        self.assertEqual(positions[str(transcript)], new_size)
+
+    def test_prevents_stale_warnings_on_next_session(self):
+        """Integration: advancing position after PostToolUse prevents
+        stale PII/secret warnings when next session scans the transcript."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+
+        initial_content = '{"text": "initial prompt"}\n'
+        transcript.write_text(initial_content)
+        initial_size = os.path.getsize(str(transcript))
+        _save_transcript_positions({str(transcript): initial_size})
+
+        posttool_content = '{"text": "tool output with test data"}\n'
+        with open(str(transcript), 'a') as f:
+            f.write(posttool_content)
+
+        _advance_transcript_position({"transcript_path": str(transcript)})
+
+        result = scan_transcript_incremental(str(transcript))
+        self.assertEqual(result, [], "Should find nothing — position already advanced past tail")
+
+    def test_does_not_prune_other_entries(self):
+        """Advancing should not prune entries for other transcripts,
+        even if those files are transiently unavailable."""
+        import tempfile
+        tmp_path = Path(tempfile.mkdtemp())
+        transcript = tmp_path / "transcript.jsonl"
+        transcript.write_text('{"text": "hello"}\n')
+
+        # Create a second transcript, save positions, then delete it
+        # to simulate transient unavailability.
+        other_transcript = tmp_path / "other.jsonl"
+        other_transcript.write_text('{"text": "other"}\n')
+
+        positions = {
+            str(transcript): 0,
+            str(other_transcript): 500,
+        }
+        _save_transcript_positions(positions)
+
+        # Remove the file to simulate transient unavailability
+        other_transcript.unlink()
+
+        _advance_transcript_position({"transcript_path": str(transcript)})
+
+        loaded = _load_transcript_positions()
+        self.assertIn(str(other_transcript), loaded,
+                       "Entries for other transcripts should not be pruned")
+        self.assertEqual(loaded[str(other_transcript)], 500)
 
 
 if __name__ == '__main__':
