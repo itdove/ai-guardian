@@ -727,3 +727,12 @@ class TestMcpInstalled:
             config_path.write_text(json.dumps({"v": 2}))
             state.force_reload_config()
             assert state._mcp_installed is not original
+
+
+class TestVersionInStats:
+    def test_get_stats_includes_version(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        stats = state.get_stats()
+        assert "version" in stats
+        assert isinstance(stats["version"], str)
+        assert stats["version"] != ""

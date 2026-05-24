@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **About menu item in system tray** (Issue #766)
+  - Shows version, Python, platform, config path, scanner versions, and project URL
+  - Displayed via pystray notification for cross-platform support
+  - Multi-daemon mode: global About lists connected daemons with versions
+  - Per-daemon About in each daemon's submenu shows daemon-specific info
+  - New `/api/about` REST endpoint and shared `daemon/about.py` module
+
+- **Version mismatch detection between tray and daemons** (Issue #766)
+  - Tray warns when a connected daemon runs an older version
+  - OS notification sent once per daemon with upgrade recommendation
+  - Daemon status label shows version indicator (⟳) on mismatch
+  - Version field added to `DaemonState.get_stats()` and `/api/stats`
+  - Backward compatibility contract documented in AGENTS.md
+
 - **Release-readiness CI workflow** (Issue #761)
   - New `release-readiness.yml` workflow with 7 validation jobs
   - Fresh install test across Python 3.9–3.14

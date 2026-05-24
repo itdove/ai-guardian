@@ -2004,6 +2004,391 @@ class TestDoctorMenuItem:
             mock_notify.assert_not_called()
 
 
+class TestAboutMenuItem:
+    """Tests for About menu item in tray (issue #766)."""
+
+    def test_build_about_text_contains_version(self):
+        with mock.patch("ai_guardian.daemon.tray.DaemonTray._build_about_text",
+                        wraps=DaemonTray._build_about_text):
+            text = DaemonTray._build_about_text()
+        assert "AI Guardian v" in text
+
+    def test_build_about_text_contains_python(self):
+        text = DaemonTray._build_about_text()
+        import sys
+        expected = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        assert f"Python: {expected}" in text
+
+    def test_build_about_text_contains_platform(self):
+        text = DaemonTray._build_about_text()
+        assert "Platform: " in text
+
+    def test_build_about_text_contains_config_path(self):
+        from pathlib import Path
+        with mock.patch("ai_guardian.config_utils.get_config_dir",
+                        return_value=Path("/fake/config")):
+            text = DaemonTray._build_about_text()
+        assert "Config: " in text
+
+    def test_build_about_text_contains_project_url(self):
+        text = DaemonTray._build_about_text()
+        assert "https://github.com/itdove/ai-guardian" in text
+
+    def test_build_about_text_contains_scanners(self):
+        from ai_guardian.scanner_manager import InstalledScanner
+        fake_scanners = [
+            InstalledScanner(name="gitleaks", version="8.30.1",
+                             path="/usr/bin/gitleaks", is_default=True),
+            InstalledScanner(name="betterleaks", version="1.2.0",
+                             path="/usr/bin/betterleaks", is_default=False),
+        ]
+        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_installed",
+                        return_value=fake_scanners):
+            text = DaemonTray._build_about_text()
+        assert "gitleaks 8.30.1" in text
+        assert "betterleaks 1.2.0" in text
+
+    def test_build_about_text_no_scanners_installed(self):
+        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_installed",
+                        return_value=[]):
+            text = DaemonTray._build_about_text()
+        assert "Scanners: none installed" in text
+
+    def test_on_about_calls_show_dialog(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(mock.MagicMock(), mock.MagicMock())
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            mock_dialog.assert_called_once()
+            assert mock_dialog.call_args[0][0] == "About AI Guardian"
+            assert "AI Guardian v" in mock_dialog.call_args[0][1]
+
+    def test_on_about_no_error_on_failure(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog", side_effect=Exception("fail")):
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(None, None)
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()  # Should not raise
+
+    def test_about_menu_item_present_in_run(self):
+        """About menu item is included in the global menu section."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
+             mock.patch("platform.system", return_value="Linux"), \
+             mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=None), \
+             mock.patch("ai_guardian.daemon.tray.threading"):
+            mock_icon = mock.MagicMock()
+            mock_pystray.Icon.return_value = mock_icon
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._start_stats_refresh = mock.MagicMock()
+            tray._create_icon = mock.MagicMock()
+            tray._run()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert "About" in labels
+            assert "Quit" in labels
+            quit_idx = labels.index("Quit")
+            last_about_idx = len(labels) - 1 - labels[::-1].index("About")
+            assert last_about_idx > quit_idx
+
+    def test_multi_daemon_about_includes_daemon_list(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="sandbox", runtime="container", status="running"),
+        ]
+        tray._daemon_versions = {
+            ("local", "local"): "1.9.0",
+            ("sandbox", "container"): "1.8.0",
+        }
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(mock.MagicMock(), mock.MagicMock())
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            text = mock_dialog.call_args[0][1]
+            assert "Daemons: 2 connected" in text
+            assert "local v1.9.0" in text
+            assert "sandbox v1.8.0" in text
+
+    def test_single_daemon_about_no_daemon_list(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ]
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._on_about(mock.MagicMock(), mock.MagicMock())
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            text = mock_dialog.call_args[0][1]
+            assert "Daemons:" not in text
+
+    def test_per_daemon_about_calls_multi_client(self):
+        mc = mock.MagicMock()
+        mc.get_about.return_value = {
+            "version": "1.8.0", "python": "3.11.9",
+            "platform": "Linux 5.15 x86_64", "config_path": "/root/.config/ai-guardian/ai-guardian.json",
+            "scanners": [], "url": "https://github.com/itdove/ai-guardian",
+        }
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="running")
+        tray._targets = [target]
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            action = tray._on_daemon_about(0)
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                action(None, None)
+                show_fn = mock_thread.call_args[1]["target"]
+            show_fn()
+            mc.get_about.assert_called_once_with(target)
+            mock_dialog.assert_called_once()
+            text = mock_dialog.call_args[0][1]
+            assert "AI Guardian v1.8.0" in text
+            assert "Linux" in text
+
+    def test_per_daemon_about_caches_result(self):
+        mc = mock.MagicMock()
+        mc.get_about.return_value = {
+            "version": "1.8.0", "python": "3.11.9",
+            "platform": "Linux", "config_path": None,
+            "scanners": [], "url": "https://github.com/itdove/ai-guardian",
+        }
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="running")
+        tray._targets = [target]
+        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog"):
+            action = tray._on_daemon_about(0)
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                action(None, None)
+                show_fn1 = mock_thread.call_args[1]["target"]
+            show_fn1()
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                action(None, None)
+                show_fn2 = mock_thread.call_args[1]["target"]
+            show_fn2()
+            mc.get_about.assert_called_once()
+
+    def test_multi_daemon_submenu_includes_about(self):
+        mc = mock.MagicMock()
+        mc.get_status.return_value = {}
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+            DaemonTarget(name="remote", runtime="container", status="running"),
+        ]
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+            labels = [
+                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                if isinstance(call[0][0], str)
+            ]
+            assert labels.count("About") >= 2
+
+
+class TestVersionMismatchDetection:
+    """Tests for version mismatch detection between tray and daemons (issue #766)."""
+
+    def test_parse_version_tuple_basic(self):
+        assert DaemonTray._parse_version_tuple("1.9.0") == (1, 9, 0)
+
+    def test_parse_version_tuple_dev_suffix(self):
+        assert DaemonTray._parse_version_tuple("1.9.0-dev") == (1, 9, 0)
+
+    def test_parse_version_tuple_with_v_prefix(self):
+        assert DaemonTray._parse_version_tuple("v1.9.0") == (1, 9, 0)
+
+    def test_parse_version_tuple_invalid(self):
+        assert DaemonTray._parse_version_tuple("unknown") is None
+
+    def test_parse_version_tuple_none(self):
+        assert DaemonTray._parse_version_tuple(None) is None
+
+    def test_parse_version_tuple_empty(self):
+        assert DaemonTray._parse_version_tuple("") is None
+
+    def test_no_warning_when_versions_match(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="local", runtime="local", status="running")
+        tray._targets = [target]
+        tray._daemon_versions = {("local", "local"): "1.9.0"}
+
+        with mock.patch("ai_guardian.__version__", "1.9.0"):
+            with mock.patch("threading.Thread") as mock_thread:
+                tray._check_version_mismatch()
+                mock_thread.assert_not_called()
+
+    def test_warning_when_daemon_older(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="running")
+        tray._targets = [target]
+        tray._daemon_versions = {("sandbox", "container"): "1.8.0"}
+
+        with mock.patch("ai_guardian.__version__", "1.9.0"):
+            with mock.patch("threading.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                tray._check_version_mismatch()
+                mock_thread.assert_called_once()
+                assert ("sandbox", "container") in tray._version_mismatch_notified
+
+    def test_warning_not_repeated(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="running")
+        tray._targets = [target]
+        tray._daemon_versions = {("sandbox", "container"): "1.8.0"}
+        tray._version_mismatch_notified.add(("sandbox", "container"))
+
+        with mock.patch("ai_guardian.__version__", "1.9.0"):
+            with mock.patch("threading.Thread") as mock_thread:
+                tray._check_version_mismatch()
+                mock_thread.assert_not_called()
+
+    def test_warning_clears_when_upgraded(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="running")
+        tray._targets = [target]
+        tray._daemon_versions = {("sandbox", "container"): "1.9.0"}
+        tray._version_mismatch_notified.add(("sandbox", "container"))
+
+        with mock.patch("ai_guardian.__version__", "1.9.0"):
+            tray._check_version_mismatch()
+            assert ("sandbox", "container") not in tray._version_mismatch_notified
+
+    def test_send_version_mismatch_notification(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+            DaemonTray._send_version_mismatch_notification("sandbox", "1.8.0", "1.9.0")
+            mock_notify.assert_called_once()
+            args = mock_notify.call_args[0]
+            assert args[0] == "AI Guardian"
+            assert "sandbox" in args[1]
+            assert "1.8.0" in args[1]
+            assert "1.9.0" in args[1]
+
+    def test_version_annotated_label_no_mismatch(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="local", runtime="local", status="running")
+        label = tray._version_annotated_label(target)
+        assert "⟳" not in label
+        assert "● local" in label
+
+    def test_version_annotated_label_with_mismatch(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="running")
+        tray._version_mismatch_notified.add(("sandbox", "container"))
+        tray._daemon_versions = {("sandbox", "container"): "1.8.0"}
+        label = tray._version_annotated_label(target)
+        assert "⟳" in label
+        assert "v1.8.0" in label
+
+    def test_no_warning_for_stopped_daemons(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="sandbox", runtime="container", status="stopped")
+        tray._targets = [target]
+        tray._daemon_versions = {("sandbox", "container"): "1.8.0"}
+
+        with mock.patch("ai_guardian.__version__", "1.9.0"):
+            with mock.patch("threading.Thread") as mock_thread:
+                tray._check_version_mismatch()
+                mock_thread.assert_not_called()
+
+    def test_dev_suffix_ignored_in_comparison(self):
+        """1.9.0-dev and 1.9.0 should be treated as the same version."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        target = DaemonTarget(name="local", runtime="local", status="running")
+        tray._targets = [target]
+        tray._daemon_versions = {("local", "local"): "1.9.0"}
+
+        with mock.patch("ai_guardian.__version__", "1.9.0-dev"):
+            with mock.patch("threading.Thread") as mock_thread:
+                tray._check_version_mismatch()
+                mock_thread.assert_not_called()
+
+
 class TestDoctorRoutesViaMultiClient:
     """Verify Doctor routes through multi_client for all runtimes (issue #746)."""
 

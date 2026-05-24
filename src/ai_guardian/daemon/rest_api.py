@@ -27,6 +27,8 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self._get_stats())
         elif self.path == "/api/health":
             self._send_json({"status": "ok"})
+        elif self.path == "/api/about":
+            self._send_json(self._get_about())
         elif self.path == "/api/tray-plugins":
             self._send_json(self._get_tray_plugins())
         else:
@@ -96,6 +98,15 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
         return getattr(self.server, 'instance_name', None) or "ai-guardian"
+
+    @staticmethod
+    def _get_about():
+        try:
+            from ai_guardian.daemon.about import get_about_info
+            return get_about_info()
+        except Exception as e:
+            logger.debug("Failed to get about info: %s", e)
+            return {}
 
     @staticmethod
     def _get_tray_plugins():

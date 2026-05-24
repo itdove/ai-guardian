@@ -199,6 +199,17 @@ class MultiDaemonClient:
         from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
         return plugins_to_dict(load_plugins())
 
+    def get_about(self, target: DaemonTarget) -> Optional[dict]:
+        """Get about info from a daemon."""
+        if target.runtime == "local":
+            return self._local_about()
+        return self._rest_request(target, "GET", "/api/about")
+
+    @staticmethod
+    def _local_about() -> dict:
+        from ai_guardian.daemon.about import get_about_info
+        return get_about_info()
+
     def export_support(self, target: DaemonTarget) -> Optional[str]:
         """Export support bundle."""
         cmd = ["ai-guardian", "support", "prepare"]
