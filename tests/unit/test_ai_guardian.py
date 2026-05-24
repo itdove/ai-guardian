@@ -1373,6 +1373,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_ide_detection_github_copilot_prompt(self):
         """Test IDE type detection for GitHub Copilot userPromptSubmitted"""
         hook_data = {
+            "hook_event_name": "userPromptSubmitted",
             "timestamp": 1704614400000,
             "cwd": "/path/to/project",
             "prompt": "Create a new feature",
@@ -1583,6 +1584,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_check_secrets.return_value = (False, None)
 
         hook_input = json.dumps({
+            "hook_event_name": "userPromptSubmitted",
             "timestamp": 1704614400000,
             "cwd": "/path/to/project",
             "prompt": "Create a new feature",
@@ -1603,6 +1605,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         mock_check_secrets.return_value = (True, "Secret Detected")
 
         hook_input = json.dumps({
+            "hook_event_name": "userPromptSubmitted",
             "timestamp": 1704614400000,
             "cwd": "/path/to/project",
             "prompt": "My token: ghp_16C0123456789abcdefghijklmTEST0000",

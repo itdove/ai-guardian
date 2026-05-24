@@ -321,29 +321,8 @@ class DaemonState:
     @staticmethod
     def _check_mcp_installed():
         """Check if ai-guardian MCP server is configured in any supported IDE."""
-        ide_mcp_configs = [
-            ("~/.claude.json", "mcpServers"),
-            ("~/.claude/settings.json", "mcpServers"),
-            ("~/.cursor/mcp.json", "mcpServers"),
-            ("~/.windsurf/mcp.json", "mcpServers"),
-            ("~/.gemini/settings.json", "mcpServers"),
-            ("~/.cline/mcp_settings.json", "mcpServers"),
-            ("~/.augment/settings.json", "mcpServers"),
-            ("~/.kiro/settings.json", "mcpServers"),
-            ("~/.junie/mcp.json", "mcpServers"),
-            ("~/.aider-desk/settings.json", "mcpServers"),
-            ("~/.openclaw/settings.json", "mcpServers"),
-        ]
-        for config_file, key in ide_mcp_configs:
-            try:
-                path = Path(config_file).expanduser()
-                if path.exists():
-                    config = json.loads(path.read_text(encoding="utf-8"))
-                    if "ai-guardian" in config.get(key, {}):
-                        return True
-            except Exception:
-                continue
-        return False
+        from ai_guardian.daemon import is_mcp_installed
+        return is_mcp_installed()
 
     # --- Project config tracking (#617) ---
 

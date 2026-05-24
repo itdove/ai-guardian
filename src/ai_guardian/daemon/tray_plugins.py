@@ -279,8 +279,8 @@ def show_dialog(title: str, message: str) -> bool:
     system = platform.system()
     try:
         if system == "Darwin":
-            msg = message.replace("\\", "\\\\").replace('"', '\\"')
-            ttl = title.replace("\\", "\\\\").replace('"', '\\"')
+            msg = message.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", '" & return & "')
+            ttl = title.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", " ")
             icon_clause = ""
             icns_path = _find_icon("ai-guardian.icns")
             if icns_path:
@@ -315,10 +315,14 @@ def show_dialog(title: str, message: str) -> bool:
 
 
 def send_notification(title: str, message: str) -> bool:
-    """Show a system notification with the AI Guardian icon.
+    """Show a system notification.
 
-    On macOS the icon comes from the app-level NSApplication icon set at
-    tray startup.  On Linux ``--icon`` is passed to ``notify-send``.
+    On macOS, osascript ``display notification`` always shows the Script
+    Editor icon — custom icons require running from a signed .app bundle.
+    NSUserNotification (which respected setApplicationIconImage_) was
+    removed in macOS 26. A timestamp subtitle is added to prevent
+    Notification Center from deduplicating identical messages.
+    On Linux ``--icon`` is passed to ``notify-send``.
     On Windows a custom icon is loaded from PNG for the balloon tip.
     Returns True on success.
     """
@@ -326,10 +330,11 @@ def send_notification(title: str, message: str) -> bool:
     system = platform.system()
     try:
         if system == "Darwin":
-            msg = message.replace("\\", "\\\\").replace('"', '\\"')
-            msg = msg.replace("\n", '" & return & "')
-            ttl = title.replace("\\", "\\\\").replace('"', '\\"')
-            script = f'display notification ("{msg}") with title "{ttl}"'
+            from datetime import datetime
+            ts = datetime.now().strftime("%H:%M:%S")
+            msg = message.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", '" & return & "')
+            ttl = title.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", " ")
+            script = f'display notification ("{msg}") with title "{ttl}" subtitle "{ts}"'
             subprocess.run(["osascript", "-e", script], timeout=5)
         elif system == "Linux":
             icon_args: list[str] = []

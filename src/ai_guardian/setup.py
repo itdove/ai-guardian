@@ -2541,7 +2541,8 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
         settings_path = Path("~/.claude/settings.json").expanduser()
         try:
             if settings_path.exists():
-                settings = json.load(open(settings_path, "r"))
+                with open(settings_path, "r") as f:
+                    settings = json.load(f)
                 if "ai-guardian" in settings.get("mcpServers", {}):
                     print(
                         "  MCP: Warning: ai-guardian MCP entry found in "

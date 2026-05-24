@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - PyPI is the stable channel; main branch contains unreleased dev code
   - CI wheel artifacts renamed from `ai-guardian-wheel` to `ai-guardian-dev-wheel`
 
+- **Tray menu layout reorganization** (Issue #706)
+  - Shell in its own separated section above daemon operations
+  - Custom plugin menus in their own separated section
+  - Pause/Resume and Start/Stop/Restart daemon grouped together (both are daemon operations)
+
 ### Added
 
 - **About menu item in system tray** (Issue #766)
@@ -142,13 +147,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ai-guardian setup --ide cline` installs executable hook scripts in `.clinerules/hooks/`
   - `ai-guardian setup --ide zoocode` supported as alias (same hook format)
   - MCP server configuration for Cline/ZooCode
-
-### Changed
-
-- **Tray menu layout reorganization** (Issue #706)
-  - Shell in its own separated section above daemon operations
-  - Custom plugin menus in their own separated section
-  - Pause/Resume and Start/Stop/Restart daemon grouped together (both are daemon operations)
 
 ### Fixed
 

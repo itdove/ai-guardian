@@ -21,12 +21,15 @@ class _RestHandler(BaseHTTPRequestHandler):
         logger.debug(format, *args)
 
     def do_GET(self):
+        if self.path == "/api/health":
+            self._send_json({"status": "ok"})
+            return
+        if not self._check_auth():
+            return
         if self.path == "/api/status":
             self._send_json(self._get_status())
         elif self.path == "/api/stats":
             self._send_json(self._get_stats())
-        elif self.path == "/api/health":
-            self._send_json({"status": "ok"})
         elif self.path == "/api/about":
             self._send_json(self._get_about())
         elif self.path == "/api/tray-plugins":

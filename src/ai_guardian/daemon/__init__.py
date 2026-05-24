@@ -64,3 +64,35 @@ def get_tray_targets_path():
 def get_tray_plugins_dir():
     """Get the directory for tray plugin JSON files."""
     return get_config_dir() / "tray-plugins"
+
+
+_IDE_MCP_CONFIGS = [
+    ("~/.claude.json", "mcpServers"),
+    ("~/.claude/settings.json", "mcpServers"),
+    ("~/.cursor/mcp.json", "mcpServers"),
+    ("~/.windsurf/mcp.json", "mcpServers"),
+    ("~/.gemini/settings.json", "mcpServers"),
+    ("~/.cline/mcp_settings.json", "mcpServers"),
+    ("~/.augment/settings.json", "mcpServers"),
+    ("~/.kiro/settings.json", "mcpServers"),
+    ("~/.junie/mcp.json", "mcpServers"),
+    ("~/.aider-desk/settings.json", "mcpServers"),
+    ("~/.openclaw/settings.json", "mcpServers"),
+]
+
+
+def is_mcp_installed():
+    """Check if ai-guardian MCP server is configured in any supported IDE."""
+    import json
+    from pathlib import Path
+
+    for config_file, key in _IDE_MCP_CONFIGS:
+        try:
+            path = Path(config_file).expanduser()
+            if path.exists():
+                config = json.loads(path.read_text(encoding="utf-8"))
+                if "ai-guardian" in config.get(key, {}):
+                    return True
+        except Exception:
+            continue
+    return False

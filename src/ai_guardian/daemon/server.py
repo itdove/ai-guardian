@@ -12,7 +12,6 @@ import os
 import platform
 import signal
 import socket
-import stat
 import threading
 import time
 

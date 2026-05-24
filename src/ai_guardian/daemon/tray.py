@@ -63,9 +63,12 @@ def _write_tray_lock():
         except (ValueError, OSError):
             pass
         lock_path.unlink(missing_ok=True)
-        fd = os.open(str(lock_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        os.write(fd, str(os.getpid()).encode())
-        os.close(fd)
+        try:
+            fd = os.open(str(lock_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+        except FileExistsError:
+            raise RuntimeError("Tray already starting (concurrent lock)")
 
 
 def _remove_tray_lock():
@@ -669,32 +672,8 @@ class DaemonTray:
     @staticmethod
     def _is_mcp_installed():
         """Check if ai-guardian MCP server is configured in any supported IDE."""
-        import json
-        from pathlib import Path
-
-        ide_mcp_configs = [
-            ("~/.claude.json", "mcpServers"),
-            ("~/.claude/settings.json", "mcpServers"),
-            ("~/.cursor/mcp.json", "mcpServers"),
-            ("~/.windsurf/mcp.json", "mcpServers"),
-            ("~/.gemini/settings.json", "mcpServers"),
-            ("~/.cline/mcp_settings.json", "mcpServers"),
-            ("~/.augment/settings.json", "mcpServers"),
-            ("~/.kiro/settings.json", "mcpServers"),
-            ("~/.junie/mcp.json", "mcpServers"),
-            ("~/.aider-desk/settings.json", "mcpServers"),
-            ("~/.openclaw/settings.json", "mcpServers"),
-        ]
-        for config_file, key in ide_mcp_configs:
-            try:
-                path = Path(config_file).expanduser()
-                if path.exists():
-                    config = json.loads(path.read_text(encoding="utf-8"))
-                    if "ai-guardian" in config.get(key, {}):
-                        return True
-            except Exception:
-                continue
-        return False
+        from ai_guardian.daemon import is_mcp_installed
+        return is_mcp_installed()
 
     def _is_mcp_for_current_target(self):
         """Check MCP installed status for the current single-daemon target."""
@@ -881,6 +860,11 @@ class DaemonTray:
                 self._icon.update_menu()
             except Exception:
                 pass
+
+    def _refresh_menu_and_clear_discovery_flag(self):
+        """Refresh menu and clear the discovery refresh guard (main thread)."""
+        self._refresh_menu()
+        self._refreshing_from_discovery = False
 
     def _refresh_icon_running(self):
         """Refresh icon and menu to reflect resumed state (main thread)."""
@@ -1122,8 +1106,7 @@ class DaemonTray:
         self._targets = targets
         self._auto_select_target()
         self._refreshing_from_discovery = True
-        self._dispatch_to_main(self._refresh_menu)
-        self._refreshing_from_discovery = False
+        self._dispatch_to_main(self._refresh_menu_and_clear_discovery_flag)
         logger.info(f"Discovery updated: {len(targets)} target(s) found")
         for t in targets:
             logger.info(f"  {t.name} ({t.runtime}) status={t.status} port={t.port}")
@@ -1856,85 +1839,15 @@ class DaemonTray:
         )
         _launch_in_terminal(prompt_cmd, keep_open=True, clear=True)
 
-    def _build_single_daemon_plugin_items(self):
-        """Build plugin menu items for single-daemon mode.
+    def _build_plugin_slots_for_daemon(self, daemon_slot, visibility_guard=None):
+        """Build pre-allocated plugin menu item slots for a daemon.
 
-        Each plugin becomes a top-level submenu. Pre-allocates slots
-        for pystray macOS compatibility. Only visible when exactly one
-        daemon is discovered and that daemon has plugins.
+        Args:
+            daemon_slot: Index into self._targets for this daemon.
+            visibility_guard: Optional callable(_item) -> bool wrapping
+                each plugin's visibility. When None, plugins are always
+                visible if they exist.
         """
-        items = []
-
-        def _has_plugins(_item):
-            return self._is_single_daemon() and len(self._get_daemon_plugins(0)) > 0
-
-        items.append(pystray.MenuItem("", None, visible=lambda _: (
-            _has_plugins(_) and False
-        )))
-
-        for p_idx in range(self._MAX_PLUGIN_SLOTS):
-            p_slot = p_idx
-
-            def _plugin_name(_item, ps=p_slot):
-                plugins = self._get_daemon_plugins(0)
-                if ps < len(plugins):
-                    return plugins[ps].name
-                return ""
-
-            def _plugin_visible(_item, ps=p_slot):
-                if not self._is_single_daemon():
-                    return False
-                plugins = self._get_daemon_plugins(0)
-                return ps < len(plugins)
-
-            sub_items = []
-            for i_idx in range(self._MAX_ITEMS_PER_PLUGIN):
-                i_slot = i_idx
-
-                def _item_label(_item, ps=p_slot, ix=i_slot):
-                    plugins = self._get_daemon_plugins(0)
-                    if ps < len(plugins) and ix < len(plugins[ps].items):
-                        return plugins[ps].items[ix].label
-                    return ""
-
-                def _item_visible(_item, ps=p_slot, ix=i_slot):
-                    plugins = self._get_daemon_plugins(0)
-                    if ps >= len(plugins) or ix >= len(plugins[ps].items):
-                        return False
-                    from ai_guardian.daemon.tray_plugins import resolve_command
-                    return resolve_command(plugins[ps].items[ix].command) is not None
-
-                def _item_action(ps=p_slot, ix=i_slot):
-                    def action(_, __):
-                        plugins = self._get_daemon_plugins(0)
-                        if ps >= len(plugins) or ix >= len(plugins[ps].items):
-                            return
-                        item = plugins[ps].items[ix]
-                        if item.params:
-                            from ai_guardian.daemon.tray_plugins import _item_to_dict
-                            self._execute_plugin_command_with_params(
-                                _item_to_dict(item)
-                            )
-                        else:
-                            from ai_guardian.daemon.tray_plugins import resolve_command
-                            cmd = resolve_command(item.command)
-                            if cmd:
-                                self._execute_plugin_command(cmd, item.type)
-                    return action
-
-                sub_items.append(
-                    pystray.MenuItem(_item_label, _item_action(), visible=_item_visible)
-                )
-
-            items.append(
-                pystray.MenuItem(_plugin_name, pystray.Menu(*sub_items),
-                                 visible=_plugin_visible)
-            )
-
-        return items
-
-    def _build_multi_daemon_plugin_slots(self, daemon_slot):
-        """Build pre-allocated plugin slots for a multi-daemon submenu."""
         items = []
         d_slot = daemon_slot
 
@@ -1948,6 +1861,8 @@ class DaemonTray:
                 return ""
 
             def _plugin_visible(_item, ds=d_slot, ps=p_slot):
+                if visibility_guard is not None and not visibility_guard(_item):
+                    return False
                 plugins = self._get_daemon_plugins(ds)
                 return ps < len(plugins)
 
@@ -1996,6 +1911,27 @@ class DaemonTray:
             )
 
         return items
+
+    def _build_single_daemon_plugin_items(self):
+        """Build plugin menu items for single-daemon mode.
+
+        Each plugin becomes a top-level submenu. Pre-allocates slots
+        for pystray macOS compatibility. Only visible when exactly one
+        daemon is discovered and that daemon has plugins.
+        """
+        def _has_plugins(_item):
+            return self._is_single_daemon() and len(self._get_daemon_plugins(0)) > 0
+
+        guard = lambda _item: self._is_single_daemon()
+        items = [pystray.MenuItem("", None, visible=lambda _: (
+            _has_plugins(_) and False
+        ))]
+        items.extend(self._build_plugin_slots_for_daemon(0, visibility_guard=guard))
+        return items
+
+    def _build_multi_daemon_plugin_slots(self, daemon_slot):
+        """Build pre-allocated plugin slots for a multi-daemon submenu."""
+        return self._build_plugin_slots_for_daemon(daemon_slot)
 
     @staticmethod
     def _launch_create_config():

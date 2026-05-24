@@ -186,14 +186,6 @@ class HookAdapter(ABC):
         if isinstance(tool_input, dict):
             return tool_input
 
-        # Some IDEs use a bare "tool" dict with nested input
-        tool = hook_data.get("tool")
-        if isinstance(tool, dict):
-            # Check tool_input field alongside tool dict
-            ti = hook_data.get("tool_input")
-            if isinstance(ti, dict):
-                return ti
-
         return {}
 
     @staticmethod

@@ -27,6 +27,8 @@ jobs:
           python-version: "3.12"
 
       - name: Set version suffix
+        env:
+          INPUT_LABEL: ${{ github.event.inputs.label || github.actor }}
         run: |
           BASE_VERSION=$(python -c "
           import re
@@ -38,7 +40,7 @@ jobs:
             SUFFIX="+pr${{ github.event.pull_request.number }}"
             TAG_LABEL="${{ github.event.pull_request.number }}"
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            LABEL="${{ github.event.inputs.label || github.actor }}"
+            LABEL="${INPUT_LABEL}"
             SUFFIX="+${LABEL}"
             TAG_LABEL="${LABEL}"
           else
