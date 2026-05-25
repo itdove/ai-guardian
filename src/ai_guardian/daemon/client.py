@@ -218,10 +218,19 @@ def cleanup_stale_pid():
 def start_daemon_background():
     """Start daemon as a background process for lazy start in auto mode.
 
+    Respects the stop-requested marker written by ``daemon stop``.
+
     Returns:
         bool: True if daemon started successfully
     """
     try:
+        # Honour explicit stop — don't auto-restart (#775)
+        from ai_guardian.daemon import get_state_dir
+        marker = get_state_dir() / "daemon.stop-requested"
+        if marker.exists():
+            logger.debug("Skipping auto-start: stop-requested marker present")
+            return False
+
         cleanup_stale_pid()
 
         # Find the ai-guardian command

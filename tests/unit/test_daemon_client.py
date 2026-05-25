@@ -198,6 +198,15 @@ class TestStartDaemonBackground:
             ):
                 assert not start_daemon_background()
 
+    def test_skips_when_stop_requested(self, tmp_path, monkeypatch):
+        """Issue #775: auto-start respects stop-requested marker."""
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        marker = tmp_path / "daemon.stop-requested"
+        marker.touch()
+        with mock.patch("subprocess.Popen") as mock_popen:
+            assert not start_daemon_background()
+        mock_popen.assert_not_called()
+
 
 class TestClientTimeout:
     """Tests for _get_client_timeout() config reading."""
