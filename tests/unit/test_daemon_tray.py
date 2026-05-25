@@ -1940,6 +1940,8 @@ class TestPluginMenuItems:
             with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
                 DaemonTray._execute_plugin_command("kubectl get pods | wc -l", "notification")
                 mock_run.assert_called_once()
+                args = mock_run.call_args[0][0]
+                assert args == ["sh", "-c", "kubectl get pods | wc -l"]
                 mock_notify.assert_called_once_with("AI Guardian", "Pod count: 3")
 
     def test_execute_plugin_command_clipboard(self):
@@ -2042,6 +2044,57 @@ class TestPluginMenuItems:
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 tray._execute_plugin_command_with_params(item_dict)
                 mock_launch.assert_not_called()
+
+
+    def test_execute_plugin_command_shell_and_operator(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="ok\n", returncode=0, stderr="",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog"):
+                DaemonTray._execute_plugin_command(
+                    "uname -a && lsb_release -a", "modal",
+                )
+                args = mock_run.call_args[0][0]
+                assert args == ["sh", "-c", "uname -a && lsb_release -a"]
+
+    def test_execute_plugin_command_shell_semicolon(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="hello\nworld\n")
+            with mock.patch("ai_guardian.daemon.tray_plugins.send_notification"):
+                DaemonTray._execute_plugin_command(
+                    "echo hello; echo world", "notification",
+                )
+                args = mock_run.call_args[0][0]
+                assert args == ["sh", "-c", "echo hello; echo world"]
+
+    def test_execute_plugin_command_shell_redirect(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="")
+            with mock.patch("ai_guardian.daemon.tray_plugins.copy_to_clipboard"):
+                DaemonTray._execute_plugin_command(
+                    "ai-guardian doctor > /tmp/report.txt", "clipboard",
+                )
+                args = mock_run.call_args[0][0]
+                assert args == [
+                    "sh", "-c", "ai-guardian doctor > /tmp/report.txt",
+                ]
+
+    def test_execute_plugin_command_shell_terminal(self):
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            DaemonTray._execute_plugin_command(
+                "echo hello && echo world", "terminal",
+            )
+            mock_launch.assert_called_once()
+            assert mock_launch.call_args[0][0] == [
+                "sh", "-c", "echo hello && echo world",
+            ]
+
+    def test_execute_plugin_command_simple_still_splits(self):
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            DaemonTray._execute_plugin_command("echo hello", "terminal")
+            mock_launch.assert_called_once()
+            assert mock_launch.call_args[0][0] == ["echo", "hello"]
 
 
 class TestDoctorMenuItem:

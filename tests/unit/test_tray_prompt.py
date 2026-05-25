@@ -123,6 +123,25 @@ class TestHandleTrayPrompt:
         mock_dialog.assert_called_once_with("AI Guardian", "not found")
 
 
+    def test_shell_operators_use_sh(self):
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        args = mock.MagicMock()
+        args.params = '[]'
+        args.template = "echo a && echo b"
+        args.type = "background"
+        mock_app = mock.MagicMock()
+        mock_app.run.return_value = "echo a && echo b"
+        with mock.patch("sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                with mock.patch("subprocess.run") as mock_run:
+                    mock_run.return_value = mock.MagicMock(returncode=0)
+                    result = _handle_tray_prompt(args)
+        assert result == 0
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["sh", "-c", "echo a && echo b"]
+
+
 class TestTrayPromptAppCreation:
     """Tests for TrayPromptApp construction (no async needed)."""
 

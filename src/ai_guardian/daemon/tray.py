@@ -1798,17 +1798,21 @@ class DaemonTray:
         import subprocess
         from ai_guardian.daemon.multi_client import _launch_in_terminal
         from ai_guardian.daemon.tray_plugins import (
+            _needs_shell,
             substitute_target_vars,
             wrap_for_target,
         )
 
         command_str = substitute_target_vars(command_str, target)
 
-        try:
-            cmd_parts = shlex.split(command_str)
-        except ValueError:
-            logger.warning("Malformed plugin command: %s", command_str)
-            return
+        if _needs_shell(command_str):
+            cmd_parts = ["sh", "-c", command_str]
+        else:
+            try:
+                cmd_parts = shlex.split(command_str)
+            except ValueError:
+                logger.warning("Malformed plugin command: %s", command_str)
+                return
 
         if run_on_target and target:
             cmd_parts = wrap_for_target(

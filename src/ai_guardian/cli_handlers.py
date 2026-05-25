@@ -634,11 +634,16 @@ def _handle_tray_prompt(args):
     if result is None:
         return 0
 
-    try:
-        cmd_parts = shlex.split(result)
-    except ValueError as e:
-        prompt_logger.error("Malformed command: %s", e)
-        return 1
+    from ai_guardian.daemon.tray_plugins import _needs_shell
+
+    if _needs_shell(result):
+        cmd_parts = ["sh", "-c", result]
+    else:
+        try:
+            cmd_parts = shlex.split(result)
+        except ValueError as e:
+            prompt_logger.error("Malformed command: %s", e)
+            return 1
     if not cmd_parts:
         return 0
 
