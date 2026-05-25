@@ -836,30 +836,14 @@ class Doctor:
         cache_dir = get_cache_dir()
 
         if not cache_dir.exists():
-            if self.fix:
-                try:
-                    cache_dir.mkdir(parents=True, exist_ok=True)
-                    return CheckResult(
-                        name="cache_dir",
-                        status=CheckStatus.PASS,
-                        message=f"Created {_tilde(cache_dir)}",
-                        fixable=True,
-                        fixed=True,
-                    )
-                except OSError as e:
-                    return CheckResult(
-                        name="cache_dir",
-                        status=CheckStatus.FAIL,
-                        message=f"Cannot create: {e}",
-                        fixable=True,
-                    )
-            return CheckResult(
-                name="cache_dir",
-                status=CheckStatus.WARN,
-                message=f"Missing: {_tilde(cache_dir)}",
-                fix_hint="Run: ai-guardian doctor --fix",
-                fixable=True,
-            )
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                return CheckResult(
+                    name="cache_dir",
+                    status=CheckStatus.FAIL,
+                    message=f"Cannot create: {e}",
+                )
 
         if not os.access(cache_dir, os.W_OK):
             return CheckResult(
