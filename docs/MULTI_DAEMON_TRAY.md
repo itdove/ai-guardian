@@ -303,6 +303,71 @@ Commands can vary by platform using a command map instead of a string:
 
 Platform keys match `platform.system().lower()`: `darwin`, `linux`, `windows`. The `default` key is the fallback. If no key matches and no default is set, the menu item is hidden on that platform.
 
+### Target Variables
+
+Plugin commands can reference the daemon's target context using built-in variables. These are automatically substituted from the `DaemonTarget` before execution:
+
+| Variable | Source | Example |
+|---|---|---|
+| `{container_id}` | `target.container_id` | `a1b2c3d4e5f6` |
+| `{container_engine}` | `target.container_engine` | `podman` |
+| `{host}` | `target.host` | `127.0.0.1` |
+| `{port}` | `target.port` | `63152` |
+| `{name}` | `target.name` | `carbonite-dev` |
+| `{pod_name}` | `target.pod_name` | `guardian-pod-1` |
+| `{namespace}` | `target.namespace` | `ai-guardian` |
+
+Example:
+
+```json
+{
+    "label": "Container Logs",
+    "command": "{container_engine} logs --tail 50 {container_id}",
+    "type": "terminal"
+}
+```
+
+Target variables use bare `{name}` syntax (no prefix), while user parameters use `{tray.name}`. Both can coexist in the same command. If a target field is `null`, the placeholder is replaced with an empty string.
+
+### Run on Target
+
+When `run_on_target` is `true`, the tray automatically wraps the command for the daemon's runtime:
+
+| Runtime | Wrapping |
+|---------|----------|
+| Container | `<engine> exec [-it] <container_id> <command>` |
+| Kubernetes | `oc exec [-it] <pod> -n <namespace> -- <command>` (falls back to `kubectl` if `oc` is not installed) |
+| Local | No wrapping — runs as-is |
+
+The plugin author writes the command as if running locally inside the target. The tray handles routing:
+
+```json
+{
+    "label": "Doctor",
+    "command": "ai-guardian doctor",
+    "run_on_target": true,
+    "type": "terminal"
+}
+```
+
+For container targets, this becomes: `podman exec -it a1b2c3d4e5f6 ai-guardian doctor`
+
+Both features can coexist:
+
+```json
+{
+    "items": [
+        {"label": "Doctor", "command": "ai-guardian doctor", "run_on_target": true, "type": "terminal"},
+        {"label": "Logs", "command": "{container_engine} logs --tail 50 {container_id}", "type": "terminal"},
+        {"label": "Restart", "command": "{container_engine} restart {container_id}", "type": "notification"}
+    ]
+}
+```
+
+- **Doctor**: runs inside the container (automatic wrapping via `run_on_target`)
+- **Logs**: runs on host, references the container (target variable substitution)
+- **Restart**: runs on host, references the container (target variable substitution)
+
 ### Plugin Discovery via REST API
 
 The tray does not read plugin files directly. Each daemon serves its plugins via:
