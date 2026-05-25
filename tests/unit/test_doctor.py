@@ -320,7 +320,7 @@ class TestCheckCacheDir:
         assert result.status == CheckStatus.WARN
         assert "stale" in result.message.lower()
 
-    def test_fix_creates_dir(self, tmp_path):
+    def test_auto_creates_dir(self, tmp_path):
         cache_dir = tmp_path / "nonexistent_cache"
         config_dir = tmp_path / "config"
         config_dir.mkdir()
@@ -332,10 +332,9 @@ class TestCheckCacheDir:
             "AI_GUARDIAN_STATE_DIR": str(state_dir),
             "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
         }):
-            doctor = Doctor(fix=True)
+            doctor = Doctor()
             result = doctor.check_cache_dir()
             assert result.status == CheckStatus.PASS
-            assert result.fixed is True
             assert cache_dir.exists()
 
 
