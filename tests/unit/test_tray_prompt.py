@@ -82,6 +82,46 @@ class TestHandleTrayPrompt:
         assert result == 0
         mock_run.assert_called_once()
 
+    def test_modal_type_shows_dialog(self):
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        args = mock.MagicMock()
+        args.params = '[]'
+        args.template = "echo version-info"
+        args.type = "modal"
+        mock_app = mock.MagicMock()
+        mock_app.run.return_value = "echo version-info"
+        with mock.patch("sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                with mock.patch("subprocess.run") as mock_run:
+                    mock_run.return_value = mock.MagicMock(
+                        returncode=0, stdout="v1.8.0\n", stderr="",
+                    )
+                    with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                        result = _handle_tray_prompt(args)
+        assert result == 0
+        mock_dialog.assert_called_once_with("AI Guardian", "v1.8.0")
+
+    def test_modal_type_shows_stderr_on_failure(self):
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        args = mock.MagicMock()
+        args.params = '[]'
+        args.template = "bad-cmd"
+        args.type = "modal"
+        mock_app = mock.MagicMock()
+        mock_app.run.return_value = "bad-cmd"
+        with mock.patch("sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                with mock.patch("subprocess.run") as mock_run:
+                    mock_run.return_value = mock.MagicMock(
+                        returncode=1, stdout="", stderr="not found\n",
+                    )
+                    with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                        result = _handle_tray_prompt(args)
+        assert result == 1
+        mock_dialog.assert_called_once_with("AI Guardian", "not found")
+
 
 class TestTrayPromptAppCreation:
     """Tests for TrayPromptApp construction (no async needed)."""

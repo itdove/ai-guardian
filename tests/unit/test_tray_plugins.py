@@ -14,6 +14,7 @@ from ai_guardian.daemon.tray_plugins import (
     load_plugins,
     plugins_to_dict,
     resolve_command,
+    show_dialog,
     substitute_params,
     substitute_target_vars,
     wrap_for_target,
@@ -178,6 +179,16 @@ class TestLoadPlugins:
         }))
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].type == "terminal"
+
+    def test_modal_type_accepted(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Version", "command": "ai-guardian --version", "type": "modal"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].type == "modal"
 
     def test_invalid_type_defaults_to_terminal(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
@@ -858,3 +869,74 @@ class TestDictToPlugins:
     def test_returns_empty_for_empty_plugins(self):
         plugins = dict_to_plugins({"plugins": []})
         assert plugins == []
+
+
+class TestShowDialog:
+    def test_macos_uses_osascript(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Darwin"
+            with mock.patch("subprocess.run") as mock_run:
+                result = show_dialog("Test Title", "Hello world")
+                assert result is True
+                mock_run.assert_called_once()
+                args = mock_run.call_args[0][0]
+                assert args[0] == "osascript"
+                assert "display dialog" in args[2]
+
+    def test_linux_uses_zenity(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Linux"
+            with mock.patch("subprocess.run") as mock_run:
+                result = show_dialog("Test Title", "Hello")
+                assert result is True
+                mock_run.assert_called_once()
+                args = mock_run.call_args[0][0]
+                assert args[0] == "zenity"
+
+    def test_windows_uses_powershell(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Windows"
+            with mock.patch("subprocess.run") as mock_run:
+                result = show_dialog("Test Title", "Hello")
+                assert result is True
+                mock_run.assert_called_once()
+                args = mock_run.call_args[0][0]
+                assert args[0] == "powershell"
+                assert "MessageBox" in args[2]
+
+    def test_returns_false_on_unknown_platform(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "FreeBSD"
+            assert show_dialog("T", "M") is False
+
+    def test_returns_false_on_error(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Darwin"
+            with mock.patch("subprocess.run", side_effect=FileNotFoundError):
+                assert show_dialog("T", "M") is False
+
+    def test_escapes_quotes_in_message(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Darwin"
+            with mock.patch("subprocess.run") as mock_run:
+                show_dialog("Title", 'He said "hello"')
+                script = mock_run.call_args[0][0][2]
+                assert '\\"' in script
+
+    def test_macos_includes_icon_when_found(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Darwin"
+            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="/path/to/icon.icns"):
+                with mock.patch("subprocess.run") as mock_run:
+                    result = show_dialog("Title", "Hello")
+                    assert result is True
+                    script = mock_run.call_args[0][0][2]
+                    assert "icon" in script.lower()
+
+    def test_multiline_message_on_macos(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+            m.system.return_value = "Darwin"
+            with mock.patch("subprocess.run") as mock_run:
+                show_dialog("Title", "line1\nline2\nline3")
+                script = mock_run.call_args[0][0][2]
+                assert "return" in script

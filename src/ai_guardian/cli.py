@@ -661,7 +661,7 @@ def main():
         tray_prompt_parser.add_argument(
             "--type",
             default="terminal",
-            choices=["terminal", "background", "notification", "clipboard"],
+            choices=["terminal", "background", "notification", "clipboard", "modal"],
             help="Command execution type"
         )
 

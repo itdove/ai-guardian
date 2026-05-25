@@ -646,7 +646,7 @@ def _handle_tray_prompt(args):
     try:
         if cmd_type == "terminal":
             os.execvp(cmd_parts[0], cmd_parts)
-        elif cmd_type in ("notification", "clipboard"):
+        elif cmd_type in ("notification", "clipboard", "modal"):
             proc = subprocess.run(
                 cmd_parts, capture_output=True, text=True, timeout=60,
             )
@@ -654,6 +654,13 @@ def _handle_tray_prompt(args):
             if cmd_type == "notification":
                 from ai_guardian.daemon.tray_plugins import send_notification
                 send_notification("AI Guardian", output or "(no output)")
+            elif cmd_type == "modal":
+                if proc.returncode != 0 and proc.stderr.strip():
+                    output = proc.stderr.strip() if not output else (
+                        output + "\n\n--- stderr ---\n" + proc.stderr.strip()
+                    )
+                from ai_guardian.daemon.tray_plugins import show_dialog
+                show_dialog("AI Guardian", output or "(no output)")
             else:
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
                 copy_to_clipboard(output)

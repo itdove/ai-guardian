@@ -256,6 +256,7 @@ Each `.json` file in the directory becomes a submenu in the tray.
 | `background` | Runs silently with no visible output |
 | `notification` | Runs silently, shows stdout as a system notification |
 | `clipboard` | Runs silently, copies stdout to the system clipboard |
+| `modal` | Runs silently, shows output in a native OS dialog with OK button |
 
 ### Interactive Parameters
 
