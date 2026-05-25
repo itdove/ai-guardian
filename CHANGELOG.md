@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Plugin commands: built-in target variables and run_on_target flag** (Issue #780)
+  - Target variables (`{container_id}`, `{container_engine}`, `{host}`, `{port}`, `{name}`, `{pod_name}`, `{namespace}`) automatically substituted from DaemonTarget
+  - `run_on_target` flag wraps commands for the target runtime (container exec, kubectl/oc exec, or local)
+  - Container runtime uses `target.container_engine` (podman or docker) for exec wrapping
+  - Kubernetes runtime auto-detects `oc` (OpenShift) or falls back to `kubectl`
+  - Both features coexist: target vars substituted first, then run_on_target wrapping applied
+
 - **About menu item in system tray** (Issue #766)
   - Shows version, Python, platform, config path, scanner versions, and project URL
   - Displayed via pystray notification for cross-platform support

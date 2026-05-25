@@ -15,6 +15,8 @@ from ai_guardian.daemon.tray_plugins import (
     plugins_to_dict,
     resolve_command,
     substitute_params,
+    substitute_target_vars,
+    wrap_for_target,
 )
 
 
@@ -227,6 +229,39 @@ class TestLoadPlugins:
         assert plugins[0].items[0].params[0].name == "good"
 
 
+    def test_parses_run_on_target_true(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Doctor", "command": "ai-guardian doctor",
+                       "run_on_target": True}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].run_on_target is True
+
+    def test_parses_run_on_target_false(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Logs", "command": "podman logs {container_id}",
+                       "run_on_target": False}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].run_on_target is False
+
+    def test_default_run_on_target_is_false(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "echo hi"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].run_on_target is False
+
+
 class TestResolveCommand:
     def test_string_command_returned_as_is(self):
         assert resolve_command("echo hello") == "echo hello"
@@ -317,6 +352,225 @@ class TestSubstituteParams:
         assert result == "echo $HOME val"
 
 
+class TestSubstituteTargetVars:
+    """Tests for target variable substitution in plugin commands."""
+
+    def _make_target(self, **kwargs):
+        from ai_guardian.daemon.discovery import DaemonTarget
+        defaults = dict(
+            name="test-daemon", runtime="container",
+            host="192.168.1.10", port=63152,
+            container_id="a1b2c3d4e5f6a1b2",
+            container_engine="podman",
+            pod_name="guardian-pod-1",
+            namespace="ai-guardian",
+        )
+        defaults.update(kwargs)
+        return DaemonTarget(**defaults)
+
+    def test_substitutes_container_id(self):
+        target = self._make_target()
+        result = substitute_target_vars("podman logs {container_id}", target)
+        assert result == "podman logs a1b2c3d4e5f6a1b2"
+
+    def test_substitutes_host_and_port(self):
+        target = self._make_target()
+        result = substitute_target_vars("curl http://{host}:{port}/api/health", target)
+        assert result == "curl http://192.168.1.10:63152/api/health"
+
+    def test_substitutes_name(self):
+        target = self._make_target()
+        result = substitute_target_vars("echo {name}", target)
+        assert result == "echo test-daemon"
+
+    def test_substitutes_container_engine(self):
+        target = self._make_target(container_engine="docker")
+        result = substitute_target_vars("{container_engine} ps", target)
+        assert result == "docker ps"
+
+    def test_substitutes_pod_name_and_namespace(self):
+        target = self._make_target()
+        result = substitute_target_vars(
+            "kubectl logs {pod_name} -n {namespace}", target,
+        )
+        assert result == "kubectl logs guardian-pod-1 -n ai-guardian"
+
+    def test_none_field_becomes_empty(self):
+        target = self._make_target(container_id=None)
+        result = substitute_target_vars("logs {container_id}", target)
+        assert result == "logs "
+
+    def test_no_target_returns_template_unchanged(self):
+        result = substitute_target_vars("echo {container_id}", None)
+        assert result == "echo {container_id}"
+
+    def test_non_target_braces_left_untouched(self):
+        target = self._make_target()
+        result = substitute_target_vars("echo {json} {tray.x} {name}", target)
+        assert result == "echo {json} {tray.x} test-daemon"
+
+    def test_multiple_same_variable(self):
+        target = self._make_target()
+        result = substitute_target_vars(
+            "{container_id} and {container_id}", target,
+        )
+        assert result == "a1b2c3d4e5f6a1b2 and a1b2c3d4e5f6a1b2"
+
+    def test_port_converted_to_string(self):
+        target = self._make_target(port=8080)
+        result = substitute_target_vars(":{port}", target)
+        assert result == ":8080"
+
+    def test_no_placeholders_returns_original(self):
+        target = self._make_target()
+        result = substitute_target_vars("echo hello world", target)
+        assert result == "echo hello world"
+
+
+class TestWrapForTarget:
+    """Tests for run_on_target command wrapping."""
+
+    def _make_target(self, **kwargs):
+        from ai_guardian.daemon.discovery import DaemonTarget
+        defaults = dict(name="test", runtime="local")
+        defaults.update(kwargs)
+        return DaemonTarget(**defaults)
+
+    def test_local_runtime_no_wrapping(self):
+        target = self._make_target(runtime="local")
+        result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert result == ["ai-guardian", "doctor"]
+
+    def test_container_runtime_wraps_with_engine_exec(self):
+        target = self._make_target(
+            runtime="container",
+            container_id="a1b2c3d4e5f6a1b2",
+            container_engine="podman",
+        )
+        result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert result == [
+            "podman", "exec", "-it", "a1b2c3d4e5f6a1b2",
+            "ai-guardian", "doctor",
+        ]
+
+    def test_container_runtime_docker_engine(self):
+        target = self._make_target(
+            runtime="container",
+            container_id="a1b2c3d4e5f6a1b2",
+            container_engine="docker",
+        )
+        result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert result[0] == "docker"
+
+    def test_container_runtime_defaults_to_podman(self):
+        target = self._make_target(
+            runtime="container",
+            container_id="a1b2c3d4e5f6a1b2",
+            container_engine=None,
+        )
+        result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert result[0] == "podman"
+
+    def test_container_runtime_non_interactive(self):
+        target = self._make_target(
+            runtime="container",
+            container_id="a1b2c3d4e5f6a1b2",
+            container_engine="podman",
+        )
+        result = wrap_for_target(
+            ["ai-guardian", "doctor"], target, interactive=False,
+        )
+        assert "-it" not in result
+        assert result == [
+            "podman", "exec", "a1b2c3d4e5f6a1b2",
+            "ai-guardian", "doctor",
+        ]
+
+    def test_container_runtime_invalid_id_falls_back_to_local(self):
+        target = self._make_target(
+            runtime="container", container_id="not-hex",
+        )
+        cmd = ["ai-guardian", "doctor"]
+        result = wrap_for_target(cmd, target)
+        assert result == cmd
+
+    def test_container_runtime_missing_id_falls_back_to_local(self):
+        target = self._make_target(
+            runtime="container", container_id=None,
+        )
+        cmd = ["ai-guardian", "doctor"]
+        result = wrap_for_target(cmd, target)
+        assert result == cmd
+
+    def test_kubernetes_runtime_wraps_with_kube_cli(self):
+        target = self._make_target(
+            runtime="kubernetes",
+            pod_name="guardian-pod-1",
+            namespace="ai-guardian",
+        )
+        with mock.patch("shutil.which", return_value=None):
+            result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert result == [
+            "kubectl", "exec", "-it",
+            "guardian-pod-1", "-n", "ai-guardian", "--",
+            "ai-guardian", "doctor",
+        ]
+
+    def test_kubernetes_runtime_prefers_oc(self):
+        target = self._make_target(
+            runtime="kubernetes",
+            pod_name="guardian-pod-1",
+            namespace="ai-guardian",
+        )
+        with mock.patch("shutil.which", return_value="/usr/bin/oc"):
+            result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert result[0] == "oc"
+
+    def test_kubernetes_default_namespace(self):
+        target = self._make_target(
+            runtime="kubernetes",
+            pod_name="guardian-pod-1",
+            namespace=None,
+        )
+        with mock.patch("shutil.which", return_value=None):
+            result = wrap_for_target(["ai-guardian", "doctor"], target)
+        assert "-n" in result
+        ns_idx = result.index("-n")
+        assert result[ns_idx + 1] == "default"
+
+    def test_kubernetes_missing_pod_falls_back_to_local(self):
+        target = self._make_target(
+            runtime="kubernetes", pod_name=None,
+        )
+        cmd = ["ai-guardian", "doctor"]
+        result = wrap_for_target(cmd, target)
+        assert result == cmd
+
+    def test_kubernetes_non_interactive(self):
+        target = self._make_target(
+            runtime="kubernetes",
+            pod_name="guardian-pod-1",
+            namespace="default",
+        )
+        with mock.patch("shutil.which", return_value=None):
+            result = wrap_for_target(
+                ["ai-guardian", "doctor"], target, interactive=False,
+            )
+        assert "-it" not in result
+
+    def test_manual_runtime_runs_locally(self):
+        target = self._make_target(runtime="manual")
+        cmd = ["ai-guardian", "doctor"]
+        result = wrap_for_target(cmd, target)
+        assert result == cmd
+
+    def test_unknown_runtime_runs_locally(self):
+        target = self._make_target(runtime="unknown")
+        cmd = ["ai-guardian", "doctor"]
+        result = wrap_for_target(cmd, target)
+        assert result == cmd
+
+
 class TestPluginsToDict:
     def test_serializes_simple_plugin(self):
         plugins = [Plugin(
@@ -368,6 +622,25 @@ class TestPluginsToDict:
         result = plugins_to_dict(plugins)
         assert result["plugins"][0]["items"][0]["command"] == cmd_map
 
+    def test_serializes_run_on_target_true(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Doctor", command="ai-guardian doctor",
+                run_on_target=True,
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        assert result["plugins"][0]["items"][0]["run_on_target"] is True
+
+    def test_serializes_run_on_target_false_omitted(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(label="Logs", command="podman logs abc")]
+        )]
+        result = plugins_to_dict(plugins)
+        assert "run_on_target" not in result["plugins"][0]["items"][0]
+
     def test_roundtrip_through_dict(self):
         original = [Plugin(
             name="Roundtrip",
@@ -388,6 +661,22 @@ class TestPluginsToDict:
         assert len(restored[0].items) == 2
         assert restored[0].items[0].label == "Simple"
         assert restored[0].items[1].params[0].name == "env"
+
+    def test_roundtrip_preserves_run_on_target(self):
+        original = [Plugin(
+            name="Roundtrip",
+            items=[
+                PluginItem(
+                    label="Doctor", command="ai-guardian doctor",
+                    run_on_target=True,
+                ),
+                PluginItem(label="Logs", command="podman logs abc"),
+            ]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert restored[0].items[0].run_on_target is True
+        assert restored[0].items[1].run_on_target is False
 
 
 class TestSendNotification:

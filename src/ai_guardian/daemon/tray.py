@@ -1789,17 +1789,30 @@ class DaemonTray:
         return self._daemon_plugins.get(slot, [])
 
     @staticmethod
-    def _execute_plugin_command(command_str, item_type):
-        """Execute a plugin command with no params."""
+    def _execute_plugin_command(
+        command_str, item_type, target=None, run_on_target=False,
+    ):
+        """Execute a plugin command with optional target context."""
         import shlex
         import subprocess
         from ai_guardian.daemon.multi_client import _launch_in_terminal
+        from ai_guardian.daemon.tray_plugins import (
+            substitute_target_vars,
+            wrap_for_target,
+        )
+
+        command_str = substitute_target_vars(command_str, target)
 
         try:
             cmd_parts = shlex.split(command_str)
         except ValueError:
             logger.warning("Malformed plugin command: %s", command_str)
             return
+
+        if run_on_target and target:
+            cmd_parts = wrap_for_target(
+                cmd_parts, target, interactive=(item_type == "terminal"),
+            )
 
         try:
             if item_type == "terminal":
@@ -1821,16 +1834,18 @@ class DaemonTray:
         except Exception:
             pass
 
-    def _execute_plugin_command_with_params(self, plugin_item_dict):
+    def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
         """Launch tray-prompt for parameter collection, then execute."""
         import json as json_mod
         import shlex
-        from ai_guardian.daemon.tray_plugins import resolve_command
+        from ai_guardian.daemon.tray_plugins import resolve_command, substitute_target_vars
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         resolved_cmd = resolve_command(plugin_item_dict["command"])
         if resolved_cmd is None:
             return
+
+        resolved_cmd = substitute_target_vars(resolved_cmd, target)
 
         params_json = json_mod.dumps(plugin_item_dict.get("params", []))
         prompt_cmd = self._resolve_cli_cmd(
@@ -1891,16 +1906,25 @@ class DaemonTray:
                         if ps >= len(plugins) or ix >= len(plugins[ps].items):
                             return
                         item = plugins[ps].items[ix]
+                        target = (
+                            self._targets[ds]
+                            if ds < len(self._targets)
+                            else None
+                        )
                         if item.params:
                             from ai_guardian.daemon.tray_plugins import _item_to_dict
                             self._execute_plugin_command_with_params(
-                                _item_to_dict(item)
+                                _item_to_dict(item), target=target,
                             )
                         else:
                             from ai_guardian.daemon.tray_plugins import resolve_command
                             cmd = resolve_command(item.command)
                             if cmd:
-                                self._execute_plugin_command(cmd, item.type)
+                                self._execute_plugin_command(
+                                    cmd, item.type,
+                                    target=target,
+                                    run_on_target=item.run_on_target,
+                                )
                     return action
 
                 sub_items.append(

@@ -31,6 +31,7 @@ class PluginItem:
     label: str
     command: Union[str, Dict[str, str]]
     type: str = "terminal"
+    run_on_target: bool = False
     params: List[PluginParam] = field(default_factory=list)
 
 
@@ -129,7 +130,12 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
         if param is not None:
             params.append(param)
 
-    return PluginItem(label=label, command=command, type=item_type, params=params)
+    run_on_target = bool(raw.get("run_on_target", False))
+
+    return PluginItem(
+        label=label, command=command, type=item_type,
+        run_on_target=run_on_target, params=params,
+    )
 
 
 def _parse_param(raw: dict) -> Optional[PluginParam]:
@@ -191,6 +197,77 @@ def substitute_params(template: str, values: Dict[str, str]) -> str:
     return result
 
 
+_TARGET_VARS = frozenset({
+    "container_id", "container_engine", "host", "port", "name",
+    "pod_name", "namespace",
+})
+
+
+def substitute_target_vars(template: str, target) -> str:
+    """Substitute built-in ``{variable}`` placeholders from a DaemonTarget.
+
+    Target variables use bare names (e.g., ``{container_id}``) without a
+    namespace prefix.  They cannot collide with the ``{tray.*}`` user-param
+    namespace.
+
+    Args:
+        template: Command string with ``{variable}`` placeholders.
+        target: A ``DaemonTarget`` instance, or ``None`` for no substitution.
+
+    Returns:
+        Command with known target placeholders replaced.  Unknown bare
+        ``{name}`` patterns are left untouched.
+    """
+    if target is None:
+        return template
+    result = template
+    for var_name in _TARGET_VARS:
+        placeholder = "{" + var_name + "}"
+        if placeholder in result:
+            value = getattr(target, var_name, None)
+            result = result.replace(
+                placeholder, str(value) if value is not None else "",
+            )
+    return result
+
+
+def wrap_for_target(cmd_parts: list, target, interactive: bool = True) -> list:
+    """Wrap command parts for execution on a DaemonTarget's runtime.
+
+    Args:
+        cmd_parts: The command as a list of strings (already shlex-split).
+        target: A ``DaemonTarget`` instance.
+        interactive: Whether to include ``-it`` flags (True for terminal type).
+
+    Returns:
+        Wrapped command parts.  For local runtime, returns *cmd_parts*
+        unchanged.
+    """
+    import shutil
+    runtime = target.runtime if target else "local"
+
+    if runtime == "container":
+        engine = target.container_engine or "podman"
+        cid = target.container_id or ""
+        if not cid or not re.match(r"^[a-fA-F0-9]{12,64}$", cid):
+            logger.warning("run_on_target: invalid container_id, running locally")
+            return cmd_parts
+        flags = ["-it"] if interactive else []
+        return [engine, "exec"] + flags + [cid] + cmd_parts
+
+    if runtime == "kubernetes":
+        pod = target.pod_name or ""
+        ns = target.namespace or "default"
+        if not pod:
+            logger.warning("run_on_target: no pod_name, running locally")
+            return cmd_parts
+        kube_cli = "oc" if shutil.which("oc") else "kubectl"
+        flags = ["-it"] if interactive else []
+        return [kube_cli, "exec"] + flags + [pod, "-n", ns, "--"] + cmd_parts
+
+    return cmd_parts
+
+
 def plugins_to_dict(plugins: List[Plugin]) -> dict:
     """Serialize a list of plugins to a JSON-serializable dict.
 
@@ -214,6 +291,8 @@ def plugins_to_dict(plugins: List[Plugin]) -> dict:
 def _item_to_dict(item: PluginItem) -> dict:
     """Serialize a PluginItem to a dict."""
     d = {"label": item.label, "command": item.command, "type": item.type}
+    if item.run_on_target:
+        d["run_on_target"] = True
     if item.params:
         d["params"] = [
             _param_to_dict(p)
