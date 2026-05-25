@@ -1853,7 +1853,9 @@ class DaemonTray:
     def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
         """Launch tray-prompt for parameter collection, then execute."""
         import json as json_mod
-        import shlex
+        import os
+        import tempfile
+        import threading
         from ai_guardian.daemon.tray_plugins import resolve_command, substitute_target_vars
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
@@ -1863,14 +1865,47 @@ class DaemonTray:
 
         resolved_cmd = substitute_target_vars(resolved_cmd, target)
 
+        tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
+        output_path = os.path.join(tmpdir, "command")
+
         params_json = json_mod.dumps(plugin_item_dict.get("params", []))
         prompt_cmd = self._resolve_cli_cmd(
             "tray-prompt",
             "--params", params_json,
             "--template", resolved_cmd,
             "--type", plugin_item_dict.get("type", "terminal"),
+            "--output-file", output_path,
         )
-        _launch_in_terminal(prompt_cmd, keep_open=True, clear=True)
+        _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
+
+        item_type = plugin_item_dict.get("type", "terminal")
+        label = plugin_item_dict.get("label")
+
+        def _watch_and_dispatch():
+            import shutil
+            import time
+            timeout = 300
+            elapsed = 0.0
+            interval = 0.5
+            while elapsed < timeout:
+                if os.path.exists(output_path):
+                    try:
+                        with open(output_path) as f:
+                            command = f.read().strip()
+                    except OSError:
+                        command = ""
+                    shutil.rmtree(tmpdir, ignore_errors=True)
+                    if command:
+                        DaemonTray._execute_plugin_command(
+                            command, item_type, target=target, label=label,
+                        )
+                    return
+                time.sleep(interval)
+                elapsed += interval
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+        watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
+        watcher.start()
 
     def _build_plugin_slots_for_daemon(self, daemon_slot, visibility_guard=None):
         """Build pre-allocated plugin menu item slots for a daemon.

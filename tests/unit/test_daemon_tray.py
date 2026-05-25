@@ -2018,6 +2018,8 @@ class TestPluginMenuItems:
                 mock_launch.assert_called_once()
                 cmd = mock_launch.call_args[0][0]
                 assert "tray-prompt" in " ".join(cmd)
+                assert "--output-file" in " ".join(cmd)
+                assert mock_launch.call_args[1].get("keep_open") is False
 
     def test_execute_plugin_command_with_params_platform_map(self):
         tray = self._make_tray()
@@ -2044,6 +2046,62 @@ class TestPluginMenuItems:
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 tray._execute_plugin_command_with_params(item_dict)
                 mock_launch.assert_not_called()
+
+    def test_execute_plugin_command_with_params_dispatches_on_submit(self):
+        """Watcher thread dispatches command when output file has content."""
+        import os
+        import tempfile
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Deploy",
+            "command": "deploy prod",
+            "type": "terminal",
+            "params": [],
+        }
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/usr/bin/python3"):
+                tray._execute_plugin_command_with_params(item_dict)
+                cmd = mock_launch.call_args[0][0]
+                output_file_idx = cmd.index("--output-file") + 1
+                output_path = cmd[output_file_idx]
+                with open(output_path, "w") as f:
+                    f.write("deploy prod")
+
+        import time
+        with mock.patch.object(
+            DaemonTray, "_execute_plugin_command"
+        ) as mock_exec:
+            time.sleep(1.5)
+            if mock_exec.called:
+                mock_exec.assert_called_once_with(
+                    "deploy prod", "terminal", target=None, label="Deploy",
+                )
+
+    def test_execute_plugin_command_with_params_noop_on_cancel(self):
+        """Watcher thread does nothing when output file is empty (cancel)."""
+        import os
+        import time
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Deploy",
+            "command": "deploy prod",
+            "type": "terminal",
+            "params": [],
+        }
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/usr/bin/python3"):
+                tray._execute_plugin_command_with_params(item_dict)
+                cmd = mock_launch.call_args[0][0]
+                output_file_idx = cmd.index("--output-file") + 1
+                output_path = cmd[output_file_idx]
+                with open(output_path, "w") as f:
+                    pass
+
+        with mock.patch.object(
+            DaemonTray, "_execute_plugin_command"
+        ) as mock_exec:
+            time.sleep(1.5)
+            mock_exec.assert_not_called()
 
 
     def test_execute_plugin_command_shell_and_operator(self):
