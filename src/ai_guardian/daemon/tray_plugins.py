@@ -121,7 +121,7 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
         return None
 
     item_type = raw.get("type", "terminal")
-    if item_type not in ("terminal", "background", "notification", "clipboard"):
+    if item_type not in ("terminal", "background", "notification", "clipboard", "modal"):
         item_type = "terminal"
 
     params = []

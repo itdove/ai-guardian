@@ -1791,6 +1791,7 @@ class DaemonTray:
     @staticmethod
     def _execute_plugin_command(
         command_str, item_type, target=None, run_on_target=False,
+        label=None,
     ):
         """Execute a plugin command with optional target context."""
         import shlex
@@ -1829,6 +1830,17 @@ class DaemonTray:
                 )
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
                 copy_to_clipboard(result.stdout.strip())
+            elif item_type == "modal":
+                result = subprocess.run(
+                    cmd_parts, capture_output=True, text=True, timeout=60,
+                )
+                output = result.stdout.strip()
+                if result.returncode != 0 and result.stderr.strip():
+                    output = result.stderr.strip() if not output else (
+                        output + "\n\n--- stderr ---\n" + result.stderr.strip()
+                    )
+                from ai_guardian.daemon.tray_plugins import show_dialog
+                show_dialog(label or "AI Guardian", output or "(no output)")
             else:
                 subprocess.run(cmd_parts, timeout=60)
         except Exception:
@@ -1924,6 +1936,7 @@ class DaemonTray:
                                     cmd, item.type,
                                     target=target,
                                     run_on_target=item.run_on_target,
+                                    label=item.label,
                                 )
                     return action
 

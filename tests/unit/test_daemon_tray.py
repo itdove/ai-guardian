@@ -1957,6 +1957,51 @@ class TestPluginMenuItems:
                 DaemonTray._execute_plugin_command("true", "notification")
                 mock_notify.assert_called_once_with("AI Guardian", "(no output)")
 
+    def test_execute_plugin_command_modal(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="ai-guardian 1.8.0\n", returncode=0, stderr="",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                DaemonTray._execute_plugin_command(
+                    "ai-guardian --version", "modal", label="Version",
+                )
+                mock_run.assert_called_once()
+                mock_dialog.assert_called_once_with("Version", "ai-guardian 1.8.0")
+
+    def test_execute_plugin_command_modal_no_output(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="", returncode=0, stderr="",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                DaemonTray._execute_plugin_command("true", "modal")
+                mock_dialog.assert_called_once_with("AI Guardian", "(no output)")
+
+    def test_execute_plugin_command_modal_shows_stderr_on_failure(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="", returncode=1, stderr="command not found\n",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                DaemonTray._execute_plugin_command(
+                    "bad-command", "modal", label="Check",
+                )
+                mock_dialog.assert_called_once_with("Check", "command not found")
+
+    def test_execute_plugin_command_modal_shows_both_on_failure(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="partial output\n", returncode=1,
+                stderr="warning: something\n",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                DaemonTray._execute_plugin_command("cmd", "modal")
+                title, msg = mock_dialog.call_args[0]
+                assert title == "AI Guardian"
+                assert "partial output" in msg
+                assert "warning: something" in msg
+
     def test_execute_plugin_command_with_params(self):
         tray = self._make_tray()
         item_dict = {
