@@ -1,7 +1,9 @@
 """Tests for tray prompt Textual app and CLI handler."""
 
 import json
+import os
 import sys
+import tempfile
 from unittest import mock
 
 import pytest
@@ -57,6 +59,7 @@ class TestHandleTrayPrompt:
         args.params = '[{"name": "x"}]'
         args.template = "echo {tray.x}"
         args.type = "background"
+        args.output_file = None
         mock_app = mock.MagicMock()
         mock_app.run.return_value = None
         with mock.patch("sys.stdin") as mock_stdin:
@@ -65,81 +68,94 @@ class TestHandleTrayPrompt:
                 result = _handle_tray_prompt(args)
         assert result == 0
 
-    def test_info_type_runs_subprocess(self):
+    def test_cancel_creates_empty_output_file(self):
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".cmd") as tmp:
+            tmp_path = tmp.name
+        os.unlink(tmp_path)
+        try:
+            args = mock.MagicMock()
+            args.params = '[{"name": "x"}]'
+            args.template = "echo {tray.x}"
+            args.type = "terminal"
+            args.output_file = tmp_path
+            mock_app = mock.MagicMock()
+            mock_app.run.return_value = None
+            with mock.patch("sys.stdin") as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                    result = _handle_tray_prompt(args)
+            assert result == 0
+            assert os.path.exists(tmp_path)
+            with open(tmp_path) as f:
+                assert f.read() == ""
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_submit_writes_command_to_output_file(self):
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".cmd") as tmp:
+            tmp_path = tmp.name
+        os.unlink(tmp_path)
+        try:
+            args = mock.MagicMock()
+            args.params = '[]'
+            args.template = "echo hello"
+            args.type = "terminal"
+            args.output_file = tmp_path
+            mock_app = mock.MagicMock()
+            mock_app.run.return_value = "echo hello"
+            with mock.patch("sys.stdin") as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                    result = _handle_tray_prompt(args)
+            assert result == 0
+            with open(tmp_path) as f:
+                assert f.read() == "echo hello"
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_submit_prints_to_stdout_without_output_file(self, capsys):
         from ai_guardian.cli_handlers import _handle_tray_prompt
         args = mock.MagicMock()
         args.params = '[]'
         args.template = "echo hello"
-        args.type = "background"
+        args.type = "terminal"
+        args.output_file = None
         mock_app = mock.MagicMock()
         mock_app.run.return_value = "echo hello"
         with mock.patch("sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
             with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                with mock.patch("subprocess.run") as mock_run:
-                    mock_run.return_value = mock.MagicMock(returncode=0)
+                result = _handle_tray_prompt(args)
+        assert result == 0
+        assert capsys.readouterr().out.strip() == "echo hello"
+
+    def test_shell_operators_written_to_output_file(self):
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".cmd") as tmp:
+            tmp_path = tmp.name
+        os.unlink(tmp_path)
+        try:
+            args = mock.MagicMock()
+            args.params = '[]'
+            args.template = "echo a && echo b"
+            args.type = "background"
+            args.output_file = tmp_path
+            mock_app = mock.MagicMock()
+            mock_app.run.return_value = "echo a && echo b"
+            with mock.patch("sys.stdin") as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
                     result = _handle_tray_prompt(args)
-        assert result == 0
-        mock_run.assert_called_once()
-
-    def test_modal_type_shows_dialog(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
-        args = mock.MagicMock()
-        args.params = '[]'
-        args.template = "echo version-info"
-        args.type = "modal"
-        mock_app = mock.MagicMock()
-        mock_app.run.return_value = "echo version-info"
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                with mock.patch("subprocess.run") as mock_run:
-                    mock_run.return_value = mock.MagicMock(
-                        returncode=0, stdout="v1.8.0\n", stderr="",
-                    )
-                    with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
-                        result = _handle_tray_prompt(args)
-        assert result == 0
-        mock_dialog.assert_called_once_with("AI Guardian", "v1.8.0")
-
-    def test_modal_type_shows_stderr_on_failure(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
-        args = mock.MagicMock()
-        args.params = '[]'
-        args.template = "bad-cmd"
-        args.type = "modal"
-        mock_app = mock.MagicMock()
-        mock_app.run.return_value = "bad-cmd"
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                with mock.patch("subprocess.run") as mock_run:
-                    mock_run.return_value = mock.MagicMock(
-                        returncode=1, stdout="", stderr="not found\n",
-                    )
-                    with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
-                        result = _handle_tray_prompt(args)
-        assert result == 1
-        mock_dialog.assert_called_once_with("AI Guardian", "not found")
-
-
-    def test_shell_operators_use_sh(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
-        args = mock.MagicMock()
-        args.params = '[]'
-        args.template = "echo a && echo b"
-        args.type = "background"
-        mock_app = mock.MagicMock()
-        mock_app.run.return_value = "echo a && echo b"
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                with mock.patch("subprocess.run") as mock_run:
-                    mock_run.return_value = mock.MagicMock(returncode=0)
-                    result = _handle_tray_prompt(args)
-        assert result == 0
-        cmd = mock_run.call_args[0][0]
-        assert cmd == ["sh", "-c", "echo a && echo b"]
+            assert result == 0
+            with open(tmp_path) as f:
+                assert f.read() == "echo a && echo b"
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
 
 class TestTrayPromptAppCreation:

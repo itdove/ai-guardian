@@ -664,6 +664,11 @@ def main():
             choices=["terminal", "background", "notification", "clipboard", "modal"],
             help="Command execution type"
         )
+        tray_prompt_parser.add_argument(
+            "--output-file",
+            default=None,
+            help="Write resolved command to this file instead of executing"
+        )
 
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
