@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **JSON schema for tray plugin files** (Issue #783)
+  - New `src/ai_guardian/schemas/tray-plugin.schema.json` validates plugin structure
+  - Covers all fields: name, items, label, command (string or platform map), type, run_on_target, params
+  - Enables IDE autocompletion and inline validation when `$schema` is referenced in plugin files
+  - Schema tests in `tests/unit/test_tray_plugin_schema.py`
+
 - **Plugin commands: built-in target variables and run_on_target flag** (Issue #780)
   - Target variables (`{container_id}`, `{container_engine}`, `{host}`, `{port}`, `{name}`, `{pod_name}`, `{namespace}`) automatically substituted from DaemonTarget
   - `run_on_target` flag wraps commands for the target runtime (container exec, kubectl/oc exec, or local)

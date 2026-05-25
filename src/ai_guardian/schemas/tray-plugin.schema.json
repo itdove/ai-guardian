@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/tray-plugin.schema.json",
+  "title": "AI Guardian Tray Plugin",
+  "description": "Plugin definition for the AI Guardian system tray menu. Each JSON file in the tray-plugins directory defines one submenu with a name and a list of menu items.",
+  "type": "object",
+  "required": ["name", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for IDE autocompletion"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display name of the plugin submenu in the system tray"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "description": "Menu items in this plugin (max 12 per plugin due to pre-allocated tray slots)",
+      "items": {
+        "$ref": "#/definitions/plugin_item"
+      }
+    }
+  },
+  "definitions": {
+    "plugin_item": {
+      "type": "object",
+      "description": "A single menu item that runs a command when clicked",
+      "required": ["label", "command"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text displayed in the tray menu for this item"
+        },
+        "command": {
+          "description": "Command to execute. Either a plain string or a platform map object with keys like 'darwin', 'linux', 'windows', 'default'. Use {tray.param_name} for user parameter placeholders and {variable} for target variable placeholders (container_id, host, port, etc.).",
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/definitions/platform_command"
+            }
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["terminal", "background", "notification", "clipboard", "modal"],
+          "default": "terminal",
+          "description": "Execution type: 'terminal' opens a terminal window, 'background' runs silently, 'notification' shows output as a system notification, 'clipboard' copies output to clipboard, 'modal' shows output in a dialog box"
+        },
+        "run_on_target": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, wrap the command for execution on the daemon's target runtime (container exec, kubectl exec). Only applies when the daemon monitors a container or Kubernetes pod."
+        },
+        "params": {
+          "type": "array",
+          "description": "User-defined parameters that prompt for input before running. Values are substituted into the command via {tray.param_name} placeholders.",
+          "items": {
+            "$ref": "#/definitions/plugin_param"
+          }
+        }
+      }
+    },
+    "platform_command": {
+      "type": "object",
+      "description": "Platform-specific command map. The command matching the current OS is used, falling back to 'default' if no platform match.",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "darwin": {
+          "type": "string",
+          "description": "Command for macOS"
+        },
+        "linux": {
+          "type": "string",
+          "description": "Command for Linux"
+        },
+        "windows": {
+          "type": "string",
+          "description": "Command for Windows"
+        },
+        "default": {
+          "type": "string",
+          "description": "Fallback command when no platform-specific command matches"
+        }
+      }
+    },
+    "plugin_param": {
+      "type": "object",
+      "description": "Parameter definition that prompts the user for input before running the command",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Parameter name used in {tray.name} placeholders"
+        },
+        "hint": {
+          "type": "string",
+          "description": "Help text shown to the user when prompting for this parameter"
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value pre-filled in the input prompt"
+        },
+        "options": {
+          "type": "array",
+          "description": "Predefined choices shown as a dropdown instead of free-text input",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
