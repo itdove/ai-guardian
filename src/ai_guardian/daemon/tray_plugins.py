@@ -231,6 +231,14 @@ def substitute_target_vars(template: str, target) -> str:
     return result
 
 
+_SHELL_OPERATORS = ("&&", "||", "|", ";", ">>", "<<", ">", "<")
+
+
+def _needs_shell(command_str: str) -> bool:
+    """Return True if *command_str* contains shell operators."""
+    return any(op in command_str for op in _SHELL_OPERATORS)
+
+
 def wrap_for_target(cmd_parts: list, target, interactive: bool = True) -> list:
     """Wrap command parts for execution on a DaemonTarget's runtime.
 

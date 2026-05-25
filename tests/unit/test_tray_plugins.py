@@ -438,6 +438,50 @@ class TestSubstituteTargetVars:
         assert result == "echo hello world"
 
 
+class TestNeedsShell:
+    """Tests for _needs_shell shell-operator detection."""
+
+    def test_simple_command(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("echo hello") is False
+
+    def test_double_ampersand(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("uname -a && lsb_release -a") is True
+
+    def test_pipe(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("ps aux | grep python") is True
+
+    def test_semicolon(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("echo hello; echo world") is True
+
+    def test_redirect_out(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("ai-guardian doctor > /tmp/report.txt") is True
+
+    def test_redirect_append(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("echo line >> /tmp/log.txt") is True
+
+    def test_double_pipe(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("cmd1 || cmd2") is True
+
+    def test_redirect_in(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("wc -l < input.txt") is True
+
+    def test_heredoc(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("cat << EOF") is True
+
+    def test_no_operators(self):
+        from ai_guardian.daemon.tray_plugins import _needs_shell
+        assert _needs_shell("ai-guardian --version") is False
+
+
 class TestWrapForTarget:
     """Tests for run_on_target command wrapping."""
 
