@@ -16,6 +16,12 @@
       "minLength": 1,
       "description": "Display name of the plugin submenu in the system tray"
     },
+    "scope": {
+      "type": "string",
+      "enum": ["daemon", "global"],
+      "default": "daemon",
+      "description": "Where this plugin appears. 'daemon' (default) shows inside daemon submenus filtered by tags. 'global' shows at the tray top level, not inside any daemon submenu."
+    },
     "tags": {
       "type": "array",
       "items": {

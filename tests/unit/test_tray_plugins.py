@@ -1146,3 +1146,104 @@ class TestFilterPluginsByTags:
         plugins = [self._make_plugin("Carbon", ["carbonite"])]
         result = filter_plugins_by_tags(plugins, ["carbon"])
         assert len(result) == 0
+
+
+class TestPluginScope:
+    def test_scope_parsed_from_json(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "global.json").write_text(json.dumps({
+            "name": "Quick Links",
+            "scope": "global",
+            "items": [{"label": "Docs", "command": "echo docs"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert plugins[0].scope == "global"
+
+    def test_scope_daemon_explicit(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "daemon.json").write_text(json.dumps({
+            "name": "Daemon Plugin",
+            "scope": "daemon",
+            "items": [{"label": "Run", "command": "echo"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].scope == "daemon"
+
+    def test_scope_missing_defaults_to_daemon(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "noscope.json").write_text(json.dumps({
+            "name": "No Scope",
+            "items": [{"label": "Run", "command": "echo"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].scope == "daemon"
+
+    def test_scope_invalid_defaults_to_daemon(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "invalid.json").write_text(json.dumps({
+            "name": "Invalid Scope",
+            "scope": "invalid_value",
+            "items": [{"label": "Run", "command": "echo"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].scope == "daemon"
+
+    def test_scope_included_in_serialization(self):
+        plugins = [Plugin(
+            name="Global",
+            scope="global",
+            items=[PluginItem(label="Run", command="echo")]
+        )]
+        result = plugins_to_dict(plugins)
+        assert result["plugins"][0]["scope"] == "global"
+
+    def test_scope_daemon_omitted_in_serialization(self):
+        plugins = [Plugin(
+            name="Daemon",
+            items=[PluginItem(label="Run", command="echo")]
+        )]
+        result = plugins_to_dict(plugins)
+        assert "scope" not in result["plugins"][0]
+
+    def test_scope_roundtrip_global(self):
+        original = [Plugin(
+            name="Roundtrip",
+            scope="global",
+            items=[PluginItem(label="Go", command="echo 1")]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert restored[0].scope == "global"
+
+    def test_scope_roundtrip_daemon(self):
+        original = [Plugin(
+            name="Roundtrip",
+            items=[PluginItem(label="Go", command="echo 1")]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert restored[0].scope == "daemon"
+
+    def test_mixed_scopes_loaded(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "01-global.json").write_text(json.dumps({
+            "name": "Global",
+            "scope": "global",
+            "items": [{"label": "Docs", "command": "echo docs"}]
+        }))
+        (plugins_dir / "02-daemon.json").write_text(json.dumps({
+            "name": "Daemon",
+            "items": [{"label": "Status", "command": "echo status"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 2
+        global_plugins = [p for p in plugins if p.scope == "global"]
+        daemon_plugins = [p for p in plugins if p.scope == "daemon"]
+        assert len(global_plugins) == 1
+        assert len(daemon_plugins) == 1

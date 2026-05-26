@@ -3102,3 +3102,160 @@ class TestDiscoveryAnimation:
         tray = self._make_tray()
         tray._cancel_discovery_timer()
         assert tray._discovery_timer is None
+
+
+class TestGlobalPlugins:
+    """Tests for global-scope tray plugins (issue #794)."""
+
+    def _make_tray(self, targets=None, multi_client=None):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=multi_client,
+        )
+        if targets is not None:
+            tray._targets = targets
+        return tray
+
+    def test_global_plugins_initialized_empty(self):
+        tray = self._make_tray()
+        assert tray._global_plugins == []
+        assert tray._daemon_global_plugins == {}
+
+    def test_poll_plugins_collects_global_from_daemon_data(self):
+        mc = mock.MagicMock()
+        mc._local_plugins.return_value = {
+            "plugins": [
+                {"name": "Quick Links", "scope": "global",
+                 "items": [{"label": "Docs", "command": "echo", "type": "background"}]},
+                {"name": "Daemon", "items": [{"label": "Status", "command": "echo"}]},
+            ]
+        }
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        tray = self._make_tray(targets=[local_target], multi_client=mc)
+        tray._poll_plugins()
+        assert len(tray._global_plugins) == 1
+        assert tray._global_plugins[0].name == "Quick Links"
+
+    def test_poll_plugins_excludes_global_from_daemon_plugins(self):
+        mc = mock.MagicMock()
+        mc._local_plugins.return_value = {
+            "plugins": [
+                {"name": "Global", "scope": "global",
+                 "items": [{"label": "Docs", "command": "echo", "type": "background"}]},
+                {"name": "Daemon", "items": [{"label": "Status", "command": "echo"}]},
+            ]
+        }
+        local_target = DaemonTarget(name="local", runtime="local", status="running")
+        tray = self._make_tray(targets=[local_target], multi_client=mc)
+        tray._poll_plugins()
+        assert 0 in tray._daemon_plugins
+        names = [p.name for p in tray._daemon_plugins[0]]
+        assert "Global" not in names
+        assert "Daemon" in names
+
+    def test_poll_plugins_clears_globals_when_remote_daemon_stops(self):
+        mc = mock.MagicMock()
+        plugin_data = {
+            "plugins": [
+                {"name": "Links", "scope": "global",
+                 "items": [{"label": "Docs", "command": "echo"}]},
+            ]
+        }
+        mc.get_plugins.return_value = plugin_data
+        mc.get_status.return_value = {"menu_tags": []}
+        remote_target = DaemonTarget(
+            name="remote", runtime="container", status="running",
+        )
+        tray = self._make_tray(targets=[remote_target], multi_client=mc)
+        tray._poll_plugins()
+        assert len(tray._global_plugins) == 1
+
+        remote_target.status = "stopped"
+        tray._poll_plugins()
+        assert tray._global_plugins == []
+
+    def test_build_global_plugin_items_returns_slots_plus_separator(self):
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            items = tray._build_global_plugin_items()
+        assert isinstance(items, list)
+        assert len(items) == tray._MAX_GLOBAL_PLUGIN_SLOTS + 1
+
+    def test_global_plugin_visible_when_present(self):
+        from ai_guardian.daemon.tray_plugins import Plugin, PluginItem
+        tray = self._make_tray(targets=[
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ])
+        tray._global_plugins = [
+            Plugin(name="Quick Links", scope="global",
+                   items=[PluginItem(label="Docs", command="echo docs")]),
+        ]
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            tray._build_global_plugin_items()
+
+        plugin_calls = [
+            call for call in mock_pystray.MenuItem.call_args_list
+            if len(call[0]) >= 2 and isinstance(call[0][1], mock.MagicMock)
+            and call[1].get("visible") is not None
+        ]
+        assert len(plugin_calls) >= 1
+        first_plugin = plugin_calls[0]
+        vis_fn = first_plugin[1]["visible"]
+        label_fn = first_plugin[0][0]
+        assert vis_fn(None) is True
+        assert label_fn(None) == "Quick Links"
+
+    def test_global_plugin_hidden_when_no_global_plugins(self):
+        tray = self._make_tray(targets=[
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ])
+        tray._global_plugins = []
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            tray._build_global_plugin_items()
+
+        first_call = mock_pystray.MenuItem.call_args_list[0]
+        vis_fn = first_call[1].get("visible")
+        assert vis_fn(None) is False
+
+    def test_poll_plugins_clears_globals_when_no_targets(self):
+        from ai_guardian.daemon.tray_plugins import Plugin, PluginItem
+        tray = self._make_tray(targets=[])
+        tray._global_plugins = [
+            Plugin(name="Stale", scope="global",
+                   items=[PluginItem(label="X", command="echo")]),
+        ]
+        tray._poll_plugins()
+        assert tray._global_plugins == []
+
+    def test_run_includes_global_plugin_items(self):
+        """_run() calls _build_global_plugin_items."""
+        tray = self._make_tray()
+        with mock.patch.object(tray, "_build_global_plugin_items",
+                               return_value=[]) as mock_build, \
+             mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()), \
+             mock.patch.object(tray, "_ensure_macos_activation_policy"), \
+             mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]), \
+             mock.patch.object(tray, "_build_single_daemon_plugin_items", return_value=[]), \
+             mock.patch.object(tray, "_build_single_daemon_daemon_items", return_value=[]), \
+             mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]), \
+             mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]), \
+             mock.patch.object(tray, "_start_stats_refresh"), \
+             mock.patch.object(tray, "_register_wake_handler"), \
+             mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_icon = mock.MagicMock()
+            mock_pystray.Icon.return_value = mock_icon
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_icon.run = mock.MagicMock()
+            tray._run()
+            mock_build.assert_called_once()
