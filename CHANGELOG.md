@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MCP server entry constant no longer contains bare command name** (Issue #800)
+  - Removed bare `"command": "ai-guardian"` from `_MCP_SERVER_ENTRY` constant
+  - Command is always resolved to absolute path via `_resolve_binary_path()` at setup time
+  - Prevents MCP server startup failures when venv is not activated
+
 - **`daemon status` and `daemon stop` no longer cause daemon auto-restart** (Issue #775)
   - `daemon stop` writes a stop-requested marker that suppresses auto-start
   - `start_daemon_background()` respects the marker as a final guard

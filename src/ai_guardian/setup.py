@@ -2533,7 +2533,6 @@ _MCP_IDE_CONFIGS = {
 }
 
 _MCP_SERVER_ENTRY = {
-    "command": "ai-guardian",
     "args": ["mcp-server"],
 }
 
