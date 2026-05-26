@@ -992,6 +992,72 @@ class TestPausedTargetMenuVisibility:
         assert "◐" in label
         assert "my-host" in label
 
+    @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
+    def test_daemon_status_label_includes_working_dir(self, mock_shorten):
+        """Status label appends shortened working dir for running daemon."""
+        mock_shorten.return_value = "~/dev/project"
+        t = DaemonTarget(
+            name="my-host", runtime="local", status="running",
+            working_dir="/Users/dev/project",
+        )
+        label = DaemonTray._daemon_status_label(t)
+        assert "my-host" in label
+        assert "~/dev/project" in label
+
+    def test_daemon_status_label_no_working_dir(self):
+        """Status label unchanged when working_dir is None."""
+        t = DaemonTarget(name="my-host", runtime="local", status="running")
+        label = DaemonTray._daemon_status_label(t)
+        assert "—" not in label or "daemon not running" in label
+
+    @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
+    def test_daemon_status_label_truncates_long_path(self, mock_shorten):
+        """Status label truncates paths longer than 40 chars."""
+        mock_shorten.return_value = "~/very/deep/nested/project/directory/name"
+        t = DaemonTarget(
+            name="host", runtime="local", status="running",
+            working_dir="/home/user/very/deep/nested/project/directory/name",
+        )
+        label = DaemonTray._daemon_status_label(t)
+        assert "..." in label
+
+
+class TestWorkingDirApply:
+    """Tests for _apply_working_dirs populating targets from state."""
+
+    @mock.patch("ai_guardian.daemon.working_dir.get_working_dir")
+    def test_apply_sets_working_dir_on_targets(self, mock_get):
+        mock_get.side_effect = lambda name: f"/home/{name}"
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(name="daemon-a", runtime="local"),
+            DaemonTarget(name="daemon-b", runtime="local"),
+        ]
+        tray._apply_working_dirs()
+        assert tray._targets[0].working_dir == "/home/daemon-a"
+        assert tray._targets[1].working_dir == "/home/daemon-b"
+
+    @mock.patch("ai_guardian.daemon.working_dir.get_working_dir")
+    def test_apply_does_not_overwrite_existing(self, mock_get):
+        mock_get.return_value = "/default"
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [
+            DaemonTarget(
+                name="daemon-a", runtime="local",
+                working_dir="/already/set",
+            ),
+        ]
+        tray._apply_working_dirs()
+        assert tray._targets[0].working_dir == "/already/set"
+
 
 class TestUntilResumePauseOption:
     """Tests for 'Until resume' indefinite pause menu option (issue #698)."""
@@ -1253,22 +1319,26 @@ class TestWakeDetection:
         now = time_mod.time()
         time_values = iter([now - 60, now])
 
+        orig_wait = tray._refresh_event.wait
+
+        def stop_after_one_wait(timeout=None):
+            tray._stats_refresh_running = False
+            return orig_wait(0)
+
         with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
             with mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch):
-                with mock.patch("ai_guardian.daemon.tray.time") as mock_time:
-                    mock_time.time = mock.MagicMock(side_effect=time_values)
-                    mock_time.sleep = mock.MagicMock(side_effect=lambda _: setattr(
-                        tray, "_stats_refresh_running", False
-                    ))
-                    tray._stats_refresh_running = True
-                    tray._start_stats_refresh()
-                    time_mod.sleep(0.3)
+                with mock.patch.object(tray._refresh_event, "wait", side_effect=stop_after_one_wait):
+                    with mock.patch("ai_guardian.daemon.tray.time") as mock_time:
+                        mock_time.time = mock.MagicMock(side_effect=time_values)
+                        tray._stats_refresh_running = True
+                        tray._start_stats_refresh()
+                        time_mod.sleep(0.3)
 
         assert len(rebuild_calls) > 0
 
     def test_stats_refresh_normal_tick_no_rebuild(self):
         """Normal 10s tick does not trigger _rebuild_tray."""
-        import time
+        import time as time_mod
 
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -1286,14 +1356,23 @@ class TestWakeDetection:
             except Exception:
                 pass
 
+        now = time_mod.time()
+
+        orig_wait = tray._refresh_event.wait
+
+        def stop_after_one_wait(timeout=None):
+            tray._stats_refresh_running = False
+            return orig_wait(0)
+
         with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
             with mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch):
-                tray._stats_refresh_running = True
-                tray._last_refresh_wallclock = time.time()
-                tray._start_stats_refresh()
-                time.sleep(0.3)
-                tray._stats_refresh_running = False
-                time.sleep(0.2)
+                with mock.patch.object(tray._refresh_event, "wait", side_effect=stop_after_one_wait):
+                    with mock.patch("ai_guardian.daemon.tray.time") as mock_time:
+                        mock_time.time = mock.MagicMock(side_effect=[now, now + 10])
+                        tray._stats_refresh_running = True
+                        tray._last_refresh_wallclock = now
+                        tray._start_stats_refresh()
+                        time_mod.sleep(0.3)
 
         assert len(rebuild_calls) == 0
 
@@ -1701,7 +1780,7 @@ class TestShellMenuItem:
     """Tests for Shell menu item in tray (issue #706)."""
 
     def test_single_daemon_menu_includes_shell(self):
-        """Single-daemon flat menu contains 'Shell' item."""
+        """Single-daemon flat menu contains 'Terminal' item."""
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
@@ -1720,7 +1799,7 @@ class TestShellMenuItem:
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
-            assert "Shell" in labels
+            assert "Terminal" in labels
 
     def test_single_daemon_shell_after_mcp(self):
         """Shell item appears after MCP Proactive section in single-daemon menu."""
@@ -1742,14 +1821,14 @@ class TestShellMenuItem:
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
-            assert "Shell" in labels
+            assert "Terminal" in labels
             assert "Doctor" in labels
-            shell_idx = labels.index("Shell")
+            shell_idx = labels.index("Terminal")
             doctor_idx = labels.index("Doctor")
             assert doctor_idx == shell_idx + 1
 
     def test_multi_daemon_menu_includes_shell(self):
-        """Multi-daemon per-daemon submenu contains 'Shell' item."""
+        """Multi-daemon per-daemon submenu contains 'Terminal' item."""
         mc = mock.MagicMock()
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -1772,7 +1851,7 @@ class TestShellMenuItem:
                 call[0][0] for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
-            assert "Shell" in labels
+            assert "Terminal" in labels
             assert "Doctor" in labels
 
     def test_shell_routes_via_multi_client(self):
@@ -1814,14 +1893,27 @@ class TestShellMenuItem:
         with mock.patch("os.environ", {"SHELL": "/bin/zsh"}):
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 DaemonTray._launch_shell()
-                mock_launch.assert_called_once_with(["/bin/zsh"], keep_open=True)
+                mock_launch.assert_called_once_with(
+                    ["/bin/zsh"], keep_open=True, cwd=None,
+                )
 
     def test_launch_shell_defaults_to_sh(self):
         """_launch_shell defaults to /bin/sh when SHELL not set."""
         with mock.patch.dict("os.environ", {}, clear=True):
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 DaemonTray._launch_shell()
-                mock_launch.assert_called_once_with(["/bin/sh"], keep_open=True)
+                mock_launch.assert_called_once_with(
+                    ["/bin/sh"], keep_open=True, cwd=None,
+                )
+
+    def test_launch_shell_passes_cwd(self):
+        """_launch_shell passes working directory as cwd."""
+        with mock.patch("os.environ", {"SHELL": "/bin/bash"}):
+            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                DaemonTray._launch_shell(cwd="/home/user/project")
+                mock_launch.assert_called_once_with(
+                    ["/bin/bash"], keep_open=True, cwd="/home/user/project",
+                )
 
 
 class TestPluginMenuItems:

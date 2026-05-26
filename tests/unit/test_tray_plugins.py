@@ -363,6 +363,13 @@ class TestSubstituteParams:
         result = substitute_params("echo $HOME {tray.x}", {"x": "val"})
         assert result == "echo $HOME val"
 
+    def test_tray_working_dir_substituted(self):
+        result = substitute_params(
+            "cd {tray.working_dir} && make",
+            {"working_dir": "/home/user/project"},
+        )
+        assert result == "cd /home/user/project && make"
+
 
 class TestSubstituteTargetVars:
     """Tests for target variable substitution in plugin commands."""
@@ -437,6 +444,18 @@ class TestSubstituteTargetVars:
         target = self._make_target()
         result = substitute_target_vars("echo hello world", target)
         assert result == "echo hello world"
+
+    def test_substitutes_working_dir(self):
+        target = self._make_target(working_dir="/home/user/project")
+        result = substitute_target_vars(
+            "cd {working_dir} && make build", target,
+        )
+        assert result == "cd /home/user/project && make build"
+
+    def test_working_dir_none_becomes_empty(self):
+        target = self._make_target(working_dir=None)
+        result = substitute_target_vars("cd {working_dir}", target)
+        assert result == "cd "
 
 
 class TestNeedsShell:

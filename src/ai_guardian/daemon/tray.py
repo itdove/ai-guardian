@@ -214,6 +214,7 @@ class DaemonTray:
         self._discovery_in_progress = False
         self._refreshing_from_discovery = False
         self._last_discovery_refresh = 0.0
+        self._refresh_event = threading.Event()
 
     def start(self):
         """Start tray icon in a background thread.
@@ -715,13 +716,13 @@ class DaemonTray:
         _launch_in_terminal(cmd_parts)
 
     @staticmethod
-    def _launch_shell():
+    def _launch_shell(cwd=None):
         """Launch the user's default shell in a new terminal window."""
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         import os
         shell = os.environ.get("SHELL", "/bin/sh")
-        _launch_in_terminal([shell], keep_open=True)
+        _launch_in_terminal([shell], keep_open=True, cwd=cwd)
 
     @staticmethod
     def _launch_doctor():
@@ -1062,7 +1063,8 @@ class DaemonTray:
 
         def _refresh():
             while self._stats_refresh_running:
-                time.sleep(self._REFRESH_INTERVAL)
+                self._refresh_event.wait(timeout=self._REFRESH_INTERVAL)
+                self._refresh_event.clear()
                 now = time.time()
                 elapsed = now - self._last_refresh_wallclock
                 self._last_refresh_wallclock = now
@@ -1106,6 +1108,7 @@ class DaemonTray:
         self._stop_discovery_animation()
         self._is_initial_discovery = False
         self._targets = targets
+        self._apply_working_dirs()
         self._auto_select_target()
         self._refreshing_from_discovery = True
         self._dispatch_to_main(self._refresh_menu_and_clear_discovery_flag)
@@ -1170,6 +1173,8 @@ class DaemonTray:
     @staticmethod
     def _daemon_status_label(target):
         """Format a daemon target into a status header label."""
+        from ai_guardian.daemon.working_dir import shorten_path
+
         status_icon = {
             "running": "●", "paused": "◐", "stopped": "⚠",
             "error": "✗", "unknown": "○",
@@ -1183,6 +1188,11 @@ class DaemonTray:
         label = f"{status_icon} {target.name}{runtime}"
         if target.status == "stopped":
             label += " — daemon not running"
+        elif getattr(target, "working_dir", None):
+            short = shorten_path(target.working_dir)
+            if len(short) > 40:
+                short = short[:37] + "..."
+            label += f" — {short}"
         return label
 
     def _version_annotated_label(self, target):
@@ -1194,6 +1204,49 @@ class DaemonTray:
             if daemon_ver:
                 label += f" — v{daemon_ver} ⟳"
         return label
+
+    def _working_dir_menu_label(self, slot):
+        """Format the Working Dir menu item label for a daemon slot."""
+        from ai_guardian.daemon.working_dir import shorten_path
+        if slot < len(self._targets):
+            wd = getattr(self._targets[slot], "working_dir", None)
+            if wd:
+                short = shorten_path(wd)
+                if len(short) > 50:
+                    short = short[:47] + "..."
+                return f"Working Dir: {short}"
+        return "Working Dir: ~"
+
+    def _mk_change_working_dir(self, slot):
+        """Create a click handler that opens a directory picker for a slot."""
+        def action(_, __):
+            if slot >= len(self._targets):
+                return
+            t = self._targets[slot]
+            current = getattr(t, "working_dir", None)
+            threading.Thread(
+                target=self._pick_working_dir,
+                args=(t, current),
+                daemon=True,
+                name="working-dir-picker",
+            ).start()
+        return action
+
+    def _pick_working_dir(self, target, current):
+        """Run directory picker in background thread and persist result."""
+        from ai_guardian.daemon.working_dir import choose_directory, set_working_dir
+        chosen = choose_directory(current)
+        if chosen:
+            target.working_dir = chosen
+            set_working_dir(target.name, chosen)
+            self._refresh_event.set()
+
+    def _apply_working_dirs(self):
+        """Populate target.working_dir from persisted state after discovery."""
+        from ai_guardian.daemon.working_dir import get_working_dir
+        for t in self._targets:
+            if not getattr(t, "working_dir", None):
+                t.working_dir = get_working_dir(t.name)
 
     def _build_single_daemon_menu_items(self):
         """Build flat menu items for single-daemon mode.
@@ -1237,7 +1290,9 @@ class DaemonTray:
                     if self._multi_client:
                         self._multi_client.open_shell(t)
                     else:
-                        self._launch_shell()
+                        self._launch_shell(
+                            cwd=getattr(t, "working_dir", None),
+                        )
             return action
 
         def _open_doctor():
@@ -1414,7 +1469,12 @@ class DaemonTray:
                 visible=lambda _: _single_vis(_) and self._is_mcp_for_current_target(),
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Shell", _open_shell(), visible=_single_vis),
+            pystray.MenuItem(
+                lambda _: self._working_dir_menu_label(0),
+                self._mk_change_working_dir(0),
+                visible=_single_vis,
+            ),
+            pystray.MenuItem("Terminal", _open_shell(), visible=_single_vis),
             pystray.MenuItem("Doctor", _open_doctor(), visible=_single_vis),
         ]
 
@@ -1504,7 +1564,9 @@ class DaemonTray:
                         if self._multi_client:
                             self._multi_client.open_shell(t)
                         else:
-                            self._launch_shell()
+                            self._launch_shell(
+                                cwd=getattr(t, "working_dir", None),
+                            )
                 return action
 
             def _mk_doctor(slot=idx):
@@ -1706,7 +1768,11 @@ class DaemonTray:
                             visible=lambda _i, s=idx: _is_slot_running(_i, s) and self._is_mcp_for_slot(s),
                         ),
                         pystray.Menu.SEPARATOR,
-                        pystray.MenuItem("Shell", _mk_open_shell()),
+                        pystray.MenuItem(
+                            lambda _i, s=idx: self._working_dir_menu_label(s),
+                            self._mk_change_working_dir(idx),
+                        ),
+                        pystray.MenuItem("Terminal", _mk_open_shell()),
                         pystray.MenuItem("Doctor", _mk_doctor()),
                         pystray.Menu.SEPARATOR,
                         *multi_plugin_items,
@@ -1826,11 +1892,16 @@ class DaemonTray:
         from ai_guardian.daemon.multi_client import _launch_in_terminal
         from ai_guardian.daemon.tray_plugins import (
             _needs_shell,
+            substitute_params,
             substitute_target_vars,
             wrap_for_target,
         )
 
         command_str = substitute_target_vars(command_str, target)
+        if target and getattr(target, "working_dir", None):
+            command_str = substitute_params(
+                command_str, {"working_dir": target.working_dir},
+            )
 
         if _needs_shell(command_str):
             cmd_parts = ["sh", "-c", command_str]
@@ -1895,6 +1966,10 @@ class DaemonTray:
         tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
         output_path = os.path.join(tmpdir, "command")
 
+        extra_vars = {}
+        if target and getattr(target, "working_dir", None):
+            extra_vars["working_dir"] = target.working_dir
+
         params_json = json_mod.dumps(plugin_item_dict.get("params", []))
         prompt_cmd = self._resolve_cli_cmd(
             "tray-prompt",
@@ -1903,6 +1978,9 @@ class DaemonTray:
             "--type", plugin_item_dict.get("type", "terminal"),
             "--output-file", output_path,
         )
+        if extra_vars:
+            import json as json_mod2
+            prompt_cmd += ["--extra-vars", json_mod2.dumps(extra_vars)]
         _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
         item_type = plugin_item_dict.get("type", "terminal")

@@ -315,13 +315,17 @@ class TestOpenShellRouting:
     def test_local_shell_uses_shell_env(self, mock_launch):
         with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
             MultiDaemonClient._local_shell()
-        mock_launch.assert_called_once_with(["/bin/zsh"], keep_open=True)
+        mock_launch.assert_called_once_with(
+            ["/bin/zsh"], keep_open=True, cwd=None,
+        )
 
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_local_shell_defaults_to_sh(self, mock_launch):
         with mock.patch.dict("os.environ", {}, clear=True):
             MultiDaemonClient._local_shell()
-        mock_launch.assert_called_once_with(["/bin/sh"], keep_open=True)
+        mock_launch.assert_called_once_with(
+            ["/bin/sh"], keep_open=True, cwd=None,
+        )
 
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_container_shell_builds_exec_command(self, mock_launch):
@@ -368,6 +372,28 @@ class TestOpenShellRouting:
         cmd = mock_launch.call_args[0][0]
         assert "-n" in cmd
         assert cmd[cmd.index("-n") + 1] == "default"
+
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_local_shell_passes_working_dir_as_cwd(self, mock_launch):
+        with mock.patch.dict("os.environ", {"SHELL": "/bin/bash"}):
+            MultiDaemonClient._local_shell(cwd="/home/user/project")
+        mock_launch.assert_called_once_with(
+            ["/bin/bash"], keep_open=True, cwd="/home/user/project",
+        )
+
+    @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
+    def test_open_shell_local_passes_working_dir(self, mock_launch):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="local", runtime="local",
+            working_dir="/home/user/dev",
+        )
+        with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
+            client.open_shell(target)
+        mock_launch.assert_called_once_with(
+            ["/bin/zsh"], keep_open=True, cwd="/home/user/dev",
+        )
 
 
 class TestOpenDoctorRouting:
