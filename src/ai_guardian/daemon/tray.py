@@ -202,6 +202,8 @@ class DaemonTray:
         self._active_target = None
         self._daemon_plugins = {}
         self._last_plugins_hash = {}
+        self._global_plugins = []
+        self._daemon_global_plugins = {}
         self._config_error_notified = False
         self._version_mismatch_notified = set()
         self._daemon_versions = {}
@@ -340,6 +342,7 @@ class DaemonTray:
             *self._build_single_daemon_daemon_items(),
             *self._build_multi_daemon_menu_items(),
             pystray.Menu.SEPARATOR,
+            *self._build_global_plugin_items(),
             *self._build_ide_setup_menu_items(),
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
@@ -1824,12 +1827,22 @@ class DaemonTray:
         return items
 
     def _poll_plugins(self):
-        """Fetch plugin definitions from each discovered daemon."""
+        """Fetch plugin definitions from each discovered daemon.
+
+        Global-scope plugins are collected from all reachable daemons
+        and stored in ``_global_plugins`` for top-level rendering.
+        They follow the daemon lifecycle: when a daemon stops, its
+        global plugins disappear.
+        """
         import json as json_mod
+        collected_globals = []
+        seen_global_names = set()
+        reachable_slots = set()
         for i, target in enumerate(self._targets):
             is_reachable = target.status in ("running", "paused")
             if not is_reachable and target.runtime != "local":
                 continue
+            reachable_slots.add(i)
             try:
                 if self._multi_client:
                     if target.runtime == "local":
@@ -1851,12 +1864,26 @@ class DaemonTray:
                             dict_to_plugins, filter_plugins_by_tags,
                         )
                         plugins = dict_to_plugins(data)
+                        daemon_only = [p for p in plugins if p.scope != "global"]
                         self._daemon_plugins[i] = filter_plugins_by_tags(
-                            plugins, daemon_tags,
+                            daemon_only, daemon_tags,
                         )
                         self._last_plugins_hash[i] = combined_hash
+                        self._daemon_global_plugins[i] = [
+                            p for p in plugins if p.scope == "global"
+                        ]
             except Exception:
                 pass
+        for i in reachable_slots:
+            for p in self._daemon_global_plugins.get(i, []):
+                if p.name not in seen_global_names:
+                    collected_globals.append(p)
+                    seen_global_names.add(p.name)
+        stale = set(self._daemon_global_plugins) - reachable_slots
+        for i in stale:
+            del self._daemon_global_plugins[i]
+        if collected_globals != self._global_plugins:
+            self._global_plugins = collected_globals
 
     def _get_daemon_menu_tags(self, target):
         """Get menu_tags for a daemon target."""
@@ -2115,6 +2142,78 @@ class DaemonTray:
     def _build_multi_daemon_plugin_slots(self, daemon_slot):
         """Build pre-allocated plugin slots for a multi-daemon submenu."""
         return self._build_plugin_slots_for_daemon(daemon_slot)
+
+    _MAX_GLOBAL_PLUGIN_SLOTS = 4
+    _MAX_GLOBAL_ITEMS_PER_PLUGIN = 12
+
+    def _build_global_plugin_items(self):
+        """Build top-level menu items for global-scope plugins.
+
+        Global plugins appear at the tray top level, not inside any
+        daemon submenu. Pre-allocates slots for pystray macOS
+        compatibility.
+        """
+        items = []
+        for p_idx in range(self._MAX_GLOBAL_PLUGIN_SLOTS):
+            p_slot = p_idx
+
+            def _plugin_name(_item, ps=p_slot):
+                if ps < len(self._global_plugins):
+                    return self._global_plugins[ps].name
+                return ""
+
+            def _plugin_visible(_item, ps=p_slot):
+                return ps < len(self._global_plugins)
+
+            sub_items = []
+            for i_idx in range(self._MAX_GLOBAL_ITEMS_PER_PLUGIN):
+                i_slot = i_idx
+
+                def _item_label(_item, ps=p_slot, ix=i_slot):
+                    if ps < len(self._global_plugins) and ix < len(self._global_plugins[ps].items):
+                        return self._global_plugins[ps].items[ix].label
+                    return ""
+
+                def _item_visible(_item, ps=p_slot, ix=i_slot):
+                    if ps >= len(self._global_plugins) or ix >= len(self._global_plugins[ps].items):
+                        return False
+                    from ai_guardian.daemon.tray_plugins import resolve_command
+                    return resolve_command(self._global_plugins[ps].items[ix].command) is not None
+
+                def _item_action(ps=p_slot, ix=i_slot):
+                    def action(_, __):
+                        if ps >= len(self._global_plugins) or ix >= len(self._global_plugins[ps].items):
+                            return
+                        item = self._global_plugins[ps].items[ix]
+                        target = self._active_target
+                        if item.params:
+                            from ai_guardian.daemon.tray_plugins import _item_to_dict
+                            self._execute_plugin_command_with_params(
+                                _item_to_dict(item), target=target,
+                            )
+                        else:
+                            from ai_guardian.daemon.tray_plugins import resolve_command
+                            cmd = resolve_command(item.command)
+                            if cmd:
+                                self._execute_plugin_command(
+                                    cmd, item.type, target=target,
+                                    run_on_target=item.run_on_target,
+                                    label=item.label,
+                                )
+                    return action
+
+                sub_items.append(
+                    pystray.MenuItem(_item_label, _item_action(), visible=_item_visible)
+                )
+
+            items.append(
+                pystray.MenuItem(_plugin_name, pystray.Menu(*sub_items),
+                                 visible=_plugin_visible)
+            )
+
+        items.append(pystray.Menu.SEPARATOR)
+
+        return items
 
     @staticmethod
     def _launch_create_config():

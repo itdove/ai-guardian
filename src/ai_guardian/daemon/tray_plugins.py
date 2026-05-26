@@ -41,6 +41,7 @@ class Plugin:
     name: str
     items: List[PluginItem] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
+    scope: str = "daemon"
 
 
 def load_plugins(plugins_dir: Optional[Path] = None) -> List[Plugin]:
@@ -105,7 +106,11 @@ def _parse_plugin(data: dict, filename: str) -> Optional[Plugin]:
     if isinstance(raw_tags, list):
         tags = [t for t in raw_tags if isinstance(t, str) and t]
 
-    return Plugin(name=name, items=items, tags=tags)
+    scope = data.get("scope", "daemon")
+    if scope not in ("daemon", "global"):
+        scope = "daemon"
+
+    return Plugin(name=name, items=items, tags=tags, scope=scope)
 
 
 def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
@@ -319,6 +324,8 @@ def plugins_to_dict(plugins: List[Plugin]) -> dict:
         }
         if p.tags:
             d["tags"] = list(p.tags)
+        if p.scope != "daemon":
+            d["scope"] = p.scope
         result_plugins.append(d)
     return {"plugins": result_plugins}
 

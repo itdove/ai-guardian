@@ -286,3 +286,49 @@ class TestTagsSchema:
                 "tags": "not-an-array",
                 "items": [{"label": "X", "command": "cmd"}],
             }, schema)
+
+
+class TestScopeSchema:
+    def test_plugin_with_scope_global(self, schema):
+        _validate({
+            "name": "Quick Links",
+            "scope": "global",
+            "items": [{"label": "Docs", "command": "echo docs"}],
+        }, schema)
+
+    def test_plugin_with_scope_daemon(self, schema):
+        _validate({
+            "name": "Daemon Plugin",
+            "scope": "daemon",
+            "items": [{"label": "Status", "command": "echo ok"}],
+        }, schema)
+
+    def test_plugin_without_scope(self, schema):
+        _validate({
+            "name": "No Scope",
+            "items": [{"label": "Run", "command": "echo"}],
+        }, schema)
+
+    def test_scope_rejects_invalid_value(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "scope": "invalid",
+                "items": [{"label": "X", "command": "cmd"}],
+            }, schema)
+
+    def test_scope_rejects_non_string(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "scope": 42,
+                "items": [{"label": "X", "command": "cmd"}],
+            }, schema)
+
+    def test_global_scope_with_tags(self, schema):
+        _validate({
+            "name": "Global With Tags",
+            "scope": "global",
+            "tags": ["ignored"],
+            "items": [{"label": "Docs", "command": "echo"}],
+        }, schema)
