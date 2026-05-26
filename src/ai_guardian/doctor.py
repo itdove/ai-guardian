@@ -721,6 +721,7 @@ class Doctor:
             )
 
     def _count_claude_hooks(self, config_path: Path) -> int:
+        from ai_guardian.setup import _is_ai_guardian_command
         try:
             with open(config_path) as f:
                 config = json.load(f)
@@ -733,7 +734,7 @@ class Doctor:
                         for entry in hook_list:
                             if isinstance(entry, dict) and "hooks" in entry:
                                 for h in entry["hooks"]:
-                                    if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                    if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
                                         count += 1
                                         break
             return count
