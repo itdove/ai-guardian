@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tag-based tray plugin filtering per daemon** (Issue #790)
+  - Plugins can declare `tags` (array of strings) to target specific daemons
+  - Daemons declare `menu_tags` (array of strings) in `ai-guardian.json`
+  - Untagged plugins always show; tagged plugins only show on daemons with at least one matching tag
+  - N-to-N relationship: plugins and daemons can each have multiple tags
+  - `menu_tags` exposed via `/api/status` and `/api/stats` for remote daemon support
+  - Plugin schema (`tray-plugin.schema.json`) and config schema updated
+  - New `filter_plugins_by_tags()` function in `tray_plugins.py`
+
 - **JSON schema for tray plugin files** (Issue #783)
   - New `src/ai_guardian/schemas/tray-plugin.schema.json` validates plugin structure
   - Covers all fields: name, items, label, command (string or platform map), type, run_on_target, params

@@ -143,8 +143,8 @@ Each daemon exposes a REST API for tray communication:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
-| `/api/status` | GET | Daemon status (name, version, paused) |
-| `/api/stats` | GET | Full stats (requests, blocked, violations) |
+| `/api/status` | GET | Daemon status (name, version, paused, menu_tags) |
+| `/api/stats` | GET | Full stats (requests, blocked, violations, menu_tags) |
 | `/api/pause` | POST | Pause scanning (`{"minutes": 15}`) |
 | `/api/resume` | POST | Resume scanning |
 
@@ -386,6 +386,44 @@ This means plugins work uniformly across all daemon types:
 | Remote | `~/.config/ai-guardian/tray-plugins/` on the remote host |
 
 The tray polls plugins alongside the stats refresh (every 10 seconds). Local plugins load even when the daemon is stopped.
+
+### Tag-Based Filtering
+
+By default, all plugins appear on all daemons. Use tags to filter plugins to specific daemons.
+
+**Daemon config** (`ai-guardian.json`):
+
+```json
+{
+    "name": "carbonite-dev",
+    "menu_tags": ["carbonite", "container"]
+}
+```
+
+**Plugin JSON** (`tray-plugins/carbonite.json`):
+
+```json
+{
+    "name": "Carbonite",
+    "tags": ["carbonite"],
+    "items": [...]
+}
+```
+
+**Matching rules:**
+
+| Plugin `tags` | Daemon `menu_tags` | Shown? |
+|---|---|---|
+| (none/empty) | (none/empty) | Yes |
+| (none/empty) | `["carbonite"]` | Yes |
+| `["carbonite"]` | `["carbonite", "container"]` | Yes |
+| `["carbonite"]` | `["staging"]` | No |
+| `["carbonite"]` | (none/empty) | No |
+
+- Untagged plugins always show on all daemons
+- Tagged plugins only show on daemons with at least one matching `menu_tags` entry
+- Both sides support multiple tags (N-to-N relationship)
+- Tag matching is exact string match
 
 ### Plugin Limits
 

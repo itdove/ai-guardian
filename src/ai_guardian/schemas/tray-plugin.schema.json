@@ -16,6 +16,14 @@
       "minLength": 1,
       "description": "Display name of the plugin submenu in the system tray"
     },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Tags to filter this plugin to specific daemons. Only shown on daemons with at least one matching menu_tags entry. Omit or leave empty to show on all daemons."
+    },
     "items": {
       "type": "array",
       "minItems": 1,

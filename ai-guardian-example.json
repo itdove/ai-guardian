@@ -850,6 +850,9 @@
   "_comment_name": "Human-friendly instance name. Shown in Console banner, tray, REST API, and MCP. Defaults to hostname.",
   "name": "my-workstation",
 
+  "_comment_menu_tags": "Tags for tray plugin filtering. Plugins with tags only appear on daemons with at least one matching menu_tags entry. Untagged plugins always appear.",
+  "menu_tags": ["workstation"],
+
   "daemon": {
     "idle_timeout_minutes": 30,
     "client_timeout_seconds": 2.0,

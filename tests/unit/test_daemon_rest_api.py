@@ -76,6 +76,25 @@ class TestRestAPIEndpoints:
         assert "mcp_installed" in data
         assert data["mcp_installed"] is False
 
+    def test_status_includes_menu_tags(self, rest_api):
+        api, port, state = rest_api
+        cfg = {"menu_tags": ["carbonite", "container"]}
+        with mock.patch(
+            "ai_guardian.config_loaders._load_config_file",
+            return_value=(cfg, None),
+        ):
+            url = f"http://127.0.0.1:{port}/api/status"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["menu_tags"] == ["carbonite", "container"]
+
+    def test_status_omits_menu_tags_when_empty(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/status"
+        with urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "menu_tags" not in data
+
     def test_get_stats(self, rest_api):
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/stats"
@@ -83,6 +102,18 @@ class TestRestAPIEndpoints:
             data = json.loads(resp.read())
         assert data["request_count"] == 42
         assert data["blocked_count"] == 3
+
+    def test_stats_includes_menu_tags(self, rest_api):
+        api, port, state = rest_api
+        cfg = {"menu_tags": ["carbonite", "container"]}
+        with mock.patch(
+            "ai_guardian.config_loaders._load_config_file",
+            return_value=(cfg, None),
+        ):
+            url = f"http://127.0.0.1:{port}/api/stats"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["menu_tags"] == ["carbonite", "container"]
 
     def test_stats_includes_mcp_installed(self, rest_api):
         api, port, state = rest_api

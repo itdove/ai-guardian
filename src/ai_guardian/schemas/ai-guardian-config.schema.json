@@ -1517,6 +1517,14 @@
       "type": "string",
       "description": "Human-friendly instance name. Displayed in Console banner, tray menu, REST API, and MCP. Defaults to hostname if not set."
     },
+    "menu_tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Tags identifying this daemon for tray plugin filtering. Plugins with tags only appear on daemons with at least one matching menu_tags entry."
+    },
     "daemon": {
       "type": "object",
       "description": "Background daemon configuration. The daemon auto-starts on any CLI command and falls back to direct processing if it cannot start.",

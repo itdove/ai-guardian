@@ -11,6 +11,7 @@ from ai_guardian.daemon.tray_plugins import (
     PluginItem,
     PluginParam,
     dict_to_plugins,
+    filter_plugins_by_tags,
     load_plugins,
     plugins_to_dict,
     resolve_command,
@@ -984,3 +985,145 @@ class TestShowDialog:
                 show_dialog("Title", "line1\nline2\nline3")
                 script = mock_run.call_args[0][0][2]
                 assert "return" in script
+
+
+class TestPluginTags:
+    def test_tags_parsed_from_json(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "tagged.json").write_text(json.dumps({
+            "name": "Carbonite",
+            "tags": ["carbonite", "container"],
+            "items": [{"label": "Status", "command": "echo ok"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert plugins[0].tags == ["carbonite", "container"]
+
+    def test_tags_missing_defaults_to_empty(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "untagged.json").write_text(json.dumps({
+            "name": "Generic",
+            "items": [{"label": "Run", "command": "bash"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].tags == []
+
+    def test_tags_invalid_type_ignored(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "badtag.json").write_text(json.dumps({
+            "name": "Bad",
+            "tags": "not-a-list",
+            "items": [{"label": "Go", "command": "go"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].tags == []
+
+    def test_tags_filters_non_string_entries(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "mixed.json").write_text(json.dumps({
+            "name": "Mixed",
+            "tags": ["valid", 42, "", None, "also-valid"],
+            "items": [{"label": "Do", "command": "do"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].tags == ["valid", "also-valid"]
+
+    def test_tags_included_in_serialization(self):
+        plugins = [Plugin(
+            name="Tagged",
+            tags=["carbonite"],
+            items=[PluginItem(label="Run", command="echo")]
+        )]
+        result = plugins_to_dict(plugins)
+        assert result["plugins"][0]["tags"] == ["carbonite"]
+
+    def test_tags_omitted_when_empty(self):
+        plugins = [Plugin(
+            name="Untagged",
+            items=[PluginItem(label="Run", command="echo")]
+        )]
+        result = plugins_to_dict(plugins)
+        assert "tags" not in result["plugins"][0]
+
+    def test_tags_roundtrip(self):
+        original = [Plugin(
+            name="Roundtrip",
+            tags=["carbonite", "staging"],
+            items=[PluginItem(label="Go", command="echo 1")]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert restored[0].tags == ["carbonite", "staging"]
+
+    def test_tags_roundtrip_empty(self):
+        original = [Plugin(
+            name="Roundtrip",
+            items=[PluginItem(label="Go", command="echo 1")]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert restored[0].tags == []
+
+
+class TestFilterPluginsByTags:
+    def _make_plugin(self, name, tags=None):
+        return Plugin(
+            name=name,
+            tags=tags or [],
+            items=[PluginItem(label="Action", command="echo")],
+        )
+
+    def test_untagged_plugin_no_daemon_tags(self):
+        plugins = [self._make_plugin("Generic")]
+        assert filter_plugins_by_tags(plugins, None) == plugins
+        assert filter_plugins_by_tags(plugins, []) == plugins
+
+    def test_untagged_plugin_with_daemon_tags(self):
+        plugins = [self._make_plugin("Generic")]
+        assert filter_plugins_by_tags(plugins, ["carbonite"]) == plugins
+
+    def test_tagged_plugin_matching_daemon(self):
+        plugins = [self._make_plugin("Carbonite", ["carbonite"])]
+        result = filter_plugins_by_tags(plugins, ["carbonite", "container"])
+        assert len(result) == 1
+        assert result[0].name == "Carbonite"
+
+    def test_tagged_plugin_no_match(self):
+        plugins = [self._make_plugin("Carbonite", ["carbonite"])]
+        result = filter_plugins_by_tags(plugins, ["staging"])
+        assert len(result) == 0
+
+    def test_tagged_plugin_no_daemon_tags(self):
+        plugins = [self._make_plugin("Carbonite", ["carbonite"])]
+        assert filter_plugins_by_tags(plugins, None) == []
+        assert filter_plugins_by_tags(plugins, []) == []
+
+    def test_mixed_tagged_and_untagged(self):
+        plugins = [
+            self._make_plugin("Generic"),
+            self._make_plugin("Carbonite", ["carbonite"]),
+            self._make_plugin("Staging", ["staging"]),
+        ]
+        result = filter_plugins_by_tags(plugins, ["carbonite"])
+        assert len(result) == 2
+        assert result[0].name == "Generic"
+        assert result[1].name == "Carbonite"
+
+    def test_plugin_multiple_tags_one_matches(self):
+        plugins = [self._make_plugin("Multi", ["carbonite", "staging"])]
+        result = filter_plugins_by_tags(plugins, ["staging"])
+        assert len(result) == 1
+
+    def test_plugin_multiple_tags_none_match(self):
+        plugins = [self._make_plugin("Multi", ["carbonite", "staging"])]
+        result = filter_plugins_by_tags(plugins, ["production"])
+        assert len(result) == 0
+
+    def test_exact_string_match(self):
+        plugins = [self._make_plugin("Carbon", ["carbonite"])]
+        result = filter_plugins_by_tags(plugins, ["carbon"])
+        assert len(result) == 0

@@ -1777,12 +1777,39 @@ class DaemonTray:
                     data = plugins_to_dict(load_plugins())
                 if data:
                     data_hash = json_mod.dumps(data, sort_keys=True)
-                    if self._last_plugins_hash.get(i) != data_hash:
-                        from ai_guardian.daemon.tray_plugins import dict_to_plugins
-                        self._daemon_plugins[i] = dict_to_plugins(data)
-                        self._last_plugins_hash[i] = data_hash
+                    daemon_tags = self._get_daemon_menu_tags(target)
+                    tag_hash = json_mod.dumps(daemon_tags, sort_keys=True)
+                    combined_hash = data_hash + tag_hash
+                    if self._last_plugins_hash.get(i) != combined_hash:
+                        from ai_guardian.daemon.tray_plugins import (
+                            dict_to_plugins, filter_plugins_by_tags,
+                        )
+                        plugins = dict_to_plugins(data)
+                        self._daemon_plugins[i] = filter_plugins_by_tags(
+                            plugins, daemon_tags,
+                        )
+                        self._last_plugins_hash[i] = combined_hash
             except Exception:
                 pass
+
+    def _get_daemon_menu_tags(self, target):
+        """Get menu_tags for a daemon target."""
+        if target.runtime == "local":
+            try:
+                from ai_guardian.config_loaders import _load_config_file
+                cfg, _ = _load_config_file()
+                if cfg:
+                    tags = cfg.get("menu_tags")
+                    if isinstance(tags, list):
+                        return [t for t in tags if isinstance(t, str) and t]
+            except Exception:
+                pass
+            return []
+        if self._multi_client:
+            status = self._multi_client.get_status(target)
+            if status:
+                return status.get("menu_tags", [])
+        return []
 
     def _get_daemon_plugins(self, slot):
         """Get plugin list for a daemon slot index."""
