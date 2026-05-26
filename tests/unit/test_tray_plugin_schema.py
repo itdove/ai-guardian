@@ -233,3 +233,56 @@ class TestInvalidPlugins:
                     {"label": "X", "command": "cmd", "run_on_target": "yes"},
                 ],
             }, schema)
+
+
+class TestTagsSchema:
+    def test_plugin_with_tags(self, schema):
+        _validate({
+            "name": "Carbonite",
+            "tags": ["carbonite", "container"],
+            "items": [{"label": "Status", "command": "echo ok"}],
+        }, schema)
+
+    def test_plugin_with_single_tag(self, schema):
+        _validate({
+            "name": "Carbonite",
+            "tags": ["carbonite"],
+            "items": [{"label": "Status", "command": "echo ok"}],
+        }, schema)
+
+    def test_plugin_with_empty_tags(self, schema):
+        _validate({
+            "name": "Generic",
+            "tags": [],
+            "items": [{"label": "Run", "command": "echo"}],
+        }, schema)
+
+    def test_plugin_without_tags(self, schema):
+        _validate({
+            "name": "Generic",
+            "items": [{"label": "Run", "command": "echo"}],
+        }, schema)
+
+    def test_tags_rejects_empty_string(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "tags": [""],
+                "items": [{"label": "X", "command": "cmd"}],
+            }, schema)
+
+    def test_tags_rejects_non_string(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "tags": [42],
+                "items": [{"label": "X", "command": "cmd"}],
+            }, schema)
+
+    def test_tags_rejects_non_array(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "tags": "not-an-array",
+                "items": [{"label": "X", "command": "cmd"}],
+            }, schema)

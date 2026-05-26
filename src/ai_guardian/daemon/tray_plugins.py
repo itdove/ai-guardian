@@ -40,6 +40,7 @@ class Plugin:
     """Plugin definition with name and menu items."""
     name: str
     items: List[PluginItem] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
 
 
 def load_plugins(plugins_dir: Optional[Path] = None) -> List[Plugin]:
@@ -99,7 +100,12 @@ def _parse_plugin(data: dict, filename: str) -> Optional[Plugin]:
         logger.warning("Skipping %s: no valid items", filename)
         return None
 
-    return Plugin(name=name, items=items)
+    tags = []
+    raw_tags = data.get("tags")
+    if isinstance(raw_tags, list):
+        tags = [t for t in raw_tags if isinstance(t, str) and t]
+
+    return Plugin(name=name, items=items, tags=tags)
 
 
 def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
@@ -151,6 +157,29 @@ def _parse_param(raw: dict) -> Optional[PluginParam]:
         default=str(raw.get("default", "")),
         options=raw.get("options") if isinstance(raw.get("options"), list) else None,
     )
+
+
+def filter_plugins_by_tags(
+    plugins: List[Plugin],
+    daemon_tags: Optional[List[str]] = None,
+) -> List[Plugin]:
+    """Filter plugins based on tag matching with daemon menu_tags.
+
+    Args:
+        plugins: All loaded plugins.
+        daemon_tags: Tags configured on the daemon (menu_tags).
+
+    Returns:
+        Plugins that match the daemon's tags.
+    """
+    daemon_set = set(daemon_tags) if daemon_tags else set()
+    result = []
+    for p in plugins:
+        if not p.tags:
+            result.append(p)
+        elif daemon_set and daemon_set.intersection(p.tags):
+            result.append(p)
+    return result
 
 
 def resolve_command(command: Union[str, Dict[str, str]]) -> Optional[str]:
@@ -282,18 +311,16 @@ def plugins_to_dict(plugins: List[Plugin]) -> dict:
     Returns:
         Dict with "plugins" key containing list of plugin dicts.
     """
-    return {
-        "plugins": [
-            {
-                "name": p.name,
-                "items": [
-                    _item_to_dict(item)
-                    for item in p.items
-                ],
-            }
-            for p in plugins
-        ]
-    }
+    result_plugins = []
+    for p in plugins:
+        d = {
+            "name": p.name,
+            "items": [_item_to_dict(item) for item in p.items],
+        }
+        if p.tags:
+            d["tags"] = list(p.tags)
+        result_plugins.append(d)
+    return {"plugins": result_plugins}
 
 
 def _item_to_dict(item: PluginItem) -> dict:

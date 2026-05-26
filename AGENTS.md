@@ -359,8 +359,8 @@ The system tray is the controlling component and connects to daemons across loca
 | Endpoint | Method | Key Response Fields |
 |----------|--------|---------------------|
 | `/api/health` | GET | `status` |
-| `/api/status` | GET | `running`, `paused`, `uptime_seconds`, `version`, `name`, `mcp_installed` |
-| `/api/stats` | GET | All fields from `DaemonState.get_stats()` + `name` |
+| `/api/status` | GET | `running`, `paused`, `uptime_seconds`, `version`, `name`, `mcp_installed`, `menu_tags` |
+| `/api/stats` | GET | All fields from `DaemonState.get_stats()` + `name`, `menu_tags` |
 | `/api/pause` | POST | `status`, `minutes` (requires auth token) |
 | `/api/resume` | POST | `status` (requires auth token) |
 | `/api/reload` | POST | `status` (requires auth token) |

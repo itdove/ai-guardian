@@ -73,7 +73,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_status(self):
         state = self.server.daemon_state
         stats = state.get_stats()
-        return {
+        result = {
             "running": True,
             "paused": stats.get("paused", False),
             "uptime_seconds": stats.get("uptime_seconds", 0),
@@ -81,12 +81,19 @@ class _RestHandler(BaseHTTPRequestHandler):
             "name": self._get_instance_name(),
             "mcp_installed": stats.get("mcp_installed", False),
         }
+        menu_tags = self._get_menu_tags()
+        if menu_tags:
+            result["menu_tags"] = menu_tags
+        return result
 
     def _get_stats(self):
         stats = self.server.daemon_state.get_stats()
         name = self._get_instance_name()
         if name:
             stats["name"] = name
+        menu_tags = self._get_menu_tags()
+        if menu_tags:
+            stats["menu_tags"] = menu_tags
         return stats
 
     def _get_instance_name(self):
@@ -101,6 +108,20 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
         return getattr(self.server, 'instance_name', None) or "ai-guardian"
+
+    @staticmethod
+    def _get_menu_tags():
+        """Get menu_tags from current config for plugin filtering."""
+        try:
+            from ai_guardian.config_loaders import _load_config_file
+            cfg, _ = _load_config_file()
+            if cfg:
+                tags = cfg.get("menu_tags")
+                if isinstance(tags, list):
+                    return [t for t in tags if isinstance(t, str) and t]
+        except Exception:
+            pass
+        return []
 
     @staticmethod
     def _get_about():
