@@ -9,6 +9,7 @@ import json
 import logging
 import platform
 import re
+import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -259,9 +260,8 @@ def substitute_target_vars(template: str, target) -> str:
         placeholder = "{" + var_name + "}"
         if placeholder in result:
             value = getattr(target, var_name, None)
-            result = result.replace(
-                placeholder, str(value) if value is not None else "",
-            )
+            safe_value = shlex.quote(str(value)) if value is not None else ""
+            result = result.replace(placeholder, safe_value)
     return result
 
 
@@ -291,7 +291,7 @@ def wrap_for_target(cmd_parts: list, target, interactive: bool = True) -> list:
     if runtime == "container":
         engine = target.container_engine or "podman"
         cid = target.container_id or ""
-        if not cid or not re.match(r"^[a-fA-F0-9]{12,64}$", cid):
+        if not cid or not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$", cid):
             logger.warning("run_on_target: invalid container_id, running locally")
             return cmd_parts
         flags = ["-it"] if interactive else []
@@ -300,8 +300,8 @@ def wrap_for_target(cmd_parts: list, target, interactive: bool = True) -> list:
     if runtime == "kubernetes":
         pod = target.pod_name or ""
         ns = target.namespace or "default"
-        if not pod:
-            logger.warning("run_on_target: no pod_name, running locally")
+        if not pod or not re.match(r"^[a-z0-9][a-z0-9.-]{0,252}$", pod):
+            logger.warning("run_on_target: invalid pod_name, running locally")
             return cmd_parts
         kube_cli = "oc" if shutil.which("oc") else "kubectl"
         flags = ["-it"] if interactive else []

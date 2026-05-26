@@ -1888,16 +1888,8 @@ class DaemonTray:
     def _get_daemon_menu_tags(self, target):
         """Get menu_tags for a daemon target."""
         if target.runtime == "local":
-            try:
-                from ai_guardian.config_loaders import _load_config_file
-                cfg, _ = _load_config_file()
-                if cfg:
-                    tags = cfg.get("menu_tags")
-                    if isinstance(tags, list):
-                        return [t for t in tags if isinstance(t, str) and t]
-            except Exception:
-                pass
-            return []
+            from ai_guardian.daemon import get_local_menu_tags
+            return get_local_menu_tags()
         if self._multi_client:
             status = self._multi_client.get_status(target)
             if status:
@@ -2048,52 +2040,73 @@ class DaemonTray:
                 each plugin's visibility. When None, plugins are always
                 visible if they exist.
         """
-        items = []
-        d_slot = daemon_slot
+        get_plugins = lambda: self._get_daemon_plugins(daemon_slot)
+        get_target = lambda: (
+            self._targets[daemon_slot]
+            if daemon_slot < len(self._targets)
+            else None
+        )
+        return self._build_plugin_slots(
+            get_plugins, get_target,
+            max_plugins=self._MAX_PLUGIN_SLOTS,
+            max_items=self._MAX_ITEMS_PER_PLUGIN,
+            visibility_guard=visibility_guard,
+        )
 
-        for p_idx in range(self._MAX_PLUGIN_SLOTS):
+    def _build_plugin_slots(
+        self, get_plugins_fn, get_target_fn,
+        max_plugins, max_items, visibility_guard=None,
+    ):
+        """Build pre-allocated plugin menu item slots.
+
+        Args:
+            get_plugins_fn: Callable returning the plugin list.
+            get_target_fn: Callable returning the target for execution.
+            max_plugins: Number of plugin slots to pre-allocate.
+            max_items: Number of item slots per plugin.
+            visibility_guard: Optional callable(_item) -> bool.
+        """
+        items = []
+
+        for p_idx in range(max_plugins):
             p_slot = p_idx
 
-            def _plugin_name(_item, ds=d_slot, ps=p_slot):
-                plugins = self._get_daemon_plugins(ds)
+            def _plugin_name(_item, ps=p_slot):
+                plugins = get_plugins_fn()
                 if ps < len(plugins):
                     return plugins[ps].name
                 return ""
 
-            def _plugin_visible(_item, ds=d_slot, ps=p_slot):
+            def _plugin_visible(_item, ps=p_slot):
                 if visibility_guard is not None and not visibility_guard(_item):
                     return False
-                plugins = self._get_daemon_plugins(ds)
+                plugins = get_plugins_fn()
                 return ps < len(plugins)
 
             sub_items = []
-            for i_idx in range(self._MAX_ITEMS_PER_PLUGIN):
+            for i_idx in range(max_items):
                 i_slot = i_idx
 
-                def _item_label(_item, ds=d_slot, ps=p_slot, ix=i_slot):
-                    plugins = self._get_daemon_plugins(ds)
+                def _item_label(_item, ps=p_slot, ix=i_slot):
+                    plugins = get_plugins_fn()
                     if ps < len(plugins) and ix < len(plugins[ps].items):
                         return plugins[ps].items[ix].label
                     return ""
 
-                def _item_visible(_item, ds=d_slot, ps=p_slot, ix=i_slot):
-                    plugins = self._get_daemon_plugins(ds)
+                def _item_visible(_item, ps=p_slot, ix=i_slot):
+                    plugins = get_plugins_fn()
                     if ps >= len(plugins) or ix >= len(plugins[ps].items):
                         return False
                     from ai_guardian.daemon.tray_plugins import resolve_command
                     return resolve_command(plugins[ps].items[ix].command) is not None
 
-                def _item_action(ds=d_slot, ps=p_slot, ix=i_slot):
+                def _item_action(ps=p_slot, ix=i_slot):
                     def action(_, __):
-                        plugins = self._get_daemon_plugins(ds)
+                        plugins = get_plugins_fn()
                         if ps >= len(plugins) or ix >= len(plugins[ps].items):
                             return
                         item = plugins[ps].items[ix]
-                        target = (
-                            self._targets[ds]
-                            if ds < len(self._targets)
-                            else None
-                        )
+                        target = get_target_fn()
                         if item.params:
                             from ai_guardian.daemon.tray_plugins import _item_to_dict
                             self._execute_plugin_command_with_params(
@@ -2153,66 +2166,13 @@ class DaemonTray:
         daemon submenu. Pre-allocates slots for pystray macOS
         compatibility.
         """
-        items = []
-        for p_idx in range(self._MAX_GLOBAL_PLUGIN_SLOTS):
-            p_slot = p_idx
-
-            def _plugin_name(_item, ps=p_slot):
-                if ps < len(self._global_plugins):
-                    return self._global_plugins[ps].name
-                return ""
-
-            def _plugin_visible(_item, ps=p_slot):
-                return ps < len(self._global_plugins)
-
-            sub_items = []
-            for i_idx in range(self._MAX_GLOBAL_ITEMS_PER_PLUGIN):
-                i_slot = i_idx
-
-                def _item_label(_item, ps=p_slot, ix=i_slot):
-                    if ps < len(self._global_plugins) and ix < len(self._global_plugins[ps].items):
-                        return self._global_plugins[ps].items[ix].label
-                    return ""
-
-                def _item_visible(_item, ps=p_slot, ix=i_slot):
-                    if ps >= len(self._global_plugins) or ix >= len(self._global_plugins[ps].items):
-                        return False
-                    from ai_guardian.daemon.tray_plugins import resolve_command
-                    return resolve_command(self._global_plugins[ps].items[ix].command) is not None
-
-                def _item_action(ps=p_slot, ix=i_slot):
-                    def action(_, __):
-                        if ps >= len(self._global_plugins) or ix >= len(self._global_plugins[ps].items):
-                            return
-                        item = self._global_plugins[ps].items[ix]
-                        target = self._active_target
-                        if item.params:
-                            from ai_guardian.daemon.tray_plugins import _item_to_dict
-                            self._execute_plugin_command_with_params(
-                                _item_to_dict(item), target=target,
-                            )
-                        else:
-                            from ai_guardian.daemon.tray_plugins import resolve_command
-                            cmd = resolve_command(item.command)
-                            if cmd:
-                                self._execute_plugin_command(
-                                    cmd, item.type, target=target,
-                                    run_on_target=item.run_on_target,
-                                    label=item.label,
-                                )
-                    return action
-
-                sub_items.append(
-                    pystray.MenuItem(_item_label, _item_action(), visible=_item_visible)
-                )
-
-            items.append(
-                pystray.MenuItem(_plugin_name, pystray.Menu(*sub_items),
-                                 visible=_plugin_visible)
-            )
-
+        items = self._build_plugin_slots(
+            get_plugins_fn=lambda: self._global_plugins,
+            get_target_fn=lambda: self._active_target,
+            max_plugins=self._MAX_GLOBAL_PLUGIN_SLOTS,
+            max_items=self._MAX_GLOBAL_ITEMS_PER_PLUGIN,
+        )
         items.append(pystray.Menu.SEPARATOR)
-
         return items
 
     @staticmethod

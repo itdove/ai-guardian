@@ -81,6 +81,20 @@ _IDE_MCP_CONFIGS = [
 ]
 
 
+def get_local_menu_tags():
+    """Get menu_tags from the local daemon config for plugin filtering."""
+    try:
+        from ai_guardian.config_loaders import _load_config_file
+        cfg, _ = _load_config_file()
+        if cfg:
+            tags = cfg.get("menu_tags")
+            if isinstance(tags, list):
+                return [t for t in tags if isinstance(t, str) and t]
+    except Exception:
+        pass
+    return []
+
+
 def is_mcp_installed():
     """Check if ai-guardian MCP server is configured in any supported IDE."""
     import json

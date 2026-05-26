@@ -598,6 +598,8 @@ def _handle_tray_prompt(args):
     """Handle the tray-prompt subcommand: collect params and output resolved command."""
     import json
     import logging as log_mod
+    import os
+    import tempfile
 
     prompt_logger = log_mod.getLogger("ai_guardian.tray_prompt")
 
@@ -643,13 +645,16 @@ def _handle_tray_prompt(args):
 
     if result is None:
         if output_file:
-            with open(output_file, "w") as f:
-                pass
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
+            os.close(tmp_fd)
+            os.rename(tmp_path, output_file)
         return 0
 
     if output_file:
-        with open(output_file, "w") as f:
-            f.write(result)
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
+        os.write(tmp_fd, result.encode("utf-8"))
+        os.close(tmp_fd)
+        os.rename(tmp_path, output_file)
     else:
         print(result)
 
