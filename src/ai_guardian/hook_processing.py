@@ -875,12 +875,15 @@ def _advance_transcript_position(hook_data: dict) -> None:
                     fd, tmp_path = _tf.mkstemp(
                         dir=str(state_dir), prefix=".transcript-pos-", suffix=".tmp"
                     )
+                    closed = False
                     try:
                         os.write(fd, json.dumps(positions).encode("utf-8"))
                         os.close(fd)
+                        closed = True
                         os.replace(tmp_path, str(pos_file))
                     except BaseException:
-                        os.close(fd)
+                        if not closed:
+                            os.close(fd)
                         if os.path.exists(tmp_path):
                             os.unlink(tmp_path)
                         raise

@@ -112,16 +112,8 @@ class _RestHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _get_menu_tags():
         """Get menu_tags from current config for plugin filtering."""
-        try:
-            from ai_guardian.config_loaders import _load_config_file
-            cfg, _ = _load_config_file()
-            if cfg:
-                tags = cfg.get("menu_tags")
-                if isinstance(tags, list):
-                    return [t for t in tags if isinstance(t, str) and t]
-        except Exception:
-            pass
-        return []
+        from ai_guardian.daemon import get_local_menu_tags
+        return get_local_menu_tags()
 
     @staticmethod
     def _get_about():

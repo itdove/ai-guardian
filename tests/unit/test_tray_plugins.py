@@ -563,7 +563,7 @@ class TestWrapForTarget:
 
     def test_container_runtime_invalid_id_falls_back_to_local(self):
         target = self._make_target(
-            runtime="container", container_id="not-hex",
+            runtime="container", container_id=".invalid",
         )
         cmd = ["ai-guardian", "doctor"]
         result = wrap_for_target(cmd, target)
