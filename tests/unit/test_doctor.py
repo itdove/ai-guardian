@@ -238,6 +238,27 @@ class TestCheckHooks:
                 assert "1/3" in result.message
 
 
+    def test_hooks_configured_absolute_path(self, _isolate_config_dir, tmp_path):
+        """Doctor recognizes hooks with absolute paths (issue #797)."""
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        settings_path = claude_dir / "settings.json"
+        settings_path.write_text(json.dumps({
+            "hooks": {
+                "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]}],
+                "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]}],
+                "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]}],
+            }
+        }))
+
+        with mock.patch("ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]):
+            with mock.patch("ai_guardian.setup.IDESetup.get_config_path", return_value=str(settings_path)):
+                doctor = Doctor()
+                result = doctor.check_hooks()
+                assert result.status == CheckStatus.PASS
+                assert "3/3" in result.message
+
+
 class TestCheckStateDir:
     def test_exists_writable(self, _isolate_config_dir):
         doctor = Doctor()

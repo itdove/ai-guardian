@@ -12,7 +12,13 @@ from unittest import mock
 import pytest
 
 from ai_guardian.config_utils import get_config_dir
-from ai_guardian.setup import IDESetup, setup_hooks
+from ai_guardian.setup import (
+    IDESetup,
+    setup_hooks,
+    _is_ai_guardian_command,
+    _resolve_binary_path,
+    _substitute_command,
+)
 
 
 class TestIDESetup:
@@ -937,7 +943,7 @@ class TestCodexSetup:
             assert 'PreToolUse' in config['hooks']
             assert 'PostToolUse' in config['hooks']
             assert config['hooks']['PreToolUse'][0]['matcher'] == '.*'
-            assert config['hooks']['PreToolUse'][0]['hooks'][0]['command'] == 'ai-guardian'
+            assert _is_ai_guardian_command(config['hooks']['PreToolUse'][0]['hooks'][0]['command'])
 
     def test_setup_ide_hooks_codex_dry_run(self, tmp_path):
         """Test dry-run mode for Codex."""
@@ -1152,7 +1158,7 @@ class TestGeminiSetup:
             assert isinstance(config['hooks'], list)
             assert len(config['hooks']) == 3
             commands = [h['command'] for h in config['hooks']]
-            assert all(c == 'ai-guardian' for c in commands)
+            assert all(_is_ai_guardian_command(c) for c in commands)
 
     def test_setup_ide_hooks_gemini_dry_run(self, tmp_path):
         """Test dry-run mode for Gemini."""
@@ -1466,7 +1472,7 @@ class TestAugmentSetup:
             assert 'hooks' in config
             assert 'PreToolUse' in config['hooks']
             assert 'PostToolUse' in config['hooks']
-            assert config['hooks']['PreToolUse'][0]['hooks'][0]['command'] == 'ai-guardian'
+            assert _is_ai_guardian_command(config['hooks']['PreToolUse'][0]['hooks'][0]['command'])
 
     def test_setup_ide_hooks_augment_dry_run(self, tmp_path):
         """Test dry-run mode for Augment."""
@@ -2540,7 +2546,7 @@ class TestSetupJsonOutput:
         result = json.loads(captured.out)
         assert "mcp_servers" in result
         assert "ai-guardian" in result["mcp_servers"]
-        assert result["mcp_servers"]["ai-guardian"]["command"] == "ai-guardian"
+        assert _is_ai_guardian_command(result["mcp_servers"]["ai-guardian"]["command"])
         assert result["mcp_servers"]["ai-guardian"]["args"] == ["mcp-server"]
 
     def test_json_output_no_mcp_excludes_mcp(self, tmp_path, capsys):
@@ -2862,3 +2868,165 @@ class TestMcpMigrationWarning:
 
         captured = capsys.readouterr()
         assert "Warning" not in captured.out
+
+
+class TestResolveBinaryPath:
+    """Tests for _resolve_binary_path helper."""
+
+    def test_returns_shutil_which_result(self):
+        with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
+
+    def test_falls_back_to_sys_executable(self, tmp_path):
+        fake_bin = tmp_path / "ai-guardian"
+        fake_bin.touch()
+        fake_python = tmp_path / "python"
+        with mock.patch("ai_guardian.setup.shutil.which", return_value=None):
+            with mock.patch("ai_guardian.setup.sys") as mock_sys:
+                mock_sys.executable = str(fake_python)
+                assert _resolve_binary_path() == str(fake_bin)
+
+    def test_falls_back_to_bare_command(self, tmp_path):
+        fake_python = tmp_path / "nonexistent" / "python"
+        with mock.patch("ai_guardian.setup.shutil.which", return_value=None):
+            with mock.patch("ai_guardian.setup.sys") as mock_sys:
+                mock_sys.executable = str(fake_python)
+                assert _resolve_binary_path() == "ai-guardian"
+
+
+class TestIsAiGuardianCommand:
+    """Tests for _is_ai_guardian_command helper."""
+
+    def test_bare_command(self):
+        assert _is_ai_guardian_command("ai-guardian") is True
+
+    def test_absolute_path(self):
+        assert _is_ai_guardian_command("/usr/local/bin/ai-guardian") is True
+
+    def test_venv_path(self):
+        assert _is_ai_guardian_command("/home/user/.venv/bin/ai-guardian") is True
+
+    def test_other_command(self):
+        assert _is_ai_guardian_command("other-tool") is False
+
+    def test_empty_string(self):
+        assert _is_ai_guardian_command("") is False
+
+    def test_none_like(self):
+        assert _is_ai_guardian_command(None) is False
+
+
+class TestSubstituteCommand:
+    """Tests for _substitute_command helper."""
+
+    def test_replaces_command_in_dict(self):
+        result = _substitute_command({"command": "ai-guardian"}, "/abs/ai-guardian")
+        assert result == {"command": "/abs/ai-guardian"}
+
+    def test_leaves_other_keys(self):
+        result = _substitute_command(
+            {"command": "ai-guardian", "timeout": 30},
+            "/abs/ai-guardian",
+        )
+        assert result == {"command": "/abs/ai-guardian", "timeout": 30}
+
+    def test_nested_dict(self):
+        result = _substitute_command(
+            {"hooks": [{"command": "ai-guardian"}]},
+            "/abs/ai-guardian",
+        )
+        assert result == {"hooks": [{"command": "/abs/ai-guardian"}]}
+
+    def test_does_not_replace_non_ai_guardian(self):
+        result = _substitute_command({"command": "other-tool"}, "/abs/ai-guardian")
+        assert result == {"command": "other-tool"}
+
+    def test_does_not_mutate_original(self):
+        original = {"command": "ai-guardian"}
+        _substitute_command(original, "/abs/ai-guardian")
+        assert original["command"] == "ai-guardian"
+
+
+class TestAbsolutePathWritten:
+    """Tests that setup writes absolute paths to hook configs."""
+
+    def test_claude_hooks_use_absolute_path(self, tmp_path):
+        setup = IDESetup()
+        config_file = tmp_path / "settings.json"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"claude": {**IDESetup.IDE_CONFIGS["claude"], "config_path": str(config_file)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                success, _ = setup.setup_ide_hooks("claude", dry_run=False, force=False)
+
+        assert success
+        config = json.loads(config_file.read_text())
+        cmd = config["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        assert cmd == "/mock/bin/ai-guardian"
+
+    def test_cursor_hooks_use_absolute_path(self, tmp_path):
+        setup = IDESetup()
+        config_file = tmp_path / "hooks.json"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cursor": {**IDESetup.IDE_CONFIGS["cursor"], "config_path": str(config_file)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                success, _ = setup.setup_ide_hooks("cursor", dry_run=False, force=False)
+
+        assert success
+        config = json.loads(config_file.read_text())
+        assert config["hooks"]["beforeSubmitPrompt"][0]["command"] == "/mock/bin/ai-guardian"
+
+    def test_script_based_hooks_use_absolute_path(self, tmp_path):
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                success, _ = setup.setup_ide_hooks("cline", dry_run=False, force=False)
+
+        assert success
+        script = (hooks_dir / "PreToolUse").read_text()
+        assert "/mock/bin/ai-guardian" in script
+        assert script.startswith("#!/bin/sh")
+
+    def test_check_hooks_configured_recognizes_absolute_path(self, tmp_path):
+        setup = IDESetup()
+        config_file = tmp_path / "settings.json"
+        config_file.write_text(json.dumps({
+            "hooks": {
+                "PreToolUse": [{
+                    "matcher": "*",
+                    "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]
+                }]
+            }
+        }))
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"claude": {**IDESetup.IDE_CONFIGS["claude"], "config_path": str(config_file)}},
+        ):
+            assert setup.check_hooks_configured(config_file, "claude") is True
+
+    def test_mcp_config_uses_absolute_path(self, tmp_path):
+        from ai_guardian.setup import _install_mcp_config, _MCP_IDE_CONFIGS
+
+        mcp_file = tmp_path / "claude.json"
+        setup = IDESetup()
+
+        with mock.patch.dict(
+            _MCP_IDE_CONFIGS,
+            {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(mcp_file)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                _install_mcp_config(setup, "claude", dry_run=False)
+
+        config = json.loads(mcp_file.read_text())
+        assert config["mcpServers"]["ai-guardian"]["command"] == "/mock/bin/ai-guardian"

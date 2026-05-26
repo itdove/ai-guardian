@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from importlib.resources import files
@@ -18,6 +19,39 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
+
+
+def _resolve_binary_path() -> str:
+    """Resolve absolute path to ai-guardian binary at setup time."""
+    path = shutil.which("ai-guardian")
+    if path:
+        return path
+    candidate = Path(sys.executable).parent / "ai-guardian"
+    if candidate.exists():
+        return str(candidate)
+    return "ai-guardian"
+
+
+def _is_ai_guardian_command(cmd: str) -> bool:
+    """Check if a command string refers to ai-guardian (bare or absolute path)."""
+    if not cmd:
+        return False
+    return cmd == "ai-guardian" or cmd.endswith("/ai-guardian")
+
+
+def _substitute_command(obj, abs_path: str):
+    """Recursively replace bare 'ai-guardian' command values with abs_path."""
+    if isinstance(obj, dict):
+        result = {}
+        for k, v in obj.items():
+            if k == "command" and v == "ai-guardian":
+                result[k] = abs_path
+            else:
+                result[k] = _substitute_command(v, abs_path)
+        return result
+    elif isinstance(obj, list):
+        return [_substitute_command(item, abs_path) for item in obj]
+    return obj
 
 
 def _notify_daemon_reload():
@@ -549,7 +583,7 @@ class IDESetup:
                 other_hooks = []
 
                 for idx, hook in enumerate(hooks_array):
-                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                    if isinstance(hook, dict) and _is_ai_guardian_command(hook.get("command", "")):
                         ai_guardian_exists = True
                     else:
                         other_hooks.append(hook)
@@ -628,7 +662,7 @@ class IDESetup:
                 hooks_array = matched_entry["hooks"]
                 other_hooks = []
                 for hook in hooks_array:
-                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                    if isinstance(hook, dict) and _is_ai_guardian_command(hook.get("command", "")):
                         continue
                     other_hooks.append(hook)
 
@@ -670,7 +704,7 @@ class IDESetup:
 
             other_hooks = [
                 h for h in existing_config["hooks"]
-                if not (isinstance(h, dict) and h.get("command") == "ai-guardian")
+                if not (isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")))
             ]
 
             ag_events = {h.get("event") for h in template_hooks if isinstance(h, dict)}
@@ -722,7 +756,7 @@ class IDESetup:
                 hooks_array = matched_entry["hooks"]
                 other_hooks_list = []
                 for hook in hooks_array:
-                    if isinstance(hook, dict) and hook.get("command") == "ai-guardian":
+                    if isinstance(hook, dict) and _is_ai_guardian_command(hook.get("command", "")):
                         continue
                     other_hooks_list.append(hook)
 
@@ -799,7 +833,7 @@ class IDESetup:
                             for hook_entry in hook_list:
                                 if isinstance(hook_entry, dict) and "hooks" in hook_entry:
                                     for h in hook_entry["hooks"]:
-                                        if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
                                             return True
 
             elif ide_type == "cursor":
@@ -811,7 +845,7 @@ class IDESetup:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
                             for h in hook_list:
-                                if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
                                     return True
 
             elif ide_type == "windsurf":
@@ -824,14 +858,14 @@ class IDESetup:
                         hook_list = hooks[event_name]
                         if isinstance(hook_list, list):
                             for h in hook_list:
-                                if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
                                     return True
 
             elif ide_type == "gemini":
                 hooks = config.get("hooks", [])
                 if isinstance(hooks, list):
                     for h in hooks:
-                        if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
                             return True
 
             elif ide_type == "augment":
@@ -843,7 +877,7 @@ class IDESetup:
                             for hook_entry in hook_list:
                                 if isinstance(hook_entry, dict) and "hooks" in hook_entry:
                                     for h in hook_entry["hooks"]:
-                                        if isinstance(h, dict) and h.get("command") == "ai-guardian":
+                                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
                                             return True
 
             return False
@@ -876,6 +910,9 @@ class IDESetup:
         ide_name = ide_config["name"]
         hook_scripts = ide_config.get("hook_scripts", [])
         script_content = ide_config.get("script_content", "#!/bin/sh\nai-guardian\n")
+
+        abs_path = _resolve_binary_path()
+        script_content = script_content.replace("ai-guardian", abs_path, 1)
 
         if dry_run:
             message = f"[DRY RUN] Would configure {ide_name} hooks at {hooks_dir}:\n"
@@ -947,12 +984,19 @@ class IDESetup:
 
         ext_dir.mkdir(parents=True, exist_ok=True)
 
+        abs_path = _resolve_binary_path()
         if ide_type == "openclaw":
             package_path.write_text(_OPENCLAW_PACKAGE_JSON, encoding="utf-8")
-            index_path.write_text(_OPENCLAW_PLUGIN_TS, encoding="utf-8")
+            index_path.write_text(
+                _OPENCLAW_PLUGIN_TS.replace("execSync('ai-guardian'", f"execSync('{abs_path}'"),
+                encoding="utf-8",
+            )
         else:
             package_path.write_text(_AIDERDESK_PACKAGE_JSON, encoding="utf-8")
-            index_path.write_text(_AIDERDESK_EXTENSION_TS, encoding="utf-8")
+            index_path.write_text(
+                _AIDERDESK_EXTENSION_TS.replace("execSync('ai-guardian'", f"execSync('{abs_path}'"),
+                encoding="utf-8",
+            )
 
         gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
 
@@ -1032,33 +1076,37 @@ class IDESetup:
                 except json.JSONDecodeError as e:
                     return False, f"Invalid JSON in {config_path}: {e}"
 
+            # Resolve absolute path and substitute into hook templates
+            abs_path = _resolve_binary_path()
+            resolved_hooks = _substitute_command(ide_config["hooks"], abs_path)
+
             # Merge hooks
             hook_warnings = []
             if ide_type == "claude":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "cursor":
                 # For Cursor, we need to merge differently
                 merged_config = existing_config.copy()
                 if "version" not in merged_config:
-                    merged_config["version"] = ide_config["hooks"]["version"]
+                    merged_config["version"] = resolved_hooks["version"]
                 if "hooks" not in merged_config:
                     merged_config["hooks"] = {}
-                merged_config["hooks"]["beforeSubmitPrompt"] = ide_config["hooks"]["beforeSubmitPrompt"]
-                merged_config["hooks"]["beforeReadFile"] = ide_config["hooks"]["beforeReadFile"]
+                merged_config["hooks"]["beforeSubmitPrompt"] = resolved_hooks["beforeSubmitPrompt"]
+                merged_config["hooks"]["beforeReadFile"] = resolved_hooks["beforeReadFile"]
             elif ide_type == "copilot":
                 # GitHub Copilot: merge hooks at top level
                 merged_config = existing_config.copy()
-                merged_config["userPromptSubmitted"] = ide_config["hooks"]["userPromptSubmitted"]
-                merged_config["preToolUse"] = ide_config["hooks"]["preToolUse"]
+                merged_config["userPromptSubmitted"] = resolved_hooks["userPromptSubmitted"]
+                merged_config["preToolUse"] = resolved_hooks["preToolUse"]
                 # Fall through to common config-write path (don't return early)
             elif ide_type == "codex":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "windsurf":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "gemini":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "augment":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, ide_config["hooks"], ide_type)
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
 
             self._last_merged_config = merged_config
 
@@ -2397,7 +2445,10 @@ def _setup_hooks_json_output(
         mcp_ide = _MCP_IDE_CONFIGS.get(ide_type, {})
         mcp_path = mcp_ide.get("config_file", "")
         result["mcp_config_path"] = str(Path(mcp_path).expanduser()) if mcp_path else None
-        result["mcp_servers"] = {"ai-guardian": dict(_MCP_SERVER_ENTRY)}
+        abs_path = _resolve_binary_path()
+        mcp_entry = dict(_MCP_SERVER_ENTRY)
+        mcp_entry["command"] = abs_path
+        result["mcp_servers"] = {"ai-guardian": mcp_entry}
 
     # Handle rules/guidelines file setup (Issue #637)
     if success and rules:
@@ -2523,11 +2574,14 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
         except (json.JSONDecodeError, OSError):
             pass
 
-    # Add MCP server entry
+    # Add MCP server entry with absolute path
+    abs_path = _resolve_binary_path()
+    mcp_entry = dict(_MCP_SERVER_ENTRY)
+    mcp_entry["command"] = abs_path
     key = mcp_ide["config_key"]
     if key not in config:
         config[key] = {}
-    config[key]["ai-guardian"] = _MCP_SERVER_ENTRY
+    config[key]["ai-guardian"] = mcp_entry
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with open(config_path, "w") as f:
