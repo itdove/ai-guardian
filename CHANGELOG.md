@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-05-26
+
 ### Fixed
 
 - **`daemon status` and `daemon stop` no longer cause daemon auto-restart** (Issue #775)
@@ -1964,7 +1966,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/itdove/ai-guardian/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/itdove/ai-guardian/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/itdove/ai-guardian/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/itdove/ai-guardian/compare/v1.6.2...v1.7.0
