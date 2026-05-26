@@ -669,6 +669,11 @@ def main():
             default=None,
             help="Write resolved command to this file instead of executing"
         )
+        tray_prompt_parser.add_argument(
+            "--extra-vars",
+            default=None,
+            help="JSON dict of extra variables for resolving param defaults"
+        )
 
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(

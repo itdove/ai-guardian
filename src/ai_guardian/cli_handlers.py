@@ -621,10 +621,21 @@ def _handle_tray_prompt(args):
         prompt_logger.error("TUI dependencies not available: %s", e)
         return 1
 
+    extra_vars = {}
+    raw_extra = getattr(args, "extra_vars", None)
+    if raw_extra and isinstance(raw_extra, str):
+        try:
+            extra_vars = json.loads(raw_extra)
+            if not isinstance(extra_vars, dict):
+                extra_vars = {}
+        except (json.JSONDecodeError, TypeError):
+            extra_vars = {}
+
     app = TrayPromptApp(
         params=params,
         command_template=args.template,
         command_type=getattr(args, "type", "terminal"),
+        extra_vars=extra_vars,
     )
     result = app.run()
 

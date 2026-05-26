@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 5.0
 
 
-def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
+def _launch_in_terminal(cmd_parts, keep_open=False, clear=False, cwd=None):
     """Launch a command in a new terminal window.
 
     Args:
@@ -32,11 +32,14 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
         keep_open: If True, keep the terminal open after the command
             finishes so the user can read the output.
         clear: If True, clear the terminal before running the command.
+        cwd: If set, cd to this directory before running the command.
 
     Returns:
         True if a terminal was launched, False otherwise.
     """
     cmd_str = " ".join(shlex.quote(p) for p in cmd_parts)
+    if cwd:
+        cmd_str = f"cd {shlex.quote(cwd)}; {cmd_str}"
     if clear:
         cmd_str = "clear; " + cmd_str
     try:
@@ -71,6 +74,8 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
         elif system == "Windows":
             flag = "/k" if keep_open else "/c"
             win_parts = (["cls", "&&"] if clear else []) + cmd_parts
+            if cwd:
+                win_parts = ["cd", "/d", cwd, "&&"] + win_parts
             subprocess.Popen(["cmd", flag, "start", "/max"] + win_parts)
             return True
         else:
@@ -92,7 +97,7 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False):
                     "No supported terminal emulator found. "
                     "Tried: gnome-terminal, kgx, konsole, "
                     "xfce4-terminal, xterm. Install one of these to use "
-                    "Console/Shell/Doctor from the tray."
+                    "Console/Terminal/Doctor from the tray."
                 )
                 return False
     except OSError as e:
@@ -163,7 +168,7 @@ class MultiDaemonClient:
     def open_shell(self, target: DaemonTarget):
         """Open an interactive shell for the target daemon."""
         if target.runtime == "local":
-            self._local_shell()
+            self._local_shell(cwd=getattr(target, "working_dir", None))
         elif target.runtime == "container":
             self._container_shell(target)
         elif target.runtime == "kubernetes":
@@ -280,10 +285,10 @@ class MultiDaemonClient:
         _launch_in_terminal(cmd_parts)
 
     @staticmethod
-    def _local_shell():
+    def _local_shell(cwd=None):
         """Open default shell in a new terminal window."""
         shell = os.environ.get("SHELL", "/bin/sh")
-        _launch_in_terminal([shell], keep_open=True)
+        _launch_in_terminal([shell], keep_open=True, cwd=cwd)
 
     @staticmethod
     def _local_exec(cmd: List[str]) -> Optional[str]:

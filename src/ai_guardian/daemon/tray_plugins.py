@@ -228,7 +228,7 @@ def substitute_params(template: str, values: Dict[str, str]) -> str:
 
 _TARGET_VARS = frozenset({
     "container_id", "container_engine", "host", "port", "name",
-    "pod_name", "namespace",
+    "pod_name", "namespace", "working_dir",
 })
 
 

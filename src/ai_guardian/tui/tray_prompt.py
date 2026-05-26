@@ -39,11 +39,13 @@ class TrayPromptApp(App):
         Binding("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, params, command_template, command_type="terminal"):
+    def __init__(self, params, command_template, command_type="terminal",
+                 extra_vars=None):
         super().__init__()
         self._params = params
         self._command_template = command_template
         self._command_type = command_type
+        self._extra_vars = extra_vars or {}
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -57,7 +59,9 @@ class TrayPromptApp(App):
                     yield Label(label_text)
                     if param.get("options"):
                         options = [(opt, opt) for opt in param["options"]]
-                        default = param.get("default", param["options"][0])
+                        default = self._resolve_default(
+                            param.get("default", param["options"][0]),
+                        )
                         yield Select(
                             options,
                             value=default,
@@ -65,7 +69,9 @@ class TrayPromptApp(App):
                         )
                     else:
                         yield Input(
-                            value=param.get("default", ""),
+                            value=self._resolve_default(
+                                param.get("default", ""),
+                            ),
                             placeholder=param.get("hint", ""),
                             id=f"param-{param['name']}",
                         )
@@ -82,6 +88,13 @@ class TrayPromptApp(App):
 
     def action_cancel(self) -> None:
         self.exit(result=None)
+
+    def _resolve_default(self, value):
+        """Resolve {tray.*} variables in a param default value."""
+        if not value or not self._extra_vars or "{" not in value:
+            return value
+        from ai_guardian.daemon.tray_plugins import substitute_params
+        return substitute_params(value, self._extra_vars)
 
     def _submit(self):
         values = {}

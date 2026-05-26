@@ -86,6 +86,7 @@ class DaemonTarget:
     stats: Optional[dict] = None
     last_seen: float = 0.0
     error_message: Optional[str] = None
+    working_dir: Optional[str] = None
 
 
 class DaemonDiscovery:
