@@ -28,6 +28,7 @@ htmlcov/
 # Temporary
 *.tmp
 *.log
+versions.json
 
 # NiceGUI (web console runtime storage)
 .nicegui/
