@@ -675,7 +675,7 @@ class TestViolationLoggerDefaults(unittest.TestCase):
         log_types = defaults.get("log_types", [])
         self.assertIn("secret_in_transcript", log_types)
         self.assertIn("pii_in_transcript", log_types)
-        self.assertNotIn("prompt_injection_in_transcript", log_types)
+        self.assertIn("prompt_injection_in_transcript", log_types)
 
 
 class TestSeenFindings(unittest.TestCase):

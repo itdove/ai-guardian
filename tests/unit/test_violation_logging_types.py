@@ -12,7 +12,9 @@ ALL_LOG_TYPES = [
     "tool_permission", "directory_blocking", "secret_detected",
     "secret_redaction", "prompt_injection", "jailbreak_detected",
     "ssrf_blocked", "config_file_exfil", "pii_detected",
-    "secret_in_transcript", "pii_in_transcript"
+    "secret_in_transcript", "pii_in_transcript",
+    "prompt_injection_in_transcript", "annotation_suppressed",
+    "image_secret_detected", "image_pii_detected",
 ]
 
 
@@ -56,7 +58,8 @@ class TestShouldLogType:
             with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': tmp}):
                 vl = ViolationLogger()
                 assert vl._should_log_type("ssrf_blocked") is True
-                assert vl._should_log_type("tool_permission") is False
+                # tool_permission is a default type, so it's auto-enabled
+                assert vl._should_log_type("tool_permission") is True
 
     def test_should_log_config_file_exfil_when_in_config(self):
         from ai_guardian.violation_logger import ViolationLogger
@@ -67,7 +70,8 @@ class TestShouldLogType:
             with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': tmp}):
                 vl = ViolationLogger()
                 assert vl._should_log_type("config_file_exfil") is True
-                assert vl._should_log_type("tool_permission") is False
+                # tool_permission is a default type, so it's auto-enabled
+                assert vl._should_log_type("tool_permission") is True
 
     def test_should_log_all_when_empty_log_types(self):
         from ai_guardian.violation_logger import ViolationLogger
@@ -80,7 +84,7 @@ class TestShouldLogType:
                 assert vl._should_log_type("ssrf_blocked") is True
                 assert vl._should_log_type("config_file_exfil") is True
 
-    def test_old_config_without_new_types_skips_them(self):
+    def test_old_config_auto_enables_new_default_types(self):
         from ai_guardian.violation_logger import ViolationLogger
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")
@@ -89,9 +93,13 @@ class TestShouldLogType:
                 json.dump({"violation_logging": {"log_types": old_types}}, f)
             with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': tmp}):
                 vl = ViolationLogger()
-                assert vl._should_log_type("ssrf_blocked") is False
-                assert vl._should_log_type("config_file_exfil") is False
+                # New default types auto-enabled for forward compatibility
+                assert vl._should_log_type("ssrf_blocked") is True
+                assert vl._should_log_type("config_file_exfil") is True
+                assert vl._should_log_type("image_secret_detected") is True
                 assert vl._should_log_type("tool_permission") is True
+                # Non-default custom type still filtered
+                assert vl._should_log_type("custom_nonexistent") is False
 
 
 class TestSetupDefaults:
@@ -240,7 +248,7 @@ class TestViolationLogging:
                 assert len(violations) == 1
                 assert violations[0]["violation_type"] == "config_file_exfil"
 
-    def test_ssrf_not_logged_when_excluded_from_config(self):
+    def test_non_default_type_not_logged_when_excluded_from_config(self):
         from ai_guardian.violation_logger import ViolationLogger
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")
@@ -249,8 +257,8 @@ class TestViolationLogging:
             with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': tmp}):
                 vl = ViolationLogger()
                 vl.log_violation(
-                    violation_type="ssrf_blocked",
-                    blocked={"tool_name": "Bash", "reason": "SSRF"},
+                    violation_type="custom_nonexistent_type",
+                    blocked={"tool_name": "Bash", "reason": "test"},
                     context={}
                 )
                 violations = vl.get_recent_violations(limit=10)
