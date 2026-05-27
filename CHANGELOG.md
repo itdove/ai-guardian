@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One-line install script** (`install.sh`) for zero-manual-step installation (Issue #813)
+  - `curl -fsSL .../install.sh | bash` — checks Python, installs package, creates config, sets up IDE hooks
+  - Options: `--venv`, `--ide`, `--profile`, `--version`; extra flags passed through to `ai-guardian setup`
+  - Defaults to `@standard` security profile; `--version` accepts a `.whl` file path for local installs
+
 - **Multi-target plugin commands with interactive target selector** (Issue #760)
   - New `target` field on plugin items: `"select"`, `"all"`, or `"containers"`
   - `target: "select"` shows a Textual multi-select modal listing all discovered daemons

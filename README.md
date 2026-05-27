@@ -33,12 +33,20 @@ See [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECUR
 
 ## Quick Start
 
+**One-line install** (creates config, installs scanner, sets up hooks):
+
 ```bash
-pip install ai-guardian
-ai-guardian setup --ide claude --create-config --mcp --install-scanner
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- --ide claude
 ```
 
-This single command:
+Or install manually:
+
+```bash
+pip install ai-guardian
+ai-guardian setup --ide claude --create-config --install-scanner
+```
+
+This:
 - Installs a scanner engine (gitleaks)
 - Creates `ai-guardian.json` config with secure defaults
 - Installs IDE hooks (PreToolUse, PostToolUse, UserPromptSubmit)
@@ -66,8 +74,8 @@ The tray auto-discovers running daemons and shows per-daemon submenus with Stati
 Choose a profile that matches your environment:
 
 ```bash
-ai-guardian setup --ide claude --create-config --profile @minimal --mcp --install-scanner
-ai-guardian setup --ide claude --create-config --profile @strict --mcp --install-scanner
+ai-guardian setup --ide claude --create-config --profile @minimal --install-scanner
+ai-guardian setup --ide claude --create-config --profile @strict --install-scanner
 ```
 
 | Profile | Secrets | PII | Prompt Injection | SSRF |
