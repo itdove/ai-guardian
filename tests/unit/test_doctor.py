@@ -979,7 +979,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 20
+        assert len(report.checks) == 21
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):

@@ -329,6 +329,7 @@ def create_server() -> "FastMCP":
                 "ssrf_protection",
                 "secret_redaction",
                 "transcript_scanning",
+                "image_scanning",
             ]
             for key in feature_keys:
                 section = config.get(key, {})
