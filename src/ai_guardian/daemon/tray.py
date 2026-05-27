@@ -2174,6 +2174,172 @@ class DaemonTray:
         watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
         watcher.start()
 
+    def _resolve_target_list(self, target_mode):
+        """Resolve a target mode to a list of DaemonTarget instances."""
+        if target_mode == "all":
+            return list(self._targets)
+        if target_mode == "containers":
+            return [t for t in self._targets if t.runtime == "container"]
+        return []
+
+    def _execute_multi_target_command(
+        self, targets, command_str, item_type, run_on_target=False, label=None,
+    ):
+        """Execute the same command on multiple targets sequentially."""
+        for target in targets:
+            self._execute_plugin_command(
+                command_str, item_type, target=target,
+                run_on_target=run_on_target, label=label,
+            )
+
+    def _serialize_targets_for_selector(self):
+        """Serialize discovered targets to JSON dicts for the selector TUI."""
+        return [
+            {
+                "name": t.name,
+                "runtime": t.runtime,
+                "container_name": getattr(t, "container_name", None),
+                "container_engine": t.container_engine,
+                "container_id": t.container_id,
+                "pod_name": t.pod_name,
+                "namespace": t.namespace,
+                "status": t.status,
+            }
+            for t in self._targets
+        ]
+
+    def _execute_multi_target_with_params(self, plugin_item, targets):
+        """Collect params once via tray-prompt, then execute on all targets."""
+        import json as json_mod
+        import os
+        import tempfile
+        import threading
+        from ai_guardian.daemon.tray_plugins import (
+            _item_to_dict, resolve_command, substitute_target_vars,
+        )
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        item_dict = _item_to_dict(plugin_item)
+        resolved_cmd = resolve_command(plugin_item.command)
+        if resolved_cmd is None:
+            return
+
+        tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
+        output_path = os.path.join(tmpdir, "command")
+
+        params_json = json_mod.dumps(item_dict.get("params", []))
+        prompt_cmd = self._resolve_cli_cmd(
+            "tray-prompt",
+            "--params", params_json,
+            "--template", resolved_cmd,
+            "--type", plugin_item.type,
+            "--output-file", output_path,
+        )
+        _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
+
+        item_type = plugin_item.type
+        label = plugin_item.label
+        run_on_target = plugin_item.run_on_target
+
+        def _watch_and_dispatch():
+            import shutil
+            import time
+            timeout = 300
+            elapsed = 0.0
+            interval = 0.5
+            while elapsed < timeout:
+                if os.path.exists(output_path):
+                    try:
+                        with open(output_path) as f:
+                            command = f.read().strip()
+                    except OSError:
+                        command = ""
+                    shutil.rmtree(tmpdir, ignore_errors=True)
+                    if command:
+                        self._execute_multi_target_command(
+                            targets, command, item_type,
+                            run_on_target=run_on_target, label=label,
+                        )
+                    return
+                time.sleep(interval)
+                elapsed += interval
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+        watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
+        watcher.start()
+
+    def _execute_plugin_with_target_select(self, plugin_item):
+        """Launch target selector, then execute on selected targets."""
+        import json as json_mod
+        import os
+        import tempfile
+        import threading
+        from ai_guardian.daemon.tray_plugins import (
+            _item_to_dict, resolve_command,
+        )
+        from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+        targets_json = json_mod.dumps(self._serialize_targets_for_selector())
+        tmpdir = tempfile.mkdtemp(prefix="ai-guardian-target-")
+        output_path = os.path.join(tmpdir, "selected")
+
+        select_cmd = self._resolve_cli_cmd(
+            "tray-target-select",
+            "--targets", targets_json,
+            "--output-file", output_path,
+        )
+        _launch_in_terminal(select_cmd, keep_open=False, clear=True)
+
+        def _watch_and_dispatch():
+            import shutil
+            import time
+            timeout = 300
+            elapsed = 0.0
+            interval = 0.5
+            while elapsed < timeout:
+                if os.path.exists(output_path):
+                    try:
+                        with open(output_path) as f:
+                            raw = f.read().strip()
+                    except OSError:
+                        raw = ""
+                    shutil.rmtree(tmpdir, ignore_errors=True)
+                    if not raw:
+                        return
+                    try:
+                        indices = json_mod.loads(raw)
+                    except (json_mod.JSONDecodeError, TypeError):
+                        return
+                    if not isinstance(indices, list):
+                        return
+                    selected = [
+                        self._targets[i]
+                        for i in indices
+                        if isinstance(i, int) and 0 <= i < len(self._targets)
+                    ]
+                    if not selected:
+                        return
+
+                    if plugin_item.params:
+                        self._execute_multi_target_with_params(
+                            plugin_item, selected,
+                        )
+                    else:
+                        cmd = resolve_command(plugin_item.command)
+                        if cmd:
+                            self._execute_multi_target_command(
+                                selected, cmd, plugin_item.type,
+                                run_on_target=plugin_item.run_on_target,
+                                label=plugin_item.label,
+                            )
+                    return
+                time.sleep(interval)
+                elapsed += interval
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+        watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
+        watcher.start()
+
     def _build_plugin_slots_for_daemon(self, daemon_slot, visibility_guard=None):
         """Build pre-allocated plugin menu item slots for a daemon.
 
@@ -2250,7 +2416,27 @@ class DaemonTray:
                             return
                         item = plugins[ps].items[ix]
                         target = get_target_fn()
-                        if item.params:
+
+                        if item.target in ("all", "containers"):
+                            from ai_guardian.daemon.tray_plugins import resolve_command
+                            targets = self._resolve_target_list(item.target)
+                            if not targets:
+                                return
+                            if item.params:
+                                self._execute_multi_target_with_params(
+                                    item, targets,
+                                )
+                            else:
+                                cmd = resolve_command(item.command)
+                                if cmd:
+                                    self._execute_multi_target_command(
+                                        targets, cmd, item.type,
+                                        run_on_target=item.run_on_target,
+                                        label=item.label,
+                                    )
+                        elif item.target == "select":
+                            self._execute_plugin_with_target_select(item)
+                        elif item.params:
                             from ai_guardian.daemon.tray_plugins import _item_to_dict
                             self._execute_plugin_command_with_params(
                                 _item_to_dict(item), target=target,

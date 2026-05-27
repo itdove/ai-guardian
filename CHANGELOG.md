@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-target plugin commands with interactive target selector** (Issue #760)
+  - New `target` field on plugin items: `"select"`, `"all"`, or `"containers"`
+  - `target: "select"` shows a Textual multi-select modal listing all discovered daemons
+  - `target: "all"` runs the command on all discovered targets without prompt
+  - `target: "containers"` runs on all container-runtime targets without prompt
+  - Omitting `target` preserves existing single-target behavior (backward compatible)
+  - Multi-target + params: parameter modal shows once, values applied to all targets
+  - New `container_name` field on `DaemonTarget` for disambiguation in the selector
+  - New `{container_name}` variable available in plugin command templates
+  - New `tray-target-select` CLI subcommand for the target picker TUI
+  - Updated JSON schema with `target` property on plugin items
+
 ### Changed
 
 - **MCP server installed by default with `ai-guardian setup`** (Issue #808)

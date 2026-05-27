@@ -77,6 +77,7 @@ class DaemonTarget:
     port: int = 0
     container_id: Optional[str] = None
     container_engine: Optional[str] = None  # "podman" or "docker"
+    container_name: Optional[str] = None
     pod_name: Optional[str] = None
     namespace: Optional[str] = None
     socket_path: Optional[str] = None
@@ -358,6 +359,7 @@ class DaemonDiscovery:
                 continue
 
             labels = c.labels or {}
+            orig_container_name = c.name or None
 
             raw_name = (
                 labels.get("ai-guardian.name")
@@ -397,6 +399,7 @@ class DaemonDiscovery:
                 port=host_port,
                 container_id=container_id,
                 container_engine=engine,
+                container_name=orig_container_name,
                 last_seen=time.monotonic(),
             )
             targets.append(target)
@@ -504,9 +507,11 @@ class DaemonDiscovery:
             if isinstance(labels, str):
                 labels = self._parse_label_string(labels)
 
+            orig_container_name = self._get_container_name(c) or None
+
             raw_name = (
                 labels.get("ai-guardian.name")
-                or self._get_container_name(c)
+                or orig_container_name
                 or container_id[:12]
             )
             name = raw_name[:128]
@@ -542,6 +547,7 @@ class DaemonDiscovery:
                 port=host_port,
                 container_id=container_id,
                 container_engine=engine,
+                container_name=orig_container_name,
                 last_seen=time.monotonic(),
             )
             targets.append(target)

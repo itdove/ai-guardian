@@ -27,11 +27,25 @@ class TestDaemonTarget:
         assert t.port == 0
         assert t.container_id is None
         assert t.container_engine is None
+        assert t.container_name is None
         assert t.pod_name is None
         assert t.namespace is None
         assert t.socket_path is None
         assert t.stats is None
         assert t.last_seen == 0.0
+
+    def test_container_name_field(self):
+        t = DaemonTarget(
+            name="my-project", runtime="container",
+            container_id="abc123def456", container_engine="podman",
+            container_name="sandbox-1",
+        )
+        assert t.container_name == "sandbox-1"
+        assert t.name == "my-project"
+
+    def test_container_name_defaults_none_for_local(self):
+        t = DaemonTarget(name="local", runtime="local")
+        assert t.container_name is None
 
     def test_local_target(self):
         t = DaemonTarget(

@@ -3259,3 +3259,86 @@ class TestGlobalPlugins:
             mock_icon.run = mock.MagicMock()
             tray._run()
             mock_build.assert_called_once()
+
+
+class TestMultiTargetExecution:
+    """Tests for multi-target plugin command execution."""
+
+    def _make_tray(self):
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        return tray
+
+    def test_resolve_target_list_all(self):
+        tray = self._make_tray()
+        t1 = DaemonTarget(name="a", runtime="local", status="running")
+        t2 = DaemonTarget(name="b", runtime="container", status="running",
+                          container_id="abc123def456", container_engine="podman")
+        tray._targets = [t1, t2]
+        result = tray._resolve_target_list("all")
+        assert len(result) == 2
+        assert t1 in result
+        assert t2 in result
+
+    def test_resolve_target_list_containers(self):
+        tray = self._make_tray()
+        t1 = DaemonTarget(name="a", runtime="local", status="running")
+        t2 = DaemonTarget(name="b", runtime="container", status="running",
+                          container_id="abc123def456", container_engine="podman")
+        t3 = DaemonTarget(name="c", runtime="container", status="running",
+                          container_id="def456abc123", container_engine="docker")
+        tray._targets = [t1, t2, t3]
+        result = tray._resolve_target_list("containers")
+        assert len(result) == 2
+        assert t1 not in result
+        assert t2 in result
+        assert t3 in result
+
+    def test_resolve_target_list_containers_empty(self):
+        tray = self._make_tray()
+        tray._targets = [DaemonTarget(name="a", runtime="local")]
+        result = tray._resolve_target_list("containers")
+        assert result == []
+
+    def test_resolve_target_list_unknown_mode(self):
+        tray = self._make_tray()
+        tray._targets = [DaemonTarget(name="a", runtime="local")]
+        result = tray._resolve_target_list("bogus")
+        assert result == []
+
+    @mock.patch.object(DaemonTray, "_execute_plugin_command")
+    def test_execute_multi_target_command(self, mock_exec):
+        tray = self._make_tray()
+        t1 = DaemonTarget(name="a", runtime="local")
+        t2 = DaemonTarget(name="b", runtime="container",
+                          container_id="abc123def456", container_engine="podman")
+        tray._execute_multi_target_command(
+            [t1, t2], "echo hello", "terminal",
+            run_on_target=True, label="Test",
+        )
+        assert mock_exec.call_count == 2
+        calls = mock_exec.call_args_list
+        assert calls[0].kwargs["target"] == t1
+        assert calls[1].kwargs["target"] == t2
+
+    def test_serialize_targets_for_selector(self):
+        tray = self._make_tray()
+        t = DaemonTarget(
+            name="proj", runtime="container",
+            container_name="sandbox-1",
+            container_engine="podman",
+            container_id="abc123def456",
+            status="running",
+        )
+        tray._targets = [t]
+        result = tray._serialize_targets_for_selector()
+        assert len(result) == 1
+        assert result[0]["name"] == "proj"
+        assert result[0]["container_name"] == "sandbox-1"
+        assert result[0]["runtime"] == "container"
+        assert result[0]["container_engine"] == "podman"

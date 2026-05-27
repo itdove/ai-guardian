@@ -34,6 +34,9 @@ class PluginParam:
     max: Optional[float] = None
 
 
+_TARGET_MODES = frozenset({"select", "all", "containers"})
+
+
 @dataclass
 class PluginItem:
     """Menu item within a plugin."""
@@ -41,6 +44,7 @@ class PluginItem:
     command: Union[str, Dict[str, str]]
     type: str = "terminal"
     run_on_target: bool = False
+    target: Optional[str] = None
     params: List[PluginParam] = field(default_factory=list)
 
 
@@ -152,9 +156,17 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
 
     run_on_target = bool(raw.get("run_on_target", False))
 
+    target_mode = raw.get("target")
+    if target_mode is not None and target_mode not in _TARGET_MODES:
+        logger.warning(
+            "Ignoring invalid target '%s' in item %d of %s",
+            target_mode, index, filename,
+        )
+        target_mode = None
+
     return PluginItem(
         label=label, command=command, type=item_type,
-        run_on_target=run_on_target, params=params,
+        run_on_target=run_on_target, target=target_mode, params=params,
     )
 
 
@@ -322,8 +334,8 @@ def validate_param_value(param: PluginParam, value: str) -> Tuple[bool, str]:
 
 
 _TARGET_VARS = frozenset({
-    "container_id", "container_engine", "host", "port", "name",
-    "pod_name", "namespace", "working_dir",
+    "container_id", "container_engine", "container_name", "host", "port",
+    "name", "pod_name", "namespace", "working_dir",
 })
 
 
@@ -424,6 +436,8 @@ def _item_to_dict(item: PluginItem) -> dict:
     d = {"label": item.label, "command": item.command, "type": item.type}
     if item.run_on_target:
         d["run_on_target"] = True
+    if item.target:
+        d["target"] = item.target
     if item.params:
         d["params"] = [
             _param_to_dict(p)

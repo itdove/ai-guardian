@@ -73,7 +73,7 @@ _suppress_logging = (
     or "mcp-server" in sys.argv
     or ("setup" in sys.argv and "--json" in sys.argv)
 )
-_quiet_stderr = "tray-prompt" in sys.argv
+_quiet_stderr = "tray-prompt" in sys.argv or "tray-target-select" in sys.argv
 if _quiet_stderr:
     _stderr_handler.setLevel(logging.CRITICAL)
     import platform
