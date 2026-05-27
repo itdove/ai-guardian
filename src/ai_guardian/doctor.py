@@ -115,6 +115,7 @@ class Doctor:
             self.check_config_consistency,
             self.check_self_protection,
             self.check_image_scanning,
+            self.check_tray_plugins,
         ]
         for check_fn in checks:
             try:
@@ -1214,6 +1215,42 @@ class Doctor:
                 fix_hint="pip install rapidocr-onnxruntime",
             )
 
+    def check_tray_plugins(self) -> CheckResult:
+        """Check tray plugin files for validity and circular imports."""
+        from ai_guardian.daemon import get_tray_plugins_dir
+        from ai_guardian.daemon.tray_plugins import check_circular_imports
+
+        plugins_dir = get_tray_plugins_dir()
+        if not plugins_dir.is_dir():
+            return CheckResult(
+                name="tray_plugins",
+                status=CheckStatus.SKIP,
+                message="No tray-plugins directory",
+            )
+
+        json_files = list(plugins_dir.glob("*.json"))
+        if not json_files:
+            return CheckResult(
+                name="tray_plugins",
+                status=CheckStatus.SKIP,
+                message="No plugin files",
+            )
+
+        circular = check_circular_imports(plugins_dir)
+        if circular:
+            chains = "; ".join(circular)
+            return CheckResult(
+                name="tray_plugins",
+                status=CheckStatus.WARN,
+                message=f"Circular import: {chains}",
+            )
+
+        return CheckResult(
+            name="tray_plugins",
+            status=CheckStatus.PASS,
+            message=f"{len(json_files)} plugin file(s) OK",
+        )
+
 
 # --- Output formatters ---
 
@@ -1253,6 +1290,8 @@ _CHECK_DISPLAY_NAMES = {
     "terminal_emulator": "Terminal emulator",
     "config_consistency": "Config consistency",
     "self_protection": "Self-protection",
+    "image_scanning": "Image scanning",
+    "tray_plugins": "Tray plugins",
 }
 
 

@@ -1286,6 +1286,8 @@ class DaemonTray:
     _MAX_DAEMON_SLOTS = 8
     _MAX_PLUGIN_SLOTS = 8
     _MAX_ITEMS_PER_PLUGIN = 12
+    _MAX_SUBMENU_ITEMS = 8
+    _MAX_SUBMENU_DEPTH = 2
 
     def _is_multi_daemon(self):
         """True when multiple daemons are discovered (nested submenu layout)."""
@@ -2392,70 +2394,15 @@ class DaemonTray:
                 plugins = get_plugins_fn()
                 return ps < len(plugins)
 
-            sub_items = []
-            for i_idx in range(max_items):
-                i_slot = i_idx
+            def _get_item_list(ps=p_slot):
+                plugins = get_plugins_fn()
+                if ps < len(plugins):
+                    return plugins[ps].items
+                return []
 
-                def _item_label(_item, ps=p_slot, ix=i_slot):
-                    plugins = get_plugins_fn()
-                    if ps < len(plugins) and ix < len(plugins[ps].items):
-                        return plugins[ps].items[ix].label
-                    return ""
-
-                def _item_visible(_item, ps=p_slot, ix=i_slot):
-                    plugins = get_plugins_fn()
-                    if ps >= len(plugins) or ix >= len(plugins[ps].items):
-                        return False
-                    from ai_guardian.daemon.tray_plugins import resolve_command
-                    return resolve_command(plugins[ps].items[ix].command) is not None
-
-                def _item_action(ps=p_slot, ix=i_slot):
-                    def action(_, __):
-                        plugins = get_plugins_fn()
-                        if ps >= len(plugins) or ix >= len(plugins[ps].items):
-                            return
-                        item = plugins[ps].items[ix]
-                        target = get_target_fn()
-
-                        if item.target in ("all", "containers"):
-                            from ai_guardian.daemon.tray_plugins import resolve_command
-                            targets = self._resolve_target_list(item.target)
-                            if not targets:
-                                return
-                            if item.params:
-                                self._execute_multi_target_with_params(
-                                    item, targets,
-                                )
-                            else:
-                                cmd = resolve_command(item.command)
-                                if cmd:
-                                    self._execute_multi_target_command(
-                                        targets, cmd, item.type,
-                                        run_on_target=item.run_on_target,
-                                        label=item.label,
-                                    )
-                        elif item.target == "select":
-                            self._execute_plugin_with_target_select(item)
-                        elif item.params:
-                            from ai_guardian.daemon.tray_plugins import _item_to_dict
-                            self._execute_plugin_command_with_params(
-                                _item_to_dict(item), target=target,
-                            )
-                        else:
-                            from ai_guardian.daemon.tray_plugins import resolve_command
-                            cmd = resolve_command(item.command)
-                            if cmd:
-                                self._execute_plugin_command(
-                                    cmd, item.type,
-                                    target=target,
-                                    run_on_target=item.run_on_target,
-                                    label=item.label,
-                                )
-                    return action
-
-                sub_items.append(
-                    pystray.MenuItem(_item_label, _item_action(), visible=_item_visible)
-                )
+            sub_items = self._build_nested_item_slots(
+                _get_item_list, get_target_fn, max_items, depth=0,
+            )
 
             items.append(
                 pystray.MenuItem(_plugin_name, pystray.Menu(*sub_items),
@@ -2463,6 +2410,125 @@ class DaemonTray:
             )
 
         return items
+
+    def _build_nested_item_slots(
+        self, get_items_fn, get_target_fn, max_items, depth,
+    ):
+        """Build pre-allocated slots for items that may contain submenus.
+
+        For each slot position, two pystray MenuItems are created:
+        one for command items (clickable) and one for submenu items
+        (expandable). Only one is visible at a time.
+
+        Args:
+            get_items_fn: Callable returning the item list.
+            get_target_fn: Callable returning the execution target.
+            max_items: Number of item slots to pre-allocate.
+            depth: Current nesting depth (0 = direct plugin children).
+        """
+        slots = []
+
+        for i_idx in range(max_items):
+            i_slot = i_idx
+
+            def _cmd_label(_item, ix=i_slot):
+                items_list = get_items_fn()
+                if ix < len(items_list):
+                    return items_list[ix].label
+                return ""
+
+            def _cmd_visible(_item, ix=i_slot):
+                items_list = get_items_fn()
+                if ix >= len(items_list):
+                    return False
+                item = items_list[ix]
+                if item.items:
+                    return False
+                from ai_guardian.daemon.tray_plugins import resolve_command
+                return resolve_command(item.command) is not None
+
+            def _cmd_action(ix=i_slot):
+                def action(_, __):
+                    items_list = get_items_fn()
+                    if ix >= len(items_list):
+                        return
+                    item = items_list[ix]
+                    if item.items:
+                        return
+                    target = get_target_fn()
+
+                    if item.target in ("all", "containers"):
+                        from ai_guardian.daemon.tray_plugins import resolve_command
+                        targets = self._resolve_target_list(item.target)
+                        if not targets:
+                            return
+                        if item.params:
+                            self._execute_multi_target_with_params(
+                                item, targets,
+                            )
+                        else:
+                            cmd = resolve_command(item.command)
+                            if cmd:
+                                self._execute_multi_target_command(
+                                    targets, cmd, item.type,
+                                    run_on_target=item.run_on_target,
+                                    label=item.label,
+                                )
+                    elif item.target == "select":
+                        self._execute_plugin_with_target_select(item)
+                    elif item.params:
+                        from ai_guardian.daemon.tray_plugins import _item_to_dict
+                        self._execute_plugin_command_with_params(
+                            _item_to_dict(item), target=target,
+                        )
+                    else:
+                        from ai_guardian.daemon.tray_plugins import resolve_command
+                        cmd = resolve_command(item.command)
+                        if cmd:
+                            self._execute_plugin_command(
+                                cmd, item.type,
+                                target=target,
+                                run_on_target=item.run_on_target,
+                                label=item.label,
+                            )
+                return action
+
+            slots.append(
+                pystray.MenuItem(_cmd_label, _cmd_action(), visible=_cmd_visible)
+            )
+
+            if depth < self._MAX_SUBMENU_DEPTH:
+                def _sub_label(_item, ix=i_slot):
+                    items_list = get_items_fn()
+                    if ix < len(items_list):
+                        return items_list[ix].label
+                    return ""
+
+                def _sub_visible(_item, ix=i_slot):
+                    items_list = get_items_fn()
+                    if ix >= len(items_list):
+                        return False
+                    return bool(items_list[ix].items)
+
+                def _get_children(ix=i_slot):
+                    items_list = get_items_fn()
+                    if ix < len(items_list) and items_list[ix].items:
+                        return items_list[ix].items
+                    return []
+
+                child_slots = self._build_nested_item_slots(
+                    _get_children, get_target_fn,
+                    self._MAX_SUBMENU_ITEMS, depth + 1,
+                )
+
+                slots.append(
+                    pystray.MenuItem(
+                        _sub_label, pystray.Menu(*child_slots),
+                        visible=_sub_visible,
+                    )
+                )
+
+        return slots
 
     def _build_single_daemon_plugin_items(self):
         """Build plugin menu items for single-daemon mode.

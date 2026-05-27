@@ -332,3 +332,115 @@ class TestScopeSchema:
             "tags": ["ignored"],
             "items": [{"label": "Docs", "command": "echo"}],
         }, schema)
+
+
+class TestSubmenuSchema:
+    """Tests for inline submenu items in the schema."""
+
+    def test_inline_submenu_valid(self, schema):
+        _validate({
+            "name": "Plugin",
+            "items": [
+                {
+                    "label": "Deploy",
+                    "items": [
+                        {"label": "Dev", "command": "deploy dev"},
+                        {"label": "Prod", "command": "deploy prod"},
+                    ],
+                },
+            ],
+        }, schema)
+
+    def test_nested_two_levels(self, schema):
+        _validate({
+            "name": "Plugin",
+            "items": [
+                {
+                    "label": "Level 1",
+                    "items": [
+                        {
+                            "label": "Level 2",
+                            "items": [
+                                {"label": "Leaf", "command": "echo leaf"},
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }, schema)
+
+    def test_mixed_command_and_submenu(self, schema):
+        _validate({
+            "name": "Plugin",
+            "items": [
+                {"label": "Simple", "command": "echo hi"},
+                {
+                    "label": "Sub",
+                    "items": [{"label": "A", "command": "cmd"}],
+                },
+            ],
+        }, schema)
+
+    def test_submenu_empty_items_rejected(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "items": [{"label": "Empty", "items": []}],
+            }, schema)
+
+    def test_submenu_missing_label_rejected(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "items": [
+                    {"items": [{"label": "A", "command": "cmd"}]},
+                ],
+            }, schema)
+
+
+class TestImportSchema:
+    """Tests for import items in the schema."""
+
+    def test_import_item_valid(self, schema):
+        _validate({
+            "name": "Plugin",
+            "items": [
+                {"label": "Deploy", "import": "deploy.json"},
+            ],
+        }, schema)
+
+    def test_import_missing_label_rejected(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "items": [{"import": "file.json"}],
+            }, schema)
+
+    def test_import_empty_string_rejected(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "items": [{"label": "X", "import": ""}],
+            }, schema)
+
+    def test_command_with_items_rejected(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "items": [
+                    {
+                        "label": "Bad",
+                        "command": "echo",
+                        "items": [{"label": "A", "command": "cmd"}],
+                    },
+                ],
+            }, schema)
+
+    def test_command_with_import_rejected(self, schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate({
+                "name": "P",
+                "items": [
+                    {"label": "Bad", "command": "echo", "import": "f.json"},
+                ],
+            }, schema)

@@ -12,7 +12,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +39,19 @@ _TARGET_MODES = frozenset({"select", "all", "containers"})
 
 @dataclass
 class PluginItem:
-    """Menu item within a plugin."""
+    """Menu item within a plugin.
+
+    An item is either a **command item** (has ``command``) or a
+    **submenu item** (has ``items`` children or ``import_file``).
+    """
     label: str
-    command: Union[str, Dict[str, str]]
+    command: Union[str, Dict[str, str], None] = None
     type: str = "terminal"
     run_on_target: bool = False
     target: Optional[str] = None
     params: List[PluginParam] = field(default_factory=list)
+    items: Optional[List["PluginItem"]] = None
+    import_file: Optional[str] = None
 
 
 @dataclass
@@ -57,11 +63,18 @@ class Plugin:
     scope: str = "daemon"
 
 
-def load_plugins(plugins_dir: Optional[Path] = None) -> List[Plugin]:
+def load_plugins(
+    plugins_dir: Optional[Path] = None,
+    daemon_tags: Optional[List[str]] = None,
+) -> List[Plugin]:
     """Load all plugin JSON files from the plugins directory.
+
+    After parsing, ``import`` references are resolved and circular
+    imports are detected.
 
     Args:
         plugins_dir: Directory to scan. Defaults to get_tray_plugins_dir().
+        daemon_tags: Daemon tags for filtering imported files.
 
     Returns:
         List of validated Plugin objects. Malformed files are skipped.
@@ -83,7 +96,12 @@ def load_plugins(plugins_dir: Optional[Path] = None) -> List[Plugin]:
 
         plugin = _parse_plugin(data, path.name)
         if plugin is not None:
-            plugins.append(plugin)
+            visited = {str(path.resolve())}
+            plugin.items = _resolve_imports(
+                plugin.items, plugins_dir, daemon_tags, visited,
+            )
+            if plugin.items:
+                plugins.append(plugin)
 
     return plugins
 
@@ -127,19 +145,58 @@ def _parse_plugin(data: dict, filename: str) -> Optional[Plugin]:
 
 
 def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
-    """Parse and validate a single plugin item."""
+    """Parse and validate a single plugin item.
+
+    An item is one of:
+    - **command item**: has ``command`` (string or platform map)
+    - **inline submenu**: has ``items`` (list of child items)
+    - **import submenu**: has ``import`` (filename in tray-plugins/)
+    """
     if not isinstance(raw, dict):
         logger.warning("Skipping item %d in %s: not a dict", index, filename)
         return None
 
     label = raw.get("label")
-    command = raw.get("command")
     if not label or not isinstance(label, str):
         logger.warning("Skipping item %d in %s: missing 'label'", index, filename)
         return None
-    if command is None:
-        logger.warning("Skipping item %d in %s: missing 'command'", index, filename)
+
+    command = raw.get("command")
+    raw_items = raw.get("items")
+    import_ref = raw.get("import")
+
+    has_command = command is not None
+    has_items = isinstance(raw_items, list)
+    has_import = bool(isinstance(import_ref, str) and import_ref)
+
+    kind_count = sum([has_command, has_items, has_import])
+    if kind_count == 0:
+        logger.warning(
+            "Skipping item %d in %s: must have 'command', 'items', or 'import'",
+            index, filename,
+        )
         return None
+    if kind_count > 1:
+        logger.warning(
+            "Skipping item %d in %s: 'command', 'items', and 'import' are mutually exclusive",
+            index, filename,
+        )
+        return None
+
+    if has_items:
+        children = []
+        for ci, child_raw in enumerate(raw_items):
+            child = _parse_item(child_raw, filename, ci)
+            if child is not None:
+                children.append(child)
+        if not children:
+            logger.warning("Skipping item %d in %s: no valid child items", index, filename)
+            return None
+        return PluginItem(label=label, items=children)
+
+    if has_import:
+        return PluginItem(label=label, import_file=import_ref)
+
     if not isinstance(command, (str, dict)):
         logger.warning("Skipping item %d in %s: 'command' must be string or object", index, filename)
         return None
@@ -216,6 +273,181 @@ def _parse_param(raw: dict) -> Optional[PluginParam]:
         min=p_min,
         max=p_max,
     )
+
+
+def _resolve_imports(
+    items: List[PluginItem],
+    plugins_dir: Path,
+    daemon_tags: Optional[List[str]] = None,
+    visited: Optional[Set[str]] = None,
+) -> List[PluginItem]:
+    """Resolve ``import_file`` references in a list of plugin items.
+
+    Walks the item tree, replacing import references with loaded children.
+    Detects circular imports via a visited set.
+
+    Args:
+        items: Items to resolve (modified in-place).
+        plugins_dir: Directory containing plugin JSON files.
+        daemon_tags: Tags for filtering imported files.
+        visited: Paths already being processed (circular detection).
+
+    Returns:
+        The items list with imports resolved. Items whose imports fail
+        are removed.
+    """
+    if visited is None:
+        visited = set()
+
+    resolved: List[PluginItem] = []
+    for item in items:
+        if item.import_file:
+            import_path = (plugins_dir / item.import_file).resolve()
+            path_key = str(import_path)
+
+            if path_key in visited:
+                logger.warning(
+                    "Circular import detected: %s", item.import_file,
+                )
+                continue
+
+            if not import_path.is_file():
+                logger.warning(
+                    "Import file not found: %s", item.import_file,
+                )
+                continue
+
+            try:
+                data = json.loads(import_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(
+                    "Skipping import %s: %s", item.import_file, e,
+                )
+                continue
+
+            if not isinstance(data, dict):
+                logger.warning(
+                    "Skipping import %s: expected JSON object",
+                    item.import_file,
+                )
+                continue
+
+            import_tags = data.get("tags")
+            if isinstance(import_tags, list) and import_tags:
+                daemon_set = set(daemon_tags) if daemon_tags else set()
+                if not daemon_set or not daemon_set.intersection(import_tags):
+                    continue
+
+            raw_items = data.get("items")
+            if not isinstance(raw_items, list) or not raw_items:
+                logger.warning(
+                    "Skipping import %s: missing or empty 'items'",
+                    item.import_file,
+                )
+                continue
+
+            children = []
+            for ci, child_raw in enumerate(raw_items):
+                child = _parse_item(child_raw, item.import_file, ci)
+                if child is not None:
+                    children.append(child)
+
+            if not children:
+                continue
+
+            visited.add(path_key)
+            children = _resolve_imports(children, plugins_dir, daemon_tags, visited)
+            visited.discard(path_key)
+
+            item.items = children
+            item.import_file = None
+            resolved.append(item)
+
+        elif item.items:
+            item.items = _resolve_imports(
+                item.items, plugins_dir, daemon_tags, visited,
+            )
+            if item.items:
+                resolved.append(item)
+        else:
+            resolved.append(item)
+
+    return resolved
+
+
+def check_circular_imports(
+    plugins_dir: Path,
+) -> List[str]:
+    """Check for circular imports in plugin files without modifying anything.
+
+    Returns:
+        List of warning messages for any circular imports found.
+    """
+    warnings: List[str] = []
+
+    if not plugins_dir.is_dir():
+        return warnings
+
+    for path in sorted(plugins_dir.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        raw_items = data.get("items")
+        if not isinstance(raw_items, list):
+            continue
+
+        _check_import_chain(
+            raw_items, plugins_dir, {str(path.resolve())},
+            path.name, warnings,
+        )
+
+    return warnings
+
+
+def _check_import_chain(
+    raw_items: list,
+    plugins_dir: Path,
+    visited: Set[str],
+    origin: str,
+    warnings: List[str],
+) -> None:
+    """Recursively walk items looking for circular import chains."""
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            continue
+        import_ref = raw.get("import")
+        if not isinstance(import_ref, str) or not import_ref:
+            child_items = raw.get("items")
+            if isinstance(child_items, list):
+                _check_import_chain(child_items, plugins_dir, visited, origin, warnings)
+            continue
+
+        import_path = (plugins_dir / import_ref).resolve()
+        path_key = str(import_path)
+
+        if path_key in visited:
+            warnings.append(f"{origin} -> {import_ref}")
+            continue
+
+        if not import_path.is_file():
+            continue
+
+        try:
+            data = json.loads(import_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        child_items = data.get("items")
+        if not isinstance(child_items, list):
+            continue
+
+        visited.add(path_key)
+        _check_import_chain(child_items, plugins_dir, visited, origin, warnings)
+        visited.discard(path_key)
 
 
 def filter_plugins_by_tags(
@@ -433,7 +665,18 @@ def plugins_to_dict(plugins: List[Plugin]) -> dict:
 
 def _item_to_dict(item: PluginItem) -> dict:
     """Serialize a PluginItem to a dict."""
-    d = {"label": item.label, "command": item.command, "type": item.type}
+    d: dict = {"label": item.label}
+
+    if item.import_file:
+        d["import"] = item.import_file
+        return d
+
+    if item.items is not None:
+        d["items"] = [_item_to_dict(child) for child in item.items]
+        return d
+
+    d["command"] = item.command
+    d["type"] = item.type
     if item.run_on_target:
         d["run_on_target"] = True
     if item.target:
