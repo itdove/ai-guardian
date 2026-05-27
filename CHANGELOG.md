@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP server installed by default with `ai-guardian setup`** (Issue #808)
+  - `ai-guardian setup --ide <any>` now installs hooks + MCP server (previously MCP was opt-in)
+  - `--no-mcp` flag skips MCP installation
+  - `--mcp` flag accepted for backward compatibility but redundant (MCP is now default)
+  - MCP server is read-only and advisory — no risk, better UX
+
 ### Fixed
 
 - **Immutable protection too broad — block only hooks section, not entire settings.json** (Issue #807)

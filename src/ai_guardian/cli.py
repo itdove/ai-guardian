@@ -186,13 +186,13 @@ def main():
             "--mcp",
             action="store_true",
             default=None,
-            help="Install MCP security advisor server for AI security awareness (opt-in)"
+            help="Install MCP server (default, accepted for backward compatibility)"
         )
         setup_parser.add_argument(
             "--no-mcp",
             action="store_true",
             default=None,
-            help="Remove MCP security advisor server configuration"
+            help="Skip MCP server installation (MCP is installed by default)"
         )
         setup_parser.add_argument(
             "--rules",
@@ -894,8 +894,8 @@ def main():
                 profile=args.profile,
                 save_profile=args.save_profile,
                 list_profiles=args.list_profiles,
-                mcp=args.mcp if args.mcp else None,
-                no_mcp=args.no_mcp if args.no_mcp else None,
+                mcp=args.mcp or None,
+                no_mcp=args.no_mcp or None,
                 rules=args.rules if args.rules else None,
             )
             return 0 if success else 1
