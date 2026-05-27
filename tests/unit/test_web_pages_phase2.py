@@ -5,6 +5,8 @@ from unittest import mock
 
 import pytest
 
+pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
+
 
 # ---------------------------------------------------------------------------
 # Import / existence tests

@@ -1052,9 +1052,15 @@ When adding any new feature, check:
 
 - [ ] **MCP tool** — Is it read-only/query? Would AI benefit from calling it? → Add MCP tool in `mcp_server.py` + update skill
 - [ ] **Tray menu** — Does it produce a quick status or count? → Add to tray in `daemon/tray.py`
-- [ ] **Console panel** — Does it have configurable settings? → Add Console UI in `tui/`
+- [ ] **Console panel** — Does it have configurable settings? → Add Console UI in `tui/` and `web/pages/`
 - [ ] **CLI command** — Does it need a standalone command? → Add to CLI in `__init__.py`
 - [ ] **Multi-agent compatibility** — Does it affect hook responses? → Test with all supported IDEs. Verify adapter's `format_response()` returns correct format. See [docs/AGENT_SUPPORT.md](docs/AGENT_SUPPORT.md) for the full agent capability matrix and adapter architecture.
+
+### TUI and Web Console Coexistence
+
+**IMPORTANT**: The TUI console (`src/ai_guardian/tui/`) MUST NOT be removed while Python 3.9 is still supported. The web console (`src/ai_guardian/web/`) requires NiceGUI, which requires Python >= 3.10. macOS Xcode Command Line Tools bundles Python 3.9.6, so many macOS users will only have 3.9 available. The TUI (Textual) works on all supported Python versions including 3.9.
+
+**Rule**: Both console UIs must be maintained in parallel until Python 3.9 support is dropped. New console panels must be added to both `tui/` and `web/pages/`.
 
 ---
 
