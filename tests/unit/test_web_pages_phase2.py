@@ -1,0 +1,401 @@
+"""Tests for Web Console Phase 2 pages (Permissions & Secrets)."""
+
+import json
+from unittest import mock
+
+import pytest
+
+pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
+
+
+# ---------------------------------------------------------------------------
+# Import / existence tests
+# ---------------------------------------------------------------------------
+
+class TestPageImports:
+    """Verify each Phase 2 page module imports and exposes its create function."""
+
+    def test_skills_page_exists(self):
+        from ai_guardian.web.pages.skills import create_skills_page
+        assert callable(create_skills_page)
+
+    def test_mcp_servers_page_exists(self):
+        from ai_guardian.web.pages.mcp_servers import create_mcp_servers_page
+        assert callable(create_mcp_servers_page)
+
+    def test_mcp_security_page_exists(self):
+        from ai_guardian.web.pages.mcp_security import create_mcp_security_page
+        assert callable(create_mcp_security_page)
+
+    def test_permissions_discovery_page_exists(self):
+        from ai_guardian.web.pages.permissions_discovery import (
+            create_permissions_discovery_page,
+        )
+        assert callable(create_permissions_discovery_page)
+
+    def test_directory_rules_page_exists(self):
+        from ai_guardian.web.pages.directory_rules import (
+            create_directory_rules_page,
+        )
+        assert callable(create_directory_rules_page)
+
+    def test_secrets_page_exists(self):
+        from ai_guardian.web.pages.secrets import create_secrets_page
+        assert callable(create_secrets_page)
+
+    def test_secret_engines_page_exists(self):
+        from ai_guardian.web.pages.secret_engines import (
+            create_secret_engines_page,
+        )
+        assert callable(create_secret_engines_page)
+
+    def test_secret_redaction_page_exists(self):
+        from ai_guardian.web.pages.secret_redaction import (
+            create_secret_redaction_page,
+        )
+        assert callable(create_secret_redaction_page)
+
+
+# ---------------------------------------------------------------------------
+# Route / sidebar consistency
+# ---------------------------------------------------------------------------
+
+class TestRouteSidebarConsistency:
+    """Verify every Phase 2 route path appears in the sidebar navigation."""
+
+    PHASE2_ROUTES = [
+        "/skills",
+        "/mcp-servers",
+        "/mcp-security",
+        "/permissions-discovery",
+        "/directory-rules",
+        "/secrets",
+        "/secret-engines",
+        "/secret-redaction",
+    ]
+
+    def test_all_routes_registered_in_app(self):
+        """Check that app.py registers all Phase 2 routes."""
+        import inspect
+        from ai_guardian.web.app import WebConsole
+
+        source = inspect.getsource(WebConsole._register_pages)
+        for route in self.PHASE2_ROUTES:
+            assert route in source, f"Route {route} not found in app.py"
+
+    def test_all_routes_in_sidebar(self):
+        """Check that header.py sidebar includes all Phase 2 paths."""
+        import inspect
+        from ai_guardian.web.components.header import create_sidebar
+
+        source = inspect.getsource(create_sidebar)
+        for route in self.PHASE2_ROUTES:
+            assert route in source, (
+                f"Route {route} not found in sidebar navigation"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Skills config logic
+# ---------------------------------------------------------------------------
+
+class TestSkillsConfigLogic:
+    def test_get_skill_patterns_empty(self):
+        from ai_guardian.web.pages.skills import _get_skill_patterns
+
+        assert _get_skill_patterns({}) == ([], [])
+
+    def test_get_skill_patterns_extracts_allow_deny(self):
+        from ai_guardian.web.pages.skills import _get_skill_patterns
+
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]},
+                    {"matcher": "Skill", "mode": "deny", "patterns": ["evil-*"]},
+                    {"matcher": "mcp__foo", "mode": "allow", "patterns": ["*"]},
+                ],
+            }
+        }
+        allow, deny = _get_skill_patterns(config)
+        assert allow == ["daf-*"]
+        assert deny == ["evil-*"]
+
+    def test_get_skill_patterns_ignores_non_skill(self):
+        from ai_guardian.web.pages.skills import _get_skill_patterns
+
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "mcp__server", "mode": "allow", "patterns": ["*"]},
+                ],
+            }
+        }
+        allow, deny = _get_skill_patterns(config)
+        assert allow == []
+        assert deny == []
+
+    def test_format_expiration_none(self):
+        from ai_guardian.web.pages.skills import _format_expiration
+
+        assert _format_expiration(None) is None
+        assert _format_expiration("") is None
+
+    def test_format_expiration_expired(self):
+        from ai_guardian.web.pages.skills import _format_expiration
+
+        result = _format_expiration("2020-01-01T00:00:00Z")
+        assert result is not None
+        assert result[0] == "EXPIRED"
+        assert result[1] == "red"
+
+    def test_format_expiration_future(self):
+        from ai_guardian.web.pages.skills import _format_expiration
+        from datetime import datetime, timezone, timedelta
+
+        future = (datetime.now(timezone.utc) + timedelta(days=5)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        result = _format_expiration(future)
+        assert result is not None
+        assert "expires" in result[0]
+
+
+# ---------------------------------------------------------------------------
+# MCP Servers config logic
+# ---------------------------------------------------------------------------
+
+class TestMCPServersConfigLogic:
+    def test_get_mcp_rules_empty(self):
+        from ai_guardian.web.pages.mcp_servers import _get_mcp_rules
+
+        assert _get_mcp_rules({}) == []
+
+    def test_get_mcp_rules_filters_by_prefix(self):
+        from ai_guardian.web.pages.mcp_servers import _get_mcp_rules
+
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "mcp__server__*", "mode": "allow", "patterns": ["*"]},
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["foo"]},
+                    {"matcher": "mcp__other", "mode": "deny", "patterns": ["bar"]},
+                ],
+            }
+        }
+        rules = _get_mcp_rules(config)
+        assert len(rules) == 2
+        assert rules[0]["matcher"] == "mcp__server__*"
+        assert rules[1]["matcher"] == "mcp__other"
+
+
+# ---------------------------------------------------------------------------
+# Directory Rules validation
+# ---------------------------------------------------------------------------
+
+class TestDirectoryRulesValidation:
+    def test_validate_valid_rules(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        text = '[{"mode": "deny", "paths": ["~/.ssh/**"]}]'
+        parsed, err = _validate_rules_json(text)
+        assert err is None
+        assert len(parsed) == 1
+
+    def test_validate_invalid_json(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        parsed, err = _validate_rules_json("{bad json")
+        assert parsed is None
+        assert "Invalid JSON" in err
+
+    def test_validate_not_array(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        parsed, err = _validate_rules_json('{"mode": "deny"}')
+        assert parsed is None
+        assert "array" in err
+
+    def test_validate_missing_mode(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        parsed, err = _validate_rules_json('[{"paths": ["/tmp"]}]')
+        assert parsed is None
+        assert "mode" in err
+
+    def test_validate_invalid_mode(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        parsed, err = _validate_rules_json(
+            '[{"mode": "maybe", "paths": ["/tmp"]}]'
+        )
+        assert parsed is None
+        assert "mode" in err
+
+    def test_validate_missing_paths(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        parsed, err = _validate_rules_json('[{"mode": "deny"}]')
+        assert parsed is None
+        assert "paths" in err
+
+    def test_validate_empty_paths(self):
+        from ai_guardian.web.pages.directory_rules import _validate_rules_json
+
+        parsed, err = _validate_rules_json('[{"mode": "deny", "paths": []}]')
+        assert parsed is None
+        assert "paths" in err
+
+    def test_get_editable_rules_filters_generated(self):
+        from ai_guardian.web.pages.directory_rules import _get_editable_rules
+
+        config = {
+            "directory_rules": {
+                "rules": [
+                    {"mode": "deny", "paths": ["/secret"], "_generated": True},
+                    {"mode": "allow", "paths": ["/safe"]},
+                    {"mode": "deny", "paths": ["/locked"], "_immutable": True},
+                ]
+            }
+        }
+        editable = _get_editable_rules(config)
+        assert len(editable) == 1
+        assert editable[0]["paths"] == ["/safe"]
+
+    def test_get_preserved_rules(self):
+        from ai_guardian.web.pages.directory_rules import _get_preserved_rules
+
+        config = {
+            "directory_rules": {
+                "rules": [
+                    {"mode": "deny", "paths": ["/secret"], "_generated": True},
+                    {"mode": "allow", "paths": ["/safe"]},
+                ]
+            }
+        }
+        preserved = _get_preserved_rules(config)
+        assert len(preserved) == 1
+        assert preserved[0].get("_generated") is True
+
+
+# ---------------------------------------------------------------------------
+# Secret Engines validation
+# ---------------------------------------------------------------------------
+
+class TestSecretEnginesValidation:
+    def test_validate_simple_engines(self):
+        from ai_guardian.web.pages.secret_engines import _validate_engines_json
+
+        parsed, err = _validate_engines_json('["gitleaks", "betterleaks"]')
+        assert err is None
+        assert len(parsed) == 2
+
+    def test_validate_advanced_engines(self):
+        from ai_guardian.web.pages.secret_engines import _validate_engines_json
+
+        text = '[{"type": "gitleaks"}, {"type": "trufflehog"}]'
+        parsed, err = _validate_engines_json(text)
+        assert err is None
+        assert len(parsed) == 2
+
+    def test_validate_invalid_engine_name(self):
+        from ai_guardian.web.pages.secret_engines import _validate_engines_json
+
+        parsed, err = _validate_engines_json('["nonexistent"]')
+        assert parsed is None
+        assert "unknown" in err
+
+    def test_validate_missing_type_field(self):
+        from ai_guardian.web.pages.secret_engines import _validate_engines_json
+
+        parsed, err = _validate_engines_json('[{"binary": "/bin/x"}]')
+        assert parsed is None
+        assert "type" in err
+
+    def test_validate_not_array(self):
+        from ai_guardian.web.pages.secret_engines import _validate_engines_json
+
+        parsed, err = _validate_engines_json('"gitleaks"')
+        assert parsed is None
+        assert "array" in err
+
+    def test_validate_invalid_json(self):
+        from ai_guardian.web.pages.secret_engines import _validate_engines_json
+
+        parsed, err = _validate_engines_json("[bad")
+        assert parsed is None
+        assert "Invalid JSON" in err
+
+
+# ---------------------------------------------------------------------------
+# MCP Security audit wrapper
+# ---------------------------------------------------------------------------
+
+class TestMCPSecurityAudit:
+    @mock.patch("ai_guardian.web.pages.mcp_security._run_audit")
+    def test_run_audit_returns_tuple(self, mock_audit):
+        mock_audit.return_value = ([], None)
+        from ai_guardian.web.pages.mcp_security import _run_audit
+
+        servers, report = _run_audit()
+        assert servers == []
+        assert report is None
+
+    def test_run_audit_handles_import_error(self):
+        with mock.patch.dict("sys.modules", {"ai_guardian.mcp_audit": None}):
+            from ai_guardian.web.pages.mcp_security import _run_audit
+
+            servers, report = _run_audit()
+            assert servers == []
+            assert report is None
+
+
+# ---------------------------------------------------------------------------
+# Config load/save
+# ---------------------------------------------------------------------------
+
+class TestConfigLoadSave:
+    def test_load_config_missing_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "ai_guardian.web.pages.skills._load_config",
+            lambda: {},
+        )
+        from ai_guardian.web.pages.skills import _load_config
+
+        assert _load_config() == {}
+
+    def test_load_config_valid_file(self, tmp_path):
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {"enabled": true}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.pages.skills import _load_config
+
+            result = _load_config()
+            assert result["secret_scanning"]["enabled"] is True
+
+    def test_save_config_creates_file(self, tmp_path):
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.pages.skills import _save_config
+
+            _save_config({"test": True})
+            config_file = tmp_path / "ai-guardian.json"
+            assert config_file.exists()
+            data = json.loads(config_file.read_text())
+            assert data["test"] is True
+
+    def test_save_config_pretty_prints(self, tmp_path):
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.pages.skills import _save_config
+
+            _save_config({"a": 1, "b": 2})
+            text = (tmp_path / "ai-guardian.json").read_text()
+            assert "\n" in text
+            assert text.endswith("\n")

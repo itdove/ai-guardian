@@ -7,7 +7,7 @@ def create_header(daemon_name: str = ""):
     """Create the shared header bar showing current daemon."""
     with ui.header().classes("items-center justify-between bg-blue-grey-10"):
         with ui.row().classes("items-center gap-4"):
-            ui.icon("shield").classes("text-2xl text-blue-4")
+            ui.image("/images/ai-guardian-320.png").classes("w-8 h-8")
             ui.link("AI Guardian", "/").classes(
                 "text-xl font-bold text-white no-underline"
             )
@@ -45,6 +45,18 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ("Violation Logging", f"{prefix}/violation-logging"),
             ("Metrics", f"{prefix}/metrics"),
             ("Logs", f"{prefix}/logs"),
+        ]),
+        ("Permissions", [
+            ("Skills", f"{prefix}/skills"),
+            ("MCP Servers", f"{prefix}/mcp-servers"),
+            ("MCP Security", f"{prefix}/mcp-security"),
+            ("Permissions Discovery", f"{prefix}/permissions-discovery"),
+            ("Directory Rules", f"{prefix}/directory-rules"),
+        ]),
+        ("Secrets", [
+            ("Secret Scanning", f"{prefix}/secrets"),
+            ("Engine Config", f"{prefix}/secret-engines"),
+            ("Secret Redaction", f"{prefix}/secret-redaction"),
         ]),
         ("Configuration", [
             ("Daemon", f"{prefix}/daemon"),

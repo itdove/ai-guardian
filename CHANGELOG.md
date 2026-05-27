@@ -35,6 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - NiceGUI added as core dependency (Python >= 3.10)
   - Configuration: `console.web.port` and `console.web.host` in schema
 
+- **Web Console Phase 2: Permissions and Secrets pages** (Issue #804)
+  - Skills page: manage Skill tool allow/deny patterns with enforcement toggle
+  - MCP Servers page: MCP permission rules, proactive level, support bundle config
+  - MCP Security page: read-only MCP security audit with findings display
+  - Permissions Discovery page: auto-discovery directory management
+  - Directory Rules page: file path access rules with JSON editor and validation
+  - Secret Scanning page: toggle, allowlist patterns, pattern server config
+  - Engine Configuration page: multi-engine strategy, JSON engines editor
+  - Secret Redaction page: toggle, action mode, options, custom patterns, stats
+  - Sidebar navigation expanded with Permissions and Secrets groups
+
 ## [1.9.0] - 2026-05-26
 
 ### Fixed

@@ -9,8 +9,10 @@ Multiple browser tabs can view different daemons simultaneously.
 """
 
 import atexit
+import base64
 import logging
 import socket
+from pathlib import Path
 
 from nicegui import app, ui
 
@@ -63,6 +65,22 @@ class WebConsole:
         atexit.register(_cleanup_port_file)
         _write_port(port)
 
+        pkg_dir = Path(__file__).resolve().parent.parent
+        images_dir = pkg_dir / "images"
+        if not images_dir.is_dir():
+            images_dir = pkg_dir.parent.parent / "images"
+        if images_dir.is_dir():
+            app.add_static_files("/images", str(images_dir))
+
+        favicon_path = images_dir / "ai-guardian-320.png"
+        favicon_value = "🛡️"
+        if favicon_path.exists():
+            try:
+                b64 = base64.b64encode(favicon_path.read_bytes()).decode()
+                favicon_value = f"data:image/png;base64,{b64}"
+            except OSError:
+                pass
+
         ui.run(
             host=host,
             port=port,
@@ -70,7 +88,7 @@ class WebConsole:
             dark=True,
             reload=False,
             show=show,
-            favicon="🛡️",
+            favicon=favicon_value,
         )
 
     def _register_pages(self):
@@ -118,6 +136,58 @@ class WebConsole:
         def logs_page(daemon_name: str):
             from ai_guardian.web.pages.logs import create_logs_page
             create_logs_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/skills")
+        def skills_page(daemon_name: str):
+            from ai_guardian.web.pages.skills import create_skills_page
+            create_skills_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/mcp-servers")
+        def mcp_servers_page(daemon_name: str):
+            from ai_guardian.web.pages.mcp_servers import (
+                create_mcp_servers_page,
+            )
+            create_mcp_servers_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/mcp-security")
+        def mcp_security_page(daemon_name: str):
+            from ai_guardian.web.pages.mcp_security import (
+                create_mcp_security_page,
+            )
+            create_mcp_security_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/permissions-discovery")
+        def permissions_discovery_page(daemon_name: str):
+            from ai_guardian.web.pages.permissions_discovery import (
+                create_permissions_discovery_page,
+            )
+            create_permissions_discovery_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/directory-rules")
+        def directory_rules_page(daemon_name: str):
+            from ai_guardian.web.pages.directory_rules import (
+                create_directory_rules_page,
+            )
+            create_directory_rules_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/secrets")
+        def secrets_page(daemon_name: str):
+            from ai_guardian.web.pages.secrets import create_secrets_page
+            create_secrets_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/secret-engines")
+        def secret_engines_page(daemon_name: str):
+            from ai_guardian.web.pages.secret_engines import (
+                create_secret_engines_page,
+            )
+            create_secret_engines_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/secret-redaction")
+        def secret_redaction_page(daemon_name: str):
+            from ai_guardian.web.pages.secret_redaction import (
+                create_secret_redaction_page,
+            )
+            create_secret_redaction_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/daemon")
         def daemon_detail_page(daemon_name: str):
