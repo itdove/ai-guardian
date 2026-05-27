@@ -139,11 +139,13 @@ class _RestHandler(BaseHTTPRequestHandler):
             logger.debug("Failed to get about info: %s", e)
             return {}
 
-    @staticmethod
-    def _get_tray_plugins():
+    def _get_tray_plugins(self):
         try:
-            from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
-            return plugins_to_dict(load_plugins())
+            from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+            from ai_guardian.daemon.working_dir import get_working_dir
+            name = self._get_instance_name()
+            working_dir = get_working_dir(name)
+            return plugins_to_dict(load_merged_plugins(working_dir))
         except Exception as e:
             logger.debug("Failed to load tray plugins: %s", e)
             return {"plugins": []}

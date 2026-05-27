@@ -106,6 +106,73 @@ def load_plugins(
     return plugins
 
 
+def find_project_plugins_dir(
+    working_dir: Optional[str] = None,
+) -> Optional[Path]:
+    """Find project-level tray plugins directory by walking upward.
+
+    Starting from *working_dir*, walks up the directory tree looking for
+    ``.ai-guardian/tray-plugins/``.  Stops at the filesystem root.
+
+    Args:
+        working_dir: Starting directory.  When ``None``, returns ``None``
+            immediately (no project context).
+
+    Returns:
+        Path to the project plugins directory, or ``None`` if not found.
+    """
+    if not working_dir:
+        return None
+
+    current = Path(working_dir).resolve()
+    while True:
+        candidate = current / ".ai-guardian" / "tray-plugins"
+        if candidate.is_dir():
+            return candidate
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
+def load_merged_plugins(
+    working_dir: Optional[str] = None,
+    daemon_tags: Optional[List[str]] = None,
+) -> List[Plugin]:
+    """Load plugins from user-level and project-level directories, merged.
+
+    Project plugins override user-level plugins with the same name.
+    Import references in each source resolve relative to their own
+    directory.
+
+    Args:
+        working_dir: Daemon's working directory for project root detection.
+        daemon_tags: Daemon tags for filtering imported files.
+
+    Returns:
+        Merged list of Plugin objects.
+    """
+    from ai_guardian.daemon import get_tray_plugins_dir
+
+    user_plugins = load_plugins(get_tray_plugins_dir(), daemon_tags)
+
+    project_dir = find_project_plugins_dir(working_dir)
+    if project_dir is None:
+        return user_plugins
+
+    project_plugins = load_plugins(project_dir, daemon_tags)
+    if not project_plugins:
+        return user_plugins
+
+    project_names = {p.name for p in project_plugins}
+    merged = list(project_plugins)
+    for p in user_plugins:
+        if p.name not in project_names:
+            merged.append(p)
+
+    return merged
+
+
 def _parse_plugin(data: dict, filename: str) -> Optional[Plugin]:
     """Parse and validate a plugin dict from a JSON file."""
     if not isinstance(data, dict):
