@@ -82,10 +82,9 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/.cache/ai-guardian/*",
 
         # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.claude/settings.json",
+        # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
-        "*/Claude/settings.json",    # Windows
         "*/Cursor/hooks.json",        # Windows
 
         # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
@@ -106,10 +105,9 @@ IMMUTABLE_DENY_PATTERNS = {
         "*/.cache/ai-guardian/*",
 
         # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.claude/settings.json",
+        # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
-        "*/Claude/settings.json",
         "*/Cursor/hooks.json",
 
         # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
@@ -143,6 +141,8 @@ IMMUTABLE_DENY_PATTERNS = {
         "*sed*.config/ai-guardian/*",  # Config directory
         "*sed*site-packages/ai_guardian*",  # Pip-installed package
         "*sed*.claude/settings.json*",
+        "*sed*.gemini/settings.json*",
+        "*sed*.augment/settings.json*",
         "*sed*.cursor/hooks.json*",
 
         # awk protection - specific paths only
@@ -150,16 +150,22 @@ IMMUTABLE_DENY_PATTERNS = {
         "*awk*.config/ai-guardian/*",  # Config directory
         "*awk*site-packages/ai_guardian*",  # Pip-installed package
         "*awk*.claude/settings.json*",
+        "*awk*.gemini/settings.json*",
+        "*awk*.augment/settings.json*",
         "*awk*.cursor/hooks.json*",
 
         # vim/nano protection - specific paths only
         "*vim*ai-guardian.json*", "*vim*.ai-guardian.json*",  # Config files
         "*vim*.config/ai-guardian/*",  # Config directory
         "*vim*.claude/settings.json*",
+        "*vim*.gemini/settings.json*",
+        "*vim*.augment/settings.json*",
         "*vim*.cursor/hooks.json*",
         "*nano*ai-guardian.json*", "*nano*.ai-guardian.json*",  # Config files
         "*nano*.config/ai-guardian/*",  # Config directory
         "*nano*.claude/settings.json*",
+        "*nano*.gemini/settings.json*",
+        "*nano*.augment/settings.json*",
         "*nano*.cursor/hooks.json*",
 
         # chmod protection - specific paths only
@@ -167,26 +173,35 @@ IMMUTABLE_DENY_PATTERNS = {
         "*chmod*.config/ai-guardian/*",  # Config directory
         "*chmod*site-packages/ai_guardian*",  # Pip-installed package
         "*chmod*.claude/settings.json*",
+        "*chmod*.gemini/settings.json*",
+        "*chmod*.augment/settings.json*",
         "*chmod*.cursor/hooks.json*",
 
         # chattr protection - specific paths only
         "*chattr*ai-guardian.json*", "*chattr*.ai-guardian.json*",  # Config files
         "*chattr*.config/ai-guardian/*",  # Config directory
         "*chattr*.claude*", "*chattr*.cursor*",
+        "*chattr*.gemini*", "*chattr*.augment*",
 
         # Redirect protection - specific paths only
         "*>*ai-guardian.json*", "*>*.ai-guardian.json*",  # Config files
         "*>*.config/ai-guardian/*",  # Config directory
         "*>*site-packages/ai_guardian*",  # Pip-installed package
         "*>*.claude/settings.json*",
+        "*>*.gemini/settings.json*",
+        "*>*.augment/settings.json*",
         "*>*.cursor/hooks.json*",
 
         # rm/mv protection - specific paths only
         "*rm*ai-guardian.json*",
         "*rm*.claude/settings.json*",
+        "*rm*.gemini/settings.json*",
+        "*rm*.augment/settings.json*",
         "*rm*.cursor/hooks.json*",
         "*mv*ai-guardian.json*",
         "*mv*.claude/settings.json*",
+        "*mv*.gemini/settings.json*",
+        "*mv*.augment/settings.json*",
         "*mv*.cursor/hooks.json*",
 
         # Protect ai-guardian cache from manipulation (prevents cache poisoning)
@@ -268,19 +283,25 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Out-File*.cache/ai-guardian/*", "*Out-File*.cache\\ai-guardian\\*",
         "*>*.cache/ai-guardian/*", "*>*.cache\\ai-guardian\\*",
 
-        # Protect IDE hook files (Unix paths)
+        # Protect IDE settings/hook files (Unix paths)
         "*Remove-Item*.claude/settings.json*", "*Remove-Item*.cursor/hooks.json*",
         "*Remove-Item*Claude/settings.json*", "*Remove-Item*Cursor/hooks.json*",
+        "*Remove-Item*.gemini/settings.json*", "*Remove-Item*.augment/settings.json*",
         "*Move-Item*.claude/settings.json*", "*Move-Item*.cursor/hooks.json*",
         "*Move-Item*Claude/settings.json*", "*Move-Item*Cursor/hooks.json*",
+        "*Move-Item*.gemini/settings.json*", "*Move-Item*.augment/settings.json*",
         "*Rename-Item*.claude/settings.json*", "*Rename-Item*.cursor/hooks.json*",
         "*Rename-Item*Claude/settings.json*", "*Rename-Item*Cursor/hooks.json*",
+        "*Rename-Item*.gemini/settings.json*", "*Rename-Item*.augment/settings.json*",
         "*Set-Content*.claude/settings.json*", "*Set-Content*.cursor/hooks.json*",
         "*Set-Content*Claude/settings.json*", "*Set-Content*Cursor/hooks.json*",
+        "*Set-Content*.gemini/settings.json*", "*Set-Content*.augment/settings.json*",
         "*Clear-Content*.claude/settings.json*", "*Clear-Content*.cursor/hooks.json*",
         "*Clear-Content*Claude/settings.json*", "*Clear-Content*Cursor/hooks.json*",
+        "*Clear-Content*.gemini/settings.json*", "*Clear-Content*.augment/settings.json*",
         "*Out-File*.claude/settings.json*", "*Out-File*.cursor/hooks.json*",
         "*Out-File*Claude/settings.json*", "*Out-File*Cursor/hooks.json*",
+        "*Out-File*.gemini/settings.json*", "*Out-File*.augment/settings.json*",
 
         # Protect IDE hook files (Windows backslash paths)
         "*Remove-Item*Claude\\settings.json*", "*Remove-Item*Cursor\\hooks.json*",
@@ -303,6 +324,7 @@ IMMUTABLE_DENY_PATTERNS = {
         "*>>*.config/ai-guardian/*", "*>>*.config\\ai-guardian\\*",
         "*>*.claude/settings.json*", "*>*.cursor/hooks.json*",
         "*>*Claude/settings.json*", "*>*Cursor/hooks.json*",
+        "*>*.gemini/settings.json*", "*>*.augment/settings.json*",
 
         # Protect .ai-read-deny marker files from PowerShell manipulation
         "*Remove-Item*.ai-read-deny*",
@@ -324,6 +346,8 @@ IMMUTABLE_DENY_PATTERNS = {
         "*ren *ai-guardian.json*", "*ren *.ai-guardian.json*", "*ren *.config/ai-guardian/*", "*ren *.config\\ai-guardian\\*",
         "*copy *ai-guardian.json*", "*copy *.ai-guardian.json*", "*copy *.config/ai-guardian/*", "*copy *.config\\ai-guardian\\*",
         "*rm *.claude/settings.json*", "*del *.claude/settings.json*",
+        "*rm *.gemini/settings.json*", "*del *.gemini/settings.json*",
+        "*rm *.augment/settings.json*", "*del *.augment/settings.json*",
         "*rm *.cursor/hooks.json*", "*del *.cursor/hooks.json*",
         "*rm *.ai-read-deny*", "*del *.ai-read-deny*",
         "*mv *.ai-read-deny*", "*move *.ai-read-deny*",
@@ -338,6 +362,34 @@ IMMUTABLE_DENY_PATTERNS = {
         "*type*ai-guardian.json*",
     ]
 }
+
+# Mixed-settings files: contain BOTH hooks AND user preferences (Issue #807).
+# For these files, only block modifications to the hooks section via Edit/Write.
+# Bash/PowerShell still block the entire file (can't do content-aware checks).
+MIXED_SETTINGS_PATTERNS = [
+    "*/.claude/settings.json",
+    "*/Claude/settings.json",       # Windows
+    "*/.gemini/settings.json",
+    "*/.augment/settings.json",
+]
+
+# Hook-related JSON keys that indicate hook modification.
+HOOK_INDICATOR_KEYS = {
+    "hooks",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "BeforeAgent",
+    "BeforeTool",
+    "AfterTool",
+    "PromptSubmit",
+}
+
+# Regex matching hook-related JSON keys (e.g. "hooks": or 'PreToolUse':)
+_HOOK_KEY_PATTERN = re.compile(
+    r'["\'](' + '|'.join(re.escape(k) for k in sorted(HOOK_INDICATOR_KEYS)) + r')["\']'
+    r'\s*:',
+)
 
 
 def _strip_bash_heredoc_content(command: str) -> str:
@@ -466,15 +518,15 @@ class ToolPolicyChecker:
             bool: True if bypass should apply, False otherwise
         """
         # PRIORITY 1: Config/hook/cache files - NEVER bypass (even for repo owners)
+        # Note: Mixed settings files (settings.json for Claude/Gemini/Augment) are NOT
+        # listed here — they are handled by content-aware checking in check_tool_allowed()
         config_patterns = [
             "*ai-guardian.json",           # Config files
             "*/.ai-guardian.json",         # Project config
             "*/.config/ai-guardian/*",     # Config directory
             "*/.cache/ai-guardian/*",      # Cache files (prevents poisoning)
-            "*/.claude/settings.json",     # IDE hooks
-            "*/.claude/hooks.json",
+            "*/.claude/hooks.json",        # IDE hooks-only files
             "*/.cursor/hooks.json",
-            "*/Claude/settings.json",      # Windows
             "*/Cursor/hooks.json",
             "*/.ai-read-deny",             # Directory markers
             "**/.ai-read-deny",
@@ -528,6 +580,86 @@ class ToolPolicyChecker:
         logger.info(f"✅ Development source file: allowing {tool_name} on {file_path}")
         logger.info("   Note: Changes affect local development only, not pip-installed versions")
         return True
+
+    def _check_mixed_settings_hook_modification(
+        self, file_path: str, tool_name: str, tool_input: Dict
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Check if an Edit or Write to a mixed-settings file modifies hooks.
+
+        Mixed-settings files (Claude, Gemini, Augment) contain both hooks
+        and user preferences. Only hook modifications are blocked.
+
+        Returns:
+            tuple: (should_block, error_message) — True blocks the operation
+        """
+        if tool_name == "Edit":
+            old_string = tool_input.get("old_string", "")
+            new_string = tool_input.get("new_string", "")
+            combined = (old_string or "") + (new_string or "")
+
+            if _HOOK_KEY_PATTERN.search(combined):
+                return True, self._format_hook_protection_message(
+                    file_path, tool_name, "hook key detected in edit strings"
+                )
+            if "ai-guardian" in combined and "command" in combined:
+                return True, self._format_hook_protection_message(
+                    file_path, tool_name, "hook command modification detected"
+                )
+            return False, None
+
+        if tool_name == "Write":
+            content = tool_input.get("content", "")
+            try:
+                new_json = json.loads(content)
+            except (json.JSONDecodeError, TypeError):
+                return True, self._format_hook_protection_message(
+                    file_path, tool_name, "cannot parse new content as JSON — fail-closed"
+                )
+
+            new_hooks = new_json.get("hooks")
+
+            expanded = os.path.expanduser(file_path)
+            try:
+                with open(expanded, "r") as f:
+                    old_json = json.load(f)
+                old_hooks = old_json.get("hooks")
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                if new_hooks is not None:
+                    return True, self._format_hook_protection_message(
+                        file_path, tool_name, "new file contains hooks section"
+                    )
+                return False, None
+
+            if new_hooks != old_hooks:
+                return True, self._format_hook_protection_message(
+                    file_path, tool_name, "hooks section modified"
+                )
+            return False, None
+
+        return False, None
+
+    def _format_hook_protection_message(
+        self, file_path: str, tool_name: str, reason: str
+    ) -> str:
+        """Format error message for blocked hook modification in mixed-settings file."""
+        display_path = file_path if len(file_path) <= 100 else file_path[:97] + "..."
+        msg = "🛡️ Hook Protection\n\n"
+        msg += "Protection: IDE Hook Configuration\n"
+        msg += f"Tool: {tool_name}\n"
+        msg += f"File Path: {display_path}\n"
+        msg += f"Reason: {reason}\n"
+        msg += "\nWhy blocked: This file contains AI agent hook configuration.\n"
+        msg += "Modifying hooks could disable security protections (ai-guardian).\n"
+        msg += "Non-hook settings (permissions, theme, model, MCP) CAN be modified.\n"
+        msg += "\nThis operation has been blocked for security.\n"
+        msg += "DO NOT attempt to bypass this protection - it prevents security control tampering.\n"
+        msg += "\nRecommendation:\n"
+        msg += "- Modify only non-hook settings (permissions, theme, model, MCP, etc.)\n"
+        msg += "- Avoid including the 'hooks' key or hook event names in your edit\n"
+        msg += "- Hook configuration must be edited manually (not by AI agents)\n"
+        msg += "\n⚠️ This protection is immutable and cannot be disabled via configuration.\n"
+        return msg
 
     def check_tool_allowed(self, hook_data: Dict) -> Tuple[bool, Optional[str], Optional[str]]:
         """
@@ -619,6 +751,32 @@ class ToolPolicyChecker:
                 if self._should_skip_immutable_protection(check_value, tool_name):
                     logger.info(f"✅ Development source code: allowing {tool_name} on {check_value}")
                     return True, None, tool_name
+
+                # PRIORITY 1b: Content-aware check for mixed settings files (Issue #807)
+                # These files contain both hooks (protected) and user preferences (editable)
+                if tool_name in ("Edit", "Write"):
+                    is_mixed = any(
+                        fnmatch.fnmatch(check_value, pat) for pat in MIXED_SETTINGS_PATTERNS
+                    )
+                    if is_mixed:
+                        should_block, block_msg = self._check_mixed_settings_hook_modification(
+                            check_value, tool_name, tool_input
+                        )
+                        if should_block:
+                            self._log_violation(
+                                tool_name=tool_name,
+                                check_value=check_value,
+                                reason="hook modification in mixed settings file",
+                                matcher=tool_name,
+                                hook_data=hook_data,
+                            )
+                            return False, block_msg, tool_name
+                        else:
+                            logger.info(
+                                f"✅ Mixed settings: allowing {tool_name} on {check_value} "
+                                f"(non-hook modification)"
+                            )
+                            return True, None, tool_name
 
                 immutable_denies = IMMUTABLE_DENY_PATTERNS.get(tool_name, [])
                 # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
@@ -1386,11 +1544,13 @@ class ToolPolicyChecker:
             "*/.config/ai-guardian/*",
             "*/.local/state/ai-guardian/*",
             "*/.cache/ai-guardian/*",
-            "*/.claude/settings.json",
             "*/.claude/hooks.json",
             "*/.cursor/hooks.json",
-            "*/Claude/settings.json",
             "*/Cursor/hooks.json",
+            "*/.claude/settings.json",
+            "*/Claude/settings.json",
+            "*/.gemini/settings.json",
+            "*/.augment/settings.json",
         ]
         is_config_file = any(fnmatch.fnmatch(check_value, p) for p in config_patterns)
 
@@ -1535,7 +1695,7 @@ class ToolPolicyChecker:
         # Protected file categories
         msg += "\nProtected categories:\n"
         msg += "- ai-guardian configuration files\n"
-        msg += "- IDE hook configuration (Claude, Cursor)\n"
+        msg += "- IDE hook configuration (Claude, Gemini, Augment, Cursor)\n"
         msg += "- ai-guardian package source code\n"
         msg += "- .ai-read-deny marker files\n"
 

@@ -171,8 +171,8 @@ class Issue105LogBypassTest(unittest.TestCase):
                 "name": "Edit",
                 "input": {
                     "file_path": "/home/user/.claude/settings.json",
-                    "old_string": '"ai-guardian"',
-                    "new_string": '""'
+                    "old_string": '"hooks": {"PreToolUse": []}',
+                    "new_string": '"hooks": {}'
                 }
             }
         }

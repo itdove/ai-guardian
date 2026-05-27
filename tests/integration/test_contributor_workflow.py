@@ -160,16 +160,16 @@ class ContributorWorkflowTest(unittest.TestCase):
         self.assertIsNotNone(error_msg)
         self.assertIn("Protection:", error_msg)
 
-    def test_contributor_cannot_edit_claude_settings(self):
-        """Contributors CANNOT edit IDE hooks (always protected)"""
+    def test_contributor_cannot_edit_claude_settings_hooks(self):
+        """Contributors CANNOT edit IDE hooks section (Issue #807 content-aware)"""
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Edit",
                 "input": {
                     "file_path": "/home/alice/.claude/settings.json",
-                    "old_string": '"ai-guardian"',
-                    "new_string": '""'
+                    "old_string": '"hooks": {"PreToolUse": []}',
+                    "new_string": '"hooks": {}'
                 }
             }
         }
@@ -177,7 +177,7 @@ class ContributorWorkflowTest(unittest.TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "IDE hooks must be protected from contributors")
-        self.assertIn("Protection:", error_msg)
+        self.assertIn("Hook Protection", error_msg)
 
     def test_contributor_cannot_edit_cache_file(self):
         """Contributors CANNOT edit cache files (prevents cache poisoning)"""

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Immutable protection too broad — block only hooks section, not entire settings.json** (Issue #807)
+  - Claude Code, Gemini CLI, and Augment Code store hooks AND user preferences in `settings.json`
+  - Edit tool: content-aware check inspects `old_string`/`new_string` for hook-related keys
+  - Write tool: compares `hooks` JSON key between existing file and new content
+  - Non-hook settings (permissions, theme, model, MCP) can now be modified by AI agents
+  - Hook modifications are still blocked (immutable protection)
+  - Hooks-only files (Cursor, Copilot, Codex, etc.) remain fully blocked
+  - Bash/PowerShell commands on all settings files remain fully blocked
+  - Added Gemini and Augment to Bash/PowerShell immutable deny patterns
+  - Fail-closed on invalid JSON or unparseable content
+
 ### Added
 
 - **Web-based Console via daemon REST API** (Issue #679)
