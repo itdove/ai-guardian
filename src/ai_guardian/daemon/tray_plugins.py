@@ -12,9 +12,12 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
+
+
+_PARAM_TYPES = frozenset({"string", "int", "number", "boolean", "choice", "combobox"})
 
 
 @dataclass
@@ -24,6 +27,11 @@ class PluginParam:
     hint: str = ""
     default: str = ""
     options: Optional[List[str]] = None
+    type: str = "string"
+    required: bool = True
+    pattern: Optional[str] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
 
 
 @dataclass
@@ -157,11 +165,44 @@ def _parse_param(raw: dict) -> Optional[PluginParam]:
     name = raw.get("name")
     if not name or not isinstance(name, str):
         return None
+
+    options = raw.get("options") if isinstance(raw.get("options"), list) else None
+
+    param_type = raw.get("type", "string")
+    if param_type not in _PARAM_TYPES:
+        param_type = "string"
+    if options and param_type == "string" and "type" not in raw:
+        param_type = "choice"
+
+    required = raw.get("required", True)
+    if not isinstance(required, bool):
+        required = True
+
+    pattern = raw.get("pattern")
+    if not isinstance(pattern, str):
+        pattern = None
+
+    p_min = raw.get("min")
+    p_max = raw.get("max")
+    try:
+        p_min = float(p_min) if p_min is not None else None
+    except (TypeError, ValueError):
+        p_min = None
+    try:
+        p_max = float(p_max) if p_max is not None else None
+    except (TypeError, ValueError):
+        p_max = None
+
     return PluginParam(
         name=name,
         hint=raw.get("hint", ""),
         default=str(raw.get("default", "")),
-        options=raw.get("options") if isinstance(raw.get("options"), list) else None,
+        options=options,
+        type=param_type,
+        required=required,
+        pattern=pattern,
+        min=p_min,
+        max=p_max,
     )
 
 
@@ -230,6 +271,54 @@ def substitute_params(template: str, values: Dict[str, str]) -> str:
         result = result.replace("{" + PARAM_PREFIX + key + "}", val)
     result = re.sub(r"\{" + re.escape(PARAM_PREFIX) + r"(\w+)\}", "", result)
     return result
+
+
+def validate_param_value(param: PluginParam, value: str) -> Tuple[bool, str]:
+    """Validate a parameter value against its type and constraints.
+
+    Returns:
+        (is_valid, error_message) — error_message is empty on success.
+    """
+    if not value and param.required:
+        return False, f"'{param.name}' is required"
+    if not value:
+        return True, ""
+
+    ptype = param.type
+
+    if ptype == "int":
+        try:
+            n = int(value)
+        except ValueError:
+            return False, f"'{param.name}' must be an integer"
+        if param.min is not None and n < param.min:
+            return False, f"'{param.name}' must be >= {param.min:g}"
+        if param.max is not None and n > param.max:
+            return False, f"'{param.name}' must be <= {param.max:g}"
+
+    elif ptype == "number":
+        try:
+            n = float(value)
+        except ValueError:
+            return False, f"'{param.name}' must be a number"
+        if param.min is not None and n < param.min:
+            return False, f"'{param.name}' must be >= {param.min:g}"
+        if param.max is not None and n > param.max:
+            return False, f"'{param.name}' must be <= {param.max:g}"
+
+    elif ptype == "boolean":
+        if value.lower() not in ("true", "false"):
+            return False, f"'{param.name}' must be true or false"
+
+    elif ptype == "choice":
+        if param.options and value not in param.options:
+            return False, f"'{param.name}' must be one of: {', '.join(param.options)}"
+
+    elif ptype == "string" and param.pattern:
+        if not re.fullmatch(param.pattern, value):
+            return False, f"'{param.name}' does not match pattern {param.pattern}"
+
+    return True, ""
 
 
 _TARGET_VARS = frozenset({
@@ -352,6 +441,16 @@ def _param_to_dict(param: PluginParam) -> dict:
         d["default"] = param.default
     if param.options:
         d["options"] = param.options
+    if param.type != "string":
+        d["type"] = param.type
+    if not param.required:
+        d["required"] = False
+    if param.pattern:
+        d["pattern"] = param.pattern
+    if param.min is not None:
+        d["min"] = param.min
+    if param.max is not None:
+        d["max"] = param.max
     return d
 
 

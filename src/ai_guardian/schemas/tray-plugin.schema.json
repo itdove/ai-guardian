@@ -133,6 +133,29 @@
           "items": {
             "type": "string"
           }
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "int", "number", "boolean", "choice", "combobox"],
+          "default": "string",
+          "description": "Field type controlling the widget and validation. 'string' (default) shows a text input, 'int'/'number' validates numeric input, 'boolean' shows a checkbox, 'choice' shows a dropdown, 'combobox' shows an editable input with suggestions."
+        },
+        "required": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the field must have a value before submission. Defaults to true."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regex pattern to validate string input (e.g. '^[a-z]+$'). Only applies to 'string' type."
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum value for 'int' or 'number' type parameters."
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum value for 'int' or 'number' type parameters."
         }
       }
     }

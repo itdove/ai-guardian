@@ -179,3 +179,22 @@ class TestTrayPromptAppCreation:
         params = [{"name": "env", "options": ["dev", "staging", "prod"]}]
         app = TrayPromptApp(params, "deploy {tray.env}")
         assert app._params[0]["options"] == ["dev", "staging", "prod"]
+
+    def test_app_stores_typed_params(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        params = [
+            {"name": "count", "type": "int", "min": 1, "max": 10},
+            {"name": "flag", "type": "boolean", "default": "true"},
+            {"name": "branch", "required": True, "pattern": "^[a-z]+$"},
+        ]
+        app = TrayPromptApp(params, "cmd {tray.count} {tray.flag} {tray.branch}")
+        assert app._params[0]["type"] == "int"
+        assert app._params[1]["type"] == "boolean"
+        assert app._params[2]["required"] is True
+
+    def test_app_with_combobox_param(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        params = [{"name": "tag", "type": "combobox", "options": ["latest", "stable"]}]
+        app = TrayPromptApp(params, "deploy --tag {tray.tag}")
+        assert app._params[0]["type"] == "combobox"
+        assert app._params[0]["options"] == ["latest", "stable"]

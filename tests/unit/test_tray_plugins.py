@@ -18,6 +18,7 @@ from ai_guardian.daemon.tray_plugins import (
     show_dialog,
     substitute_params,
     substitute_target_vars,
+    validate_param_value,
     wrap_for_target,
 )
 
@@ -1247,3 +1248,344 @@ class TestPluginScope:
         daemon_plugins = [p for p in plugins if p.scope == "daemon"]
         assert len(global_plugins) == 1
         assert len(daemon_plugins) == 1
+
+
+class TestParseParamTyped:
+    """Tests for typed parameter parsing."""
+
+    def test_default_type_is_string(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "x", "hint": "val"}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].type == "string"
+
+    def test_type_int_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "count", "type": "int", "min": 1, "max": 10}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        p = plugins[0].items[0].params[0]
+        assert p.type == "int"
+        assert p.min == 1.0
+        assert p.max == 10.0
+
+    def test_type_boolean_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "flag", "type": "boolean", "default": "true"}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        p = plugins[0].items[0].params[0]
+        assert p.type == "boolean"
+        assert p.default == "true"
+
+    def test_options_without_type_infers_choice(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "env", "options": ["dev", "prod"]}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].type == "choice"
+
+    def test_options_with_explicit_type_uses_type(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "tag", "type": "combobox", "options": ["latest", "stable"]}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].type == "combobox"
+
+    def test_invalid_type_defaults_to_string(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "x", "type": "bogus"}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].type == "string"
+
+    def test_required_false_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "tag", "required": False}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].required is False
+
+    def test_required_default_is_true(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "x"}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].required is True
+
+    def test_pattern_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "branch", "pattern": "^[a-z]+$"}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].params[0].pattern == "^[a-z]+$"
+
+    def test_invalid_min_max_ignored(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "x", "type": "int", "min": "not-a-number", "max": None}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        p = plugins[0].items[0].params[0]
+        assert p.min is None
+        assert p.max is None
+
+
+class TestValidateParamValue:
+    """Tests for validate_param_value."""
+
+    def test_required_empty_fails(self):
+        p = PluginParam(name="x", required=True)
+        ok, err = validate_param_value(p, "")
+        assert not ok
+        assert "required" in err
+
+    def test_not_required_empty_passes(self):
+        p = PluginParam(name="x", required=False)
+        ok, err = validate_param_value(p, "")
+        assert ok
+
+    def test_string_no_validation(self):
+        p = PluginParam(name="x", type="string")
+        ok, _ = validate_param_value(p, "anything")
+        assert ok
+
+    def test_string_with_pattern_match(self):
+        p = PluginParam(name="x", type="string", pattern="^[a-z]+$")
+        ok, _ = validate_param_value(p, "abc")
+        assert ok
+
+    def test_string_with_pattern_no_match(self):
+        p = PluginParam(name="x", type="string", pattern="^[a-z]+$")
+        ok, err = validate_param_value(p, "ABC123")
+        assert not ok
+        assert "pattern" in err
+
+    def test_int_valid(self):
+        p = PluginParam(name="n", type="int")
+        ok, _ = validate_param_value(p, "42")
+        assert ok
+
+    def test_int_invalid(self):
+        p = PluginParam(name="n", type="int")
+        ok, err = validate_param_value(p, "abc")
+        assert not ok
+        assert "integer" in err
+
+    def test_int_below_min(self):
+        p = PluginParam(name="n", type="int", min=5.0)
+        ok, err = validate_param_value(p, "3")
+        assert not ok
+        assert ">=" in err
+
+    def test_int_above_max(self):
+        p = PluginParam(name="n", type="int", max=10.0)
+        ok, err = validate_param_value(p, "15")
+        assert not ok
+        assert "<=" in err
+
+    def test_int_within_bounds(self):
+        p = PluginParam(name="n", type="int", min=1.0, max=10.0)
+        ok, _ = validate_param_value(p, "5")
+        assert ok
+
+    def test_int_at_boundary(self):
+        p = PluginParam(name="n", type="int", min=1.0, max=10.0)
+        ok1, _ = validate_param_value(p, "1")
+        ok2, _ = validate_param_value(p, "10")
+        assert ok1 and ok2
+
+    def test_number_valid_float(self):
+        p = PluginParam(name="n", type="number")
+        ok, _ = validate_param_value(p, "3.14")
+        assert ok
+
+    def test_number_invalid(self):
+        p = PluginParam(name="n", type="number")
+        ok, err = validate_param_value(p, "abc")
+        assert not ok
+        assert "number" in err
+
+    def test_number_bounds(self):
+        p = PluginParam(name="n", type="number", min=0.0, max=1.0)
+        ok1, _ = validate_param_value(p, "0.5")
+        ok2, err2 = validate_param_value(p, "1.5")
+        assert ok1
+        assert not ok2
+
+    def test_boolean_true(self):
+        p = PluginParam(name="f", type="boolean")
+        ok, _ = validate_param_value(p, "true")
+        assert ok
+
+    def test_boolean_false(self):
+        p = PluginParam(name="f", type="boolean")
+        ok, _ = validate_param_value(p, "false")
+        assert ok
+
+    def test_boolean_case_insensitive(self):
+        p = PluginParam(name="f", type="boolean")
+        ok, _ = validate_param_value(p, "True")
+        assert ok
+
+    def test_boolean_invalid(self):
+        p = PluginParam(name="f", type="boolean")
+        ok, err = validate_param_value(p, "yes")
+        assert not ok
+        assert "true or false" in err
+
+    def test_choice_valid(self):
+        p = PluginParam(name="env", type="choice", options=["dev", "prod"])
+        ok, _ = validate_param_value(p, "dev")
+        assert ok
+
+    def test_choice_invalid(self):
+        p = PluginParam(name="env", type="choice", options=["dev", "prod"])
+        ok, err = validate_param_value(p, "staging")
+        assert not ok
+        assert "one of" in err
+
+    def test_combobox_accepts_any(self):
+        p = PluginParam(name="tag", type="combobox", options=["latest", "stable"])
+        ok, _ = validate_param_value(p, "custom-tag")
+        assert ok
+
+
+class TestParamSerializationTyped:
+    """Tests for serialization of typed PluginParam fields."""
+
+    def test_serializes_type_when_not_string(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="n", type="int", min=1.0, max=10.0)],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert p["type"] == "int"
+        assert p["min"] == 1.0
+        assert p["max"] == 10.0
+
+    def test_omits_type_when_string(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="x")],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert "type" not in p
+
+    def test_serializes_required_false(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="x", required=False)],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert p["required"] is False
+
+    def test_omits_required_when_true(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="x", required=True)],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert "required" not in p
+
+    def test_serializes_pattern(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="b", pattern="^[a-z]+$")],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert p["pattern"] == "^[a-z]+$"
+
+    def test_roundtrip_typed_params(self):
+        original = [Plugin(
+            name="RT",
+            items=[PluginItem(
+                label="Go", command="cmd",
+                params=[
+                    PluginParam(name="n", type="int", min=1.0, max=10.0, required=True),
+                    PluginParam(name="tag", type="combobox", options=["a", "b"], required=False),
+                    PluginParam(name="flag", type="boolean", default="true"),
+                    PluginParam(name="branch", pattern="^[a-z]+$"),
+                ],
+            )]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        params = restored[0].items[0].params
+        assert params[0].type == "int"
+        assert params[0].min == 1.0
+        assert params[0].max == 10.0
+        assert params[1].type == "combobox"
+        assert params[1].required is False
+        assert params[2].type == "boolean"
+        assert params[3].pattern == "^[a-z]+$"
