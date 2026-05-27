@@ -43,7 +43,16 @@
   "definitions": {
     "plugin_item": {
       "type": "object",
-      "description": "A single menu item that runs a command when clicked",
+      "description": "A menu item: either a command item, an inline submenu, or an import reference",
+      "oneOf": [
+        { "$ref": "#/definitions/command_item" },
+        { "$ref": "#/definitions/submenu_item" },
+        { "$ref": "#/definitions/import_item" }
+      ]
+    },
+    "command_item": {
+      "type": "object",
+      "description": "A menu item that runs a command when clicked",
       "required": ["label", "command"],
       "additionalProperties": false,
       "properties": {
@@ -85,6 +94,71 @@
           "description": "User-defined parameters that prompt for input before running. Values are substituted into the command via {tray.param_name} placeholders.",
           "items": {
             "$ref": "#/definitions/plugin_param"
+          }
+        }
+      }
+    },
+    "submenu_item": {
+      "type": "object",
+      "description": "A menu item that opens a nested submenu with child items",
+      "required": ["label", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text displayed in the tray menu for this submenu"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "description": "Child menu items in this submenu",
+          "items": {
+            "$ref": "#/definitions/plugin_item"
+          }
+        }
+      }
+    },
+    "import_item": {
+      "type": "object",
+      "description": "A menu item that imports child items from another JSON file in tray-plugins/",
+      "required": ["label", "import"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text displayed in the tray menu for this imported submenu"
+        },
+        "import": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Filename of a JSON file in tray-plugins/ to import as submenu items. The file must contain an 'items' array. Tag filtering applies to imported files."
+        }
+      }
+    },
+    "import_file_schema": {
+      "type": "object",
+      "description": "Schema for imported submenu files referenced by 'import' items. These files live in tray-plugins/ alongside regular plugin files but only contain items (no name required).",
+      "required": ["items"],
+      "additionalProperties": false,
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Tags for filtering. Only included when daemon has matching tray_menu_tags."
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "description": "Menu items to import into the parent submenu",
+          "items": {
+            "$ref": "#/definitions/plugin_item"
           }
         }
       }

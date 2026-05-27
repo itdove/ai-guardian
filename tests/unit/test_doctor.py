@@ -979,7 +979,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 21
+        assert len(report.checks) == 22
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
@@ -991,3 +991,46 @@ class TestDoctorRunAll:
         assert len(crash_check) == 1
         assert crash_check[0].status == CheckStatus.FAIL
         doctor.check_config_file = original
+
+
+class TestCheckTrayPlugins:
+    def test_skip_when_no_dir(self, _isolate_config_dir):
+        doctor = Doctor()
+        result = doctor.check_tray_plugins()
+        assert result.status == CheckStatus.SKIP
+
+    def test_skip_when_empty_dir(self, _isolate_config_dir, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir):
+            doctor = Doctor()
+            result = doctor.check_tray_plugins()
+            assert result.status == CheckStatus.SKIP
+
+    def test_pass_with_valid_plugins(self, _isolate_config_dir, tmp_path):
+        import json
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "good.json").write_text(json.dumps({
+            "name": "Good",
+            "items": [{"label": "Ok", "command": "echo ok"}],
+        }))
+        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir):
+            doctor = Doctor()
+            result = doctor.check_tray_plugins()
+            assert result.status == CheckStatus.PASS
+            assert "1 plugin file" in result.message
+
+    def test_warn_on_circular_import(self, _isolate_config_dir, tmp_path):
+        import json
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "loop.json").write_text(json.dumps({
+            "name": "Loop",
+            "items": [{"label": "Self", "import": "loop.json"}],
+        }))
+        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir):
+            doctor = Doctor()
+            result = doctor.check_tray_plugins()
+            assert result.status == CheckStatus.WARN
+            assert "Circular import" in result.message

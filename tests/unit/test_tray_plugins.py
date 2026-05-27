@@ -10,6 +10,7 @@ from ai_guardian.daemon.tray_plugins import (
     Plugin,
     PluginItem,
     PluginParam,
+    check_circular_imports,
     dict_to_plugins,
     filter_plugins_by_tags,
     load_plugins,
@@ -1672,3 +1673,447 @@ class TestPluginTarget:
         )
         result = substitute_target_vars("check {container_name}", t)
         assert "sandbox-1" in result
+
+
+class TestInlineSubmenu:
+    """Tests for inline submenu items (items with nested children)."""
+
+    def test_inline_submenu_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "MyPlugin",
+            "items": [
+                {"label": "Check", "command": "echo check"},
+                {
+                    "label": "Deploy",
+                    "items": [
+                        {"label": "Dev", "command": "deploy dev"},
+                        {"label": "Prod", "command": "deploy prod"},
+                    ],
+                },
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert len(plugins[0].items) == 2
+        assert plugins[0].items[0].label == "Check"
+        assert plugins[0].items[0].command == "echo check"
+        sub = plugins[0].items[1]
+        assert sub.label == "Deploy"
+        assert sub.items is not None
+        assert len(sub.items) == 2
+        assert sub.items[0].label == "Dev"
+        assert sub.items[0].command == "deploy dev"
+
+    def test_two_levels_of_nesting(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Deep",
+            "items": [
+                {
+                    "label": "Level 1",
+                    "items": [
+                        {
+                            "label": "Level 2",
+                            "items": [
+                                {"label": "Leaf", "command": "echo leaf"},
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        level1 = plugins[0].items[0]
+        assert level1.label == "Level 1"
+        level2 = level1.items[0]
+        assert level2.label == "Level 2"
+        assert level2.items[0].label == "Leaf"
+        assert level2.items[0].command == "echo leaf"
+
+    def test_submenu_item_has_no_command(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {
+                    "label": "Sub",
+                    "items": [{"label": "A", "command": "cmd"}],
+                },
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        sub = plugins[0].items[0]
+        assert sub.command is None
+        assert sub.items is not None
+
+    def test_submenu_with_all_features(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Features",
+            "items": [
+                {
+                    "label": "Sub",
+                    "items": [
+                        {
+                            "label": "Terminal",
+                            "command": "echo hi",
+                            "type": "terminal",
+                            "run_on_target": True,
+                        },
+                        {
+                            "label": "Platform",
+                            "command": {"darwin": "open .", "default": "xdg-open ."},
+                            "type": "background",
+                        },
+                        {
+                            "label": "Params",
+                            "command": "deploy {tray.env}",
+                            "params": [{"name": "env", "default": "dev"}],
+                        },
+                    ],
+                },
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        children = plugins[0].items[0].items
+        assert children[0].run_on_target is True
+        assert isinstance(children[1].command, dict)
+        assert children[1].type == "background"
+        assert len(children[2].params) == 1
+
+    def test_empty_inline_items_skipped(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Sub", "items": []},
+                {"label": "Ok", "command": "echo ok"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert len(plugins[0].items) == 1
+        assert plugins[0].items[0].label == "Ok"
+
+    def test_mutually_exclusive_command_and_items(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {
+                    "label": "Bad",
+                    "command": "echo hi",
+                    "items": [{"label": "X", "command": "y"}],
+                },
+                {"label": "Ok", "command": "echo ok"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert plugins[0].items[0].label == "Ok"
+
+
+class TestFileImport:
+    """Tests for import submenu items (items referencing external JSON files)."""
+
+    def test_import_resolves_file(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "deploy.json").write_text(json.dumps({
+            "items": [
+                {"label": "Dev", "command": "deploy dev"},
+                {"label": "Prod", "command": "deploy prod"},
+            ],
+        }))
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "MyPlugin",
+            "items": [
+                {"label": "Check", "command": "echo check"},
+                {"label": "Deploy", "import": "deploy.json"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        main = [p for p in plugins if p.name == "MyPlugin"][0]
+        assert len(main.items) == 2
+        deploy = main.items[1]
+        assert deploy.label == "Deploy"
+        assert deploy.items is not None
+        assert len(deploy.items) == 2
+        assert deploy.items[0].label == "Dev"
+        assert deploy.import_file is None
+
+    def test_missing_import_file_skipped(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Missing", "import": "nonexistent.json"},
+                {"label": "Ok", "command": "echo ok"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert len(plugins[0].items) == 1
+        assert plugins[0].items[0].label == "Ok"
+
+    def test_import_with_tag_filtering_included(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "commands.json").write_text(json.dumps({
+            "tags": ["workstation"],
+            "items": [{"label": "A", "command": "cmd_a"}],
+        }))
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Commands", "import": "commands.json"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir, daemon_tags=["workstation"])
+        assert len(plugins) == 1
+        assert plugins[0].items[0].items is not None
+
+    def test_import_with_tag_filtering_excluded(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "commands.json").write_text(json.dumps({
+            "tags": ["server"],
+            "items": [{"label": "A", "command": "cmd_a"}],
+        }))
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Commands", "import": "commands.json"},
+                {"label": "Ok", "command": "echo ok"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir, daemon_tags=["workstation"])
+        assert len(plugins) == 1
+        assert len(plugins[0].items) == 1
+        assert plugins[0].items[0].label == "Ok"
+
+    def test_import_untagged_always_included(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "commands.json").write_text(json.dumps({
+            "items": [{"label": "A", "command": "cmd_a"}],
+        }))
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Commands", "import": "commands.json"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir, daemon_tags=["anything"])
+        assert len(plugins) == 1
+        assert plugins[0].items[0].items is not None
+
+    def test_nested_import_in_imported_file(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "leaf.json").write_text(json.dumps({
+            "items": [{"label": "Leaf", "command": "echo leaf"}],
+        }))
+        (plugins_dir / "middle.json").write_text(json.dumps({
+            "items": [{"label": "Middle", "import": "leaf.json"}],
+        }))
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Top", "import": "middle.json"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        main = [p for p in plugins if p.name == "P"][0]
+        top = main.items[0]
+        assert top.label == "Top"
+        middle = top.items[0]
+        assert middle.label == "Middle"
+        assert middle.items[0].label == "Leaf"
+
+    def test_mutually_exclusive_command_and_import(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "sub.json").write_text(json.dumps({
+            "items": [{"label": "A", "command": "cmd"}],
+        }))
+        (plugins_dir / "main.json").write_text(json.dumps({
+            "name": "P",
+            "items": [
+                {"label": "Bad", "command": "echo", "import": "sub.json"},
+                {"label": "Ok", "command": "echo ok"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert plugins[0].items[0].label == "Ok"
+
+
+class TestCircularImportDetection:
+    """Tests for circular import detection."""
+
+    def test_self_import_detected(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "self.json").write_text(json.dumps({
+            "name": "Self",
+            "items": [
+                {"label": "Loop", "import": "self.json"},
+                {"label": "Ok", "command": "echo ok"},
+            ],
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert len(plugins) == 1
+        assert len(plugins[0].items) == 1
+        assert plugins[0].items[0].label == "Ok"
+
+    def test_mutual_circular_import(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "a.json").write_text(json.dumps({
+            "name": "A",
+            "items": [{"label": "To B", "import": "b.json"}],
+        }))
+        (plugins_dir / "b.json").write_text(json.dumps({
+            "items": [{"label": "To A", "import": "a.json"}],
+        }))
+        plugins = load_plugins(plugins_dir)
+        a_plugin = [p for p in plugins if p.name == "A"]
+        assert len(a_plugin) == 0 or (
+            a_plugin[0].items[0].items is not None
+            and not any(
+                child.import_file == "a.json"
+                for child in (a_plugin[0].items[0].items or [])
+            )
+        )
+
+    def test_check_circular_imports_detects_self(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "loop.json").write_text(json.dumps({
+            "name": "Loop",
+            "items": [{"label": "Self", "import": "loop.json"}],
+        }))
+        warnings = check_circular_imports(plugins_dir)
+        assert len(warnings) == 1
+        assert "loop.json" in warnings[0]
+
+    def test_check_circular_imports_detects_chain(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "a.json").write_text(json.dumps({
+            "name": "A",
+            "items": [{"label": "To B", "import": "b.json"}],
+        }))
+        (plugins_dir / "b.json").write_text(json.dumps({
+            "items": [{"label": "To A", "import": "a.json"}],
+        }))
+        warnings = check_circular_imports(plugins_dir)
+        assert len(warnings) >= 1
+
+    def test_check_circular_imports_no_false_positive(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "shared.json").write_text(json.dumps({
+            "items": [{"label": "Common", "command": "echo common"}],
+        }))
+        (plugins_dir / "a.json").write_text(json.dumps({
+            "name": "A",
+            "items": [{"label": "Shared", "import": "shared.json"}],
+        }))
+        (plugins_dir / "b.json").write_text(json.dumps({
+            "name": "B",
+            "items": [{"label": "Shared", "import": "shared.json"}],
+        }))
+        warnings = check_circular_imports(plugins_dir)
+        assert len(warnings) == 0
+
+
+class TestNestedSerialization:
+    """Tests for serialization and deserialization of nested items."""
+
+    def test_serialize_inline_submenu(self):
+        plugins = [Plugin(
+            name="P",
+            items=[
+                PluginItem(
+                    label="Sub",
+                    items=[PluginItem(label="A", command="cmd_a")],
+                ),
+            ],
+        )]
+        result = plugins_to_dict(plugins)
+        sub = result["plugins"][0]["items"][0]
+        assert "items" in sub
+        assert "command" not in sub
+        assert sub["items"][0]["label"] == "A"
+
+    def test_serialize_import_file(self):
+        plugins = [Plugin(
+            name="P",
+            items=[PluginItem(label="Imported", import_file="other.json")],
+        )]
+        result = plugins_to_dict(plugins)
+        item = result["plugins"][0]["items"][0]
+        assert item["import"] == "other.json"
+        assert "command" not in item
+        assert "items" not in item
+
+    def test_roundtrip_nested_items(self):
+        original = [Plugin(
+            name="P",
+            items=[
+                PluginItem(label="Cmd", command="echo 1", type="background"),
+                PluginItem(
+                    label="Sub",
+                    items=[
+                        PluginItem(label="Child1", command="cmd1"),
+                        PluginItem(label="Child2", command="cmd2", type="notification"),
+                    ],
+                ),
+            ],
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert len(restored) == 1
+        assert len(restored[0].items) == 2
+        assert restored[0].items[0].label == "Cmd"
+        sub = restored[0].items[1]
+        assert sub.label == "Sub"
+        assert sub.items is not None
+        assert len(sub.items) == 2
+        assert sub.items[0].command == "cmd1"
+        assert sub.items[1].type == "notification"
+
+    def test_roundtrip_deeply_nested(self):
+        original = [Plugin(
+            name="Deep",
+            items=[
+                PluginItem(
+                    label="L1",
+                    items=[
+                        PluginItem(
+                            label="L2",
+                            items=[
+                                PluginItem(label="L3", command="echo deep"),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        l1 = restored[0].items[0]
+        l2 = l1.items[0]
+        assert l2.items[0].label == "L3"
+        assert l2.items[0].command == "echo deep"
