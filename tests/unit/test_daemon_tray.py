@@ -2346,14 +2346,14 @@ class TestAboutMenuItem:
             InstalledScanner(name="betterleaks", version="1.2.0",
                              path="/usr/bin/betterleaks", is_default=False),
         ]
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_installed",
+        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_configured",
                         return_value=fake_scanners):
             text = DaemonTray._build_about_text()
-        assert "gitleaks 8.30.1" in text
+        assert "gitleaks 8.30.1 (default)" in text
         assert "betterleaks 1.2.0" in text
 
     def test_build_about_text_no_scanners_installed(self):
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_installed",
+        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_configured",
                         return_value=[]):
             text = DaemonTray._build_about_text()
         assert "Scanners: none installed" in text
