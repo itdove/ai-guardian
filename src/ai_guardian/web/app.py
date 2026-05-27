@@ -243,6 +243,76 @@ class WebConsole:
             )
             create_annotations_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/remote-configs")
+        def remote_configs_page(daemon_name: str):
+            from ai_guardian.web.pages.remote_configs import (
+                create_remote_configs_page,
+            )
+            create_remote_configs_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/config-file")
+        def config_file_page(daemon_name: str):
+            from ai_guardian.web.pages.config_file import (
+                create_config_file_page,
+            )
+            create_config_file_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/config-editor")
+        def config_editor_page(daemon_name: str):
+            from ai_guardian.web.pages.config_editor import (
+                create_config_editor_page,
+            )
+            create_config_editor_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/console-settings")
+        def console_settings_page(daemon_name: str):
+            from ai_guardian.web.pages.console_settings import (
+                create_console_settings_page,
+            )
+            create_console_settings_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/config-effective")
+        def config_effective_page(daemon_name: str):
+            from ai_guardian.web.pages.config_effective import (
+                create_config_effective_page,
+            )
+            create_config_effective_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/regex-tester")
+        def regex_tester_page(daemon_name: str):
+            from ai_guardian.web.pages.regex_tester import (
+                create_regex_tester_page,
+            )
+            create_regex_tester_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/hook-simulator")
+        def hook_simulator_page(daemon_name: str):
+            from ai_guardian.web.pages.hook_simulator import (
+                create_hook_simulator_page,
+            )
+            create_hook_simulator_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/engine-tester")
+        def engine_tester_page(daemon_name: str):
+            from ai_guardian.web.pages.engine_tester import (
+                create_engine_tester_page,
+            )
+            create_engine_tester_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/directory-scan")
+        def directory_scan_page(daemon_name: str):
+            from ai_guardian.web.pages.directory_scan import (
+                create_directory_scan_page,
+            )
+            create_directory_scan_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/health-check")
+        def health_check_page(daemon_name: str):
+            from ai_guardian.web.pages.health_check import (
+                create_health_check_page,
+            )
+            create_health_check_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/daemon")
         def daemon_detail_page(daemon_name: str):
             from ai_guardian.web.pages.daemon_detail import (

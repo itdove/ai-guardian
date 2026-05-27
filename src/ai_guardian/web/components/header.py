@@ -72,6 +72,18 @@ def create_sidebar(daemon_name: str, current: str = ""):
         ]),
         ("Configuration", [
             ("Daemon", f"{prefix}/daemon"),
+            ("Remote Configs", f"{prefix}/remote-configs"),
+            ("Config File", f"{prefix}/config-file"),
+            ("Config Editor", f"{prefix}/config-editor"),
+            ("Console Settings", f"{prefix}/console-settings"),
+            ("Effective Config", f"{prefix}/config-effective"),
+        ]),
+        ("Tools", [
+            ("Regex Tester", f"{prefix}/regex-tester"),
+            ("Hook Simulator", f"{prefix}/hook-simulator"),
+            ("Engine Tester", f"{prefix}/engine-tester"),
+            ("Directory Scan", f"{prefix}/directory-scan"),
+            ("Health Check", f"{prefix}/health-check"),
         ]),
     ]
     with ui.column().classes("w-56 bg-blue-grey-10 min-h-screen p-2 gap-0"):
