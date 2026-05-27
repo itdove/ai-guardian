@@ -3204,13 +3204,12 @@ class TestGlobalPlugins:
             call for call in mock_pystray.MenuItem.call_args_list
             if len(call[0]) >= 2 and isinstance(call[0][1], mock.MagicMock)
             and call[1].get("visible") is not None
+            and callable(call[0][0]) and call[0][0](None) == "Quick Links"
         ]
         assert len(plugin_calls) >= 1
         first_plugin = plugin_calls[0]
         vis_fn = first_plugin[1]["visible"]
-        label_fn = first_plugin[0][0]
         assert vis_fn(None) is True
-        assert label_fn(None) == "Quick Links"
 
     def test_global_plugin_hidden_when_no_global_plugins(self):
         tray = self._make_tray(targets=[
