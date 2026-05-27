@@ -8,7 +8,9 @@ Displays a form with text inputs and dropdowns, then returns the substituted com
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
+from textual.widgets import (
+    Button, Checkbox, Footer, Header, Input, Label, Select, Static,
+)
 
 
 class TrayPromptApp(App):
@@ -54,10 +56,27 @@ class TrayPromptApp(App):
             for param in self._params:
                 with Container(classes="param-row"):
                     label_text = param["name"]
+                    if param.get("required", True):
+                        label_text = "* " + label_text
                     if param.get("hint"):
                         label_text += f"  [dim]({param['hint']})[/dim]"
                     yield Label(label_text)
-                    if param.get("options"):
+
+                    ptype = param.get("type", "string")
+                    widget_id = f"param-{param['name']}"
+
+                    if ptype == "boolean":
+                        default_val = self._resolve_default(
+                            param.get("default", "false"),
+                        )
+                        yield Checkbox(
+                            "",
+                            value=default_val.lower() == "true",
+                            id=widget_id,
+                        )
+                    elif ptype == "choice" or (
+                        ptype == "string" and param.get("options")
+                    ):
                         options = [(opt, opt) for opt in param["options"]]
                         default = self._resolve_default(
                             param.get("default", param["options"][0]),
@@ -65,15 +84,22 @@ class TrayPromptApp(App):
                         yield Select(
                             options,
                             value=default,
-                            id=f"param-{param['name']}",
+                            id=widget_id,
                         )
                     else:
+                        placeholder = param.get("hint", "")
+                        if ptype == "combobox" and param.get("options"):
+                            suggestions = ", ".join(param["options"])
+                            placeholder = (
+                                f"{placeholder} [{suggestions}]"
+                                if placeholder else suggestions
+                            )
                         yield Input(
                             value=self._resolve_default(
                                 param.get("default", ""),
                             ),
-                            placeholder=param.get("hint", ""),
-                            id=f"param-{param['name']}",
+                            placeholder=placeholder,
+                            id=widget_id,
                         )
             with Horizontal(id="button-row"):
                 yield Button("Submit", id="submit-btn", variant="primary")
@@ -97,6 +123,10 @@ class TrayPromptApp(App):
         return substitute_params(value, self._extra_vars)
 
     def _submit(self):
+        from ai_guardian.daemon.tray_plugins import (
+            PluginParam, substitute_params, validate_param_value,
+        )
+
         values = {}
         for param in self._params:
             widget_id = f"param-{param['name']}"
@@ -106,12 +136,28 @@ class TrayPromptApp(App):
                 values[param["name"]] = param.get("default", "")
                 continue
 
-            if isinstance(widget, Select):
+            if isinstance(widget, Checkbox):
+                values[param["name"]] = "true" if widget.value else "false"
+            elif isinstance(widget, Select):
                 val = widget.value
                 values[param["name"]] = str(val) if val is not Select.BLANK else ""
             else:
                 values[param["name"]] = widget.value
 
-        from ai_guardian.daemon.tray_plugins import substitute_params
+        for param in self._params:
+            pp = PluginParam(
+                name=param["name"],
+                type=param.get("type", "string"),
+                required=param.get("required", True),
+                pattern=param.get("pattern"),
+                options=param.get("options"),
+                min=float(param["min"]) if param.get("min") is not None else None,
+                max=float(param["max"]) if param.get("max") is not None else None,
+            )
+            valid, err = validate_param_value(pp, values.get(param["name"], ""))
+            if not valid:
+                self.notify(err, severity="error")
+                return
+
         final_command = substitute_params(self._command_template, values)
         self.exit(result=final_command)
