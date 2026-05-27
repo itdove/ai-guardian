@@ -58,10 +58,10 @@ class TestJunieSetupFlow:
         assert "does not support hooks" in message
 
     def test_setup_ide_hooks_mcp_only_suggests_flags(self):
-        """setup_ide_hooks suggests --mcp and --rules for mcp-only IDEs."""
+        """setup_ide_hooks mentions MCP default and --rules for mcp-only IDEs."""
         setup = IDESetup()
         success, message = setup.setup_ide_hooks("junie")
-        assert "--mcp" in message
+        assert "--no-mcp" in message
         assert "--rules" in message
 
     def test_setup_ide_hooks_mcp_only_mentions_ide_name(self):

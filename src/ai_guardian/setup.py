@@ -1049,8 +1049,8 @@ class IDESetup:
             if ide_config.get("mcp_only"):
                 msg = (
                     f"{ide_name} does not support hooks.\n"
-                    f"Use --mcp to install MCP server, or --rules to install guidelines file.\n"
-                    f"  ai-guardian setup --ide {ide_type} --mcp\n"
+                    f"MCP server will be installed by default. Use --no-mcp to skip.\n"
+                    f"Use --rules to install guidelines file.\n"
                     f"  ai-guardian setup --ide {ide_type} --rules"
                 )
                 return True, msg
@@ -2347,9 +2347,12 @@ def setup_hooks(
     success, message = setup.setup_ide_hooks(ide_type, dry_run=dry_run, force=force)
     print(message)
 
-    # Handle MCP server installation (Issue #477)
-    if success and (mcp or no_mcp):
-        _handle_mcp_setup(setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run)
+    # Handle MCP server installation (Issue #477, #808: default-on)
+    if success:
+        if no_mcp:
+            _handle_mcp_setup(setup, ide_type, mcp=False, no_mcp=True, dry_run=dry_run)
+        else:
+            _handle_mcp_setup(setup, ide_type, mcp=True, no_mcp=False, dry_run=dry_run)
 
     # Handle rules/guidelines file installation (Issue #637)
     if success and rules:
@@ -2452,12 +2455,17 @@ def _setup_hooks_json_output(
     elif not success:
         result["error"] = message
 
-    # Handle MCP server setup (run if --mcp/--no-mcp passed)
-    if success and (mcp or no_mcp):
+    # Handle MCP server setup (Issue #808: default-on)
+    if success:
         with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
-            _handle_mcp_setup(
-                setup, ide_type, mcp=mcp, no_mcp=no_mcp, dry_run=dry_run,
-            )
+            if no_mcp:
+                _handle_mcp_setup(
+                    setup, ide_type, mcp=False, no_mcp=True, dry_run=dry_run,
+                )
+            else:
+                _handle_mcp_setup(
+                    setup, ide_type, mcp=True, no_mcp=False, dry_run=dry_run,
+                )
 
     # Always include MCP server config in JSON output (unless --no-mcp)
     if success and not no_mcp:

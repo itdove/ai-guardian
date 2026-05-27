@@ -2870,6 +2870,131 @@ class TestMcpMigrationWarning:
         assert "Warning" not in captured.out
 
 
+class TestMcpDefaultOn:
+    """Tests for MCP server installed by default (Issue #808)."""
+
+    def test_mcp_installed_by_default(self, tmp_path):
+        """MCP server is installed when no --mcp/--no-mcp flags given."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+
+            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
+                success = setup_hooks(
+                    ide_type="claude",
+                    interactive=False,
+                )
+
+                assert success is True
+                mock_mcp.assert_called_once_with(
+                    mock_instance, "claude", mcp=True, no_mcp=False, dry_run=False,
+                )
+
+    def test_no_mcp_skips_installation(self, tmp_path):
+        """--no-mcp removes MCP server instead of installing it."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+
+            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
+                success = setup_hooks(
+                    ide_type="claude",
+                    interactive=False,
+                    no_mcp=True,
+                )
+
+                assert success is True
+                mock_mcp.assert_called_once_with(
+                    mock_instance, "claude", mcp=False, no_mcp=True, dry_run=False,
+                )
+
+    def test_explicit_mcp_flag_accepted(self, tmp_path):
+        """--mcp flag still accepted for backward compat, same as default."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+
+            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
+                success = setup_hooks(
+                    ide_type="claude",
+                    interactive=False,
+                    mcp=True,
+                )
+
+                assert success is True
+                mock_mcp.assert_called_once_with(
+                    mock_instance, "claude", mcp=True, no_mcp=False, dry_run=False,
+                )
+
+    @pytest.mark.parametrize("ide_type", ["claude", "cursor", "windsurf", "gemini"])
+    def test_mcp_default_for_multiple_ides(self, tmp_path, ide_type):
+        """MCP is installed by default for all supported IDEs."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = [ide_type]
+            mock_instance.IDE_CONFIGS = {
+                ide_type: {"name": ide_type.title(), "config_path": str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+
+            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
+                success = setup_hooks(
+                    ide_type=ide_type,
+                    interactive=False,
+                )
+
+                assert success is True
+                mock_mcp.assert_called_once()
+                call_kwargs = mock_mcp.call_args
+                assert call_kwargs[1]["mcp"] is True
+                assert call_kwargs[1]["no_mcp"] is False
+
+    def test_mcp_not_installed_when_hooks_fail(self, tmp_path):
+        """MCP setup is skipped when hook setup fails."""
+        ide_config_file = tmp_path / "settings.json"
+
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
+            }
+            mock_instance.setup_ide_hooks.return_value = (False, "Failed")
+            mock_instance.get_config_path.return_value = str(ide_config_file)
+
+            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
+                setup_hooks(
+                    ide_type="claude",
+                    interactive=False,
+                )
+
+                mock_mcp.assert_not_called()
+
+
 class TestResolveBinaryPath:
     """Tests for _resolve_binary_path helper."""
 
