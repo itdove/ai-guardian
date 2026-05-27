@@ -1,0 +1,101 @@
+"""
+Daemon service layer for the web console.
+
+Wraps MultiDaemonClient and DaemonDiscovery to provide a unified
+interface for web pages to query and control daemons.
+"""
+
+import logging
+from typing import List, Optional
+
+from ai_guardian.daemon.discovery import DaemonDiscovery, DaemonTarget
+from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+logger = logging.getLogger(__name__)
+
+
+class DaemonService:
+    """Provides daemon data and control for web console pages."""
+
+    def __init__(self):
+        self._discovery = DaemonDiscovery()
+        self._client = MultiDaemonClient()
+        self._targets: List[DaemonTarget] = []
+
+    def refresh_targets(self) -> List[DaemonTarget]:
+        self._targets = self._discovery.discover_all()
+        return self._targets
+
+    @property
+    def targets(self) -> List[DaemonTarget]:
+        return self._targets
+
+
+    def get_target_by_name(self, name: str) -> Optional[DaemonTarget]:
+        for t in self._targets:
+            if t.name == name:
+                return t
+        return None
+
+    def get_all_daemon_status(self) -> list:
+        results = []
+        for target in self._targets:
+            try:
+                status = self._client.get_status(target)
+            except Exception:
+                status = None
+            results.append({"target": target, "status": status})
+        return results
+
+    def get_daemon_config(self, target: DaemonTarget) -> Optional[dict]:
+        try:
+            return self._client.get_config(target)
+        except Exception:
+            return None
+
+    def get_daemon_violations(
+        self,
+        target: DaemonTarget,
+        limit: int = 50,
+        violation_type: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_violations(
+                target, limit=limit, violation_type=violation_type
+            )
+        except Exception:
+            return None
+
+    def get_daemon_metrics(
+        self,
+        target: DaemonTarget,
+        since_days: Optional[int] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_metrics(target, since_days=since_days)
+        except Exception:
+            return None
+
+    def pause_daemon(self, target: DaemonTarget, minutes: int) -> bool:
+        try:
+            return self._client.send_pause(target, minutes)
+        except Exception:
+            return False
+
+    def resume_daemon(self, target: DaemonTarget) -> bool:
+        try:
+            return self._client.send_resume(target)
+        except Exception:
+            return False
+
+    def reload_daemon(self, target: DaemonTarget) -> bool:
+        try:
+            if target.runtime == "local":
+                from ai_guardian.daemon.client import send_reload_config
+                return send_reload_config()
+            result = self._client._rest_request(
+                target, "POST", "/api/reload"
+            )
+            return result is not None
+        except Exception:
+            return False

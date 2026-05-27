@@ -817,7 +817,13 @@
   "_comment_console": "Console settings",
   "console": {
     "editor_theme": "monokai",
-    "_comment_editor_theme": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"
+    "_comment_editor_theme": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light",
+    "web": {
+      "port": 0,
+      "_comment_port": "Port for web console. 0 = auto-assign free port. Launch with: ai-guardian console --web",
+      "host": "127.0.0.1",
+      "_comment_host": "Bind address for web console. Keep 127.0.0.1 for security (localhost only)"
+    }
   },
 
   "_pattern_matching": {

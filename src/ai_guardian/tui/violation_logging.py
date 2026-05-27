@@ -30,6 +30,12 @@ ALL_LOG_TYPES = [
     ("ssrf_blocked", "SSRF Blocked — requests to private IPs/metadata"),
     ("config_file_exfil", "Config File Exfil — config exfiltration attempts"),
     ("pii_detected", "PII Detected — personal identifiable information"),
+    ("secret_in_transcript", "Secret in Transcript — secrets from ! shell commands"),
+    ("pii_in_transcript", "PII in Transcript — PII from ! shell commands"),
+    ("prompt_injection_in_transcript", "PI in Transcript — prompt injection from ! shell commands"),
+    ("annotation_suppressed", "Annotation Suppressed — inline suppression applied"),
+    ("image_secret_detected", "Image Secret — secrets found in images via OCR"),
+    ("image_pii_detected", "Image PII — PII found in images via OCR"),
 ]
 
 

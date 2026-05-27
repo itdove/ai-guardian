@@ -1503,13 +1503,32 @@
     },
     "console": {
       "type": "object",
-      "description": "Console settings (editor theme, display preferences)",
+      "description": "Console settings (editor theme, display preferences, web console)",
       "properties": {
         "editor_theme": {
           "type": "string",
           "enum": ["monokai", "vscode_dark", "dracula", "github_light"],
           "default": "monokai",
           "description": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"
+        },
+        "web": {
+          "type": "object",
+          "description": "Web console settings. Launch with: ai-guardian console --web",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0,
+              "maximum": 65535,
+              "description": "Port for web console. Default 0 (auto-assign free port)."
+            },
+            "host": {
+              "type": "string",
+              "default": "127.0.0.1",
+              "description": "Bind address for web console. Default 127.0.0.1 (localhost only). Do not change unless you understand the security implications."
+            }
+          },
+          "additionalProperties": false
         }
       }
     },

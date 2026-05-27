@@ -361,6 +361,9 @@ The system tray is the controlling component and connects to daemons across loca
 | `/api/health` | GET | `status` |
 | `/api/status` | GET | `running`, `paused`, `uptime_seconds`, `version`, `name`, `mcp_installed`, `menu_tags` |
 | `/api/stats` | GET | All fields from `DaemonState.get_stats()` + `name`, `menu_tags` |
+| `/api/config` | GET | `features` (feature enabled/disabled flags) |
+| `/api/violations` | GET | `violations`, `count` (query: `?type=...&limit=...`) |
+| `/api/metrics` | GET | `total_violations`, `by_type`, `by_severity`, `resolved`, `unresolved` (query: `?since_days=...`) |
 | `/api/pause` | POST | `status`, `minutes` (requires auth token) |
 | `/api/resume` | POST | `status` (requires auth token) |
 | `/api/reload` | POST | `status` (requires auth token) |

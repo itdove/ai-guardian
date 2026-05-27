@@ -26,6 +26,69 @@ Unlike command-line flags, the Console requires you to physically see and click 
 - ✅ **Human-in-the-loop**: Every config modification is visible in the UI
 - ❌ **No automated changes**: No way for an agent to bypass the interactive interface
 
+## Web Console
+
+AI Guardian also provides a **browser-based web console** powered by [NiceGUI](https://nicegui.io/), as an alternative to the TUI. The web console connects to daemons via their REST APIs and provides a unified multi-daemon dashboard.
+
+### Launching the Web Console
+
+```bash
+# Auto-assign a free port and open browser
+ai-guardian console --web
+
+# Use a specific port
+ai-guardian console --web --port 8080
+```
+
+The web console binds to `127.0.0.1` (localhost only) for security.
+
+### Web Console Pages
+
+- **Security Dashboard** — Multi-daemon status overview with live auto-refresh
+- **Global Settings** — Feature enabled/disabled flags across all daemons
+- **Violations** — Filterable violations table with daemon and type filters
+- **Violation Logging** — Logging configuration status per daemon
+- **Metrics** — Violation statistics by type and severity with time range selector
+- **Logs** — Daemon log viewer
+- **Daemon Detail** — Single daemon stats, controls (pause/resume/reload), recent violations
+
+### System Tray Integration
+
+The system tray includes a **Web Console** menu item that opens the web console in your default browser. The web console must be running first (`ai-guardian console --web`).
+
+### Configuration
+
+```json
+{
+  "console": {
+    "web": {
+      "port": 0,
+      "host": "127.0.0.1"
+    }
+  }
+}
+```
+
+- `port`: Port for web console. `0` = auto-assign free port (default)
+- `host`: Bind address. Keep `127.0.0.1` for security
+
+### Requirements
+
+- Python >= 3.10 (NiceGUI dependency)
+- NiceGUI is included as a core dependency
+
+### Coexistence with TUI
+
+Both console modes coexist:
+- `ai-guardian console` — TUI (terminal-based, Textual)
+- `ai-guardian console --web` — Web console (browser-based, NiceGUI)
+
+The TUI remains the primary interface. The web console is for users who prefer a browser-based experience or need multi-daemon monitoring.
+
+---
+
+## TUI Console (Terminal)
+
 ## Getting Started
 
 ### Prerequisites

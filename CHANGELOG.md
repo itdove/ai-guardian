@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Web-based Console via daemon REST API** (Issue #679)
+  - Browser-based dashboard as alternative to TUI console, powered by NiceGUI
+  - Launch with `ai-guardian console --web` (auto-assigns free port, opens browser)
+  - Multi-daemon overview dashboard with live status auto-refresh
+  - Security Dashboard, Global Settings, Violations, Metrics, Logs, and Daemon detail pages
+  - Sidebar navigation matching TUI panel groups
+  - Daemon control from browser: pause/resume/reload
+  - New daemon REST API endpoints: `/api/config`, `/api/violations`, `/api/metrics`
+  - `MultiDaemonClient` extended with `get_config()`, `get_violations()`, `get_metrics()`
+  - System tray "Web Console" menu item opens browser
+  - NiceGUI added as core dependency (Python >= 3.10)
+  - Configuration: `console.web.port` and `console.web.host` in schema
+
 ## [1.9.0] - 2026-05-26
 
 ### Fixed

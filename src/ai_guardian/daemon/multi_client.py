@@ -215,6 +215,121 @@ class MultiDaemonClient:
         from ai_guardian.daemon.about import get_about_info
         return get_about_info()
 
+    def get_config(self, target: DaemonTarget) -> Optional[dict]:
+        """Get feature configuration flags from a daemon."""
+        if target.runtime == "local":
+            return self._local_config()
+        return self._rest_request(target, "GET", "/api/config")
+
+    @staticmethod
+    def _local_config() -> dict:
+        from ai_guardian.config_loaders import _load_config_file
+        from ai_guardian.config_utils import is_feature_enabled
+        cfg, _ = _load_config_file()
+        if not cfg:
+            cfg = {}
+        features = {}
+        for key in (
+            "secret_scanning", "scan_pii", "prompt_injection",
+            "config_file_scanning", "violation_logging", "ssrf_protection",
+            "secret_redaction", "transcript_scanning", "image_scanning",
+        ):
+            section = cfg.get(key)
+            if isinstance(section, dict):
+                features[key] = is_feature_enabled(
+                    section.get("enabled", True)
+                )
+            else:
+                features[key] = bool(section) if section is not None else True
+        features["permissions"] = cfg.get(
+            "permissions", {}
+        ).get("enabled", True)
+        si_section = cfg.get("security_instructions")
+        features["security_instructions"] = is_feature_enabled(
+            si_section.get("inject_on_prompt")
+            if isinstance(si_section, dict) else None,
+            default=True,
+        )
+        mcp_cfg = cfg.get("mcp_server", {})
+        features["mcp_server"] = bool(mcp_cfg) if mcp_cfg is not None else True
+        action = cfg.get("action", "block")
+        if isinstance(action, dict):
+            action = action.get("mode", "block")
+        features["action_mode"] = action
+        if isinstance(mcp_cfg, dict):
+            features["proactive_level"] = mcp_cfg.get("proactive_level", "low")
+        else:
+            features["proactive_level"] = "low"
+        return {"features": features}
+
+    def get_violations(
+        self,
+        target: DaemonTarget,
+        limit: int = 50,
+        violation_type: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Get recent violations from a daemon."""
+        if target.runtime == "local":
+            return self._local_violations(limit, violation_type)
+        params = f"?limit={limit}"
+        if violation_type:
+            params += f"&type={violation_type}"
+        return self._rest_request(target, "GET", f"/api/violations{params}")
+
+    @staticmethod
+    def _local_violations(limit: int, violation_type: Optional[str]) -> dict:
+        from ai_guardian.violation_logger import ViolationLogger
+        vl = ViolationLogger()
+        entries = vl.get_recent_violations(
+            limit=limit, violation_type=violation_type
+        )
+        violations = []
+        for entry in entries:
+            ctx = entry.get("context", {})
+            v = {
+                "timestamp": entry.get("timestamp", ""),
+                "type": entry.get("violation_type", ""),
+                "severity": entry.get("severity", ""),
+                "tool": ctx.get("tool", ""),
+                "file": ctx.get("file", ""),
+                "action": "blocked" if entry.get("blocked") else "logged",
+                "suggestion": "",
+            }
+            sug = entry.get("suggestion")
+            if isinstance(sug, dict):
+                v["suggestion"] = sug.get("text", "")
+            elif isinstance(sug, str):
+                v["suggestion"] = sug
+            line = ctx.get("line")
+            if line is not None:
+                v["line"] = line
+            violations.append(v)
+        return {"violations": violations, "count": len(violations)}
+
+    def get_metrics(
+        self,
+        target: DaemonTarget,
+        since_days: Optional[int] = None,
+    ) -> Optional[dict]:
+        """Get violation metrics from a daemon."""
+        if target.runtime == "local":
+            return self._local_metrics(since_days)
+        params = f"?since_days={since_days}" if since_days else ""
+        return self._rest_request(target, "GET", f"/api/metrics{params}")
+
+    @staticmethod
+    def _local_metrics(since_days: Optional[int]) -> dict:
+        from ai_guardian.metrics import MetricsComputer
+        mc = MetricsComputer(since_days=since_days)
+        report = mc.compute()
+        return {
+            "total_violations": report.total_violations,
+            "by_type": report.by_type,
+            "by_severity": report.by_severity,
+            "resolved": report.resolved_count,
+            "unresolved": report.unresolved_count,
+        }
+
     def export_support(self, target: DaemonTarget) -> Optional[str]:
         """Export support bundle."""
         cmd = ["ai-guardian", "support", "prepare"]

@@ -29,6 +29,9 @@ htmlcov/
 *.tmp
 *.log
 
+# NiceGUI (web console runtime storage)
+.nicegui/
+
 # Release
 .release-config.json
 

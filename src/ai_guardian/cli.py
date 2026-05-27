@@ -268,6 +268,22 @@ def main():
             "--panel",
             help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
         )
+        console_parser.add_argument(
+            "--web",
+            action="store_true",
+            help="Launch web console in browser instead of TUI (requires Python >= 3.10)"
+        )
+        console_parser.add_argument(
+            "--port",
+            type=int,
+            default=0,
+            help="Port for web console (default: auto-assign, only used with --web)"
+        )
+        console_parser.add_argument(
+            "--no-open",
+            action="store_true",
+            help="Don't open browser automatically (only used with --web)"
+        )
 
         # TUI subcommand (alias for console, kept for backward compatibility)
         tui_parser = subparsers.add_parser(
@@ -277,6 +293,22 @@ def main():
         tui_parser.add_argument(
             "--panel",
             help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+        )
+        tui_parser.add_argument(
+            "--web",
+            action="store_true",
+            help="Launch web console in browser instead of TUI (requires Python >= 3.10)"
+        )
+        tui_parser.add_argument(
+            "--port",
+            type=int,
+            default=0,
+            help="Port for web console (default: auto-assign, only used with --web)"
+        )
+        tui_parser.add_argument(
+            "--no-open",
+            action="store_true",
+            help="Don't open browser automatically (only used with --web)"
         )
 
         # Scan subcommand
@@ -892,6 +924,25 @@ def main():
 
         # Handle tui/console command
         if args.command in ("tui", "console"):
+            if getattr(args, "web", False):
+                try:
+                    from ai_guardian.web import WebConsole, HAS_NICEGUI
+                    if not HAS_NICEGUI:
+                        print("Error: Web console requires NiceGUI (Python >= 3.10).", file=sys.stderr)
+                        print("Install with: pip install ai-guardian", file=sys.stderr)
+                        return 1
+                    console = WebConsole()
+                    show = not getattr(args, "no_open", False)
+                    console.run(port=getattr(args, "port", 0), show=show)
+                    return 0
+                except ImportError as e:
+                    print(f"Error: Web console dependencies not available: {e}", file=sys.stderr)
+                    print("Requires Python >= 3.10 with NiceGUI.", file=sys.stderr)
+                    return 1
+                except Exception as e:
+                    print(f"Error running web console: {e}", file=sys.stderr)
+                    return 1
+
             if not sys.stdin.isatty():
                 print("Error: Console requires an interactive terminal.", file=sys.stderr)
                 print("Run 'ai-guardian console' directly in your terminal.", file=sys.stderr)

@@ -81,6 +81,23 @@
         "allowlist_patterns": [],
         "pattern_server": null
     },
+    "_comment_image_scanning": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720). Scans image files for embedded secrets before they reach the AI model.",
+    "image_scanning": {
+        "enabled": true,
+        "action": "block",
+        "scan_types": [
+            "secrets",
+            "pii"
+        ],
+        "max_processing_ms": 1500,
+        "min_confidence": 0.5,
+        "redaction_method": "blur",
+        "qr_scanning": false,
+        "face_detection": false,
+        "ignore_files": [],
+        "ignore_tools": [],
+        "max_image_size_mb": 10
+    },
     "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
     "ssrf_protection": {
         "enabled": true,
@@ -169,9 +186,13 @@
     "remote_configs": {
         "urls": []
     },
-    "_comment_console": "Console settings (editor theme preference)",
+    "_comment_console": "Console settings (editor theme, web console)",
     "console": {
-        "editor_theme": "monokai"
+        "editor_theme": "monokai",
+        "web": {
+            "port": 0,
+            "host": "127.0.0.1"
+        }
     },
     "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
     "transcript_scanning": {
@@ -205,7 +226,9 @@
             "secret_in_transcript",
             "pii_in_transcript",
             "prompt_injection_in_transcript",
-            "annotation_suppressed"
+            "annotation_suppressed",
+            "image_secret_detected",
+            "image_pii_detected"
         ]
     },
     "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
@@ -222,23 +245,6 @@
     "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on first UserPromptSubmit per session and re-injected after blocks. Disable only for ai-guardian development. (v1.7.0 #580, v1.8.0 #584)",
     "security_instructions": {
         "inject_on_prompt": true
-    },
-    "_comment_image_scanning": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720). Scans image files for embedded secrets before they reach the AI model.",
-    "image_scanning": {
-        "enabled": true,
-        "action": "block",
-        "scan_types": [
-            "secrets",
-            "pii"
-        ],
-        "max_processing_ms": 1500,
-        "min_confidence": 0.5,
-        "redaction_method": "blur",
-        "qr_scanning": false,
-        "face_detection": false,
-        "ignore_files": [],
-        "ignore_tools": [],
-        "max_image_size_mb": 10
     },
     "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
     "mcp_server": {
