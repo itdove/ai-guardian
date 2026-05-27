@@ -1192,6 +1192,7 @@ class Doctor:
                 message="Image scanning not enabled",
             )
 
+        import sys
         try:
             from rapidocr_onnxruntime import RapidOCR  # noqa: F401
             return CheckResult(
@@ -1200,6 +1201,12 @@ class Doctor:
                 message="rapidocr-onnxruntime available for image OCR scanning",
             )
         except ImportError:
+            if sys.version_info >= (3, 13):
+                return CheckResult(
+                    name="image_scanning",
+                    status=CheckStatus.WARN,
+                    message=f"rapidocr-onnxruntime not available on Python {sys.version_info.major}.{sys.version_info.minor} (requires <3.13)",
+                )
             return CheckResult(
                 name="image_scanning",
                 status=CheckStatus.FAIL,
