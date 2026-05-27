@@ -558,6 +558,47 @@ jobs:
           print(f'show-config: {len(data)} top-level keys')
           "
 
+  install-script:
+    name: Install Script (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test install.sh --help
+        run: bash install.sh --help
+
+      - name: Test install.sh syntax
+        run: bash -n install.sh
+
+      - name: Test install.sh with --profile
+        run: |
+          export XDG_CONFIG_HOME=$(mktemp -d)
+          bash install.sh --profile @standard --ide claude
+          ai-guardian --version
+          test -f "$XDG_CONFIG_HOME/ai-guardian/ai-guardian.json"
+          echo "Install script: OK"
+
+      - name: Test install.sh with --venv
+        run: |
+          export XDG_CONFIG_HOME=$(mktemp -d)
+          bash install.sh --venv --ide claude
+          test -d "$HOME/.ai-guardian-venv"
+          "$HOME/.ai-guardian-venv/bin/ai-guardian" --version
+          echo "Venv install: OK"
+
   mcp-server:
     name: MCP Server
     runs-on: ubuntu-latest
