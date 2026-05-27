@@ -131,11 +131,8 @@ class TestImageDetector(TestCase):
 class TestOCREngine(TestCase):
     """Test OCR engine with mocked rapidocr."""
 
-    @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", True)
-    @patch("ai_guardian.image_scanner.RapidOCR")
-    def test_extract_text_basic(self, mock_rapid_cls):
+    def test_extract_text_basic(self):
         mock_engine = MagicMock()
-        mock_rapid_cls.return_value = mock_engine
         mock_engine.return_value = (
             [
                 [[[10, 10], [100, 10], [100, 30], [10, 30]], "API_KEY=secret123", 0.95],
@@ -154,11 +151,8 @@ class TestOCREngine(TestCase):
         self.assertGreater(result.confidence, 0)
         self.assertGreater(result.elapsed_ms, 0)
 
-    @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", True)
-    @patch("ai_guardian.image_scanner.RapidOCR")
-    def test_extract_text_empty_result(self, mock_rapid_cls):
+    def test_extract_text_empty_result(self):
         mock_engine = MagicMock()
-        mock_rapid_cls.return_value = mock_engine
         mock_engine.return_value = (None, 0.0)
 
         ocr = OCREngine()
@@ -168,11 +162,8 @@ class TestOCREngine(TestCase):
         self.assertEqual(result.text, "")
         self.assertEqual(len(result.regions), 0)
 
-    @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", True)
-    @patch("ai_guardian.image_scanner.RapidOCR")
-    def test_confidence_filtering(self, mock_rapid_cls):
+    def test_confidence_filtering(self):
         mock_engine = MagicMock()
-        mock_rapid_cls.return_value = mock_engine
         mock_engine.return_value = (
             [
                 [[[10, 10], [100, 10], [100, 30], [10, 30]], "high conf", 0.9],
@@ -195,11 +186,8 @@ class TestOCREngine(TestCase):
         with self.assertRaises(ImportError):
             ocr.extract_text(_create_test_image())
 
-    @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", True)
-    @patch("ai_guardian.image_scanner.RapidOCR")
-    def test_ocr_exception_returns_empty(self, mock_rapid_cls):
+    def test_ocr_exception_returns_empty(self):
         mock_engine = MagicMock()
-        mock_rapid_cls.return_value = mock_engine
         mock_engine.side_effect = RuntimeError("OCR failed")
 
         ocr = OCREngine()
