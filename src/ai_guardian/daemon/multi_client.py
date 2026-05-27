@@ -196,13 +196,15 @@ class MultiDaemonClient:
     def get_plugins(self, target: DaemonTarget) -> Optional[dict]:
         """Get tray plugin definitions from a daemon."""
         if target.runtime == "local":
-            return self._local_plugins()
+            return self._local_plugins(
+                working_dir=getattr(target, "working_dir", None),
+            )
         return self._rest_request(target, "GET", "/api/tray-plugins")
 
     @staticmethod
-    def _local_plugins() -> dict:
-        from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
-        return plugins_to_dict(load_plugins())
+    def _local_plugins(working_dir: Optional[str] = None) -> dict:
+        from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+        return plugins_to_dict(load_merged_plugins(working_dir))
 
     def get_about(self, target: DaemonTarget) -> Optional[dict]:
         """Get about info from a daemon."""

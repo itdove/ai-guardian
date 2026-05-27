@@ -1989,16 +1989,17 @@ class DaemonTray:
                 continue
             reachable_slots.add(i)
             try:
+                wd = getattr(target, "working_dir", None)
                 if self._multi_client:
                     if target.runtime == "local":
-                        data = self._multi_client._local_plugins()
+                        data = self._multi_client._local_plugins(working_dir=wd)
                     elif is_reachable:
                         data = self._multi_client.get_plugins(target)
                     else:
                         continue
                 else:
-                    from ai_guardian.daemon.tray_plugins import load_plugins, plugins_to_dict
-                    data = plugins_to_dict(load_plugins())
+                    from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+                    data = plugins_to_dict(load_merged_plugins(wd))
                 if data:
                     data_hash = json_mod.dumps(data, sort_keys=True)
                     daemon_tags = self._get_daemon_menu_tags(target)

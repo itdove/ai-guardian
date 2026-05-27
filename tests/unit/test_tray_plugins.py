@@ -13,6 +13,8 @@ from ai_guardian.daemon.tray_plugins import (
     check_circular_imports,
     dict_to_plugins,
     filter_plugins_by_tags,
+    find_project_plugins_dir,
+    load_merged_plugins,
     load_plugins,
     plugins_to_dict,
     resolve_command,
@@ -2117,3 +2119,198 @@ class TestNestedSerialization:
         l2 = l1.items[0]
         assert l2.items[0].label == "L3"
         assert l2.items[0].command == "echo deep"
+
+
+class TestFindProjectPluginsDir:
+    """Tests for project root discovery via upward directory walk."""
+
+    def test_found_at_exact_dir(self, tmp_path):
+        project = tmp_path / "my-project"
+        plugins = project / ".ai-guardian" / "tray-plugins"
+        plugins.mkdir(parents=True)
+        result = find_project_plugins_dir(str(project))
+        assert result == plugins
+
+    def test_walks_up_from_subdirectory(self, tmp_path):
+        project = tmp_path / "my-project"
+        plugins = project / ".ai-guardian" / "tray-plugins"
+        plugins.mkdir(parents=True)
+        deep = project / "src" / "components" / "ui"
+        deep.mkdir(parents=True)
+        result = find_project_plugins_dir(str(deep))
+        assert result == plugins
+
+    def test_not_found_returns_none(self, tmp_path):
+        result = find_project_plugins_dir(str(tmp_path))
+        assert result is None
+
+    def test_none_working_dir_returns_none(self):
+        result = find_project_plugins_dir(None)
+        assert result is None
+
+    def test_empty_working_dir_returns_none(self):
+        result = find_project_plugins_dir("")
+        assert result is None
+
+    def test_stops_at_ai_guardian_without_tray_plugins(self, tmp_path):
+        project = tmp_path / "my-project"
+        (project / ".ai-guardian").mkdir(parents=True)
+        result = find_project_plugins_dir(str(project))
+        assert result is None
+
+    def test_finds_nearest_ancestor(self, tmp_path):
+        outer = tmp_path / "outer"
+        outer_plugins = outer / ".ai-guardian" / "tray-plugins"
+        outer_plugins.mkdir(parents=True)
+        inner = outer / "inner"
+        inner_plugins = inner / ".ai-guardian" / "tray-plugins"
+        inner_plugins.mkdir(parents=True)
+        result = find_project_plugins_dir(str(inner / "src"))
+        assert result == inner_plugins
+
+
+class TestLoadMergedPlugins:
+    """Tests for merging user-level and project-level plugins."""
+
+    def _make_plugin_json(self, path, name, label="Action", command="echo ok"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "name": name,
+            "items": [{"label": label, "command": command}],
+        }))
+
+    def test_user_only_when_no_project(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        self._make_plugin_json(user_dir / "p1.json", "UserPlugin")
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(tmp_path / "no-project"))
+        assert len(result) == 1
+        assert result[0].name == "UserPlugin"
+
+    def test_project_only_when_no_user(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        project = tmp_path / "project"
+        proj_plugins = project / ".ai-guardian" / "tray-plugins"
+        self._make_plugin_json(proj_plugins / "p1.json", "ProjectPlugin")
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(project))
+        assert len(result) == 1
+        assert result[0].name == "ProjectPlugin"
+
+    def test_project_overrides_user_same_name(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        self._make_plugin_json(
+            user_dir / "p1.json", "SharedName", label="User",
+        )
+        project = tmp_path / "project"
+        proj_plugins = project / ".ai-guardian" / "tray-plugins"
+        self._make_plugin_json(
+            proj_plugins / "p1.json", "SharedName", label="Project",
+        )
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(project))
+        assert len(result) == 1
+        assert result[0].name == "SharedName"
+        assert result[0].items[0].label == "Project"
+
+    def test_both_with_unique_names(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        self._make_plugin_json(user_dir / "u.json", "UserOnly")
+        project = tmp_path / "project"
+        proj_plugins = project / ".ai-guardian" / "tray-plugins"
+        self._make_plugin_json(proj_plugins / "p.json", "ProjectOnly")
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(project))
+        assert len(result) == 2
+        names = {p.name for p in result}
+        assert names == {"UserOnly", "ProjectOnly"}
+
+    def test_project_plugins_come_first(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        self._make_plugin_json(user_dir / "u.json", "UserPlugin")
+        project = tmp_path / "project"
+        proj_plugins = project / ".ai-guardian" / "tray-plugins"
+        self._make_plugin_json(proj_plugins / "p.json", "ProjectPlugin")
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(project))
+        assert result[0].name == "ProjectPlugin"
+        assert result[1].name == "UserPlugin"
+
+    def test_none_working_dir_returns_user_only(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        self._make_plugin_json(user_dir / "p1.json", "UserPlugin")
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(None)
+        assert len(result) == 1
+        assert result[0].name == "UserPlugin"
+
+    def test_project_imports_resolve_relative_to_project_dir(self, tmp_path):
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        project = tmp_path / "project"
+        proj_plugins = project / ".ai-guardian" / "tray-plugins"
+        proj_plugins.mkdir(parents=True)
+        (proj_plugins / "sub.json").write_text(json.dumps({
+            "items": [{"label": "Sub", "command": "echo sub"}],
+        }))
+        (proj_plugins / "main.json").write_text(json.dumps({
+            "name": "ProjPlugin",
+            "items": [{"label": "Imported", "import": "sub.json"}],
+        }))
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(project))
+        proj = [p for p in result if p.name == "ProjPlugin"]
+        assert len(proj) == 1
+        assert proj[0].items[0].items is not None
+        assert proj[0].items[0].items[0].label == "Sub"
+
+    def test_merged_plugins_preserve_tags_for_later_filtering(self, tmp_path):
+        """Tags are loaded but not filtered — callers use filter_plugins_by_tags()."""
+        user_dir = tmp_path / "user-plugins"
+        user_dir.mkdir()
+        project = tmp_path / "project"
+        proj_plugins = project / ".ai-guardian" / "tray-plugins"
+        proj_plugins.mkdir(parents=True)
+        (proj_plugins / "tagged.json").write_text(json.dumps({
+            "name": "Tagged",
+            "tags": ["special"],
+            "items": [{"label": "A", "command": "echo a"}],
+        }))
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir",
+            return_value=user_dir,
+        ):
+            result = load_merged_plugins(str(project))
+        assert len(result) == 1
+        assert result[0].tags == ["special"]
+        filtered = filter_plugins_by_tags(result, daemon_tags=["other"])
+        assert len(filtered) == 0
+        filtered = filter_plugins_by_tags(result, daemon_tags=["special"])
+        assert len(filtered) == 1
