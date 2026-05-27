@@ -114,6 +114,7 @@ class Doctor:
             self.check_terminal_emulator,
             self.check_config_consistency,
             self.check_self_protection,
+            self.check_image_scanning,
         ]
         for check_fn in checks:
             try:
@@ -1179,6 +1180,39 @@ class Doctor:
             status=CheckStatus.PASS,
             message="Config, state, cache read-protected from agent",
         )
+
+    def check_image_scanning(self) -> CheckResult:
+        """Check OCR engine availability when image scanning is enabled."""
+        self._ensure_config()
+        img_config = (self._config or {}).get("image_scanning", {})
+        if not img_config or not img_config.get("enabled", True):
+            return CheckResult(
+                name="image_scanning",
+                status=CheckStatus.SKIP,
+                message="Image scanning not enabled",
+            )
+
+        import sys
+        try:
+            from rapidocr_onnxruntime import RapidOCR  # noqa: F401
+            return CheckResult(
+                name="image_scanning",
+                status=CheckStatus.PASS,
+                message="rapidocr-onnxruntime available for image OCR scanning",
+            )
+        except ImportError:
+            if sys.version_info >= (3, 13):
+                return CheckResult(
+                    name="image_scanning",
+                    status=CheckStatus.WARN,
+                    message=f"rapidocr-onnxruntime not available on Python {sys.version_info.major}.{sys.version_info.minor} (requires <3.13)",
+                )
+            return CheckResult(
+                name="image_scanning",
+                status=CheckStatus.FAIL,
+                message="rapidocr-onnxruntime not installed (required for image scanning)",
+                fix_hint="pip install rapidocr-onnxruntime",
+            )
 
 
 # --- Output formatters ---

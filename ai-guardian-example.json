@@ -482,6 +482,25 @@
     }
   },
 
+  "image_scanning": {
+    "_comment": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720)",
+    "_comment2": "Scans PreToolUse (file reads) and UserPromptSubmit (image attachments). PostToolUse excluded (AI already extracted text).",
+    "_comment3": "Performance: ~300ms typical, ~1.5s worst case per image",
+    "enabled": true,
+    "action": "block",
+    "scan_types": ["secrets", "pii"],
+    "max_processing_ms": 1500,
+    "min_confidence": 0.5,
+    "redaction_method": "blur",
+    "_comment_qr": "QR code scanning: requires pyzbar (pip install pyzbar)",
+    "qr_scanning": false,
+    "_comment_face": "Face detection: requires opencv-python-headless (pip install opencv-python-headless)",
+    "face_detection": false,
+    "ignore_files": [],
+    "ignore_tools": [],
+    "max_image_size_mb": 10
+  },
+
   "ssrf_protection": {
     "_comment": "⚠️ IMPORTANT: Pattern-based filtering only - cannot replace network-level security",
     "_limitation_1": "Can only inspect command strings and tool parameters",

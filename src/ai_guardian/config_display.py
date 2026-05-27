@@ -160,6 +160,7 @@ class ConfigDisplay:
             ("ssrf_protection", "SSRF Protection"),
             ("config_file_scanning", "Config File Scanning"),
             ("security_instructions", "Security Instructions"),
+            ("image_scanning", "Image Scanning (OCR)"),
         ]
 
         for section_key, section_title in sections:

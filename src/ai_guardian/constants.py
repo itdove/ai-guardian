@@ -28,6 +28,8 @@ class ViolationType(str, Enum):
     SECRET_REDACTION = "secret_redaction"
     SECRET_IN_TRANSCRIPT = "secret_in_transcript"
     PII_IN_TRANSCRIPT = "pii_in_transcript"
+    IMAGE_SECRET_DETECTED = "image_secret_detected"
+    IMAGE_PII_DETECTED = "image_pii_detected"
 
 
 class HookEvent(str, Enum):

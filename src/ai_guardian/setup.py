@@ -1549,6 +1549,21 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "pattern_server": None
         },
 
+        "_comment_image_scanning": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720). Scans image files for embedded secrets before they reach the AI model.",
+        "image_scanning": {
+            "enabled": True,
+            "action": "block",
+            "scan_types": ["secrets", "pii"],
+            "max_processing_ms": 1500,
+            "min_confidence": 0.5,
+            "redaction_method": "blur",
+            "qr_scanning": False,
+            "face_detection": False,
+            "ignore_files": [],
+            "ignore_tools": [],
+            "max_image_size_mb": 10,
+        },
+
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
         "ssrf_protection": {
             "enabled": True,

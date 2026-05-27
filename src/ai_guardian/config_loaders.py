@@ -389,6 +389,26 @@ def _load_annotations_config():
     return _load_config_section("annotations", defaults={"enabled": True})
 
 
+_IMAGE_SCANNING_DEFAULTS = {
+    'enabled': True,
+    'action': 'block',
+    'scan_types': ['secrets', 'pii'],
+    'max_processing_ms': 1500,
+    'min_confidence': 0.5,
+    'redaction_method': 'blur',
+    'qr_scanning': False,
+    'face_detection': False,
+    'ignore_files': [],
+    'ignore_tools': [],
+    'max_image_size_mb': 10,
+}
+
+
+def _load_image_scanning_config():
+    """Load image scanning configuration. Returns defaults when section is absent."""
+    return _load_config_section("image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS, merge_ignore=True)
+
+
 def _load_security_instructions_config():
     """Load security instructions configuration from ai-guardian.json."""
     return _load_config_section("security_instructions")

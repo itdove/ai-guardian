@@ -1299,7 +1299,7 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected"]
           },
           "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed"]
         }
@@ -1632,6 +1632,89 @@
         }
       },
       "additionalProperties": false
+    },
+    "image_scanning": {
+      "type": "object",
+      "description": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720). Enabled by default. Scans image files during PreToolUse (file reads) and image attachments during UserPromptSubmit. PostToolUse is excluded (AI already extracted text). Requires rapidocr-onnxruntime (included as dependency).",
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log-only"],
+          "default": "block",
+          "description": "Action when secrets/PII found in image: 'block' prevents AI from seeing the image, 'warn' allows with warning, 'log-only' silently logs."
+        },
+        "scan_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["secrets", "pii", "ssrf", "prompt_injection"]
+          },
+          "default": ["secrets", "pii"],
+          "description": "Types of threats to scan for in OCR-extracted text."
+        },
+        "max_processing_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 5000,
+          "default": 1500,
+          "description": "Maximum time in milliseconds for OCR processing per image."
+        },
+        "min_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "description": "Minimum OCR confidence threshold. Text regions below this are ignored."
+        },
+        "redaction_method": {
+          "type": "string",
+          "enum": ["blur", "blackout", "pixelate"],
+          "default": "blur",
+          "description": "Method for redacting sensitive regions in images."
+        },
+        "qr_scanning": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scan QR codes in images for embedded secrets. Requires pyzbar."
+        },
+        "face_detection": {
+          "type": "boolean",
+          "default": false,
+          "description": "Detect faces in images (biometric PII). Requires opencv-python-headless."
+        },
+        "ignore_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "File patterns to skip for image scanning (e.g., '*.ico', 'favicon.*')."
+        },
+        "ignore_tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Tool names to skip for image scanning."
+        },
+        "max_image_size_mb": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 10,
+          "description": "Maximum image file size in MB. Larger images are skipped."
+        }
+      },
+      "additionalProperties": true
     },
     "mcp_server": {
       "type": "object",
