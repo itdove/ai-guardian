@@ -189,6 +189,60 @@ class WebConsole:
             )
             create_secret_redaction_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/pi-detection")
+        def pi_detection_page(daemon_name: str):
+            from ai_guardian.web.pages.pi_detection import (
+                create_pi_detection_page,
+            )
+            create_pi_detection_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/pi-patterns")
+        def pi_patterns_page(daemon_name: str):
+            from ai_guardian.web.pages.pi_patterns import (
+                create_pi_patterns_page,
+            )
+            create_pi_patterns_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/pi-jailbreak")
+        def pi_jailbreak_page(daemon_name: str):
+            from ai_guardian.web.pages.pi_jailbreak import (
+                create_pi_jailbreak_page,
+            )
+            create_pi_jailbreak_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/pi-unicode")
+        def pi_unicode_page(daemon_name: str):
+            from ai_guardian.web.pages.pi_unicode import (
+                create_pi_unicode_page,
+            )
+            create_pi_unicode_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/ssrf")
+        def ssrf_page(daemon_name: str):
+            from ai_guardian.web.pages.ssrf import create_ssrf_page
+            create_ssrf_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/config-scanner")
+        def config_scanner_page(daemon_name: str):
+            from ai_guardian.web.pages.config_scanner import (
+                create_config_scanner_page,
+            )
+            create_config_scanner_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/scan-pii")
+        def scan_pii_page(daemon_name: str):
+            from ai_guardian.web.pages.scan_pii import (
+                create_scan_pii_page,
+            )
+            create_scan_pii_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/annotations")
+        def annotations_page(daemon_name: str):
+            from ai_guardian.web.pages.annotations import (
+                create_annotations_page,
+            )
+            create_annotations_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/daemon")
         def daemon_detail_page(daemon_name: str):
             from ai_guardian.web.pages.daemon_detail import (
