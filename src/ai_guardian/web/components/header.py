@@ -58,6 +58,18 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ("Engine Config", f"{prefix}/secret-engines"),
             ("Secret Redaction", f"{prefix}/secret-redaction"),
         ]),
+        ("Prompt Injection", [
+            ("Detection", f"{prefix}/pi-detection"),
+            ("Patterns", f"{prefix}/pi-patterns"),
+            ("Jailbreak", f"{prefix}/pi-jailbreak"),
+            ("Unicode Detection", f"{prefix}/pi-unicode"),
+        ]),
+        ("Threat Detection", [
+            ("SSRF Protection", f"{prefix}/ssrf"),
+            ("Config Scanner", f"{prefix}/config-scanner"),
+            ("PII Detection", f"{prefix}/scan-pii"),
+            ("Annotations", f"{prefix}/annotations"),
+        ]),
         ("Configuration", [
             ("Daemon", f"{prefix}/daemon"),
         ]),
