@@ -1,0 +1,54 @@
+{
+  "gitleaks": {
+    "pinned_version": "8.30.1",
+    "latest_version": "8.30.1",
+    "is_outdated": false,
+    "age_days": 67,
+    "status": "WARNING",
+    "repo": "gitleaks/gitleaks"
+  },
+  "betterleaks": {
+    "pinned_version": "1.1.2",
+    "latest_version": "1.3.1",
+    "is_outdated": true,
+    "age_days": 49,
+    "status": "WARNING",
+    "repo": "betterleaks/betterleaks"
+  },
+  "leaktk": {
+    "pinned_version": "0.2.10",
+    "latest_version": "0.3.3",
+    "is_outdated": true,
+    "age_days": 42,
+    "status": "WARNING",
+    "repo": "leaktk/leaktk"
+  },
+  "trufflehog": {
+    "pinned_version": "3.88.0",
+    "latest_version": "3.95.3",
+    "is_outdated": true,
+    "age_days": 523,
+    "status": "WARNING",
+    "repo": "trufflesecurity/trufflehog"
+  },
+  "detect-secrets": {
+    "pinned_version": "1.5.0",
+    "latest_version": "1.5.0",
+    "is_outdated": false,
+    "age_days": 751,
+    "status": "WARNING",
+    "repo": "Yelp/detect-secrets"
+  },
+  "leaktk_patterns": {
+    "pinned_version": "unknown",
+    "latest_version": "unknown",
+    "is_outdated": false,
+    "age_days": null,
+    "status": "OK",
+    "repo": "leaktk/patterns",
+    "update_locations": [
+      "ai-guardian-example.json: secret_scanning.pattern_server._leaktk_example_config.patterns_endpoint",
+      "pyproject.toml: [tool.ai-guardian.scanners.pattern_server] section (add if missing)"
+    ]
+  }
+}

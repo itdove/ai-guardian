@@ -1799,6 +1799,156 @@ class TestSetupHooks:
             assert str(custom_dir / 'settings.json') in captured.out
 
 
+class TestInstallScannerMultiple:
+    """Test cases for --install-scanner accepting multiple scanners."""
+
+    def test_install_single_scanner(self):
+        """Single scanner installs successfully."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.return_value = True
+                mock_inst.verify_installation.return_value = True
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks"],
+                    interactive=False
+                )
+
+                assert success is True
+                mock_inst.install.assert_called_once_with("gitleaks", ensure_only=True)
+                mock_inst.verify_installation.assert_called_once_with("gitleaks")
+
+    def test_install_multiple_scanners(self):
+        """Multiple scanners install in sequence."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.return_value = True
+                mock_inst.verify_installation.return_value = True
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks", "betterleaks"],
+                    interactive=False
+                )
+
+                assert success is True
+                assert mock_inst.install.call_count == 2
+                mock_inst.install.assert_any_call("gitleaks", ensure_only=True)
+                mock_inst.install.assert_any_call("betterleaks", ensure_only=True)
+
+    def test_install_no_scanner_when_none(self):
+        """No scanner installation when install_scanner is None."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                success = setup_hooks(
+                    install_scanner=None,
+                    interactive=False
+                )
+
+                assert success is True
+                MockInstaller.assert_not_called()
+
+    def test_install_scanner_dry_run(self, capsys):
+        """Dry run prints scanner names without installing."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            success = setup_hooks(
+                install_scanner=["gitleaks", "betterleaks"],
+                dry_run=True,
+                interactive=False
+            )
+
+            assert success is True
+            captured = capsys.readouterr()
+            assert "gitleaks" in captured.out
+            assert "betterleaks" in captured.out
+
+    def test_install_scanner_failure_continues_with_yes(self):
+        """When a scanner fails and not interactive, setup continues."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.side_effect = [False, True]
+                mock_inst.verify_installation.return_value = True
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks", "betterleaks"],
+                    interactive=False
+                )
+
+                assert success is True
+                assert mock_inst.install.call_count == 2
+
+    def test_install_scanner_verification_failure(self, capsys):
+        """Verification failure prints warning."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.return_value = True
+                mock_inst.verify_installation.return_value = False
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks"],
+                    interactive=False
+                )
+
+                assert success is True
+                captured = capsys.readouterr()
+                assert "verification failed" in captured.out
+
+    def test_install_all_three_scanners(self):
+        """All three scanners install in sequence."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.return_value = True
+                mock_inst.verify_installation.return_value = True
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks", "betterleaks", "leaktk"],
+                    interactive=False
+                )
+
+                assert success is True
+                assert mock_inst.install.call_count == 3
+                mock_inst.install.assert_any_call("leaktk", ensure_only=True)
+
+
 class TestCreateDefaultConfig:
     """Test cases for create_default_config functionality."""
 

@@ -2097,7 +2097,7 @@ def setup_hooks(
     pre_commit: bool = False,
     auto_install_hooks: bool = False,
     uninstall_hooks: bool = False,
-    install_scanner: Optional[str] = None,
+    install_scanner: Optional[List[str]] = None,
     json_output: bool = False,
     profile: Optional[str] = None,
     save_profile: Optional[str] = None,
@@ -2121,7 +2121,7 @@ def setup_hooks(
         pre_commit: If True, install pre-commit hooks for git
         auto_install_hooks: If True, allow automatic hook installation (default: False for safety)
         uninstall_hooks: If True, remove AI Guardian pre-commit hooks
-        install_scanner: Optional scanner name to install (gitleaks, betterleaks, or leaktk)
+        install_scanner: Optional list of scanner names to install (gitleaks, betterleaks, or leaktk)
         json_output: If True, output only clean JSON (suppresses all log text)
         profile: Optional security profile to apply (use with create_config)
         save_profile: Optional name to save current config as a custom profile
@@ -2184,33 +2184,34 @@ def setup_hooks(
     # Handle scanner installation if requested (NEW in v1.6.0)
     if install_scanner:
         if dry_run:
-            print(f"[DRY RUN] Would install scanner: {install_scanner}")
+            print(f"[DRY RUN] Would install scanner(s): {', '.join(install_scanner)}")
         else:
             try:
                 from ai_guardian.scanner_installer import ScannerInstaller
 
-                print(f"\n🛡️  Installing {install_scanner} scanner...\n")
                 installer = ScannerInstaller()
 
-                success = installer.install(install_scanner, ensure_only=True)
+                for scanner_name in install_scanner:
+                    print(f"\n🛡️  Installing {scanner_name} scanner...\n")
 
-                if success:
-                    # Verify installation
-                    if installer.verify_installation(install_scanner):
-                        print(f"\n✓ {install_scanner} is ready to use\n")
+                    success = installer.install(scanner_name, ensure_only=True)
+
+                    if success:
+                        if installer.verify_installation(scanner_name):
+                            print(f"\n✓ {scanner_name} is ready to use\n")
+                        else:
+                            print(f"\n⚠  Installation completed but {scanner_name} verification failed")
+                            print("Make sure ~/.local/bin is in your PATH\n")
+                            if interactive:
+                                response = input("Continue with IDE setup anyway? (y/n): ")
+                                if response.lower() != 'y':
+                                    return False
                     else:
-                        print(f"\n⚠  Installation completed but {install_scanner} verification failed")
-                        print("Make sure ~/.local/bin is in your PATH\n")
+                        print(f"\n✗ Failed to install {scanner_name}\n")
                         if interactive:
                             response = input("Continue with IDE setup anyway? (y/n): ")
                             if response.lower() != 'y':
                                 return False
-                else:
-                    print(f"\n✗ Failed to install {install_scanner}\n")
-                    if interactive:
-                        response = input("Continue with IDE setup anyway? (y/n): ")
-                        if response.lower() != 'y':
-                            return False
 
             except Exception as e:
                 print(f"Error installing scanner: {e}")
