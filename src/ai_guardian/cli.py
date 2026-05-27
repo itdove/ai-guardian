@@ -36,6 +36,7 @@ from ai_guardian.cli_handlers import (
     _handle_daemon_command,
     _handle_tray_command,
     _handle_tray_prompt,
+    _handle_tray_target_select,
 )
 
 logger = logging.getLogger(__name__)
@@ -707,6 +708,22 @@ def main():
             help="JSON dict of extra variables for resolving param defaults"
         )
 
+        # Tray target selector subcommand (Issue #760)
+        tray_target_parser = subparsers.add_parser(
+            "tray-target-select",
+            help="Show multi-select target picker for tray plugin commands"
+        )
+        tray_target_parser.add_argument(
+            "--targets",
+            required=True,
+            help="JSON array of target dicts (name, runtime, container_name, etc.)"
+        )
+        tray_target_parser.add_argument(
+            "--output-file",
+            default=None,
+            help="Write selected target indices (JSON array) to this file"
+        )
+
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
             "mcp-server",
@@ -1231,6 +1248,10 @@ def main():
         # Handle tray-prompt command (Issue #590)
         if args.command == "tray-prompt":
             return _handle_tray_prompt(args)
+
+        # Handle tray-target-select command (Issue #760)
+        if args.command == "tray-target-select":
+            return _handle_tray_target_select(args)
 
         # Handle mcp-server command (Issue #477)
         if args.command == "mcp-server":

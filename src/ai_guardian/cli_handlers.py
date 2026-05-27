@@ -659,3 +659,55 @@ def _handle_tray_prompt(args):
         print(result)
 
     return 0
+
+
+def _handle_tray_target_select(args):
+    """Handle the tray-target-select subcommand: pick daemon targets."""
+    import json
+    import logging as log_mod
+    import os
+    import tempfile
+
+    sel_logger = log_mod.getLogger("ai_guardian.tray_target_select")
+
+    try:
+        targets = json.loads(args.targets)
+    except json.JSONDecodeError as e:
+        sel_logger.error("Invalid targets JSON: %s", e)
+        return 1
+
+    if not isinstance(targets, list):
+        sel_logger.error("--targets must be a JSON array")
+        return 1
+
+    if not sys.stdin.isatty():
+        sel_logger.error("tray-target-select requires an interactive terminal")
+        return 1
+
+    try:
+        from ai_guardian.tui.tray_target_selector import TrayTargetSelectorApp
+    except ImportError as e:
+        sel_logger.error("TUI dependencies not available: %s", e)
+        return 1
+
+    app = TrayTargetSelectorApp(targets=targets)
+    result = app.run()
+
+    output_file = getattr(args, "output_file", None)
+
+    if result is None:
+        if output_file:
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
+            os.close(tmp_fd)
+            os.rename(tmp_path, output_file)
+        return 0
+
+    if output_file:
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
+        os.write(tmp_fd, result.encode("utf-8"))
+        os.close(tmp_fd)
+        os.rename(tmp_path, output_file)
+    else:
+        print(result)
+
+    return 0

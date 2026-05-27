@@ -1589,3 +1589,86 @@ class TestParamSerializationTyped:
         assert params[1].required is False
         assert params[2].type == "boolean"
         assert params[3].pattern == "^[a-z]+$"
+
+
+class TestPluginTarget:
+    """Tests for the PluginItem target field."""
+
+    def test_target_omitted_defaults_to_none(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "t.json").write_text(json.dumps({
+            "name": "P", "items": [{"label": "A", "command": "cmd"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].target is None
+
+    def test_target_select_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "t.json").write_text(json.dumps({
+            "name": "P",
+            "items": [{"label": "A", "command": "cmd", "target": "select"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].target == "select"
+
+    def test_target_all_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "t.json").write_text(json.dumps({
+            "name": "P",
+            "items": [{"label": "A", "command": "cmd", "target": "all"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].target == "all"
+
+    def test_target_containers_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "t.json").write_text(json.dumps({
+            "name": "P",
+            "items": [{"label": "A", "command": "cmd", "target": "containers"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].target == "containers"
+
+    def test_target_invalid_defaults_to_none(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "t.json").write_text(json.dumps({
+            "name": "P",
+            "items": [{"label": "A", "command": "cmd", "target": "bogus"}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        assert plugins[0].items[0].target is None
+
+    def test_target_serialized_when_set(self):
+        from ai_guardian.daemon.tray_plugins import _item_to_dict
+        item = PluginItem(label="A", command="cmd", target="select")
+        d = _item_to_dict(item)
+        assert d["target"] == "select"
+
+    def test_target_omitted_when_none(self):
+        from ai_guardian.daemon.tray_plugins import _item_to_dict
+        item = PluginItem(label="A", command="cmd", target=None)
+        d = _item_to_dict(item)
+        assert "target" not in d
+
+    def test_target_roundtrip(self):
+        original = [Plugin(
+            name="T",
+            items=[PluginItem(label="A", command="cmd", target="all")]
+        )]
+        data = plugins_to_dict(original)
+        restored = dict_to_plugins(data)
+        assert restored[0].items[0].target == "all"
+
+    def test_container_name_in_target_vars(self):
+        from ai_guardian.daemon.discovery import DaemonTarget
+        t = DaemonTarget(
+            name="my-project", runtime="container",
+            container_name="sandbox-1",
+        )
+        result = substitute_target_vars("check {container_name}", t)
+        assert "sandbox-1" in result

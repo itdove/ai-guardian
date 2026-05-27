@@ -75,6 +75,11 @@
           "default": false,
           "description": "If true, wrap the command for execution on the daemon's target runtime (container exec, kubectl exec). Only applies when the daemon monitors a container or Kubernetes pod."
         },
+        "target": {
+          "type": "string",
+          "enum": ["select", "all", "containers"],
+          "description": "Multi-target execution mode. 'select' shows an interactive target picker at execution time. 'all' runs on all discovered targets without prompt. 'containers' runs on all container targets without prompt. Omit for default single-target behavior."
+        },
         "params": {
           "type": "array",
           "description": "User-defined parameters that prompt for input before running. Values are substituted into the command via {tray.param_name} placeholders.",
