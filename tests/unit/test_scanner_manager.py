@@ -265,6 +265,112 @@ class TestScannerManager:
         assert "ai-guardian scanner install" in output
 
 
+class TestScannerManagerConfigured:
+    """Tests for list_configured() — returns only configured + default scanners."""
+
+    def test_get_configured_scanner_names_no_config(self):
+        """With no config, only gitleaks is configured (implicit default)."""
+        manager = ScannerManager(config={})
+        names = manager._get_configured_scanner_names()
+        assert names == ["gitleaks"]
+
+    def test_get_configured_scanner_names_string_engines(self):
+        """String-based engines list returns those names plus gitleaks."""
+        config = {"secret_scanning": {"engines": ["betterleaks"]}}
+        manager = ScannerManager(config=config)
+        names = manager._get_configured_scanner_names()
+        assert "betterleaks" in names
+        assert "gitleaks" in names
+
+    def test_get_configured_scanner_names_dict_engines(self):
+        """Dict-based engines list extracts type field."""
+        config = {"secret_scanning": {"engines": [{"type": "leaktk"}]}}
+        manager = ScannerManager(config=config)
+        names = manager._get_configured_scanner_names()
+        assert "leaktk" in names
+        assert "gitleaks" in names
+
+    def test_get_configured_scanner_names_gitleaks_already_in_list(self):
+        """If gitleaks is already configured, it's not duplicated."""
+        config = {"secret_scanning": {"engines": ["gitleaks", "betterleaks"]}}
+        manager = ScannerManager(config=config)
+        names = manager._get_configured_scanner_names()
+        assert names.count("gitleaks") == 1
+        assert "betterleaks" in names
+
+    def test_get_configured_scanner_names_python_engines_excluded(self):
+        """Python-type engines are excluded from the name list (handled separately)."""
+        config = {"secret_scanning": {"engines": [
+            {"type": "python", "module": "my_scanner", "class": "Scanner"},
+            {"type": "betterleaks"},
+        ]}}
+        manager = ScannerManager(config=config)
+        names = manager._get_configured_scanner_names()
+        assert "python" not in names
+        assert "betterleaks" in names
+        assert "gitleaks" in names
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_list_configured_excludes_unconfigured(self, mock_run, mock_which):
+        """Installed-but-unconfigured scanners are excluded."""
+        mock_which.side_effect = lambda name: f"/usr/local/bin/{name}"
+        mock_run.return_value = mock.Mock(returncode=0, stdout="1.0.0", stderr="")
+
+        config = {"secret_scanning": {"engines": ["gitleaks"]}}
+        manager = ScannerManager(config=config)
+        scanners = manager.list_configured()
+
+        scanner_names = {s.name for s in scanners}
+        assert "gitleaks" in scanner_names
+        assert "betterleaks" not in scanner_names
+        assert "leaktk" not in scanner_names
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_list_configured_includes_configured(self, mock_run, mock_which):
+        """Configured and installed scanners are included."""
+        mock_which.side_effect = lambda name: (
+            f"/usr/local/bin/{name}" if name in ("gitleaks", "betterleaks") else None
+        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="1.0.0", stderr="")
+
+        config = {"secret_scanning": {"engines": ["betterleaks"]}}
+        manager = ScannerManager(config=config)
+        scanners = manager.list_configured()
+
+        scanner_names = {s.name for s in scanners}
+        assert "gitleaks" in scanner_names
+        assert "betterleaks" in scanner_names
+
+    @mock.patch("shutil.which")
+    def test_list_configured_skips_not_installed(self, mock_which):
+        """Configured but not installed scanners are skipped."""
+        mock_which.return_value = None
+
+        config = {"secret_scanning": {"engines": ["betterleaks"]}}
+        manager = ScannerManager(config=config)
+        scanners = manager.list_configured()
+
+        assert scanners == []
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_list_configured_default_only(self, mock_run, mock_which):
+        """With no engines config, only default gitleaks appears."""
+        mock_which.side_effect = lambda name: (
+            f"/usr/local/bin/{name}" if name == "gitleaks" else None
+        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
+
+        manager = ScannerManager(config={})
+        scanners = manager.list_configured()
+
+        assert len(scanners) == 1
+        assert scanners[0].name == "gitleaks"
+        assert scanners[0].is_default is True
+
+
 class TestScannerManagerJson:
     """Tests for JSON output methods."""
 

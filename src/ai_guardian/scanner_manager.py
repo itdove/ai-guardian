@@ -117,6 +117,60 @@ class ScannerManager:
 
         return False
 
+    def _get_configured_scanner_names(self) -> List[str]:
+        """Return scanner names from secret_scanning.engines config.
+
+        Always includes "gitleaks" as the implicit default.
+        """
+        secret_config = self.config.get("secret_scanning", {})
+        engines = secret_config.get("engines", [])
+
+        names: List[str] = []
+        for engine in engines:
+            if isinstance(engine, str):
+                names.append(engine)
+            elif isinstance(engine, dict):
+                engine_type = engine.get("type")
+                if engine_type and engine_type != "python":
+                    names.append(engine_type)
+
+        if "gitleaks" not in names:
+            names.insert(0, "gitleaks")
+
+        return names
+
+    def list_configured(self) -> List[InstalledScanner]:
+        """List scanners that are both configured and installed.
+
+        Only returns scanners listed in ``secret_scanning.engines`` (plus
+        the implicit default "gitleaks").  Installed-but-unconfigured
+        scanners are excluded.  Python-based scanners from the config
+        are always included.
+
+        Returns:
+            List of InstalledScanner objects
+        """
+        configured_names = self._get_configured_scanner_names()
+        result = []
+
+        for scanner_name in configured_names:
+            path = shutil.which(scanner_name)
+            if path:
+                version = self._get_version(scanner_name)
+                is_default = self._is_default_scanner(scanner_name)
+                result.append(
+                    InstalledScanner(
+                        name=scanner_name,
+                        version=version,
+                        path=path,
+                        is_default=is_default,
+                    )
+                )
+
+        result.extend(self._list_python_scanners())
+
+        return result
+
     def list_installed(self) -> List[InstalledScanner]:
         """
         List all installed scanners, including Python-based scanners.

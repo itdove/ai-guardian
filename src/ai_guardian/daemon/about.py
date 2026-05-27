@@ -33,9 +33,11 @@ def get_about_info() -> dict:
     scanners = []
     try:
         from ai_guardian.scanner_manager import ScannerManager
-        sm = ScannerManager()
-        for s in sm.list_installed():
-            scanners.append({"name": s.name, "version": s.version})
+        from ai_guardian.config_loaders import _load_config_file
+        cfg_for_scanners, _ = _load_config_file()
+        sm = ScannerManager(config=cfg_for_scanners or {})
+        for s in sm.list_configured():
+            scanners.append({"name": s.name, "version": s.version, "is_default": s.is_default})
     except Exception:
         pass
 
@@ -87,7 +89,12 @@ def format_about_text(info: dict) -> str:
 
     scanners = info.get("scanners", [])
     if scanners:
-        parts = [f"{s['name']} {s['version']}" for s in scanners]
+        parts = []
+        for s in scanners:
+            label = f"{s['name']} {s['version']}"
+            if s.get("is_default"):
+                label += " (default)"
+            parts.append(label)
         lines.append(f"Scanners: {', '.join(parts)}")
     else:
         lines.append("Scanners: none installed")
