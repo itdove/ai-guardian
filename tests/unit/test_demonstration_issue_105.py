@@ -82,15 +82,15 @@ class DemonstrationIssue105(unittest.TestCase):
 
         checker = ToolPolicyChecker(config=config)
 
-        # AI tries to remove IDE hooks
+        # AI tries to remove IDE hooks (content-aware: must include hook keys)
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Edit",
                 "input": {
                     "file_path": "/home/user/.claude/settings.json",
-                    "old_string": '"ai-guardian"',
-                    "new_string": '""'
+                    "old_string": '"hooks": {"PreToolUse": [{"matcher": "*"}]}',
+                    "new_string": '"hooks": {}'
                 }
             }
         }
@@ -103,10 +103,10 @@ class DemonstrationIssue105(unittest.TestCase):
 
         # CRITICAL: Must be blocked!
         self.assertFalse(is_allowed, "❌ VULNERABILITY: IDE hooks were allowed to be edited!")
-        self.assertIn("Protection:", error_msg)
+        self.assertIn("Hook Protection", error_msg)
         self.assertNotIn("log mode", error_msg.lower(), "Must be hard blocked, not log mode")
 
-        print("\n✅ SECURE: Edit was BLOCKED (immutable patterns override user rules)")
+        print("\n✅ SECURE: Edit was BLOCKED (hook protection override user rules)")
         print("="*70)
 
     def test_scenario_3_bash_rm_with_action_log(self):

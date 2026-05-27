@@ -82,22 +82,26 @@ class SelfProtectionTest(TestCase):
     # Test: AI cannot modify IDE hook files (Write tool)
     # ========================================================================
 
-    def test_write_blocks_claude_settings(self):
-        """AI cannot write to ~/.claude/settings.json"""
+    def test_write_blocks_claude_settings_with_hooks(self):
+        """AI cannot write hooks to ~/.claude/settings.json (content-aware, Issue #807)"""
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Write",
                 "input": {
-                    "file_path": "/home/user/.claude/settings.json"
+                    "file_path": "/home/user/.claude/settings.json",
+                    "content": json.dumps({
+                        "hooks": {"PreToolUse": [{"matcher": "*", "hooks": []}]},
+                        "model": "claude-sonnet-4-5-20250514"
+                    })
                 }
             }
         }
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "Write to Claude settings should be blocked")
-        self.assertIn("IDE hook configuration", error_msg)
+        self.assertFalse(is_allowed, "Write with hooks to Claude settings should be blocked")
+        self.assertIn("Hook Protection", error_msg)
 
     def test_write_blocks_cursor_hooks(self):
         """AI cannot write to ~/.cursor/hooks.json"""
@@ -115,23 +119,25 @@ class SelfProtectionTest(TestCase):
 
         self.assertFalse(is_allowed, "Write to Cursor hooks should be blocked")
 
-    def test_write_blocks_windows_claude_settings(self):
-        """AI cannot write to Windows Claude settings"""
-        # Python normalizes Windows paths to forward slashes on most operations
-        # So we test with the normalized form
+    def test_write_blocks_windows_claude_settings_with_hooks(self):
+        """AI cannot write hooks to Windows Claude settings (content-aware, Issue #807)"""
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Write",
                 "input": {
-                    "file_path": "C:/Users/user/AppData/Roaming/Claude/settings.json"
+                    "file_path": "C:/Users/user/AppData/Roaming/Claude/settings.json",
+                    "content": json.dumps({
+                        "hooks": {"PreToolUse": [{"matcher": "*"}]},
+                        "model": "claude-sonnet-4-5-20250514"
+                    })
                 }
             }
         }
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "Write to Windows Claude settings should be blocked")
+        self.assertFalse(is_allowed, "Write to Windows Claude settings with hooks should be blocked")
 
     # ========================================================================
     # Test: AI cannot modify package source code (Write tool)
@@ -196,23 +202,24 @@ class SelfProtectionTest(TestCase):
         self.assertFalse(is_allowed, "Edit of ai-guardian config should be blocked")
         self.assertIn("Protection:", error_msg)
 
-    def test_edit_blocks_claude_settings(self):
-        """AI cannot edit ~/.claude/settings.json"""
+    def test_edit_blocks_claude_settings_hooks(self):
+        """AI cannot edit hooks in ~/.claude/settings.json (content-aware, Issue #807)"""
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Edit",
                 "input": {
                     "file_path": "/home/user/.claude/settings.json",
-                    "old_string": '"ai-guardian"',
-                    "new_string": '""'
+                    "old_string": '"hooks": {"PreToolUse": []}',
+                    "new_string": '"hooks": {}'
                 }
             }
         }
 
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
-        self.assertFalse(is_allowed, "Edit of Claude settings should be blocked")
+        self.assertFalse(is_allowed, "Edit of Claude settings hooks should be blocked")
+        self.assertIn("Hook Protection", error_msg)
 
     def test_edit_blocks_package_source(self):
         """AI cannot edit package source code"""
@@ -1022,12 +1029,13 @@ class SelfProtectionTest(TestCase):
 
     def test_error_message_format(self):
         """Error messages should be clear and helpful"""
+        # Test with ai-guardian config file (not mixed settings)
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Edit",
                 "input": {
-                    "file_path": "/home/user/.claude/settings.json",
+                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
                     "old_string": "test",
                     "new_string": "test2"
                 }
@@ -1038,7 +1046,7 @@ class SelfProtectionTest(TestCase):
 
         # Check error message contains all required elements
         self.assertIn("Protection:", error_msg)
-        self.assertIn("/home/user/.claude/settings.json", error_msg)
+        self.assertIn("ai-guardian.json", error_msg)
         self.assertIn("Edit", error_msg)
         self.assertIn("ai-guardian configuration", error_msg)
         self.assertIn("IDE hook configuration", error_msg)
@@ -1046,6 +1054,29 @@ class SelfProtectionTest(TestCase):
         self.assertIn(".ai-read-deny marker files", error_msg)
         self.assertIn("cannot be disabled via configuration", error_msg)
         self.assertIn("Use your text editor to modify these files", error_msg)
+
+    def test_error_message_format_hook_protection(self):
+        """Hook protection messages for mixed settings files (Issue #807)"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Edit",
+                "input": {
+                    "file_path": "/home/user/.claude/settings.json",
+                    "old_string": '"hooks": {}',
+                    "new_string": '"hooks": {"PreToolUse": []}'
+                }
+            }
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+
+        self.assertFalse(is_allowed)
+        self.assertIn("Hook Protection", error_msg)
+        self.assertIn("/home/user/.claude/settings.json", error_msg)
+        self.assertIn("Edit", error_msg)
+        self.assertIn("Non-hook settings", error_msg)
+        self.assertIn("cannot be disabled via configuration", error_msg)
 
     def test_error_message_marker_file_format(self):
         """Error message for .ai-read-deny should mention directory protection"""
@@ -1174,12 +1205,13 @@ class SelfProtectionTest(TestCase):
 
     def test_error_message_no_tip_for_ide_settings_without_ai_guardian(self):
         """Error message should NOT include tip for IDE settings (no ai-guardian in path)"""
+        # Write to Claude hooks.json (hooks-only file, not mixed settings)
         hook_data = {
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Write",
                 "input": {
-                    "file_path": "/home/user/.claude/settings.json"
+                    "file_path": "/home/user/.claude/hooks.json"
                 }
             }
         }

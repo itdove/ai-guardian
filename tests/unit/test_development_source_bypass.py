@@ -171,7 +171,7 @@ class DevelopmentSourceBypassTest(TestCase):
         self.assertIn("Protection:", error_msg)
 
     def test_contributor_cannot_edit_ide_hooks(self):
-        """Contributors CANNOT edit IDE hook files (always protected)"""
+        """Contributors CANNOT edit hook section in IDE settings (Issue #807)"""
 
         hook_data = {
             "hook_event_name": "PreToolUse",
@@ -179,8 +179,8 @@ class DevelopmentSourceBypassTest(TestCase):
                 "name": "Edit",
                 "input": {
                     "file_path": "/home/user/.claude/settings.json",
-                    "old_string": "old",
-                    "new_string": "new"
+                    "old_string": '"hooks": {"PreToolUse": []}',
+                    "new_string": '"hooks": {}'
                 }
             }
         }
@@ -188,7 +188,7 @@ class DevelopmentSourceBypassTest(TestCase):
         is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
 
         self.assertFalse(is_allowed, "IDE hooks should be blocked for contributors")
-        self.assertIn("Protection:", error_msg)
+        self.assertIn("Hook Protection", error_msg)
 
     def test_contributor_cannot_write_cache(self):
         """Contributors CANNOT write cache files (prevents poisoning)"""
