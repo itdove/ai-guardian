@@ -8,6 +8,7 @@ is not installed.
 
 import logging
 import os
+import subprocess
 import threading
 import time
 
@@ -217,6 +218,7 @@ class DaemonTray:
         self._refreshing_from_discovery = False
         self._last_discovery_refresh = 0.0
         self._refresh_event = threading.Event()
+        self._web_proc = None
 
     def start(self):
         """Start tray icon in a background thread.
@@ -263,6 +265,7 @@ class DaemonTray:
         self._stop_discovery_animation()
         self._stats_refresh_running = False
         self._unregister_wake_handler()
+        self._stop_web_console()
         if self._discovery:
             self._discovery.stop()
         if self._icon:
@@ -271,6 +274,22 @@ class DaemonTray:
             except Exception:
                 pass
         _remove_tray_lock()
+
+    def _stop_web_console(self):
+        """Stop the web console subprocess if we started it."""
+        proc = getattr(self, '_web_proc', None)
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        from ai_guardian.config_utils import get_state_dir
+        port_file = get_state_dir() / "web-console.port"
+        try:
+            port_file.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def update_status(self, status):
         """Update tray icon status and manage pause timer.
@@ -358,6 +377,7 @@ class DaemonTray:
             self._start_discovery_animation(delay=0)
             self._discovery.start_background_discovery(self._on_targets_updated)
         self._start_stats_refresh()
+        self._start_web_console()
         self._register_wake_handler()
         import platform
         if platform.system() == "Linux":
@@ -717,6 +737,108 @@ class DaemonTray:
         if panel:
             cmd_parts.extend(["--panel", panel])
         _launch_in_terminal(cmd_parts)
+
+    def _start_web_console(self):
+        """Start the web console server as a subprocess."""
+        from ai_guardian.config_utils import get_state_dir
+        port_file = get_state_dir() / "web-console.port"
+        if port_file.exists():
+            if self._is_web_console_alive(port_file):
+                logger.debug("Web console already running, reusing")
+                return
+            try:
+                port_file.unlink()
+            except OSError:
+                pass
+        try:
+            cmd = DaemonTray._resolve_cli_cmd("console") + ["--web", "--no-open"]
+            self._web_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            logger.info("Web console started (pid %d)", self._web_proc.pid)
+            threading.Thread(
+                target=self._notify_web_console_ready,
+                daemon=True,
+                name="web-console-notify",
+            ).start()
+        except Exception as e:
+            logger.debug("Web console failed to start: %s", e)
+
+    def _notify_web_console_ready(self):
+        """Wait for web console to be ready, update menu, then notify."""
+        from ai_guardian.config_utils import get_state_dir
+        port_file = get_state_dir() / "web-console.port"
+        for _ in range(30):
+            if port_file.exists() and self._is_web_console_alive(port_file):
+                if self._icon:
+                    self._icon.update_menu()
+                try:
+                    port = int(port_file.read_text().strip())
+                    self._show_notification(
+                        "Web Console Ready",
+                        f"http://127.0.0.1:{port}",
+                    )
+                except (ValueError, OSError):
+                    pass
+                return
+            time.sleep(1)
+
+    @staticmethod
+    def _show_notification(title, message):
+        """Show a desktop notification."""
+        import platform
+        system = platform.system()
+        try:
+            if system == "Darwin":
+                safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
+                safe_msg = message.replace("\\", "\\\\").replace('"', '\\"')
+                subprocess.Popen([
+                    "osascript", "-e",
+                    f'display notification "{safe_msg}" with title "{safe_title}"',
+                ])
+            elif system == "Linux":
+                subprocess.Popen(["notify-send", title, message])
+        except OSError:
+            pass
+
+    @staticmethod
+    def _is_web_console_alive(port_file):
+        """Check if the web console at the port file is reachable."""
+        import socket
+        try:
+            port = int(port_file.read_text().strip())
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            sock.connect(("127.0.0.1", port))
+            sock.close()
+            return True
+        except (ValueError, OSError):
+            return False
+
+    @staticmethod
+    def _is_web_console_ready():
+        """Check if web console is running and reachable."""
+        from ai_guardian.config_utils import get_state_dir
+        port_file = get_state_dir() / "web-console.port"
+        if not port_file.exists():
+            return False
+        return DaemonTray._is_web_console_alive(port_file)
+
+    @staticmethod
+    def _open_web_console(daemon_name: str = ""):
+        """Open the web console for a specific daemon."""
+        import webbrowser
+        from ai_guardian.config_utils import get_state_dir
+        port_file = get_state_dir() / "web-console.port"
+        try:
+            port = int(port_file.read_text().strip())
+            path = f"/{daemon_name}" if daemon_name else ""
+            webbrowser.open(f"http://127.0.0.1:{port}{path}")
+        except (ValueError, OSError):
+            pass
 
     @staticmethod
     def _launch_shell(cwd=None):
@@ -1424,6 +1546,12 @@ class DaemonTray:
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Console", _open_panel(), visible=_single_vis),
+            pystray.MenuItem("Web Console",
+                             lambda _, __: self._open_web_console(
+                                 self._targets[0].name if self._targets else ""
+                             ),
+                             visible=lambda _: (self._is_single_daemon()
+                                                and self._is_web_console_ready())),
             pystray.MenuItem("Violations", _open_panel("panel-violations"),
                              visible=_single_vis),
             pystray.MenuItem("Metrics", _open_panel("panel-metrics"),
@@ -1559,6 +1687,18 @@ class DaemonTray:
                         else:
                             self._launch_console(panel)
                 return action
+
+            def _mk_web_console_action(slot=idx):
+                def action(_, __):
+                    if slot < len(self._targets):
+                        self._open_web_console(self._targets[slot].name)
+                return action
+
+            def _mk_web_console_visible(slot=idx):
+                def check(_):
+                    return (slot < len(self._targets)
+                            and self._is_web_console_ready())
+                return check
 
             def _mk_open_shell(slot=idx):
                 def action(_, __):
@@ -1725,6 +1865,9 @@ class DaemonTray:
                     make_label,
                     pystray.Menu(
                         pystray.MenuItem("Console", _mk_open_panel()),
+                        pystray.MenuItem("Web Console",
+                                         _mk_web_console_action(idx),
+                                         visible=_mk_web_console_visible(idx)),
                         pystray.MenuItem("Violations", _mk_open_panel("panel-violations")),
                         pystray.MenuItem("Metrics", _mk_open_panel("panel-metrics")),
                         pystray.MenuItem(

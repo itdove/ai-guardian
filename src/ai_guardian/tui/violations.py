@@ -183,6 +183,37 @@ class ViolationDetailsModal(ModalScreen):
                 snippet,
             )
 
+        elif vtype == "secret_in_transcript":
+            snippet = json.dumps(
+                {"secret_scanning": {"allowlist_patterns": ["<pattern>"]}}, indent=2
+            )
+            return (
+                "Secret found in transcript from '!' shell command.\n"
+                "Add pattern to [bold]secret_scanning.allowlist_patterns[/bold] "
+                "or avoid using '!' to display secrets:",
+                snippet,
+            )
+
+        elif vtype == "pii_in_transcript":
+            snippet = json.dumps(
+                {"scan_pii": {"allowlist_patterns": ["<pattern>"]}}, indent=2
+            )
+            return (
+                "PII found in transcript from '!' shell command.\n"
+                "Add pattern to [bold]scan_pii.allowlist_patterns[/bold]:",
+                snippet,
+            )
+
+        elif vtype in ("image_secret_detected", "image_pii_detected"):
+            file_path = blocked.get("file_path", "<file>")
+            snippet = json.dumps(
+                {"image_scanning": {"ignore_files": [file_path]}}, indent=2
+            )
+            return (
+                "Add file to [bold]image_scanning.ignore_files[/bold]:",
+                snippet,
+            )
+
         return ("No specific resolution instructions available for this violation type.", "")
 
     def compose(self) -> ComposeResult:
@@ -497,6 +528,40 @@ class ViolationCard(Vertical):
             if details:
                 yield Static(f"Details: {details[:120]}", classes="violation-detail")
 
+        elif vtype == "secret_in_transcript":
+            file_path = blocked.get("file_path")
+            secret_type = blocked.get("secret_type", "Unknown")
+            source = blocked.get("source", "transcript")
+            if file_path:
+                yield Static(f"File: {file_path}", classes="violation-detail")
+            yield Static(f"Type: {secret_type}", classes="violation-detail")
+            yield Static(f"Source: {source}", classes="violation-detail")
+
+        elif vtype == "pii_in_transcript":
+            file_path = blocked.get("file_path")
+            pii_count = blocked.get("pii_count", 0)
+            pii_types = blocked.get("pii_types", [])
+            if file_path:
+                yield Static(f"File: {file_path}", classes="violation-detail")
+            yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
+            if pii_types:
+                yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
+
+        elif vtype == "image_secret_detected":
+            file_path = blocked.get("file_path", "Unknown")
+            secret_type = blocked.get("secret_type", "Unknown")
+            yield Static(f"Image: {file_path}", classes="violation-detail")
+            yield Static(f"Secret type: {secret_type}", classes="violation-detail")
+
+        elif vtype == "image_pii_detected":
+            file_path = blocked.get("file_path", "Unknown")
+            pii_count = blocked.get("pii_count", 0)
+            pii_types = blocked.get("pii_types", [])
+            yield Static(f"Image: {file_path}", classes="violation-detail")
+            yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
+            if pii_types:
+                yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
+
         # Show correlation ID and button only when correlation data exists (#366)
         context = self.violation.get("context", {})
         tool_use_id = context.get("tool_use_id")
@@ -603,6 +668,18 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-config-exfil")
             with TabPane("PII Detected", id="filter-pii"):
                 yield VerticalScroll(id="violations-list-pii")
+            with TabPane("Transcript Secret", id="filter-transcript-secret"):
+                yield VerticalScroll(id="violations-list-transcript-secret")
+            with TabPane("Transcript PII", id="filter-transcript-pii"):
+                yield VerticalScroll(id="violations-list-transcript-pii")
+            with TabPane("Transcript PI", id="filter-transcript-pi"):
+                yield VerticalScroll(id="violations-list-transcript-pi")
+            with TabPane("Annotation", id="filter-annotation"):
+                yield VerticalScroll(id="violations-list-annotation")
+            with TabPane("Image Secret", id="filter-image-secret"):
+                yield VerticalScroll(id="violations-list-image-secret")
+            with TabPane("Image PII", id="filter-image-pii"):
+                yield VerticalScroll(id="violations-list-image-pii")
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
@@ -671,6 +748,42 @@ class ViolationsContent(Container):
             limit=50, violation_type="pii_detected", resolved=None
         )
         self._populate_list("#violations-list-pii", pii_violations)
+
+        # Load transcript secret violations
+        transcript_secret_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="secret_in_transcript", resolved=None
+        )
+        self._populate_list("#violations-list-transcript-secret", transcript_secret_violations)
+
+        # Load transcript PII violations
+        transcript_pii_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="pii_in_transcript", resolved=None
+        )
+        self._populate_list("#violations-list-transcript-pii", transcript_pii_violations)
+
+        # Load transcript prompt injection violations
+        transcript_pi_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="prompt_injection_in_transcript", resolved=None
+        )
+        self._populate_list("#violations-list-transcript-pi", transcript_pi_violations)
+
+        # Load annotation suppressed violations
+        annotation_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="annotation_suppressed", resolved=None
+        )
+        self._populate_list("#violations-list-annotation", annotation_violations)
+
+        # Load image secret violations
+        image_secret_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="image_secret_detected", resolved=None
+        )
+        self._populate_list("#violations-list-image-secret", image_secret_violations)
+
+        # Load image PII violations
+        image_pii_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="image_pii_detected", resolved=None
+        )
+        self._populate_list("#violations-list-image-pii", image_pii_violations)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""
@@ -749,6 +862,12 @@ class ViolationsContent(Container):
                 "filter-ssrf": "#violations-list-ssrf",
                 "filter-config-exfil": "#violations-list-config-exfil",
                 "filter-pii": "#violations-list-pii",
+                "filter-transcript-secret": "#violations-list-transcript-secret",
+                "filter-transcript-pii": "#violations-list-transcript-pii",
+                "filter-transcript-pi": "#violations-list-transcript-pi",
+                "filter-annotation": "#violations-list-annotation",
+                "filter-image-secret": "#violations-list-image-secret",
+                "filter-image-pii": "#violations-list-image-pii",
             }
             list_id = list_id_map.get(active_tab)
             if not list_id:

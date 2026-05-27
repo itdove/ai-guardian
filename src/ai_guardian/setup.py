@@ -1657,9 +1657,13 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "urls": []
         },
 
-        "_comment_console": "Console settings (editor theme preference)",
+        "_comment_console": "Console settings (editor theme, web console)",
         "console": {
-            "editor_theme": "monokai"
+            "editor_theme": "monokai",
+            "web": {
+                "port": 0,
+                "host": "127.0.0.1"
+            }
         },
 
         "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
@@ -1685,7 +1689,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected"]
         },
         "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
         "daemon": {

@@ -331,7 +331,7 @@ class ViolationLogger:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected"]
         }
 
     def _is_logging_enabled(self) -> bool:
@@ -339,12 +339,21 @@ class ViolationLogger:
         return is_feature_enabled(self.config.get("enabled"), default=True)
 
     def _should_log_type(self, violation_type: str) -> bool:
-        """Check if a violation type should be logged."""
+        """Check if a violation type should be logged.
+
+        New violation types added after config creation are logged by
+        default so existing users automatically get coverage for new
+        detection capabilities.
+        """
         log_types = self.config.get("log_types", [])
-        # If log_types is empty or not configured, log all types
         if not log_types:
             return True
-        return violation_type in log_types
+        if violation_type in log_types:
+            return True
+        default_types = self._get_default_config()["log_types"]
+        if violation_type in default_types and violation_type not in log_types:
+            return True
+        return False
 
     def _rotate_log_if_needed(self):
         """Rotate log file if it exceeds max_entries or retention_days."""

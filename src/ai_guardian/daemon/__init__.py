@@ -13,6 +13,7 @@ import sys
 from ai_guardian.config_utils import get_config_dir, get_state_dir
 
 DEFAULT_REST_PORT = 63152
+DEFAULT_WEB_CONSOLE_PORT = 0
 
 
 def is_pid_alive(pid):

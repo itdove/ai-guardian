@@ -9,6 +9,7 @@ Uses only stdlib http.server — no additional dependencies.
 import json
 import logging
 import threading
+import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 logger = logging.getLogger(__name__)
@@ -26,14 +27,28 @@ class _RestHandler(BaseHTTPRequestHandler):
             return
         if not self._check_auth():
             return
-        if self.path == "/api/status":
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        if path == "/api/status":
             self._send_json(self._get_status())
-        elif self.path == "/api/stats":
+        elif path == "/api/stats":
             self._send_json(self._get_stats())
-        elif self.path == "/api/about":
+        elif path == "/api/about":
             self._send_json(self._get_about())
-        elif self.path == "/api/tray-plugins":
+        elif path == "/api/tray-plugins":
             self._send_json(self._get_tray_plugins())
+        elif path == "/api/config":
+            self._send_json(self._get_config())
+        elif path == "/api/violations":
+            qs = urllib.parse.parse_qs(parsed.query)
+            limit = int(qs.get("limit", ["50"])[0])
+            vtype = qs.get("type", [None])[0]
+            self._send_json(self._get_violations(limit, vtype))
+        elif path == "/api/metrics":
+            qs = urllib.parse.parse_qs(parsed.query)
+            since_str = qs.get("since_days", [None])[0]
+            since_days = int(since_str) if since_str else None
+            self._send_json(self._get_metrics(since_days))
         else:
             self._send_error(404, "Not found")
 
@@ -132,6 +147,39 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.debug("Failed to load tray plugins: %s", e)
             return {"plugins": []}
+
+    @staticmethod
+    def _get_config():
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+            return MultiDaemonClient._local_config()
+        except Exception as e:
+            logger.debug("Failed to get config: %s", e)
+            return {"features": {}}
+
+    @staticmethod
+    def _get_violations(limit, violation_type):
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+            return MultiDaemonClient._local_violations(limit, violation_type)
+        except Exception as e:
+            logger.debug("Failed to get violations: %s", e)
+            return {"violations": [], "count": 0}
+
+    @staticmethod
+    def _get_metrics(since_days):
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+            return MultiDaemonClient._local_metrics(since_days)
+        except Exception as e:
+            logger.debug("Failed to get metrics: %s", e)
+            return {
+                "total_violations": 0,
+                "by_type": {},
+                "by_severity": {},
+                "resolved": 0,
+                "unresolved": 0,
+            }
 
     @staticmethod
     def _get_version():

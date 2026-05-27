@@ -187,6 +187,157 @@ class TestRestAPIEndpoints:
         assert exc_info.value.code == 404
 
 
+class TestConfigEndpoint:
+    def test_get_config_returns_features(self, rest_api):
+        api, port, state = rest_api
+        cfg = {
+            "secret_scanning": {"enabled": True},
+            "scan_pii": {"enabled": False},
+        }
+        with mock.patch(
+            "ai_guardian.config_loaders._load_config_file",
+            return_value=(cfg, None),
+        ):
+            url = f"http://127.0.0.1:{port}/api/config"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert "features" in data
+        assert data["features"]["secret_scanning"] is True
+        assert data["features"]["scan_pii"] is False
+
+    def test_get_config_no_config_file(self, rest_api):
+        api, port, state = rest_api
+        with mock.patch(
+            "ai_guardian.config_loaders._load_config_file",
+            return_value=(None, None),
+        ):
+            url = f"http://127.0.0.1:{port}/api/config"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert "features" in data
+
+    def test_get_config_includes_action_mode(self, rest_api):
+        api, port, state = rest_api
+        cfg = {"action": {"mode": "log"}}
+        with mock.patch(
+            "ai_guardian.config_loaders._load_config_file",
+            return_value=(cfg, None),
+        ):
+            url = f"http://127.0.0.1:{port}/api/config"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["features"]["action_mode"] == "log"
+
+    def test_get_config_includes_proactive_level(self, rest_api):
+        api, port, state = rest_api
+        cfg = {"mcp_server": {"proactive_level": "high"}}
+        with mock.patch(
+            "ai_guardian.config_loaders._load_config_file",
+            return_value=(cfg, None),
+        ):
+            url = f"http://127.0.0.1:{port}/api/config"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["features"]["proactive_level"] == "high"
+
+
+class TestViolationsEndpoint:
+    def test_get_violations_returns_list(self, rest_api):
+        api, port, state = rest_api
+        mock_entries = [
+            {
+                "timestamp": "2026-05-01T10:00:00Z",
+                "violation_type": "secret_detected",
+                "severity": "high",
+                "blocked": True,
+                "context": {"tool": "Write", "file": "config.py", "line": 42},
+                "suggestion": {"text": "Remove the secret"},
+            },
+        ]
+        with mock.patch(
+            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            return_value=mock_entries,
+        ):
+            url = f"http://127.0.0.1:{port}/api/violations"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["count"] == 1
+        v = data["violations"][0]
+        assert v["type"] == "secret_detected"
+        assert v["severity"] == "high"
+        assert v["tool"] == "Write"
+        assert v["file"] == "config.py"
+        assert v["line"] == 42
+        assert v["action"] == "blocked"
+        assert v["suggestion"] == "Remove the secret"
+
+    def test_get_violations_with_type_filter(self, rest_api):
+        api, port, state = rest_api
+        with mock.patch(
+            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            return_value=[],
+        ) as mock_get:
+            url = f"http://127.0.0.1:{port}/api/violations?type=pii_detected&limit=10"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        mock_get.assert_called_once_with(limit=10, violation_type="pii_detected")
+        assert data["count"] == 0
+
+    def test_get_violations_empty(self, rest_api):
+        api, port, state = rest_api
+        with mock.patch(
+            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            return_value=[],
+        ):
+            url = f"http://127.0.0.1:{port}/api/violations"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data == {"violations": [], "count": 0}
+
+
+class TestMetricsEndpoint:
+    def test_get_metrics_returns_summary(self, rest_api):
+        api, port, state = rest_api
+        mock_report = mock.MagicMock()
+        mock_report.total_violations = 10
+        mock_report.by_type = {"secret_detected": 5, "pii_detected": 5}
+        mock_report.by_severity = {"high": 3, "warning": 7}
+        mock_report.resolved_count = 2
+        mock_report.unresolved_count = 8
+        with mock.patch(
+            "ai_guardian.metrics.MetricsComputer.compute",
+            return_value=mock_report,
+        ):
+            url = f"http://127.0.0.1:{port}/api/metrics"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["total_violations"] == 10
+        assert data["by_type"]["secret_detected"] == 5
+        assert data["resolved"] == 2
+        assert data["unresolved"] == 8
+
+    def test_get_metrics_with_since_days(self, rest_api):
+        api, port, state = rest_api
+        mock_report = mock.MagicMock()
+        mock_report.total_violations = 0
+        mock_report.by_type = {}
+        mock_report.by_severity = {}
+        mock_report.resolved_count = 0
+        mock_report.unresolved_count = 0
+        with mock.patch(
+            "ai_guardian.metrics.MetricsComputer.__init__",
+            return_value=None,
+        ) as mock_init, mock.patch(
+            "ai_guardian.metrics.MetricsComputer.compute",
+            return_value=mock_report,
+        ):
+            url = f"http://127.0.0.1:{port}/api/metrics?since_days=7"
+            with urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+        mock_init.assert_called_once_with(since_days=7)
+        assert data["total_violations"] == 0
+
+
 class TestTrayPluginsEndpoint:
     def test_get_tray_plugins_returns_plugins(self, rest_api, tmp_path):
         api, port, state = rest_api

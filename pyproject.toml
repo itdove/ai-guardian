@@ -23,6 +23,7 @@ dependencies = [
   "docker>=7.0,<9",
   "mcp>=1.10.0; python_version >= '3.10'",
   "rapidocr-onnxruntime>=1.4.0; python_version < '3.13'",
+  "nicegui>=3.0.0; python_version >= '3.10'",
 ]
 keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
 classifiers = [
@@ -79,6 +80,7 @@ source = ["src/ai_guardian"]
 omit = [
     # Console modules (separate from core security logic)
     "src/ai_guardian/tui/*",
+    "src/ai_guardian/web/*",
 
     # Infrastructure/setup modules
     "src/ai_guardian/__main__.py",
