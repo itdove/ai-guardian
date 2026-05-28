@@ -405,12 +405,32 @@ class TestRuleInsertion:
 class TestMultiIDESupport:
     """Test support for multiple IDE agents."""
 
+    @pytest.mark.parametrize(
+        "env_var, env_value, expected_substring",
+        [
+            pytest.param(
+                "CLAUDE_CONFIG_DIR", "/custom/claude",
+                "/custom/claude/skills",
+                id="CLAUDE_CONFIG_DIR",
+            ),
+            pytest.param(
+                "CURSOR_PROJECT_PATH", "/workspace/project",
+                "/workspace/project/.cursor/skills",
+                id="CURSOR_PROJECT_PATH",
+            ),
+            pytest.param(
+                "VSCODE_CWD", "/workspace/vscode",
+                "/workspace/vscode/.vscode/skills",
+                id="VSCODE_CWD",
+            ),
+        ],
+    )
     @patch('ai_guardian.directory_rule_generator.Path.is_dir')
     @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch.dict('os.environ', {'CLAUDE_CONFIG_DIR': '/custom/claude'})
-    def test_claude_config_dir_env_var(self, mock_exists, mock_is_dir):
-        """Should respect CLAUDE_CONFIG_DIR environment variable."""
-        # Mock all paths as existing
+    def test_ide_env_var_skill_directory(
+        self, mock_exists, mock_is_dir, env_var, env_value, expected_substring
+    ):
+        """Should respect IDE-specific environment variables for skill directories."""
         mock_exists.return_value = True
         mock_is_dir.return_value = True
 
@@ -420,53 +440,11 @@ class TestMultiIDESupport:
             }
         }
 
-        generator = DirectoryRuleGenerator(config)
-        dirs = generator._get_skill_directories({"skill_directories": "auto"})
+        with patch.dict('os.environ', {env_var: env_value}):
+            generator = DirectoryRuleGenerator(config)
+            dirs = generator._get_skill_directories({"skill_directories": "auto"})
 
-        # Should include CLAUDE_CONFIG_DIR/skills
-        assert any("/custom/claude/skills" in str(d) for d in dirs)
-
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch.dict('os.environ', {'CURSOR_PROJECT_PATH': '/workspace/project'})
-    def test_cursor_project_path_env_var(self, mock_exists, mock_is_dir):
-        """Should respect CURSOR_PROJECT_PATH environment variable."""
-        # Mock all paths as existing
-        mock_exists.return_value = True
-        mock_is_dir.return_value = True
-
-        config = {
-            "permissions": {
-                "auto_directory_rules": {"enabled": True, "skill_directories": "auto"}
-            }
-        }
-
-        generator = DirectoryRuleGenerator(config)
-        dirs = generator._get_skill_directories({"skill_directories": "auto"})
-
-        # Should include CURSOR_PROJECT_PATH/.cursor/skills
-        assert any("/workspace/project/.cursor/skills" in str(d) for d in dirs)
-
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch.dict('os.environ', {'VSCODE_CWD': '/workspace/vscode'})
-    def test_vscode_cwd_env_var(self, mock_exists, mock_is_dir):
-        """Should respect VSCODE_CWD environment variable."""
-        # Mock all paths as existing
-        mock_exists.return_value = True
-        mock_is_dir.return_value = True
-
-        config = {
-            "permissions": {
-                "auto_directory_rules": {"enabled": True, "skill_directories": "auto"}
-            }
-        }
-
-        generator = DirectoryRuleGenerator(config)
-        dirs = generator._get_skill_directories({"skill_directories": "auto"})
-
-        # Should include VSCODE_CWD/.vscode/skills
-        assert any("/workspace/vscode/.vscode/skills" in str(d) for d in dirs)
+        assert any(expected_substring in str(d) for d in dirs)
 
     @patch('ai_guardian.directory_rule_generator.Path.is_dir')
     @patch('ai_guardian.directory_rule_generator.Path.exists')
@@ -739,24 +717,32 @@ class TestSymlinkHandling:
         assert not any("broken-skill" in str(rule) for rule in rules)
         assert any("daf-git" in str(rule) for rule in rules)
 
-    def test_get_allow_symlinks_default(self):
-        """_get_allow_symlinks should return True when not configured."""
-        generator = DirectoryRuleGenerator({"permissions": {"auto_directory_rules": {}}})
-        assert generator._get_allow_symlinks() is True
-
-    def test_get_allow_symlinks_explicit_true(self):
-        """_get_allow_symlinks should return True when explicitly set."""
-        config = {"permissions": {"auto_directory_rules": {"allow_symlinks": True}}}
+    @pytest.mark.parametrize(
+        "config, expected",
+        [
+            pytest.param(
+                {"permissions": {"auto_directory_rules": {}}},
+                True,
+                id="default-not-configured",
+            ),
+            pytest.param(
+                {"permissions": {"auto_directory_rules": {"allow_symlinks": True}}},
+                True,
+                id="explicit-true",
+            ),
+            pytest.param(
+                {"permissions": {"auto_directory_rules": {"allow_symlinks": False}}},
+                False,
+                id="explicit-false",
+            ),
+            pytest.param(
+                {},
+                True,
+                id="missing-config-sections",
+            ),
+        ],
+    )
+    def test_get_allow_symlinks(self, config, expected):
+        """_get_allow_symlinks should return correct value based on config."""
         generator = DirectoryRuleGenerator(config)
-        assert generator._get_allow_symlinks() is True
-
-    def test_get_allow_symlinks_explicit_false(self):
-        """_get_allow_symlinks should return False when explicitly set."""
-        config = {"permissions": {"auto_directory_rules": {"allow_symlinks": False}}}
-        generator = DirectoryRuleGenerator(config)
-        assert generator._get_allow_symlinks() is False
-
-    def test_get_allow_symlinks_missing_config(self):
-        """_get_allow_symlinks should return True when config sections are missing."""
-        generator = DirectoryRuleGenerator({})
-        assert generator._get_allow_symlinks() is True
+        assert generator._get_allow_symlinks() is expected

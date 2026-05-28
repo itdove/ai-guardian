@@ -8,1818 +8,848 @@ Tests the IMMUTABLE_DENY_PATTERNS that protect:
 """
 
 import json
-from unittest import TestCase
-from unittest.mock import patch
+import pytest
 from ai_guardian.tool_policy import ToolPolicyChecker
 
 
-class SelfProtectionTest(TestCase):
-    """Test suite for self-protection feature"""
-
-    def setUp(self):
-        """Set up test fixtures"""
-        # Create policy checker with empty config (no user-configured permissions)
-        # This ensures we're only testing the immutable deny patterns
-        self.policy_checker = ToolPolicyChecker(config={"permissions": []})
-
-    # ========================================================================
-    # Test: AI cannot modify ai-guardian config files (Write tool)
-    # ========================================================================
-
-    def test_write_blocks_user_config_file(self):
-        """AI cannot write to ~/.config/ai-guardian/ai-guardian.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to ai-guardian config should be blocked")
-        self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("Protection:", error_msg)
-        self.assertIn("ai-guardian configuration", error_msg)
-
-    def test_write_blocks_project_config_file(self):
-        """AI cannot write to project .ai-guardian.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/my-project/.ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to project config should be blocked")
-        self.assertIn("Protection:", error_msg)
-
-    def test_write_blocks_any_ai_guardian_json(self):
-        """AI cannot write to any *ai-guardian.json file"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/tmp/test-ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to any ai-guardian.json should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot modify IDE hook files (Write tool)
-    # ========================================================================
-
-    def test_write_blocks_claude_settings_with_hooks(self):
-        """AI cannot write hooks to ~/.claude/settings.json (content-aware, Issue #807)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.claude/settings.json",
-                    "content": json.dumps({
-                        "hooks": {"PreToolUse": [{"matcher": "*", "hooks": []}]},
-                        "model": "claude-sonnet-4-5-20250514"
-                    })
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write with hooks to Claude settings should be blocked")
-        self.assertIn("Hook Protection", error_msg)
-
-    def test_write_blocks_cursor_hooks(self):
-        """AI cannot write to ~/.cursor/hooks.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.cursor/hooks.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to Cursor hooks should be blocked")
-
-    def test_write_blocks_windows_claude_settings_with_hooks(self):
-        """AI cannot write hooks to Windows Claude settings (content-aware, Issue #807)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "C:/Users/user/AppData/Roaming/Claude/settings.json",
-                    "content": json.dumps({
-                        "hooks": {"PreToolUse": [{"matcher": "*"}]},
-                        "model": "claude-sonnet-4-5-20250514"
-                    })
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to Windows Claude settings with hooks should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot modify package source code (Write tool)
-    # ========================================================================
-
-    def test_write_blocks_package_source_site_packages(self):
-        """AI cannot write to site-packages/ai_guardian/"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to package source should be blocked")
-        self.assertIn("package source code", error_msg)
-
-    def test_write_allows_development_source_for_contributors(self):
-        """Contributors can write to development src/ai_guardian/ (fork + PR workflow)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__main__.py",
-                    "content": "# Modified source"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Contributors should be able to write development source code")
-        self.assertIsNone(error_msg, "No error for allowed operations")
-
-    # ========================================================================
-    # Test: AI cannot modify config files (Edit tool)
-    # ========================================================================
-
-    def test_edit_blocks_user_config_file(self):
-        """AI cannot edit ~/.config/ai-guardian/ai-guardian.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
-                    "old_string": '"enabled": true',
-                    "new_string": '"enabled": false'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Edit of ai-guardian config should be blocked")
-        self.assertIn("Protection:", error_msg)
-
-    def test_edit_blocks_claude_settings_hooks(self):
-        """AI cannot edit hooks in ~/.claude/settings.json (content-aware, Issue #807)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/.claude/settings.json",
-                    "old_string": '"hooks": {"PreToolUse": []}',
-                    "new_string": '"hooks": {}'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Edit of Claude settings hooks should be blocked")
-        self.assertIn("Hook Protection", error_msg)
-
-    def test_edit_blocks_package_source(self):
-        """AI cannot edit package source code"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
-                    "old_string": "IMMUTABLE_DENY_PATTERNS",
-                    "new_string": "DISABLED"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Edit of package source should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash sed/awk
-    # ========================================================================
-
-    def test_bash_blocks_sed_on_config(self):
-        """AI cannot use sed to modify ai-guardian config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/enabled\":true/enabled\":false/' ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash sed on config should be blocked")
-
-    def test_bash_blocks_awk_on_config(self):
-        """AI cannot use awk to modify ai-guardian config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "awk '{gsub(/enabled\":true/, \"enabled\":false\")}1' ai-guardian.json > tmp && mv tmp ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash awk on config should be blocked")
-
-    def test_bash_blocks_sed_on_claude_settings(self):
-        """AI cannot use sed to modify Claude settings"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/ai-guardian//' ~/.claude/settings.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash sed on Claude settings should be blocked")
-
-    def test_bash_blocks_sed_on_package_source(self):
-        """AI cannot use sed to modify package source"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash sed on package source should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash vim/nano
-    # ========================================================================
-
-    def test_bash_blocks_vim_on_claude_settings(self):
-        """AI cannot use vim to edit Claude settings"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "vim ~/.claude/settings.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash vim on Claude settings should be blocked")
-
-    def test_bash_blocks_nano_on_cursor_hooks(self):
-        """AI cannot use nano to edit Cursor hooks"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "nano ~/.cursor/hooks.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash nano on Cursor hooks should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash echo/cat redirect
-    # ========================================================================
-
-    def test_bash_blocks_echo_redirect_to_config(self):
-        """AI cannot use echo redirect to overwrite config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "echo '{}' > ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash echo redirect to config should be blocked")
-
-    def test_bash_blocks_redirect_to_claude_settings(self):
-        """AI cannot use redirect to overwrite Claude settings"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat /dev/null > ~/.claude/settings.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash redirect to Claude settings should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash rm/mv
-    # ========================================================================
-
-    def test_bash_blocks_rm_config(self):
-        """AI cannot use rm to delete config files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "rm ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash rm of config should be blocked")
-
-    def test_bash_blocks_rm_claude_settings(self):
-        """AI cannot use rm to delete Claude settings"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "rm -f ~/.claude/settings.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash rm of Claude settings should be blocked")
-
-    def test_bash_blocks_mv_config(self):
-        """AI cannot use mv to move/rename config files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "mv ~/.config/ai-guardian/ai-guardian.json /tmp/backup.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash mv of config should be blocked")
-
-    def test_bash_blocks_mv_hidden_config(self):
-        """AI cannot use mv to move/rename .ai-guardian.json files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "mv .ai-guardian.json /tmp/backup.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash mv of .ai-guardian.json should be blocked")
-
-    def test_bash_allows_mv_user_scripts_with_ai_guardian_in_name(self):
-        """AI can move user scripts that contain 'ai-guardian' in the filename (Issue #183)"""
-        # Test case 1: Script with ai-guardian in name
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "mv generate-ai-guardian-config.sh includes/"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Bash mv of user script with 'ai-guardian' in name should be allowed")
-
-        # Test case 2: Another user script
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "mv my-ai-guardian-helper.py scripts/"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Bash mv of user Python script with 'ai-guardian' in name should be allowed")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash chmod/chattr
-    # ========================================================================
-
-    def test_bash_blocks_chmod_on_config(self):
-        """AI cannot use chmod on config files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "chmod 777 ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash chmod on config should be blocked")
-
-    def test_bash_blocks_chattr_on_claude_settings(self):
-        """AI cannot use chattr on Claude settings"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "chattr -i ~/.claude/settings.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash chattr on Claude settings should be blocked")
-
-    # ========================================================================
-    # Test: Non-protected files are allowed
-    # ========================================================================
-
-    def test_write_allows_normal_files(self):
-        """AI can write to normal files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/my-project/src/main.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Write to normal files should be allowed")
-        self.assertIsNone(error_msg, "No error message for allowed operation")
-
-    def test_edit_allows_normal_files(self):
-        """AI can edit normal files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/my-project/README.md",
-                    "old_string": "old",
-                    "new_string": "new"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Edit of normal files should be allowed")
-
-    def test_bash_allows_normal_commands(self):
-        """AI can use Bash for normal commands"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "ls -la /home/user/my-project"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Normal Bash commands should be allowed")
-
-    # ========================================================================
-    # Test: Edge cases - User directories with 'ai_guardian' in path (Issue #47)
-    # ========================================================================
-
-    def test_write_allows_user_project_with_ai_guardian_in_name(self):
-        """AI can write to user project that has 'ai_guardian' in directory name"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/my_ai_guardian_project/src/main.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Write to user project with 'ai_guardian' in name should be allowed")
-        self.assertIsNone(error_msg, "No error message for allowed operation")
-
-    def test_write_allows_backup_directory_with_ai_guardian(self):
-        """AI can write to backup directory with 'ai_guardian' in name"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/backup_ai_guardian_configs/settings.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Write to backup directory with 'ai_guardian' should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_write_allows_tutorial_directory_with_ai_guardian(self):
-        """AI can write to tutorial directory with 'ai_guardian' in name"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/projects/ai_guardian_tutorial/example.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Write to tutorial directory with 'ai_guardian' should be allowed")
-
-    def test_write_still_blocks_site_packages(self):
-        """AI cannot write to site-packages/ai_guardian/ (verify protection still works)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to site-packages/ai_guardian should still be blocked")
-        self.assertIn("Protection:", error_msg)
-
-    def test_write_allows_development_source_for_contributors_init(self):
-        """Contributors can write to ai-guardian/src/ai_guardian/ (fork + PR workflow)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__init__.py",
-                    "content": "# Modified source"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Contributors should be able to write development source")
-        self.assertIsNone(error_msg, "No error for allowed operations")
-
-    def test_edit_allows_user_project_with_ai_guardian_in_name(self):
-        """AI can edit files in user project with 'ai_guardian' in directory name"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/my_ai_guardian_project/config.py",
-                    "old_string": "DEBUG = False",
-                    "new_string": "DEBUG = True"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Edit of user project with 'ai_guardian' in name should be allowed")
-
-    def test_bash_allows_sed_on_user_project_with_ai_guardian(self):
-        """AI can use sed on user project with 'ai_guardian' in directory name"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/old/new/' /home/user/my_ai_guardian_project/config.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Bash sed on user project with 'ai_guardian' should be allowed")
-
-    def test_bash_still_blocks_sed_on_site_packages(self):
-        """AI cannot use sed on site-packages/ai_guardian/"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash sed on site-packages/ai_guardian should still be blocked")
-
-    # ========================================================================
-    # Test: AI cannot modify .ai-read-deny marker files (Write tool)
-    # ========================================================================
-
-    def test_write_blocks_ai_read_deny_marker(self):
-        """AI cannot write to .ai-read-deny marker file"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to .ai-read-deny should be blocked")
-        self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("Protection:", error_msg)
-        self.assertIn(".ai-read-deny", error_msg)
-        self.assertIn("Directory Protection Marker", error_msg)
-
-    def test_write_blocks_ai_read_deny_absolute_path(self):
-        """AI cannot write to .ai-read-deny with absolute path"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/var/lib/sensitive/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to .ai-read-deny (absolute) should be blocked")
-        self.assertIn("Directory Protection Marker", error_msg)
-
-    def test_write_blocks_ai_read_deny_nested_path(self):
-        """AI cannot write to .ai-read-deny in nested directories"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/project/a/b/c/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write to .ai-read-deny (nested) should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot modify .ai-read-deny marker files (Edit tool)
-    # ========================================================================
-
-    def test_edit_blocks_ai_read_deny_marker(self):
-        """AI cannot edit .ai-read-deny marker file"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/secrets/.ai-read-deny",
-                    "old_string": "",
-                    "new_string": "test"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Edit of .ai-read-deny should be blocked")
-        self.assertIn("Protection:", error_msg)
-        self.assertIn("Directory Protection Marker", error_msg)
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash rm
-    # ========================================================================
-
-    def test_bash_blocks_rm_ai_read_deny(self):
-        """AI cannot use rm to delete .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "rm /home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash rm of .ai-read-deny should be blocked")
-
-    def test_bash_blocks_rm_ai_read_deny_relative(self):
-        """AI cannot use rm to delete .ai-read-deny (relative path)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "rm secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash rm of .ai-read-deny (relative) should be blocked")
-
-    def test_bash_blocks_rm_rf_ai_read_deny(self):
-        """AI cannot use rm -rf to delete .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "rm -rf /home/user/project/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash rm -rf of .ai-read-deny should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash mv
-    # ========================================================================
-
-    def test_bash_blocks_mv_ai_read_deny(self):
-        """AI cannot use mv to move/rename .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "mv /home/user/secrets/.ai-read-deny /tmp/backup"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash mv of .ai-read-deny should be blocked")
-
-    def test_bash_blocks_mv_ai_read_deny_rename(self):
-        """AI cannot use mv to rename .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "mv .ai-read-deny .ai-read-deny.bak"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash mv rename of .ai-read-deny should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash sed/awk
-    # ========================================================================
-
-    def test_bash_blocks_sed_ai_read_deny(self):
-        """AI cannot use sed on .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/test/new/' /home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash sed on .ai-read-deny should be blocked")
-
-    def test_bash_blocks_awk_ai_read_deny(self):
-        """AI cannot use awk on .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "awk '{print}' .ai-read-deny > /tmp/out"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash awk on .ai-read-deny should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash echo redirect
-    # ========================================================================
-
-    def test_bash_blocks_echo_redirect_ai_read_deny(self):
-        """AI cannot use echo redirect to overwrite .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "echo '' > /home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash echo redirect to .ai-read-deny should be blocked")
-
-    def test_bash_blocks_cat_redirect_ai_read_deny(self):
-        """AI cannot use cat redirect to overwrite .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat /dev/null > .ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash cat redirect to .ai-read-deny should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash chmod/chattr
-    # ========================================================================
-
-    def test_bash_blocks_chmod_ai_read_deny(self):
-        """AI cannot use chmod on .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "chmod 777 /home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash chmod on .ai-read-deny should be blocked")
-
-    def test_bash_blocks_chattr_ai_read_deny(self):
-        """AI cannot use chattr on .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "chattr +i /home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash chattr on .ai-read-deny should be blocked")
-
-    # ========================================================================
-    # Test: AI cannot bypass via Bash vim/nano
-    # ========================================================================
-
-    def test_bash_blocks_vim_ai_read_deny(self):
-        """AI cannot use vim to edit .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "vim /home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash vim on .ai-read-deny should be blocked")
-
-    def test_bash_blocks_nano_ai_read_deny(self):
-        """AI cannot use nano to edit .ai-read-deny"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "nano .ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash nano on .ai-read-deny should be blocked")
-
-    # ========================================================================
-    # Test: Error messages are clear
-    # ========================================================================
-
-    def test_error_message_format(self):
-        """Error messages should be clear and helpful"""
-        # Test with ai-guardian config file (not mixed settings)
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
-                    "old_string": "test",
-                    "new_string": "test2"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        # Check error message contains all required elements
-        self.assertIn("Protection:", error_msg)
-        self.assertIn("ai-guardian.json", error_msg)
-        self.assertIn("Edit", error_msg)
-        self.assertIn("ai-guardian configuration", error_msg)
-        self.assertIn("IDE hook configuration", error_msg)
-        self.assertIn("package source code", error_msg)
-        self.assertIn(".ai-read-deny marker files", error_msg)
-        self.assertIn("cannot be disabled via configuration", error_msg)
-        self.assertIn("Use your text editor to modify these files", error_msg)
-
-    def test_error_message_format_hook_protection(self):
-        """Hook protection messages for mixed settings files (Issue #807)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/.claude/settings.json",
-                    "old_string": '"hooks": {}',
-                    "new_string": '"hooks": {"PreToolUse": []}'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertIn("Hook Protection", error_msg)
-        self.assertIn("/home/user/.claude/settings.json", error_msg)
-        self.assertIn("Edit", error_msg)
-        self.assertIn("Non-hook settings", error_msg)
-        self.assertIn("cannot be disabled via configuration", error_msg)
-
-    def test_error_message_marker_file_format(self):
-        """Error message for .ai-read-deny should mention directory protection"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/secrets/.ai-read-deny"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        # Check error message contains marker-file-specific elements
-        self.assertIn("Protection:", error_msg)
-        self.assertIn("/home/user/secrets/.ai-read-deny", error_msg)
-        self.assertIn("Write", error_msg)
-        self.assertIn("Directory Protection Marker", error_msg)
-        self.assertIn(".ai-read-deny markers enforce directory protection", error_msg)
-        self.assertIn("bypass directory protection", error_msg)
-        self.assertIn("delete .ai-read-deny manually", error_msg)
-
-    # ========================================================================
-    # Test: Workaround tip for documentation files (Issue #65)
-    # ========================================================================
-
-    def test_error_message_includes_workaround_tip_for_write_protected_md_file(self):
-        """Error message includes tip when writing to protected .md file with ai-guardian in name"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/project/.config/ai-guardian/docs/setup.md"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertIn("💡 TIP", error_msg)
-        self.assertIn("ai - guardian", error_msg)
-        self.assertIn("with spaces", error_msg)
-        self.assertIn("Writing ABOUT the tool", error_msg)
-
-    def test_error_message_for_pip_installed_readme(self):
-        """Error message for pip-installed README explains it's production code"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/README.md",
-                    "old_string": "old",
-                    "new_string": "new"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        # Should explain this is pip-installed production code
-        self.assertIn("Pip-installed", error_msg)
-        self.assertIn("security controls in production", error_msg)
-        # Should provide guidance on how to develop
-        self.assertIn("git clone", error_msg)
-        self.assertIn("Development source files CAN be edited", error_msg)
-
-    def test_error_message_includes_workaround_tip_for_protected_txt_in_docs(self):
-        """Error message includes tip for protected .txt file with ai-guardian in path"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/README.txt"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertIn("💡 TIP", error_msg)
-
-    def test_error_message_no_tip_for_protected_config_file(self):
-        """Error message should NOT include tip for actual protected config files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertNotIn("💡 TIP", error_msg)
-        self.assertNotIn("ai - guardian", error_msg)
-
-    def test_error_message_no_tip_for_protected_python_source(self):
-        """Error message should NOT include tip for protected Python source files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
-                    "old_string": "old",
-                    "new_string": "new"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertNotIn("💡 TIP", error_msg)
-
-    def test_error_message_no_tip_for_ide_settings_without_ai_guardian(self):
-        """Error message should NOT include tip for IDE settings (no ai-guardian in path)"""
-        # Write to Claude hooks.json (hooks-only file, not mixed settings)
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.claude/hooks.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertNotIn("💡 TIP", error_msg)
-
-    # ========================================================================
-    # Test: Issue #113 - Fail-closed when file_path missing (prevent bypass)
-    # ========================================================================
-
-    def test_edit_blocks_when_file_path_missing_issue_113(self):
-        """
-        Issue #113: AI cannot bypass IMMUTABLE checks by sending malformed tool_input
-
-        BUG: If tool_input is empty or missing 'file_path', check_value becomes None
-        and IMMUTABLE pattern checks were skipped. This allowed bypassing protections.
-
-        FIX: For file-path tools, fail-closed (block) if file_path is missing.
-        """
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {}  # Missing file_path
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Edit with missing file_path should be blocked")
-        self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("Missing required parameter", error_msg)
-        self.assertIn("file_path", error_msg)
-
-    def test_write_blocks_when_file_path_missing_issue_113(self):
-        """Write tool should block when file_path is missing (Issue #113)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                # Missing "input" field entirely
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Write with missing file_path should be blocked")
-        self.assertIn("Missing required parameter", error_msg)
-
-    def test_read_blocks_when_file_path_missing_issue_113(self):
-        """Read tool should block when file_path is missing (Issue #113)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {"limit": 100}  # Has other params but missing file_path
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read with missing file_path should be blocked")
-        self.assertIn("Missing required parameter", error_msg)
-
-    def test_notebookedit_blocks_when_file_path_missing_issue_113(self):
-        """NotebookEdit tool should block when file_path is missing (Issue #113)"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "NotebookEdit",
-                "input": {}
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "NotebookEdit with missing file_path should be blocked")
-        self.assertIn("Missing required parameter", error_msg)
-
-    # ========================================================================
-    # Test: Issue #188 - Allow legitimate content mentioning "ai-guardian"
-    # ========================================================================
-
-    def test_bash_allows_writing_code_review_mentioning_ai_guardian_issue_188(self):
-        """
-        Issue #188: AI can write code reviews mentioning "ai-guardian" to normal files
-
-        BUG: Pattern "*>*ai-guardian*" blocked ANY redirect with "ai-guardian" in content
-        FIX: Made patterns path-specific - only block when targeting protected files
-        """
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "echo 'The ai-guardian hook prevented the secret from being committed' > /tmp/review.md"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Writing code review mentioning ai-guardian to /tmp should be allowed")
-        self.assertIsNone(error_msg, "No error for allowed operation")
-
-    def test_bash_allows_writing_documentation_about_ai_guardian_issue_188(self):
-        """Issue #188: AI can write documentation about ai-guardian to normal files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "echo 'Install ai-guardian using pip install ai-guardian' > /home/user/docs/README.md"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Writing documentation about ai-guardian should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_bash_allows_writing_bug_report_mentioning_ai_guardian_issue_188(self):
-        """Issue #188: AI can write bug reports mentioning ai-guardian to normal files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat <<'EOF' > /tmp/bug-report.txt\nThe ai-guardian configuration needs to be updated\nEOF"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Writing bug report mentioning ai-guardian should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_bash_allows_sed_on_user_file_with_ai_guardian_in_content_issue_188(self):
-        """Issue #188: AI can use sed on user files even if content mentions ai-guardian"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/old/new/' /home/user/my-project/docs/using-ai-guardian.md"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Using sed on documentation file should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_bash_still_blocks_redirect_to_actual_config_file_issue_188(self):
-        """Issue #188: Verify fix doesn't break protection - still blocks actual config files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "echo 'malicious content' > ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Redirect to actual config file should still be blocked")
-        self.assertIsNotNone(error_msg)
-        self.assertIn("IMMUTABLE PROTECTION", error_msg.upper())
-
-    def test_bash_still_blocks_sed_on_actual_config_file_issue_188(self):
-        """Issue #188: Verify fix doesn't break protection - still blocks sed on actual config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/enabled\":true/enabled\":false/' ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "sed on actual config file should still be blocked")
-        self.assertIsNotNone(error_msg)
-
-    def test_write_allows_documentation_file_mentioning_ai_guardian_issue_188(self):
-        """Issue #188: AI can use Write tool to create docs mentioning ai-guardian"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/my-project/docs/ai-guardian-setup.md",
-                    "content": "# How to use ai-guardian\n\nInstall ai-guardian using pip install ai-guardian"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Writing documentation file mentioning ai-guardian should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_edit_allows_user_file_with_ai_guardian_in_content_issue_188(self):
-        """Issue #188: AI can use Edit tool on files with ai-guardian in content"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/my-project/docs/tools.md",
-                    "old_string": "ai-guardian v1.0",
-                    "new_string": "ai-guardian v1.1"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Editing documentation file mentioning ai-guardian should be allowed")
-        self.assertIsNone(error_msg)
-
-    # ========================================================================
-    # Test: AI cannot read ai-guardian config/state/cache files (Issue #512)
-    # ========================================================================
-
-    def test_read_blocks_user_config_file(self):
-        """AI cannot read ~/.config/ai-guardian/ai-guardian.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of ai-guardian config should be blocked")
-        self.assertIsNotNone(error_msg, "Error message should be provided")
-        self.assertIn("Protection:", error_msg)
-
-    def test_read_blocks_project_config_file(self):
-        """AI cannot read project .ai-guardian.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/my-project/.ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of project config should be blocked")
-
-    def test_read_blocks_config_directory(self):
-        """AI cannot read files in ~/.config/ai-guardian/"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/profiles/default.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of config directory files should be blocked")
-
-    def test_read_blocks_state_directory(self):
-        """AI cannot read ~/.local/state/ai-guardian/violations.jsonl"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.local/state/ai-guardian/violations.jsonl"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of state directory should be blocked")
-
-    def test_read_blocks_state_log(self):
-        """AI cannot read ~/.local/state/ai-guardian/ai-guardian.log"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.local/state/ai-guardian/ai-guardian.log"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of ai-guardian log should be blocked")
-
-    def test_read_blocks_state_transcript_positions(self):
-        """AI cannot read ~/.local/state/ai-guardian/transcript_positions.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.local/state/ai-guardian/transcript_positions.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of transcript positions should be blocked")
-
-    def test_read_blocks_cache_directory(self):
-        """AI cannot read ~/.cache/ai-guardian/patterns.toml"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.cache/ai-guardian/patterns.toml"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Read of cache directory should be blocked")
-
-    def test_read_allows_normal_files(self):
-        """AI can read normal project files"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/my-project/src/main.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Read of normal files should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_read_allows_development_source(self):
-        """Contributors can read ai-guardian development source code"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/__init__.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Read of development source should be allowed")
-        self.assertIsNone(error_msg)
-
-    # ========================================================================
-    # Test: AI cannot read config/state/cache via Bash (Issue #512)
-    # ========================================================================
-
-    def test_bash_blocks_cat_config(self):
-        """AI cannot use cat to read ai-guardian config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash cat on config should be blocked")
-
-    def test_bash_blocks_cat_state(self):
-        """AI cannot use cat to read violations log"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat ~/.local/state/ai-guardian/violations.jsonl"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash cat on state files should be blocked")
-
-    def test_bash_blocks_cat_cache(self):
-        """AI cannot use cat to read cached patterns"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat ~/.cache/ai-guardian/patterns.toml"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash cat on cache should be blocked")
-
-    def test_bash_blocks_cat_any_ai_guardian_json(self):
-        """AI cannot use cat to read any ai-guardian.json"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "cat ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash cat on ai-guardian.json should be blocked")
-
-    def test_bash_blocks_grep_config(self):
-        """AI cannot use grep to search ai-guardian config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "grep -i 'allow' ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash grep on config should be blocked")
-
-    def test_bash_blocks_grep_state(self):
-        """AI cannot use grep to search violations log"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "grep 'secret' ~/.local/state/ai-guardian/violations.jsonl"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash grep on state files should be blocked")
-
-    def test_bash_blocks_head_log(self):
-        """AI cannot use head to read ai-guardian log"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "head -50 ~/.local/state/ai-guardian/ai-guardian.log"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash head on log should be blocked")
-
-    def test_bash_blocks_tail_log(self):
-        """AI cannot use tail to follow ai-guardian log"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "tail -f ~/.local/state/ai-guardian/ai-guardian.log"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash tail on log should be blocked")
-
-    def test_bash_blocks_less_config(self):
-        """AI cannot use less to read ai-guardian config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "less ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash less on config should be blocked")
-
-    def test_bash_blocks_more_config(self):
-        """AI cannot use more to read ai-guardian config"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "more ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash more on config should be blocked")
-
-    # ========================================================================
-    # Test: Read error message mentions MCP alternative (Issue #512)
-    # ========================================================================
-
-    def test_read_error_message_mentions_mcp_alternative(self):
-        """Read error message should suggest MCP tools as safe alternative"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertIn("MCP tools", error_msg)
-        self.assertIn("get_config()", error_msg)
-        self.assertIn("get_violations()", error_msg)
-        self.assertIn("doctor()", error_msg)
-
-    def test_read_error_message_for_state_file(self):
-        """Read error message for state files should mention violations/logs"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.local/state/ai-guardian/violations.jsonl"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertIn("security state", error_msg)
-        self.assertIn("detection results", error_msg)
-
-    def test_read_error_message_for_cache_file(self):
-        """Read error message for cache files should mention patterns"""
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Read",
-                "input": {
-                    "file_path": "/home/user/.cache/ai-guardian/patterns.toml"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed)
-        self.assertIn("cached security patterns", error_msg)
-        self.assertIn("detection logic", error_msg)
+@pytest.fixture
+def policy_checker():
+    """Create policy checker with empty config (only immutable deny patterns)."""
+    return ToolPolicyChecker(config={"permissions": []})
+
+
+# ============================================================================
+# Parametrized: Write-blocks protected paths
+# ============================================================================
+
+WRITE_BLOCKED_PATHS = [
+    pytest.param(
+        "/home/user/.config/ai-guardian/ai-guardian.json", None,
+        id="user-config-file",
+    ),
+    pytest.param(
+        "/home/user/my-project/.ai-guardian.json", None,
+        id="project-config-file",
+    ),
+    pytest.param(
+        "/tmp/test-ai-guardian.json", None,
+        id="any-ai-guardian-json",
+    ),
+    pytest.param(
+        "/home/user/.cursor/hooks.json", None,
+        id="cursor-hooks",
+    ),
+    pytest.param(
+        "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py", None,
+        id="package-source-site-packages",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,content", WRITE_BLOCKED_PATHS)
+def test_write_blocks_protected_path(policy_checker, file_path, content):
+    """AI cannot write to protected paths"""
+    tool_input = {"file_path": file_path}
+    if content is not None:
+        tool_input["content"] = content
+
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Write", "input": tool_input},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Write to {file_path} should be blocked"
+    assert error_msg is not None, "Error message should be provided"
+
+
+# ============================================================================
+# Parametrized: Write-blocks with content-aware hook checks
+# ============================================================================
+
+WRITE_BLOCKED_WITH_HOOKS_CONTENT = [
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        json.dumps({
+            "hooks": {"PreToolUse": [{"matcher": "*", "hooks": []}]},
+            "model": "claude-sonnet-4-5-20250514",
+        }),
+        id="claude-settings-with-hooks",
+    ),
+    pytest.param(
+        "C:/Users/user/AppData/Roaming/Claude/settings.json",
+        json.dumps({
+            "hooks": {"PreToolUse": [{"matcher": "*"}]},
+            "model": "claude-sonnet-4-5-20250514",
+        }),
+        id="windows-claude-settings-with-hooks",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,content", WRITE_BLOCKED_WITH_HOOKS_CONTENT)
+def test_write_blocks_settings_with_hooks(policy_checker, file_path, content):
+    """AI cannot write hooks to IDE settings files (content-aware, Issue #807)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Write",
+            "input": {"file_path": file_path, "content": content},
+        },
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Write with hooks to {file_path} should be blocked"
+    assert "Hook Protection" in error_msg
+
+
+# ============================================================================
+# Parametrized: Edit-blocks protected paths
+# ============================================================================
+
+EDIT_BLOCKED_PATHS = [
+    pytest.param(
+        "/home/user/.config/ai-guardian/ai-guardian.json",
+        '"enabled": true', '"enabled": false',
+        id="user-config-file",
+    ),
+    pytest.param(
+        "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+        "IMMUTABLE_DENY_PATTERNS", "DISABLED",
+        id="package-source",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,old_string,new_string", EDIT_BLOCKED_PATHS)
+def test_edit_blocks_protected_path(policy_checker, file_path, old_string, new_string):
+    """AI cannot edit protected paths"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": file_path,
+                "old_string": old_string,
+                "new_string": new_string,
+            },
+        },
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Edit of {file_path} should be blocked"
+    assert "Protection:" in error_msg
+
+
+def test_edit_blocks_claude_settings_hooks(policy_checker):
+    """AI cannot edit hooks in ~/.claude/settings.json (content-aware, Issue #807)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": "/home/user/.claude/settings.json",
+                "old_string": '"hooks": {"PreToolUse": []}',
+                "new_string": '"hooks": {}'
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, "Edit of Claude settings hooks should be blocked"
+    assert "Hook Protection" in error_msg
+
+
+# ============================================================================
+# Parametrized: Bash command blocks
+# ============================================================================
+
+BASH_BLOCKED_COMMANDS = [
+    # sed/awk on config
+    pytest.param(
+        "sed -i 's/enabled\":true/enabled\":false/' ~/.config/ai-guardian/ai-guardian.json",
+        id="sed-on-config",
+    ),
+    pytest.param(
+        "awk '{gsub(/enabled\":true/, \"enabled\":false\")}1' ai-guardian.json > tmp && mv tmp ai-guardian.json",
+        id="awk-on-config",
+    ),
+    # sed on Claude settings and package source
+    pytest.param(
+        "sed -i 's/ai-guardian//' ~/.claude/settings.json",
+        id="sed-on-claude-settings",
+    ),
+    pytest.param(
+        "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+        id="sed-on-package-source",
+    ),
+    # vim/nano on settings/hooks
+    pytest.param(
+        "vim ~/.claude/settings.json",
+        id="vim-on-claude-settings",
+    ),
+    pytest.param(
+        "nano ~/.cursor/hooks.json",
+        id="nano-on-cursor-hooks",
+    ),
+    # echo/cat redirect
+    pytest.param(
+        "echo '{}' > ~/.config/ai-guardian/ai-guardian.json",
+        id="echo-redirect-to-config",
+    ),
+    pytest.param(
+        "cat /dev/null > ~/.claude/settings.json",
+        id="redirect-to-claude-settings",
+    ),
+    # rm/mv
+    pytest.param(
+        "rm ~/.config/ai-guardian/ai-guardian.json",
+        id="rm-config",
+    ),
+    pytest.param(
+        "rm -f ~/.claude/settings.json",
+        id="rm-claude-settings",
+    ),
+    pytest.param(
+        "mv ~/.config/ai-guardian/ai-guardian.json /tmp/backup.json",
+        id="mv-config",
+    ),
+    pytest.param(
+        "mv .ai-guardian.json /tmp/backup.json",
+        id="mv-hidden-config",
+    ),
+    # chmod/chattr
+    pytest.param(
+        "chmod 777 ~/.config/ai-guardian/ai-guardian.json",
+        id="chmod-on-config",
+    ),
+    pytest.param(
+        "chattr -i ~/.claude/settings.json",
+        id="chattr-on-claude-settings",
+    ),
+    # cat/grep/head/tail/less/more on config/state/cache (Issue #512)
+    pytest.param(
+        "cat ~/.config/ai-guardian/ai-guardian.json",
+        id="cat-config",
+    ),
+    pytest.param(
+        "cat ~/.local/state/ai-guardian/violations.jsonl",
+        id="cat-state",
+    ),
+    pytest.param(
+        "cat ~/.cache/ai-guardian/patterns.toml",
+        id="cat-cache",
+    ),
+    pytest.param(
+        "cat ai-guardian.json",
+        id="cat-any-ai-guardian-json",
+    ),
+    pytest.param(
+        "grep -i 'allow' ~/.config/ai-guardian/ai-guardian.json",
+        id="grep-config",
+    ),
+    pytest.param(
+        "grep 'secret' ~/.local/state/ai-guardian/violations.jsonl",
+        id="grep-state",
+    ),
+    pytest.param(
+        "head -50 ~/.local/state/ai-guardian/ai-guardian.log",
+        id="head-log",
+    ),
+    pytest.param(
+        "tail -f ~/.local/state/ai-guardian/ai-guardian.log",
+        id="tail-log",
+    ),
+    pytest.param(
+        "less ai-guardian.json",
+        id="less-config",
+    ),
+    pytest.param(
+        "more ai-guardian.json",
+        id="more-config",
+    ),
+    # Issue #188 - still blocks actual config
+    pytest.param(
+        "echo 'malicious content' > ~/.config/ai-guardian/ai-guardian.json",
+        id="redirect-to-actual-config-issue-188",
+    ),
+]
+
+
+@pytest.mark.parametrize("command", BASH_BLOCKED_COMMANDS)
+def test_bash_blocks_command(policy_checker, command):
+    """AI cannot use Bash to modify/read protected files"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Bash", "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Bash command should be blocked: {command}"
+
+
+# ============================================================================
+# Parametrized: .ai-read-deny Write blocks
+# ============================================================================
+
+AI_READ_DENY_WRITE_PATHS = [
+    pytest.param(
+        "/home/user/secrets/.ai-read-deny",
+        id="write-marker",
+    ),
+    pytest.param(
+        "/var/lib/sensitive/.ai-read-deny",
+        id="write-absolute-path",
+    ),
+    pytest.param(
+        "/home/user/project/a/b/c/.ai-read-deny",
+        id="write-nested-path",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path", AI_READ_DENY_WRITE_PATHS)
+def test_write_blocks_ai_read_deny(policy_checker, file_path):
+    """AI cannot write to .ai-read-deny marker files"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Write", "input": {"file_path": file_path}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Write to {file_path} should be blocked"
+    assert error_msg is not None, "Error message should be provided"
+    assert "Protection:" in error_msg
+    assert "Directory Protection Marker" in error_msg
+
+
+def test_edit_blocks_ai_read_deny_marker(policy_checker):
+    """AI cannot edit .ai-read-deny marker file"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": "/home/user/secrets/.ai-read-deny",
+                "old_string": "",
+                "new_string": "test"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, "Edit of .ai-read-deny should be blocked"
+    assert "Protection:" in error_msg
+    assert "Directory Protection Marker" in error_msg
+
+
+# ============================================================================
+# Parametrized: .ai-read-deny Bash blocks
+# ============================================================================
+
+AI_READ_DENY_BASH_COMMANDS = [
+    pytest.param("rm /home/user/secrets/.ai-read-deny", id="rm-absolute"),
+    pytest.param("rm secrets/.ai-read-deny", id="rm-relative"),
+    pytest.param("rm -rf /home/user/project/.ai-read-deny", id="rm-rf"),
+    pytest.param("mv /home/user/secrets/.ai-read-deny /tmp/backup", id="mv"),
+    pytest.param("mv .ai-read-deny .ai-read-deny.bak", id="mv-rename"),
+    pytest.param("sed -i 's/test/new/' /home/user/secrets/.ai-read-deny", id="sed"),
+    pytest.param("awk '{print}' .ai-read-deny > /tmp/out", id="awk"),
+    pytest.param("echo '' > /home/user/secrets/.ai-read-deny", id="echo-redirect"),
+    pytest.param("cat /dev/null > .ai-read-deny", id="cat-redirect"),
+    pytest.param("chmod 777 /home/user/secrets/.ai-read-deny", id="chmod"),
+    pytest.param("chattr +i /home/user/secrets/.ai-read-deny", id="chattr"),
+    pytest.param("vim /home/user/secrets/.ai-read-deny", id="vim"),
+    pytest.param("nano .ai-read-deny", id="nano"),
+]
+
+
+@pytest.mark.parametrize("command", AI_READ_DENY_BASH_COMMANDS)
+def test_bash_blocks_ai_read_deny(policy_checker, command):
+    """AI cannot use Bash to modify/delete .ai-read-deny markers"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Bash", "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Bash on .ai-read-deny should be blocked: {command}"
+
+
+# ============================================================================
+# Parametrized: Allow tests - Write
+# ============================================================================
+
+WRITE_ALLOWED_PATHS = [
+    pytest.param(
+        "/home/user/my-project/src/main.py", None,
+        id="normal-file",
+    ),
+    pytest.param(
+        "/home/user/my_ai_guardian_project/src/main.py", None,
+        id="user-project-ai-guardian-in-name",
+    ),
+    pytest.param(
+        "/home/user/backup_ai_guardian_configs/settings.json", None,
+        id="backup-dir-ai-guardian",
+    ),
+    pytest.param(
+        "/home/user/projects/ai_guardian_tutorial/example.py", None,
+        id="tutorial-dir-ai-guardian",
+    ),
+    pytest.param(
+        "/home/user/my-project/docs/ai-guardian-setup.md", None,
+        id="doc-file-mentioning-ai-guardian-issue-188",
+    ),
+    pytest.param(
+        "/home/user/ai-guardian/src/ai_guardian/__main__.py", "# Modified source",
+        id="dev-source-main",
+    ),
+    pytest.param(
+        "/home/user/ai-guardian/src/ai_guardian/__init__.py", "# Modified source",
+        id="dev-source-init",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,content", WRITE_ALLOWED_PATHS)
+def test_write_allows_non_protected(policy_checker, file_path, content):
+    """AI can write to non-protected files and development source"""
+    tool_input = {"file_path": file_path}
+    if content is not None:
+        tool_input["content"] = content
+
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Write", "input": tool_input},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert is_allowed, f"Write to {file_path} should be allowed"
+    assert error_msg is None, "No error message for allowed operation"
+
+
+EDIT_ALLOWED_CASES = [
+    pytest.param(
+        "/home/user/my-project/README.md",
+        "old", "new",
+        id="normal-file",
+    ),
+    pytest.param(
+        "/home/user/my_ai_guardian_project/config.py",
+        "DEBUG = False", "DEBUG = True",
+        id="user-project-ai-guardian-in-name",
+    ),
+    pytest.param(
+        "/home/user/my-project/docs/tools.md",
+        "ai-guardian v1.0", "ai-guardian v1.1",
+        id="user-file-ai-guardian-content-issue-188",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,old_string,new_string", EDIT_ALLOWED_CASES)
+def test_edit_allows_non_protected(policy_checker, file_path, old_string, new_string):
+    """AI can edit non-protected files"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": file_path,
+                "old_string": old_string,
+                "new_string": new_string,
+            },
+        },
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert is_allowed, f"Edit of {file_path} should be allowed"
+
+
+BASH_ALLOWED_COMMANDS = [
+    pytest.param(
+        "ls -la /home/user/my-project",
+        id="normal-command",
+    ),
+    pytest.param(
+        "sed -i 's/old/new/' /home/user/my_ai_guardian_project/config.py",
+        id="sed-on-user-project-ai-guardian",
+    ),
+    pytest.param(
+        "mv generate-ai-guardian-config.sh includes/",
+        id="mv-user-script-ai-guardian-name",
+    ),
+    pytest.param(
+        "mv my-ai-guardian-helper.py scripts/",
+        id="mv-user-python-script-ai-guardian-name",
+    ),
+    # Issue #188 - legitimate content mentioning ai-guardian
+    pytest.param(
+        "echo 'The ai-guardian hook prevented the secret from being committed' > /tmp/review.md",
+        id="write-code-review-mentioning-ai-guardian",
+    ),
+    pytest.param(
+        "echo 'Install ai-guardian using pip install ai-guardian' > /home/user/docs/README.md",
+        id="write-docs-about-ai-guardian",
+    ),
+    pytest.param(
+        "cat <<'EOF' > /tmp/bug-report.txt\nThe ai-guardian configuration needs to be updated\nEOF",
+        id="write-bug-report-mentioning-ai-guardian",
+    ),
+    pytest.param(
+        "sed -i 's/old/new/' /home/user/my-project/docs/using-ai-guardian.md",
+        id="sed-on-user-doc-file",
+    ),
+]
+
+
+@pytest.mark.parametrize("command", BASH_ALLOWED_COMMANDS)
+def test_bash_allows_command(policy_checker, command):
+    """AI can use Bash for normal/legitimate commands"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Bash", "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert is_allowed, f"Bash command should be allowed: {command}"
+    assert error_msg is None, "No error for allowed operation"
+
+
+# ============================================================================
+# Parametrized: Read blocks (Issue #512)
+# ============================================================================
+
+READ_BLOCKED_PATHS = [
+    pytest.param("/home/user/.config/ai-guardian/ai-guardian.json", id="user-config"),
+    pytest.param("/home/user/my-project/.ai-guardian.json", id="project-config"),
+    pytest.param("/home/user/.config/ai-guardian/profiles/default.json", id="config-directory"),
+    pytest.param("/home/user/.local/state/ai-guardian/violations.jsonl", id="state-directory"),
+    pytest.param("/home/user/.local/state/ai-guardian/ai-guardian.log", id="state-log"),
+    pytest.param("/home/user/.local/state/ai-guardian/transcript_positions.json", id="state-transcript-positions"),
+    pytest.param("/home/user/.cache/ai-guardian/patterns.toml", id="cache-directory"),
+]
+
+
+@pytest.mark.parametrize("file_path", READ_BLOCKED_PATHS)
+def test_read_blocks_protected_path(policy_checker, file_path):
+    """AI cannot read ai-guardian config/state/cache files (Issue #512)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Read", "input": {"file_path": file_path}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Read of {file_path} should be blocked"
+
+
+READ_ALLOWED_PATHS = [
+    pytest.param("/home/user/my-project/src/main.py", id="normal-file"),
+    pytest.param("/home/user/ai-guardian/src/ai_guardian/__init__.py", id="development-source"),
+]
+
+
+@pytest.mark.parametrize("file_path", READ_ALLOWED_PATHS)
+def test_read_allows_non_protected(policy_checker, file_path):
+    """AI can read normal/development files"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Read", "input": {"file_path": file_path}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert is_allowed, f"Read of {file_path} should be allowed"
+    assert error_msg is None
+
+
+# ============================================================================
+# Test: Error messages are clear
+# ============================================================================
+
+def test_error_message_format(policy_checker):
+    """Error messages should be clear and helpful"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
+                "old_string": "test",
+                "new_string": "test2"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert "Protection:" in error_msg
+    assert "ai-guardian.json" in error_msg
+    assert "Edit" in error_msg
+    assert "ai-guardian configuration" in error_msg
+    assert "IDE hook configuration" in error_msg
+    assert "package source code" in error_msg
+    assert ".ai-read-deny marker files" in error_msg
+    assert "cannot be disabled via configuration" in error_msg
+    assert "Use your text editor to modify these files" in error_msg
+
+
+def test_error_message_format_hook_protection(policy_checker):
+    """Hook protection messages for mixed settings files (Issue #807)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": "/home/user/.claude/settings.json",
+                "old_string": '"hooks": {}',
+                "new_string": '"hooks": {"PreToolUse": []}'
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "Hook Protection" in error_msg
+    assert "/home/user/.claude/settings.json" in error_msg
+    assert "Edit" in error_msg
+    assert "Non-hook settings" in error_msg
+    assert "cannot be disabled via configuration" in error_msg
+
+
+def test_error_message_marker_file_format(policy_checker):
+    """Error message for .ai-read-deny should mention directory protection"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Write",
+            "input": {
+                "file_path": "/home/user/secrets/.ai-read-deny"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert "Protection:" in error_msg
+    assert "/home/user/secrets/.ai-read-deny" in error_msg
+    assert "Write" in error_msg
+    assert "Directory Protection Marker" in error_msg
+    assert ".ai-read-deny markers enforce directory protection" in error_msg
+    assert "bypass directory protection" in error_msg
+    assert "delete .ai-read-deny manually" in error_msg
+
+
+# ============================================================================
+# Test: Workaround tip for documentation files (Issue #65)
+# ============================================================================
+
+def test_error_message_includes_workaround_tip_for_write_protected_md_file(policy_checker):
+    """Error message includes tip when writing to protected .md file with ai-guardian in name"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Write",
+            "input": {
+                "file_path": "/home/user/project/.config/ai-guardian/docs/setup.md"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "\U0001f4a1 TIP" in error_msg
+    assert "ai - guardian" in error_msg
+    assert "with spaces" in error_msg
+    assert "Writing ABOUT the tool" in error_msg
+
+
+def test_error_message_for_pip_installed_readme(policy_checker):
+    """Error message for pip-installed README explains it's production code"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/README.md",
+                "old_string": "old",
+                "new_string": "new"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "Pip-installed" in error_msg
+    assert "security controls in production" in error_msg
+    assert "git clone" in error_msg
+    assert "Development source files CAN be edited" in error_msg
+
+
+def test_error_message_includes_workaround_tip_for_protected_txt_in_docs(policy_checker):
+    """Error message includes tip for protected .txt file with ai-guardian in path"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Write",
+            "input": {
+                "file_path": "/home/user/.config/ai-guardian/README.txt"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "\U0001f4a1 TIP" in error_msg
+
+
+NO_TIP_CASES = [
+    pytest.param(
+        "Write",
+        {"file_path": "/home/user/.config/ai-guardian/ai-guardian.json"},
+        id="protected-config-file",
+    ),
+    pytest.param(
+        "Edit",
+        {
+            "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+            "old_string": "old",
+            "new_string": "new",
+        },
+        id="protected-python-source",
+    ),
+    pytest.param(
+        "Write",
+        {"file_path": "/home/user/.claude/hooks.json"},
+        id="ide-settings-no-ai-guardian",
+    ),
+]
+
+
+@pytest.mark.parametrize("tool_name_param,tool_input", NO_TIP_CASES)
+def test_error_message_no_tip_for_non_doc_protected(policy_checker, tool_name_param, tool_input):
+    """Error message should NOT include tip for actual protected config/source/IDE files"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": tool_name_param, "input": tool_input},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "\U0001f4a1 TIP" not in error_msg
+
+
+# ============================================================================
+# Parametrized: Issue #113 - Fail-closed when file_path missing
+# ============================================================================
+
+MISSING_FILE_PATH_CASES = [
+    pytest.param("Edit", {"input": {}}, id="edit-empty-input"),
+    pytest.param("Write", {}, id="write-missing-input"),
+    pytest.param("Read", {"input": {"limit": 100}}, id="read-other-params"),
+    pytest.param("NotebookEdit", {"input": {}}, id="notebookedit-empty-input"),
+]
+
+
+@pytest.mark.parametrize("tool_name_param,tool_use_extra", MISSING_FILE_PATH_CASES)
+def test_blocks_when_file_path_missing_issue_113(policy_checker, tool_name_param, tool_use_extra):
+    """
+    Issue #113: AI cannot bypass IMMUTABLE checks by sending malformed tool_input.
+    For file-path tools, fail-closed (block) if file_path is missing.
+    """
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": tool_name_param, **tool_use_extra},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"{tool_name_param} with missing file_path should be blocked"
+    assert error_msg is not None, "Error message should be provided"
+    assert "Missing required parameter" in error_msg
+    assert "file_path" in error_msg
+
+
+# ============================================================================
+# Test: Read error message mentions MCP alternative (Issue #512)
+# ============================================================================
+
+def test_read_error_message_mentions_mcp_alternative(policy_checker):
+    """Read error message should suggest MCP tools as safe alternative"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Read",
+            "input": {
+                "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "MCP tools" in error_msg
+    assert "get_config()" in error_msg
+    assert "get_violations()" in error_msg
+    assert "doctor()" in error_msg
+
+
+def test_read_error_message_for_state_file(policy_checker):
+    """Read error message for state files should mention violations/logs"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Read",
+            "input": {
+                "file_path": "/home/user/.local/state/ai-guardian/violations.jsonl"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "security state" in error_msg
+    assert "detection results" in error_msg
+
+
+def test_read_error_message_for_cache_file(policy_checker):
+    """Read error message for cache files should mention patterns"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Read",
+            "input": {
+                "file_path": "/home/user/.cache/ai-guardian/patterns.toml"
+            }
+        }
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed
+    assert "cached security patterns" in error_msg
+    assert "detection logic" in error_msg
 
 
 if __name__ == '__main__':
-    import unittest
-    unittest.main()
+    pytest.main([__file__])

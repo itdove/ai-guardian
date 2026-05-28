@@ -97,30 +97,15 @@ class TestTrayPauseRoutesLocalThroughMultiClient:
         mc.send_pause.assert_not_called()
         pause_cb.assert_not_called()
 
-    def test_pause_local_routes_via_multi_client(self):
-        mc = mock.MagicMock()
-        local_target = DaemonTarget(name="local", runtime="local", status="running")
-        pause_cb = mock.MagicMock()
-
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=pause_cb,
-            multi_client=mc,
-        )
-        tray._targets = [local_target]
-
-        # Directly test the routing logic that _pause_action uses
-        t = tray._targets[0]
-        if tray._multi_client:
-            tray._multi_client.send_pause(t, 5)
-        else:
-            tray._pause(5)
-
-        mc.send_pause.assert_called_once_with(local_target, 5)
-        pause_cb.assert_not_called()
-
-    def test_resume_local_routes_via_multi_client(self):
+    @pytest.mark.parametrize(
+        "action, mc_method, extra_args",
+        [
+            ("pause", "send_pause", (5,)),
+            ("resume", "send_resume", ()),
+        ],
+        ids=["pause", "resume"],
+    )
+    def test_local_routes_via_multi_client(self, action, mc_method, extra_args):
         mc = mock.MagicMock()
         local_target = DaemonTarget(name="local", runtime="local", status="running")
         pause_cb = mock.MagicMock()
@@ -134,12 +119,9 @@ class TestTrayPauseRoutesLocalThroughMultiClient:
         tray._targets = [local_target]
 
         t = tray._targets[0]
-        if tray._multi_client:
-            tray._multi_client.send_resume(t)
-        else:
-            tray._pause(0)
+        getattr(tray._multi_client, mc_method)(t, *extra_args)
 
-        mc.send_resume.assert_called_once_with(local_target)
+        getattr(mc, mc_method).assert_called_once_with(local_target, *extra_args)
         pause_cb.assert_not_called()
 
     def test_pause_falls_back_to_callback_without_multi_client(self):
@@ -163,51 +145,45 @@ class TestTrayPauseRoutesLocalThroughMultiClient:
 
 
 class TestFlashReload:
-    def test_flash_reload_is_noop(self):
+    @pytest.mark.parametrize("status", ["running", "paused"],
+                             ids=["running", "paused"])
+    def test_flash_reload_preserves_status(self, status):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        tray._status = "running"
+        tray._status = status
         tray.flash_reload()
-        assert tray._status == "running"
-
-    def test_flash_reload_preserves_paused(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._status = "paused"
-        tray.flash_reload()
-        assert tray._status == "paused"
+        assert tray._status == status
 
 
 class TestFormatTimeAgo:
-    def test_seconds(self):
-        assert DaemonTray._format_time_ago(30) == "30s ago"
-
-    def test_minutes(self):
-        assert DaemonTray._format_time_ago(120) == "2m ago"
-
-    def test_hours(self):
-        assert DaemonTray._format_time_ago(7200) == "2h ago"
-
-    def test_days(self):
-        assert DaemonTray._format_time_ago(172800) == "2d ago"
-
-    def test_none(self):
-        assert DaemonTray._format_time_ago(None) == ""
-
-    def test_zero(self):
-        assert DaemonTray._format_time_ago(0) == "0s ago"
-
-    def test_just_under_minute(self):
-        assert DaemonTray._format_time_ago(59) == "59s ago"
-
-    def test_exactly_one_minute(self):
-        assert DaemonTray._format_time_ago(60) == "1m ago"
+    @pytest.mark.parametrize(
+        "seconds, expected",
+        [
+            (30, "30s ago"),
+            (120, "2m ago"),
+            (7200, "2h ago"),
+            (172800, "2d ago"),
+            (None, ""),
+            (0, "0s ago"),
+            (59, "59s ago"),
+            (60, "1m ago"),
+        ],
+        ids=[
+            "seconds",
+            "minutes",
+            "hours",
+            "days",
+            "none",
+            "zero",
+            "just-under-minute",
+            "exactly-one-minute",
+        ],
+    )
+    def test_format_time_ago(self, seconds, expected):
+        assert DaemonTray._format_time_ago(seconds) == expected
 
 
 class TestCrossPlatform:
@@ -431,28 +407,23 @@ class TestDaemonTrayIcon:
 class TestIconInversion:
     """Tests for dark icon on light GNOME panels (issue #754)."""
 
-    def test_needs_dark_icon_false_on_macos(self):
-        with mock.patch("platform.system", return_value="Darwin"):
-            assert DaemonTray._needs_dark_icon() is False
-
-    def test_needs_dark_icon_false_on_kde(self):
-        with mock.patch("platform.system", return_value="Linux"), \
-             mock.patch.dict("os.environ", {"XDG_CURRENT_DESKTOP": "KDE"}):
-            assert DaemonTray._needs_dark_icon() is False
-
-    def test_needs_dark_icon_true_on_gnome_light(self):
-        with mock.patch("platform.system", return_value="Linux"), \
-             mock.patch.dict("os.environ", {"XDG_CURRENT_DESKTOP": "GNOME"}), \
+    @pytest.mark.parametrize(
+        "platform_name, env, gsettings_stdout, expected",
+        [
+            ("Darwin", {}, None, False),
+            ("Linux", {"XDG_CURRENT_DESKTOP": "KDE"}, None, False),
+            ("Linux", {"XDG_CURRENT_DESKTOP": "GNOME"}, "'default'\n", True),
+            ("Linux", {"XDG_CURRENT_DESKTOP": "GNOME"}, "'prefer-dark'\n", False),
+        ],
+        ids=["macos", "kde", "gnome-light", "gnome-dark"],
+    )
+    def test_needs_dark_icon(self, platform_name, env, gsettings_stdout, expected):
+        with mock.patch("platform.system", return_value=platform_name), \
+             mock.patch.dict("os.environ", env, clear=False), \
              mock.patch("subprocess.run") as mock_run:
-            mock_run.return_value = mock.MagicMock(stdout="'default'\n")
-            assert DaemonTray._needs_dark_icon() is True
-
-    def test_needs_dark_icon_false_on_gnome_dark(self):
-        with mock.patch("platform.system", return_value="Linux"), \
-             mock.patch.dict("os.environ", {"XDG_CURRENT_DESKTOP": "GNOME"}), \
-             mock.patch("subprocess.run") as mock_run:
-            mock_run.return_value = mock.MagicMock(stdout="'prefer-dark'\n")
-            assert DaemonTray._needs_dark_icon() is False
+            if gsettings_stdout is not None:
+                mock_run.return_value = mock.MagicMock(stdout=gsettings_stdout)
+            assert DaemonTray._needs_dark_icon() is expected
 
     @pytest.mark.skipif(not is_tray_available(), reason="Pillow not installed")
     def test_invert_icon_makes_dark(self):
@@ -628,27 +599,34 @@ class TestSingleDaemonFlatMenu:
         assert tray._is_multi_daemon() is True
         assert tray._is_single_daemon() is False
 
-    def test_daemon_status_label_running(self):
-        t = DaemonTarget(name="my-host", runtime="local", status="running")
-        label = DaemonTray._daemon_status_label(t)
-        assert label == "● my-host"
+    @pytest.mark.parametrize(
+        "target_kwargs, expected_label",
+        [
+            (
+                dict(name="my-host", runtime="local", status="running"),
+                "● my-host",
+            ),
+            (
+                dict(name="sandbox", runtime="container",
+                     container_engine="podman", status="running"),
+                "● sandbox (podman)",
+            ),
+            (
+                dict(name="k8s-pod", runtime="kubernetes", status="running"),
+                "● k8s-pod (kubernetes)",
+            ),
+        ],
+        ids=["local-running", "container-running", "kubernetes-running"],
+    )
+    def test_daemon_status_label(self, target_kwargs, expected_label):
+        t = DaemonTarget(**target_kwargs)
+        assert DaemonTray._daemon_status_label(t) == expected_label
 
     def test_daemon_status_label_stopped(self):
         t = DaemonTarget(name="my-host", runtime="local", status="stopped")
         label = DaemonTray._daemon_status_label(t)
         assert "⚠" in label
         assert "daemon not running" in label
-
-    def test_daemon_status_label_container(self):
-        t = DaemonTarget(name="sandbox", runtime="container",
-                         container_engine="podman", status="running")
-        label = DaemonTray._daemon_status_label(t)
-        assert "● sandbox (podman)" == label
-
-    def test_daemon_status_label_kubernetes(self):
-        t = DaemonTarget(name="k8s-pod", runtime="kubernetes", status="running")
-        label = DaemonTray._daemon_status_label(t)
-        assert "● k8s-pod (kubernetes)" == label
 
     def test_flat_menu_with_single_container_target(self):
         """Single container daemon uses flat layout — same as local."""
@@ -893,41 +871,29 @@ class TestUpdateStatusPauseTimer:
 class TestSyncPauseState:
     """Tests for _sync_pause_state() detecting external pause/resume (issue #684)."""
 
-    def test_sync_detects_external_pause(self):
+    @pytest.mark.parametrize(
+        "stats, initial_status, expected_call",
+        [
+            ({"paused": True, "pause_remaining_seconds": 120}, "running", "paused"),
+            ({"paused": False}, "paused", "running"),
+            ({"paused": True}, "paused", None),
+        ],
+        ids=["external-pause", "external-resume", "no-change-already-paused"],
+    )
+    def test_sync_pause_state(self, stats, initial_status, expected_call):
         tray = DaemonTray(
-            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 120},
+            get_stats_callback=lambda: stats,
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
         tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
-        tray._status = "running"
+        tray._status = initial_status
         with mock.patch.object(tray, "update_status") as mock_update:
             tray._sync_pause_state()
-            mock_update.assert_called_once_with("paused")
-
-    def test_sync_detects_external_resume(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"paused": False},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
-        tray._status = "paused"
-        with mock.patch.object(tray, "update_status") as mock_update:
-            tray._sync_pause_state()
-            mock_update.assert_called_once_with("running")
-
-    def test_sync_no_change_when_already_paused(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {"paused": True},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._targets = [DaemonTarget(name="local", runtime="local", status="running")]
-        tray._status = "paused"
-        with mock.patch.object(tray, "update_status") as mock_update:
-            tray._sync_pause_state()
-            mock_update.assert_not_called()
+            if expected_call is not None:
+                mock_update.assert_called_once_with(expected_call)
+            else:
+                mock_update.assert_not_called()
 
 
 class TestPausedTargetMenuVisibility:
@@ -1376,23 +1342,15 @@ class TestWakeDetection:
 
         assert len(rebuild_calls) == 0
 
-    def test_register_wake_handler_non_darwin_is_noop(self):
+    @pytest.mark.parametrize("platform_name", ["Linux", "Windows"],
+                             ids=["linux", "windows"])
+    def test_register_wake_handler_non_darwin_is_noop(self, platform_name):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("platform.system", return_value="Linux"):
-            tray._register_wake_handler()
-        assert tray._wake_observer is None
-
-    def test_register_wake_handler_windows_is_noop(self):
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        with mock.patch("platform.system", return_value="Windows"):
+        with mock.patch("platform.system", return_value=platform_name):
             tray._register_wake_handler()
         assert tray._wake_observer is None
 
@@ -1888,22 +1846,21 @@ class TestShellMenuItem:
                 tray._launch_shell()
             mock_shell.assert_called_once()
 
-    def test_launch_shell_uses_shell_env(self):
-        """_launch_shell opens user's $SHELL in a terminal."""
-        with mock.patch("os.environ", {"SHELL": "/bin/zsh"}):
+    @pytest.mark.parametrize(
+        "env, expected_shell",
+        [
+            ({"SHELL": "/bin/zsh"}, "/bin/zsh"),
+            ({}, "/bin/sh"),
+        ],
+        ids=["shell-env-set", "shell-env-unset"],
+    )
+    def test_launch_shell_resolves_shell(self, env, expected_shell):
+        """_launch_shell uses $SHELL or defaults to /bin/sh."""
+        with mock.patch.dict("os.environ", env, clear=True):
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 DaemonTray._launch_shell()
                 mock_launch.assert_called_once_with(
-                    ["/bin/zsh"], keep_open=True, cwd=None,
-                )
-
-    def test_launch_shell_defaults_to_sh(self):
-        """_launch_shell defaults to /bin/sh when SHELL not set."""
-        with mock.patch.dict("os.environ", {}, clear=True):
-            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-                DaemonTray._launch_shell()
-                mock_launch.assert_called_once_with(
-                    ["/bin/sh"], keep_open=True, cwd=None,
+                    [expected_shell], keep_open=True, cwd=None,
                 )
 
     def test_launch_shell_passes_cwd(self):
@@ -2546,23 +2503,27 @@ class TestAboutMenuItem:
 class TestVersionMismatchDetection:
     """Tests for version mismatch detection between tray and daemons (issue #766)."""
 
-    def test_parse_version_tuple_basic(self):
-        assert DaemonTray._parse_version_tuple("1.9.0") == (1, 9, 0)
-
-    def test_parse_version_tuple_dev_suffix(self):
-        assert DaemonTray._parse_version_tuple("1.9.0-dev") == (1, 9, 0)
-
-    def test_parse_version_tuple_with_v_prefix(self):
-        assert DaemonTray._parse_version_tuple("v1.9.0") == (1, 9, 0)
-
-    def test_parse_version_tuple_invalid(self):
-        assert DaemonTray._parse_version_tuple("unknown") is None
-
-    def test_parse_version_tuple_none(self):
-        assert DaemonTray._parse_version_tuple(None) is None
-
-    def test_parse_version_tuple_empty(self):
-        assert DaemonTray._parse_version_tuple("") is None
+    @pytest.mark.parametrize(
+        "version_str, expected",
+        [
+            ("1.9.0", (1, 9, 0)),
+            ("1.9.0-dev", (1, 9, 0)),
+            ("v1.9.0", (1, 9, 0)),
+            ("unknown", None),
+            (None, None),
+            ("", None),
+        ],
+        ids=[
+            "basic",
+            "dev-suffix",
+            "v-prefix",
+            "invalid",
+            "none",
+            "empty",
+        ],
+    )
+    def test_parse_version_tuple(self, version_str, expected):
+        assert DaemonTray._parse_version_tuple(version_str) == expected
 
     def test_no_warning_when_versions_match(self):
         tray = DaemonTray(
@@ -3298,17 +3259,12 @@ class TestMultiTargetExecution:
         assert t2 in result
         assert t3 in result
 
-    def test_resolve_target_list_containers_empty(self):
+    @pytest.mark.parametrize("mode", ["containers", "bogus"],
+                             ids=["containers-no-match", "unknown-mode"])
+    def test_resolve_target_list_returns_empty(self, mode):
         tray = self._make_tray()
         tray._targets = [DaemonTarget(name="a", runtime="local")]
-        result = tray._resolve_target_list("containers")
-        assert result == []
-
-    def test_resolve_target_list_unknown_mode(self):
-        tray = self._make_tray()
-        tray._targets = [DaemonTarget(name="a", runtime="local")]
-        result = tray._resolve_target_list("bogus")
-        assert result == []
+        assert tray._resolve_target_list(mode) == []
 
     @mock.patch.object(DaemonTray, "_execute_plugin_command")
     def test_execute_multi_target_command(self, mock_exec):

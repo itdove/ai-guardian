@@ -98,9 +98,16 @@ class TestLogDirectoryBlockingViolationReason:
 class TestCheckDirectoryDeniedViolationReason:
     """Integration tests: check_directory_denied passes correct reason to violation logger."""
 
+    @pytest.mark.parametrize(
+        "action_mode",
+        [
+            pytest.param("block", id="block-mode"),
+            pytest.param("warn", id="warn-mode"),
+        ],
+    )
     @mock.patch('ai_guardian.hook_processing.ViolationLogger')
     @mock.patch('ai_guardian.hook_processing.HAS_VIOLATION_LOGGER', True)
-    def test_marker_violation_logs_marker_reason(self, mock_vl_class):
+    def test_marker_violation_logs_marker_reason(self, mock_vl_class, action_mode):
         """Violation triggered by .ai-read-deny marker should log marker reason."""
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -117,7 +124,7 @@ class TestCheckDirectoryDeniedViolationReason:
             with open(test_file, 'w') as f:
                 f.write("secret")
 
-            config = {"directory_rules": {"action": "block", "rules": []}}
+            config = {"directory_rules": {"action": action_mode, "rules": []}}
             check_directory_denied(test_file, config)
 
         mock_logger.log_violation.assert_called_once()
@@ -127,10 +134,18 @@ class TestCheckDirectoryDeniedViolationReason:
         suggestion = call_kwargs.kwargs.get("suggestion", call_kwargs[1].get("suggestion"))
         assert suggestion["action"] == "remove_deny_marker"
 
+    @pytest.mark.parametrize(
+        "action_mode",
+        [
+            pytest.param("block", id="block-mode"),
+            pytest.param("warn", id="warn-mode"),
+            pytest.param("log-only", id="log-only-mode"),
+        ],
+    )
     @mock.patch('ai_guardian.hook_processing.ViolationLogger')
     @mock.patch('ai_guardian.hook_processing.HAS_VIOLATION_LOGGER', True)
-    def test_directory_rule_violation_logs_rule_reason(self, mock_vl_class):
-        """Violation triggered by directory rules should log rule reason with pattern."""
+    def test_directory_rule_violation_logs_rule_reason(self, mock_vl_class, action_mode):
+        """Violations from directory rules should log rule reason with pattern."""
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
 
@@ -143,39 +158,7 @@ class TestCheckDirectoryDeniedViolationReason:
 
             config = {
                 "directory_rules": {
-                    "action": "block",
-                    "rules": [
-                        {"mode": "deny", "paths": [f"{tmpdir}/**"]}
-                    ]
-                }
-            }
-            check_directory_denied(test_file, config)
-
-        mock_logger.log_violation.assert_called_once()
-        call_kwargs = mock_logger.log_violation.call_args
-        blocked = call_kwargs.kwargs.get("blocked", call_kwargs[1].get("blocked"))
-        assert "denied by directory rule:" in blocked["reason"]
-        assert tmpdir in blocked["reason"]
-        suggestion = call_kwargs.kwargs.get("suggestion", call_kwargs[1].get("suggestion"))
-        assert suggestion["action"] == "update_directory_rules"
-
-    @mock.patch('ai_guardian.hook_processing.ViolationLogger')
-    @mock.patch('ai_guardian.hook_processing.HAS_VIOLATION_LOGGER', True)
-    def test_directory_rule_warn_mode_logs_rule_reason(self, mock_vl_class):
-        """Warn-mode violations from rules should also log rule reason."""
-        mock_logger = mock.MagicMock()
-        mock_vl_class.return_value = mock_logger
-
-        from ai_guardian import check_directory_denied
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            test_file = os.path.join(tmpdir, "secret.txt")
-            with open(test_file, 'w') as f:
-                f.write("secret")
-
-            config = {
-                "directory_rules": {
-                    "action": "warn",
+                    "action": action_mode,
                     "rules": [
                         {"mode": "deny", "paths": [f"{tmpdir}/**"]}
                     ]
@@ -189,63 +172,3 @@ class TestCheckDirectoryDeniedViolationReason:
         assert "denied by directory rule:" in blocked["reason"]
         suggestion = call_kwargs.kwargs.get("suggestion", call_kwargs[1].get("suggestion"))
         assert suggestion["action"] == "update_directory_rules"
-
-    @mock.patch('ai_guardian.hook_processing.ViolationLogger')
-    @mock.patch('ai_guardian.hook_processing.HAS_VIOLATION_LOGGER', True)
-    def test_directory_rule_logonly_mode_logs_rule_reason(self, mock_vl_class):
-        """Log-only mode violations from rules should also log rule reason."""
-        mock_logger = mock.MagicMock()
-        mock_vl_class.return_value = mock_logger
-
-        from ai_guardian import check_directory_denied
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            test_file = os.path.join(tmpdir, "secret.txt")
-            with open(test_file, 'w') as f:
-                f.write("secret")
-
-            config = {
-                "directory_rules": {
-                    "action": "log-only",
-                    "rules": [
-                        {"mode": "deny", "paths": [f"{tmpdir}/**"]}
-                    ]
-                }
-            }
-            check_directory_denied(test_file, config)
-
-        mock_logger.log_violation.assert_called_once()
-        call_kwargs = mock_logger.log_violation.call_args
-        blocked = call_kwargs.kwargs.get("blocked", call_kwargs[1].get("blocked"))
-        assert "denied by directory rule:" in blocked["reason"]
-        suggestion = call_kwargs.kwargs.get("suggestion", call_kwargs[1].get("suggestion"))
-        assert suggestion["action"] == "update_directory_rules"
-
-    @mock.patch('ai_guardian.hook_processing.ViolationLogger')
-    @mock.patch('ai_guardian.hook_processing.HAS_VIOLATION_LOGGER', True)
-    def test_marker_warn_mode_logs_marker_reason(self, mock_vl_class):
-        """Warn-mode violations from markers should log marker reason."""
-        mock_logger = mock.MagicMock()
-        mock_vl_class.return_value = mock_logger
-
-        from ai_guardian import check_directory_denied
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            denied_dir = os.path.join(tmpdir, "denied")
-            os.makedirs(denied_dir)
-            marker = os.path.join(denied_dir, ".ai-read-deny")
-            with open(marker, 'w') as f:
-                f.write("")
-            test_file = os.path.join(denied_dir, "secret.txt")
-            with open(test_file, 'w') as f:
-                f.write("secret")
-
-            config = {"directory_rules": {"action": "warn", "rules": []}}
-            check_directory_denied(test_file, config)
-
-        mock_logger.log_violation.assert_called_once()
-        call_kwargs = mock_logger.log_violation.call_args
-        blocked = call_kwargs.kwargs.get("blocked", call_kwargs[1].get("blocked"))
-        assert blocked["reason"] == ".ai-read-deny marker found"
-        suggestion = call_kwargs.kwargs.get("suggestion", call_kwargs[1].get("suggestion"))
-        assert suggestion["action"] == "remove_deny_marker"

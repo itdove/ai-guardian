@@ -2,8 +2,10 @@
 
 import json
 import os
+from pathlib import Path
 from unittest import mock
 
+import jsonschema
 import pytest
 
 from ai_guardian.daemon.tray_plugins import (
@@ -282,35 +284,32 @@ class TestResolveCommand:
     def test_string_command_returned_as_is(self):
         assert resolve_command("echo hello") == "echo hello"
 
-    def test_platform_map_returns_darwin_on_macos(self):
+    @pytest.mark.parametrize(
+        "platform_name, cmd_map, expected",
+        [
+            ("Darwin", {"darwin": "open .", "linux": "xdg-open ."}, "open ."),
+            ("Linux", {"darwin": "open .", "linux": "xdg-open ."}, "xdg-open ."),
+            ("Windows", {"windows": "start .", "linux": "xdg-open ."}, "start ."),
+            ("Linux", {"darwin": "open .", "default": "xdg-open ."}, "xdg-open ."),
+            ("Linux", {"darwin": "open .", "windows": "start ."}, None),
+            ("Darwin", {"darwin": "open ."}, "open ."),
+            ("Darwin", {"darwin": "", "default": "fallback"}, ""),
+        ],
+        ids=[
+            "darwin_on_macos",
+            "linux",
+            "windows",
+            "falls_back_to_default",
+            "no_match_returns_none",
+            "platform_key_is_lowercase",
+            "empty_string_not_falsy_fallthrough",
+        ],
+    )
+    def test_platform_map_resolution(self, platform_name, cmd_map, expected):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Darwin"
-            result = resolve_command({"darwin": "open .", "linux": "xdg-open ."})
-            assert result == "open ."
-
-    def test_platform_map_returns_linux(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Linux"
-            result = resolve_command({"darwin": "open .", "linux": "xdg-open ."})
-            assert result == "xdg-open ."
-
-    def test_platform_map_returns_windows(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Windows"
-            result = resolve_command({"windows": "start .", "linux": "xdg-open ."})
-            assert result == "start ."
-
-    def test_platform_map_falls_back_to_default(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Linux"
-            result = resolve_command({"darwin": "open .", "default": "xdg-open ."})
-            assert result == "xdg-open ."
-
-    def test_platform_map_returns_none_when_no_match(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Linux"
-            result = resolve_command({"darwin": "open .", "windows": "start ."})
-            assert result is None
+            m.system.return_value = platform_name
+            result = resolve_command(cmd_map)
+            assert result == expected
 
     def test_platform_map_returns_none_when_empty_dict(self):
         assert resolve_command({}) is None
@@ -318,61 +317,43 @@ class TestResolveCommand:
     def test_non_dict_non_string_returns_none(self):
         assert resolve_command(42) is None
 
-    def test_platform_key_is_lowercase(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Darwin"
-            result = resolve_command({"darwin": "open ."})
-            assert result == "open ."
-
-    def test_empty_string_platform_value_not_falsy_fallthrough(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
-            m.system.return_value = "Darwin"
-            result = resolve_command({"darwin": "", "default": "fallback"})
-            assert result == ""
-
 
 class TestSubstituteParams:
-    def test_substitutes_single_param(self):
-        result = substitute_params("echo {tray.msg}", {"msg": "hello"})
-        assert result == "echo hello"
-
-    def test_substitutes_multiple_params(self):
-        result = substitute_params(
-            "deploy --branch {tray.branch} --env {tray.env}",
-            {"branch": "main", "env": "prod"},
-        )
-        assert result == "deploy --branch main --env prod"
-
-    def test_missing_param_replaced_with_empty(self):
-        result = substitute_params("echo {tray.missing}", {})
-        assert result == "echo "
-
-    def test_no_params_returns_original(self):
-        result = substitute_params("echo hello", {})
-        assert result == "echo hello"
-
-    def test_extra_values_ignored(self):
-        result = substitute_params("echo {tray.a}", {"a": "1", "b": "2"})
-        assert result == "echo 1"
-
-    def test_partial_params_fills_known_clears_unknown(self):
-        result = substitute_params("{tray.a} and {tray.b}", {"a": "yes"})
-        assert result == "yes and "
-
-    def test_non_tray_braces_left_untouched(self):
-        result = substitute_params("echo {json} and {tray.name}", {"name": "hi"})
-        assert result == "echo {json} and hi"
-
-    def test_shell_variables_left_untouched(self):
-        result = substitute_params("echo $HOME {tray.x}", {"x": "val"})
-        assert result == "echo $HOME val"
-
-    def test_tray_working_dir_substituted(self):
-        result = substitute_params(
-            "cd {tray.working_dir} && make",
-            {"working_dir": "/home/user/project"},
-        )
-        assert result == "cd /home/user/project && make"
+    @pytest.mark.parametrize(
+        "template, params, expected",
+        [
+            ("echo {tray.msg}", {"msg": "hello"}, "echo hello"),
+            (
+                "deploy --branch {tray.branch} --env {tray.env}",
+                {"branch": "main", "env": "prod"},
+                "deploy --branch main --env prod",
+            ),
+            ("echo {tray.missing}", {}, "echo "),
+            ("echo hello", {}, "echo hello"),
+            ("echo {tray.a}", {"a": "1", "b": "2"}, "echo 1"),
+            ("{tray.a} and {tray.b}", {"a": "yes"}, "yes and "),
+            ("echo {json} and {tray.name}", {"name": "hi"}, "echo {json} and hi"),
+            ("echo $HOME {tray.x}", {"x": "val"}, "echo $HOME val"),
+            (
+                "cd {tray.working_dir} && make",
+                {"working_dir": "/home/user/project"},
+                "cd /home/user/project && make",
+            ),
+        ],
+        ids=[
+            "single_param",
+            "multiple_params",
+            "missing_param_replaced_with_empty",
+            "no_params_returns_original",
+            "extra_values_ignored",
+            "partial_params_fills_known_clears_unknown",
+            "non_tray_braces_left_untouched",
+            "shell_variables_left_untouched",
+            "tray_working_dir_substituted",
+        ],
+    )
+    def test_substitute_params(self, template, params, expected):
+        assert substitute_params(template, params) == expected
 
 
 class TestSubstituteTargetVars:
@@ -391,119 +372,95 @@ class TestSubstituteTargetVars:
         defaults.update(kwargs)
         return DaemonTarget(**defaults)
 
-    def test_substitutes_container_id(self):
-        target = self._make_target()
-        result = substitute_target_vars("podman logs {container_id}", target)
-        assert result == "podman logs a1b2c3d4e5f6a1b2"
-
-    def test_substitutes_host_and_port(self):
-        target = self._make_target()
-        result = substitute_target_vars("curl http://{host}:{port}/api/health", target)
-        assert result == "curl http://192.168.1.10:63152/api/health"
-
-    def test_substitutes_name(self):
-        target = self._make_target()
-        result = substitute_target_vars("echo {name}", target)
-        assert result == "echo test-daemon"
-
-    def test_substitutes_container_engine(self):
-        target = self._make_target(container_engine="docker")
-        result = substitute_target_vars("{container_engine} ps", target)
-        assert result == "docker ps"
-
-    def test_substitutes_pod_name_and_namespace(self):
-        target = self._make_target()
-        result = substitute_target_vars(
-            "kubectl logs {pod_name} -n {namespace}", target,
-        )
-        assert result == "kubectl logs guardian-pod-1 -n ai-guardian"
-
-    def test_none_field_becomes_empty(self):
-        target = self._make_target(container_id=None)
-        result = substitute_target_vars("logs {container_id}", target)
-        assert result == "logs "
+    @pytest.mark.parametrize(
+        "template, target_overrides, expected",
+        [
+            ("podman logs {container_id}", {}, "podman logs a1b2c3d4e5f6a1b2"),
+            (
+                "curl http://{host}:{port}/api/health", {},
+                "curl http://192.168.1.10:63152/api/health",
+            ),
+            ("echo {name}", {}, "echo test-daemon"),
+            ("{container_engine} ps", {"container_engine": "docker"}, "docker ps"),
+            (
+                "kubectl logs {pod_name} -n {namespace}", {},
+                "kubectl logs guardian-pod-1 -n ai-guardian",
+            ),
+            ("logs {container_id}", {"container_id": None}, "logs "),
+            (
+                "echo {json} {tray.x} {name}", {},
+                "echo {json} {tray.x} test-daemon",
+            ),
+            (
+                "{container_id} and {container_id}", {},
+                "a1b2c3d4e5f6a1b2 and a1b2c3d4e5f6a1b2",
+            ),
+            (":{port}", {"port": 8080}, ":8080"),
+            ("echo hello world", {}, "echo hello world"),
+            (
+                "cd {working_dir} && make build",
+                {"working_dir": "/home/user/project"},
+                "cd /home/user/project && make build",
+            ),
+            ("cd {working_dir}", {"working_dir": None}, "cd "),
+        ],
+        ids=[
+            "container_id",
+            "host_and_port",
+            "name",
+            "container_engine",
+            "pod_name_and_namespace",
+            "none_field_becomes_empty",
+            "non_target_braces_left_untouched",
+            "multiple_same_variable",
+            "port_converted_to_string",
+            "no_placeholders_returns_original",
+            "working_dir",
+            "working_dir_none_becomes_empty",
+        ],
+    )
+    def test_substitute_target_vars(self, template, target_overrides, expected):
+        target = self._make_target(**target_overrides)
+        assert substitute_target_vars(template, target) == expected
 
     def test_no_target_returns_template_unchanged(self):
         result = substitute_target_vars("echo {container_id}", None)
         assert result == "echo {container_id}"
 
-    def test_non_target_braces_left_untouched(self):
-        target = self._make_target()
-        result = substitute_target_vars("echo {json} {tray.x} {name}", target)
-        assert result == "echo {json} {tray.x} test-daemon"
-
-    def test_multiple_same_variable(self):
-        target = self._make_target()
-        result = substitute_target_vars(
-            "{container_id} and {container_id}", target,
-        )
-        assert result == "a1b2c3d4e5f6a1b2 and a1b2c3d4e5f6a1b2"
-
-    def test_port_converted_to_string(self):
-        target = self._make_target(port=8080)
-        result = substitute_target_vars(":{port}", target)
-        assert result == ":8080"
-
-    def test_no_placeholders_returns_original(self):
-        target = self._make_target()
-        result = substitute_target_vars("echo hello world", target)
-        assert result == "echo hello world"
-
-    def test_substitutes_working_dir(self):
-        target = self._make_target(working_dir="/home/user/project")
-        result = substitute_target_vars(
-            "cd {working_dir} && make build", target,
-        )
-        assert result == "cd /home/user/project && make build"
-
-    def test_working_dir_none_becomes_empty(self):
-        target = self._make_target(working_dir=None)
-        result = substitute_target_vars("cd {working_dir}", target)
-        assert result == "cd "
-
 
 class TestNeedsShell:
     """Tests for _needs_shell shell-operator detection."""
 
-    def test_simple_command(self):
+    @pytest.mark.parametrize(
+        "command, expected",
+        [
+            ("echo hello", False),
+            ("uname -a && lsb_release -a", True),
+            ("ps aux | grep python", True),
+            ("echo hello; echo world", True),
+            ("ai-guardian doctor > /tmp/report.txt", True),
+            ("echo line >> /tmp/log.txt", True),
+            ("cmd1 || cmd2", True),
+            ("wc -l < input.txt", True),
+            ("cat << EOF", True),
+            ("ai-guardian --version", False),
+        ],
+        ids=[
+            "simple_command",
+            "double_ampersand",
+            "pipe",
+            "semicolon",
+            "redirect_out",
+            "redirect_append",
+            "double_pipe",
+            "redirect_in",
+            "heredoc",
+            "no_operators",
+        ],
+    )
+    def test_needs_shell(self, command, expected):
         from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("echo hello") is False
-
-    def test_double_ampersand(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("uname -a && lsb_release -a") is True
-
-    def test_pipe(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("ps aux | grep python") is True
-
-    def test_semicolon(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("echo hello; echo world") is True
-
-    def test_redirect_out(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("ai-guardian doctor > /tmp/report.txt") is True
-
-    def test_redirect_append(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("echo line >> /tmp/log.txt") is True
-
-    def test_double_pipe(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("cmd1 || cmd2") is True
-
-    def test_redirect_in(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("wc -l < input.txt") is True
-
-    def test_heredoc(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("cat << EOF") is True
-
-    def test_no_operators(self):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
-        assert _needs_shell("ai-guardian --version") is False
+        assert _needs_shell(command) is expected
 
 
 class TestWrapForTarget:
@@ -2314,3 +2271,321 @@ class TestLoadMergedPlugins:
         assert len(filtered) == 0
         filtered = filter_plugins_by_tags(result, daemon_tags=["special"])
         assert len(filtered) == 1
+
+
+# --- Merged from test_tray_plugin_schema.py ---
+
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent.parent
+    / "src" / "ai_guardian" / "schemas" / "tray-plugin.schema.json"
+)
+
+
+@pytest.fixture
+def plugin_schema():
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def _validate_schema(instance, schema):
+    jsonschema.validate(instance, schema)
+
+
+class TestValidPluginSchemas:
+    def test_minimal_plugin(self, plugin_schema):
+        _validate_schema({
+            "name": "My Plugin",
+            "items": [{"label": "Hello", "command": "echo hello"}],
+        }, plugin_schema)
+
+    def test_all_fields(self, plugin_schema):
+        _validate_schema({
+            "name": "Full Plugin",
+            "items": [
+                {
+                    "label": "Action",
+                    "command": "echo {tray.name}",
+                    "type": "notification",
+                    "run_on_target": True,
+                    "params": [
+                        {
+                            "name": "name",
+                            "hint": "Your name",
+                            "default": "World",
+                            "options": ["Alice", "Bob"],
+                        }
+                    ],
+                }
+            ],
+        }, plugin_schema)
+
+    def test_platform_map_command(self, plugin_schema):
+        _validate_schema({
+            "name": "Cross-Platform",
+            "items": [
+                {
+                    "label": "Open",
+                    "command": {
+                        "darwin": "open .",
+                        "linux": "xdg-open .",
+                        "windows": "explorer .",
+                        "default": "echo unsupported",
+                    },
+                }
+            ],
+        }, plugin_schema)
+
+    def test_platform_map_single_key(self, plugin_schema):
+        _validate_schema({
+            "name": "Mac Only",
+            "items": [
+                {"label": "Say", "command": {"darwin": "say hello"}},
+            ],
+        }, plugin_schema)
+
+    def test_multiple_items(self, plugin_schema):
+        _validate_schema({
+            "name": "Multi",
+            "items": [
+                {"label": "A", "command": "cmd-a"},
+                {"label": "B", "command": "cmd-b", "type": "background"},
+                {"label": "C", "command": "cmd-c", "type": "clipboard"},
+            ],
+        }, plugin_schema)
+
+    def test_all_execution_types(self, plugin_schema):
+        for exec_type in ("terminal", "background", "notification", "clipboard", "modal"):
+            _validate_schema({
+                "name": "Types",
+                "items": [{"label": "X", "command": "cmd", "type": exec_type}],
+            }, plugin_schema)
+
+    def test_param_minimal(self, plugin_schema):
+        _validate_schema({
+            "name": "P",
+            "items": [
+                {
+                    "label": "X",
+                    "command": "echo {tray.val}",
+                    "params": [{"name": "val"}],
+                }
+            ],
+        }, plugin_schema)
+
+    def test_schema_ref_allowed(self, plugin_schema):
+        _validate_schema({
+            "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/tray-plugin.schema.json",
+            "name": "With Schema Ref",
+            "items": [{"label": "X", "command": "echo ok"}],
+        }, plugin_schema)
+
+
+class TestInvalidPluginSchemas:
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(
+                {"items": [{"label": "X", "command": "cmd"}]},
+                id="missing_name",
+            ),
+            pytest.param(
+                {"name": "", "items": [{"label": "X", "command": "cmd"}]},
+                id="empty_name",
+            ),
+            pytest.param(
+                {"name": "NoItems"},
+                id="missing_items",
+            ),
+            pytest.param(
+                {"name": "Empty", "items": []},
+                id="empty_items",
+            ),
+            pytest.param(
+                {"name": "TooMany", "items": [
+                    {"label": f"Item{i}", "command": f"cmd{i}"} for i in range(13)
+                ]},
+                id="too_many_items",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"command": "cmd"}]},
+                id="missing_label",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X"}]},
+                id="missing_command",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": "cmd", "type": "invalid"}]},
+                id="invalid_type",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": {}}]},
+                id="empty_platform_map",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": {"freebsd": "cmd"}}]},
+                id="unknown_platform_key",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": "cmd"}], "unknown_field": True},
+                id="extra_property_on_root",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": "cmd", "typo": True}]},
+                id="extra_property_on_item",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": "cmd", "params": [{"hint": "no name"}]}]},
+                id="missing_param_name",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": "cmd", "params": [{"name": "x", "extra": True}]}]},
+                id="extra_property_on_param",
+            ),
+            pytest.param(
+                {"name": 123, "items": [{"label": "X", "command": "cmd"}]},
+                id="name_not_string",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": 42}]},
+                id="command_not_string_or_object",
+            ),
+            pytest.param(
+                {"name": "P", "items": [{"label": "X", "command": "cmd", "run_on_target": "yes"}]},
+                id="run_on_target_not_boolean",
+            ),
+        ],
+    )
+    def test_invalid_schema(self, plugin_schema, data):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema(data, plugin_schema)
+
+
+class TestTagsPluginSchema:
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(
+                {"name": "Carbonite", "tags": ["carbonite", "container"],
+                 "items": [{"label": "Status", "command": "echo ok"}]},
+                id="multiple_tags",
+            ),
+            pytest.param(
+                {"name": "Carbonite", "tags": ["carbonite"],
+                 "items": [{"label": "Status", "command": "echo ok"}]},
+                id="single_tag",
+            ),
+            pytest.param(
+                {"name": "Generic", "tags": [],
+                 "items": [{"label": "Run", "command": "echo"}]},
+                id="empty_tags",
+            ),
+            pytest.param(
+                {"name": "Generic",
+                 "items": [{"label": "Run", "command": "echo"}]},
+                id="without_tags",
+            ),
+        ],
+    )
+    def test_valid_tags(self, plugin_schema, data):
+        _validate_schema(data, plugin_schema)
+
+    @pytest.mark.parametrize(
+        "tags_value",
+        [
+            pytest.param([""], id="empty_string"),
+            pytest.param([42], id="non_string"),
+            pytest.param("not-an-array", id="non_array"),
+        ],
+    )
+    def test_invalid_tags(self, plugin_schema, tags_value):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema(
+                {"name": "P", "tags": tags_value,
+                 "items": [{"label": "X", "command": "cmd"}]},
+                plugin_schema,
+            )
+
+
+class TestScopePluginSchema:
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param(
+                {"name": "Quick Links", "scope": "global",
+                 "items": [{"label": "Docs", "command": "echo docs"}]},
+                id="scope_global",
+            ),
+            pytest.param(
+                {"name": "Daemon Plugin", "scope": "daemon",
+                 "items": [{"label": "Status", "command": "echo ok"}]},
+                id="scope_daemon",
+            ),
+            pytest.param(
+                {"name": "No Scope",
+                 "items": [{"label": "Run", "command": "echo"}]},
+                id="without_scope",
+            ),
+            pytest.param(
+                {"name": "Global With Tags", "scope": "global", "tags": ["ignored"],
+                 "items": [{"label": "Docs", "command": "echo"}]},
+                id="global_scope_with_tags",
+            ),
+        ],
+    )
+    def test_valid_scope(self, plugin_schema, data):
+        _validate_schema(data, plugin_schema)
+
+    @pytest.mark.parametrize(
+        "scope_value",
+        [
+            pytest.param("invalid", id="invalid_value"),
+            pytest.param(42, id="non_string"),
+        ],
+    )
+    def test_invalid_scope(self, plugin_schema, scope_value):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema(
+                {"name": "P", "scope": scope_value,
+                 "items": [{"label": "X", "command": "cmd"}]},
+                plugin_schema,
+            )
+
+
+class TestSubmenuPluginSchema:
+    def test_inline_submenu_valid(self, plugin_schema):
+        _validate_schema({"name": "Plugin", "items": [{"label": "Deploy", "items": [{"label": "Dev", "command": "deploy dev"}, {"label": "Prod", "command": "deploy prod"}]}]}, plugin_schema)
+
+    def test_nested_two_levels(self, plugin_schema):
+        _validate_schema({"name": "Plugin", "items": [{"label": "Level 1", "items": [{"label": "Level 2", "items": [{"label": "Leaf", "command": "echo leaf"}]}]}]}, plugin_schema)
+
+    def test_mixed_command_and_submenu(self, plugin_schema):
+        _validate_schema({"name": "Plugin", "items": [{"label": "Simple", "command": "echo hi"}, {"label": "Sub", "items": [{"label": "A", "command": "cmd"}]}]}, plugin_schema)
+
+    def test_submenu_empty_items_rejected(self, plugin_schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema({"name": "P", "items": [{"label": "Empty", "items": []}]}, plugin_schema)
+
+    def test_submenu_missing_label_rejected(self, plugin_schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema({"name": "P", "items": [{"items": [{"label": "A", "command": "cmd"}]}]}, plugin_schema)
+
+
+class TestImportPluginSchema:
+    def test_import_item_valid(self, plugin_schema):
+        _validate_schema({"name": "Plugin", "items": [{"label": "Deploy", "import": "deploy.json"}]}, plugin_schema)
+
+    def test_import_missing_label_rejected(self, plugin_schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema({"name": "P", "items": [{"import": "file.json"}]}, plugin_schema)
+
+    def test_import_empty_string_rejected(self, plugin_schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema({"name": "P", "items": [{"label": "X", "import": ""}]}, plugin_schema)
+
+    def test_command_with_items_rejected(self, plugin_schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema({"name": "P", "items": [{"label": "Bad", "command": "echo", "items": [{"label": "A", "command": "cmd"}]}]}, plugin_schema)
+
+    def test_command_with_import_rejected(self, plugin_schema):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate_schema({"name": "P", "items": [{"label": "Bad", "command": "echo", "import": "f.json"}]}, plugin_schema)

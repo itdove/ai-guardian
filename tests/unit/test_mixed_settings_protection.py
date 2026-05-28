@@ -12,7 +12,7 @@ Bash/PowerShell commands remain fully blocked for all settings files.
 import json
 import os
 import tempfile
-from unittest import TestCase
+import pytest
 
 from ai_guardian.tool_policy import ToolPolicyChecker
 
@@ -27,161 +27,150 @@ def _make_hook_data(tool_name, tool_input):
     }
 
 
-class TestEditAllowsNonHookChanges(TestCase):
+@pytest.fixture
+def checker():
+    return ToolPolicyChecker(config={"permissions": []})
+
+
+# ============================================================================
+# Parametrized: Edit allows non-hook changes in mixed settings files
+# ============================================================================
+
+EDIT_ALLOWS_NON_HOOK = [
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"model": "claude-sonnet-4-5-20250514"',
+        '"model": "claude-opus-4-20250514"',
+        id="claude-model-change",
+    ),
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"allow": []',
+        '"allow": ["npm test"]',
+        id="claude-permission-change",
+    ),
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"mcpServers": {}',
+        '"mcpServers": {"my-server": {"command": "npx"}}',
+        id="claude-mcp-change",
+    ),
+    pytest.param(
+        "/home/user/.gemini/settings.json",
+        '"theme": "dark"',
+        '"theme": "light"',
+        id="gemini-non-hook-change",
+    ),
+    pytest.param(
+        "/home/user/.augment/settings.json",
+        '"model": "gpt-4"',
+        '"model": "claude-sonnet"',
+        id="augment-non-hook-change",
+    ),
+    pytest.param(
+        "C:/Users/user/AppData/Roaming/Claude/settings.json",
+        '"model": "old"',
+        '"model": "new"',
+        id="windows-claude-non-hook-change",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,old_string,new_string", EDIT_ALLOWS_NON_HOOK)
+def test_edit_allows_non_hook_change(checker, file_path, old_string, new_string):
     """Edit tool allows non-hook modifications to mixed settings files."""
-
-    def setUp(self):
-        self.checker = ToolPolicyChecker(config={"permissions": []})
-
-    def test_edit_allows_claude_model_change(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"model": "claude-sonnet-4-5-20250514"',
-            "new_string": '"model": "claude-opus-4-20250514"',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertTrue(allowed, "Non-hook model change should be allowed")
-        self.assertIsNone(msg)
-
-    def test_edit_allows_claude_permission_change(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"allow": []',
-            "new_string": '"allow": ["npm test"]',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertTrue(allowed, "Permission changes should be allowed")
-
-    def test_edit_allows_claude_mcp_change(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"mcpServers": {}',
-            "new_string": '"mcpServers": {"my-server": {"command": "npx"}}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertTrue(allowed, "MCP server changes should be allowed")
-
-    def test_edit_allows_gemini_non_hook_change(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.gemini/settings.json",
-            "old_string": '"theme": "dark"',
-            "new_string": '"theme": "light"',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertTrue(allowed, "Gemini non-hook change should be allowed")
-
-    def test_edit_allows_augment_non_hook_change(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.augment/settings.json",
-            "old_string": '"model": "gpt-4"',
-            "new_string": '"model": "claude-sonnet"',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertTrue(allowed, "Augment non-hook change should be allowed")
-
-    def test_edit_allows_windows_claude_non_hook_change(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "C:/Users/user/AppData/Roaming/Claude/settings.json",
-            "old_string": '"model": "old"',
-            "new_string": '"model": "new"',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertTrue(allowed, "Windows Claude non-hook change should be allowed")
+    hook_data = _make_hook_data("Edit", {
+        "file_path": file_path,
+        "old_string": old_string,
+        "new_string": new_string,
+    })
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert allowed, f"Non-hook change should be allowed: {file_path}"
 
 
-class TestEditBlocksHookChanges(TestCase):
+# ============================================================================
+# Parametrized: Edit blocks hook changes in mixed settings files
+# ============================================================================
+
+EDIT_BLOCKS_HOOK_CHANGES = [
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"hooks": {}',
+        '"hooks": {"PreToolUse": []}',
+        id="claude-hooks-key",
+    ),
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"PreToolUse": [{"matcher": "*"}]',
+        '"PreToolUse": []',
+        id="claude-pretooluse-key",
+    ),
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        'old content',
+        '"PostToolUse": [{"matcher": "*"}]',
+        id="claude-posttooluse-key",
+    ),
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"UserPromptSubmit": [{"matcher": "*"}]',
+        '"UserPromptSubmit": []',
+        id="claude-userpromptsubmit-key",
+    ),
+    pytest.param(
+        "/home/user/.gemini/settings.json",
+        '"hooks": [{"event": "BeforeTool"}]',
+        '"hooks": []',
+        id="gemini-hooks-key",
+    ),
+    pytest.param(
+        "/home/user/.gemini/settings.json",
+        '"BeforeAgent": "ai-guardian"',
+        '"BeforeAgent": "echo ok"',
+        id="gemini-beforeagent",
+    ),
+    pytest.param(
+        "/home/user/.augment/settings.json",
+        '"hooks": {"hooks": {"PreToolUse": []}}',
+        '"hooks": {}',
+        id="augment-hooks-key",
+    ),
+    pytest.param(
+        "C:/Users/user/AppData/Roaming/Claude/settings.json",
+        '"hooks": {}',
+        '"hooks": {"PreToolUse": []}',
+        id="windows-claude-hooks",
+    ),
+    pytest.param(
+        "/home/user/.claude/settings.json",
+        '"command": "ai-guardian"',
+        '"command": "echo bypass"',
+        id="ai-guardian-command-modification",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path,old_string,new_string", EDIT_BLOCKS_HOOK_CHANGES)
+def test_edit_blocks_hook_change(checker, file_path, old_string, new_string):
     """Edit tool blocks hook modifications in mixed settings files."""
-
-    def setUp(self):
-        self.checker = ToolPolicyChecker(config={"permissions": []})
-
-    def test_edit_blocks_hooks_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"hooks": {}',
-            "new_string": '"hooks": {"PreToolUse": []}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Edit with hooks key should be blocked")
-        self.assertIn("Hook Protection", msg)
-
-    def test_edit_blocks_pretooluse_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"PreToolUse": [{"matcher": "*"}]',
-            "new_string": '"PreToolUse": []',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Edit with PreToolUse key should be blocked")
-
-    def test_edit_blocks_posttooluse_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": 'old content',
-            "new_string": '"PostToolUse": [{"matcher": "*"}]',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Edit with PostToolUse key should be blocked")
-
-    def test_edit_blocks_userpromptsubmit_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"UserPromptSubmit": [{"matcher": "*"}]',
-            "new_string": '"UserPromptSubmit": []',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Edit with UserPromptSubmit key should be blocked")
-
-    def test_edit_blocks_gemini_hooks_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.gemini/settings.json",
-            "old_string": '"hooks": [{"event": "BeforeTool"}]',
-            "new_string": '"hooks": []',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Gemini hooks edit should be blocked")
-
-    def test_edit_blocks_gemini_beforeagent(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.gemini/settings.json",
-            "old_string": '"BeforeAgent": "ai-guardian"',
-            "new_string": '"BeforeAgent": "echo ok"',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Gemini BeforeAgent edit should be blocked")
-
-    def test_edit_blocks_augment_hooks_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.augment/settings.json",
-            "old_string": '"hooks": {"hooks": {"PreToolUse": []}}',
-            "new_string": '"hooks": {}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Augment hooks edit should be blocked")
-
-    def test_edit_blocks_windows_claude_hooks(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "C:/Users/user/AppData/Roaming/Claude/settings.json",
-            "old_string": '"hooks": {}',
-            "new_string": '"hooks": {"PreToolUse": []}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Windows Claude hooks edit should be blocked")
-
-    def test_edit_blocks_ai_guardian_command_modification(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"command": "ai-guardian"',
-            "new_string": '"command": "echo bypass"',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Modifying ai-guardian command should be blocked")
+    hook_data = _make_hook_data("Edit", {
+        "file_path": file_path,
+        "old_string": old_string,
+        "new_string": new_string,
+    })
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert not allowed, f"Hook change should be blocked: {file_path}"
 
 
-class TestWriteContentAware(TestCase):
+# ============================================================================
+# Write content-aware tests (unchanged - complex setup with tempfiles)
+# ============================================================================
+
+class TestWriteContentAware:
     """Write tool does content-aware checking for mixed settings files."""
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def _setup(self):
         self.checker = ToolPolicyChecker(config={"permissions": []})
 
     def test_write_allows_unchanged_hooks(self):
@@ -202,14 +191,13 @@ class TestWriteContentAware(TestCase):
                 "content": json.dumps(updated),
             })
 
-            # Patch MIXED_SETTINGS_PATTERNS to match our temp file
             import ai_guardian.tool_policy as tp
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
             try:
                 allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-                self.assertTrue(allowed, "Write with unchanged hooks should be allowed")
-                self.assertIsNone(msg)
+                assert allowed, "Write with unchanged hooks should be allowed"
+                assert msg is None
             finally:
                 tp.MIXED_SETTINGS_PATTERNS = orig_patterns
         finally:
@@ -237,8 +225,8 @@ class TestWriteContentAware(TestCase):
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
             try:
                 allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-                self.assertFalse(allowed, "Write with modified hooks should be blocked")
-                self.assertIn("Hook Protection", msg)
+                assert not allowed, "Write with modified hooks should be blocked"
+                assert "Hook Protection" in msg
             finally:
                 tp.MIXED_SETTINGS_PATTERNS = orig_patterns
         finally:
@@ -266,7 +254,7 @@ class TestWriteContentAware(TestCase):
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
             try:
                 allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-                self.assertFalse(allowed, "Write removing hooks should be blocked")
+                assert not allowed, "Write removing hooks should be blocked"
             finally:
                 tp.MIXED_SETTINGS_PATTERNS = orig_patterns
         finally:
@@ -287,7 +275,7 @@ class TestWriteContentAware(TestCase):
         tp.MIXED_SETTINGS_PATTERNS = ["*"]
         try:
             allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-            self.assertFalse(allowed, "New file with hooks should be blocked")
+            assert not allowed, "New file with hooks should be blocked"
         finally:
             tp.MIXED_SETTINGS_PATTERNS = orig_patterns
 
@@ -306,7 +294,7 @@ class TestWriteContentAware(TestCase):
         tp.MIXED_SETTINGS_PATTERNS = ["*"]
         try:
             allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-            self.assertTrue(allowed, "New file without hooks should be allowed")
+            assert allowed, "New file without hooks should be allowed"
         finally:
             tp.MIXED_SETTINGS_PATTERNS = orig_patterns
 
@@ -316,9 +304,9 @@ class TestWriteContentAware(TestCase):
             "content": "not valid json {{{",
         })
         allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Invalid JSON should fail-closed")
-        self.assertIn("Hook Protection", msg)
-        self.assertIn("cannot parse", msg)
+        assert not allowed, "Invalid JSON should fail-closed"
+        assert "Hook Protection" in msg
+        assert "cannot parse" in msg
 
     def test_write_blocks_empty_content(self):
         hook_data = _make_hook_data("Write", {
@@ -326,178 +314,154 @@ class TestWriteContentAware(TestCase):
             "content": "",
         })
         allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Empty content should fail-closed")
+        assert not allowed, "Empty content should fail-closed"
 
     def test_write_blocks_no_content_key(self):
         hook_data = _make_hook_data("Write", {
             "file_path": "/home/user/.claude/settings.json",
         })
         allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Missing content should fail-closed")
+        assert not allowed, "Missing content should fail-closed"
 
 
-class TestHooksOnlyFilesStillBlocked(TestCase):
+# ============================================================================
+# Parametrized: Hooks-only files remain fully blocked
+# ============================================================================
+
+HOOKS_ONLY_BLOCKED = [
+    pytest.param("Write", "/home/user/.cursor/hooks.json", id="write-cursor-hooks"),
+    pytest.param("Edit", "/home/user/.cursor/hooks.json", id="edit-cursor-hooks"),
+    pytest.param("Write", "/home/user/.claude/hooks.json", id="write-claude-hooks"),
+    pytest.param("Edit", "/home/user/.claude/hooks.json", id="edit-claude-hooks"),
+]
+
+
+@pytest.mark.parametrize("tool_name,file_path", HOOKS_ONLY_BLOCKED)
+def test_hooks_only_files_still_blocked(checker, tool_name, file_path):
     """Hooks-only files remain fully blocked (regression tests)."""
+    tool_input = {"file_path": file_path}
+    if tool_name == "Edit":
+        tool_input.update({"old_string": "old", "new_string": "new"})
 
-    def setUp(self):
-        self.checker = ToolPolicyChecker(config={"permissions": []})
-
-    def test_write_blocks_cursor_hooks(self):
-        hook_data = _make_hook_data("Write", {
-            "file_path": "/home/user/.cursor/hooks.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Cursor hooks.json should still be fully blocked")
-
-    def test_edit_blocks_cursor_hooks(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.cursor/hooks.json",
-            "old_string": "old",
-            "new_string": "new",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Cursor hooks.json edit should still be blocked")
-
-    def test_write_blocks_claude_hooks_json(self):
-        hook_data = _make_hook_data("Write", {
-            "file_path": "/home/user/.claude/hooks.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Claude hooks.json should still be fully blocked")
-
-    def test_edit_blocks_claude_hooks_json(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/hooks.json",
-            "old_string": "old",
-            "new_string": "new",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Claude hooks.json edit should still be blocked")
+    hook_data = _make_hook_data(tool_name, tool_input)
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert not allowed, f"{tool_name} on {file_path} should still be fully blocked"
 
 
-class TestBashStillBlocked(TestCase):
+# ============================================================================
+# Parametrized: Bash blocks on IDE settings files
+# ============================================================================
+
+BASH_BLOCKED_IDE_SETTINGS = [
+    pytest.param(
+        "sed -i 's/ai-guardian//' ~/.claude/settings.json",
+        id="sed-claude-settings",
+    ),
+    pytest.param(
+        "sed -i 's/old/new/' ~/.gemini/settings.json",
+        id="sed-gemini-settings",
+    ),
+    pytest.param(
+        "sed -i 's/old/new/' ~/.augment/settings.json",
+        id="sed-augment-settings",
+    ),
+    pytest.param(
+        "rm ~/.gemini/settings.json",
+        id="rm-gemini-settings",
+    ),
+    pytest.param(
+        "rm ~/.augment/settings.json",
+        id="rm-augment-settings",
+    ),
+    pytest.param(
+        "echo '{}' > ~/.gemini/settings.json",
+        id="redirect-gemini-settings",
+    ),
+    pytest.param(
+        "vim ~/.augment/settings.json",
+        id="vim-augment-settings",
+    ),
+]
+
+
+@pytest.mark.parametrize("command", BASH_BLOCKED_IDE_SETTINGS)
+def test_bash_blocks_ide_settings(checker, command):
     """Bash commands on settings files remain fully blocked."""
-
-    def setUp(self):
-        self.checker = ToolPolicyChecker(config={"permissions": []})
-
-    def test_bash_blocks_sed_claude_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "sed -i 's/ai-guardian//' ~/.claude/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash sed on Claude settings should be blocked")
-
-    def test_bash_blocks_sed_gemini_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "sed -i 's/old/new/' ~/.gemini/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash sed on Gemini settings should be blocked")
-
-    def test_bash_blocks_sed_augment_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "sed -i 's/old/new/' ~/.augment/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash sed on Augment settings should be blocked")
-
-    def test_bash_blocks_rm_gemini_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "rm ~/.gemini/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash rm on Gemini settings should be blocked")
-
-    def test_bash_blocks_rm_augment_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "rm ~/.augment/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash rm on Augment settings should be blocked")
-
-    def test_bash_blocks_redirect_gemini_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "echo '{}' > ~/.gemini/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash redirect on Gemini settings should be blocked")
-
-    def test_bash_blocks_vim_augment_settings(self):
-        hook_data = _make_hook_data("Bash", {
-            "command": "vim ~/.augment/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "Bash vim on Augment settings should be blocked")
+    hook_data = _make_hook_data("Bash", {"command": command})
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert not allowed, f"Bash command should be blocked: {command}"
 
 
-class TestPowerShellStillBlocked(TestCase):
+# ============================================================================
+# PowerShell still blocked (unchanged - only 2 tests)
+# ============================================================================
+
+POWERSHELL_BLOCKED = [
+    pytest.param(
+        "Remove-Item ~/.gemini/settings.json",
+        id="remove-item-gemini",
+    ),
+    pytest.param(
+        "Set-Content ~/.augment/settings.json '{}'",
+        id="set-content-augment",
+    ),
+]
+
+
+@pytest.mark.parametrize("command", POWERSHELL_BLOCKED)
+def test_powershell_blocks_settings(checker, command):
     """PowerShell commands on settings files remain fully blocked."""
-
-    def setUp(self):
-        self.checker = ToolPolicyChecker(config={"permissions": []})
-
-    def test_powershell_blocks_gemini_settings(self):
-        hook_data = _make_hook_data("PowerShell", {
-            "command": "Remove-Item ~/.gemini/settings.json",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "PowerShell Remove-Item on Gemini settings should be blocked")
-
-    def test_powershell_blocks_augment_settings(self):
-        hook_data = _make_hook_data("PowerShell", {
-            "command": "Set-Content ~/.augment/settings.json '{}'",
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed, "PowerShell Set-Content on Augment settings should be blocked")
+    hook_data = _make_hook_data("PowerShell", {"command": command})
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert not allowed, f"PowerShell command should be blocked: {command}"
 
 
-class TestHookProtectionErrorMessage(TestCase):
-    """Hook protection error messages are helpful."""
+# ============================================================================
+# Hook protection error messages
+# ============================================================================
 
-    def setUp(self):
-        self.checker = ToolPolicyChecker(config={"permissions": []})
+def test_message_mentions_non_hook_settings_allowed(checker):
+    hook_data = _make_hook_data("Edit", {
+        "file_path": "/home/user/.claude/settings.json",
+        "old_string": '"hooks": {}',
+        "new_string": '"hooks": {"PreToolUse": []}',
+    })
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert not allowed
+    assert "Non-hook settings" in msg
+    assert "CAN be modified" in msg
 
-    def test_message_mentions_non_hook_settings_allowed(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"hooks": {}',
-            "new_string": '"hooks": {"PreToolUse": []}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertFalse(allowed)
-        self.assertIn("Non-hook settings", msg)
-        self.assertIn("CAN be modified", msg)
 
-    def test_message_mentions_hooks_key(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"hooks": {}',
-            "new_string": '"hooks": {"PreToolUse": []}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertIn("hook", msg.lower())
-        self.assertIn("Hook Protection", msg)
+def test_message_mentions_hooks_key(checker):
+    hook_data = _make_hook_data("Edit", {
+        "file_path": "/home/user/.claude/settings.json",
+        "old_string": '"hooks": {}',
+        "new_string": '"hooks": {"PreToolUse": []}',
+    })
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert "hook" in msg.lower()
+    assert "Hook Protection" in msg
 
-    def test_message_file_path_shown(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"hooks": {}',
-            "new_string": '"hooks": {"PreToolUse": []}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertIn("/home/user/.claude/settings.json", msg)
 
-    def test_message_immutable_warning(self):
-        hook_data = _make_hook_data("Edit", {
-            "file_path": "/home/user/.claude/settings.json",
-            "old_string": '"hooks": {}',
-            "new_string": '"hooks": {"PreToolUse": []}',
-        })
-        allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
-        self.assertIn("cannot be disabled via configuration", msg)
+def test_message_file_path_shown(checker):
+    hook_data = _make_hook_data("Edit", {
+        "file_path": "/home/user/.claude/settings.json",
+        "old_string": '"hooks": {}',
+        "new_string": '"hooks": {"PreToolUse": []}',
+    })
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert "/home/user/.claude/settings.json" in msg
+
+
+def test_message_immutable_warning(checker):
+    hook_data = _make_hook_data("Edit", {
+        "file_path": "/home/user/.claude/settings.json",
+        "old_string": '"hooks": {}',
+        "new_string": '"hooks": {"PreToolUse": []}',
+    })
+    allowed, msg, _ = checker.check_tool_allowed(hook_data)
+    assert "cannot be disabled via configuration" in msg
 
 
 if __name__ == "__main__":
-    import unittest
-    unittest.main()
+    pytest.main([__file__])
