@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-05-28
+
+### Fixed
+
+- **Cursor adapter misdetection — hooks now work correctly** (Issue #847)
+  - Default `tool_name` to `Read` for `beforeReadFile` events when not provided
+  - Prevent Gemini adapter from claiming Cursor `beforeReadFile`/`beforeSubmitPrompt` events
+  - Reorder `CursorAdapter` before `GeminiCLIAdapter` in adapter class list
+  - Add Cursor-specific event names to Gemini adapter exclusion list
+
 ## [1.9.0] - 2026-05-26
 
 ### Fixed
@@ -1971,7 +1981,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/itdove/ai-guardian/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/itdove/ai-guardian/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/itdove/ai-guardian/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/itdove/ai-guardian/compare/v1.7.0...v1.8.0
