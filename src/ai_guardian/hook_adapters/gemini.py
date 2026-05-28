@@ -36,7 +36,11 @@ class GeminiCLIAdapter(HookAdapter):
         # Gemini uses BeforeTool/AfterTool/BeforeAgent; Claude uses PascalCase
         # UserPromptSubmit/PreToolUse/PostToolUse.
         event = hook_data.get("hook_event_name", "")
-        if event in ("UserPromptSubmit", "PreToolUse", "PostToolUse"):
+        if event in (
+            "UserPromptSubmit", "PreToolUse", "PostToolUse",
+            "beforeSubmitPrompt", "preToolUse", "beforeReadFile",
+            "beforeShellExecution", "afterShellExecution", "postToolUse",
+        ):
             return False
         return True
 

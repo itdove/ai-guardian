@@ -73,6 +73,31 @@ class HookInputParsingTests(TestCase):
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    def test_cursor_beforereadfile_not_blocked_by_missing_tool_name(self, mock_pattern_config, mock_redaction_config):
+        """Cursor beforeReadFile must not be blocked due to missing tool_name (#847).
+
+        beforeReadFile events don't include a tool_name field. Without defaulting
+        to 'Read', the tool policy checker fails-closed with 'unable to determine
+        tool name', blocking all file reads in Cursor.
+        """
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        hook_data = {
+            "cursor_version": "0.50.0",
+            "hook_event_name": "beforeReadFile",
+            "file_path": "/tmp/safe_file.py",
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        assert result['exit_code'] == 0, "Cursor beforeReadFile should not be blocked"
+        output = json.loads(result['output'])
+        assert output.get('permission') != 'deny', "beforeReadFile should be allowed for safe files"
+
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_posttooluse_hook_processing(self, mock_pattern_config, mock_redaction_config):
         """Test PostToolUse hook is processed"""
         mock_pattern_config.return_value = None

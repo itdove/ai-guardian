@@ -3129,6 +3129,14 @@ def process_hook_data(hook_data, daemon_state=None):
         tool_identifier = None  # Composite identifier like "Skill:code-review" or "mcp__server__tool"
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             tool_name = normalized.tool_name
+            if not tool_name and hook_event == HookEvent.BEFORE_READ_FILE:
+                tool_name = "Read"
+                file_path = normalized.file_path or hook_data.get("file_path")
+                hook_data = {
+                    **hook_data,
+                    "tool_name": tool_name,
+                    "tool_input": {"file_path": file_path} if file_path else {},
+                }
             tool_input = normalized.tool_input
 
             # Normalize mcp: prefix to mcp__ format (agent-agnostic)
