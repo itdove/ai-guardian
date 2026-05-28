@@ -2119,13 +2119,17 @@ class DaemonTray:
             pass
 
     def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
-        """Launch tray-prompt for parameter collection, then execute."""
+        """Launch tray-prompt for parameter collection, then execute.
+
+        Uses tkinter popup (no terminal) when available, otherwise falls
+        back to Textual TUI in a terminal window.
+        """
         import json as json_mod
         import os
+        import subprocess
         import tempfile
         import threading
         from ai_guardian.daemon.tray_plugins import resolve_command, substitute_target_vars
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         resolved_cmd = resolve_command(plugin_item_dict["command"])
         if resolved_cmd is None:
@@ -2148,13 +2152,20 @@ class DaemonTray:
             "--type", plugin_item_dict.get("type", "terminal"),
             "--output-file", output_path,
         )
+        label = plugin_item_dict.get("label")
         if extra_vars:
-            import json as json_mod2
-            prompt_cmd += ["--extra-vars", json_mod2.dumps(extra_vars)]
-        _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
+            prompt_cmd += ["--extra-vars", json_mod.dumps(extra_vars)]
+        if label:
+            prompt_cmd += ["--title", label]
+
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        if _tkinter_available():
+            subprocess.Popen(prompt_cmd)
+        else:
+            from ai_guardian.daemon.multi_client import _launch_in_terminal
+            _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
         item_type = plugin_item_dict.get("type", "terminal")
-        label = plugin_item_dict.get("label")
 
         def _watch_and_dispatch():
             import shutil
@@ -2217,15 +2228,18 @@ class DaemonTray:
         ]
 
     def _execute_multi_target_with_params(self, plugin_item, targets):
-        """Collect params once via tray-prompt, then execute on all targets."""
+        """Collect params once via tray-prompt, then execute on all targets.
+
+        Uses tkinter popup when available, Textual terminal fallback otherwise.
+        """
         import json as json_mod
         import os
+        import subprocess
         import tempfile
         import threading
         from ai_guardian.daemon.tray_plugins import (
             _item_to_dict, resolve_command, substitute_target_vars,
         )
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         item_dict = _item_to_dict(plugin_item)
         resolved_cmd = resolve_command(plugin_item.command)
@@ -2243,10 +2257,18 @@ class DaemonTray:
             "--type", plugin_item.type,
             "--output-file", output_path,
         )
-        _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
+        label = plugin_item.label
+        if label:
+            prompt_cmd += ["--title", label]
+
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        if _tkinter_available():
+            subprocess.Popen(prompt_cmd)
+        else:
+            from ai_guardian.daemon.multi_client import _launch_in_terminal
+            _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
         item_type = plugin_item.type
-        label = plugin_item.label
         run_on_target = plugin_item.run_on_target
 
         def _watch_and_dispatch():

@@ -613,14 +613,10 @@ def _handle_tray_prompt(args):
         prompt_logger.error("--params must be a JSON array")
         return 1
 
-    if not sys.stdin.isatty():
-        prompt_logger.error("tray-prompt requires an interactive terminal")
-        return 1
-
     try:
         from ai_guardian.tui.tray_prompt import TrayPromptApp
     except ImportError as e:
-        prompt_logger.error("TUI dependencies not available: %s", e)
+        prompt_logger.error("UI dependencies not available: %s", e)
         return 1
 
     extra_vars = {}
@@ -638,7 +634,15 @@ def _handle_tray_prompt(args):
         command_template=args.template,
         command_type=getattr(args, "type", "terminal"),
         extra_vars=extra_vars,
+        title=getattr(args, "title", None),
     )
+
+    if app.needs_terminal and not sys.stdin.isatty():
+        prompt_logger.error(
+            "tkinter not available and no interactive terminal for Textual fallback"
+        )
+        return 1
+
     result = app.run()
 
     output_file = getattr(args, "output_file", None)

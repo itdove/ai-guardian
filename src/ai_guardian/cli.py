@@ -707,6 +707,11 @@ def main():
             default=None,
             help="JSON dict of extra variables for resolving param defaults"
         )
+        tray_prompt_parser.add_argument(
+            "--title",
+            default=None,
+            help="Window title for the parameter form"
+        )
 
         # Tray target selector subcommand (Issue #760)
         tray_target_parser = subparsers.add_parser(

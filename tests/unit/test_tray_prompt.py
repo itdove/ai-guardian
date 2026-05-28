@@ -1,4 +1,4 @@
-"""Tests for tray prompt Textual app and CLI handler."""
+"""Tests for tray prompt tkinter/Textual app and CLI handler."""
 
 import json
 import os
@@ -30,26 +30,28 @@ class TestHandleTrayPrompt:
         result = _handle_tray_prompt(args)
         assert result == 1
 
-    def test_rejects_non_tty(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
-        args = mock.MagicMock()
-        args.params = '[{"name": "x"}]'
-        args.template = "echo {tray.x}"
-        args.type = "terminal"
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = False
-            result = _handle_tray_prompt(args)
-        assert result == 1
-
     def test_handles_import_error(self):
         from ai_guardian.cli_handlers import _handle_tray_prompt
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
         args.template = "echo {tray.x}"
         args.type = "terminal"
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            with mock.patch.dict("sys.modules", {"ai_guardian.tui.tray_prompt": None}):
+        with mock.patch.dict("sys.modules", {"ai_guardian.tui.tray_prompt": None}):
+            result = _handle_tray_prompt(args)
+        assert result == 1
+
+    def test_rejects_non_tty_when_textual_fallback(self):
+        """When tkinter unavailable and no TTY, should reject."""
+        from ai_guardian.cli_handlers import _handle_tray_prompt
+        args = mock.MagicMock()
+        args.params = '[{"name": "x"}]'
+        args.template = "echo {tray.x}"
+        args.type = "terminal"
+        mock_app = mock.MagicMock()
+        mock_app.needs_terminal = True
+        with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+            with mock.patch("sys.stdin") as mock_stdin:
+                mock_stdin.isatty.return_value = False
                 result = _handle_tray_prompt(args)
         assert result == 1
 
@@ -61,11 +63,10 @@ class TestHandleTrayPrompt:
         args.type = "background"
         args.output_file = None
         mock_app = mock.MagicMock()
+        mock_app.needs_terminal = False
         mock_app.run.return_value = None
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                result = _handle_tray_prompt(args)
+        with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+            result = _handle_tray_prompt(args)
         assert result == 0
 
     def test_cancel_creates_empty_output_file(self):
@@ -80,11 +81,10 @@ class TestHandleTrayPrompt:
             args.type = "terminal"
             args.output_file = tmp_path
             mock_app = mock.MagicMock()
+            mock_app.needs_terminal = False
             mock_app.run.return_value = None
-            with mock.patch("sys.stdin") as mock_stdin:
-                mock_stdin.isatty.return_value = True
-                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                    result = _handle_tray_prompt(args)
+            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                result = _handle_tray_prompt(args)
             assert result == 0
             assert os.path.exists(tmp_path)
             with open(tmp_path) as f:
@@ -105,11 +105,10 @@ class TestHandleTrayPrompt:
             args.type = "terminal"
             args.output_file = tmp_path
             mock_app = mock.MagicMock()
+            mock_app.needs_terminal = False
             mock_app.run.return_value = "echo hello"
-            with mock.patch("sys.stdin") as mock_stdin:
-                mock_stdin.isatty.return_value = True
-                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                    result = _handle_tray_prompt(args)
+            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                result = _handle_tray_prompt(args)
             assert result == 0
             with open(tmp_path) as f:
                 assert f.read() == "echo hello"
@@ -125,11 +124,10 @@ class TestHandleTrayPrompt:
         args.type = "terminal"
         args.output_file = None
         mock_app = mock.MagicMock()
+        mock_app.needs_terminal = False
         mock_app.run.return_value = "echo hello"
-        with mock.patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                result = _handle_tray_prompt(args)
+        with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+            result = _handle_tray_prompt(args)
         assert result == 0
         assert capsys.readouterr().out.strip() == "echo hello"
 
@@ -145,11 +143,10 @@ class TestHandleTrayPrompt:
             args.type = "background"
             args.output_file = tmp_path
             mock_app = mock.MagicMock()
+            mock_app.needs_terminal = False
             mock_app.run.return_value = "echo a && echo b"
-            with mock.patch("sys.stdin") as mock_stdin:
-                mock_stdin.isatty.return_value = True
-                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                    result = _handle_tray_prompt(args)
+            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
+                result = _handle_tray_prompt(args)
             assert result == 0
             with open(tmp_path) as f:
                 assert f.read() == "echo a && echo b"
@@ -159,7 +156,7 @@ class TestHandleTrayPrompt:
 
 
 class TestTrayPromptAppCreation:
-    """Tests for TrayPromptApp construction (no async needed)."""
+    """Tests for TrayPromptApp construction (no GUI needed)."""
 
     def test_app_stores_params(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
@@ -198,3 +195,64 @@ class TestTrayPromptAppCreation:
         app = TrayPromptApp(params, "deploy --tag {tray.tag}")
         assert app._params[0]["type"] == "combobox"
         assert app._params[0]["options"] == ["latest", "stable"]
+
+    def test_result_defaults_to_none(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        app = TrayPromptApp([], "echo hello")
+        assert app._result is None
+
+    def test_extra_vars_stored(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        extra = {"working_dir": "/tmp"}
+        app = TrayPromptApp([], "echo", extra_vars=extra)
+        assert app._extra_vars == extra
+
+    def test_extra_vars_default_empty(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        app = TrayPromptApp([], "echo")
+        assert app._extra_vars == {}
+
+
+class TestTrayPromptFallback:
+    """Tests for tkinter-first / Textual-fallback selection."""
+
+    def test_needs_terminal_false_when_tkinter_available(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            app = TrayPromptApp([], "echo")
+            assert app.needs_terminal is False
+
+    def test_needs_terminal_true_when_tkinter_missing(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
+            app = TrayPromptApp([], "echo")
+            assert app.needs_terminal is True
+
+    def test_tkinter_available_returns_bool(self):
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        result = _tkinter_available()
+        assert isinstance(result, bool)
+
+
+class TestTrayPromptResolveDefault:
+    """Tests for _resolve_default without launching GUI."""
+
+    def test_plain_string_unchanged(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        app = TrayPromptApp([], "echo", extra_vars={"working_dir": "/home"})
+        assert app._resolve_default("hello") == "hello"
+
+    def test_empty_string_unchanged(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        app = TrayPromptApp([], "echo")
+        assert app._resolve_default("") == ""
+
+    def test_none_unchanged(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        app = TrayPromptApp([], "echo")
+        assert app._resolve_default(None) is None
+
+    def test_no_extra_vars_unchanged(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        app = TrayPromptApp([], "echo")
+        assert app._resolve_default("{tray.working_dir}") == "{tray.working_dir}"
