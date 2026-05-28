@@ -3,6 +3,8 @@
     "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords). Supported engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian",
     "secret_scanning": {
         "enabled": true,
+        "ignore_files": [],
+        "ignore_tools": [],
         "allowlist_patterns": [],
         "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Python-based custom scanners: {type: python, module/path: ..., class: ...}. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
         "engines": [
@@ -37,6 +39,7 @@
     "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
     "prompt_injection": {
         "enabled": true,
+        "action": "block",
         "detector": "heuristic",
         "sensitivity": "low",
         "max_score_threshold": 0.9,
