@@ -1475,6 +1475,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords). Supported engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian",
         "secret_scanning": {
             "enabled": True,
+            "ignore_files": [],
+            "ignore_tools": [],
             "allowlist_patterns": [],
             "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Python-based custom scanners: {type: python, module/path: ..., class: ...}. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
             "engines": [
@@ -1510,6 +1512,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
         "prompt_injection": {
             "enabled": True,
+            "action": "block",
             "detector": "heuristic",
             "sensitivity": "medium",
             "max_score_threshold": 0.75,

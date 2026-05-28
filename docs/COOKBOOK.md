@@ -20,6 +20,7 @@ For full configuration reference, see [CONFIGURATION.md](CONFIGURATION.md). For 
 - [Scanner Engines](#scanner-engines)
 - [Pattern Server](#pattern-server)
 - [Image Scanning](#image-scanning)
+- [Tray Plugins](#tray-plugins)
 - [Profiles](#profiles)
 - [MCP Server](#mcp-server)
 
@@ -220,17 +221,35 @@ Regex patterns for known-safe values. Unlike `ignore_files` (which skips entire 
 
 ## Secret Scanning
 
-### How do I change the secret scanning action to warn?
+### How do I skip specific tools for secret scanning?
 
 ```json
 {
   "secret_scanning": {
-    "enabled": true
+    "ignore_tools": [
+      "mcp__*",
+      "Skill:code-review"
+    ]
   }
 }
 ```
 
-Secret scanning is enabled/disabled with a boolean. The action (block/warn) is controlled by the scanner engine's behavior. To customize, use `allowlist_patterns` for false positives.
+Supports wildcards: `*` (any chars), `?` (single char). Use for tools that legitimately read test data or documentation containing example secrets.
+
+### How do I skip specific files for secret scanning?
+
+```json
+{
+  "secret_scanning": {
+    "ignore_files": [
+      "tests/fixtures/**",
+      "**/examples/**/*.example.*"
+    ]
+  }
+}
+```
+
+Glob patterns applied globally across all engines. You can also use per-engine `ignore_files` inside the engine object (see [Scanner Engines](#scanner-engines)), or `.aiguardignore.toml` at the project root.
 
 ### How do I add allowlist patterns for known-safe secrets?
 
@@ -277,36 +296,51 @@ The pattern auto-expires on the given date. Mix strings and objects in the same 
 
 Time-based disabling automatically re-enables scanning after the specified time.
 
-### How do I ignore specific files for secret scanning?
+---
 
-Use `.aiguardignore.toml` in your project root (recommended — commit to version control):
+## Prompt Injection
 
-```toml
-[secret_scanning.allowlist]
-    paths = [
-        "tests/fixtures/**",
-        "tests/integration/test_scanner.py",
-    ]
-```
-
-Or use JSON config:
+### How do I change the prompt injection action?
 
 ```json
 {
-  "secret_scanning": {
-    "engines": [
-      {
-        "type": "gitleaks",
-        "ignore_files": ["tests/fixtures/**"]
-      }
+  "prompt_injection": {
+    "action": "warn"
+  }
+}
+```
+
+Options: `"block"` (default, prevents execution), `"warn"` (logs and warns but allows), `"log-only"` (silent logging).
+
+### How do I skip specific tools for prompt injection scanning?
+
+```json
+{
+  "prompt_injection": {
+    "ignore_tools": [
+      "Skill:code-review",
+      "mcp__*"
     ]
   }
 }
 ```
 
----
+Useful for tools that legitimately read documentation containing example attack patterns. Supports wildcards.
 
-## Prompt Injection
+### How do I skip specific files for prompt injection scanning?
+
+```json
+{
+  "prompt_injection": {
+    "ignore_files": [
+      "**/.claude/skills/*/SKILL.md",
+      "**/docs/security-examples.md"
+    ]
+  }
+}
+```
+
+Glob patterns for files to skip. Useful for skill documentation files that describe attack patterns.
 
 ### How do I change prompt injection sensitivity?
 
@@ -678,12 +712,14 @@ Projects can change other fields (like `allowlist_patterns`) but cannot set `ena
 
 ### What's the config merge order?
 
-1. **Built-in defaults** (lowest priority)
-2. **Remote configs** (enterprise policies)
-3. **User config** (`~/.config/ai-guardian/ai-guardian.json`)
-4. **Project config** (`.ai-guardian/ai-guardian.json`, highest priority)
+Configurations are merged in this order (later overrides earlier):
 
-Exception: `immutable` fields in higher-priority configs cannot be overridden by lower ones.
+1. **Built-in defaults** (lowest priority)
+2. **Project local config** (`.ai-guardian/ai-guardian.json` or legacy `.ai-guardian.json`)
+3. **User global config** (`~/.config/ai-guardian/ai-guardian.json`)
+4. **Remote configs** (enterprise policies, highest priority)
+
+Exception: fields marked `"immutable": true` in remote configs cannot be overridden by any lower-priority source. Global-only sections (`daemon`, `mcp_server`, `support`, `security_instructions`, `on_scan_error`, `remote_configs`) cannot be overridden by project config.
 
 ### How do I use .aiguardignore.toml for project-level ignores?
 
@@ -1024,6 +1060,353 @@ Default processing timeout is `1500ms`. Higher `min_confidence` reduces false po
     "ignore_tools": ["Skill:*"],
     "max_image_size_mb": 5
   }
+}
+```
+
+---
+
+## Tray Plugins
+
+Tray plugins add custom menu items to the system tray. Place `.json` files in either location:
+
+- **User-level**: `~/.config/ai-guardian/tray-plugins/` — personal plugins, available on all projects
+- **Project-level**: `.ai-guardian/tray-plugins/` at the repository root — shared via version control, project plugins override user-level plugins with the same name
+
+Each `.json` file becomes a submenu. For full documentation, see [MULTI_DAEMON_TRAY.md](MULTI_DAEMON_TRAY.md#tray-plugins).
+
+### How do I create a basic tray plugin?
+
+Create `~/.config/ai-guardian/tray-plugins/my-tools.json`:
+
+```json
+{
+  "name": "My Tools",
+  "items": [
+    {
+      "label": "Run Tests",
+      "command": "cd ~/projects/my-app && pytest",
+      "type": "terminal"
+    },
+    {
+      "label": "Check Status",
+      "command": "ai-guardian daemon status",
+      "type": "notification"
+    }
+  ]
+}
+```
+
+Each file needs `name` (submenu title) and `items` (array of menu entries, max 12).
+
+### What command types are available?
+
+```json
+{
+  "name": "Command Types",
+  "items": [
+    {"label": "Opens terminal",      "command": "htop",                        "type": "terminal"},
+    {"label": "Runs silently",       "command": "make build",                  "type": "background"},
+    {"label": "Shows notification",  "command": "kubectl get pods | wc -l",    "type": "notification"},
+    {"label": "Copies to clipboard", "command": "date +%Y-%m-%d",             "type": "clipboard"},
+    {"label": "Shows in dialog",     "command": "ai-guardian doctor --json",   "type": "modal"}
+  ]
+}
+```
+
+Options: `"terminal"` (default), `"background"`, `"notification"`, `"clipboard"`, `"modal"`.
+
+### How do I add user-prompted parameters?
+
+```json
+{
+  "name": "Deploy",
+  "items": [
+    {
+      "label": "Deploy Branch",
+      "command": "make deploy BRANCH={tray.branch} ENV={tray.environment}",
+      "type": "terminal",
+      "params": [
+        {"name": "branch", "hint": "Git branch", "default": "main"},
+        {"name": "environment", "default": "dev", "options": ["dev", "staging", "prod"]}
+      ]
+    }
+  ]
+}
+```
+
+Parameters show a form before running. Values substitute into `{tray.param_name}` placeholders. Use `options` for a dropdown, or omit for free-text input.
+
+### How do I use typed parameters with validation?
+
+```json
+{
+  "name": "Scale",
+  "items": [
+    {
+      "label": "Scale Replicas",
+      "command": "kubectl scale deployment my-app --replicas={tray.count}",
+      "type": "notification",
+      "params": [
+        {
+          "name": "count",
+          "hint": "Number of replicas",
+          "type": "int",
+          "default": "3",
+          "min": 1,
+          "max": 10,
+          "required": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+Parameter types: `"string"` (default, text input), `"int"`/`"number"` (numeric with min/max), `"boolean"` (checkbox), `"choice"` (dropdown), `"combobox"` (editable input with suggestions). Use `pattern` for regex validation on strings.
+
+### How do I use platform-specific commands?
+
+```json
+{
+  "name": "Terminals",
+  "items": [
+    {
+      "label": "Open Shell",
+      "command": {
+        "darwin": "open -a Terminal",
+        "linux": "gnome-terminal",
+        "windows": "cmd.exe /k",
+        "default": "bash"
+      },
+      "type": "terminal"
+    }
+  ]
+}
+```
+
+Replace the command string with an object keyed by `"darwin"`, `"linux"`, `"windows"`, or `"default"` (fallback). If no key matches and no default, the item is hidden on that platform.
+
+### How do I run a command inside a container or Kubernetes target?
+
+Set `"run_on_target": true` — the tray automatically wraps the command for the daemon's runtime:
+
+```json
+{
+  "name": "Remote Ops",
+  "items": [
+    {
+      "label": "Doctor",
+      "command": "ai-guardian doctor",
+      "run_on_target": true,
+      "type": "terminal"
+    },
+    {
+      "label": "Show Config",
+      "command": "ai-guardian show-config",
+      "run_on_target": true,
+      "type": "modal"
+    }
+  ]
+}
+```
+
+Write the command as if running locally inside the target. The tray handles the wrapping:
+
+| Runtime | What actually runs |
+|---------|-------------------|
+| Container | `podman exec -it <container_id> ai-guardian doctor` |
+| Kubernetes | `oc exec <pod> -n <namespace> -- ai-guardian doctor` |
+| Local | `ai-guardian doctor` (no wrapping) |
+
+**Key distinction**: `run_on_target` runs *inside* the target. Target variables (`{container_id}`, etc.) run *on the host* referencing the target. Both can coexist in the same plugin but not in the same item.
+
+### How do I use target variables in commands?
+
+```json
+{
+  "name": "Container Tools",
+  "items": [
+    {
+      "label": "Container Logs",
+      "command": "{container_engine} logs --tail 50 {container_id}",
+      "type": "terminal"
+    },
+    {
+      "label": "Restart Container",
+      "command": "{container_engine} restart {container_id}",
+      "type": "notification"
+    }
+  ]
+}
+```
+
+Available variables: `{container_id}`, `{container_engine}`, `{host}`, `{port}`, `{name}`, `{container_name}`, `{pod_name}`, `{namespace}`. These run on the host and reference the target — unlike `run_on_target` which runs inside the target.
+
+### How do I run a command on multiple targets at once?
+
+```json
+{
+  "name": "Fleet Ops",
+  "items": [
+    {
+      "label": "Doctor (select targets)",
+      "command": "ai-guardian doctor",
+      "run_on_target": true,
+      "type": "terminal",
+      "target": "select"
+    },
+    {
+      "label": "Reload All",
+      "command": "ai-guardian daemon reload",
+      "run_on_target": true,
+      "type": "notification",
+      "target": "all"
+    },
+    {
+      "label": "Restart All Containers",
+      "command": "{container_engine} restart {container_id}",
+      "type": "notification",
+      "target": "containers"
+    }
+  ]
+}
+```
+
+The `target` field controls multi-target execution:
+
+| Value | Behavior |
+|-------|----------|
+| *(omitted)* | Default — runs on the single daemon this menu item belongs to |
+| `"select"` | Shows an interactive multi-select picker listing all discovered daemons |
+| `"all"` | Runs on every discovered target without prompting |
+| `"containers"` | Runs on all container-runtime targets without prompting |
+
+When combined with `params`, the parameter form shows once and the same values are applied to all targets.
+
+### How do I add project-level tray plugins?
+
+Create `.ai-guardian/tray-plugins/` at your repository root and add plugin JSON files there:
+
+```json
+{
+  "name": "Project Build",
+  "items": [
+    {"label": "Build",     "command": "make build",      "type": "terminal"},
+    {"label": "Test",      "command": "make test",       "type": "terminal"},
+    {"label": "Lint",      "command": "make lint",       "type": "notification"}
+  ]
+}
+```
+
+Commit the `.ai-guardian/tray-plugins/` directory to version control. Project plugins with the same `name` as a user-level plugin override the user-level one.
+
+### How do I filter a plugin to specific daemons?
+
+```json
+{
+  "name": "Carbonite",
+  "tags": ["carbonite"],
+  "items": [
+    {
+      "label": "Rebuild Container",
+      "command": "{container_engine} restart {container_id}",
+      "type": "notification"
+    }
+  ]
+}
+```
+
+The plugin only appears on daemons that have `"menu_tags": ["carbonite"]` in their `ai-guardian.json`. Untagged plugins appear on all daemons.
+
+### What is the difference between global and per-daemon plugins?
+
+The `scope` field controls where a plugin appears in the tray menu:
+
+**Per-daemon** (default) — plugin appears inside each daemon's submenu, filtered by `tags`:
+
+```json
+{
+  "name": "Container Ops",
+  "scope": "daemon",
+  "tags": ["container"],
+  "items": [
+    {"label": "Logs", "command": "{container_engine} logs {container_id}", "type": "terminal"}
+  ]
+}
+```
+
+Per-daemon plugins have access to target variables (`{container_id}`, `{host}`, `{port}`, etc.) and `run_on_target`. They appear once per matching daemon.
+
+**Global** — plugin appears at the tray top level, not inside any daemon submenu:
+
+```json
+{
+  "name": "Global Tools",
+  "scope": "global",
+  "items": [
+    {"label": "Open Dashboard", "command": "open http://localhost:63152", "type": "background"},
+    {"label": "System Status",  "command": "ai-guardian daemon status",   "type": "notification"}
+  ]
+}
+```
+
+Global plugins are not associated with any daemon, so they don't have target variables or `run_on_target`. Use for host-level tools, dashboards, and utilities that aren't specific to a daemon instance.
+
+### How do I create nested submenus?
+
+```json
+{
+  "name": "DevOps",
+  "items": [
+    {
+      "label": "Kubernetes",
+      "items": [
+        {"label": "Get Pods",      "command": "kubectl get pods",      "type": "terminal"},
+        {"label": "Get Services",  "command": "kubectl get svc",       "type": "terminal"},
+        {"label": "Get Nodes",     "command": "kubectl get nodes",     "type": "terminal"}
+      ]
+    },
+    {
+      "label": "Docker",
+      "items": [
+        {"label": "Running Containers", "command": "docker ps",        "type": "terminal"},
+        {"label": "Disk Usage",         "command": "docker system df", "type": "notification"}
+      ]
+    }
+  ]
+}
+```
+
+An item with `label` + `items` (instead of `command`) creates a nested submenu. Nesting supports all item types including further submenus.
+
+### How do I import items from another file?
+
+```json
+{
+  "name": "Team Tools",
+  "items": [
+    {
+      "label": "Shared Scripts",
+      "import": "shared-scripts.json"
+    },
+    {
+      "label": "Local Build",
+      "command": "make build",
+      "type": "terminal"
+    }
+  ]
+}
+```
+
+The `import` field references another JSON file in `tray-plugins/`. The imported file must contain an `items` array (and optionally `tags` for filtering):
+
+```json
+{
+  "tags": ["team-a"],
+  "items": [
+    {"label": "Deploy Staging", "command": "make deploy-staging", "type": "terminal"},
+    {"label": "Run Smoke Tests", "command": "make smoke", "type": "notification"}
+  ]
 }
 ```
 
