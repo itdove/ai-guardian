@@ -442,26 +442,26 @@ class SecretPatternLoader(PatternLoader):
 
     def get_default_patterns(self) -> Dict[str, Any]:
         """
-        Get default secret patterns (35+ types).
+        Get default secret patterns from bundled TOML (Issue #841).
 
         These are all overridable by pattern server.
         """
-        # Abbreviated - full list in secret_redactor.py
-        return {
-            "patterns": [
-                {
-                    "regex": r"(sk-[A-Za-z0-9]{20,})",
-                    "strategy": "preserve_prefix_suffix",
-                    "secret_type": "OpenAI API Key",
-                },
-                {
-                    "regex": r"(ghp_[A-Za-z0-9]{36,})",
-                    "strategy": "preserve_prefix_suffix",
-                    "secret_type": "GitHub Personal Token",
-                },
-                # ... (full list would be imported from secret_redactor.py)
-            ]
-        }
+        toml_path = BUNDLED_FILES.get("secrets")
+        if toml_path and toml_path.exists():
+            try:
+                from ai_guardian.patterns.toml_parser import load_toml_file
+                raw_rules = load_toml_file(toml_path)
+                return {"patterns": [
+                    {
+                        "regex": r.get("regex", ""),
+                        "strategy": r.get("redaction_strategy", "preserve_prefix_suffix"),
+                        "secret_type": r.get("description", ""),
+                    }
+                    for r in raw_rules if r.get("match_type", "regex") == "regex"
+                ]}
+            except Exception as e:
+                logger.error(f"Failed to load bundled secrets.toml: {e}")
+        return {"patterns": []}
 
     def merge_patterns(
         self,

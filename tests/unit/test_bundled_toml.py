@@ -1,8 +1,7 @@
 """Tests for bundled TOML pattern files.
 
-Validates that all bundled TOML files parse correctly and produce
-the expected number of compiled rules matching the hardcoded patterns
-they were extracted from.
+Validates that all bundled TOML files parse correctly and contain
+the expected number of compiled rules.
 """
 
 from pathlib import Path
