@@ -30,101 +30,9 @@ class SecretRedactor:
     Uses different masking strategies to preserve debugging context while hiding secrets.
     """
 
-    # Legacy pattern definitions — kept as fallback documentation.
-    # Primary source is now patterns/data/secrets.toml (Issue #678)
-    PATTERNS = [
-        # OpenAI API Keys
-        (r'(sk-[A-Za-z0-9]{20,})', 'preserve_prefix_suffix', 'OpenAI API Key'),
-        (r'(sk-proj-[A-Za-z0-9]{20,})', 'preserve_prefix_suffix', 'OpenAI Project Key'),
-
-        # GitHub Tokens (supports both stateful and stateless JWT formats)
-        (r'(ghp_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub Personal Token'),
-        (r'(gho_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub OAuth Token'),
-        (r'(ghr_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub Refresh Token'),
-        (r'(ghs_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub Secret Token'),
-
-        # Anthropic API Keys
-        (r'(sk-ant-[A-Za-z0-9\-_]{32,})', 'preserve_prefix_suffix', 'Anthropic API Key'),
-
-        # GitLab Tokens
-        (r'(glpat-[A-Za-z0-9\-_]{20,})', 'preserve_prefix_suffix', 'GitLab Personal Token'),
-
-        # Slack Tokens
-        (r'(xox[baprs]-[A-Za-z0-9\-]+)', 'preserve_prefix_suffix', 'Slack Token'),
-
-        # AWS Access Keys (full redact - very sensitive)
-        (r'\b(AKIA[A-Z0-9]{16})\b', 'full_redact', 'AWS Access Key'),
-
-        # AWS Secret Access Keys (full redact)
-        (r'(aws_secret_access_key\s*=\s*)([^\s]+)', 'aws_secret', 'AWS Secret Key'),
-
-        # Google Tokens
-        (r'(ya29\.[A-Za-z0-9\-_]+)', 'preserve_prefix_suffix', 'Google OAuth Token'),
-        (r'(AIza[A-Za-z0-9\-_]{35})', 'preserve_prefix_suffix', 'Google API Key'),
-
-        # Azure Client Secrets (requires context to avoid matching all UUIDs)
-        (r'(?:client.?secret|AZURE_CLIENT_SECRET)\s*[=:]\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', 'preserve_prefix_suffix', 'Azure Client Secret'),
-
-        # npm Tokens
-        (r'(npm_[A-Za-z0-9]{36})', 'preserve_prefix_suffix', 'npm Token'),
-
-        # PyPI Tokens
-        (r'(pypi-[A-Za-z0-9\-_]{43,})', 'preserve_prefix_suffix', 'PyPI Token'),
-
-        # Stripe Keys
-        (r'(sk_live_[A-Za-z0-9]{24,})', 'preserve_prefix_suffix', 'Stripe Secret Key'),
-        (r'(sk_test_[A-Za-z0-9]{24,})', 'preserve_prefix_suffix', 'Stripe Test Secret Key'),
-        (r'(pk_live_[A-Za-z0-9]{24,})', 'preserve_prefix_suffix', 'Stripe Public Key'),
-        (r'(pk_test_[A-Za-z0-9]{24,})', 'preserve_prefix_suffix', 'Stripe Test Public Key'),
-        (r'(rk_live_[A-Za-z0-9]{24,})', 'preserve_prefix_suffix', 'Stripe Restricted Key'),
-        (r'(rk_test_[A-Za-z0-9]{24,})', 'preserve_prefix_suffix', 'Stripe Test Restricted Key'),
-
-        # Twilio API Keys
-        (r'(SK[A-Za-z0-9]{32})', 'preserve_prefix_suffix', 'Twilio API Key'),
-
-        # SendGrid API Keys
-        (r'(SG\.[A-Za-z0-9\-_]{22}\.[A-Za-z0-9\-_]{43})', 'preserve_prefix_suffix', 'SendGrid API Key'),
-
-        # Mailgun API Keys
-        (r'(key-[A-Za-z0-9]{32})', 'preserve_prefix_suffix', 'Mailgun API Key'),
-
-        # Private Keys (full redact - very sensitive)
-        (r'(-----BEGIN [A-Z ]+PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+PRIVATE KEY-----)', 'private_key', 'Private Key'),
-
-        # Environment variable assignments (keeps variable name)
-        (r'([A-Z_][A-Z0-9_]*)\s*=\s*(["\']?)([A-Za-z0-9\-_+/=]{16,})\2', 'env_assignment', 'Environment Variable'),
-        (r'(export\s+[A-Z_][A-Z0-9_]*)\s*=\s*(["\']?)([A-Za-z0-9\-_+/=]{16,})\2', 'env_assignment', 'Exported Environment Variable'),
-
-        # JSON fields (preserves structure)
-        (r'"(api[_-]?key)"\s*:\s*"([^"]{16,})"', 'json_field', 'JSON API Key'),
-        (r'"(token)"\s*:\s*"([^"]{16,})"', 'json_field', 'JSON Token'),
-        (r'"(password)"\s*:\s*"([^"]{16,})"', 'json_field', 'JSON Password'),
-        (r'"(secret)"\s*:\s*"([^"]{16,})"', 'json_field', 'JSON Secret'),
-
-        # YAML/Config file passwords (password: value format)
-        (r'(password:\s*)([^\s\n]{8,})', 'yaml_password', 'YAML Password'),
-
-        # HTTP Authorization headers
-        (r'(Authorization:\s*Bearer\s+)([A-Za-z0-9\-._~+/]+=*)', 'auth_header', 'Bearer Token'),
-        (r'(X-API-Key:\s*)([^\s]+)', 'header_value', 'API Key Header'),
-        (r'(X-Auth-Token:\s*)([^\s]+)', 'header_value', 'Auth Token Header'),
-
-        # Database connection strings (preserves endpoint)
-        (r'(mongodb://[^:]+:)([^@]+)(@[^\s]+)', 'connection_string', 'MongoDB Connection'),
-        (r'(mysql://[^:]+:)([^@]+)(@[^\s]+)', 'connection_string', 'MySQL Connection'),
-        (r'(postgres://[^:]+:)([^@]+)(@[^\s]+)', 'connection_string', 'PostgreSQL Connection'),
-        (r'(redis://[^:]*:)([^@]+)(@[^\s]+)', 'connection_string', 'Redis Connection'),
-
-        # Generic long hex strings (potential secrets)
-        # Requires context (secret/key/token/password) OR very long (100+ chars to avoid git SHAs)
-        (r'((?:secret|key|token|password|credential)[\s"\'=:]+)([a-f0-9]{40,})\b', 'context_secret', 'Hex Secret'),
-        (r'\b([a-f0-9]{100,})\b', 'preserve_prefix_suffix', 'Very Long Hex Secret'),
-
-        # Base64 encoded secrets (long strings)
-        # Requires context (secret/key/token/password) OR very long (100+ chars)
-        (r'((?:secret|key|token|password|credential)[\s"\'=:]+)([A-Za-z0-9+/]{40,}={0,2})\b', 'context_secret', 'Base64 Secret'),
-        (r'\b([A-Za-z0-9+/]{100,}={0,2})\b', 'preserve_prefix_suffix', 'Very Long Base64 Secret'),
-    ]
+    # All secret patterns are loaded from patterns/data/secrets.toml (Issue #841).
+    # PII patterns are loaded from patterns/data/pii.toml.
+    # Hardcoded PATTERNS and PII_PATTERNS removed — TOML is the sole source.
 
     VALID_CC_PREFIXES = (
         '4',
@@ -139,22 +47,6 @@ class SecretRedactor:
         '30', '36', '38', '39',
     )
 
-    # PII pattern definitions keyed by type for selective loading (Issue #262)
-    PII_PATTERNS = {
-        'ssn': (r'\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b', 'full_redact', 'SSN'),
-        'credit_card': (r'\b(?:\d{4}[- ]?){3}\d{4}\b', 'credit_card', 'Credit Card Number'),
-        'phone': (r'(?<!\d)(?:\+1[- ]?)?\(?\d{3}\)?[- .]\d{3}[- .]\d{4}(?!\d)', 'full_redact', 'US Phone Number'),
-        'email': (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', 'pii_email', 'Email Address'),
-        'us_passport': (r'\b[A-Z]\d{8}\b', 'full_redact', 'US Passport Number'),
-        'iban': (r'\b[A-Z]{2}\d{2}[A-Z0-9]{4,30}\b', 'iban', 'IBAN'),
-        'intl_phone': (r'\+\d{1,3}(?:[- .]?\d){6,14}(?!\d)', 'full_redact', 'International Phone Number'),
-        'medical_id': (r'(?i)(?:MRN|Patient\s*(?:ID|No\.?|Number|#)|Medical\s*Record(?:\s*(?:No\.?|Number|#))?)\s*[:#]?\s*\d{6,10}', 'full_redact', 'Medical Record Number'),
-        'passport': (r'(?i)(?:passport\s*(?:no\.?|number|#)?)\s*[:#]?\s*[A-Z0-9]{6,12}', 'full_redact', 'Passport Number'),
-        'canada_sin': (r'(?<!\d)\d{3}[- ]\d{3}[- ]\d{3}(?!\d)', 'canada_sin', 'Canadian SIN'),
-        'uk_nin': (r'\b[A-Z]{2}\d{6}[A-D]\b', 'full_redact', 'UK National Insurance Number'),
-        'india_aadhaar': (r'(?<!\d)\d{4}[- ]\d{4}[- ]\d{4}(?![- ]\d)', 'full_redact', 'Indian Aadhaar Number'),
-        'address': (r'\b\d+\s+(?:\w+\s+){0,3}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Road|Rd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir)\.?\b', 'full_redact', 'Street Address'),
-    }
 
     @staticmethod
     def _luhn_check(number_str: str, min_digits: int = 13, max_digits: int = 19) -> bool:
@@ -299,18 +191,17 @@ class SecretRedactor:
         logger.info(f"Secret Redaction: Loaded {len(self.compiled_patterns)} patterns")
 
     def _load_patterns_from_toml(self) -> List:
-        """Load secret patterns from bundled TOML. Falls back to hardcoded PATTERNS."""
+        """Load secret patterns from bundled TOML file (Issue #841)."""
         def _transform(raw_rules):
             return [
                 (raw.get("regex", ""), raw.get("redaction_strategy", "preserve_prefix_suffix"), raw.get("description", ""))
                 for raw in raw_rules if raw.get("match_type", "regex") == "regex"
             ]
-        return load_bundled_rules("secrets", _transform,
-                                 [(p, s, t) for p, s, t in self.PATTERNS],
+        return load_bundled_rules("secrets", _transform, [],
                                  "Secret Redaction")
 
     def _load_pii_patterns(self) -> Dict:
-        """Load PII patterns from bundled TOML. Falls back to hardcoded PII_PATTERNS."""
+        """Load PII patterns from bundled TOML file (Issue #841)."""
         def _transform(raw_rules):
             result = {}
             for raw in raw_rules:
@@ -322,8 +213,7 @@ class SecretRedactor:
                         raw.get("description", ""),
                     )
             return result
-        return load_bundled_rules("pii", _transform,
-                                 dict(self.PII_PATTERNS),
+        return load_bundled_rules("pii", _transform, {},
                                  "PII Detection")
 
     def _load_pii_patterns_via_server(self, pattern_server_config: Dict) -> Dict:

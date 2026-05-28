@@ -49,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Removed hardcoded redaction patterns from `secret_redactor.py`** (Issue #841)
+  - `PATTERNS` (44 secret patterns) and `PII_PATTERNS` (13 PII patterns) class attributes removed
+  - All patterns now loaded exclusively from bundled TOML files (`secrets.toml`, `pii.toml`)
+  - `SecretPatternLoader.get_default_patterns()` updated to load from TOML (matching `PIIPatternLoader`)
+  - Graceful degradation: when TOML files are missing, redactor has 0 patterns with error logging
+
 - **MCP server installed by default with `ai-guardian setup`** (Issue #808)
   - `ai-guardian setup --ide <any>` now installs hooks + MCP server (previously MCP was opt-in)
   - `--no-mcp` flag skips MCP installation

@@ -461,3 +461,52 @@ class TestGitHubStatelessJWTTokens:
         result = redactor.redact(text)
         github_hits = [r for r in result['redactions'] if "GitHub" in r['type']]
         assert len(github_hits) == 0
+
+
+class TestTomlOnlyPatternLoading:
+    """Tests for TOML-only pattern loading after removing hardcoded patterns (Issue #841)."""
+
+    def test_patterns_loaded_from_toml_not_hardcoded(self):
+        """Patterns are loaded from TOML files, not hardcoded on the class."""
+        assert not hasattr(SecretRedactor, 'PATTERNS'), \
+            "Hardcoded PATTERNS class attribute should be removed (Issue #841)"
+        assert not hasattr(SecretRedactor, 'PII_PATTERNS'), \
+            "Hardcoded PII_PATTERNS class attribute should be removed (Issue #841)"
+
+    def test_valid_cc_prefixes_still_present(self):
+        """VALID_CC_PREFIXES is validation data and must remain."""
+        assert hasattr(SecretRedactor, 'VALID_CC_PREFIXES')
+        assert isinstance(SecretRedactor.VALID_CC_PREFIXES, tuple)
+        assert len(SecretRedactor.VALID_CC_PREFIXES) > 0
+
+    def test_toml_loads_all_secret_patterns(self):
+        """TOML loading produces 44 secret patterns."""
+        redactor = SecretRedactor()
+        assert len(redactor.compiled_patterns) >= 44
+
+    def test_fallback_when_secrets_toml_missing(self):
+        """When secrets.toml is missing, redactor has 0 patterns with no error."""
+        from pathlib import Path
+        from unittest.mock import patch
+        import ai_guardian.patterns as patterns_mod
+
+        missing_files = dict(patterns_mod.BUNDLED_FILES)
+        missing_files["secrets"] = Path("/nonexistent/secrets.toml")
+        with patch.dict(patterns_mod.BUNDLED_FILES, missing_files):
+            redactor = SecretRedactor()
+            assert len(redactor.compiled_patterns) == 0
+
+    def test_fallback_when_pii_toml_missing(self):
+        """When pii.toml is missing, PII patterns are empty."""
+        from pathlib import Path
+        from unittest.mock import patch
+        import ai_guardian.patterns as patterns_mod
+
+        missing_files = dict(patterns_mod.BUNDLED_FILES)
+        missing_files["pii"] = Path("/nonexistent/pii.toml")
+        with patch.dict(patterns_mod.BUNDLED_FILES, missing_files):
+            pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'redact'}
+            redactor = SecretRedactor(pii_config=pii_config)
+            text = "SSN: 123-45-6789"
+            result = redactor.redact(text)
+            assert "123-45-6789" in result['redacted_text']
