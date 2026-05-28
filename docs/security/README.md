@@ -14,6 +14,12 @@ This directory contains detailed documentation for AI Guardian's security detect
 | **Credential Exfiltration** | Scan config files for credential theft commands | [CREDENTIAL_EXFILTRATION.md](CREDENTIAL_EXFILTRATION.md) |
 | **Directory Rules** | Control which files and directories AI can access | [DIRECTORY_RULES.md](DIRECTORY_RULES.md) |
 
+### Image & Media Scanning
+
+| Feature | Description | File |
+|---------|-------------|------|
+| **Image Scanning (OCR)** | OCR-based secret/PII detection in images, IDE limitations | [IMAGE_SCANNING.md](IMAGE_SCANNING.md) |
+
 ### Secret Management
 
 | Feature | Description | File |
@@ -132,9 +138,10 @@ All security features are configured in `~/.config/ai-guardian/ai-guardian.json`
     "action": "block"
   },
   "prompt_injection": {
+    "enabled": true,
+    "action": "block",
     "unicode_detection": {
-      "enabled": true,
-      "action": "warn"
+      "enabled": true
     }
   },
   "config_file_scanning": {
@@ -184,6 +191,6 @@ Most features support these action modes:
 ## Version History
 
 Security features introduced across versions:
-- **v1.4.0** - SSRF Protection, Unicode Attack Detection
-- **v1.5.0** - Secret Redaction, Config File Scanning, Pattern Server Support
-- **v1.6.0** - Enhanced patterns, performance improvements, path-based rules
+- **v1.5.0** - SSRF Protection, Unicode Attack Detection, Secret Redaction, Config File Scanning, Pattern Server Support
+- **v1.6.0** - Multi-engine scanner support, enhanced patterns
+- **v1.7.0** - Execution strategies, parallel engine execution, image scanning

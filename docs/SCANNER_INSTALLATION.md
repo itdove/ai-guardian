@@ -350,4 +350,4 @@ The scanner is installed once and reused across all workflow runs.
 
 - See [README.md](../README.md) for general AI Guardian setup
 - See [CONFIGURATION.md](CONFIGURATION.md) for scanner configuration options
-- See [API.md](API.md) for programmatic scanner management
+- See [MCP_SERVER.md](MCP_SERVER.md) for programmatic scanner management

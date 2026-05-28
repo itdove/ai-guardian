@@ -29,7 +29,7 @@ AI Guardian integrates with GitHub Copilot through **native hooks** that interce
    brew install gitleaks
 
    # Linux (Ubuntu/Debian)
-   curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz | tar -xz
+   curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz
    sudo mv gitleaks /usr/local/bin/
 
    # Windows (using scoop)

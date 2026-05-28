@@ -367,7 +367,7 @@ This is a critical security feature.
 ## Related Documentation
 
 - [MCP Security Advisor](MCP_SERVER.md)
-- [SSRF Protection](SSRF_PROTECTION.md)
-- [Secret Scanning](SECRET_SCANNING.md)
+- [SSRF Protection](security/SSRF_PROTECTION.md)
+- [Secret Scanning](security/SECRET_SCANNING.md)
 - [Permissions System](PERMISSIONS_COMPARISON.md)
 - [Hook Configuration](HOOKS.md)

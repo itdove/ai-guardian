@@ -93,18 +93,10 @@ Each violation type can load patterns from one or more remote servers. Servers a
 ```json
 {
   "secret_scanning": {
-    "pattern_servers": [
-      {
-        "url": "https://patterns.company.com/secrets",
-        "format": "ai-guardian",
-        "auth": { "token_env": "PATTERN_TOKEN" }
-      },
-      {
-        "url": "https://gitleaks-patterns.company.com",
-        "format": "gitleaks",
-        "auth": { "token_env": "GITLEAKS_TOKEN" }
-      }
-    ]
+    "pattern_server": {
+      "url": "https://patterns.company.com/secrets",
+      "auth": { "token_env": "PATTERN_TOKEN" }
+    }
   }
 }
 ```

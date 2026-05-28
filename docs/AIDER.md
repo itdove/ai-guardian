@@ -27,7 +27,7 @@ This is a **complementary protection layer** to IDE-based hooks, not a replaceme
    brew install gitleaks
 
    # Linux (Ubuntu/Debian)
-   curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz | tar -xz
+   curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz
    sudo mv gitleaks /usr/local/bin/
 
    # Windows (using scoop)
@@ -175,7 +175,7 @@ Or create manually:
 cat > .pre-commit-config.yaml << 'EOF'
 repos:
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.18.1
+    rev: v8.30.1
     hooks:
       - id: gitleaks
         name: Detect secrets with gitleaks

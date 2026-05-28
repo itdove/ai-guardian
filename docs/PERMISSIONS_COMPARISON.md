@@ -293,12 +293,7 @@ Beyond permissions, ai-guardian provides security features not available in sett
 ```json
 {
   "secret_scanning": {
-    "enabled": true,
-    "action": "block",
-    "gitleaks": {
-      "enabled": true,
-      "config_path": null  // Uses built-in patterns
-    }
+    "enabled": true
   }
 }
 ```
@@ -323,7 +318,7 @@ Beyond permissions, ai-guardian provides security features not available in sett
 {
   "prompt_injection": {
     "enabled": true,
-    "action": "log",  // or "block"
+    "action": "log-only",  // or "block"
     "heuristic_detector": {
       "enabled": true,
       "threshold": 0.5
@@ -371,7 +366,7 @@ Beyond permissions, ai-guardian provides security features not available in sett
 {
   "config_file_scanning": {
     "enabled": true,
-    "action": "log"
+    "action": "log-only"
   }
 }
 ```
@@ -495,12 +490,11 @@ ai-guardian console  # Interactive Console
     ]
   },
   "secret_scanning": {
-    "enabled": true,
-    "action": "block"
+    "enabled": true
   },
   "prompt_injection": {
     "enabled": true,
-    "action": "log"
+    "action": "log-only"
   },
   "directory_rules": {
     "deny": [
@@ -561,8 +555,7 @@ ai-guardian console  # Interactive Console
     ]
   },
   "secret_scanning": {
-    "enabled": true,
-    "action": "block"
+    "enabled": true
   },
   "directory_rules": {
     "deny": ["~/.ssh/*", "~/.aws/*"]
@@ -604,7 +597,7 @@ ai-guardian console  # Interactive Console
 {
   "permissions": {
     "rules": [
-      {"matcher": "Skill", "mode": "allow", "patterns": ["*"], "action": "log"}
+      {"matcher": "Skill", "mode": "allow", "patterns": ["*"], "action": "log-only"}
     ]
   }
 }
@@ -697,10 +690,10 @@ https://policies.company.com/
 **Minimal ai-guardian config (security only):**
 ```json
 {
-  "secret_scanning": {"enabled": true, "action": "block"},
-  "prompt_injection": {"enabled": true, "action": "log"},
+  "secret_scanning": {"enabled": true},
+  "prompt_injection": {"enabled": true, "action": "log-only"},
   "ssrf_protection": {"enabled": true, "action": "block"},
-  "config_file_scanning": {"enabled": true, "action": "log"}
+  "config_file_scanning": {"enabled": true, "action": "log-only"}
 }
 ```
 
@@ -749,8 +742,8 @@ https://policies.company.com/
 - [README.md](../README.md) - Main AI Guardian documentation
 - [HOOKS.md](HOOKS.md) - Hook integration architecture and ordering
 - [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
-- [SECRET_SCANNING.md](SECRET_SCANNING.md) - Secret detection details
-- [SSRF_PROTECTION.md](SSRF_PROTECTION.md) - SSRF protection configuration
+- [SECRET_SCANNING.md](security/SECRET_SCANNING.md) - Secret detection details
+- [SSRF_PROTECTION.md](security/SSRF_PROTECTION.md) - SSRF protection configuration
 - [Claude Code Permissions](https://code.claude.com/docs/en/permissions) - Official settings.json docs
 
 ---
