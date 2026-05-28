@@ -9,6 +9,7 @@ is not installed.
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 
@@ -172,6 +173,8 @@ def _check_gnome_appindicator():
 
 class DaemonTray:
     """System tray icon for ai-guardian daemon."""
+
+    _has_web_console = sys.version_info >= (3, 10)
 
     def __init__(self, get_stats_callback, stop_callback, pause_callback,
                  discovery=None, multi_client=None, standalone=False):
@@ -1552,7 +1555,8 @@ class DaemonTray:
                              lambda _, __: self._open_web_console(
                                  self._targets[0].name if self._targets else ""
                              ),
-                             visible=lambda _: (self._is_single_daemon()
+                             visible=lambda _: (self._has_web_console
+                                                and self._is_single_daemon()
                                                 and self._is_web_console_ready())),
             pystray.MenuItem("Violations", _open_panel("panel-violations"),
                              visible=_single_vis),
@@ -1698,7 +1702,8 @@ class DaemonTray:
 
             def _mk_web_console_visible(slot=idx):
                 def check(_):
-                    return (slot < len(self._targets)
+                    return (self._has_web_console
+                            and slot < len(self._targets)
                             and self._is_web_console_ready())
                 return check
 
