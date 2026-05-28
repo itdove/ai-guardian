@@ -17,6 +17,9 @@ from typing import Dict, FrozenSet, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
+ACTION_SEVERITY = {"allow": 0, "log-only": 1, "warn": 2, "redact": 3, "block": 4}
+SENSITIVITY_SEVERITY = {"low": 0, "medium": 1, "high": 2}
+
 # Sections that only make sense at the user/system level.
 # Project-level configs cannot override these.
 GLOBAL_ONLY_SECTIONS: FrozenSet[str] = frozenset({
@@ -197,6 +200,7 @@ def deep_merge(
     - Keys in global_only_sections are skipped from override
     - ``immutable`` in base sections controls what project configs can override:
       - ``true``: entire section is locked
+      - ``"tighten-only"``: overrides can tighten but not loosen settings
       - ``["field1", "field2"]``: only listed fields are locked
 
     Returns:
@@ -216,7 +220,7 @@ def deep_merge(
             continue
 
         # Check immutable constraints from the base section
-        section_locked, locked_fields = _get_immutable_info(base.get(key))
+        section_locked, locked_fields, tighten_only = _get_immutable_info(base.get(key))
 
         if section_locked:
             logger.debug(f"Project config: section '{key}' is immutable, skipping entirely")
@@ -225,7 +229,7 @@ def deep_merge(
         if key in result:
             if isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = _deep_merge_section(
-                    result[key], value, locked_fields,
+                    result[key], value, locked_fields, tighten_only,
                 )
             elif isinstance(result[key], list) and isinstance(value, list):
                 result[key] = result[key] + value
@@ -242,26 +246,66 @@ def _get_immutable_info(section) -> tuple:
     Extract immutable constraints from a config section.
 
     Returns:
-        (section_locked: bool, locked_fields: list or None)
+        (section_locked: bool, locked_fields: list or None, tighten_only: bool)
         - section_locked=True means entire section cannot be overridden
         - locked_fields is a list of field names that cannot be overridden
+        - tighten_only=True means overrides can tighten but not loosen
     """
     if not isinstance(section, dict):
-        return False, None
+        return False, None, False
     immutable = section.get("immutable")
     if immutable is True:
-        return True, None
+        return True, None, False
+    if immutable == "tighten-only":
+        return False, None, True
     if isinstance(immutable, list):
-        return False, immutable
-    return False, None
+        return False, immutable, False
+    return False, None, False
+
+
+def _is_tightening(key: str, base_value, override_value) -> bool:
+    """
+    Check if an override value is tighter than (or equal to) the base value.
+
+    Used by tighten-only immutable mode. Returns True if the change is allowed
+    (tightening or equal), False if the change would loosen the setting.
+    """
+    if base_value == override_value:
+        return True
+
+    if key == "action":
+        base_sev = ACTION_SEVERITY.get(base_value)
+        over_sev = ACTION_SEVERITY.get(override_value)
+        if base_sev is not None and over_sev is not None:
+            return over_sev >= base_sev
+        return False
+
+    if key == "sensitivity":
+        base_sev = SENSITIVITY_SEVERITY.get(base_value)
+        over_sev = SENSITIVITY_SEVERITY.get(override_value)
+        if base_sev is not None and over_sev is not None:
+            return over_sev >= base_sev
+        return False
+
+    if key == "enabled":
+        if isinstance(base_value, bool) and isinstance(override_value, bool):
+            # Enabling a protection is tightening; disabling is loosening
+            if not base_value and override_value:
+                return True
+            if base_value and not override_value:
+                return False
+        return base_value == override_value
+
+    return False
 
 
 def _deep_merge_section(
     base: Dict,
     override: Dict,
     locked_fields: Optional[List[str]] = None,
+    tighten_only: bool = False,
 ) -> Dict:
-    """Recursively merge a config section, respecting locked fields."""
+    """Recursively merge a config section, respecting locked fields and tighten-only mode."""
     result = copy.deepcopy(base)
 
     for key, value in override.items():
@@ -277,11 +321,37 @@ def _deep_merge_section(
 
         if key in result:
             if isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = _deep_merge_section(result[key], value, None)
+                result[key] = _deep_merge_section(result[key], value, None, tighten_only)
             elif isinstance(result[key], list) and isinstance(value, list):
-                result[key] = result[key] + value
+                if tighten_only:
+                    # Tighten-only: can add items but not remove existing ones
+                    base_set = set(result[key])
+                    override_set = set(value)
+                    if base_set <= override_set:
+                        result[key] = copy.deepcopy(value)
+                    else:
+                        removed = base_set - override_set
+                        logger.warning(
+                            "Config override blocked: %s cannot remove items %s "
+                            "(tighten-only policy)", key, removed,
+                        )
+                        new_items = [v for v in value if v not in base_set]
+                        if new_items:
+                            result[key] = result[key] + new_items
+                else:
+                    result[key] = result[key] + value
             else:
-                result[key] = copy.deepcopy(value)
+                if tighten_only:
+                    if _is_tightening(key, result[key], value):
+                        result[key] = copy.deepcopy(value)
+                    else:
+                        logger.warning(
+                            "Config override blocked: %s cannot be loosened "
+                            "from '%s' to '%s' (tighten-only policy)",
+                            key, result[key], value,
+                        )
+                else:
+                    result[key] = copy.deepcopy(value)
         else:
             result[key] = copy.deepcopy(value)
 

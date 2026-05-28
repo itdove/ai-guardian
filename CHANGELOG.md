@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Directional immutable — tighten-only config fields** (Issue #829)
+  - New `immutable: "tighten-only"` mode for config sections
+  - Lower-level configs can make settings stricter but not more permissive
+  - Action severity ordering: block > redact > warn > log-only > allow
+  - Supports action, enabled, sensitivity fields and list fields (allowlist_patterns, ignore_files)
+  - Warning logged when override blocked; org value used (not a fatal error)
+  - Doctor check reports active tighten-only policies
+  - Config show indicates tighten-only sections
+  - Existing `immutable: true/false/[fields]` behavior unchanged
+
 - **Violation Type Coverage Matrix** in `docs/AGENT_SUPPORT.md` (Issue #833)
   - Per-agent enforcement/advisory/partial/caution/no matrix for all 13 violation types
   - Known limitations section: image scanning caveat, transcript scanning availability, MCP-only constraints

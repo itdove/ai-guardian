@@ -321,6 +321,9 @@ class ConfigDisplay:
     def _format_generic_section(self, output: List[str], section):
         """Format a generic configuration section."""
         if isinstance(section, dict):
+            immutable = section.get("immutable")
+            if immutable == "tighten-only":
+                output.append("  [TIGHTEN-ONLY] overrides can tighten but not loosen")
             for key, value in section.items():
                 if key.startswith("_"):  # Skip metadata
                     continue

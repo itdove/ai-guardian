@@ -23,8 +23,11 @@
           "default": true
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "auto_directory_rules": {
@@ -374,8 +377,11 @@
           "default": true
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "ignore_files": {
@@ -555,8 +561,11 @@
           "default": []
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "pattern_server": {
@@ -694,8 +703,11 @@
           "default": false
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "url": {
@@ -786,8 +798,11 @@
           "default": "block"
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "detector": {
@@ -957,8 +972,11 @@
           "default": "block"
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "additional_blocked_ips": {
@@ -1084,8 +1102,11 @@
           "default": "block"
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "additional_files": {
@@ -1209,8 +1230,11 @@
           "default": false
         },
         "immutable": {
-          "type": "boolean",
-          "description": "If true, local configs cannot override this entire section. Used in remote configs to enforce enterprise policies.",
+          "oneOf": [
+            {"type": "boolean"},
+            {"type": "string", "enum": ["tighten-only"]}
+          ],
+          "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
         "paths": {
@@ -1785,9 +1809,19 @@
       "additionalProperties": false
     },
     "immutable_fields": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "List of field names in this section that project-level ai-guardian.json configs cannot override. Only meaningful in the global config (~/.config/ai-guardian/ai-guardian.json). Project configs that attempt to set immutable fields will have those fields silently ignored."
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of field names in this section that project-level configs cannot override."
+        },
+        {
+          "type": "string",
+          "enum": ["tighten-only"],
+          "description": "Lower-level configs can tighten settings but not loosen them."
+        }
+      ],
+      "description": "Controls what project-level ai-guardian.json configs can override. Array lists locked fields. 'tighten-only' allows overrides that make settings stricter but blocks loosening."
     }
   }
 }
