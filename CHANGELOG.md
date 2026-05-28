@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--ide` CLI parameter for deterministic adapter selection** (Issue #849)
+  - `ai-guardian --ide <name>` explicitly declares which IDE adapter to use
+  - Eliminates adapter mis-detection bugs like #847 (field-matching heuristics)
+  - `ai-guardian setup` now writes `--ide <name>` into hook commands automatically
+  - Re-running `ai-guardian setup --ide <name>` upgrades existing hooks
+  - Auto-detection preserved as fallback for backward compatibility
+  - Works with both direct CLI and daemon-forwarded hook processing
+
 - **Directional immutable — tighten-only config fields** (Issue #829)
   - New `immutable: "tighten-only"` mode for config sections
   - Lower-level configs can make settings stricter but not more permissive

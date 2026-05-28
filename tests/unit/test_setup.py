@@ -18,6 +18,7 @@ from ai_guardian.setup import (
     _is_ai_guardian_command,
     _resolve_binary_path,
     _substitute_command,
+    _upgrade_ide_flag,
 )
 
 
@@ -2669,6 +2670,15 @@ class TestIsAiGuardianCommand:
     def test_none_like(self):
         assert _is_ai_guardian_command(None) is False
 
+    def test_bare_command_with_ide_flag(self):
+        assert _is_ai_guardian_command("ai-guardian --ide cursor") is True
+
+    def test_absolute_path_with_ide_flag(self):
+        assert _is_ai_guardian_command("/usr/local/bin/ai-guardian --ide claude") is True
+
+    def test_venv_path_with_ide_flag(self):
+        assert _is_ai_guardian_command("/home/user/.venv/bin/ai-guardian --ide gemini") is True
+
 
 class TestSubstituteCommand:
     """Tests for _substitute_command helper."""
@@ -2700,6 +2710,51 @@ class TestSubstituteCommand:
         _substitute_command(original, "/abs/ai-guardian")
         assert original["command"] == "ai-guardian"
 
+    def test_ide_type_appended(self):
+        result = _substitute_command({"command": "ai-guardian"}, "/abs/ai-guardian", ide_type="cursor")
+        assert result == {"command": "/abs/ai-guardian --ide cursor"}
+
+    def test_ide_type_nested(self):
+        result = _substitute_command(
+            {"hooks": [{"command": "ai-guardian"}]},
+            "/abs/ai-guardian",
+            ide_type="gemini",
+        )
+        assert result == {"hooks": [{"command": "/abs/ai-guardian --ide gemini"}]}
+
+    def test_ide_type_none_omitted(self):
+        result = _substitute_command({"command": "ai-guardian"}, "/abs/ai-guardian", ide_type=None)
+        assert result == {"command": "/abs/ai-guardian"}
+
+
+class TestUpgradeIdeFlag:
+    """Tests for _upgrade_ide_flag helper."""
+
+    def test_adds_ide_flag_to_bare_command(self):
+        config = {"command": "ai-guardian"}
+        _upgrade_ide_flag(config, "cursor")
+        assert config["command"] == "ai-guardian --ide cursor"
+
+    def test_adds_ide_flag_to_absolute_path(self):
+        config = {"command": "/usr/bin/ai-guardian"}
+        _upgrade_ide_flag(config, "claude")
+        assert config["command"] == "/usr/bin/ai-guardian --ide claude"
+
+    def test_skips_command_already_having_ide(self):
+        config = {"command": "/usr/bin/ai-guardian --ide cursor"}
+        _upgrade_ide_flag(config, "cursor")
+        assert config["command"] == "/usr/bin/ai-guardian --ide cursor"
+
+    def test_nested_in_hooks(self):
+        config = {"hooks": {"preToolUse": [{"command": "/usr/bin/ai-guardian"}]}}
+        _upgrade_ide_flag(config, "cursor")
+        assert config["hooks"]["preToolUse"][0]["command"] == "/usr/bin/ai-guardian --ide cursor"
+
+    def test_leaves_non_ai_guardian_command(self):
+        config = {"command": "other-tool"}
+        _upgrade_ide_flag(config, "cursor")
+        assert config["command"] == "other-tool"
+
 
 class TestAbsolutePathWritten:
     """Tests that setup writes absolute paths to hook configs."""
@@ -2718,7 +2773,7 @@ class TestAbsolutePathWritten:
         assert success
         config = json.loads(config_file.read_text())
         cmd = config["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-        assert cmd == "/mock/bin/ai-guardian"
+        assert cmd == "/mock/bin/ai-guardian --ide claude"
 
     def test_cursor_hooks_use_absolute_path(self, tmp_path):
         setup = IDESetup()
@@ -2733,7 +2788,7 @@ class TestAbsolutePathWritten:
 
         assert success
         config = json.loads(config_file.read_text())
-        assert config["hooks"]["beforeSubmitPrompt"][0]["command"] == "/mock/bin/ai-guardian"
+        assert config["hooks"]["beforeSubmitPrompt"][0]["command"] == "/mock/bin/ai-guardian --ide cursor"
 
     def test_script_based_hooks_use_absolute_path(self, tmp_path):
         setup = IDESetup()
@@ -2748,7 +2803,7 @@ class TestAbsolutePathWritten:
 
         assert success
         script = (hooks_dir / "PreToolUse").read_text()
-        assert "/mock/bin/ai-guardian" in script
+        assert "/mock/bin/ai-guardian --ide cline" in script
         assert script.startswith("#!/bin/sh")
 
     def test_check_hooks_configured_recognizes_absolute_path(self, tmp_path):
