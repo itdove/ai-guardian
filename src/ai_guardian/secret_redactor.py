@@ -37,11 +37,11 @@ class SecretRedactor:
         (r'(sk-[A-Za-z0-9]{20,})', 'preserve_prefix_suffix', 'OpenAI API Key'),
         (r'(sk-proj-[A-Za-z0-9]{20,})', 'preserve_prefix_suffix', 'OpenAI Project Key'),
 
-        # GitHub Tokens
-        (r'(ghp_[A-Za-z0-9]{36,})', 'preserve_prefix_suffix', 'GitHub Personal Token'),
-        (r'(gho_[A-Za-z0-9]{36,})', 'preserve_prefix_suffix', 'GitHub OAuth Token'),
-        (r'(ghr_[A-Za-z0-9]{36,})', 'preserve_prefix_suffix', 'GitHub Refresh Token'),
-        (r'(ghs_[A-Za-z0-9]{36,})', 'preserve_prefix_suffix', 'GitHub Secret Token'),
+        # GitHub Tokens (supports both stateful and stateless JWT formats)
+        (r'(ghp_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub Personal Token'),
+        (r'(gho_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub OAuth Token'),
+        (r'(ghr_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub Refresh Token'),
+        (r'(ghs_[A-Za-z0-9._-]{36,})', 'preserve_prefix_suffix', 'GitHub Secret Token'),
 
         # Anthropic API Keys
         (r'(sk-ant-[A-Za-z0-9\-_]{32,})', 'preserve_prefix_suffix', 'Anthropic API Key'),

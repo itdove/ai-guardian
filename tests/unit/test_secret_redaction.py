@@ -381,3 +381,83 @@ class TestSecretRedactionIntegration:
         # Secrets are hidden
         assert "MySecretPass123" not in result['redacted_text']
         assert "abc123def456" not in result['redacted_text']
+
+
+class TestGitHubStatelessJWTTokens:
+    """Test GitHub token detection for both stateful and stateless JWT formats.
+
+    GitHub is rolling out stateless JWT tokens (mid-May to late-June 2026)
+    for App installation tokens (ghs_). The new format includes dots and
+    hyphens from base64url-encoded JWT payload. All four token types
+    (ghp_, gho_, ghr_, ghs_) are updated proactively.
+    """
+
+    @pytest.fixture
+    def redactor(self):
+        return SecretRedactor()
+
+    @pytest.mark.parametrize("prefix,token_type", [
+        ("ghp_", "GitHub Personal Token"),
+        ("gho_", "GitHub OAuth Token"),
+        ("ghr_", "GitHub Refresh Token"),
+        ("ghs_", "GitHub Secret Token"),
+    ])
+    def test_old_stateful_format(self, redactor, prefix, token_type):
+        """Old stateful tokens (alphanumeric only) still match."""
+        token = prefix + "A" * 36  # notsecret
+        result = redactor.redact(f"Token: {token}")
+        assert len(result['redactions']) >= 1
+        found = any(r['type'] == token_type for r in result['redactions'])
+        assert found, f"Expected {token_type} detection for old format"
+        assert "A" * 20 not in result['redacted_text']
+
+    @pytest.mark.parametrize("prefix,token_type", [
+        ("ghp_", "GitHub Personal Token"),
+        ("gho_", "GitHub OAuth Token"),
+        ("ghr_", "GitHub Refresh Token"),
+        ("ghs_", "GitHub Secret Token"),
+    ])
+    def test_new_stateless_jwt_format(self, redactor, prefix, token_type):
+        """New stateless JWT tokens (with dots, hyphens, underscores) are detected."""
+        # Simulates ghs_12345_eyJhbGciOi...base64url...  (~100 chars)
+        jwt_payload = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGVzdHNpZ25hdHVyZQ"
+        token = prefix + "12345_" + jwt_payload  # notsecret
+        result = redactor.redact(f"Token: {token}")
+        assert len(result['redactions']) >= 1
+        found = any(r['type'] == token_type for r in result['redactions'])
+        assert found, f"Expected {token_type} detection for JWT format"
+        assert jwt_payload not in result['redacted_text']
+
+    def test_ghs_real_world_jwt_length(self, redactor):
+        """New ghs_ tokens can be ~520 chars long with full JWT payload."""
+        header = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"
+        payload = "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9." * 3
+        sig = "dGVzdHNpZ25hdHVyZWRhdGFmb3J0ZXN0aW5n"
+        token = f"ghs_12345_{header}.{payload}{sig}"  # notsecret
+        result = redactor.redact(f"Token: {token}")
+        assert len(result['redactions']) >= 1
+        found = any(r['type'] == "GitHub Secret Token" for r in result['redactions'])
+        assert found
+        assert header not in result['redacted_text']
+
+    def test_dots_and_hyphens_in_token(self, redactor):
+        """Dots, hyphens, and underscores in the token body are matched."""
+        token = "ghs_abc-def.ghi_jkl.mno-pqr.stu_vwx.yza-bcd"  # notsecret
+        result = redactor.redact(f"Token: {token}")
+        assert len(result['redactions']) >= 1
+        found = any(r['type'] == "GitHub Secret Token" for r in result['redactions'])
+        assert found
+
+    def test_short_token_no_match(self, redactor):
+        """Tokens shorter than 36 chars after prefix should not match."""
+        token = "ghs_short"  # notsecret - too short
+        result = redactor.redact(f"Token: {token}")
+        github_hits = [r for r in result['redactions'] if "GitHub" in r['type']]
+        assert len(github_hits) == 0
+
+    def test_non_token_with_dots_no_false_positive(self, redactor):
+        """Non-token strings containing dots should not be falsely detected."""
+        text = "The file is at path/to/some.file.name.txt"
+        result = redactor.redact(text)
+        github_hits = [r for r in result['redactions'] if "GitHub" in r['type']]
+        assert len(github_hits) == 0
