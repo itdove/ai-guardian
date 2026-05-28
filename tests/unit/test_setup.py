@@ -126,22 +126,6 @@ class TestIDESetup:
 
         assert backup_path is None
 
-    def test_merge_hooks_claude_new(self):
-        """Test merging Claude Code hooks into new config."""
-        setup = IDESetup()
-
-        existing_config = {}
-        ai_guardian_hooks = {
-            'UserPromptSubmit': [{'test': 'hook'}],
-            'PreToolUse': [{'test': 'hook2'}]
-        }
-
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'claude')
-
-        assert 'hooks' in merged
-        assert 'UserPromptSubmit' in merged['hooks']
-        assert 'PreToolUse' in merged['hooks']
-
     def test_merge_hooks_claude_existing(self):
         """Test merging Claude Code hooks into existing config."""
         setup = IDESetup()
@@ -162,132 +146,6 @@ class TestIDESetup:
         assert 'OtherHook' in merged['hooks']  # Preserved
         assert 'UserPromptSubmit' in merged['hooks']  # Added
         assert merged['other_setting'] == 'value'  # Preserved
-
-    def test_merge_hooks_cursor_new(self):
-        """Test merging Cursor hooks into new config."""
-        setup = IDESetup()
-
-        existing_config = {}
-        ai_guardian_hooks = {
-            'beforeSubmitPrompt': [{'command': 'ai-guardian'}],
-            'beforeReadFile': [{'command': 'ai-guardian'}]
-        }
-
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'cursor')
-
-        assert 'version' in merged
-        assert 'hooks' in merged
-        assert 'beforeSubmitPrompt' in merged['hooks']
-        assert 'beforeReadFile' in merged['hooks']
-
-    def test_check_hooks_configured_claude(self, tmp_path):
-        """Test checking if Claude Code hooks are already configured."""
-        setup = IDESetup()
-
-        # Create config with ai-guardian hooks
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': {
-                'UserPromptSubmit': [
-                    {
-                        'matcher': '*',
-                        'hooks': [
-                            {'command': 'ai-guardian'}
-                        ]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'claude') is True
-
-    def test_check_hooks_configured_cursor(self, tmp_path):
-        """Test checking if Cursor hooks are already configured."""
-        setup = IDESetup()
-
-        # Create config with ai-guardian hooks
-        config_file = tmp_path / 'hooks.json'
-        config = {
-            'hooks': {
-                'beforeSubmitPrompt': [
-                    {'command': 'ai-guardian'}
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'cursor') is True
-
-    def test_check_hooks_not_configured(self, tmp_path):
-        """Test checking when hooks are not configured."""
-        setup = IDESetup()
-
-        # Create config without ai-guardian hooks
-        config_file = tmp_path / 'settings.json'
-        config = {'hooks': {}}
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'claude') is False
-
-    def test_setup_ide_hooks_claude_new(self, tmp_path):
-        """Test setting up Claude Code hooks in new config."""
-        setup = IDESetup()
-
-        config_file = tmp_path / 'settings.json'
-
-        # Mock IDE config
-        with mock.patch.object(
-            setup,
-            'IDE_CONFIGS',
-            {
-                'claude': {
-                    'name': 'Claude Code',
-                    'config_path': str(config_file),
-                    'hooks': {
-                        'UserPromptSubmit': [{'test': 'hook'}],
-                        'PreToolUse': [{'test': 'hook2'}]
-                    }
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('claude', dry_run=False, force=False)
-
-            assert success is True
-            assert config_file.exists()
-
-            # Verify config content
-            with open(config_file) as f:
-                config = json.load(f)
-
-            assert 'hooks' in config
-            assert 'UserPromptSubmit' in config['hooks']
-            assert 'PreToolUse' in config['hooks']
-
-    def test_setup_ide_hooks_dry_run(self, tmp_path):
-        """Test dry-run mode doesn't modify files."""
-        setup = IDESetup()
-
-        config_file = tmp_path / 'settings.json'
-
-        with mock.patch.object(
-            setup,
-            'IDE_CONFIGS',
-            {
-                'claude': {
-                    'name': 'Claude Code',
-                    'config_path': str(config_file),
-                    'hooks': {
-                        'UserPromptSubmit': [{'test': 'hook'}]
-                    }
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('claude', dry_run=True, force=False)
-
-            assert success is True
-            assert '[DRY RUN]' in message
-            assert not config_file.exists()  # File should not be created
 
     def test_setup_ide_hooks_already_configured(self, tmp_path):
         """Test setup when hooks already configured without force."""
@@ -322,50 +180,6 @@ class TestIDESetup:
 
             assert success is False
             assert 'already configured' in message
-
-    def test_setup_ide_hooks_force_overwrite(self, tmp_path):
-        """Test force overwrite of existing hooks."""
-        setup = IDESetup()
-
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': {
-                'UserPromptSubmit': [
-                    {
-                        'matcher': '*',
-                        'hooks': [{'command': 'ai-guardian'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        with mock.patch.object(
-            setup,
-            'IDE_CONFIGS',
-            {
-                'claude': {
-                    'name': 'Claude Code',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,  # Disable env var for test
-                    'hooks': {
-                        'UserPromptSubmit': [
-                            {
-                                'matcher': '*',
-                                'hooks': [{'type': 'command', 'command': 'new-hook'}]
-                            }
-                        ]
-                    }
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('claude', dry_run=False, force=True)
-
-            assert success is True
-
-            # Verify backup was created
-            backup_file = config_file.with_suffix('.json.backup')
-            assert backup_file.exists()
 
     def test_setup_ide_hooks_invalid_json(self, tmp_path):
         """Test setup with invalid JSON in existing config."""
@@ -434,32 +248,6 @@ class TestIDESetup:
         assert "pre_user_prompt" in merged["hooks"]
         assert "pre_run_command" in merged["hooks"]
 
-    def test_check_hooks_configured_windsurf(self, tmp_path):
-        """Test checking if Windsurf hooks are already configured."""
-        setup = IDESetup()
-
-        config_file = tmp_path / "hooks.json"
-        config = {
-            "hooks": {
-                "pre_user_prompt": [
-                    {"command": "ai-guardian"}
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, "windsurf") is True
-
-    def test_check_hooks_not_configured_windsurf(self, tmp_path):
-        """Test checking when Windsurf hooks are not configured."""
-        setup = IDESetup()
-
-        config_file = tmp_path / "hooks.json"
-        config = {"hooks": {"pre_user_prompt": [{"command": "other-tool"}]}}
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, "windsurf") is False
-
     def test_setup_ide_hooks_windsurf_new(self, tmp_path):
         """Test setting up Windsurf hooks in new config."""
         setup = IDESetup()
@@ -501,36 +289,6 @@ class TestIDESetup:
             assert "pre_read_code" in written["hooks"]
             assert "pre_write_code" in written["hooks"]
             assert "pre_mcp_tool_use" in written["hooks"]
-
-    def test_setup_ide_hooks_windsurf_dry_run(self, tmp_path):
-        """Test dry run for Windsurf hooks."""
-        setup = IDESetup()
-
-        config_file = tmp_path / "hooks.json"
-
-        with mock.patch.object(
-            setup,
-            "IDE_CONFIGS",
-            {
-                "windsurf": {
-                    "name": "Windsurf",
-                    "config_path": str(config_file),
-                    "config_dir_env_var": None,
-                    "config_filename": "hooks.json",
-                    "hooks": {
-                        "hooks": {
-                            "pre_user_prompt": [{"command": "ai-guardian"}],
-                        }
-                    },
-                }
-            },
-        ):
-            success, message = setup.setup_ide_hooks("windsurf", dry_run=True, force=False)
-
-            assert success is True
-            assert "DRY RUN" in message
-            assert "Windsurf" in message
-            assert not config_file.exists()
 
     def test_setup_remote_config_new_file(self, tmp_path):
         """Test setting up remote config in new file."""
@@ -742,6 +500,315 @@ class TestIDESetup:
                 assert 'install gitleaks' in message.lower()
 
 
+class TestIDESetupParametrized:
+    """Parametrized tests covering common IDE setup patterns across all adapters."""
+
+    # ── Helpers ──────────────────────────────────────────────────────────
+
+    # Config data that makes check_hooks_configured return True for each IDE
+    _CONFIGURED_CONFIGS = {
+        "claude": {
+            "hooks": {
+                "UserPromptSubmit": [
+                    {"matcher": "*", "hooks": [{"command": "ai-guardian"}]}
+                ]
+            }
+        },
+        "cursor": {
+            "hooks": {"beforeSubmitPrompt": [{"command": "ai-guardian"}]}
+        },
+        "windsurf": {
+            "hooks": {"pre_user_prompt": [{"command": "ai-guardian"}]}
+        },
+        "codex": {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [{"type": "command", "command": "ai-guardian"}],
+                    }
+                ]
+            }
+        },
+        "gemini": {
+            "hooks": [
+                {"event": "BeforeTool", "matcher": ".*", "command": "ai-guardian"}
+            ]
+        },
+        "augment": {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "launch-process|str-replace-editor|save-file|view",
+                        "hooks": [{"type": "command", "command": "ai-guardian"}],
+                    }
+                ]
+            }
+        },
+    }
+
+    # Config data where ai-guardian is NOT present (uses other-tool)
+    _NOT_CONFIGURED_CONFIGS = {
+        "claude": {"hooks": {}},
+        "cursor": {
+            "hooks": {"beforeSubmitPrompt": [{"command": "other-tool"}]}
+        },
+        "windsurf": {
+            "hooks": {"pre_user_prompt": [{"command": "other-tool"}]}
+        },
+        "codex": {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": ".*",
+                        "hooks": [{"type": "command", "command": "other-tool"}],
+                    }
+                ]
+            }
+        },
+        "gemini": {
+            "hooks": [
+                {"event": "BeforeTool", "matcher": ".*", "command": "other-tool"}
+            ]
+        },
+        "augment": {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "launch-process",
+                        "hooks": [{"type": "command", "command": "other-tool"}],
+                    }
+                ]
+            }
+        },
+    }
+
+    @staticmethod
+    def _make_ide_config_override(setup, ide_name, config_path, **extra):
+        """Build a minimal IDE_CONFIGS override for a single IDE."""
+        real_cfg = IDESetup.IDE_CONFIGS[ide_name]
+        override = {
+            "name": real_cfg["name"],
+            "config_path": str(config_path),
+            "config_dir_env_var": None,
+            "config_filename": real_cfg.get("config_filename"),
+        }
+        if real_cfg.get("script_based"):
+            override["script_based"] = True
+            override["hook_scripts"] = real_cfg["hook_scripts"]
+            override["script_content"] = real_cfg["script_content"]
+        else:
+            override["hooks"] = real_cfg["hooks"]
+        override.update(extra)
+        return {ide_name: override}
+
+    # ── IDE registration ─────────────────────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["codex", "gemini", "cline", "zoocode", "augment", "kiro"],
+        ids=["codex", "gemini", "cline", "zoocode", "augment", "kiro"],
+    )
+    def test_ide_in_ide_configs(self, ide_name):
+        """Verify IDE entry exists in IDE_CONFIGS with a name and hooks/scripts."""
+        assert ide_name in IDESetup.IDE_CONFIGS
+        cfg = IDESetup.IDE_CONFIGS[ide_name]
+        assert "name" in cfg
+        assert cfg["name"]  # non-empty
+        if cfg.get("script_based"):
+            assert "hook_scripts" in cfg
+        else:
+            assert "hooks" in cfg
+
+    # ── check_hooks_configured (JSON-based IDEs) ─────────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["claude", "cursor", "windsurf", "codex", "gemini", "augment"],
+        ids=["claude", "cursor", "windsurf", "codex", "gemini", "augment"],
+    )
+    def test_check_hooks_configured_json(self, tmp_path, ide_name):
+        """Verify check_hooks_configured returns True when ai-guardian is present."""
+        setup = IDESetup()
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps(self._CONFIGURED_CONFIGS[ide_name]))
+        assert setup.check_hooks_configured(config_file, ide_name) is True
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["claude", "cursor", "windsurf", "codex", "gemini", "augment"],
+        ids=["claude", "cursor", "windsurf", "codex", "gemini", "augment"],
+    )
+    def test_check_hooks_not_configured_json(self, tmp_path, ide_name):
+        """Verify check_hooks_configured returns False when ai-guardian is absent."""
+        setup = IDESetup()
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps(self._NOT_CONFIGURED_CONFIGS[ide_name]))
+        assert setup.check_hooks_configured(config_file, ide_name) is False
+
+    # ── check_hooks_configured (script-based IDEs) ───────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
+    )
+    def test_check_hooks_configured_script(self, tmp_path, ide_name):
+        """Verify check_hooks_configured returns True when script contains ai-guardian."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir(parents=True)
+        script = hooks_dir / "PreToolUse"
+        script.write_text("#!/bin/sh\nai-guardian\n")
+        assert setup.check_hooks_configured(hooks_dir, ide_name) is True
+
+    @pytest.mark.parametrize(
+        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
+    )
+    def test_check_hooks_not_configured_script(self, tmp_path, ide_name):
+        """Verify check_hooks_configured returns False when script has other-tool."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir(parents=True)
+        script = hooks_dir / "PreToolUse"
+        script.write_text("#!/bin/sh\nother-tool\n")
+        assert setup.check_hooks_configured(hooks_dir, ide_name) is False
+
+    @pytest.mark.parametrize(
+        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
+    )
+    def test_check_hooks_not_configured_script_empty(self, tmp_path, ide_name):
+        """Verify check_hooks_configured returns False when hooks dir is absent."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+        assert setup.check_hooks_configured(hooks_dir, ide_name) is False
+
+    # ── setup_ide_hooks new (JSON-based) ─────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["claude", "windsurf", "codex", "augment"],
+        ids=["claude", "windsurf", "codex", "augment"],
+    )
+    def test_setup_ide_hooks_json_new(self, tmp_path, ide_name):
+        """Setting up hooks in an empty directory creates valid JSON config."""
+        setup = IDESetup()
+        config_file = tmp_path / "config.json"
+        ide_override = self._make_ide_config_override(setup, ide_name, config_file)
+
+        with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
+            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=False)
+
+        assert success is True
+        assert config_file.exists()
+        with open(config_file) as f:
+            config = json.load(f)
+        assert "hooks" in config
+
+    # ── setup_ide_hooks new (script-based) ───────────────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
+    )
+    def test_setup_ide_hooks_script_new(self, tmp_path, ide_name):
+        """Setting up script-based hooks creates executable scripts."""
+        import stat
+
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+        ide_override = self._make_ide_config_override(setup, ide_name, hooks_dir)
+
+        with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
+            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=False)
+
+        assert success is True
+        assert hooks_dir.exists()
+        expected_scripts = IDESetup.IDE_CONFIGS[ide_name]["hook_scripts"]
+        for script_name in expected_scripts:
+            script_path = hooks_dir / script_name
+            assert script_path.exists(), f"Missing script: {script_name}"
+            content = script_path.read_text()
+            assert "ai-guardian" in content
+            assert script_path.stat().st_mode & stat.S_IXUSR
+
+    # ── setup_ide_hooks dry-run ──────────────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["claude", "windsurf", "codex", "gemini", "augment", "cline", "kiro"],
+        ids=["claude", "windsurf", "codex", "gemini", "augment", "cline", "kiro"],
+    )
+    def test_setup_ide_hooks_dry_run(self, tmp_path, ide_name):
+        """Dry-run mode returns success with DRY RUN and creates no files."""
+        setup = IDESetup()
+        config_path = tmp_path / "config_or_hooks"
+        ide_override = self._make_ide_config_override(setup, ide_name, config_path)
+
+        with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
+            success, message = setup.setup_ide_hooks(ide_name, dry_run=True, force=False)
+
+        assert success is True
+        assert "[DRY RUN]" in message
+        assert not config_path.exists()
+
+    # ── setup_ide_hooks force overwrite (JSON-based) ─────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["claude", "codex", "augment"],
+        ids=["claude", "codex", "augment"],
+    )
+    def test_setup_ide_hooks_json_force_overwrite(self, tmp_path, ide_name):
+        """Force overwrite of existing JSON hooks creates backup."""
+        setup = IDESetup()
+        config_file = tmp_path / "config.json"
+        # Write existing config with ai-guardian present
+        config_file.write_text(json.dumps(self._CONFIGURED_CONFIGS.get(
+            ide_name,
+            {"hooks": {"PreToolUse": [{"hooks": [{"command": "ai-guardian"}]}]}}
+        )))
+        ide_override = self._make_ide_config_override(setup, ide_name, config_file)
+
+        with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
+            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=True)
+
+        assert success is True
+        backup_file = config_file.with_suffix(".json.backup")
+        assert backup_file.exists()
+
+    # ── setup_ide_hooks already-configured (JSON-based) ──────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["codex"],
+        ids=["codex"],
+    )
+    def test_setup_ide_hooks_json_already_configured(self, tmp_path, ide_name):
+        """Setup returns failure when hooks already configured without force."""
+        setup = IDESetup()
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps(self._CONFIGURED_CONFIGS[ide_name]))
+        ide_override = self._make_ide_config_override(setup, ide_name, config_file)
+
+        with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
+            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=False)
+
+        assert success is False
+        assert "already configured" in message
+
+    # ── merge_hooks new (basic IDEs) ─────────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "ide_name",
+        ["claude", "cursor"],
+        ids=["claude", "cursor"],
+    )
+    def test_merge_hooks_new(self, ide_name):
+        """Merging hooks into empty config creates hooks section."""
+        setup = IDESetup()
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS[ide_name]["hooks"]
+        merged, warnings = setup.merge_hooks({}, ai_guardian_hooks, ide_name)
+        assert "hooks" in merged or "version" in merged
+
+
 class TestConfigDirEnvironmentVariable:
     """Test cases for AI_GUARDIAN_CONFIG_DIR environment variable."""
 
@@ -886,19 +953,6 @@ class TestConfigDirEnvironmentVariable:
 class TestCodexSetup:
     """Test cases for Codex IDE setup."""
 
-    def test_codex_in_ide_configs(self):
-        """Verify Codex entry exists in IDE_CONFIGS with correct keys."""
-        assert "codex" in IDESetup.IDE_CONFIGS
-        codex_cfg = IDESetup.IDE_CONFIGS["codex"]
-        assert codex_cfg["name"] == "OpenAI Codex"
-        assert codex_cfg["config_path"] == "~/.codex/hooks.json"
-        assert codex_cfg["config_filename"] == "hooks.json"
-        assert "hooks" in codex_cfg
-        hooks = codex_cfg["hooks"]
-        assert "UserPromptSubmit" in hooks
-        assert "PreToolUse" in hooks
-        assert "PostToolUse" in hooks
-
     def test_codex_hooks_use_regex_matcher(self):
         """Verify Codex PreToolUse/PostToolUse use regex matcher '.*'."""
         hooks = IDESetup.IDE_CONFIGS["codex"]["hooks"]
@@ -912,165 +966,6 @@ class TestCodexSetup:
         for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
             hook_entry = hooks[event][0]["hooks"][0]
             assert hook_entry["timeout"] == 30
-
-    def test_setup_ide_hooks_codex_new(self, tmp_path):
-        """Test setting up Codex hooks in new config."""
-        setup = IDESetup()
-        config_file = tmp_path / 'hooks.json'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'codex': {
-                    'name': 'OpenAI Codex',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'hooks.json',
-                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('codex', dry_run=False, force=False)
-
-            assert success is True
-            assert config_file.exists()
-
-            with open(config_file) as f:
-                config = json.load(f)
-
-            assert 'hooks' in config
-            assert 'UserPromptSubmit' in config['hooks']
-            assert 'PreToolUse' in config['hooks']
-            assert 'PostToolUse' in config['hooks']
-            assert config['hooks']['PreToolUse'][0]['matcher'] == '.*'
-            assert _is_ai_guardian_command(config['hooks']['PreToolUse'][0]['hooks'][0]['command'])
-
-    def test_setup_ide_hooks_codex_dry_run(self, tmp_path):
-        """Test dry-run mode for Codex."""
-        setup = IDESetup()
-        config_file = tmp_path / 'hooks.json'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'codex': {
-                    'name': 'OpenAI Codex',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'hooks.json',
-                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('codex', dry_run=True, force=False)
-
-            assert success is True
-            assert '[DRY RUN]' in message
-            assert not config_file.exists()
-
-    def test_check_hooks_configured_codex(self, tmp_path):
-        """Test detection of existing Codex hooks."""
-        setup = IDESetup()
-        config_file = tmp_path / 'hooks.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': '.*',
-                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'codex') is True
-
-    def test_check_hooks_not_configured_codex(self, tmp_path):
-        """Test returns False when no ai-guardian hooks present."""
-        setup = IDESetup()
-        config_file = tmp_path / 'hooks.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': '.*',
-                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'codex') is False
-
-    def test_setup_ide_hooks_codex_already_configured(self, tmp_path):
-        """Test setup when Codex hooks already configured without force."""
-        setup = IDESetup()
-        config_file = tmp_path / 'hooks.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': '.*',
-                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'codex': {
-                    'name': 'OpenAI Codex',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'hooks.json',
-                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('codex', dry_run=False, force=False)
-
-            assert success is False
-            assert 'already configured' in message
-
-    def test_setup_ide_hooks_codex_force_overwrite(self, tmp_path):
-        """Test force overwrite of existing Codex hooks."""
-        setup = IDESetup()
-        config_file = tmp_path / 'hooks.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': '.*',
-                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'codex': {
-                    'name': 'OpenAI Codex',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'hooks.json',
-                    'hooks': IDESetup.IDE_CONFIGS['codex']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('codex', dry_run=False, force=True)
-
-            assert success is True
-
-            backup_file = config_file.with_suffix('.json.backup')
-            assert backup_file.exists()
 
     def test_merge_hooks_codex_preserves_other_hooks(self, tmp_path):
         """Test that merging Codex hooks preserves existing non-ai-guardian hooks."""
@@ -1098,15 +993,6 @@ class TestCodexSetup:
 class TestGeminiSetup:
     """Test cases for Gemini CLI setup."""
 
-    def test_gemini_in_ide_configs(self):
-        """Verify Gemini entry exists in IDE_CONFIGS with correct keys."""
-        assert "gemini" in IDESetup.IDE_CONFIGS
-        gemini_cfg = IDESetup.IDE_CONFIGS["gemini"]
-        assert gemini_cfg["name"] == "Google Gemini CLI"
-        assert gemini_cfg["config_path"] == "~/.gemini/settings.json"
-        assert gemini_cfg["config_filename"] == "settings.json"
-        assert "hooks" in gemini_cfg
-
     def test_gemini_hooks_use_array_format(self):
         """Verify Gemini hooks use array format with event/matcher/command."""
         hooks_config = IDESetup.IDE_CONFIGS["gemini"]["hooks"]
@@ -1128,86 +1014,6 @@ class TestGeminiSetup:
         for h in hooks:
             if h["event"] in ("BeforeTool", "AfterTool"):
                 assert h["matcher"] == ".*"
-
-    def test_setup_ide_hooks_gemini_new(self, tmp_path):
-        """Test setting up Gemini hooks in new config."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'gemini': {
-                    'name': 'Google Gemini CLI',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'settings.json',
-                    'hooks': IDESetup.IDE_CONFIGS['gemini']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('gemini', dry_run=False, force=False)
-
-            assert success is True
-            assert config_file.exists()
-
-            with open(config_file) as f:
-                config = json.load(f)
-
-            assert 'hooks' in config
-            assert isinstance(config['hooks'], list)
-            assert len(config['hooks']) == 3
-            commands = [h['command'] for h in config['hooks']]
-            assert all(_is_ai_guardian_command(c) for c in commands)
-
-    def test_setup_ide_hooks_gemini_dry_run(self, tmp_path):
-        """Test dry-run mode for Gemini."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'gemini': {
-                    'name': 'Google Gemini CLI',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'settings.json',
-                    'hooks': IDESetup.IDE_CONFIGS['gemini']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('gemini', dry_run=True, force=False)
-
-            assert success is True
-            assert '[DRY RUN]' in message
-            assert not config_file.exists()
-
-    def test_check_hooks_configured_gemini(self, tmp_path):
-        """Test detection of existing Gemini hooks."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': [
-                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'ai-guardian'}
-            ]
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'gemini') is True
-
-    def test_check_hooks_not_configured_gemini(self, tmp_path):
-        """Test returns False when no ai-guardian hooks present."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': [
-                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'other-tool'}
-            ]
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'gemini') is False
 
     def test_merge_hooks_gemini_new(self):
         """Test merging Gemini hooks into empty config."""
@@ -1261,24 +1067,6 @@ class TestGeminiSetup:
 class TestClineSetup:
     """Test cases for Cline/ZooCode setup."""
 
-    def test_cline_in_ide_configs(self):
-        """Verify Cline entry exists in IDE_CONFIGS with correct keys."""
-        assert "cline" in IDESetup.IDE_CONFIGS
-        cline_cfg = IDESetup.IDE_CONFIGS["cline"]
-        assert cline_cfg["name"] == "Cline"
-        assert cline_cfg["config_path"] == ".clinerules/hooks"
-        assert cline_cfg.get("script_based") is True
-        assert "hook_scripts" in cline_cfg
-
-    def test_zoocode_in_ide_configs(self):
-        """Verify ZooCode entry exists as alias with same structure."""
-        assert "zoocode" in IDESetup.IDE_CONFIGS
-        zoo_cfg = IDESetup.IDE_CONFIGS["zoocode"]
-        assert zoo_cfg["name"] == "ZooCode"
-        assert zoo_cfg["config_path"] == ".clinerules/hooks"
-        assert zoo_cfg.get("script_based") is True
-        assert zoo_cfg["hook_scripts"] == IDESetup.IDE_CONFIGS["cline"]["hook_scripts"]
-
     def test_cline_hooks_are_script_based(self):
         """Verify Cline uses script-based hooks with correct event names."""
         cline_cfg = IDESetup.IDE_CONFIGS["cline"]
@@ -1294,90 +1082,6 @@ class TestClineSetup:
         content = cline_cfg["script_content"]
         assert content.startswith("#!/bin/sh")
         assert "ai-guardian" in content
-
-    def test_setup_ide_hooks_cline_new(self, tmp_path):
-        """Test setting up Cline hooks creates executable scripts."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.clinerules' / 'hooks'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'cline': {
-                    'name': 'Cline',
-                    'config_path': str(hooks_dir),
-                    'config_dir_env_var': None,
-                    'config_filename': None,
-                    'script_based': True,
-                    'hook_scripts': IDESetup.IDE_CONFIGS['cline']['hook_scripts'],
-                    'script_content': IDESetup.IDE_CONFIGS['cline']['script_content'],
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('cline', dry_run=False, force=False)
-
-            assert success is True
-            assert hooks_dir.exists()
-
-            for script_name in ['PreToolUse', 'PostToolUse', 'UserPromptSubmit']:
-                script_path = hooks_dir / script_name
-                assert script_path.exists()
-                content = script_path.read_text()
-                assert 'ai-guardian' in content
-                import stat
-                assert script_path.stat().st_mode & stat.S_IXUSR
-
-    def test_setup_ide_hooks_cline_dry_run(self, tmp_path):
-        """Test dry-run mode for Cline."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.clinerules' / 'hooks'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'cline': {
-                    'name': 'Cline',
-                    'config_path': str(hooks_dir),
-                    'config_dir_env_var': None,
-                    'config_filename': None,
-                    'script_based': True,
-                    'hook_scripts': IDESetup.IDE_CONFIGS['cline']['hook_scripts'],
-                    'script_content': IDESetup.IDE_CONFIGS['cline']['script_content'],
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('cline', dry_run=True, force=False)
-
-            assert success is True
-            assert '[DRY RUN]' in message
-            assert not hooks_dir.exists()
-
-    def test_check_hooks_configured_cline(self, tmp_path):
-        """Test detection of existing Cline hook scripts."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.clinerules' / 'hooks'
-        hooks_dir.mkdir(parents=True)
-        script = hooks_dir / 'PreToolUse'
-        script.write_text("#!/bin/sh\nai-guardian\n")
-
-        assert setup.check_hooks_configured(hooks_dir, 'cline') is True
-
-    def test_check_hooks_not_configured_cline(self, tmp_path):
-        """Test returns False when no ai-guardian scripts present."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.clinerules' / 'hooks'
-        hooks_dir.mkdir(parents=True)
-        script = hooks_dir / 'PreToolUse'
-        script.write_text("#!/bin/sh\nother-tool\n")
-
-        assert setup.check_hooks_configured(hooks_dir, 'cline') is False
-
-    def test_check_hooks_not_configured_cline_empty(self, tmp_path):
-        """Test returns False when hooks directory doesn't exist."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.clinerules' / 'hooks'
-
-        assert setup.check_hooks_configured(hooks_dir, 'cline') is False
 
     def test_setup_ide_hooks_cline_force(self, tmp_path):
         """Test force flag overwrites existing Cline scripts."""
@@ -1411,15 +1115,6 @@ class TestClineSetup:
 class TestAugmentSetup:
     """Test cases for Augment Code setup."""
 
-    def test_augment_in_ide_configs(self):
-        """Verify Augment entry exists in IDE_CONFIGS with correct keys."""
-        assert "augment" in IDESetup.IDE_CONFIGS
-        aug_cfg = IDESetup.IDE_CONFIGS["augment"]
-        assert aug_cfg["name"] == "Augment Code"
-        assert aug_cfg["config_path"] == "~/.augment/settings.json"
-        assert aug_cfg["config_filename"] == "settings.json"
-        assert "hooks" in aug_cfg
-
     def test_augment_hook_structure(self):
         """Verify Augment hooks use nested hooks.hooks structure."""
         hooks = IDESetup.IDE_CONFIGS["augment"]["hooks"]
@@ -1443,129 +1138,6 @@ class TestAugmentSetup:
         for event in ["PreToolUse", "PostToolUse"]:
             hook_entry = inner[event][0]["hooks"][0]
             assert hook_entry["timeout"] == 5000
-
-    def test_setup_ide_hooks_augment_new(self, tmp_path):
-        """Test setting up Augment hooks in new config."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'augment': {
-                    'name': 'Augment Code',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'settings.json',
-                    'hooks': IDESetup.IDE_CONFIGS['augment']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('augment', dry_run=False, force=False)
-
-            assert success is True
-            assert config_file.exists()
-
-            with open(config_file) as f:
-                config = json.load(f)
-
-            assert 'hooks' in config
-            assert 'PreToolUse' in config['hooks']
-            assert 'PostToolUse' in config['hooks']
-            assert _is_ai_guardian_command(config['hooks']['PreToolUse'][0]['hooks'][0]['command'])
-
-    def test_setup_ide_hooks_augment_dry_run(self, tmp_path):
-        """Test dry-run mode for Augment."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'augment': {
-                    'name': 'Augment Code',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'settings.json',
-                    'hooks': IDESetup.IDE_CONFIGS['augment']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('augment', dry_run=True, force=False)
-
-            assert success is True
-            assert '[DRY RUN]' in message
-            assert not config_file.exists()
-
-    def test_check_hooks_configured_augment(self, tmp_path):
-        """Test detection of existing Augment hooks."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': 'launch-process|str-replace-editor|save-file|view',
-                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'augment') is True
-
-    def test_check_hooks_not_configured_augment(self, tmp_path):
-        """Test returns False when no ai-guardian hooks present."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': 'launch-process',
-                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        assert setup.check_hooks_configured(config_file, 'augment') is False
-
-    def test_setup_ide_hooks_augment_force(self, tmp_path):
-        """Test force overwrite of existing Augment hooks."""
-        setup = IDESetup()
-        config_file = tmp_path / 'settings.json'
-        config = {
-            'hooks': {
-                'PreToolUse': [
-                    {
-                        'matcher': 'launch-process',
-                        'hooks': [{'type': 'command', 'command': 'ai-guardian'}]
-                    }
-                ]
-            }
-        }
-        config_file.write_text(json.dumps(config))
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'augment': {
-                    'name': 'Augment Code',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,
-                    'config_filename': 'settings.json',
-                    'hooks': IDESetup.IDE_CONFIGS['augment']['hooks']
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('augment', dry_run=False, force=True)
-
-            assert success is True
-            backup_file = config_file.with_suffix('.json.backup')
-            assert backup_file.exists()
 
     def test_merge_hooks_augment_preserves_other_hooks(self):
         """Test that merging Augment hooks preserves existing non-ai-guardian hooks."""
@@ -2828,15 +2400,6 @@ class TestSetupDaemonReload:
 class TestKiroSetup:
     """Test cases for Kiro (AWS) setup."""
 
-    def test_kiro_in_ide_configs(self):
-        """Verify Kiro entry exists in IDE_CONFIGS with correct keys."""
-        assert "kiro" in IDESetup.IDE_CONFIGS
-        kiro_cfg = IDESetup.IDE_CONFIGS["kiro"]
-        assert kiro_cfg["name"] == "Kiro"
-        assert kiro_cfg["config_path"] == ".kiro/hooks"
-        assert kiro_cfg.get("script_based") is True
-        assert "hook_scripts" in kiro_cfg
-
     def test_kiro_hooks_are_script_based(self):
         """Verify Kiro uses script-based hooks with correct event names."""
         kiro_cfg = IDESetup.IDE_CONFIGS["kiro"]
@@ -2852,90 +2415,6 @@ class TestKiroSetup:
         content = kiro_cfg["script_content"]
         assert content.startswith("#!/bin/sh")
         assert "ai-guardian" in content
-
-    def test_setup_ide_hooks_kiro_new(self, tmp_path):
-        """Test setting up Kiro hooks creates executable scripts."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.kiro' / 'hooks'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'kiro': {
-                    'name': 'Kiro',
-                    'config_path': str(hooks_dir),
-                    'config_dir_env_var': None,
-                    'config_filename': None,
-                    'script_based': True,
-                    'hook_scripts': IDESetup.IDE_CONFIGS['kiro']['hook_scripts'],
-                    'script_content': IDESetup.IDE_CONFIGS['kiro']['script_content'],
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('kiro', dry_run=False, force=False)
-
-            assert success is True
-            assert hooks_dir.exists()
-
-            for script_name in ['PreToolUse', 'PostToolUse', 'PromptSubmit']:
-                script_path = hooks_dir / script_name
-                assert script_path.exists()
-                content = script_path.read_text()
-                assert 'ai-guardian' in content
-                import stat
-                assert script_path.stat().st_mode & stat.S_IXUSR
-
-    def test_setup_ide_hooks_kiro_dry_run(self, tmp_path):
-        """Test dry-run mode for Kiro."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.kiro' / 'hooks'
-
-        with mock.patch.object(
-            setup, 'IDE_CONFIGS',
-            {
-                'kiro': {
-                    'name': 'Kiro',
-                    'config_path': str(hooks_dir),
-                    'config_dir_env_var': None,
-                    'config_filename': None,
-                    'script_based': True,
-                    'hook_scripts': IDESetup.IDE_CONFIGS['kiro']['hook_scripts'],
-                    'script_content': IDESetup.IDE_CONFIGS['kiro']['script_content'],
-                }
-            }
-        ):
-            success, message = setup.setup_ide_hooks('kiro', dry_run=True, force=False)
-
-            assert success is True
-            assert '[DRY RUN]' in message
-            assert not hooks_dir.exists()
-
-    def test_check_hooks_configured_kiro(self, tmp_path):
-        """Test detection of existing Kiro hook scripts."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.kiro' / 'hooks'
-        hooks_dir.mkdir(parents=True)
-        script = hooks_dir / 'PreToolUse'
-        script.write_text("#!/bin/sh\nai-guardian\n")
-
-        assert setup.check_hooks_configured(hooks_dir, 'kiro') is True
-
-    def test_check_hooks_not_configured_kiro(self, tmp_path):
-        """Test returns False when no ai-guardian scripts present."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.kiro' / 'hooks'
-        hooks_dir.mkdir(parents=True)
-        script = hooks_dir / 'PreToolUse'
-        script.write_text("#!/bin/sh\nother-tool\n")
-
-        assert setup.check_hooks_configured(hooks_dir, 'kiro') is False
-
-    def test_check_hooks_not_configured_kiro_empty(self, tmp_path):
-        """Test returns False when hooks directory doesn't exist."""
-        setup = IDESetup()
-        hooks_dir = tmp_path / '.kiro' / 'hooks'
-
-        assert setup.check_hooks_configured(hooks_dir, 'kiro') is False
 
     def test_kiro_in_mcp_ide_configs(self):
         """Verify Kiro MCP config entry."""

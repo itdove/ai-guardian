@@ -5,6 +5,8 @@ Unit tests for Directory Rules TUI panel (Issue #426)
 import importlib
 import unittest
 
+import pytest
+
 
 class TestDirectoryRulesContentCSS(unittest.TestCase):
     """Verify DirectoryRulesContent CSS meets TUI conventions."""
@@ -53,67 +55,91 @@ class TestDirectoryRulesHelpDocs(unittest.TestCase):
         assert "Directory Rules" in HELP_DOCS.get("Permissions", "")
 
 
-class TestDirectoryRulesConfigParsing(unittest.TestCase):
+class TestDirectoryRulesConfigParsing:
     """Test configuration parsing logic."""
 
-    def test_parse_object_format(self):
-        config = {
-            "directory_rules": {
-                "action": "warn",
-                "rules": [
-                    {"mode": "deny", "paths": ["~/.ssh/**"]},
-                    {"mode": "allow", "paths": ["~/dev/**"]},
-                ]
-            }
-        }
-        dr = config["directory_rules"]
-        assert dr["action"] == "warn"
-        assert len(dr["rules"]) == 2
+    @pytest.mark.parametrize(
+        "config, check_fn",
+        [
+            pytest.param(
+                {
+                    "directory_rules": {
+                        "action": "warn",
+                        "rules": [
+                            {"mode": "deny", "paths": ["~/.ssh/**"]},
+                            {"mode": "allow", "paths": ["~/dev/**"]},
+                        ]
+                    }
+                },
+                lambda cfg: (
+                    cfg["directory_rules"]["action"] == "warn"
+                    and len(cfg["directory_rules"]["rules"]) == 2
+                ),
+                id="object-format",
+            ),
+            pytest.param(
+                {"directory_rules": [{"mode": "deny", "paths": ["~/.ssh/**"]}]},
+                lambda cfg: isinstance(cfg["directory_rules"], list),
+                id="legacy-array-format",
+            ),
+            pytest.param(
+                {},
+                lambda cfg: (
+                    cfg.get("directory_rules", {}).get("action", "block") == "block"
+                    and cfg.get("directory_rules", {}).get("rules", []) == []
+                ),
+                id="empty-config",
+            ),
+        ],
+    )
+    def test_config_format_parsing(self, config, check_fn):
+        assert check_fn(config)
 
-    def test_parse_legacy_array_format(self):
-        config = {"directory_rules": [{"mode": "deny", "paths": ["~/.ssh/**"]}]}
-        assert isinstance(config["directory_rules"], list)
 
-    def test_parse_empty_config(self):
-        dr = {}.get("directory_rules", {})
-        assert dr.get("action", "block") == "block"
-        assert dr.get("rules", []) == []
-
-
-class TestGetRulesSection(unittest.TestCase):
+class TestGetRulesSection:
     """Test _get_rules_section normalization."""
 
-    def _make(self):
+    @staticmethod
+    def _make():
         from ai_guardian.tui.directory_rules import DirectoryRulesContent
         return DirectoryRulesContent()
 
-    def test_normalizes_dict(self):
+    @pytest.mark.parametrize(
+        "config, check_fn",
+        [
+            pytest.param(
+                {"directory_rules": {"action": "warn", "rules": []}},
+                lambda r: r["action"] == "warn",
+                id="dict-input",
+            ),
+            pytest.param(
+                {"directory_rules": [{"mode": "deny", "paths": []}]},
+                lambda r: r["action"] == "block" and len(r["rules"]) == 1,
+                id="list-input",
+            ),
+            pytest.param(
+                {},
+                lambda r: isinstance(r, dict) and r.get("action", "block") == "block",
+                id="missing-input",
+            ),
+            pytest.param(
+                {"directory_rules": "bad"},
+                lambda r: r == {"action": "block", "rules": []},
+                id="invalid-input",
+            ),
+        ],
+    )
+    def test_normalizes(self, config, check_fn):
         c = self._make()
-        r = c._get_rules_section({"directory_rules": {"action": "warn", "rules": []}})
-        assert r["action"] == "warn"
-
-    def test_normalizes_list(self):
-        c = self._make()
-        r = c._get_rules_section({"directory_rules": [{"mode": "deny", "paths": []}]})
-        assert r["action"] == "block"
-        assert len(r["rules"]) == 1
-
-    def test_normalizes_missing(self):
-        c = self._make()
-        r = c._get_rules_section({})
-        assert isinstance(r, dict)
-        assert r.get("action", "block") == "block"
-
-    def test_normalizes_invalid(self):
-        c = self._make()
-        r = c._get_rules_section({"directory_rules": "bad"})
-        assert r == {"action": "block", "rules": []}
+        r = c._get_rules_section(config)
+        assert check_fn(r)
 
 
-class TestParseRules(unittest.TestCase):
+class TestParseRules:
     """Test _parse_rules validation."""
 
-    def _make(self):
+    @staticmethod
+    def _make():
         from ai_guardian.tui.directory_rules import DirectoryRulesContent
         return DirectoryRulesContent()
 
@@ -130,26 +156,22 @@ class TestParseRules(unittest.TestCase):
         assert error is None
         assert rules == []
 
-    def test_invalid_json(self):
+    @pytest.mark.parametrize(
+        "text, error_substring",
+        [
+            pytest.param("{bad json", None, id="invalid-json"),
+            pytest.param('{"mode": "deny"}', "Rules must be a JSON array", id="not-array"),
+            pytest.param('[{"mode": "block", "paths": []}]', "mode", id="invalid-mode"),
+            pytest.param('[{"mode": "deny"}]', "paths", id="missing-paths"),
+        ],
+    )
+    def test_parse_rules_error(self, text, error_substring):
         c = self._make()
-        rules, error = c._parse_rules("{bad json")
+        rules, error = c._parse_rules(text)
         assert rules is None
         assert error is not None
-
-    def test_not_array(self):
-        c = self._make()
-        rules, error = c._parse_rules('{"mode": "deny"}')
-        assert error == "Rules must be a JSON array"
-
-    def test_invalid_mode(self):
-        c = self._make()
-        rules, error = c._parse_rules('[{"mode": "block", "paths": []}]')
-        assert "mode" in error
-
-    def test_missing_paths(self):
-        c = self._make()
-        rules, error = c._parse_rules('[{"mode": "deny"}]')
-        assert "paths" in error
+        if error_substring is not None:
+            assert error_substring in error
 
     def test_generated_rules_filtered_from_display(self):
         c = self._make()
@@ -165,21 +187,32 @@ class TestParseRules(unittest.TestCase):
         assert "_generated" not in display_rules[1]
 
 
-class TestRuleClassification(unittest.TestCase):
+class TestRuleClassification:
     """Test rule classification."""
 
-    def test_user_rule(self):
-        rule = {"mode": "deny", "paths": ["~/.ssh/**"]}
-        assert not rule.get("_generated", False)
-        assert not rule.get("_immutable", False)
-
-    def test_generated_rule(self):
-        rule = {"mode": "allow", "paths": [], "_generated": True}
-        assert rule["_generated"] is True
-
-    def test_immutable_rule(self):
-        rule = {"mode": "deny", "paths": [], "_immutable": True}
-        assert rule["_immutable"] is True
+    @pytest.mark.parametrize(
+        "rule, is_generated, is_immutable",
+        [
+            pytest.param(
+                {"mode": "deny", "paths": ["~/.ssh/**"]},
+                False, False,
+                id="user-rule",
+            ),
+            pytest.param(
+                {"mode": "allow", "paths": [], "_generated": True},
+                True, False,
+                id="generated-rule",
+            ),
+            pytest.param(
+                {"mode": "deny", "paths": [], "_immutable": True},
+                False, True,
+                id="immutable-rule",
+            ),
+        ],
+    )
+    def test_rule_classification(self, rule, is_generated, is_immutable):
+        assert rule.get("_generated", False) == is_generated
+        assert rule.get("_immutable", False) == is_immutable
 
 
 if __name__ == "__main__":

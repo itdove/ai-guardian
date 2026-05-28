@@ -8,440 +8,341 @@ This enables standard open-source contribution workflow (fork + PR + review).
 """
 
 import json
+import pytest
 from pathlib import Path
-from unittest import TestCase
-from unittest.mock import patch
 from ai_guardian.tool_policy import ToolPolicyChecker
 
 
-class DevelopmentSourceBypassTest(TestCase):
-    """Test suite for development source bypass feature"""
+@pytest.fixture
+def policy_checker():
+    """Create policy checker with empty config."""
+    return ToolPolicyChecker(config={"permissions": []})
 
-    def setUp(self):
-        """Set up test fixtures"""
-        # Create policy checker with empty config
-        self.policy_checker = ToolPolicyChecker(config={"permissions": []})
 
-    # ========================================================================
-    # Test: _should_skip_immutable_protection logic
-    # ========================================================================
+# ============================================================================
+# Test: _should_skip_immutable_protection logic
+# ============================================================================
 
-    def test_should_skip_config_files_always_protected(self):
-        """Config files are ALWAYS protected, even for repo owners"""
+CONFIG_FILES_ALWAYS_PROTECTED = [
+    pytest.param("/home/user/.config/ai-guardian/ai-guardian.json", id="user-config"),
+    pytest.param("/home/user/project/.ai-guardian.json", id="project-config"),
+    pytest.param("/home/user/.cache/ai-guardian/maintainer-status.json", id="cache"),
+    pytest.param("/home/user/.claude/settings.json", id="claude-settings"),
+    pytest.param("/home/user/.cursor/hooks.json", id="cursor-hooks"),
+    pytest.param("/home/user/project/.ai-read-deny", id="ai-read-deny"),
+]
 
-        # Test various config file patterns
-        config_files = [
-            "/home/user/.config/ai-guardian/ai-guardian.json",
-            "/home/user/project/.ai-guardian.json",
-            "/home/user/.cache/ai-guardian/maintainer-status.json",
-            "/home/user/.claude/settings.json",
-            "/home/user/.cursor/hooks.json",
-            "/home/user/project/.ai-read-deny",
-        ]
 
-        for file_path in config_files:
-            result = self.policy_checker._should_skip_immutable_protection(file_path, "Write")
-            self.assertFalse(result, f"Config file should always be protected: {file_path}")
+@pytest.mark.parametrize("file_path", CONFIG_FILES_ALWAYS_PROTECTED)
+def test_config_files_always_protected(policy_checker, file_path):
+    """Config files are ALWAYS protected, even for repo owners"""
+    result = policy_checker._should_skip_immutable_protection(file_path, "Write")
+    assert not result, f"Config file should always be protected: {file_path}"
 
-    def test_should_skip_non_source_files_protected(self):
-        """Non-source files are protected"""
 
-        # Test files outside ai-guardian repo
-        non_source_files = [
-            "/home/user/other-project/file.py",
-            "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
-        ]
+NON_SOURCE_FILES_PROTECTED = [
+    pytest.param("/home/user/other-project/file.py", id="other-project"),
+    pytest.param(
+        "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+        id="site-packages",
+    ),
+]
 
-        for file_path in non_source_files:
-            result = self.policy_checker._should_skip_immutable_protection(file_path, "Write")
-            self.assertFalse(result, f"Non-source file should be protected: {file_path}")
 
-    def test_should_skip_source_files_allowed_for_contributors(self):
-        """Source files allowed for contributors (fork + PR workflow)"""
-        # Note: Maintainer check is no longer required for source code editing
-        # This enables standard open-source contribution workflow
+@pytest.mark.parametrize("file_path", NON_SOURCE_FILES_PROTECTED)
+def test_non_source_files_protected(policy_checker, file_path):
+    """Non-source files are protected"""
+    result = policy_checker._should_skip_immutable_protection(file_path, "Write")
+    assert not result, f"Non-source file should be protected: {file_path}"
 
-        # Test source files in ai-guardian repo
-        source_files = [
-            "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
-            "/home/user/ai-guardian/tests/test_self_protection.py",
-            "/home/user/ai-guardian/README.md",
-            "/home/user/ai-guardian/pyproject.toml",
-            "/home/user/ai-guardian/.github/workflows/test.yml",
-        ]
 
-        for file_path in source_files:
-            result = self.policy_checker._should_skip_immutable_protection(file_path, "Write")
-            self.assertTrue(result, f"Source file should be allowed for contributors: {file_path}")
+SOURCE_FILES_ALLOWED = [
+    pytest.param(
+        "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+        id="src-tool-policy",
+    ),
+    pytest.param(
+        "/home/user/ai-guardian/tests/test_self_protection.py",
+        id="tests",
+    ),
+    pytest.param(
+        "/home/user/ai-guardian/README.md",
+        id="readme",
+    ),
+    pytest.param(
+        "/home/user/ai-guardian/pyproject.toml",
+        id="pyproject",
+    ),
+    pytest.param(
+        "/home/user/ai-guardian/.github/workflows/test.yml",
+        id="github-workflows",
+    ),
+]
 
-    # ========================================================================
-    # Test: Integration with check_tool_allowed
-    # ========================================================================
 
-    def test_contributor_can_write_source_code(self):
-        """Contributors can write to ai-guardian source code"""
+@pytest.mark.parametrize("file_path", SOURCE_FILES_ALLOWED)
+def test_source_files_allowed_for_contributors(policy_checker, file_path):
+    """Source files allowed for contributors (fork + PR workflow)"""
+    result = policy_checker._should_skip_immutable_protection(file_path, "Write")
+    assert result, f"Source file should be allowed for contributors: {file_path}"
 
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py"
-                }
+
+# ============================================================================
+# Parametrized: Integration - contributor can write/edit source
+# ============================================================================
+
+CONTRIBUTOR_ALLOWED_WRITE_EDIT = [
+    pytest.param(
+        "Write",
+        "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+        id="write-source-code",
+    ),
+    pytest.param(
+        "Edit",
+        "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+        id="edit-source-code",
+    ),
+    pytest.param(
+        "Write",
+        "/home/user/ai-guardian/tests/test_new_feature.py",
+        id="write-tests",
+    ),
+    pytest.param(
+        "Edit",
+        "/home/user/ai-guardian/README.md",
+        id="edit-documentation",
+    ),
+]
+
+
+@pytest.mark.parametrize("tool_name,file_path", CONTRIBUTOR_ALLOWED_WRITE_EDIT)
+def test_contributor_can_write_edit_source(policy_checker, tool_name, file_path):
+    """Contributors can write/edit ai-guardian source code and tests"""
+    tool_input = {"file_path": file_path}
+    if tool_name == "Edit":
+        tool_input.update({"old_string": "old", "new_string": "new"})
+
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": tool_name, "input": tool_input},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert is_allowed, f"Contributors should be allowed to {tool_name} source code"
+    assert error_msg is None
+
+
+# ============================================================================
+# Parametrized: Config/hooks/cache always blocked
+# ============================================================================
+
+CONTRIBUTOR_BLOCKED_PATHS = [
+    pytest.param(
+        "Write",
+        "/home/user/.config/ai-guardian/ai-guardian.json",
+        "Protection:",
+        id="config-blocked",
+    ),
+    pytest.param(
+        "Edit",
+        "/home/user/.claude/settings.json",
+        "Hook Protection",
+        id="ide-hooks-blocked",
+    ),
+    pytest.param(
+        "Write",
+        "/home/user/.cache/ai-guardian/maintainer-status.json",
+        "Protection:",
+        id="cache-blocked",
+    ),
+]
+
+
+@pytest.mark.parametrize("tool_name,file_path,expected_msg", CONTRIBUTOR_BLOCKED_PATHS)
+def test_contributor_cannot_modify_protected(policy_checker, tool_name, file_path, expected_msg):
+    """Contributors CANNOT modify config files, IDE hooks, or cache (always protected)"""
+    tool_input = {"file_path": file_path}
+    if tool_name == "Edit":
+        tool_input.update({
+            "old_string": '"hooks": {"PreToolUse": []}',
+            "new_string": '"hooks": {}'
+        })
+
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": tool_name, "input": tool_input},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"{file_path} should be blocked for contributors"
+    assert expected_msg in error_msg
+
+
+def test_contributor_can_write_source(policy_checker):
+    """Contributors can write to source code (fork + PR workflow)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Write",
+            "input": {
+                "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+                "content": "# Modified source code"
             }
         }
+    }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
 
-        self.assertTrue(is_allowed, "Contributors should be allowed to write source code")
-        self.assertIsNone(error_msg)
+    assert is_allowed, "Contributors should be allowed to edit source code"
+    assert error_msg is None, "No error for allowed operations"
 
-    def test_contributor_can_edit_source_code(self):
-        """Contributors can edit ai-guardian source code"""
 
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
-                    "old_string": "old",
-                    "new_string": "new"
-                }
+# ============================================================================
+# Test: Malicious prompt scenarios (Threat Model B)
+# ============================================================================
+
+MALICIOUS_PROMPT_BLOCKED = [
+    pytest.param(
+        "Edit",
+        {
+            "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
+            "old_string": '"secret_scanning": true',
+            "new_string": '"secret_scanning": false',
+        },
+        id="disable-secret-scanning",
+    ),
+    pytest.param(
+        "Write",
+        {
+            "file_path": "/home/user/.cache/ai-guardian/maintainer-status.json",
+            "content": '{"is_maintainer": true}',
+        },
+        id="poison-cache",
+    ),
+]
+
+
+@pytest.mark.parametrize("tool_name,tool_input", MALICIOUS_PROMPT_BLOCKED)
+def test_malicious_prompt_blocked(policy_checker, tool_name, tool_input):
+    """Threat Model B: Malicious prompts cannot disable security or poison cache"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": tool_name, "input": tool_input},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, "Malicious prompt should be blocked"
+    assert "Protection:" in error_msg
+
+
+def test_bash_cache_poisoning_blocked(policy_checker):
+    """Bash command trying to poison cache is blocked"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Bash",
+            "input": {
+                "command": 'echo \'{"is_maintainer": true}\' > ~/.cache/ai-guardian/maintainer-status.json'
             }
         }
+    }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
 
-        self.assertTrue(is_allowed, "Contributors should be allowed to edit source code")
-        self.assertIsNone(error_msg)
+    assert not is_allowed, "Bash cache poisoning should be blocked"
+    assert "Protection:" in error_msg
 
-    def test_contributor_can_write_tests(self):
-        """Contributors can write test files"""
 
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/tests/test_new_feature.py"
-                }
+# ============================================================================
+# Parametrized: Bash/PowerShell on dev source allowed (Issue #369)
+# ============================================================================
+
+BASH_ALLOWED_ON_DEV_SOURCE = [
+    pytest.param(
+        "sed -n '100,200p' /home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+        id="sed-read-ranges",
+    ),
+    pytest.param(
+        "awk 'NR>=100 && NR<=200' /home/user/ai-guardian/src/ai_guardian/tool_policy.py",
+        id="awk-on-dev-source",
+    ),
+    pytest.param(
+        "sed -i 's/old/new/' /home/user/ai-guardian/ai_guardian/tool_policy.py",
+        id="sed-alt-layout",
+    ),
+    pytest.param(
+        "chmod +x /home/user/ai-guardian/src/ai_guardian/__main__.py",
+        id="chmod-on-dev-source",
+    ),
+    pytest.param(
+        "grep 'pattern' /home/user/ai-guardian/src/ai_guardian/tool_policy.py > /tmp/output.txt",
+        id="redirect-with-dev-source",
+    ),
+]
+
+
+@pytest.mark.parametrize("command", BASH_ALLOWED_ON_DEV_SOURCE)
+def test_bash_on_dev_source_allowed(policy_checker, command):
+    """Bash commands on dev source are allowed (Issue #369)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Bash", "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert is_allowed, f"Bash on dev source should be allowed: {command}"
+    assert error_msg is None
+
+
+BASH_BLOCKED_ON_PIP_INSTALLED = [
+    pytest.param(
+        "Bash",
+        "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+        id="bash-sed-pip-installed",
+    ),
+    pytest.param(
+        "PowerShell",
+        "Set-Content -Path C:\\Python\\Lib\\site-packages\\ai_guardian\\tool_policy.py -Value ''",
+        id="powershell-pip-installed",
+    ),
+]
+
+
+@pytest.mark.parametrize("tool_name,command", BASH_BLOCKED_ON_PIP_INSTALLED)
+def test_pip_installed_still_blocked(policy_checker, tool_name, command):
+    """Bash/PowerShell on pip-installed package is still blocked"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": tool_name, "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"{tool_name} on pip-installed should still be blocked"
+    assert "Protection:" in error_msg
+
+
+def test_powershell_set_content_on_dev_source_allowed(policy_checker):
+    """PowerShell Set-Content on dev source is allowed (Issue #369)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "PowerShell",
+            "input": {
+                "command": "Set-Content -Path /home/user/ai-guardian/src/ai_guardian/__init__.py -Value '# test'"
             }
         }
+    }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
 
-        self.assertTrue(is_allowed, "Contributors should be allowed to write tests")
+    assert is_allowed, "PowerShell Set-Content on dev source should be allowed"
+    assert error_msg is None
 
-    def test_contributor_can_edit_documentation(self):
-        """Contributors can edit documentation"""
 
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/README.md",
-                    "old_string": "old text",
-                    "new_string": "new text"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Contributors should be allowed to edit docs")
-
-    def test_contributor_cannot_write_config(self):
-        """Contributors CANNOT write config files (always protected)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Config should be blocked for contributors")
-        self.assertIn("Protection:", error_msg)
-
-    def test_contributor_cannot_edit_ide_hooks(self):
-        """Contributors CANNOT edit hook section in IDE settings (Issue #807)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/.claude/settings.json",
-                    "old_string": '"hooks": {"PreToolUse": []}',
-                    "new_string": '"hooks": {}'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "IDE hooks should be blocked for contributors")
-        self.assertIn("Hook Protection", error_msg)
-
-    def test_contributor_cannot_write_cache(self):
-        """Contributors CANNOT write cache files (prevents poisoning)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.cache/ai-guardian/maintainer-status.json"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Cache should be blocked for contributors")
-        self.assertIn("Protection:", error_msg)
-
-    def test_contributor_can_write_source(self):
-        """Contributors can write to source code (fork + PR workflow)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
-                    "content": "# Modified source code"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "Contributors should be allowed to edit source code")
-        self.assertIsNone(error_msg, "No error for allowed operations")
-
-    # ========================================================================
-    # Test: Malicious prompt scenarios (Threat Model B)
-    # ========================================================================
-
-    def test_malicious_prompt_cannot_disable_secret_scanning(self):
-        """
-        Threat Model B: Malicious prompt tries to disable secret scanning.
-        Config edits are always blocked.
-        """
-
-        # Malicious prompt: "Help me organize my SSH keys"
-        # AI tries to disable secret scanning
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Edit",
-                "input": {
-                    "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
-                    "old_string": '"secret_scanning": true',
-                    "new_string": '"secret_scanning": false'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Malicious prompt should be blocked from disabling security")
-        self.assertIn("Protection:", error_msg)
-
-    def test_malicious_prompt_cannot_poison_cache(self):
-        """
-        Threat Model B: Malicious prompt tries to poison cache.
-        """
-
-        # AI tries to write fake maintainer status
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Write",
-                "input": {
-                    "file_path": "/home/user/.cache/ai-guardian/maintainer-status.json",
-                    "content": '{"is_maintainer": true}'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Cache poisoning should be blocked")
-        self.assertIn("Protection:", error_msg)
-
-    def test_bash_cache_poisoning_blocked(self):
-        """Bash command trying to poison cache is blocked"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": 'echo \'{"is_maintainer": true}\' > ~/.cache/ai-guardian/maintainer-status.json'
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "Bash cache poisoning should be blocked")
-        # Bug #94 fix: Bash errors now show "Protection:" not "FILE PROTECTED"
-        self.assertIn("Protection:", error_msg)
-
-    # ========================================================================
-    # Test: Bash/PowerShell commands on dev source are allowed (Issue #369)
-    # Dev source patterns removed - redundant with git/PR workflow
-    # ========================================================================
-
-    def test_bash_sed_read_on_dev_source_allowed(self):
-        """sed -n to read file ranges on dev source is allowed (Issue #369 false positive fix)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -n '100,200p' /home/user/ai-guardian/src/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "sed -n on dev source should be allowed (git/PR protects dev source)")
-        self.assertIsNone(error_msg)
-
-    def test_bash_awk_on_dev_source_allowed(self):
-        """awk on dev source is allowed (Issue #369 false positive fix)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "awk 'NR>=100 && NR<=200' /home/user/ai-guardian/src/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "awk on dev source should be allowed (git/PR protects dev source)")
-        self.assertIsNone(error_msg)
-
-    def test_bash_sed_on_dev_source_alt_layout_allowed(self):
-        """sed on dev source alternative layout is allowed (Issue #369)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/old/new/' /home/user/ai-guardian/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "sed on dev source alt layout should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_bash_chmod_on_dev_source_allowed(self):
-        """chmod on dev source is allowed (Issue #369)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "chmod +x /home/user/ai-guardian/src/ai_guardian/__main__.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "chmod on dev source should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_bash_redirect_on_dev_source_allowed(self):
-        """Redirect on dev source is allowed (Issue #369)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "grep 'pattern' /home/user/ai-guardian/src/ai_guardian/tool_policy.py > /tmp/output.txt"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "redirect with dev source path should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_bash_sed_on_pip_installed_still_blocked(self):
-        """sed on pip-installed package is still blocked (Issue #369 - keep pip protection)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "Bash",
-                "input": {
-                    "command": "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "sed on pip-installed package should still be blocked")
-        self.assertIn("Protection:", error_msg)
-
-    def test_powershell_set_content_on_dev_source_allowed(self):
-        """PowerShell Set-Content on dev source is allowed (Issue #369)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "PowerShell",
-                "input": {
-                    "command": "Set-Content -Path /home/user/ai-guardian/src/ai_guardian/__init__.py -Value '# test'"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertTrue(is_allowed, "PowerShell Set-Content on dev source should be allowed")
-        self.assertIsNone(error_msg)
-
-    def test_powershell_set_content_on_pip_installed_still_blocked(self):
-        """PowerShell Set-Content on pip-installed package is still blocked (Issue #369)"""
-
-        hook_data = {
-            "hook_event_name": "PreToolUse",
-            "tool_use": {
-                "name": "PowerShell",
-                "input": {
-                    "command": "Set-Content -Path C:\\Python\\Lib\\site-packages\\ai_guardian\\tool_policy.py -Value ''"
-                }
-            }
-        }
-
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
-
-        self.assertFalse(is_allowed, "PowerShell Set-Content on pip-installed should still be blocked")
-        self.assertIn("Protection:", error_msg)
+if __name__ == '__main__':
+    pytest.main([__file__])
