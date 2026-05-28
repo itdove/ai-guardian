@@ -6,6 +6,7 @@ PROFILE="@standard"
 USE_VENV=false
 VENV_DIR="$HOME/.ai-guardian-venv"
 IDE=""
+INSTALL_TKINTER=false
 SETUP_ARGS=()
 
 usage() {
@@ -23,6 +24,8 @@ Options:
                                  gemini, cline, zoocode, augment, kiro, junie, aiderdesk
     --profile PROFILE   Security profile: @minimal, @standard (default), @strict
     --version VERSION   Install a specific version or a local .whl file
+    --tkinter           Install tkinter for native popup dialogs (optional)
+                        Without it, tray plugin forms use a terminal fallback
     -h, --help          Show this help message
 
     Any additional flags are passed through to 'ai-guardian setup'.
@@ -59,6 +62,7 @@ while [ $# -gt 0 ]; do
         --ide)     IDE="$2"; shift 2 ;;
         --profile) PROFILE="$2"; shift 2 ;;
         --version) VERSION="$2"; shift 2 ;;
+        --tkinter) INSTALL_TKINTER=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *)         SETUP_ARGS+=("$1"); shift ;;
     esac
@@ -121,6 +125,66 @@ fi
 AG_VERSION=$("$PYTHON" -m ai_guardian --version 2>&1 | awk '{print $NF}')
 ok "ai-guardian $AG_VERSION installed"
 
+# --- Step 3b: Install tkinter (optional) ---
+
+if [ "$INSTALL_TKINTER" = true ]; then
+    # Skip on headless systems — tkinter needs a display
+    HAS_DISPLAY=false
+    case "$(uname -s)" in
+        Darwin) HAS_DISPLAY=true ;;  # macOS always has a display
+        Linux)  [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && HAS_DISPLAY=true ;;
+        *)      HAS_DISPLAY=true ;;  # Windows always has a display
+    esac
+
+    if [ "$HAS_DISPLAY" = false ]; then
+        echo "  Skipping tkinter — no display detected (headless environment)"
+        echo "  Tray plugin forms will use the Textual terminal fallback"
+    elif "$PYTHON" -c "import tkinter" 2>/dev/null; then
+        ok "tkinter already available"
+    else
+        case "$(uname -s)" in
+            Darwin)
+                if command -v brew >/dev/null 2>&1; then
+                    brew install tcl-tk 2>/dev/null || true
+                    ok "tcl-tk installed via Homebrew (rebuild Python with pyenv to activate)"
+                else
+                    echo "  tkinter requires Tcl/Tk. Install options:"
+                    echo "    - Use system Python (/usr/bin/python3) which includes tkinter"
+                    echo "    - Install Homebrew (https://brew.sh) then: brew install tcl-tk"
+                    echo "    - Download Tcl/Tk from https://www.tcl.tk/software/tcltk/"
+                    echo "  Continuing without tkinter (Textual fallback will be used)"
+                fi
+                ;;
+            Linux)
+                if command -v dnf >/dev/null 2>&1; then
+                    PY_MINOR=$("$PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+                    sudo dnf install -y "python${PY_MINOR}-tkinter" 2>/dev/null && ok "tkinter installed via dnf" || {
+                        sudo dnf install -y python3-tkinter 2>/dev/null && ok "tkinter installed via dnf" || \
+                            echo "  Could not install tkinter via dnf. Continuing with Textual fallback."
+                    }
+                elif command -v apt-get >/dev/null 2>&1; then
+                    sudo apt-get install -y python3-tk 2>/dev/null && ok "tkinter installed via apt" || \
+                        echo "  Could not install tkinter via apt. Continuing with Textual fallback."
+                elif command -v apk >/dev/null 2>&1; then
+                    sudo apk add py3-tkinter 2>/dev/null && ok "tkinter installed via apk" || \
+                        echo "  Could not install tkinter via apk. Continuing with Textual fallback."
+                else
+                    echo "  Could not detect package manager. Install tkinter manually:"
+                    echo "    RHEL/Fedora: dnf install python3-tkinter"
+                    echo "    Debian/Ubuntu: apt install python3-tk"
+                    echo "    Alpine: apk add py3-tkinter"
+                    echo "  Continuing without tkinter (Textual fallback will be used)"
+                fi
+                ;;
+            *)
+                echo "  tkinter should be included with your Python installation."
+                echo "  If not, reinstall Python from https://www.python.org/downloads/"
+                echo "  Continuing without tkinter (Textual fallback will be used)"
+                ;;
+        esac
+    fi
+fi
+
 # --- Step 4: Create config ---
 
 log "Creating configuration (profile: $PROFILE)..."
@@ -152,6 +216,11 @@ if [ "$USE_VENV" = true ]; then
 fi
 if [ -n "$IDE" ]; then
     echo "  IDE:      $IDE"
+fi
+if "$PYTHON" -c "import tkinter" 2>/dev/null; then
+    echo "  tkinter:  available (native popup dialogs)"
+else
+    echo "  tkinter:  not available (using Textual terminal fallback)"
 fi
 echo ""
 echo "  Next steps:"

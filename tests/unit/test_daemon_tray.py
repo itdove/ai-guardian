@@ -2061,14 +2061,29 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-            with mock.patch("sys.executable", "/usr/bin/python3"):
-                tray._execute_plugin_command_with_params(item_dict)
-                mock_launch.assert_called_once()
-                cmd = mock_launch.call_args[0][0]
-                assert "tray-prompt" in " ".join(cmd)
-                assert "--output-file" in " ".join(cmd)
-                assert mock_launch.call_args[1].get("keep_open") is False
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("subprocess.Popen") as mock_popen:
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    tray._execute_plugin_command_with_params(item_dict)
+                    mock_popen.assert_called_once()
+                    cmd = mock_popen.call_args[0][0]
+                    assert "tray-prompt" in " ".join(cmd)
+                    assert "--output-file" in " ".join(cmd)
+
+    def test_execute_plugin_command_with_params_textual_fallback(self):
+        """Falls back to _launch_in_terminal when tkinter unavailable."""
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Deploy",
+            "command": "deploy {tray.env}",
+            "type": "terminal",
+            "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
+        }
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    tray._execute_plugin_command_with_params(item_dict)
+                    mock_launch.assert_called_once()
 
     def test_execute_plugin_command_with_params_platform_map(self):
         tray = self._make_tray()
@@ -2078,10 +2093,11 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": []
         }
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-            with mock.patch("sys.executable", "/usr/bin/python3"):
-                tray._execute_plugin_command_with_params(item_dict)
-                mock_launch.assert_called_once()
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("subprocess.Popen") as mock_popen:
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    tray._execute_plugin_command_with_params(item_dict)
+                    mock_popen.assert_called_once()
 
     def test_execute_plugin_command_with_params_no_match(self):
         tray = self._make_tray()
@@ -2092,9 +2108,10 @@ class TestPluginMenuItems:
             "params": []
         }
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-                tray._execute_plugin_command_with_params(item_dict)
-                mock_launch.assert_not_called()
+            with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    tray._execute_plugin_command_with_params(item_dict)
+                    mock_popen.assert_not_called()
 
     def test_execute_plugin_command_with_params_dispatches_on_submit(self):
         """Watcher thread dispatches command when output file has content."""
@@ -2107,14 +2124,15 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [],
         }
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-            with mock.patch("sys.executable", "/usr/bin/python3"):
-                tray._execute_plugin_command_with_params(item_dict)
-                cmd = mock_launch.call_args[0][0]
-                output_file_idx = cmd.index("--output-file") + 1
-                output_path = cmd[output_file_idx]
-                with open(output_path, "w") as f:
-                    f.write("deploy prod")
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("subprocess.Popen") as mock_popen:
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    tray._execute_plugin_command_with_params(item_dict)
+                    cmd = mock_popen.call_args[0][0]
+                    output_file_idx = cmd.index("--output-file") + 1
+                    output_path = cmd[output_file_idx]
+                    with open(output_path, "w") as f:
+                        f.write("deploy prod")
 
         import time
         with mock.patch.object(
@@ -2137,14 +2155,15 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [],
         }
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-            with mock.patch("sys.executable", "/usr/bin/python3"):
-                tray._execute_plugin_command_with_params(item_dict)
-                cmd = mock_launch.call_args[0][0]
-                output_file_idx = cmd.index("--output-file") + 1
-                output_path = cmd[output_file_idx]
-                with open(output_path, "w") as f:
-                    pass
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("subprocess.Popen") as mock_popen:
+                with mock.patch("sys.executable", "/usr/bin/python3"):
+                    tray._execute_plugin_command_with_params(item_dict)
+                    cmd = mock_popen.call_args[0][0]
+                    output_file_idx = cmd.index("--output-file") + 1
+                    output_path = cmd[output_file_idx]
+                    with open(output_path, "w") as f:
+                        pass
 
         with mock.patch.object(
             DaemonTray, "_execute_plugin_command"
