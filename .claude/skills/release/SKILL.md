@@ -286,6 +286,10 @@ Before creating the release branch, compare docs against changes since the previ
 
 5. **Verify ai-guardian-example.json matches schema and setup.py defaults**
 
+6. **Verify docs/COOKBOOK.md**:
+   - If new config options were added in this release, add Q&A entries to the cookbook
+   - If existing config behavior changed, update relevant cookbook entries
+
 6. **Verify CHANGELOG.md**:
    - No back-and-forth entries
    - No bugs that only existed between releases
