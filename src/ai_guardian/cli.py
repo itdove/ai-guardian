@@ -157,10 +157,10 @@ def main():
         )
         setup_parser.add_argument(
             "--install-scanner",
-            nargs="?",
-            const="gitleaks",
+            nargs="*",
             choices=["gitleaks", "betterleaks", "leaktk"],
-            help="Install scanner engine (default: gitleaks)"
+            help="Install scanner engine(s) (default: gitleaks). "
+                 "Accepts multiple: --install-scanner gitleaks betterleaks"
         )
         setup_parser.add_argument(
             "--json",
@@ -894,6 +894,9 @@ def main():
         # Handle setup command
         if args.command == "setup":
             from ai_guardian.setup import setup_hooks
+            install_scanner = args.install_scanner
+            if install_scanner is not None and len(install_scanner) == 0:
+                install_scanner = ["gitleaks"]
             success = setup_hooks(
                 ide_type=args.ide,
                 remote_config_url=args.remote_config_url,
@@ -906,7 +909,7 @@ def main():
                 pre_commit=args.pre_commit,
                 auto_install_hooks=args.auto_install_hooks,
                 uninstall_hooks=args.uninstall_hooks,
-                install_scanner=args.install_scanner,
+                install_scanner=install_scanner,
                 json_output=args.json_output,
                 profile=args.profile,
                 save_profile=args.save_profile,
