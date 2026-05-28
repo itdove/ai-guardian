@@ -2057,6 +2057,7 @@ class DaemonTray:
         label=None,
     ):
         """Execute a plugin command with optional target context."""
+        import os
         import shlex
         import subprocess
         from ai_guardian.daemon.multi_client import _launch_in_terminal
@@ -2086,6 +2087,15 @@ class DaemonTray:
             cmd_parts = wrap_for_target(
                 cmd_parts, target, interactive=(item_type == "terminal"),
             )
+
+        is_remote = (
+            run_on_target and target
+            and getattr(target, "runtime", "local")
+            in ("container", "kubernetes")
+        )
+        if item_type != "terminal" and not is_remote:
+            shell = os.environ.get("SHELL", "/bin/bash")
+            cmd_parts = [shell, "-lc", command_str]
 
         try:
             if item_type == "terminal":
