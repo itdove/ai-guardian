@@ -57,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **GitHub token patterns miss new stateless JWT format** (Issue #839)
+  - Updated `ghp_`, `gho_`, `ghr_`, `ghs_` patterns to allow dots, hyphens, and underscores
+  - New character class `[A-Za-z0-9._-]{36,}` matches both old stateful and new stateless JWT tokens
+  - Updated both `secrets.toml` and legacy `secret_redactor.py` patterns
+  - Added 12 tests covering old/new formats, long JWT payloads, and false positive checks
+
 - **Immutable protection too broad — block only hooks section, not entire settings.json** (Issue #807)
   - Claude Code, Gemini CLI, and Augment Code store hooks AND user preferences in `settings.json`
   - Edit tool: content-aware check inspects `old_string`/`new_string` for hook-related keys
