@@ -36,7 +36,10 @@ class CursorAdapter(HookAdapter):
         if "hook_name" in hook_data:
             return True
         event = hook_data.get("hook_event_name", "")
-        return event in ("beforeSubmitPrompt", "preToolUse")
+        return event in (
+            "beforeSubmitPrompt", "preToolUse",
+            "beforeReadFile", "postToolUse",
+        )
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event_name = hook_data.get("hook_event_name", "").lower()

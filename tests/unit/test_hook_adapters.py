@@ -226,6 +226,33 @@ class TestAutoDetection:
         })
         assert isinstance(adapter, ClaudeCodeAdapter)
 
+    def test_detect_cursor_not_gemini_with_transcript_path(self):
+        """Cursor beforeReadFile with transcript_path should NOT be detected as Gemini (#847)."""
+        adapter = detect_adapter({
+            "cursor_version": "0.50.0",
+            "hook_event_name": "beforeReadFile",
+            "file_path": "/tmp/test.py",
+            "transcript_path": "/home/user/.cursor/sessions/transcript.jsonl",
+        })
+        assert isinstance(adapter, CursorAdapter)
+
+    def test_detect_cursor_beforereadfile_without_cursor_version(self):
+        """Cursor beforeReadFile without cursor_version should still detect as Cursor (#847)."""
+        adapter = detect_adapter({
+            "hook_event_name": "beforeReadFile",
+            "file_path": "/tmp/test.py",
+            "transcript_path": "/home/user/.cursor/sessions/transcript.jsonl",
+        })
+        assert isinstance(adapter, CursorAdapter)
+
+    def test_detect_cursor_posttooluse_with_transcript_path(self):
+        """Cursor postToolUse with transcript_path should detect as Cursor, not Gemini."""
+        adapter = detect_adapter({
+            "hook_event_name": "postToolUse",
+            "transcript_path": "/home/user/.cursor/sessions/transcript.jsonl",
+        })
+        assert isinstance(adapter, CursorAdapter)
+
     def test_detect_augment_from_is_mcp_tool(self):
         adapter = detect_adapter({"is_mcp_tool": False, "tool_name": "view"})
         assert isinstance(adapter, AugmentAdapter)

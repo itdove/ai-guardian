@@ -27,10 +27,10 @@ logger = logging.getLogger(__name__)
 # Claude Code is last because it is the default fallback.
 ADAPTER_CLASSES = [
     ClineAdapter,        # clineVersion field
-    GeminiCLIAdapter,    # transcript_path field
     WindsurfAdapter,     # agent_action_name field
     CopilotAdapter,      # toolName field or timestamp+cwd
-    CursorAdapter,       # cursor_version or hook_name
+    CursorAdapter,       # cursor_version or hook_name or camelCase events
+    GeminiCLIAdapter,    # transcript_path field
     KiroAdapter,         # kiro_hook_type or kiro_version
     AugmentAdapter,      # is_mcp_tool + tool_name
     ClaudeCodeAdapter,   # PascalCase hook_event_name (fallback)
