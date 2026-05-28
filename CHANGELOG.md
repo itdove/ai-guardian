@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configuration Cookbook** (`docs/COOKBOOK.md`) (Issue #809)
+  - Practical Q&A pairs for common configuration tasks
+  - Covers SSRF, PII, secrets, prompt injection, permissions, directory rules, annotations, project-level config, daemon, scanners, pattern server, image scanning, profiles, and MCP server
+  - Designed as NotebookLM source and quick user reference
+
 - **One-line install script** (`install.sh`) for zero-manual-step installation (Issue #813)
   - `curl -fsSL .../install.sh | bash` — checks Python, installs package, creates config, sets up IDE hooks
   - Options: `--venv`, `--ide`, `--profile`, `--version`; extra flags passed through to `ai-guardian setup`

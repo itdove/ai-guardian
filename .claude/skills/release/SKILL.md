@@ -286,7 +286,11 @@ Before creating the release branch, compare docs against changes since the previ
 
 5. **Verify ai-guardian-example.json matches schema and setup.py defaults**
 
-6. **Verify CHANGELOG.md**:
+6. **Verify docs/COOKBOOK.md**:
+   - If new config options were added in this release, add Q&A entries to the cookbook
+   - If existing config behavior changed, update relevant cookbook entries
+
+7. **Verify CHANGELOG.md**:
    - No back-and-forth entries
    - No bugs that only existed between releases
    - Organized by user impact (Added/Changed/Fixed/Security)
@@ -327,6 +331,7 @@ Before creating the release branch, compare docs against changes since the previ
 7. [ ] Bump version to next dev cycle (X.Y+1.0-dev)
 8. [ ] Push main branch
 9. [ ] (Hotfix only) Cherry-pick fix to main
+10. [ ] Update NotebookLM sources — if the `notebooklm-mcp` MCP server is available, update the cookbook and example config sources in the AI Guardian NotebookLM notebook using `source_add`
 
 **If you are NOT authorized:**
 - ❌ DO NOT push the tag

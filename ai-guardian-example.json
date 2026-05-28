@@ -169,6 +169,10 @@
       "reason": "Testing with known-safe example secrets"
     },
     "_pattern_server_comment": "DEPRECATED: pattern_server at this level is deprecated (Issue #530). Use per-engine format in engines[] instead. Run: ai-guardian setup --migrate-pattern-server",
+    "_comment_ignore_files": "Glob patterns for files to skip during secret scanning (e.g., 'tests/fixtures/**', '**/examples/**')",
+    "ignore_files": [],
+    "_comment_ignore_tools": "Tool name patterns to skip during secret scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (all MCP tools), 'Skill:code-review'",
+    "ignore_tools": [],
     "_comment_allowlist": "Regex patterns for known-safe secret values to ignore (for false positives). Unlike ignore_files which skips entire files, this lets you keep scanning but exclude specific known-safe values. Complements inline '# gitleaks:allow' for cases where you cannot modify the source file.",
     "allowlist_patterns": [],
     "_allowlist_examples": [
@@ -372,6 +376,13 @@
     "jailbreak_patterns": [],
     "_jailbreak_patterns_note": "Additional jailbreak-specific detection patterns (NEW in v1.6.0). Extends 13 built-in patterns covering role-play attacks (DAN/sudo/god mode), identity manipulation (pretend you are unrestricted), constraint removal (no rules now), and hypothetical framing (fictional scenario without rules). User-defined patterns are regex, checked against user prompts only.",
     "_jailbreak_patterns_example": ["custom_jailbreak_\\w+", "my_company_bypass_attempt"],
+    "action": "block",
+    "_action_options": ["block", "warn", "log-only"],
+    "_action_note": "block = prevent execution (default), warn = log and show warning but allow, log-only = silent logging",
+    "ignore_files": [],
+    "_ignore_files_note": "Glob patterns for files to skip (e.g., '**/.claude/skills/*/SKILL.md' to ignore skill docs with example attack patterns)",
+    "ignore_tools": [],
+    "_ignore_tools_note": "Tool name patterns to skip (e.g., 'Skill:code-review', 'mcp__*'). Supports wildcards.",
     "_detection_patterns": {
       "_comment": "Built-in patterns detect common attack categories:",
       "_categories": [

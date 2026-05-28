@@ -7,6 +7,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | Document | Description |
 |----------|-------------|
 | [Configuration Guide](CONFIGURATION.md) | Config file locations, options, precedence, and remote configs |
+| [Configuration Cookbook](COOKBOOK.md) | Practical Q&A pairs for common configuration tasks |
 | [Scanner Installation](SCANNER_INSTALLATION.md) | Install and manage gitleaks, betterleaks, leaktk |
 | [TOML Pattern Engine](TOML_PATTERNS.md) | Built-in Python scanner with 267 pre-compiled TOML patterns |
 | [Console Guide](CONSOLE.md) | Interactive TUI for managing configuration |
