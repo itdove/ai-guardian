@@ -43,6 +43,79 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 | **MCP only** (no hooks) | Advisory checks only — check_path, check_command, check_mcp_trust, sanitize_text. No enforcement (agent must cooperate) |
 | **None** | No protection available |
 
+## Violation Type Coverage Matrix
+
+Coverage per agent depends on which hooks are available. This table shows representative agents across the enforcement spectrum: full hooks + MCP, full hooks only, partial hooks, and MCP-only.
+
+Agents with full hook support not shown individually (Codex, Windsurf, Gemini CLI, Cline, Kiro) have the same coverage as Claude Code, minus MCP and minus UserPromptSubmit where applicable — see the [Hook Capability Matrix](#hook-capability-matrix) above.
+
+| Violation Type | Requires | Claude Code | Cursor | Copilot | Junie (MCP) |
+|---|---|---|---|---|---|
+| secret_detected | Pre+Post | Enforce | Enforce | Enforce | Advisory |
+| secret_redaction | Post | Enforce | Enforce | Enforce | No |
+| pii_detected | Pre+Post+Prompt | Enforce | Enforce | Partial | Advisory |
+| directory_blocking | Pre | Enforce | Enforce | Enforce | Advisory |
+| tool_permission | Pre | Enforce | Enforce | Enforce | No |
+| prompt_injection | Pre+Prompt | Enforce | Enforce | Partial | Advisory |
+| jailbreak_detected | Pre+Prompt | Enforce | Enforce | Partial | Advisory |
+| ssrf_blocked | Pre | Enforce | Enforce | Enforce | Advisory |
+| config_file_exfil | Pre | Enforce | Enforce | Enforce | No |
+| secret_in_transcript | Prompt | Enforce | No | No | No |
+| pii_in_transcript | Prompt | Enforce | No | No | No |
+| image_secret | Pre | Caution | Caution | Caution | No |
+| image_pii | Pre | Caution | Caution | Caution | No |
+
+**Legend:**
+
+- **Enforce** — fully tested and working
+- **Advisory** — MCP only, agent must cooperate (no enforcement)
+- **Partial** — no UserPromptSubmit, only file content scanned
+- **Caution** — known limitations (see [Image scanning](#image-scanning-all-agents) below)
+- **No** — not supported
+
+## Known Limitations
+
+### Image scanning (all agents)
+
+Claude Code binary file reads bypass hooks — image content may not pass through PreToolUse in a scannable format. Image scanning works best when images are base64-encoded in tool output, not when read as raw binary. See [#801](https://github.com/itdove/ai-guardian/issues/801) for tracking.
+
+### Transcript scanning availability
+
+Only Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit`. Agents without this hook cannot scan for secrets or PII in the transcript, so `secret_in_transcript` and `pii_in_transcript` violations are Claude Code-only.
+
+### MCP-only agents
+
+Junie and any future MCP-only agents rely on the agent voluntarily calling ai-guardian's MCP tools. There is no enforcement mechanism — if the agent ignores the advisory, the violation is not blocked. MCP-only agents also cannot perform post-tool redaction or tool permission enforcement.
+
+## Agent Confidence Levels
+
+Testing depth varies by agent. Confidence reflects how thoroughly the hook adapter has been validated in real-world usage.
+
+| Agent | Confidence | Reason |
+|---|---|---|
+| Claude Code | High | Extensively tested in production |
+| Cursor | High | Extensively tested in production |
+| Copilot | Medium | Tested but limited UserPromptSubmit |
+| Gemini CLI | Low | Hook format implemented but limited testing |
+| Codex | Low | Hook format implemented but limited testing |
+| Windsurf | Low | Hook format implemented but limited testing |
+| Cline / ZooCode | Low | Hook format implemented but limited testing |
+| Augment Code | Low | Hook format implemented but limited testing |
+| Kiro | Low | Hook format implemented but limited testing |
+| Junie | Low | MCP only, no hook enforcement |
+| AiderDesk | Low | Extension-based, limited testing |
+| OpenClaw | Low | Plugin-based, limited testing |
+
+## Community Testing Feedback
+
+For agents marked **Low confidence**, we implemented the hook adapter based on available documentation but could not fully test all scenarios. If you use ai-guardian with these agents, please report:
+
+- Which violation types work correctly
+- Which violation types fail or behave unexpectedly
+- Any hook format differences from documentation
+
+Report via [GitHub Discussions](https://github.com/itdove/ai-guardian/discussions) or [Issues](https://github.com/itdove/ai-guardian/issues).
+
 ## Hook Event Name Mapping
 
 Each agent uses different event names. The adapter layer normalizes these.
@@ -160,4 +233,18 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 2. Add the adapter to `ADAPTER_CLASSES` in `hook_adapters/__init__.py`
 3. Add setup config to `IDESetup.IDE_CONFIGS` in `setup.py`
 4. Add tests in `tests/unit/test_<agent>_support.py`
-5. Update this document
+5. Update the tables in this document:
+   - Supported Agents table
+   - Hook Capability Matrix
+   - Violation Type Coverage Matrix (or note coverage matches an existing agent)
+   - Agent Confidence Levels table
+   - Hook Event Name Mapping
+   - Response Format Differences
+   - Config File Locations
+
+## Adding a New Violation Type
+
+1. Implement the detector in the appropriate module
+2. Add a row to the **Violation Type Coverage Matrix** with the required hooks and per-agent coverage
+3. If the violation has agent-specific limitations, add a subsection under **Known Limitations**
+4. Add tests covering the new violation type across adapters
