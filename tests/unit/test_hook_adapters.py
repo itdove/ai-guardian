@@ -152,6 +152,62 @@ class TestAdapterRegistry:
             adapter = detect_adapter({})
             assert isinstance(adapter, JunieAdapter)
 
+    # ── _ide_type field in hook_data (--ide CLI flag) ──
+
+    def test_ide_type_field_selects_cursor(self):
+        adapter = detect_adapter({"_ide_type": "cursor"})
+        assert isinstance(adapter, CursorAdapter)
+
+    def test_ide_type_field_selects_gemini(self):
+        adapter = detect_adapter({"_ide_type": "gemini"})
+        assert isinstance(adapter, GeminiCLIAdapter)
+
+    def test_ide_type_field_selects_copilot(self):
+        adapter = detect_adapter({"_ide_type": "copilot"})
+        assert isinstance(adapter, CopilotAdapter)
+
+    def test_ide_type_field_selects_cline(self):
+        adapter = detect_adapter({"_ide_type": "cline"})
+        assert isinstance(adapter, ClineAdapter)
+
+    def test_ide_type_field_selects_windsurf(self):
+        adapter = detect_adapter({"_ide_type": "windsurf"})
+        assert isinstance(adapter, WindsurfAdapter)
+
+    def test_ide_type_field_selects_augment(self):
+        adapter = detect_adapter({"_ide_type": "augment"})
+        assert isinstance(adapter, AugmentAdapter)
+
+    def test_ide_type_field_selects_kiro(self):
+        adapter = detect_adapter({"_ide_type": "kiro"})
+        assert isinstance(adapter, KiroAdapter)
+
+    def test_ide_type_field_selects_codex(self):
+        adapter = detect_adapter({"_ide_type": "codex"})
+        assert isinstance(adapter, CodexAdapter)
+
+    def test_ide_type_field_beats_env_var(self):
+        """_ide_type field takes priority over AI_GUARDIAN_IDE_TYPE env var."""
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "claude"}):
+            adapter = detect_adapter({"_ide_type": "cursor"})
+            assert isinstance(adapter, CursorAdapter)
+
+    def test_ide_type_field_beats_auto_detection(self):
+        """_ide_type field takes priority over auto-detection from hook data."""
+        adapter = detect_adapter({
+            "_ide_type": "cursor",
+            "clineVersion": "1.0.0",
+        })
+        assert isinstance(adapter, CursorAdapter)
+
+    def test_ide_type_field_case_insensitive(self):
+        adapter = detect_adapter({"_ide_type": "Cursor"})
+        assert isinstance(adapter, CursorAdapter)
+
+    def test_ide_type_field_unknown_value_falls_through(self):
+        adapter = detect_adapter({"_ide_type": "unknown_ide"})
+        assert isinstance(adapter, ClaudeCodeAdapter)
+
     def test_get_adapter_by_ide_type(self):
         assert isinstance(get_adapter_by_ide_type(IDEType.CLAUDE_CODE), ClaudeCodeAdapter)
         assert isinstance(get_adapter_by_ide_type(IDEType.CURSOR), CursorAdapter)

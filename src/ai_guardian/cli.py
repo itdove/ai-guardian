@@ -90,6 +90,11 @@ def main():
             action="version",
             version=f"ai-guardian {__version__}",
         )
+        parser.add_argument(
+            "--ide",
+            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw"],
+            help="Specify IDE adapter for hook processing (auto-detected if not provided)"
+        )
 
         # Add subcommands
         subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -1379,10 +1384,14 @@ def main():
                 traceback.print_exc()
                 return 1
 
-        # If no subcommand, just return (version was handled)
-        return 0
+        # If --ide specified but no subcommand, set env var and fall through to hook mode
+        if not args.command and getattr(args, 'ide', None):
+            os.environ["AI_GUARDIAN_IDE_TYPE"] = args.ide
+        elif not args.command:
+            # No subcommand, no --ide — version was already handled
+            return 0
 
-    # No arguments - run as hook (read from stdin)
+    # No arguments (or --ide only) - run as hook (read from stdin)
     # Load config once and share with both helpers
     _hook_config = None
     try:
@@ -1403,6 +1412,11 @@ def main():
         stdin_content = sys.stdin.read()
         stdin_consumed = True
         hook_data = json.loads(stdin_content)
+
+        # Inject --ide override into hook_data so it survives daemon forwarding
+        _cli_ide = os.environ.get("AI_GUARDIAN_IDE_TYPE")
+        if _cli_ide and "_ide_type" not in hook_data:
+            hook_data["_ide_type"] = _cli_ide
 
         running = is_daemon_running()
         if not running and not _is_stop_requested():

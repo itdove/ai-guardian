@@ -47,9 +47,10 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
     """Detect and return the appropriate adapter for the given hook input.
 
     Priority:
-    1. AI_GUARDIAN_IDE_TYPE environment variable override
-    2. Auto-detection via each adapter's can_handle() method
-    3. ClaudeCodeAdapter as default fallback
+    1. Explicit _ide_type field in hook_data (from --ide CLI parameter)
+    2. AI_GUARDIAN_IDE_TYPE environment variable override
+    3. Auto-detection via each adapter's can_handle() method
+    4. ClaudeCodeAdapter as default fallback
 
     Args:
         hook_data: Parsed JSON hook input from the IDE
@@ -57,21 +58,30 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
     Returns:
         An instantiated HookAdapter subclass
     """
-    # 1. Check environment variable override
+    # 1. Check explicit _ide_type field (set by --ide CLI flag, survives daemon forwarding)
+    explicit_ide = hook_data.get("_ide_type", "")
+    if isinstance(explicit_ide, str):
+        explicit_ide = explicit_ide.lower()
+    if explicit_ide and explicit_ide in _ENV_ALIAS_MAP:
+        adapter = _ENV_ALIAS_MAP[explicit_ide]()
+        logger.debug("Adapter selected via --ide=%s: %s", explicit_ide, adapter.name)
+        return adapter
+
+    # 2. Check environment variable override
     ide_override = os.environ.get("AI_GUARDIAN_IDE_TYPE", "").lower()
     if ide_override and ide_override in _ENV_ALIAS_MAP:
         adapter = _ENV_ALIAS_MAP[ide_override]()
         logger.debug("Adapter selected via AI_GUARDIAN_IDE_TYPE=%s: %s", ide_override, adapter.name)
         return adapter
 
-    # 2. Auto-detect from hook data structure
+    # 3. Auto-detect from hook data structure
     for adapter_cls in ADAPTER_CLASSES:
         if adapter_cls.can_handle(hook_data):
             adapter = adapter_cls()
             logger.debug("Adapter auto-detected: %s", adapter.name)
             return adapter
 
-    # 3. Default fallback
+    # 4. Default fallback
     logger.debug("No adapter matched, falling back to ClaudeCodeAdapter")
     return ClaudeCodeAdapter()
 

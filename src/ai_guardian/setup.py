@@ -33,25 +33,55 @@ def _resolve_binary_path() -> str:
 
 
 def _is_ai_guardian_command(cmd: str) -> bool:
-    """Check if a command string refers to ai-guardian (bare or absolute path)."""
+    """Check if a command string refers to ai-guardian (bare or absolute path).
+
+    Handles commands with trailing arguments like ``--ide cursor``.
+    """
     if not cmd:
         return False
-    return cmd == "ai-guardian" or cmd.endswith("/ai-guardian")
+    first_token = cmd.split()[0]
+    return first_token == "ai-guardian" or first_token.endswith("/ai-guardian")
 
 
-def _substitute_command(obj, abs_path: str):
-    """Recursively replace bare 'ai-guardian' command values with abs_path."""
+def _substitute_command(obj, abs_path: str, ide_type: str = None):
+    """Recursively replace bare 'ai-guardian' command values with abs_path.
+
+    When *ide_type* is provided the ``--ide <name>`` flag is appended so the
+    hook command explicitly declares which adapter to use.
+    """
     if isinstance(obj, dict):
         result = {}
         for k, v in obj.items():
             if k == "command" and v == "ai-guardian":
-                result[k] = abs_path
+                cmd = abs_path
+                if ide_type:
+                    cmd = f"{abs_path} --ide {ide_type}"
+                result[k] = cmd
             else:
-                result[k] = _substitute_command(v, abs_path)
+                result[k] = _substitute_command(v, abs_path, ide_type)
         return result
     elif isinstance(obj, list):
-        return [_substitute_command(item, abs_path) for item in obj]
+        return [_substitute_command(item, abs_path, ide_type) for item in obj]
     return obj
+
+
+def _upgrade_ide_flag(obj, ide_type: str):
+    """Add ``--ide <name>`` to existing ai-guardian commands that lack it.
+
+    After merging hooks, pre-existing ai-guardian entries written by an older
+    version may not carry the ``--ide`` flag.  This helper walks the merged
+    config and upgrades them in place.
+    """
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "command" and isinstance(v, str) and _is_ai_guardian_command(v):
+                if "--ide" not in v:
+                    obj[k] = f"{v} --ide {ide_type}"
+            else:
+                _upgrade_ide_flag(v, ide_type)
+    elif isinstance(obj, list):
+        for item in obj:
+            _upgrade_ide_flag(item, ide_type)
 
 
 def _notify_daemon_reload():
@@ -912,7 +942,8 @@ class IDESetup:
         script_content = ide_config.get("script_content", "#!/bin/sh\nai-guardian\n")
 
         abs_path = _resolve_binary_path()
-        script_content = script_content.replace("ai-guardian", abs_path, 1)
+        cmd = f"{abs_path} --ide {ide_type}"
+        script_content = script_content.replace("ai-guardian", cmd, 1)
 
         if dry_run:
             message = f"[DRY RUN] Would configure {ide_name} hooks at {hooks_dir}:\n"
@@ -985,16 +1016,17 @@ class IDESetup:
         ext_dir.mkdir(parents=True, exist_ok=True)
 
         abs_path = _resolve_binary_path()
+        cmd = f"{abs_path} --ide {ide_type}"
         if ide_type == "openclaw":
             package_path.write_text(_OPENCLAW_PACKAGE_JSON, encoding="utf-8")
             index_path.write_text(
-                _OPENCLAW_PLUGIN_TS.replace("execSync('ai-guardian'", f"execSync('{abs_path}'"),
+                _OPENCLAW_PLUGIN_TS.replace("execSync('ai-guardian'", f"execSync('{cmd}'"),
                 encoding="utf-8",
             )
         else:
             package_path.write_text(_AIDERDESK_PACKAGE_JSON, encoding="utf-8")
             index_path.write_text(
-                _AIDERDESK_EXTENSION_TS.replace("execSync('ai-guardian'", f"execSync('{abs_path}'"),
+                _AIDERDESK_EXTENSION_TS.replace("execSync('ai-guardian'", f"execSync('{cmd}'"),
                 encoding="utf-8",
             )
 
@@ -1078,21 +1110,14 @@ class IDESetup:
 
             # Resolve absolute path and substitute into hook templates
             abs_path = _resolve_binary_path()
-            resolved_hooks = _substitute_command(ide_config["hooks"], abs_path)
+            resolved_hooks = _substitute_command(ide_config["hooks"], abs_path, ide_type)
 
             # Merge hooks
             hook_warnings = []
             if ide_type == "claude":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "cursor":
-                # For Cursor, we need to merge differently
-                merged_config = existing_config.copy()
-                if "version" not in merged_config:
-                    merged_config["version"] = resolved_hooks["version"]
-                if "hooks" not in merged_config:
-                    merged_config["hooks"] = {}
-                merged_config["hooks"]["beforeSubmitPrompt"] = resolved_hooks["beforeSubmitPrompt"]
-                merged_config["hooks"]["beforeReadFile"] = resolved_hooks["beforeReadFile"]
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "copilot":
                 # GitHub Copilot: merge hooks at top level
                 merged_config = existing_config.copy()
@@ -1107,6 +1132,9 @@ class IDESetup:
                 merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "augment":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+
+            # Upgrade any pre-existing ai-guardian commands to include --ide
+            _upgrade_ide_flag(merged_config, ide_type)
 
             self._last_merged_config = merged_config
 
