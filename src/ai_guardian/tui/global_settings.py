@@ -213,6 +213,8 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                     immutable = data.get("immutable")
                     if immutable is True:
                         immutables[section] = True
+                    elif immutable == "tighten-only":
+                        immutables[section] = "tighten-only"
                     elif isinstance(immutable, list):
                         immutables[section] = immutable
             except Exception:

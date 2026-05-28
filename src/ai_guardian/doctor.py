@@ -113,6 +113,7 @@ class Doctor:
             self.check_gnome_tray_support,
             self.check_terminal_emulator,
             self.check_config_consistency,
+            self.check_tighten_only,
             self.check_self_protection,
             self.check_image_scanning,
             self.check_tray_plugins,
@@ -1142,6 +1143,35 @@ class Doctor:
             fix_hint="sudo dnf install gnome-terminal   # or: sudo apt install gnome-terminal",
         )
 
+    def check_tighten_only(self) -> CheckResult:
+        """Report sections with tighten-only immutable policy."""
+        self._ensure_config()
+        if self._config is None:
+            return CheckResult(
+                name="tighten_only",
+                status=CheckStatus.PASS,
+                message="No config loaded",
+            )
+
+        tighten_sections = []
+        for key, value in self._config.items():
+            if isinstance(value, dict) and value.get("immutable") == "tighten-only":
+                tighten_sections.append(key)
+
+        if not tighten_sections:
+            return CheckResult(
+                name="tighten_only",
+                status=CheckStatus.PASS,
+                message="No tighten-only policies",
+            )
+
+        return CheckResult(
+            name="tighten_only",
+            status=CheckStatus.WARN,
+            message=f"Tighten-only policy: {', '.join(tighten_sections)}",
+            detail="Lower-level configs can tighten but not loosen these sections",
+        )
+
     def check_self_protection(self) -> CheckResult:
         """Verify immutable patterns protect config/state/cache from agent Read access."""
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
@@ -1289,6 +1319,7 @@ _CHECK_DISPLAY_NAMES = {
     "gnome_tray": "System tray",
     "terminal_emulator": "Terminal emulator",
     "config_consistency": "Config consistency",
+    "tighten_only": "Tighten-only policies",
     "self_protection": "Self-protection",
     "image_scanning": "Image scanning",
     "tray_plugins": "Tray plugins",

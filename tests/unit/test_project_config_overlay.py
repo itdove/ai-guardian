@@ -9,6 +9,7 @@ Tests cover:
 """
 
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -24,6 +25,7 @@ from ai_guardian.config_utils import (
     _deep_merge_section,
     _find_config_in_dir,
     _get_immutable_info,
+    _is_tightening,
     set_project_dir_override,
     clear_project_dir_override,
 )
@@ -197,29 +199,40 @@ class TestDeepMerge:
 
 class TestGetImmutableInfo:
     def test_boolean_true_locks_section(self):
-        section_locked, locked_fields = _get_immutable_info({"immutable": True})
+        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": True})
         assert section_locked is True
         assert locked_fields is None
+        assert tighten_only is False
 
     def test_array_locks_fields(self):
-        section_locked, locked_fields = _get_immutable_info({"immutable": ["enabled", "action"]})
+        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": ["enabled", "action"]})
         assert section_locked is False
         assert locked_fields == ["enabled", "action"]
+        assert tighten_only is False
 
     def test_false_no_lock(self):
-        section_locked, locked_fields = _get_immutable_info({"immutable": False})
+        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": False})
         assert section_locked is False
         assert locked_fields is None
+        assert tighten_only is False
 
     def test_absent_no_lock(self):
-        section_locked, locked_fields = _get_immutable_info({"enabled": True})
+        section_locked, locked_fields, tighten_only = _get_immutable_info({"enabled": True})
         assert section_locked is False
         assert locked_fields is None
+        assert tighten_only is False
 
     def test_non_dict_no_lock(self):
-        section_locked, locked_fields = _get_immutable_info("not a dict")
+        section_locked, locked_fields, tighten_only = _get_immutable_info("not a dict")
         assert section_locked is False
         assert locked_fields is None
+        assert tighten_only is False
+
+    def test_tighten_only(self):
+        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": "tighten-only"})
+        assert section_locked is False
+        assert locked_fields is None
+        assert tighten_only is True
 
 
 class TestGetProjectConfigPath:
@@ -710,3 +723,349 @@ class TestPermissionsMergeFormats:
         assert isinstance(config["permissions"], dict)
         assert config["permissions"]["enabled"] is True
         assert len(config["permissions"]["rules"]) == 1
+
+
+class TestIsTightening:
+    """Tests for the _is_tightening() helper function."""
+
+    def test_action_tighten_warn_to_block(self):
+        assert _is_tightening("action", "warn", "block") is True
+
+    def test_action_loosen_block_to_warn(self):
+        assert _is_tightening("action", "block", "warn") is False
+
+    def test_action_equal(self):
+        assert _is_tightening("action", "block", "block") is True
+
+    def test_action_tighten_allow_to_redact(self):
+        assert _is_tightening("action", "allow", "redact") is True
+
+    def test_action_loosen_redact_to_log_only(self):
+        assert _is_tightening("action", "redact", "log-only") is False
+
+    def test_action_unknown_values(self):
+        assert _is_tightening("action", "block", "unknown") is False
+
+    def test_sensitivity_increase(self):
+        assert _is_tightening("sensitivity", "medium", "high") is True
+
+    def test_sensitivity_decrease(self):
+        assert _is_tightening("sensitivity", "high", "low") is False
+
+    def test_sensitivity_equal(self):
+        assert _is_tightening("sensitivity", "high", "high") is True
+
+    def test_sensitivity_low_to_medium(self):
+        assert _is_tightening("sensitivity", "low", "medium") is True
+
+    def test_enabled_enable_is_tightening(self):
+        assert _is_tightening("enabled", False, True) is True
+
+    def test_enabled_disable_is_loosening(self):
+        assert _is_tightening("enabled", True, False) is False
+
+    def test_enabled_same_true(self):
+        assert _is_tightening("enabled", True, True) is True
+
+    def test_enabled_same_false(self):
+        assert _is_tightening("enabled", False, False) is True
+
+    def test_unknown_field_equal_ok(self):
+        assert _is_tightening("detector", "heuristic", "heuristic") is True
+
+    def test_unknown_field_change_blocked(self):
+        assert _is_tightening("detector", "heuristic", "ml") is False
+
+
+class TestTightenOnlyMerge:
+    """Tests for tighten-only immutable mode in deep_merge()."""
+
+    def test_action_tighten_allowed(self):
+        """action: warn -> block is tightening, should be accepted."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "action": "warn",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"action": "block"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["action"] == "block"
+
+    def test_action_loosen_blocked(self):
+        """action: block -> warn is loosening, should be rejected."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "action": "block",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"action": "warn"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["action"] == "block"
+
+    def test_action_equal_allowed(self):
+        """Same action value should be accepted."""
+        base = {
+            "secret_scanning": {
+                "action": "block",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"action": "block"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["action"] == "block"
+
+    def test_enable_allowed(self):
+        """enabled: false -> true is tightening (enabling scanning)."""
+        base = {
+            "secret_scanning": {
+                "enabled": False,
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"enabled": True}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["enabled"] is True
+
+    def test_disable_blocked(self):
+        """enabled: true -> false is loosening (disabling scanning)."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"enabled": False}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["enabled"] is True
+
+    def test_sensitivity_increase_allowed(self):
+        """sensitivity: medium -> high is tightening."""
+        base = {
+            "prompt_injection": {
+                "sensitivity": "medium",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"prompt_injection": {"sensitivity": "high"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["prompt_injection"]["sensitivity"] == "high"
+
+    def test_sensitivity_decrease_blocked(self):
+        """sensitivity: high -> low is loosening."""
+        base = {
+            "prompt_injection": {
+                "sensitivity": "high",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"prompt_injection": {"sensitivity": "low"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["prompt_injection"]["sensitivity"] == "high"
+
+    def test_list_add_allowed(self):
+        """Adding items to allowlist_patterns is allowed (superset)."""
+        base = {
+            "secret_scanning": {
+                "allowlist_patterns": ["pattern1"],
+                "immutable": "tighten-only",
+            }
+        }
+        override = {
+            "secret_scanning": {
+                "allowlist_patterns": ["pattern1", "pattern2"],
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert "pattern1" in result["secret_scanning"]["allowlist_patterns"]
+        assert "pattern2" in result["secret_scanning"]["allowlist_patterns"]
+
+    def test_list_remove_blocked(self):
+        """Removing items from allowlist_patterns is blocked."""
+        base = {
+            "secret_scanning": {
+                "allowlist_patterns": ["pattern1", "pattern2"],
+                "immutable": "tighten-only",
+            }
+        }
+        override = {
+            "secret_scanning": {
+                "allowlist_patterns": ["pattern1"],
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert "pattern1" in result["secret_scanning"]["allowlist_patterns"]
+        assert "pattern2" in result["secret_scanning"]["allowlist_patterns"]
+
+    def test_list_add_new_items_only(self):
+        """When removal blocked, new items from override are still added."""
+        base = {
+            "secret_scanning": {
+                "ignore_files": ["*.key"],
+                "immutable": "tighten-only",
+            }
+        }
+        override = {
+            "secret_scanning": {
+                "ignore_files": ["*.pem"],
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert "*.key" in result["secret_scanning"]["ignore_files"]
+        assert "*.pem" in result["secret_scanning"]["ignore_files"]
+
+    def test_backward_compat_immutable_true(self):
+        """immutable: true still locks entire section."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "action": "block",
+                "immutable": True,
+            }
+        }
+        override = {"secret_scanning": {"action": "warn", "enabled": False}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["enabled"] is True
+        assert result["secret_scanning"]["action"] == "block"
+
+    def test_backward_compat_immutable_false(self):
+        """immutable: false still allows full override."""
+        base = {
+            "secret_scanning": {
+                "action": "block",
+                "immutable": False,
+            }
+        }
+        override = {"secret_scanning": {"action": "warn"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["action"] == "warn"
+
+    def test_backward_compat_immutable_list(self):
+        """immutable: [fields] still locks listed fields only."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "action": "block",
+                "immutable": ["enabled"],
+            }
+        }
+        override = {"secret_scanning": {"enabled": False, "action": "warn"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["enabled"] is True
+        assert result["secret_scanning"]["action"] == "warn"
+
+    def test_warning_logged_when_loosening_blocked(self, caplog):
+        """Verify warning is logged when override blocked."""
+        base = {
+            "secret_scanning": {
+                "action": "block",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"action": "warn"}}
+        with caplog.at_level(logging.WARNING, logger="ai_guardian.config_utils"):
+            result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["action"] == "block"
+        assert any("cannot be loosened" in msg for msg in caplog.messages)
+
+    def test_new_fields_added_in_tighten_only(self):
+        """New fields not in base can be added even in tighten-only mode."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "immutable": "tighten-only",
+            }
+        }
+        override = {"secret_scanning": {"action": "block"}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["action"] == "block"
+
+    def test_nested_dict_tighten_only_propagates(self):
+        """Tighten-only mode applies to nested dicts within a tighten-only section."""
+        base = {
+            "prompt_injection": {
+                "immutable": "tighten-only",
+                "unicode_detection": {
+                    "enabled": True,
+                    "action": "warn",
+                },
+            }
+        }
+        override = {
+            "prompt_injection": {
+                "unicode_detection": {
+                    "action": "block",
+                },
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["prompt_injection"]["unicode_detection"]["action"] == "block"
+
+    def test_nested_dict_tighten_only_blocks_loosening(self):
+        """Tighten-only blocks loosening in nested dicts."""
+        base = {
+            "prompt_injection": {
+                "immutable": "tighten-only",
+                "unicode_detection": {
+                    "enabled": True,
+                    "action": "block",
+                },
+            }
+        }
+        override = {
+            "prompt_injection": {
+                "unicode_detection": {
+                    "action": "warn",
+                },
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["prompt_injection"]["unicode_detection"]["action"] == "block"
+
+    def test_multiple_fields_tighten_only(self):
+        """Multiple fields can be tightened in one override."""
+        base = {
+            "secret_scanning": {
+                "enabled": False,
+                "action": "warn",
+                "sensitivity": "low",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {
+            "secret_scanning": {
+                "enabled": True,
+                "action": "block",
+                "sensitivity": "high",
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["enabled"] is True
+        assert result["secret_scanning"]["action"] == "block"
+        assert result["secret_scanning"]["sensitivity"] == "high"
+
+    def test_mixed_tighten_and_loosen_partial_applied(self):
+        """When some fields tighten and some loosen, only tightening is applied."""
+        base = {
+            "secret_scanning": {
+                "enabled": True,
+                "action": "block",
+                "sensitivity": "low",
+                "immutable": "tighten-only",
+            }
+        }
+        override = {
+            "secret_scanning": {
+                "enabled": False,
+                "action": "warn",
+                "sensitivity": "high",
+            }
+        }
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["enabled"] is True
+        assert result["secret_scanning"]["action"] == "block"
+        assert result["secret_scanning"]["sensitivity"] == "high"
+

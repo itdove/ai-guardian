@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Directional immutable — tighten-only config fields** (Issue #829)
+  - New `immutable: "tighten-only"` mode for config sections
+  - Lower-level configs can make settings stricter but not more permissive
+  - Action severity ordering: block > redact > warn > log-only > allow
+  - Supports action, enabled, sensitivity fields and list fields (allowlist_patterns, ignore_files)
+  - Warning logged when override blocked; org value used (not a fatal error)
+  - Doctor check reports active tighten-only policies
+  - Config show indicates tighten-only sections
+  - Existing `immutable: true/false/[fields]` behavior unchanged
+
 - **Configuration Cookbook** (`docs/COOKBOOK.md`) (Issue #809)
   - Practical Q&A pairs for common configuration tasks
   - Covers SSRF, PII, secrets, prompt injection, permissions, directory rules, annotations, project-level config, daemon, scanners, pattern server, image scanning, profiles, and MCP server
