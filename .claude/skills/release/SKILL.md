@@ -61,13 +61,14 @@ When invoked with arguments (e.g., `/release minor`), this skill guides you thro
 1. Verify prerequisites (clean working directory, tests pass, CHANGELOG updated)
 2. Run release readiness CI (mandatory — see Release Readiness CI section below)
 3. Documentation review (mandatory — see checklist below)
-4. Create release branch (e.g., `release-1.2`)
-5. Determine new version based on release type
-6. Update version in both files (remove `-dev` suffix)
-7. Update CHANGELOG.md (move Unreleased to version section with date)
-8. Commit changes with proper commit message format
-9. Provide instructions for tagging and verification
-10. Provide post-release checklist
+4. Dependency security review (mandatory — merge open Dependabot CVE fixes)
+5. Create release branch (e.g., `release-1.2`)
+6. Determine new version based on release type
+7. Update version in both files (remove `-dev` suffix)
+8. Update CHANGELOG.md (move Unreleased to version section with date)
+9. Commit changes with proper commit message format
+10. Provide instructions for tagging and verification
+11. Provide post-release checklist
 
 ### Hotfix Release (`/release hotfix <tag>`)
 
@@ -295,6 +296,31 @@ Before creating the release branch, compare docs against changes since the previ
    - No bugs that only existed between releases
    - Organized by user impact (Added/Changed/Fixed/Security)
 
+## Dependency Security Review (mandatory)
+
+Before creating the release branch, check for open Dependabot security alerts and PRs:
+
+1. **Check for open Dependabot security PRs**:
+   ```bash
+   gh pr list --label dependabot --state open
+   ```
+
+2. **Check for security advisories**:
+   ```bash
+   gh api repos/{owner}/{repo}/dependabot/alerts --jq '[.[] | select(.state=="open")] | length'
+   ```
+
+3. **Merge critical security fixes**:
+   - Review and merge any open Dependabot PRs that address CVEs
+   - Prioritize PRs with `security` label
+   - At minimum, merge all **critical** and **high** severity updates before release
+
+4. **Document any deferred updates**:
+   - If a Dependabot PR is deferred (e.g., requires breaking changes), note it in the release notes
+   - Create a follow-up issue for deferred security updates
+
+**Skipping**: May be skipped for urgent hotfix releases, but this should be documented in the release notes.
+
 ## Git Operations
 
 **Branch Naming**:
@@ -396,7 +422,8 @@ Before creating the release branch, compare docs against changes since the previ
 3. **Run safety checks**: Verify prerequisites before proceeding
 4. **Release readiness CI**: Trigger `release-readiness.yml` workflow and wait for all jobs to pass (regular releases only, may skip for urgent hotfixes)
 5. **Documentation review**: Run the mandatory documentation review checklist (regular releases only)
-6. **Calculate new version**: Based on current version and release type
+6. **Dependency security review**: Check for open Dependabot CVE alerts and merge critical/high severity fixes (regular releases only)
+7. **Calculate new version**: Based on current version and release type
 7. **Update version files**: Edit all detected version files atomically
 8. **Update CHANGELOG**: Move Unreleased to version section with date
 9. **Create commits**: Use proper commit message format

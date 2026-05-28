@@ -695,12 +695,13 @@ The tab shows read-only configuration from `~/.config/ai-guardian/ai-guardian.js
 
 ```json
 {
-  "secret_scanning": true,
-  "secret_detection": {
-    "gitleaks_path": "/usr/local/bin/gitleaks",
+  "secret_scanning": {
+    "enabled": true,
     "pattern_server": {
       "url": "https://patterns.example.com/secrets",
-      "token_env": "PATTERN_SERVER_TOKEN"
+      "auth": {
+        "token_env": "PATTERN_SERVER_TOKEN"
+      }
     }
   }
 }
@@ -968,7 +969,9 @@ Remote configuration files must be valid JSON matching AI Guardian schema:
   "mcp_servers": {
     "allow": []
   },
-  "secret_scanning": true,
+  "secret_scanning": {
+    "enabled": true
+  },
   "directory_exclusions": {
     "enabled": true,
     "paths": ["/etc/secrets", "~/.ssh"]

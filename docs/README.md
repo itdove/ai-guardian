@@ -54,6 +54,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Pre-commit Hook](PRE_COMMIT.md) | Scan staged files for secrets before commit |
 | [GitHub Copilot Setup](GITHUB_COPILOT.md) | Setup guide for GitHub Copilot |
 | [Aider Setup](AIDER.md) | Git hook integration for Aider |
+| [AiderDesk Setup](AIDERDESK.md) | Setup guide for AiderDesk |
 | [Multi-Engine Support](MULTI_ENGINE_SUPPORT.md) | Scanner engine options and future plans |
 | [Pattern Server](PATTERN_SERVER.md) | Enterprise pattern server configuration |
 
@@ -67,8 +68,3 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Releasing](../RELEASING.md) | Release process and version management |
 | [Changelog](../CHANGELOG.md) | Version history |
 
-## Research
-
-| Document | Description |
-|----------|-------------|
-| [Prompt Injection Analysis](research/open-prompt-injection-analysis.md) | Research on open prompt injection techniques |

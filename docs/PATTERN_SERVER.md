@@ -309,7 +309,7 @@ When different detection features use different pattern servers with different c
   "secret_scanning": {
     "pattern_server": {
       "url": "https://secrets-patterns.internal.com",
-      "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+      "patterns_endpoint": "/patterns/gitleaks/8.27.0",
       "auth": {
         "method": "bearer",
         "token_env": "AI_GUARDIAN_SECRET_PATTERNS_TOKEN"

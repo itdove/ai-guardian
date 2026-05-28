@@ -221,7 +221,7 @@
             ],
             "_reference": "https://github.com/leaktk/patterns"
           },
-          "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+          "patterns_endpoint": "/patterns/gitleaks/8.27.0",
           "warn_on_failure": true,
           "_warn_on_failure_comment": "Show warning when pattern server fails (auth, network, etc). Default: true. Set to false to suppress warnings.",
           "auth": {

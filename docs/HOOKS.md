@@ -16,7 +16,7 @@ This guide explains how AI Guardian hooks work with Claude Code and other IDEs, 
 
 ### Critical: ai-guardian Must Be First Hook (For Log Mode)
 
-**When using multiple hooks in Claude Code with log mode (`action: "log"`), ai-guardian MUST be the first hook in each hook type's array.**
+**When using multiple hooks in Claude Code with log-only mode (`action: "log-only"`), ai-guardian MUST be the first hook in each hook type's array.**
 
 #### Why This Matters
 
@@ -84,7 +84,7 @@ If another hook runs before ai-guardian, warnings are silently suppressed.
 
 **Displays:** Tool permissions violations, directory access violations
 
-**Must be first if:** Using `tool_permissions` or `directory_rules` with `action: "log"`
+**Must be first if:** Using `tool_permissions` or `directory_rules` with `action: "log-only"`
 
 Checks tool permissions and directory rules before tools execute. In log mode, violations are displayed via `systemMessage`:
 
@@ -111,7 +111,7 @@ PreToolUse:Read says: ⚠️ Directory access violation (log mode): Directory ru
 
 **Displays:** Prompt injection detection warnings
 
-**Must be first if:** Using `prompt_injection` with `action: "log"`
+**Must be first if:** Using `prompt_injection` with `action: "log-only"`
 
 **Note:** Secret scanning always blocks (`decision: "block"`) and never uses `systemMessage`, so hook ordering doesn't affect secret detection.
 
@@ -276,13 +276,13 @@ Since users won't see warnings, log mode is best for:
     "matcher": "Skill",
     "mode": "allow",
     "patterns": ["production-approved-*"],
-    "action": "log"  // ← Monitor violations before enforcing
+    "action": "log-only"  // ← Monitor violations before enforcing
   }]
 }
 ```
 
 **Workflow:**
-1. Deploy with `action: "log"`
+1. Deploy with `action: "log-only"`
 2. Monitor violations in Console
 3. Identify false positives
 4. Adjust patterns
@@ -293,13 +293,12 @@ Since users won't see warnings, log mode is best for:
 ```json
 {
   "secret_scanning": {
-    "enabled": true,
-    "action": "log"  // ← Track but don't disrupt workflow
+    "enabled": true
   }
 }
 ```
 
-**Use Case:** Security team wants visibility without blocking developers.
+**Use Case:** Security team monitors for secrets. Note: secret scanning always blocks when secrets are detected — there is no log-only mode for security reasons.
 
 ### 3. Policy Testing
 
@@ -307,7 +306,7 @@ Since users won't see warnings, log mode is best for:
 {
   "prompt_injection": {
     "enabled": true,
-    "action": "log"  // ← Test detection accuracy
+    "action": "log-only"  // ← Test detection accuracy
   }
 }
 ```

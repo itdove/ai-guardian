@@ -200,36 +200,7 @@ This operation has been blocked for security.
 ✅ **Ignore patterns** - Skip specific files or tools  
 ✅ **Scanner selection** - Which engine(s) to use (Gitleaks, BetterLeaks, LeakTK, or custom)
 
-**Note:** Secret scanning **always blocks** when secrets are detected - no "log only" mode for security reasons.
-
-### Action Modes
-
-**Block mode** (`"action": "block"`, default):
-```json
-{
-  "secret_scanning": {
-    "enabled": true,
-    "action": "block"  // ← Prevent execution when secrets found
-  }
-}
-```
-- Secrets found → Execution **blocked**
-- Error message shown to user
-- Violation logged at ERROR level
-
-**Log mode** (`"action": "log"`):
-```json
-{
-  "secret_scanning": {
-    "enabled": true,
-    "action": "log"  // ← Allow execution, log for audit
-  }
-}
-```
-- Secrets found → Execution **allowed**
-- No message shown to user (hook limitation)
-- Violation logged at WARNING level
-- Visible in `ai-guardian console`
+**Note:** Secret scanning **always blocks** when secrets are detected. There is no action mode for secret scanning — unlike other features (prompt injection, SSRF, etc.), secrets are always blocked for security reasons.
 
 ### Common Configurations
 
@@ -238,8 +209,7 @@ This operation has been blocked for security.
 ```json
 {
   "secret_scanning": {
-    "enabled": true,
-    "action": "block"
+    "enabled": true
   }
 }
 ```
@@ -254,7 +224,6 @@ This operation has been blocked for security.
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "pattern_server": {
       "url": "https://patterns.company.com",
       "auth": {
@@ -275,11 +244,12 @@ This operation has been blocked for security.
 
 #### Gradual Rollout / Testing
 
+To test secret scanning patterns before full deployment, enable scanning on a subset of projects first, or use `ignore_files` to exclude known false positives while monitoring violations in the Console.
+
 ```json
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "log",  // ← Start with logging only
     "pattern_server": {
       "url": "https://patterns.company.com"
     }
@@ -287,9 +257,8 @@ This operation has been blocked for security.
 }
 ```
 
-- Log violations without blocking users
-- Monitor in Console to identify false positives
-- Switch to "block" after validation
+- Monitor violations in Console to identify false positives
+- Adjust `ignore_files` patterns as needed
 
 ---
 
@@ -547,10 +516,9 @@ Detection Source:
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "pattern_server": {         // ← Nested under secret_scanning (v1.7.0+)
       "url": "https://patterns.security.redhat.com",  // ← Presence = enabled!
-      "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+      "patterns_endpoint": "/patterns/gitleaks/8.27.0",
       "auth": {
         "method": "bearer",
         "token_env": "AI_GUARDIAN_PATTERN_TOKEN",
@@ -686,24 +654,23 @@ secret_scanning.enabled == true?
             ↓
         Use server patterns for scanning
             ↓
-        Find secret → Apply secret_scanning.action (block/log)
+        Find secret → BLOCKED (secrets always block)
         
         NO ↓
             ↓
         Use .gitleaks.toml or defaults
             ↓
-        Find secret → Apply secret_scanning.action (block/log)
+        Find secret → BLOCKED (secrets always block)
 ```
 
 ### How secret_scanning and pattern_server Work Together
 
-#### Example 1: Pattern Server with Block Mode
+#### Example 1: Pattern Server with Enterprise Patterns
 
 ```json
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",  // ← Controls what happens when secret found
     "pattern_server": {  // ← Controls WHICH secrets to look for
       "url": "https://patterns.security.redhat.com"
     }
@@ -715,40 +682,16 @@ secret_scanning.enabled == true?
 1. User pastes content with AWS key
 2. ai-guardian fetches patterns from Red Hat pattern server
 3. Pattern server includes AWS key pattern
-4. Secret detected → **BLOCKED** (secret_scanning.action = "block")
+4. Secret detected → **BLOCKED** (secrets always block)
 5. Error shown to user
 
-#### Example 2: Pattern Server with Log Mode
+#### Example 2: No Pattern Server, Default Patterns
 
 ```json
 {
   "secret_scanning": {
-    "enabled": true,
-    "action": "log",  // ← Log only, don't block
-    "pattern_server": {
-      "url": "https://patterns.security.redhat.com"
-    }
+    "enabled": true
   }
-}
-```
-
-**Behavior:**
-1. User pastes content with AWS key
-2. ai-guardian fetches patterns from Red Hat pattern server
-3. Pattern server includes AWS key pattern
-4. Secret detected → **ALLOWED** (secret_scanning.action = "log")
-5. Violation logged (WARNING level)
-6. Visible in `ai-guardian console`
-
-#### Example 3: No Pattern Server, Default Patterns
-
-```json
-{
-  "secret_scanning": {
-    "enabled": true,
-    "action": "block"
-  }
-  // pattern_server not configured
 }
 ```
 
@@ -756,28 +699,26 @@ secret_scanning.enabled == true?
 1. User pastes content with AWS key
 2. ai-guardian uses Gitleaks built-in patterns (no pattern server)
 3. Built-in patterns include AWS key detection
-4. Secret detected → **BLOCKED** (secret_scanning.action = "block")
+4. Secret detected → **BLOCKED** (secrets always block)
 
 ### Important Notes
 
-#### Pattern Server Never Had an `action` Field
+#### Pattern Server Provides Patterns, Not Policy
 
-⚠️ **Note:** Pattern server only provides detection patterns, not policy decisions.
+⚠️ **Note:** Pattern server only provides detection patterns, not policy decisions. Secret scanning always blocks when secrets are detected.
 
-**Only `secret_scanning.action` matters:**
 ```json
 {
   "secret_scanning": {
-    "action": "log",  // ← This controls block vs log
+    "enabled": true,
     "pattern_server": {
       "url": "https://patterns.company.com"
-      // No action field - uses secret_scanning.action
     }
   }
 }
 ```
 
-**Why?** Pattern server provides WHICH secrets to detect. The `secret_scanning.action` determines WHAT TO DO when detected.
+**Why?** Pattern server provides WHICH secrets to detect. When a secret is detected, it is always blocked — there is no configurable action mode for secret scanning.
 
 #### Pattern Completeness Warning
 
@@ -1089,7 +1030,7 @@ cat ~/.config/rh-gitleaks/auth.jwt  # Your token file
 
 # 3. Test pattern server manually
 curl -H "Authorization: Bearer $(cat ~/.config/rh-gitleaks/auth.jwt)" \
-  https://patterns.security.redhat.com/patterns/gitleaks/8.18.1
+  https://patterns.security.redhat.com/patterns/gitleaks/8.27.0
 
 # 4. Check cache
 ls -la ~/.cache/ai-guardian/patterns.toml
@@ -1118,17 +1059,16 @@ gitleaks detect --no-git -v --config ~/.cache/ai-guardian/patterns.toml
 
 ### `secret_scanning` - The Scanner
 
-- **Purpose:** Enable/disable scanning + action on detection
-- **Controls:** ON/OFF switch and block vs log behavior
+- **Purpose:** Enable/disable scanning
+- **Controls:** ON/OFF switch (always blocks when secrets found)
 - **Scope:** Global across all hooks and files
-- **Action:** `"block"` (prevent) or `"log"` (audit)
+- **Action:** Always blocks (no configurable action mode)
 
 ### `pattern_server` - The Pattern Source
 
 - **Purpose:** Customize which secrets to detect
 - **Controls:** Where patterns come from (enterprise vs defaults)
 - **Scope:** Pattern definitions only
-- **Action field:** N/A (uses `secret_scanning.action`)
 
 ### They Work Together
 
@@ -1143,7 +1083,7 @@ Scan content with those patterns
     ↓
 Secret found?
     ↓ YES
-secret_scanning.action → Block or log?
+BLOCKED (secrets always block)
 ```
 
 ---
@@ -1153,7 +1093,7 @@ secret_scanning.action → Block or log?
 - [HOOKS.md](HOOKS.md) - Why log mode doesn't show messages
 - [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
 - [README.md](../README.md) - Configuration examples
-- [CHANGELOG.md](../CHANGELOG.md) - Feature history
+- [CHANGELOG.md](../../CHANGELOG.md) - Feature history
 - [Gitleaks --redact](https://github.com/gitleaks/gitleaks#redaction)
 - [OWASP Secret Management](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)
 

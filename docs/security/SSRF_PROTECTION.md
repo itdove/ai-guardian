@@ -750,8 +750,8 @@ SSRF protection inspired by:
 ## Related Documentation
 
 - [README.md](../README.md) - Main documentation
-- [CHANGELOG.md](../CHANGELOG.md) - Version history
-- [Tool Policy](TOOL_POLICY.md) - Permission system
+- [CHANGELOG.md](../../CHANGELOG.md) - Version history
+- [Tool Policy](../TOOL_POLICY.md) - Permission system
 - [Prompt Injection](PROMPT_INJECTION.md) - Prompt injection detection
 
 ## Security Notes

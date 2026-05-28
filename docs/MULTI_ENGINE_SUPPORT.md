@@ -59,7 +59,6 @@ The `engines` field is **fully functional** with support for both simple and adv
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "engines": ["gitleaks"]  // Single engine (default)
   }
 }
@@ -69,7 +68,6 @@ The `engines` field is **fully functional** with support for both simple and adv
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "engines": ["betterleaks", "gitleaks", "leaktk"]  // Try in order, use first available
   }
 }
@@ -80,7 +78,6 @@ The `engines` field is **fully functional** with support for both simple and adv
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "engines": [
       {
         "type": "gitleaks",
@@ -109,7 +106,6 @@ The `engines` field is **fully functional** with support for both simple and adv
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "engines": ["betterleaks", "gitleaks"]  // Try betterleaks first, fallback to gitleaks
   }
 }
@@ -120,7 +116,6 @@ The `engines` field is **fully functional** with support for both simple and adv
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "engines": ["leaktk", "gitleaks"]  // LeakTK manages patterns automatically
   }
 }
@@ -628,7 +623,7 @@ Safely transition between tools:
   "secret_scanning": {
     "engines": [
       {"name": "gitleaks", "enabled": true, "priority": 1},
-      {"name": "trufflehog", "enabled": true, "priority": 2, "action": "log"}
+      {"name": "trufflehog", "enabled": true, "priority": 2, "action": "log-only"}
     ],
     "execution_strategy": "first-match"
   }
@@ -750,7 +745,7 @@ Easy to add new engines as they emerge:
   "secret_scanning": {
     "engines": [
       {"name": "gitleaks", "enabled": true, "action": "block"},
-      {"name": "gitguardian", "enabled": true, "action": "log"}
+      {"name": "gitguardian", "enabled": true, "action": "log-only"}
     ],
     "execution_strategy": "first-match"
   }
@@ -868,8 +863,7 @@ Easy to add new engines as they emerge:
 ```json
 {
   "secret_scanning": {
-    "enabled": true,
-    "action": "block"
+    "enabled": true
   }
 }
 ```
@@ -880,7 +874,6 @@ Easy to add new engines as they emerge:
 {
   "secret_scanning": {
     "enabled": true,
-    "action": "block",
     "engines": ["gitleaks"]  // Explicit, but same behavior
   }
 }
@@ -900,7 +893,7 @@ Easy to add new engines as they emerge:
   "secret_scanning": {
     "engines": [
       {"name": "gitleaks", "enabled": true, "action": "block"},
-      {"name": "trufflehog", "enabled": true, "action": "log"}
+      {"name": "trufflehog", "enabled": true, "action": "log-only"}
     ],
     "execution_strategy": "first-match"
   }
