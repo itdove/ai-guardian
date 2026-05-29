@@ -2020,13 +2020,14 @@ class TestPluginMenuItems:
             )
             with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
-                    DaemonTray._execute_plugin_command(
-                        "ai-guardian --version", "modal", label="Version",
-                    )
-                    mock_run.assert_called_once()
-                    args = mock_run.call_args[0][0]
-                    assert args == ["/bin/zsh", "-lc", "ai-guardian --version"]
-                    mock_dialog.assert_called_once_with("Version", "ai-guardian 1.8.0")
+                    with mock.patch("sys.executable", "/venv/bin/python"):
+                        DaemonTray._execute_plugin_command(
+                            "ai-guardian --version", "modal", label="Version",
+                        )
+                        mock_run.assert_called_once()
+                        args = mock_run.call_args[0][0]
+                        assert args == ["/bin/zsh", "-lc", "/venv/bin/python -m ai_guardian --version"]
+                        mock_dialog.assert_called_once_with("Version", "ai-guardian 1.8.0")
 
     def test_execute_plugin_command_modal_no_output(self):
         with mock.patch("subprocess.run") as mock_run:
@@ -2063,6 +2064,34 @@ class TestPluginMenuItems:
                     assert title == "AI Guardian"
                     assert "partial output" in msg
                     assert "warning: something" in msg
+
+    def test_execute_plugin_command_modal_shows_stderr_on_success(self):
+        """Modal includes stderr even on success (e.g. --summary output)."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="", returncode=0,
+                stderr="Sanitized image: 3 region(s) redacted\n",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
+                    DaemonTray._execute_plugin_command("cmd", "modal")
+                    mock_dialog.assert_called_once_with(
+                        "AI Guardian", "Sanitized image: 3 region(s) redacted",
+                    )
+
+    def test_execute_plugin_command_modal_merges_stdout_and_stderr_on_success(self):
+        """Modal shows both stdout and stderr on success."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="main output\n", returncode=0,
+                stderr="summary line\n",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
+                    DaemonTray._execute_plugin_command("cmd", "modal")
+                    title, msg = mock_dialog.call_args[0]
+                    assert "main output" in msg
+                    assert "summary line" in msg
 
     def test_execute_plugin_command_uses_user_shell(self):
         """Non-terminal commands use the user's SHELL env var."""
@@ -2112,6 +2141,85 @@ class TestPluginMenuItems:
                 args = mock_run.call_args[0][0]
                 assert args[0] == "podman"
                 assert "exec" in args
+
+    def test_resolve_plugin_ai_guardian_replaces_bare_command(self):
+        """ai-guardian in plugin commands resolves to tray's Python."""
+        with mock.patch("sys.executable", "/venv/bin/python"):
+            result = DaemonTray._resolve_plugin_ai_guardian(
+                "ai-guardian sanitize img.png --summary", False, None,
+            )
+            assert result == "/venv/bin/python -m ai_guardian sanitize img.png --summary"
+
+    def test_resolve_plugin_ai_guardian_bare_no_args(self):
+        """ai-guardian alone (no arguments) resolves correctly."""
+        with mock.patch("sys.executable", "/venv/bin/python"):
+            result = DaemonTray._resolve_plugin_ai_guardian(
+                "ai-guardian", False, None,
+            )
+            assert "-m ai_guardian" in result
+            assert "ai-guardian" not in result.split("-m")[0]
+
+    def test_resolve_plugin_ai_guardian_non_matching_command(self):
+        """Commands not starting with ai-guardian are left unchanged."""
+        result = DaemonTray._resolve_plugin_ai_guardian(
+            "kubectl get pods", False, None,
+        )
+        assert result == "kubectl get pods"
+
+    def test_resolve_plugin_ai_guardian_skipped_for_remote_container(self):
+        """Remote container targets keep bare ai-guardian for PATH resolution."""
+        target = mock.MagicMock()
+        target.runtime = "container"
+        result = DaemonTray._resolve_plugin_ai_guardian(
+            "ai-guardian doctor", True, target,
+        )
+        assert result == "ai-guardian doctor"
+
+    def test_resolve_plugin_ai_guardian_skipped_for_remote_kubernetes(self):
+        """Remote kubernetes targets keep bare ai-guardian."""
+        target = mock.MagicMock()
+        target.runtime = "kubernetes"
+        result = DaemonTray._resolve_plugin_ai_guardian(
+            "ai-guardian doctor", True, target,
+        )
+        assert result == "ai-guardian doctor"
+
+    def test_resolve_plugin_ai_guardian_local_target_resolves(self):
+        """Local targets still resolve ai-guardian to tray's Python."""
+        target = mock.MagicMock()
+        target.runtime = "local"
+        with mock.patch("sys.executable", "/venv/bin/python"):
+            result = DaemonTray._resolve_plugin_ai_guardian(
+                "ai-guardian doctor", True, target,
+            )
+            assert "-m ai_guardian doctor" in result
+
+    def test_execute_plugin_command_resolves_ai_guardian_terminal(self):
+        """Terminal plugin commands with ai-guardian use tray's Python."""
+        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+            with mock.patch("sys.executable", "/venv/bin/python"):
+                DaemonTray._execute_plugin_command(
+                    "ai-guardian doctor", "terminal",
+                )
+                mock_launch.assert_called_once()
+                args = mock_launch.call_args[0][0]
+                assert args[0] == "/venv/bin/python"
+                assert args[1:3] == ["-m", "ai_guardian"]
+                assert "doctor" in args
+
+    def test_execute_plugin_command_resolves_ai_guardian_notification(self):
+        """Notification plugin commands with ai-guardian use tray's Python."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(stdout="ok\n")
+            with mock.patch("ai_guardian.daemon.tray_plugins.send_notification"):
+                with mock.patch("sys.executable", "/venv/bin/python"):
+                    DaemonTray._execute_plugin_command(
+                        "ai-guardian version", "notification",
+                    )
+                    args = mock_run.call_args[0][0]
+                    cmd_line = " ".join(args)
+                    assert "/venv/bin/python" in cmd_line
+                    assert "-m ai_guardian" in cmd_line
 
     def test_execute_plugin_command_with_params(self):
         tray = self._make_tray()
@@ -2261,13 +2369,15 @@ class TestPluginMenuItems:
             mock_run.return_value = mock.MagicMock(stdout="")
             with mock.patch("ai_guardian.daemon.tray_plugins.copy_to_clipboard"):
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
-                    DaemonTray._execute_plugin_command(
-                        "ai-guardian doctor > /tmp/report.txt", "clipboard",
-                    )
-                    args = mock_run.call_args[0][0]
-                    assert args == [
-                        "/bin/zsh", "-lc", "ai-guardian doctor > /tmp/report.txt",
-                    ]
+                    with mock.patch("sys.executable", "/venv/bin/python"):
+                        DaemonTray._execute_plugin_command(
+                            "ai-guardian doctor > /tmp/report.txt", "clipboard",
+                        )
+                        args = mock_run.call_args[0][0]
+                        assert args == [
+                            "/bin/zsh", "-lc",
+                            "/venv/bin/python -m ai_guardian doctor > /tmp/report.txt",
+                        ]
 
     def test_execute_plugin_command_shell_terminal(self):
         with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
