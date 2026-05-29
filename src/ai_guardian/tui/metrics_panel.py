@@ -7,7 +7,65 @@ Display violation statistics and trends from the violations log.
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import Button, Static
+
+
+class ConfirmResetModal(ModalScreen):
+    """Modal for confirming counter reset."""
+
+    CSS = """
+    ConfirmResetModal {
+        align: center middle;
+    }
+
+    #modal-container {
+        width: 60;
+        height: auto;
+        background: $panel;
+        border: thick $warning;
+        padding: 1 2;
+    }
+
+    #modal-header {
+        margin: 0 0 1 0;
+        text-align: center;
+        color: $warning;
+    }
+
+    #modal-content {
+        margin: 1 0;
+        text-align: center;
+    }
+
+    #modal-actions {
+        margin: 1 0 0 0;
+        height: auto;
+        align: center middle;
+    }
+
+    #modal-actions Button {
+        margin: 0 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Container(id="modal-container"):
+            yield Static("[bold]Reset Cumulative Counters?[/bold]", id="modal-header")
+            yield Static(
+                "This will reset all-time counters to the current\n"
+                "log file counts and update the tracking start date.",
+                id="modal-content"
+            )
+            with Horizontal(id="modal-actions"):
+                yield Button("Reset", id="confirm-reset", variant="warning")
+                yield Button("Cancel (ESC)", id="cancel-reset", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "confirm-reset":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
 
 
 class MetricsContent(Container):
@@ -89,6 +147,11 @@ class MetricsContent(Container):
                 yield Button(f"All ({self._retention_days}d)", id="metrics-all",
                              variant="default")
                 yield Button("Refresh", id="metrics-refresh", variant="success")
+                yield Button("Reset Counters", id="metrics-reset", variant="warning")
+
+            with Container(classes="section"):
+                yield Static("[bold]Cumulative Totals[/bold]", classes="section-title")
+                yield Static("", id="metrics-cumulative")
 
             with Container(classes="section"):
                 yield Static("[bold]Summary[/bold]", classes="section-title")
@@ -134,6 +197,9 @@ class MetricsContent(Container):
             self._since_days = self._retention_days
         elif btn_id == "metrics-refresh":
             pass
+        elif btn_id == "metrics-reset":
+            self._confirm_reset()
+            return
         else:
             return
 
@@ -149,6 +215,18 @@ class MetricsContent(Container):
 
         self._load_metrics()
 
+    def _confirm_reset(self) -> None:
+        def handle_confirm(confirmed: bool) -> None:
+            if confirmed:
+                try:
+                    from ai_guardian.violation_counter import ViolationCounter
+                    ViolationCounter().reset_to_current_log()
+                except Exception:
+                    pass
+                self._load_metrics()
+
+        self.app.push_screen(ConfirmResetModal(), handle_confirm)
+
     def _load_metrics(self) -> None:
         try:
             from ai_guardian.metrics import MetricsComputer
@@ -159,6 +237,25 @@ class MetricsContent(Container):
                 f"[red]Error loading metrics: {e}[/red]"
             )
             return
+
+        # Cumulative totals
+        if report.cumulative_total > 0:
+            since_str = report.cumulative_since[:10] if report.cumulative_since else "unknown"
+            lines = [
+                f"All-time total: [bold]{report.cumulative_total:,}[/bold]",
+                f"Tracking since: {since_str}",
+            ]
+            if report.cumulative_by_type:
+                lines.append("")
+                for vtype, count in sorted(
+                    report.cumulative_by_type.items(), key=lambda x: x[1], reverse=True
+                ):
+                    lines.append(f"  {vtype:<25s} {count:>5,}")
+            self.query_one("#metrics-cumulative", Static).update("\n".join(lines))
+        else:
+            self.query_one("#metrics-cumulative", Static).update(
+                "[dim]No cumulative data yet[/dim]"
+            )
 
         if report.total_violations == 0:
             self.query_one("#metrics-summary", Static).update(

@@ -21,6 +21,7 @@ from ai_guardian.metrics import (
     format_json,
     metrics_command,
 )
+from ai_guardian.violation_counter import ViolationCounter
 
 
 def _make_violation(
@@ -415,8 +416,10 @@ class TestFormatCsv:
 
 
 class TestMetricsCommand:
-    def _make_args(self, json_flag=False, csv_flag=False, since="30d", type=None):
-        return argparse.Namespace(json=json_flag, csv=csv_flag, since=since, type=type)
+    def _make_args(self, json_flag=False, csv_flag=False, since="30d", type=None,
+                   reset=False, metrics_yes=False):
+        return argparse.Namespace(json=json_flag, csv=csv_flag, since=since,
+                                  type=type, reset=reset, metrics_yes=metrics_yes)
 
     def test_default_output(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
@@ -478,3 +481,88 @@ class TestMetricsCommand:
         assert result == 1
         captured = capsys.readouterr()
         assert "Invalid --since" in captured.err
+
+    def test_reset_with_yes(self, _isolate_config_dir, capsys):
+        state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
+        _write_violations(state_dir, [
+            _make_violation(violation_type="secret_detected"),
+            _make_violation(violation_type="secret_detected"),
+            _make_violation(violation_type="tool_permission"),
+        ])
+        counter_path = Path(state_dir) / "violation_counters.json"
+        counter = ViolationCounter(counter_path=counter_path)
+        for _ in range(50):
+            counter.increment("secret_detected")
+
+        result = metrics_command(self._make_args(reset=True, metrics_yes=True))
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Counters reset" in captured.out
+        assert "3" in captured.out
+
+        data = counter.get_counters()
+        assert data["total"] == 3
+
+    def test_reset_cancelled(self, _isolate_config_dir, capsys, monkeypatch):
+        monkeypatch.setattr("builtins.input", lambda _: "n")
+        result = metrics_command(self._make_args(reset=True))
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Cancelled" in captured.out
+
+
+class TestCumulativeFields:
+    def test_compute_includes_cumulative(self, _isolate_config_dir):
+        state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
+        _write_violations(state_dir, [_make_violation()])
+        counter_path = Path(state_dir) / "violation_counters.json"
+        counter = ViolationCounter(counter_path=counter_path)
+        counter.increment("secret_detected")
+        counter.increment("secret_detected")
+        counter.increment("tool_permission")
+
+        computer = MetricsComputer(since_days=30)
+        report = computer.compute()
+        assert report.cumulative_total == 3
+        assert report.cumulative_by_type["secret_detected"] == 2
+        assert report.cumulative_by_type["tool_permission"] == 1
+        assert report.cumulative_since != ""
+
+    def test_compute_cumulative_defaults_no_file(self, _isolate_config_dir):
+        computer = MetricsComputer(since_days=30)
+        report = computer.compute()
+        assert report.cumulative_total == 0
+        assert report.cumulative_by_type == {}
+        assert report.cumulative_since == ""
+
+    def test_format_human_shows_cumulative(self, _isolate_config_dir):
+        report = MetricsReport(
+            total_violations=5,
+            cumulative_total=100,
+            cumulative_by_type={"secret_detected": 60, "pii_detected": 40},
+            cumulative_since="2026-03-01T00:00:00Z",
+            by_type={"secret_detected": 3, "pii_detected": 2},
+        )
+        output = format_human(report)
+        assert "Cumulative Totals" in output
+        assert "100" in output
+        assert "2026-03-01" in output
+
+    def test_format_json_includes_cumulative(self, _isolate_config_dir):
+        report = MetricsReport(
+            total_violations=5,
+            cumulative_total=200,
+            cumulative_by_type={"secret_detected": 120},
+            cumulative_since="2026-04-01T00:00:00Z",
+        )
+        output = format_json(report)
+        data = json.loads(output)
+        assert "cumulative" in data
+        assert data["cumulative"]["total"] == 200
+        assert data["cumulative"]["by_type"]["secret_detected"] == 120
+        assert data["cumulative"]["since"] == "2026-04-01T00:00:00Z"
+
+    def test_format_human_hides_cumulative_when_zero(self, _isolate_config_dir):
+        report = MetricsReport(total_violations=5)
+        output = format_human(report)
+        assert "Cumulative Totals" not in output
