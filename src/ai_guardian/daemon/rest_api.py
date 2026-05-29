@@ -49,6 +49,13 @@ class _RestHandler(BaseHTTPRequestHandler):
             since_str = qs.get("since_days", [None])[0]
             since_days = int(since_str) if since_str else None
             self._send_json(self._get_metrics(since_days))
+        elif path == "/api/audit":
+            qs = urllib.parse.parse_qs(parsed.query)
+            since = qs.get("since", ["30d"])[0]
+            until = qs.get("until", [None])[0]
+            vtype = qs.get("type", [None])[0]
+            severity = qs.get("severity", [None])[0]
+            self._send_json(self._get_audit(since, until, vtype, severity))
         else:
             self._send_error(404, "Not found")
 
@@ -182,6 +189,15 @@ class _RestHandler(BaseHTTPRequestHandler):
                 "resolved": 0,
                 "unresolved": 0,
             }
+
+    @staticmethod
+    def _get_audit(since, until, violation_type, severity):
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+            return MultiDaemonClient._local_audit(since, until, violation_type, severity)
+        except Exception as e:
+            logger.debug("Failed to get audit: %s", e)
+            return {"summary": {"total": 0}, "security_posture": "UNKNOWN"}
 
     @staticmethod
     def _get_version():

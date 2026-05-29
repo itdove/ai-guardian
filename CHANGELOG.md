@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Compliance audit in metrics** (Issue #476)
+  - `ai-guardian metrics` extended with `--html`, `--until`, `--severity` flags
+  - `--html` outputs self-contained HTML audit report with inline CSS and SVG charts
+  - `--until` enables bounded date ranges (e.g. `--since 2026-04-01 --until 2026-05-01`)
+  - `--severity` filters by violation severity level
+  - Audit report sections: trend comparison with previous period,
+    resolution metrics (rate, avg time), compliance posture, security
+    posture assessment (GOOD/FAIR/NEEDS ATTENTION)
+  - REST API: `GET /api/audit` endpoint with query parameters
+  - TUI/Web: Metrics panel extended to "Metrics & Audit" with security
+    posture, trend comparison, resolution metrics, compliance summary,
+    and Export HTML/JSON/CSV buttons with Open Folder / browser download
+  - Tray menu: "Metrics" renamed to "Metrics & Audit"
+
 ### Fixed
 
 - **Aadhaar PII false positive on UUID all-zeros** (Issue #876)

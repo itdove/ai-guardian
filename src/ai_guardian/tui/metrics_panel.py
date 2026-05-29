@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-Metrics Tab Content
+Metrics & Audit Tab Content
 
-Display violation statistics and trends from the violations log.
+Display violation statistics, trends, and compliance audit report.
 """
+
+import platform
+import subprocess
+import tempfile
+import webbrowser
+from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -69,7 +75,7 @@ class ConfirmResetModal(ModalScreen):
 
 
 class MetricsContent(Container):
-    """Content widget for Metrics panel."""
+    """Content widget for Metrics & Audit panel."""
 
     CSS = """
     MetricsContent {
@@ -104,6 +110,15 @@ class MetricsContent(Container):
         margin: 0 1 0 0;
     }
 
+    #metrics-export-buttons {
+        margin: 1 0;
+        height: auto;
+    }
+
+    #metrics-export-buttons Button {
+        margin: 0 1 0 0;
+    }
+
     #metrics-body {
         margin: 1 0;
         padding: 1;
@@ -121,6 +136,7 @@ class MetricsContent(Container):
         super().__init__(*args, **kwargs)
         self._retention_days = self._get_retention_days()
         self._since_days = min(30, self._retention_days)
+        self._last_export_path: str = ""
 
     @staticmethod
     def _get_retention_days() -> int:
@@ -133,7 +149,7 @@ class MetricsContent(Container):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            f"[bold]Violation Metrics[/bold]  "
+            f"[bold]Metrics & Audit[/bold]  "
             f"[dim](log retains {self._retention_days} days)[/dim]",
             id="metrics-header",
         )
@@ -149,6 +165,18 @@ class MetricsContent(Container):
                 yield Button("Refresh", id="metrics-refresh", variant="success")
                 yield Button("Reset Counters", id="metrics-reset", variant="warning")
 
+            with Horizontal(id="metrics-export-buttons"):
+                yield Button("Export HTML", id="export-html", variant="default")
+                yield Button("Export JSON", id="export-json", variant="default")
+                yield Button("Export CSV", id="export-csv", variant="default")
+                yield Button("Open Folder", id="open-export-folder",
+                             variant="default", disabled=True)
+                yield Static("", id="export-status")
+
+            with Container(classes="section"):
+                yield Static("[bold]Security Posture[/bold]", classes="section-title")
+                yield Static("", id="metrics-posture")
+
             with Container(classes="section"):
                 yield Static("[bold]Cumulative Totals[/bold]", classes="section-title")
                 yield Static("", id="metrics-cumulative")
@@ -156,6 +184,10 @@ class MetricsContent(Container):
             with Container(classes="section"):
                 yield Static("[bold]Summary[/bold]", classes="section-title")
                 yield Static("Loading...", id="metrics-summary")
+
+            with Container(classes="section"):
+                yield Static("[bold]Trend[/bold]", classes="section-title")
+                yield Static("", id="metrics-trend-comparison")
 
             with Container(classes="section"):
                 yield Static("[bold]By Type[/bold]", classes="section-title")
@@ -181,6 +213,14 @@ class MetricsContent(Container):
                 yield Static("[bold]Daily Trend[/bold]", classes="section-title")
                 yield Static("", id="metrics-trend")
 
+            with Container(classes="section"):
+                yield Static("[bold]Resolution Metrics[/bold]", classes="section-title")
+                yield Static("", id="metrics-resolution")
+
+            with Container(classes="section"):
+                yield Static("[bold]Compliance Summary[/bold]", classes="section-title")
+                yield Static("", id="metrics-compliance")
+
     def on_mount(self) -> None:
         self._load_metrics()
 
@@ -200,6 +240,18 @@ class MetricsContent(Container):
         elif btn_id == "metrics-reset":
             self._confirm_reset()
             return
+        elif btn_id == "export-html":
+            self._export("html")
+            return
+        elif btn_id == "export-json":
+            self._export("json")
+            return
+        elif btn_id == "export-csv":
+            self._export("csv")
+            return
+        elif btn_id == "open-export-folder":
+            self._open_export_folder()
+            return
         else:
             return
 
@@ -214,6 +266,62 @@ class MetricsContent(Container):
                 btn.variant = "primary" if days == self._since_days else "default"
 
         self._load_metrics()
+
+    def _export(self, fmt: str) -> None:
+        try:
+            from ai_guardian.audit import (
+                AuditComputer, format_audit_html, format_audit_json,
+                format_audit_csv,
+            )
+            computer = AuditComputer(since=f"{self._since_days}d")
+
+            suffix = {"html": ".html", "json": ".json", "csv": ".csv"}[fmt]
+            tmp = tempfile.NamedTemporaryFile(
+                prefix="ai-guardian-audit-", suffix=suffix,
+                delete=False, mode="w", encoding="utf-8",
+            )
+
+            if fmt == "html":
+                report = computer.compute()
+                tmp.write(format_audit_html(report))
+            elif fmt == "json":
+                report = computer.compute()
+                tmp.write(format_audit_json(report))
+            elif fmt == "csv":
+                violations = computer._read_violations()
+                format_audit_csv(violations, tmp)
+
+            tmp.close()
+            self._last_export_path = tmp.name
+
+            status = self.query_one("#export-status", Static)
+            status.update(f"[green]Saved: {self._last_export_path}[/green]")
+
+            folder_btn = self.query_one("#open-export-folder", Button)
+            folder_btn.disabled = False
+
+            if fmt == "html":
+                webbrowser.open(f"file://{self._last_export_path}")
+
+        except Exception as e:
+            status = self.query_one("#export-status", Static)
+            status.update(f"[red]Export failed: {e}[/red]")
+
+    def _open_export_folder(self) -> None:
+        if not self._last_export_path:
+            return
+        folder = str(Path(self._last_export_path).parent)
+        system = platform.system()
+        try:
+            if system == "Darwin":
+                subprocess.Popen(["open", folder])
+            elif system == "Windows":
+                subprocess.Popen(["explorer", folder])
+            else:
+                subprocess.Popen(["xdg-open", folder])
+        except Exception as e:
+            status = self.query_one("#export-status", Static)
+            status.update(f"[red]Could not open folder: {e}[/red]")
 
     def _confirm_reset(self) -> None:
         def handle_confirm(confirmed: bool) -> None:
@@ -237,6 +345,8 @@ class MetricsContent(Container):
                 f"[red]Error loading metrics: {e}[/red]"
             )
             return
+
+        self._load_audit_sections()
 
         # Cumulative totals
         if report.cumulative_total > 0:
@@ -317,6 +427,67 @@ class MetricsContent(Container):
             self.query_one("#metrics-trend", Static).update("\n".join(lines))
         else:
             self.query_one("#metrics-trend", Static).update("[dim]No trend data[/dim]")
+
+    def _load_audit_sections(self) -> None:
+        try:
+            from ai_guardian.audit import AuditComputer
+            computer = AuditComputer(since=f"{self._since_days}d")
+            audit = computer.compute()
+        except Exception:
+            for wid in ("metrics-posture", "metrics-trend-comparison",
+                        "metrics-resolution", "metrics-compliance"):
+                self.query_one(f"#{wid}", Static).update("[dim]Unavailable[/dim]")
+            return
+
+        # Security posture
+        posture = audit.security_posture or "UNKNOWN"
+        colors = {"GOOD": "green", "FAIR": "yellow",
+                  "NEEDS ATTENTION": "red", "UNKNOWN": "dim"}
+        color = colors.get(posture, "dim")
+        self.query_one("#metrics-posture", Static).update(
+            f"[{color}][bold]{posture}[/bold][/{color}]"
+        )
+
+        # Trend comparison
+        lines = []
+        if audit.trend_change_pct is not None:
+            arrow = "▼" if audit.trend_change_pct < 0 else "▲"
+            word = "decrease" if audit.trend_change_pct < 0 else "increase"
+            clr = "green" if audit.trend_change_pct < 0 else "red"
+            lines.append(
+                f"[{clr}]{arrow} {abs(audit.trend_change_pct):.0f}% {word}[/{clr}]"
+                f" from previous period ({audit.prev_period_total:,} violations)"
+            )
+        else:
+            lines.append("[dim]No previous period data for comparison[/dim]")
+        self.query_one("#metrics-trend-comparison", Static).update("\n".join(lines))
+
+        # Resolution metrics
+        res_lines = [
+            f"Resolved:      {audit.resolved_count:,}",
+            f"Unresolved:    {audit.unresolved_count:,}",
+            f"Rate:          {audit.resolution_pct:.1f}%",
+        ]
+        if audit.avg_resolution_seconds is not None:
+            hours = audit.avg_resolution_seconds / 3600
+            res_lines.append(f"Avg time:      {hours:.1f}h")
+        else:
+            res_lines.append("Avg time:      N/A")
+        self.query_one("#metrics-resolution", Static).update("\n".join(res_lines))
+
+        # Compliance
+        if audit.compliance_features:
+            comp_lines = []
+            for feature, enabled in audit.compliance_features.items():
+                status = "[green]✓ enabled[/green]" if enabled else "[red]✗ disabled[/red]"
+                count = audit.violations_per_feature.get(feature, 0)
+                count_str = f"  ({count:,} violations)" if count > 0 else ""
+                comp_lines.append(f"  {feature:<25s} {status}{count_str}")
+            self.query_one("#metrics-compliance", Static).update("\n".join(comp_lines))
+        else:
+            self.query_one("#metrics-compliance", Static).update(
+                "[dim]No config data[/dim]"
+            )
 
     def _update_breakdown(self, widget_id: str, data: dict, total: int) -> None:
         if data:

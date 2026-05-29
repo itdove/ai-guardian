@@ -1,4 +1,6 @@
-"""Metrics page — full statistics with percentages, trend chart matching TUI."""
+"""Metrics & Audit page — statistics, trends, compliance, and export."""
+
+import tempfile
 
 from nicegui import run, ui
 
@@ -26,6 +28,44 @@ def _load_local_metrics(since_days):
     }
 
 
+def _load_local_audit(since_days):
+    from ai_guardian.audit import AuditComputer
+    computer = AuditComputer(since=f"{since_days}d")
+    report = computer.compute()
+    return {
+        "prev_period_total": report.prev_period_total,
+        "trend_change_pct": report.trend_change_pct,
+        "resolution_pct": report.resolution_pct,
+        "avg_resolution_seconds": report.avg_resolution_seconds,
+        "compliance_features": report.compliance_features,
+        "violations_per_feature": report.violations_per_feature,
+        "security_posture": report.security_posture,
+    }
+
+
+def _export_audit(since_days, fmt):
+    from ai_guardian.audit import (
+        AuditComputer, format_audit_html, format_audit_json, format_audit_csv,
+    )
+    computer = AuditComputer(since=f"{since_days}d")
+    suffix = {"html": ".html", "json": ".json", "csv": ".csv"}[fmt]
+    tmp = tempfile.NamedTemporaryFile(
+        prefix="ai-guardian-audit-", suffix=suffix,
+        delete=False, mode="w", encoding="utf-8",
+    )
+    if fmt == "csv":
+        violations = computer._read_violations()
+        format_audit_csv(violations, tmp)
+    else:
+        report = computer.compute()
+        if fmt == "html":
+            tmp.write(format_audit_html(report))
+        else:
+            tmp.write(format_audit_json(report))
+    tmp.close()
+    return tmp.name
+
+
 def _get_retention_days():
     try:
         from ai_guardian.violation_logger import ViolationLogger
@@ -42,7 +82,7 @@ def _reset_counters():
 
 
 def create_metrics_page(service, daemon_name: str):
-    """Build the metrics page with full statistics."""
+    """Build the metrics & audit page with full statistics and compliance."""
 
     create_header(daemon_name)
 
@@ -50,7 +90,7 @@ def create_metrics_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/metrics")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Metrics").classes("text-2xl font-bold")
+            ui.label("Metrics & Audit").classes("text-2xl font-bold")
 
             retention = _get_retention_days()
 
@@ -75,6 +115,32 @@ def create_metrics_page(service, daemon_name: str):
                     on_click=lambda: handle_reset(),
                     color="orange",
                 ).props("flat")
+
+            with ui.row().classes("gap-2 items-center"):
+                ui.button(
+                    "Export HTML", icon="description",
+                    on_click=lambda: do_export("html"),
+                ).props("flat")
+                ui.button(
+                    "Export JSON", icon="data_object",
+                    on_click=lambda: do_export("json"),
+                ).props("flat")
+                ui.button(
+                    "Export CSV", icon="table_chart",
+                    on_click=lambda: do_export("csv"),
+                ).props("flat")
+                export_label = ui.label("").classes("text-sm")
+
+            async def do_export(fmt):
+                since = current_range["days"]
+                try:
+                    path = await run.io_bound(_export_audit, since, fmt)
+                    export_label.set_text(f"Saved: {path}")
+                    export_label.classes(replace="text-sm text-green")
+                    ui.download(path)
+                except Exception as e:
+                    export_label.set_text(f"Export failed: {e}")
+                    export_label.classes(replace="text-sm text-red")
 
             current_range = {"days": 30}
             content = ui.column().classes("w-full gap-4")
@@ -203,6 +269,11 @@ def create_metrics_page(service, daemon_name: str):
                     _top_list("Top Tools", agg["top_tools"])
                     _trend("Daily Trend (last 14 days)", agg["time_trend"])
 
+                    # Audit sections
+                    audit_data = await run.io_bound(_load_local_audit, since)
+                    if audit_data:
+                        _audit_sections(audit_data)
+
             btn_30d.props("color=primary")
             ui.timer(0.1, load_metrics, once=True)
 
@@ -268,3 +339,63 @@ def _trend(title, trend_data):
         + "\n".join(lines)
         + "</pre>"
     )
+
+
+def _audit_sections(data):
+    posture = data.get("security_posture", "UNKNOWN")
+    posture_colors = {
+        "GOOD": "green", "FAIR": "orange",
+        "NEEDS ATTENTION": "red", "UNKNOWN": "grey",
+    }
+    p_color = posture_colors.get(posture, "grey")
+
+    ui.label("Security Posture").classes("text-lg font-bold mt-6")
+    ui.label(posture).classes(f"text-2xl font-bold text-{p_color}")
+
+    change_pct = data.get("trend_change_pct")
+    if change_pct is not None:
+        arrow = "▼" if change_pct < 0 else "▲"
+        word = "decrease" if change_pct < 0 else "increase"
+        clr = "text-green" if change_pct < 0 else "text-red"
+        prev = data.get("prev_period_total", 0)
+        ui.label("Trend Comparison").classes("text-lg font-bold mt-4")
+        ui.label(
+            f"{arrow} {abs(change_pct):.0f}% {word} "
+            f"from previous period ({prev:,} violations)"
+        ).classes(f"text-lg {clr}")
+
+    ui.label("Resolution Metrics").classes("text-lg font-bold mt-4")
+    avg_sec = data.get("avg_resolution_seconds")
+    avg_display = f"{avg_sec / 3600:.1f}h" if avg_sec else "N/A"
+    ui.table(
+        columns=[
+            {"name": "metric", "label": "Metric", "field": "metric"},
+            {"name": "value", "label": "Value", "field": "value"},
+        ],
+        rows=[
+            {"metric": "Resolution Rate", "value": f"{data.get('resolution_pct', 0):.1f}%"},
+            {"metric": "Avg Time to Resolution", "value": avg_display},
+        ],
+        row_key="metric",
+    ).classes("w-full max-w-lg")
+
+    features = data.get("compliance_features", {})
+    vpf = data.get("violations_per_feature", {})
+    if features:
+        ui.label("Compliance Summary").classes("text-lg font-bold mt-4")
+        rows = []
+        for feat, enabled in features.items():
+            rows.append({
+                "feature": feat,
+                "status": "✓ enabled" if enabled else "✗ disabled",
+                "violations": vpf.get(feat, 0),
+            })
+        ui.table(
+            columns=[
+                {"name": "feature", "label": "Feature", "field": "feature"},
+                {"name": "status", "label": "Status", "field": "status"},
+                {"name": "violations", "label": "Violations", "field": "violations", "sortable": True},
+            ],
+            rows=rows,
+            row_key="feature",
+        ).classes("w-full max-w-lg")
