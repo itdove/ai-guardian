@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Compliance audit report** (Issue #476)
+  - `ai-guardian audit` CLI generates compliance reports from violation log
+  - Output formats: human-readable (default), `--html`, `--json`, `--csv`
+  - `--since` / `--until` for bounded date ranges
+  - `--type` and `--severity` filters
+  - Report sections: summary, trend analysis (with period comparison),
+    top violations, resolution metrics, compliance posture
+  - HTML output is self-contained with inline CSS and SVG charts
+  - REST API: `GET /api/audit` endpoint with query parameters
+  - TUI/Web: Metrics panel extended to "Metrics & Audit" with security
+    posture, trend comparison, resolution metrics, compliance summary,
+    and Export HTML/JSON/CSV buttons
+  - Tray menu: "Metrics" renamed to "Metrics & Audit"
+
 ### Fixed
 
 - **Aadhaar PII false positive on UUID all-zeros** (Issue #876)

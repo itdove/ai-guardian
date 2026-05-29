@@ -3549,7 +3549,7 @@ class TestGreyedOutMenuItems:
             mock_pystray.Menu.SEPARATOR = mock.MagicMock()
             tray._build_single_daemon_menu_items()
 
-            for label in ("Console", "Violations", "Metrics", "Statistics"):
+            for label in ("Console", "Violations", "Metrics & Audit", "Statistics"):
                 kwargs = self._get_menu_item_kwargs(mock_pystray, label)
                 assert kwargs is not None, f"{label} not found in menu items"
                 enabled_cb = kwargs.get("enabled")
@@ -3569,7 +3569,7 @@ class TestGreyedOutMenuItems:
             mock_pystray.Menu.SEPARATOR = mock.MagicMock()
             tray._build_single_daemon_menu_items()
 
-            for label in ("Console", "Violations", "Metrics", "Statistics"):
+            for label in ("Console", "Violations", "Metrics & Audit", "Statistics"):
                 kwargs = self._get_menu_item_kwargs(mock_pystray, label)
                 assert kwargs is not None, f"{label} not found"
                 enabled_cb = kwargs.get("enabled")
@@ -3671,7 +3671,7 @@ class TestGreyedOutMenuItems:
             mock_pystray.Menu.SEPARATOR = mock.MagicMock()
             tray._build_single_daemon_menu_items()
 
-            for label in ("Console", "Violations", "Metrics", "Statistics"):
+            for label in ("Console", "Violations", "Metrics & Audit", "Statistics"):
                 kwargs = self._get_menu_item_kwargs(mock_pystray, label)
                 assert kwargs is not None, f"{label} not found"
                 enabled_cb = kwargs.get("enabled")

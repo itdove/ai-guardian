@@ -276,6 +276,47 @@ def main():
             help="Skip confirmation prompt for --reset"
         )
 
+        # Audit subcommand (Issue #476)
+        audit_parser = subparsers.add_parser(
+            "audit",
+            help="Generate compliance audit report"
+        )
+        audit_parser.add_argument(
+            "--html",
+            action="store_true",
+            help="Output self-contained HTML report"
+        )
+        audit_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Output as machine-readable JSON"
+        )
+        audit_parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="Export filtered violations as CSV"
+        )
+        audit_parser.add_argument(
+            "--since",
+            default="30d",
+            help="Start of time range: Nd for days or ISO date. Default: 30d"
+        )
+        audit_parser.add_argument(
+            "--until",
+            default=None,
+            help="End of time range: Nd or ISO date. Default: now"
+        )
+        audit_parser.add_argument(
+            "--type",
+            choices=list(ViolationType),
+            help="Filter by violation type"
+        )
+        audit_parser.add_argument(
+            "--severity",
+            choices=["warning", "high", "critical"],
+            help="Filter by severity level"
+        )
+
         # Console subcommand (primary)
         console_parser = subparsers.add_parser(
             "console",
@@ -995,6 +1036,20 @@ def main():
                 return 1
             except Exception as e:
                 print(f"Error running metrics: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                return 1
+
+        # Handle audit command (Issue #476)
+        if args.command == "audit":
+            try:
+                from ai_guardian.audit import audit_command
+                return audit_command(args)
+            except ImportError as e:
+                print(f"Error: Audit module not available: {e}", file=sys.stderr)
+                return 1
+            except Exception as e:
+                print(f"Error running audit: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
                 return 1

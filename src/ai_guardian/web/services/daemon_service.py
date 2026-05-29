@@ -76,6 +76,22 @@ class DaemonService:
         except Exception:
             return None
 
+    def get_daemon_audit(
+        self,
+        target: DaemonTarget,
+        since: str = "30d",
+        until: Optional[str] = None,
+        violation_type: Optional[str] = None,
+        severity: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_audit(
+                target, since=since, until=until,
+                violation_type=violation_type, severity=severity,
+            )
+        except Exception:
+            return None
+
     def pause_daemon(self, target: DaemonTarget, minutes: int) -> bool:
         try:
             return self._client.send_pause(target, minutes)

@@ -1606,7 +1606,7 @@ class DaemonTray:
                              enabled=_single_running),
             pystray.MenuItem("Violations", _open_panel("panel-violations"),
                              visible=_single_vis, enabled=_single_running),
-            pystray.MenuItem("Metrics", _open_panel("panel-metrics"),
+            pystray.MenuItem("Metrics & Audit", _open_panel("panel-metrics"),
                              visible=_single_vis, enabled=_single_running),
             pystray.MenuItem(
                 "Statistics",
@@ -1932,7 +1932,7 @@ class DaemonTray:
                         pystray.MenuItem("Violations",
                                          _mk_open_panel("panel-violations"),
                                          enabled=_is_slot_running),
-                        pystray.MenuItem("Metrics",
+                        pystray.MenuItem("Metrics & Audit",
                                          _mk_open_panel("panel-metrics"),
                                          enabled=_is_slot_running),
                         pystray.MenuItem(
