@@ -304,6 +304,9 @@ class TestMetricsEndpoint:
         mock_report.by_severity = {"high": 3, "warning": 7}
         mock_report.resolved_count = 2
         mock_report.unresolved_count = 8
+        mock_report.cumulative_total = 50
+        mock_report.cumulative_by_type = {"secret_detected": 30, "pii_detected": 20}
+        mock_report.cumulative_since = "2026-01-01T00:00:00Z"
         with mock.patch(
             "ai_guardian.metrics.MetricsComputer.compute",
             return_value=mock_report,
@@ -324,6 +327,9 @@ class TestMetricsEndpoint:
         mock_report.by_severity = {}
         mock_report.resolved_count = 0
         mock_report.unresolved_count = 0
+        mock_report.cumulative_total = 0
+        mock_report.cumulative_by_type = {}
+        mock_report.cumulative_since = ""
         with mock.patch(
             "ai_guardian.metrics.MetricsComputer.__init__",
             return_value=None,

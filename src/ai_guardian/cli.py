@@ -264,6 +264,17 @@ def main():
             choices=list(ViolationType),
             help="Filter by violation type"
         )
+        metrics_parser.add_argument(
+            "--reset",
+            action="store_true",
+            help="Reset cumulative counters to current log file counts"
+        )
+        metrics_parser.add_argument(
+            "--yes", "-y",
+            action="store_true",
+            dest="metrics_yes",
+            help="Skip confirmation prompt for --reset"
+        )
 
         # Console subcommand (primary)
         console_parser = subparsers.add_parser(

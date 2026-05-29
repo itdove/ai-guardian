@@ -90,6 +90,9 @@ class MetricsReport:
     time_trend: List[Dict] = field(default_factory=list)
     time_range_start: str = ""
     time_range_end: str = ""
+    cumulative_total: int = 0
+    cumulative_by_type: Dict[str, int] = field(default_factory=dict)
+    cumulative_since: str = ""
 
 
 class MetricsComputer:
@@ -111,28 +114,42 @@ class MetricsComputer:
 
     def compute(self) -> MetricsReport:
         violations = self.read_filtered_violations()
+        cumulative = self._load_cumulative()
+
         if not violations:
-            return MetricsReport(
+            report = MetricsReport(
                 time_range_start=self._cutoff.isoformat(),
                 time_range_end=datetime.now(timezone.utc).isoformat(),
             )
+        else:
+            now = datetime.now(timezone.utc)
+            report = MetricsReport(
+                total_violations=len(violations),
+                resolved_count=sum(1 for v in violations if v.get("resolved")),
+                unresolved_count=sum(1 for v in violations if not v.get("resolved")),
+                session_count=self._count_sessions(violations),
+                by_type=self._count_by_key(violations, "violation_type"),
+                by_severity=self._count_by_key(violations, "severity"),
+                by_action=self._count_by_action(violations),
+                top_files=self._top_files(violations),
+                top_tools=self._top_tools(violations),
+                time_trend=self._time_trend(violations),
+                time_range_start=self._cutoff.isoformat(),
+                time_range_end=now.isoformat(),
+            )
 
-        now = datetime.now(timezone.utc)
-        report = MetricsReport(
-            total_violations=len(violations),
-            resolved_count=sum(1 for v in violations if v.get("resolved")),
-            unresolved_count=sum(1 for v in violations if not v.get("resolved")),
-            session_count=self._count_sessions(violations),
-            by_type=self._count_by_key(violations, "violation_type"),
-            by_severity=self._count_by_key(violations, "severity"),
-            by_action=self._count_by_action(violations),
-            top_files=self._top_files(violations),
-            top_tools=self._top_tools(violations),
-            time_trend=self._time_trend(violations),
-            time_range_start=self._cutoff.isoformat(),
-            time_range_end=now.isoformat(),
-        )
+        report.cumulative_total = cumulative.get("total", 0)
+        report.cumulative_by_type = cumulative.get("violation_totals", {})
+        report.cumulative_since = cumulative.get("since", "")
         return report
+
+    @staticmethod
+    def _load_cumulative() -> Dict:
+        try:
+            from ai_guardian.violation_counter import ViolationCounter
+            return ViolationCounter().get_counters()
+        except Exception:
+            return {"total": 0, "violation_totals": {}, "since": ""}
 
     def read_filtered_violations(self) -> List[Dict]:
         """Read and filter violations from the JSONL log."""
@@ -234,6 +251,20 @@ def format_human(report: MetricsReport) -> str:
     lines.append("AI Guardian Metrics")
     lines.append("=" * 40)
 
+    # Cumulative totals (independent of log rotation)
+    if report.cumulative_total > 0:
+        since_display = report.cumulative_since[:10] if report.cumulative_since else "unknown"
+        lines.append("")
+        lines.append("Cumulative Totals")
+        lines.append("-" * 40)
+        lines.append(f"  All-time total:    {report.cumulative_total:>6,}")
+        lines.append(f"  Tracking since:    {since_display}")
+        if report.cumulative_by_type:
+            for vtype, count in sorted(
+                report.cumulative_by_type.items(), key=lambda x: x[1], reverse=True
+            ):
+                lines.append(f"    {vtype:<23s} {count:>5,}")
+
     if report.total_violations == 0:
         lines.append("\nNo violations found in the selected time range.")
         return "\n".join(lines)
@@ -332,6 +363,11 @@ def format_json(report: MetricsReport) -> str:
             {"tool": t, "count": c} for t, c in report.top_tools
         ],
         "time_trend": report.time_trend,
+        "cumulative": {
+            "total": report.cumulative_total,
+            "by_type": report.cumulative_by_type,
+            "since": report.cumulative_since,
+        },
     }
     return json.dumps(data, indent=2)
 
@@ -374,6 +410,9 @@ def metrics_command(args) -> int:
     Returns:
         int: Exit code (0 for success, 1 for error)
     """
+    if getattr(args, "reset", False):
+        return _reset_counters(args)
+
     try:
         since_value = getattr(args, "since", "30d") or "30d"
         cutoff = _parse_since(since_value)
@@ -398,4 +437,32 @@ def metrics_command(args) -> int:
     else:
         print(format_human(report))
 
+    return 0
+
+
+def _reset_counters(args) -> int:
+    """Handle --reset flag: reset cumulative counters to current log counts."""
+    from ai_guardian.violation_counter import ViolationCounter
+
+    counter = ViolationCounter()
+    old = counter.get_counters()
+
+    if not getattr(args, "metrics_yes", False):
+        print(f"Current cumulative total: {old.get('total', 0):,}")
+        since = old.get("since", "")
+        if since:
+            print(f"Tracking since: {since[:10]}")
+        print("This will reset counters to current log file counts.")
+        try:
+            confirm = input("Reset counters? [y/N] ")
+        except (EOFError, KeyboardInterrupt):
+            print("\nCancelled.")
+            return 0
+        if confirm.strip().lower() != "y":
+            print("Cancelled.")
+            return 0
+
+    result = counter.reset_to_current_log()
+    print(f"Counters reset. New baseline: {result.get('total', 0):,} violations")
+    print(f"Since: {result.get('since', 'now')[:19]}Z")
     return 0

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Metrics total stuck at 1000** (Issue #853)
+  - Added running violation counter (`violation_counters.json`) independent of log rotation
+  - Counter increments on every violation and persists across daemon restarts
+  - `ai-guardian metrics` now shows cumulative totals alongside time-filtered data
+  - `ai-guardian metrics --reset` resets counters to current log file counts (not zero)
+  - REST API `/api/metrics` and MCP `get_metrics` include `cumulative_total`, `cumulative_by_type`, `cumulative_since`
+  - TUI console: metrics panel shows cumulative totals + reset button with confirmation
+  - Web console: metrics page shows cumulative totals + reset button with confirmation
+
 ### Added
 
 - **Default bundled tray plugins** (Issue #831)

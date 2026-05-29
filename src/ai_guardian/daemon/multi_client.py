@@ -330,6 +330,9 @@ class MultiDaemonClient:
             "by_severity": report.by_severity,
             "resolved": report.resolved_count,
             "unresolved": report.unresolved_count,
+            "cumulative_total": report.cumulative_total,
+            "cumulative_by_type": report.cumulative_by_type,
+            "cumulative_since": report.cumulative_since,
         }
 
     def export_support(self, target: DaemonTarget) -> Optional[str]:

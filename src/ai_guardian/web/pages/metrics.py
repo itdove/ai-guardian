@@ -20,6 +20,9 @@ def _load_local_metrics(since_days):
         "top_files": report.top_files,
         "top_tools": report.top_tools,
         "time_trend": report.time_trend,
+        "cumulative_total": report.cumulative_total,
+        "cumulative_by_type": report.cumulative_by_type,
+        "cumulative_since": report.cumulative_since,
     }
 
 
@@ -31,6 +34,11 @@ def _get_retention_days():
         return cfg.get("retention_days", 30)
     except Exception:
         return 30
+
+
+def _reset_counters():
+    from ai_guardian.violation_counter import ViolationCounter
+    return ViolationCounter().reset_to_current_log()
 
 
 def create_metrics_page(service, daemon_name: str):
@@ -62,6 +70,11 @@ def create_metrics_page(service, daemon_name: str):
                     "Refresh", icon="refresh",
                     on_click=lambda: load_metrics(),
                 ).props("flat")
+                ui.button(
+                    "Reset Counters", icon="restart_alt",
+                    on_click=lambda: handle_reset(),
+                    color="orange",
+                ).props("flat")
 
             current_range = {"days": 30}
             content = ui.column().classes("w-full gap-4")
@@ -75,6 +88,34 @@ def create_metrics_page(service, daemon_name: str):
                         btn.props(remove="color=primary")
                 await load_metrics()
 
+            async def handle_reset():
+                with ui.dialog() as dialog, ui.card():
+                    ui.label("Reset Cumulative Counters?").classes(
+                        "text-lg font-bold"
+                    )
+                    ui.label(
+                        "This will reset all-time counters to the current "
+                        "log file counts and update the tracking start date."
+                    ).classes("text-sm text-orange")
+
+                    with ui.row().classes("gap-2 mt-4"):
+                        async def confirm():
+                            await run.io_bound(_reset_counters)
+                            dialog.close()
+                            ui.notify(
+                                "Counters reset", type="positive"
+                            )
+                            await load_metrics()
+
+                        ui.button(
+                            "Reset", icon="restart_alt",
+                            color="orange", on_click=confirm,
+                        )
+                        ui.button(
+                            "Cancel", on_click=dialog.close,
+                        )
+                dialog.open()
+
             async def load_metrics():
                 content.clear()
                 await run.io_bound(service.refresh_targets)
@@ -86,6 +127,8 @@ def create_metrics_page(service, daemon_name: str):
                     "sessions": 0, "by_type": {}, "by_severity": {},
                     "by_action": {}, "top_files": [], "top_tools": [],
                     "time_trend": [],
+                    "cumulative_total": 0, "cumulative_since": "",
+                    "cumulative_by_type": {},
                 }
 
                 if target:
@@ -109,11 +152,38 @@ def create_metrics_page(service, daemon_name: str):
                         agg["top_files"].extend(m.get("top_files", []))
                         agg["top_tools"].extend(m.get("top_tools", []))
                         agg["time_trend"].extend(m.get("time_trend", []))
+                        agg["cumulative_total"] += m.get("cumulative_total", 0)
+                        if m.get("cumulative_since"):
+                            agg["cumulative_since"] = m["cumulative_since"]
+                        for k, v in m.get("cumulative_by_type", {}).items():
+                            agg["cumulative_by_type"][k] = (
+                                agg["cumulative_by_type"].get(k, 0) + v
+                            )
 
                 with content:
                     if not target:
                         ui.label("No daemons discovered.").classes("text-grey-6")
                         return
+
+                    # Cumulative totals
+                    if agg["cumulative_total"] > 0:
+                        since_str = agg["cumulative_since"][:10] if agg["cumulative_since"] else ""
+                        with ui.row().classes("gap-4 flex-wrap"):
+                            with ui.card().classes("items-center p-4"):
+                                ui.label(str(agg["cumulative_total"])).classes(
+                                    "text-3xl font-bold text-purple"
+                                )
+                                ui.label("Cumulative Total").classes(
+                                    "text-sm text-grey-6"
+                                )
+                            if since_str:
+                                with ui.card().classes("items-center p-4"):
+                                    ui.label(since_str).classes(
+                                        "text-xl font-bold"
+                                    )
+                                    ui.label("Tracking Since").classes(
+                                        "text-sm text-grey-6"
+                                    )
 
                     with ui.row().classes("gap-4 flex-wrap"):
                         for lbl, val, clr in [

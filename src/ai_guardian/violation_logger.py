@@ -93,6 +93,13 @@ class ViolationLogger:
 
             logger.debug(f"Logged {violation_type} violation to {self.log_path}")
 
+            # Increment running counter (independent of log rotation)
+            try:
+                from ai_guardian.violation_counter import ViolationCounter
+                ViolationCounter().increment(violation_type)
+            except Exception as counter_err:
+                logger.debug(f"Failed to increment violation counter: {counter_err}")
+
             # Rotate log if needed
             self._rotate_log_if_needed()
 

@@ -430,6 +430,9 @@ def create_server() -> "FastMCP":
                 "by_severity": dict(report.by_severity),
                 "resolved": report.resolved_count,
                 "unresolved": report.unresolved_count,
+                "cumulative_total": report.cumulative_total,
+                "cumulative_by_type": dict(report.cumulative_by_type),
+                "cumulative_since": report.cumulative_since,
             }
         except Exception as e:
             logger.error("get_metrics error: %s", e)
