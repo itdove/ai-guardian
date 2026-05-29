@@ -96,6 +96,62 @@ class TestGetCacheDir:
         assert "~" not in str(result)
 
 
+class TestWindowsPaths:
+    """Tests for Windows-native default paths (Issue #873)."""
+
+    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    def test_config_dir_uses_appdata(self, _mock_sys, tmp_path):
+        appdata = str(tmp_path / "AppData" / "Roaming")
+        with mock.patch.dict(os.environ, {"APPDATA": appdata}, clear=False):
+            os.environ.pop("AI_GUARDIAN_CONFIG_DIR", None)
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            result = get_config_dir()
+        assert result == Path(appdata) / "ai-guardian"
+
+    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    def test_state_dir_uses_localappdata(self, _mock_sys, tmp_path):
+        localappdata = str(tmp_path / "AppData" / "Local")
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": localappdata}, clear=False):
+            os.environ.pop("AI_GUARDIAN_STATE_DIR", None)
+            os.environ.pop("XDG_STATE_HOME", None)
+            result = get_state_dir()
+        assert result == Path(localappdata) / "ai-guardian" / "state"
+
+    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    def test_cache_dir_uses_localappdata(self, _mock_sys, tmp_path):
+        localappdata = str(tmp_path / "AppData" / "Local")
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": localappdata}, clear=False):
+            os.environ.pop("AI_GUARDIAN_CACHE_DIR", None)
+            os.environ.pop("XDG_CACHE_HOME", None)
+            result = get_cache_dir()
+        assert result == Path(localappdata) / "ai-guardian" / "cache"
+
+    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    def test_env_override_takes_precedence_on_windows(self, _mock_sys, tmp_path):
+        custom = str(tmp_path / "custom")
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": custom}, clear=False):
+            result = get_config_dir()
+        assert result == Path(custom)
+
+    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    def test_config_dir_fallback_without_appdata(self, _mock_sys, tmp_path):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AI_GUARDIAN_CONFIG_DIR", None)
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            os.environ.pop("APPDATA", None)
+            result = get_config_dir()
+        assert result == Path.home() / "AppData" / "Roaming" / "ai-guardian"
+
+    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    def test_state_dir_fallback_without_localappdata(self, _mock_sys, tmp_path):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AI_GUARDIAN_STATE_DIR", None)
+            os.environ.pop("XDG_STATE_HOME", None)
+            os.environ.pop("LOCALAPPDATA", None)
+            result = get_state_dir()
+        assert result == Path.home() / "AppData" / "Local" / "ai-guardian" / "state"
+
+
 class TestMigrateStateFiles:
     """Tests for backward-compatible migration of state files."""
 
