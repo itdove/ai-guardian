@@ -6,7 +6,7 @@
     {
       "label": "Scan Directory...",
       "command": "ai-guardian scan {tray.directory}",
-      "type": "modal",
+      "type": "terminal",
       "params": [
         {
           "name": "directory",
@@ -43,7 +43,7 @@
     {
       "label": "Sanitize Directory...",
       "command": "ai-guardian sanitize {tray.directory} --output-dir {tray.output_dir} --redact-strategy {tray.redact_strategy} --summary",
-      "type": "modal",
+      "type": "terminal",
       "params": [
         {
           "name": "directory",
