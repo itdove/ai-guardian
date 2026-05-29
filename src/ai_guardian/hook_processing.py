@@ -2096,7 +2096,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         first_secret = strategy_result.secrets[0]
                         secret_details = {
                             "rule_id": first_secret.rule_id,
-                            "file": first_secret.file or filename,
+                            "file": file_path or filename,
                             "line_number": first_secret.line_number,
                             "end_line": first_secret.end_line or 0,
                             "commit": first_secret.commit or "N/A",
@@ -2295,7 +2295,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             first_finding = scan_result["findings"][0] if scan_result["findings"] else {}
                             secret_details = {
                                 "rule_id": first_finding.get("rule_id", "Unknown"),
-                                "file": first_finding.get("file", filename),
+                                "file": file_path or filename,
                                 "line_number": first_finding.get("line_number", 0),
                                 "end_line": first_finding.get("end_line", 0),
                                 "commit": first_finding.get("commit", "N/A"),
@@ -2314,7 +2314,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 first_finding = findings[0]
                                 secret_details = {
                                     "rule_id": first_finding.get("RuleID", "Unknown"),
-                                    "file": first_finding.get("File", filename),
+                                    "file": file_path or filename,
                                     "line_number": first_finding.get("StartLine", 0),
                                     "end_line": first_finding.get("EndLine", 0),
                                     "commit": first_finding.get("Commit", "N/A"),
@@ -2353,7 +2353,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 first_secret = fallback_result.secrets[0]
                                 secret_details = {
                                     "rule_id": first_secret.rule_id,
-                                    "file": first_secret.file or filename,
+                                    "file": file_path or filename,
                                     "line_number": first_secret.line_number,
                                     "end_line": first_secret.end_line or 0,
                                     "commit": first_secret.commit or "N/A",
@@ -2422,6 +2422,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         logging.info("All secret findings matched .gitleaks.toml allowlist — skipping")
                         return False, None
 
+                # Replace temp scan path with original file path (Issue #882)
+                if secret_details:
+                    secret_details['file'] = file_path or filename
+
                 # Build error message with details if available
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
                 pattern_config_for_msg = pattern_config if HAS_PATTERN_SERVER else None
@@ -2467,7 +2471,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             first_secret = fallback_result.secrets[0]
                             secret_details = {
                                 "rule_id": first_secret.rule_id,
-                                "file": first_secret.file or filename,
+                                "file": file_path or filename,
                                 "line_number": first_secret.line_number,
                                 "end_line": first_secret.end_line or 0,
                                 "commit": first_secret.commit or "N/A",
