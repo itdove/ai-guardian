@@ -8,6 +8,7 @@ Shared utilities for configuration directory resolution and timestamp handling.
 import copy
 import logging
 import os
+import platform
 import re
 import subprocess
 import threading
@@ -394,7 +395,12 @@ def get_config_dir() -> Path:
     if config_home:
         return Path(config_home) / "ai-guardian"
 
-    # Priority 3: Default fallback
+    # Priority 3: Default fallback (platform-specific)
+    if platform.system() == "Windows":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return Path(appdata) / "ai-guardian"
+        return Path.home() / "AppData" / "Roaming" / "ai-guardian"
     return Path("~/.config/ai-guardian").expanduser()
 
 
@@ -418,6 +424,12 @@ def get_state_dir() -> Path:
     if state_home:
         return Path(state_home) / "ai-guardian"
 
+    # Default fallback (platform-specific)
+    if platform.system() == "Windows":
+        localappdata = os.environ.get("LOCALAPPDATA")
+        if localappdata:
+            return Path(localappdata) / "ai-guardian" / "state"
+        return Path.home() / "AppData" / "Local" / "ai-guardian" / "state"
     return Path("~/.local/state/ai-guardian").expanduser()
 
 
@@ -441,6 +453,12 @@ def get_cache_dir() -> Path:
     if cache_home:
         return Path(cache_home) / "ai-guardian"
 
+    # Default fallback (platform-specific)
+    if platform.system() == "Windows":
+        localappdata = os.environ.get("LOCALAPPDATA")
+        if localappdata:
+            return Path(localappdata) / "ai-guardian" / "cache"
+        return Path.home() / "AppData" / "Local" / "ai-guardian" / "cache"
     return Path("~/.cache/ai-guardian").expanduser()
 
 

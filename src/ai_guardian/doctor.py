@@ -110,7 +110,7 @@ class Doctor:
             self.check_permissions,
             self.check_directory_rules,
             self.check_console_deps,
-            self.check_gnome_tray_support,
+            self.check_tray_support,
             self.check_terminal_emulator,
             self.check_config_consistency,
             self.check_tighten_only,
@@ -1061,26 +1061,46 @@ class Doctor:
             message="Schema defaults consistent",
         )
 
-    def check_gnome_tray_support(self) -> CheckResult:
-        """Check if GNOME has AppIndicator extension for system tray icon."""
-        if platform.system() != "Linux":
+    def check_tray_support(self) -> CheckResult:
+        """Check if system tray icon can be displayed on this platform."""
+        system = platform.system()
+
+        if system in ("Windows", "Darwin"):
+            try:
+                import pystray  # noqa: F401
+                label = "Windows" if system == "Windows" else "macOS"
+                return CheckResult(
+                    name="tray_support",
+                    status=CheckStatus.PASS,
+                    message=f"pystray available ({label})",
+                )
+            except ImportError:
+                return CheckResult(
+                    name="tray_support",
+                    status=CheckStatus.WARN,
+                    message="pystray not installed — tray icon unavailable",
+                    fix_hint="pip install pystray Pillow",
+                )
+
+        if system != "Linux":
             return CheckResult(
-                name="gnome_tray",
+                name="tray_support",
                 status=CheckStatus.SKIP,
-                message="Not Linux",
+                message=f"Unsupported platform ({system})",
             )
 
+        # Linux: check GNOME AppIndicator
         desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
         if "GNOME" not in desktop.upper():
             return CheckResult(
-                name="gnome_tray",
+                name="tray_support",
                 status=CheckStatus.SKIP,
                 message=f"Not GNOME ({desktop or 'unknown'})",
             )
 
         if not shutil.which("gnome-extensions"):
             return CheckResult(
-                name="gnome_tray",
+                name="tray_support",
                 status=CheckStatus.SKIP,
                 message="gnome-extensions command not found",
             )
@@ -1092,19 +1112,19 @@ class Doctor:
             )
             if "appindicatorsupport@rgcjonas.gmail.com" in result.stdout:
                 return CheckResult(
-                    name="gnome_tray",
+                    name="tray_support",
                     status=CheckStatus.PASS,
                     message="AppIndicator extension enabled",
                 )
         except (subprocess.TimeoutExpired, OSError):
             return CheckResult(
-                name="gnome_tray",
+                name="tray_support",
                 status=CheckStatus.SKIP,
                 message="Could not query GNOME extensions",
             )
 
         return CheckResult(
-            name="gnome_tray",
+            name="tray_support",
             status=CheckStatus.WARN,
             message="GNOME detected — AppIndicator extension required for tray icon",
             fix_hint=(
@@ -1316,7 +1336,7 @@ _CHECK_DISPLAY_NAMES = {
     "permissions": "Permissions",
     "directory_rules": "Directory rules",
     "console_deps": "Console deps",
-    "gnome_tray": "System tray",
+    "tray_support": "System tray",
     "terminal_emulator": "Terminal emulator",
     "config_consistency": "Config consistency",
     "tighten_only": "Tighten-only policies",

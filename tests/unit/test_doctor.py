@@ -452,19 +452,44 @@ class TestCheckDirectoryRules:
         assert result.status == CheckStatus.WARN
 
 
-class TestCheckGnomeTraySupport:
+class TestCheckTraySupport:
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Windows")
+    def test_windows_pystray_available(self, _mock_sys, _isolate_config_dir):
+        with mock.patch.dict("sys.modules", {"pystray": mock.MagicMock()}):
+            doctor = Doctor()
+            result = doctor.check_tray_support()
+        assert result.status == CheckStatus.PASS
+        assert "Windows" in result.message
+
+    @mock.patch("ai_guardian.doctor.platform.system", return_value="Windows")
+    def test_windows_pystray_missing(self, _mock_sys, _isolate_config_dir):
+        import builtins
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "pystray":
+                raise ImportError("no pystray")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=fake_import):
+            doctor = Doctor()
+            result = doctor.check_tray_support()
+        assert result.status == CheckStatus.WARN
+        assert "pystray not installed" in result.message
+
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Darwin")
-    def test_skip_non_linux(self, _mock_sys, _isolate_config_dir):
-        doctor = Doctor()
-        result = doctor.check_gnome_tray_support()
-        assert result.status == CheckStatus.SKIP
-        assert "Not Linux" in result.message
+    def test_macos_pystray_available(self, _mock_sys, _isolate_config_dir):
+        with mock.patch.dict("sys.modules", {"pystray": mock.MagicMock()}):
+            doctor = Doctor()
+            result = doctor.check_tray_support()
+        assert result.status == CheckStatus.PASS
+        assert "macOS" in result.message
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
     def test_skip_non_gnome(self, _mock_sys, _isolate_config_dir):
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}):
             doctor = Doctor()
-            result = doctor.check_gnome_tray_support()
+            result = doctor.check_tray_support()
         assert result.status == CheckStatus.SKIP
         assert "KDE" in result.message
 
@@ -479,7 +504,7 @@ class TestCheckGnomeTraySupport:
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
             with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
                 doctor = Doctor()
-                result = doctor.check_gnome_tray_support()
+                result = doctor.check_tray_support()
         assert result.status == CheckStatus.PASS
         assert "AppIndicator extension enabled" in result.message
 
@@ -491,7 +516,7 @@ class TestCheckGnomeTraySupport:
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
             with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
                 doctor = Doctor()
-                result = doctor.check_gnome_tray_support()
+                result = doctor.check_tray_support()
         assert result.status == CheckStatus.WARN
         assert "AppIndicator" in result.message
         assert result.fix_hint is not None
@@ -502,7 +527,7 @@ class TestCheckGnomeTraySupport:
     def test_skip_no_gnome_extensions_cmd(self, _mock_which, _mock_sys, _isolate_config_dir):
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
             doctor = Doctor()
-            result = doctor.check_gnome_tray_support()
+            result = doctor.check_tray_support()
         assert result.status == CheckStatus.SKIP
         assert "gnome-extensions" in result.message
 
