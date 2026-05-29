@@ -1278,6 +1278,34 @@ class TestParseParamTyped:
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].type == "combobox"
 
+    def test_type_path_file_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "file", "type": "path-file", "hint": "Pick a file"}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        p = plugins[0].items[0].params[0]
+        assert p.type == "path-file"
+        assert p.hint == "Pick a file"
+
+    def test_type_path_dir_parsed(self, tmp_path):
+        plugins_dir = tmp_path / "tray-plugins"
+        plugins_dir.mkdir()
+        (plugins_dir / "test.json").write_text(json.dumps({
+            "name": "Test",
+            "items": [{"label": "Run", "command": "cmd", "params": [
+                {"name": "dir", "type": "path-dir", "default": "."}
+            ]}]
+        }))
+        plugins = load_plugins(plugins_dir)
+        p = plugins[0].items[0].params[0]
+        assert p.type == "path-dir"
+        assert p.default == "."
+
     def test_invalid_type_defaults_to_string(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
@@ -1460,6 +1488,27 @@ class TestValidateParamValue:
         ok, _ = validate_param_value(p, "custom-tag")
         assert ok
 
+    def test_path_file_accepts_any_string(self):
+        p = PluginParam(name="f", type="path-file")
+        ok, _ = validate_param_value(p, "/some/file.txt")
+        assert ok
+
+    def test_path_dir_accepts_any_string(self):
+        p = PluginParam(name="d", type="path-dir")
+        ok, _ = validate_param_value(p, "/some/directory")
+        assert ok
+
+    def test_path_file_required_empty_fails(self):
+        p = PluginParam(name="f", type="path-file", required=True)
+        ok, err = validate_param_value(p, "")
+        assert not ok
+        assert "required" in err
+
+    def test_path_dir_not_required_empty_passes(self):
+        p = PluginParam(name="d", type="path-dir", required=False)
+        ok, _ = validate_param_value(p, "")
+        assert ok
+
 
 class TestParamSerializationTyped:
     """Tests for serialization of typed PluginParam fields."""
@@ -1526,6 +1575,31 @@ class TestParamSerializationTyped:
         p = result["plugins"][0]["items"][0]["params"][0]
         assert p["pattern"] == "^[a-z]+$"
 
+    def test_serializes_path_file_type(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="f", type="path-file", hint="Pick file")],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert p["type"] == "path-file"
+
+    def test_serializes_path_dir_type(self):
+        plugins = [Plugin(
+            name="Test",
+            items=[PluginItem(
+                label="Run", command="cmd",
+                params=[PluginParam(name="d", type="path-dir", default=".")],
+            )]
+        )]
+        result = plugins_to_dict(plugins)
+        p = result["plugins"][0]["items"][0]["params"][0]
+        assert p["type"] == "path-dir"
+        assert p["default"] == "."
+
     def test_roundtrip_typed_params(self):
         original = [Plugin(
             name="RT",
@@ -1536,6 +1610,8 @@ class TestParamSerializationTyped:
                     PluginParam(name="tag", type="combobox", options=["a", "b"], required=False),
                     PluginParam(name="flag", type="boolean", default="true"),
                     PluginParam(name="branch", pattern="^[a-z]+$"),
+                    PluginParam(name="f", type="path-file"),
+                    PluginParam(name="d", type="path-dir", default="."),
                 ],
             )]
         )]
@@ -1549,6 +1625,9 @@ class TestParamSerializationTyped:
         assert params[1].required is False
         assert params[2].type == "boolean"
         assert params[3].pattern == "^[a-z]+$"
+        assert params[4].type == "path-file"
+        assert params[5].type == "path-dir"
+        assert params[5].default == "."
 
 
 class TestPluginTarget:
@@ -2594,3 +2673,35 @@ class TestImportPluginSchema:
     def test_command_with_import_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
             _validate_schema({"name": "P", "items": [{"label": "Bad", "command": "echo", "import": "f.json"}]}, plugin_schema)
+
+
+class TestPathTypePluginSchema:
+    def test_path_file_type_valid(self, plugin_schema):
+        _validate_schema({
+            "name": "P",
+            "items": [{
+                "label": "Sanitize",
+                "command": "sanitize {tray.file}",
+                "params": [{"name": "file", "type": "path-file", "hint": "Pick a file"}],
+            }],
+        }, plugin_schema)
+
+    def test_path_dir_type_valid(self, plugin_schema):
+        _validate_schema({
+            "name": "P",
+            "items": [{
+                "label": "Scan",
+                "command": "scan {tray.dir}",
+                "params": [{"name": "dir", "type": "path-dir", "default": "."}],
+            }],
+        }, plugin_schema)
+
+    def test_path_file_with_required_false(self, plugin_schema):
+        _validate_schema({
+            "name": "P",
+            "items": [{
+                "label": "X",
+                "command": "cmd {tray.f}",
+                "params": [{"name": "f", "type": "path-file", "required": False}],
+            }],
+        }, plugin_schema)
