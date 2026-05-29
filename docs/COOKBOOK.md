@@ -1546,3 +1546,31 @@ Logs all scan operations to `~/.local/state/ai-guardian/scan-audit.jsonl`.
 ```
 
 Enabled by default. Scans conversation transcripts for threats that bypassed hooks (e.g., `!` shell commands in Claude Code).
+
+### How do I get native tray plugin popups?
+
+Install tkinter for your platform for the best experience (native OS dialogs). Without it, AI Guardian uses a three-tier fallback:
+
+1. **tkinter** (native popup, no browser/terminal needed)
+2. **NiceGUI** (browser-based form, Python 3.10+ only)
+3. **Textual** (terminal prompt, all Python versions)
+
+**Installing tkinter:**
+
+- **macOS (pyenv):** `brew install tcl-tk` then rebuild Python with `pyenv install <version> --force`
+- **macOS (system):** included by default in `/usr/bin/python3`
+- **RHEL/Fedora:** `dnf install python3-tkinter`
+- **Debian/Ubuntu:** `apt install python3-tk`
+- **Windows:** included by default in the python.org installer
+
+tkinter is optional — the installer does not install it automatically. Use `install.sh --tkinter` to attempt automatic installation.
+
+**Override the cascade with environment variables:**
+
+```bash
+# Force NiceGUI browser form (skip tkinter even if installed)
+AI_GUARDIAN_NO_TKINTER=1 ai-guardian tray start
+
+# Force Textual terminal prompt (skip both tkinter and NiceGUI)
+AI_GUARDIAN_NO_TKINTER=1 AI_GUARDIAN_NO_NICEGUI=1 ai-guardian tray start
+```

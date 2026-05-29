@@ -25,7 +25,8 @@ Options:
     --profile PROFILE   Security profile: @minimal, @standard (default), @strict
     --version VERSION   Install a specific version or a local .whl file
     --tkinter           Install tkinter for native popup dialogs (optional)
-                        Without it, tray plugin forms use a terminal fallback
+                        Without it, NiceGUI browser form is used (Python 3.10+)
+                        or Textual terminal fallback (Python 3.9)
     -h, --help          Show this help message
 
     Any additional flags are passed through to 'ai-guardian setup'.
@@ -138,7 +139,7 @@ if [ "$INSTALL_TKINTER" = true ]; then
 
     if [ "$HAS_DISPLAY" = false ]; then
         echo "  Skipping tkinter — no display detected (headless environment)"
-        echo "  Tray plugin forms will use the Textual terminal fallback"
+        echo "  Tray plugin forms will use NiceGUI browser form (Python 3.10+) or Textual terminal fallback"
     elif "$PYTHON" -c "import tkinter" 2>/dev/null; then
         ok "tkinter already available"
     else
@@ -152,7 +153,7 @@ if [ "$INSTALL_TKINTER" = true ]; then
                     echo "    - Use system Python (/usr/bin/python3) which includes tkinter"
                     echo "    - Install Homebrew (https://brew.sh) then: brew install tcl-tk"
                     echo "    - Download Tcl/Tk from https://www.tcl.tk/software/tcltk/"
-                    echo "  Continuing without tkinter (Textual fallback will be used)"
+                    echo "  Continuing without tkinter (NiceGUI browser fallback on Python 3.10+, Textual otherwise)"
                 fi
                 ;;
             Linux)
@@ -173,13 +174,13 @@ if [ "$INSTALL_TKINTER" = true ]; then
                     echo "    RHEL/Fedora: dnf install python3-tkinter"
                     echo "    Debian/Ubuntu: apt install python3-tk"
                     echo "    Alpine: apk add py3-tkinter"
-                    echo "  Continuing without tkinter (Textual fallback will be used)"
+                    echo "  Continuing without tkinter (NiceGUI browser fallback on Python 3.10+, Textual otherwise)"
                 fi
                 ;;
             *)
                 echo "  tkinter should be included with your Python installation."
                 echo "  If not, reinstall Python from https://www.python.org/downloads/"
-                echo "  Continuing without tkinter (Textual fallback will be used)"
+                echo "  Continuing without tkinter (NiceGUI browser fallback on Python 3.10+, Textual otherwise)"
                 ;;
         esac
     fi
@@ -218,10 +219,16 @@ if [ -n "$IDE" ]; then
     echo "  IDE:      $IDE"
 fi
 if "$PYTHON" -c "import tkinter" 2>/dev/null; then
-    echo "  tkinter:  available (native popup dialogs)"
+    echo "  Popups:   tkinter (native dialogs)"
+elif "$PYTHON" -c "import nicegui" 2>/dev/null; then
+    echo "  Popups:   NiceGUI (browser-based form)"
 else
-    echo "  tkinter:  not available (using Textual terminal fallback)"
+    echo "  Popups:   Textual (terminal fallback)"
 fi
+echo ""
+echo "  Popup override env vars:"
+echo "    AI_GUARDIAN_NO_TKINTER=1   skip tkinter, use NiceGUI or Textual"
+echo "    AI_GUARDIAN_NO_NICEGUI=1   skip NiceGUI, use Textual"
 echo ""
 echo "  Next steps:"
 if [ -z "$IDE" ]; then

@@ -2239,7 +2239,7 @@ class TestPluginMenuItems:
                     assert "--output-file" in " ".join(cmd)
 
     def test_execute_plugin_command_with_params_textual_fallback(self):
-        """Falls back to _launch_in_terminal when tkinter unavailable."""
+        """Falls back to _launch_in_terminal when tkinter and NiceGUI unavailable."""
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
@@ -2248,10 +2248,29 @@ class TestPluginMenuItems:
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
         with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
-            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-                with mock.patch("sys.executable", "/usr/bin/python3"):
-                    tray._execute_plugin_command_with_params(item_dict)
-                    mock_launch.assert_called_once()
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=False):
+                with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                    with mock.patch("sys.executable", "/usr/bin/python3"):
+                        tray._execute_plugin_command_with_params(item_dict)
+                        mock_launch.assert_called_once()
+
+    def test_execute_plugin_command_with_params_nicegui_fallback(self):
+        """Uses subprocess.Popen when tkinter unavailable but NiceGUI available."""
+        tray = self._make_tray()
+        item_dict = {
+            "label": "Deploy",
+            "command": "deploy {tray.env}",
+            "type": "terminal",
+            "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
+        }
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=True):
+                with mock.patch("subprocess.Popen") as mock_popen:
+                    with mock.patch("sys.executable", "/usr/bin/python3"):
+                        tray._execute_plugin_command_with_params(item_dict)
+                        mock_popen.assert_called_once()
+                        cmd = mock_popen.call_args[0][0]
+                        assert "tray-prompt" in " ".join(cmd)
 
     def test_execute_plugin_command_with_params_platform_map(self):
         tray = self._make_tray()

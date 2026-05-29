@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **NiceGUI fallback for tray plugin parameter popup** (Issue #862)
+  - When tkinter is unavailable, tray plugin forms now open as a browser-based NiceGUI form (Python 3.10+)
+  - Cascade order: tkinter (native popup) → NiceGUI (browser form) → Textual (terminal prompt)
+  - All parameter types supported: string, int, boolean, choice, combobox, path-file, path-dir
+  - NiceGUI runs a local server on a random port and auto-opens the default browser
+  - Environment overrides: `AI_GUARDIAN_NO_TKINTER=1` / `AI_GUARDIAN_NO_NICEGUI=1` to skip tiers
+  - install.sh updated to document the three-tier fallback
+
 - **Directory sanitization** (Issue #857)
   - `ai-guardian sanitize /path/to/dir --output-dir /path/to/sanitized` recursively sanitizes all files
   - Text files redacted (secrets, PII, threats); image files OCR-scanned and redacted; binary files copied as-is
