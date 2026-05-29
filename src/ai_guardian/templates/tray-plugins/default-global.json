@@ -16,6 +16,33 @@
       ]
     },
     {
+      "label": "Sanitize File...",
+      "command": "ai-guardian sanitize {tray.file} --summary",
+      "type": "terminal",
+      "params": [
+        {
+          "name": "file",
+          "hint": "File path to sanitize (text or image)"
+        }
+      ]
+    },
+    {
+      "label": "Sanitize Directory...",
+      "command": "ai-guardian sanitize {tray.directory} --output-dir {tray.output_dir} --summary",
+      "type": "terminal",
+      "params": [
+        {
+          "name": "directory",
+          "hint": "Directory to sanitize recursively",
+          "default": "."
+        },
+        {
+          "name": "output_dir",
+          "hint": "Output directory for sanitized files"
+        }
+      ]
+    },
+    {
       "label": "Check for Updates",
       "command": "pip index versions ai-guardian",
       "type": "modal"

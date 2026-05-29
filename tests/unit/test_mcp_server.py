@@ -794,12 +794,12 @@ class TestServerCreation:
         server = create_server()
         assert server is not None
 
-    def test_server_has_16_tools(self):
+    def test_server_has_17_tools(self):
         server = create_server()
         tools = server._tool_manager._tools
         expected = {
             "check_path", "check_command", "check_mcp_trust",
-            "sanitize_text", "check_annotations",
+            "sanitize_text", "sanitize_directory", "check_annotations",
             "get_violations", "get_config", "get_scanner_status",
             "get_scanner_supported", "get_patterns_list",
             "get_metrics", "doctor",

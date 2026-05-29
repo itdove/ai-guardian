@@ -490,3 +490,333 @@ class TestSanitizeImageCommand:
 
         assert code == 0
         assert "just plain text" in stdout_buf.getvalue()
+
+
+class TestSanitizeDirectoryCommand:
+    """Tests for directory sanitization (Issue #857)."""
+
+    def _make_args(self, input_path, output_dir=None, **kwargs):
+        defaults = dict(
+            input=input_path,
+            output=None,
+            output_dir=output_dir,
+            no_secrets=False,
+            no_pii=False,
+            no_threats=False,
+            no_images=False,
+            include=None,
+            exclude=None,
+            force=False,
+            summary=False,
+            exit_code=False,
+        )
+        defaults.update(kwargs)
+        return SimpleNamespace(**defaults)
+
+    def test_directory_requires_output_dir(self, tmp_path):
+        """Directory input without --output-dir should error."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "file.txt").write_text("hello")
+
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stderr", stderr_buf):
+            code = sanitize_command(self._make_args(str(input_dir)))
+
+        assert code == 1
+        assert "--output-dir" in stderr_buf.getvalue()
+
+    def test_directory_basic_sanitization(self, tmp_path):
+        """Text files with secrets should be redacted in output."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "config.py").write_text("AWS key: AKIAIOSFODNN7EXAMPLE")
+        (input_dir / "clean.txt").write_text("just clean text")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 0
+        assert (output_dir / "config.py").exists()
+        assert (output_dir / "clean.txt").exists()
+        assert "AKIAIOSFODNN7EXAMPLE" not in (output_dir / "config.py").read_text()
+        assert "just clean text" == (output_dir / "clean.txt").read_text()
+
+    def test_directory_preserves_structure(self, tmp_path):
+        """Nested directory structure should be preserved in output."""
+        input_dir = tmp_path / "src"
+        nested = input_dir / "a" / "b" / "c"
+        nested.mkdir(parents=True)
+        (nested / "deep.py").write_text("SSN: 123-45-6789")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 0
+        output_file = output_dir / "a" / "b" / "c" / "deep.py"
+        assert output_file.exists()
+        assert "123-45-6789" not in output_file.read_text()
+
+    def test_directory_copies_binary_files(self, tmp_path):
+        """Binary files should be copied as-is."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        binary_data = bytes(range(256))
+        (input_dir / "data.bin").write_bytes(binary_data)
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 0
+        assert (output_dir / "data.bin").read_bytes() == binary_data
+
+    @mock.patch("ai_guardian.sanitizer._is_image_file")
+    @mock.patch("ai_guardian.sanitizer._sanitize_image_to_path")
+    def test_directory_sanitizes_images(self, mock_sanitize_img, mock_is_img, tmp_path):
+        """Image files should be processed through image sanitization."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "screenshot.png").write_bytes(b'\x89PNG\r\n\x1a\n' + b'\x00' * 100)
+
+        mock_is_img.return_value = True
+        mock_sanitize_img.return_value = {"secrets": 1, "pii": 0, "prompt_injection": 0, "unicode": 0}
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 0
+        mock_sanitize_img.assert_called_once()
+
+    @mock.patch("ai_guardian.sanitizer._is_image_file")
+    def test_directory_no_images_flag(self, mock_is_img, tmp_path):
+        """With --no-images, image files should be copied as-is."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        img_data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
+        (input_dir / "screenshot.png").write_bytes(img_data)
+
+        mock_is_img.return_value = False
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), no_images=True))
+
+        assert code == 0
+        assert (output_dir / "screenshot.png").read_bytes() == img_data
+        mock_is_img.assert_not_called()
+
+    def test_directory_output_exists_error(self, tmp_path):
+        """Should error if output directory already exists without --force."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "file.txt").write_text("hello")
+
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stderr", stderr_buf):
+            code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 1
+        assert "already exists" in stderr_buf.getvalue()
+
+    def test_directory_force_flag(self, tmp_path):
+        """With --force, should write to existing output directory."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "file.txt").write_text("clean text")
+
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), force=True))
+
+        assert code == 0
+        assert (output_dir / "file.txt").read_text() == "clean text"
+
+    def test_directory_include_pattern(self, tmp_path):
+        """Only files matching --include patterns should be processed."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "app.py").write_text("SSN: 123-45-6789")
+        (input_dir / "data.json").write_text('{"ssn": "123-45-6789"}')
+        (input_dir / "readme.md").write_text("SSN: 123-45-6789")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), include=["*.py"]))
+
+        assert code == 0
+        assert (output_dir / "app.py").exists()
+        assert not (output_dir / "data.json").exists()
+        assert not (output_dir / "readme.md").exists()
+
+    def test_directory_exclude_pattern(self, tmp_path):
+        """Files matching --exclude patterns should be skipped."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "app.py").write_text("clean code")
+        (input_dir / "debug.log").write_text("SSN: 123-45-6789")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), exclude=["*.log"]))
+
+        assert code == 0
+        assert (output_dir / "app.py").exists()
+        assert not (output_dir / "debug.log").exists()
+
+    def test_directory_summary(self, tmp_path):
+        """--summary should print file counts and redaction stats to stderr."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "config.py").write_text("AWS key: AKIAIOSFODNN7EXAMPLE")
+        (input_dir / "clean.txt").write_text("just clean text")
+
+        output_dir = tmp_path / "out"
+
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stderr", stderr_buf):
+            code = sanitize_command(self._make_args(
+                str(input_dir), str(output_dir), summary=True))
+
+        assert code == 0
+        output = stderr_buf.getvalue()
+        assert "Sanitized" in output
+        assert "Text files:" in output
+        assert str(output_dir) in output
+
+    def test_directory_exit_code(self, tmp_path):
+        """--exit-code should return 1 when redactions were made."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "config.py").write_text("AWS key: AKIAIOSFODNN7EXAMPLE")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), exit_code=True))
+
+        assert code == 1
+
+    def test_directory_exit_code_clean(self, tmp_path):
+        """--exit-code should return 0 when no redactions were made."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "clean.txt").write_text("just clean text")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), exit_code=True))
+
+        assert code == 0
+
+    def test_directory_empty(self, tmp_path):
+        """Empty directory should produce empty output directory."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 0
+        assert output_dir.exists()
+
+    def test_single_file_rejects_output_dir(self, tmp_path):
+        """Single file input with --output-dir should error."""
+        text_file = tmp_path / "file.txt"
+        text_file.write_text("hello")
+
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stderr", stderr_buf):
+            code = sanitize_command(self._make_args(
+                str(text_file), output_dir="/tmp/out"))
+
+        assert code == 1
+        assert "--output-dir" in stderr_buf.getvalue()
+
+    def test_output_inside_input_rejected(self, tmp_path):
+        """Output directory inside input directory should be rejected."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "file.txt").write_text("hello")
+
+        output_dir = input_dir / "output"
+
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stderr", stderr_buf):
+            code = sanitize_command(self._make_args(
+                str(input_dir), str(output_dir)))
+
+        assert code == 1
+        assert "inside" in stderr_buf.getvalue().lower()
+
+    def test_directory_skips_git_dir(self, tmp_path):
+        """Files inside .git should be skipped."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        git_dir = input_dir / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text("SECRET=abc123")
+        (input_dir / "app.py").write_text("clean code")
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(str(input_dir), str(output_dir)))
+
+        assert code == 0
+        assert not (output_dir / ".git" / "config").exists()
+        assert (output_dir / "app.py").exists()
+
+
+class TestSanitizeDirectoryFunction:
+    """Tests for the sanitize_directory function directly."""
+
+    def test_returns_correct_summary_keys(self, tmp_path):
+        """Return dict should have all expected keys."""
+        from ai_guardian.sanitizer import sanitize_directory as sd
+        from pathlib import Path
+
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "file.txt").write_text("hello")
+        output_dir = tmp_path / "out"
+
+        result = sd(input_dir, output_dir)
+
+        assert "text_files" in result
+        assert "image_files" in result
+        assert "binary_files" in result
+        assert "skipped_files" in result
+        assert "total_redactions" in result
+        assert "total_redaction_count" in result
+        assert "file_details" in result
+        assert "errors" in result
+
+    def test_symlinks_skipped(self, tmp_path):
+        """Symlinks should be skipped to avoid cycles."""
+        from ai_guardian.sanitizer import sanitize_directory as sd
+
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "real.txt").write_text("hello")
+        link = input_dir / "link.txt"
+        link.symlink_to(input_dir / "real.txt")
+
+        output_dir = tmp_path / "out"
+        result = sd(input_dir, output_dir)
+
+        assert result["skipped_files"] >= 1
+        assert (output_dir / "real.txt").exists()
+        assert not (output_dir / "link.txt").exists()
