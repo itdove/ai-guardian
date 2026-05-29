@@ -224,6 +224,76 @@ class TestPatternCacheScan:
         assert len(cc_findings) == 0
 
 
+class TestEnvVariablePathFiltering:
+    """Integration tests for env-variable pattern skipping file paths (#881)."""
+
+    @pytest.fixture
+    def env_var_toml(self, tmp_path):
+        content = b"""
+[[rules]]
+id = "env-variable"
+match_type = "regex"
+regex = '''([A-Z_][A-Z0-9_]*)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
+redaction_strategy = "env_assignment"
+description = "Environment Variable"
+validation = "env_not_file_path"
+
+[[rules]]
+id = "exported-env-variable"
+match_type = "regex"
+regex = '''(export\\s+[A-Z_][A-Z0-9_]*)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
+redaction_strategy = "env_assignment"
+description = "Exported Environment Variable"
+validation = "env_not_file_path"
+"""
+        path = tmp_path / "secrets.toml"
+        path.write_bytes(content)
+        return path
+
+    def test_unix_path_not_flagged(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("ENV PKGMGR=/usr/bin/microdnf")
+        assert len(findings) == 0
+
+    def test_deep_unix_path_not_flagged(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("ENV APP_DIR=/opt/app-root/src/config")
+        assert len(findings) == 0
+
+    def test_exported_path_not_flagged(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("export APP_DIR=/opt/app-root/src/config")
+        assert len(findings) == 0
+
+    def test_real_secret_still_detected(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan(
+            "AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY"
+        )
+        env_findings = [f for f in findings if f.rule_id == "env-variable"]
+        assert len(env_findings) == 1
+
+    def test_aws_key_with_slash_still_detected(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan(
+            "AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        )
+        env_findings = [f for f in findings if f.rule_id == "env-variable"]
+        assert len(env_findings) == 1
+
+    def test_dockerfile_env_path_not_flagged(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        dockerfile = "FROM ubi9\nENV PKGMGR=/usr/bin/microdnf\nRUN $PKGMGR install -y python3"
+        findings = cache.scan(dockerfile)
+        assert len(findings) == 0
+
+
 class TestPatternCacheLiteral:
 
     def test_check_literal_homoglyph(self, unicode_toml):
