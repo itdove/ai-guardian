@@ -99,9 +99,10 @@ pii_type = "uk_nin"
 id = "pii-india-aadhaar"
 match_type = "regex"
 regex = '''(?<!\d)\d{4}[- ]\d{4}[- ]\d{4}(?![- ]\d)'''
-redaction_strategy = "full_redact"
+redaction_strategy = "aadhaar"
 description = "Indian Aadhaar Number"
 pii_type = "india_aadhaar"
+validation = "aadhaar"
 re2_compat = false
 
 [[rules]]

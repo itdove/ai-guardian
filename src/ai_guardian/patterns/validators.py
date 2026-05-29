@@ -94,10 +94,31 @@ def credit_card_check(number_str: str) -> bool:
     return True
 
 
+def aadhaar_check(number_str: str) -> bool:
+    """Validate an Indian Aadhaar number beyond the regex format check.
+
+    Args:
+        number_str: String containing digits with optional spaces/dashes
+
+    Returns:
+        True if the number looks like a plausible Aadhaar number
+    """
+    import re
+    digits = re.sub(r'[- ]', '', number_str)
+    if len(digits) != 12 or not digits.isdigit():
+        return False
+    if digits[0] in ('0', '1'):
+        return False
+    if len(set(digits)) == 1:
+        return False
+    return True
+
+
 VALIDATOR_REGISTRY: dict = {
     "luhn": luhn_check,
     "iban": iban_check,
     "credit_card": credit_card_check,
+    "aadhaar": aadhaar_check,
 }
 
 

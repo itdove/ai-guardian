@@ -1268,6 +1268,12 @@ def _scan_for_pii(text, pii_config):
         result = redactor.redact(text)
         redactions = result.get('redactions', [])
         if redactions:
+            pii_types_found = sorted(set(r['type'] for r in redactions))
+            guidance_lines = [
+                "\nIf this is a false positive, you can:",
+                "  - Allowlist the value in your config under scan_pii.allowlist_patterns",
+                "  - Disable specific PII types in scan_pii.pii_types",
+            ]
             warning = (
                 f"\n{'='*70}\n"
                 f"🔒 PII DETECTED\n"
@@ -1276,7 +1282,8 @@ def _scan_for_pii(text, pii_config):
                 + "\n".join([f"  - {r['type']}" for r in redactions[:10]])
                 + ("\n  - ..." if len(redactions) > 10 else "")
                 + f"\n\nAction: {pii_config.get('action', 'block')}\n"
-                f"{'='*70}\n"
+                + "\n".join(guidance_lines)
+                + f"\n{'='*70}\n"
             )
             return True, result['redacted_text'], redactions, warning
         return False, text, [], None

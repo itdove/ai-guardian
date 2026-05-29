@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Aadhaar PII false positive on UUID all-zeros** (Issue #876)
+  - Added `aadhaar_check` post-match validator following the credit card validation pattern
+  - Rejects numbers starting with 0 or 1 (real Aadhaar starts with 2-9)
+  - Rejects all-same-digit patterns (e.g., 0000-0000-0000)
+  - PII block messages now include actionable fix guidance for false positives
+
 - **Image redaction too weak** (Issue #870)
   - Pixelate strategy now uses max 2x2 intermediate size (was w/8 x h/8), making text unreadable at any zoom
   - Blur strategy minimum radius increased from 10 to 20, divisor changed from /3 to /2 for stronger blur
