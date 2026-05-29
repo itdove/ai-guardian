@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Image OCR scanning in `scan_directory` and `sanitize`** (Issue #855)
+  - `ai-guardian scan` and the `scan_directory` MCP tool now include image files (PNG, JPEG, etc.) via OCR
+  - Extracted text is scanned through all existing detectors (secrets, PII, SSRF, prompt injection, unicode)
+  - Image findings tagged with `source_type: image_ocr` in details for easy identification
+  - Enabled by default when `rapidocr-onnxruntime` is installed; silently skipped otherwise
+  - Respects `image_scanning` config section (enabled, max_image_size_mb, ignore_files)
+  - `ai-guardian sanitize` now handles image files — OCR detects text regions, redacts those containing secrets/PII
+  - Added `--output` / `-o` flag to `sanitize` for writing to a file (required for image output)
+
 - **Default bundled tray plugins** (Issue #831)
   - Ships `default-global.json` and `default-daemon.json` with useful built-in commands
   - Global: Quick Actions submenu (Scan Directory, Check for Updates) + Open Documentation
