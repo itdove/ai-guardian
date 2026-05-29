@@ -4,6 +4,7 @@ import json
 
 from nicegui import run, ui
 
+from ai_guardian.violation_guidance import get_resolution_instructions
 from ai_guardian.web.components.header import create_header, create_sidebar
 
 FILTER_TABS = [
@@ -90,96 +91,7 @@ DETAIL_FIELDS = {
 
 
 def _get_resolution_instructions(violation: dict):
-    vtype = violation.get("violation_type", "")
-    blocked = violation.get("blocked", {})
-    if not isinstance(blocked, dict):
-        blocked = {}
-    suggestion = violation.get("suggestion", {})
-    if not isinstance(suggestion, dict):
-        suggestion = {}
-
-    if vtype == "tool_permission":
-        rule = suggestion.get("rule", {})
-        snippet = json.dumps({"permissions": {"rules": [rule]}}, indent=2) if rule else ""
-        return "Add this rule to permissions.rules in ai-guardian.json:", snippet
-
-    if vtype == "secret_detected":
-        secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
-        instructions = (
-            f"Secret type: {secret_type}\n\n"
-            "Option 1: Add regex pattern to secret_scanning.allowlist_patterns\n"
-            "Option 2: Add inline comment: # gitleaks:allow\n"
-            "Option 3: Add to .gitleaks.toml allowlist"
-        )
-        snippet = json.dumps(
-            {"secret_scanning": {"allowlist_patterns": ["your-regex-pattern"]}}, indent=2
-        )
-        return instructions, snippet
-
-    if vtype in ("prompt_injection", "jailbreak_detected"):
-        pattern = blocked.get("pattern", blocked.get("matched_text", "<pattern>"))
-        snippet = json.dumps(
-            {"prompt_injection": {"allowlist_patterns": [pattern]}}, indent=2
-        )
-        return "Add pattern to prompt_injection.allowlist_patterns:", snippet
-
-    if vtype == "ssrf_blocked":
-        tool_value = blocked.get("tool_value", "")
-        domain = "<domain>"
-        try:
-            from urllib.parse import urlparse
-            domain = urlparse(tool_value).hostname or "<domain>"
-        except Exception:
-            pass
-        snippet = json.dumps(
-            {"ssrf_protection": {"additional_allowed_domains": [domain]}}, indent=2
-        )
-        return "Add domain to ssrf_protection.additional_allowed_domains:", snippet
-
-    if vtype == "pii_detected":
-        file_path = blocked.get("file_path", "<file>")
-        snippet = json.dumps(
-            {"scan_pii": {"allowlist_patterns": ["<pattern>"], "ignore_files": [file_path]}}, indent=2
-        )
-        return "Add to scan_pii.allowlist_patterns or ignore_files:", snippet
-
-    if vtype == "directory_blocking":
-        denied = blocked.get("denied_directory", "<directory>")
-        return f"Remove deny file: rm {denied}/.ai-read-deny", f"rm {denied}/.ai-read-deny"
-
-    if vtype == "config_file_exfil":
-        file_path = blocked.get("file_path", "<file>")
-        snippet = json.dumps(
-            {"config_file_scanning": {"ignore_files": [file_path]}}, indent=2
-        )
-        return "Add to config_file_scanning.ignore_files:", snippet
-
-    if vtype == "secret_redaction":
-        snippet = json.dumps(
-            {"secret_scanning": {"allowlist_patterns": ["<pattern>"]}}, indent=2
-        )
-        return "Add to secret_scanning.allowlist_patterns:", snippet
-
-    if vtype == "secret_in_transcript":
-        snippet = json.dumps(
-            {"secret_scanning": {"allowlist_patterns": ["<pattern>"]}}, indent=2
-        )
-        return "Secret found in transcript (! command output). Add to allowlist or avoid using ! with secrets:", snippet
-
-    if vtype == "pii_in_transcript":
-        snippet = json.dumps(
-            {"scan_pii": {"allowlist_patterns": ["<pattern>"]}}, indent=2
-        )
-        return "PII found in transcript (! command output). Add to allowlist:", snippet
-
-    if vtype in ("image_secret_detected", "image_pii_detected"):
-        file_path = blocked.get("file_path", "<file>")
-        snippet = json.dumps(
-            {"image_scanning": {"ignore_files": [file_path]}}, indent=2
-        )
-        return "Add file to image_scanning.ignore_files:", snippet
-
-    return "Review the violation details and update config as needed.", ""
+    return get_resolution_instructions(violation)
 
 
 def _load_local_violations(limit, violation_type):

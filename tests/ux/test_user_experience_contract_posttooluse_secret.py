@@ -422,14 +422,17 @@ class GitleaksAllowGuidanceTests(TestCase):
         Issue #416: The TUI said "Add comment before the line" which is wrong.
         Must say "Add inline comment at the end of the line" with an example
         showing the comment on the same line as the secret.
+
+        The guidance text lives in the shared violation_guidance module
+        which the TUI imports and delegates to.
         """
         import inspect
-        from ai_guardian.tui import violations
-        source = inspect.getsource(violations)
+        from ai_guardian import violation_guidance
+        source = inspect.getsource(violation_guidance)
 
         assert "before the line" not in source, \
-            "TUI violations must NOT say 'before the line' for gitleaks:allow"
+            "violation guidance must NOT say 'before the line' for gitleaks:allow"
         assert "inline comment at the end of the line" in source, \
-            "TUI violations must say 'inline comment at the end of the line'"
+            "violation guidance must say 'inline comment at the end of the line'"
         assert "YOUR_SECRET_LINE # gitleaks:allow" in source, \
-            "TUI violations must show inline example: YOUR_SECRET_LINE # gitleaks:allow"
+            "violation guidance must show inline example: YOUR_SECRET_LINE # gitleaks:allow"
