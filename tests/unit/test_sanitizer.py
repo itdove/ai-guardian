@@ -386,15 +386,18 @@ class TestSanitizeImageCommand:
 
     PNG_HEADER = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
 
-    def _make_args(self, input_path):
-        return SimpleNamespace(
+    def _make_args(self, input_path, **kwargs):
+        defaults = dict(
             input=input_path,
             no_secrets=False,
             no_pii=False,
             no_threats=False,
             summary=True,
             exit_code=False,
+            redact_strategy="blur",
         )
+        defaults.update(kwargs)
+        return SimpleNamespace(**defaults)
 
     @mock.patch("ai_guardian.image_scanner.scan_image")
     def test_image_no_text_passes_through(self, mock_scan, tmp_path):
@@ -491,6 +494,72 @@ class TestSanitizeImageCommand:
         assert code == 0
         assert "just plain text" in stdout_buf.getvalue()
 
+    @mock.patch("ai_guardian.image_scanner.ImageRedactor")
+    @mock.patch("ai_guardian.image_scanner.scan_image")
+    def test_redact_strategy_blackout_passed_to_redactor(self, mock_scan, mock_redactor_cls, tmp_path):
+        """--redact-strategy blackout should instantiate ImageRedactor with method='blackout'."""
+        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+
+        img_file = tmp_path / "secret.png"
+        img_file.write_bytes(self.PNG_HEADER)
+
+        mock_scan.return_value = ImageScanResult(
+            extracted_text="TOKEN=abc123",
+            text_regions=[TextRegion(text="TOKEN=abc123", bbox=(10, 20, 100, 30), confidence=0.9)],
+            ocr_confidence=0.9,
+        )
+        mock_instance = mock.MagicMock()
+        mock_instance.redact_regions.return_value = b'\x89PNG_REDACTED'
+        mock_redactor_cls.return_value = mock_instance
+
+        stdout_buf = io.BytesIO()
+        with mock.patch("sys.stdout") as mock_stdout, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mock_stdout.buffer = stdout_buf
+            with mock.patch("ai_guardian.sanitizer.sanitize_text") as mock_st:
+                mock_st.return_value = {
+                    "sanitized_text": "[REDACTED]",
+                    "redactions": [{"type": "secret"}],
+                    "stats": {"secrets": 1, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 1},
+                }
+                code = sanitize_command(self._make_args(str(img_file), redact_strategy="blackout"))
+
+        assert code == 0
+        mock_redactor_cls.assert_called_once_with(method="blackout")
+
+    @mock.patch("ai_guardian.image_scanner.ImageRedactor")
+    @mock.patch("ai_guardian.image_scanner.scan_image")
+    def test_redact_strategy_pixelate_passed_to_redactor(self, mock_scan, mock_redactor_cls, tmp_path):
+        """--redact-strategy pixelate should instantiate ImageRedactor with method='pixelate'."""
+        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+
+        img_file = tmp_path / "secret.png"
+        img_file.write_bytes(self.PNG_HEADER)
+
+        mock_scan.return_value = ImageScanResult(
+            extracted_text="TOKEN=abc123",
+            text_regions=[TextRegion(text="TOKEN=abc123", bbox=(10, 20, 100, 30), confidence=0.9)],
+            ocr_confidence=0.9,
+        )
+        mock_instance = mock.MagicMock()
+        mock_instance.redact_regions.return_value = b'\x89PNG_REDACTED'
+        mock_redactor_cls.return_value = mock_instance
+
+        stdout_buf = io.BytesIO()
+        with mock.patch("sys.stdout") as mock_stdout, \
+             mock.patch("sys.stderr", io.StringIO()):
+            mock_stdout.buffer = stdout_buf
+            with mock.patch("ai_guardian.sanitizer.sanitize_text") as mock_st:
+                mock_st.return_value = {
+                    "sanitized_text": "[REDACTED]",
+                    "redactions": [{"type": "secret"}],
+                    "stats": {"secrets": 1, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 1},
+                }
+                code = sanitize_command(self._make_args(str(img_file), redact_strategy="pixelate"))
+
+        assert code == 0
+        mock_redactor_cls.assert_called_once_with(method="pixelate")
+
 
 class TestSanitizeDirectoryCommand:
     """Tests for directory sanitization (Issue #857)."""
@@ -509,6 +578,7 @@ class TestSanitizeDirectoryCommand:
             force=False,
             summary=False,
             exit_code=False,
+            redact_strategy="blur",
         )
         defaults.update(kwargs)
         return SimpleNamespace(**defaults)
@@ -590,6 +660,26 @@ class TestSanitizeDirectoryCommand:
 
         assert code == 0
         mock_sanitize_img.assert_called_once()
+
+    @mock.patch("ai_guardian.sanitizer._is_image_file")
+    @mock.patch("ai_guardian.sanitizer._sanitize_image_to_path")
+    def test_directory_passes_redact_strategy(self, mock_sanitize_img, mock_is_img, tmp_path):
+        """--redact-strategy should be passed through to _sanitize_image_to_path."""
+        input_dir = tmp_path / "src"
+        input_dir.mkdir()
+        (input_dir / "screenshot.png").write_bytes(b'\x89PNG\r\n\x1a\n' + b'\x00' * 100)
+
+        mock_is_img.return_value = True
+        mock_sanitize_img.return_value = {"secrets": 0, "pii": 0, "prompt_injection": 0, "unicode": 0}
+
+        output_dir = tmp_path / "out"
+
+        code = sanitize_command(self._make_args(
+            str(input_dir), str(output_dir), redact_strategy="pixelate"))
+
+        assert code == 0
+        _, kwargs = mock_sanitize_img.call_args
+        assert kwargs.get("redact_strategy") == "pixelate"
 
     @mock.patch("ai_guardian.sanitizer._is_image_file")
     def test_directory_no_images_flag(self, mock_is_img, tmp_path):

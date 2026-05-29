@@ -620,6 +620,12 @@ def main():
             help="Skip image OCR processing (copy images as-is)"
         )
         sanitize_parser.add_argument(
+            "--redact-strategy",
+            choices=["blur", "blackout", "pixelate"],
+            default="blur",
+            help="Image redaction method (default: blur)"
+        )
+        sanitize_parser.add_argument(
             "--force",
             action="store_true",
             help="Allow writing to an existing output directory"

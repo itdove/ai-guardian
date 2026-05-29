@@ -241,6 +241,7 @@ def create_server() -> "FastMCP":
     def sanitize_directory(
         path: str,
         output_path: Optional[str] = None,
+        redact_strategy: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Sanitize a directory by redacting secrets and PII from all text and image files.
         Preserves directory structure in the output directory.
@@ -266,7 +267,8 @@ def create_server() -> "FastMCP":
 
             from ai_guardian.sanitizer import sanitize_directory as _sanitize_dir
 
-            result = _sanitize_dir(input_dir=resolved, output_dir=out_dir)
+            strategy = redact_strategy if redact_strategy in ("blur", "blackout", "pixelate") else "blur"
+            result = _sanitize_dir(input_dir=resolved, output_dir=out_dir, redact_strategy=strategy)
 
             return {
                 "output_path": str(out_dir),
