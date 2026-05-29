@@ -3432,24 +3432,29 @@ def process_hook_data(hook_data, daemon_state=None):
                 return format_response(ide_type, has_secrets=False, hook_event=hook_event, security_message=security_message)
 
             # Image scanning: check for base64-encoded images in prompt (Issue #720)
-            if HAS_IMAGE_SCANNER and content_to_scan and ImageDetector.is_base64_image(content_to_scan):
-                img_config, img_config_error = _load_image_scanning_config()
-                if img_config_error:
-                    warning_messages.append(img_config_error)
-                if img_config and is_feature_enabled(
-                    img_config.get("enabled", True), now, default=True,
-                ):
-                    try:
-                        image_bytes_list = ImageDetector.extract_base64_images(content_to_scan)
-                        for img_bytes in image_bytes_list:
-                            img_result = scan_image(img_bytes, img_config)
-                            if img_result.extracted_text:
-                                content_to_scan = f"{content_to_scan}\n{img_result.extracted_text}"
-                                logging.info(f"OCR extracted {len(img_result.extracted_text)} chars from prompt image")
-                            if img_result.qr_texts:
-                                content_to_scan = f"{content_to_scan}\n" + "\n".join(img_result.qr_texts)
-                    except Exception as e:
-                        logging.warning(f"Prompt image scanning error (fail-open): {e}")
+            if HAS_IMAGE_SCANNER and content_to_scan:
+                try:
+                    image_bytes_list = ImageDetector.extract_base64_images(content_to_scan)
+                except Exception as e:
+                    image_bytes_list = []
+                    logging.warning(f"Prompt image extraction error (fail-open): {e}")
+                if image_bytes_list:
+                    img_config, img_config_error = _load_image_scanning_config()
+                    if img_config_error:
+                        warning_messages.append(img_config_error)
+                    if img_config and is_feature_enabled(
+                        img_config.get("enabled", True), now, default=True,
+                    ):
+                        try:
+                            for img_bytes in image_bytes_list:
+                                img_result = scan_image(img_bytes, img_config)
+                                if img_result.extracted_text:
+                                    content_to_scan = f"{content_to_scan}\n{img_result.extracted_text}"
+                                    logging.info(f"OCR extracted {len(img_result.extracted_text)} chars from prompt image")
+                                if img_result.qr_texts:
+                                    content_to_scan = f"{content_to_scan}\n" + "\n".join(img_result.qr_texts)
+                        except Exception as e:
+                            logging.warning(f"Prompt image scanning error (fail-open): {e}")
 
             logging.info("Scanning user prompt for secrets...")
             secret_content_to_scan = None  # No annotation processing for prompts

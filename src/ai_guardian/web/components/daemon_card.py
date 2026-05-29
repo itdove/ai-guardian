@@ -3,22 +3,16 @@
 from nicegui import ui
 
 
-def _status_color(status: str) -> str:
-    return {
-        "running": "green",
-        "paused": "amber",
-        "error": "red",
-        "unknown": "grey",
-    }.get(status, "grey")
+_STATUS_STYLE = {
+    "running": ("green", "check_circle"),
+    "paused": ("amber", "pause_circle"),
+    "error": ("red", "error"),
+    "unknown": ("grey", "help"),
+}
 
 
-def _status_icon(status: str) -> str:
-    return {
-        "running": "check_circle",
-        "paused": "pause_circle",
-        "error": "error",
-        "unknown": "help",
-    }.get(status, "help")
+def _status_color_icon(status: str):
+    return _STATUS_STYLE.get(status, ("grey", "help"))
 
 
 def _format_uptime(seconds: float) -> str:
@@ -50,8 +44,7 @@ def daemon_card(target, stats: dict, on_click=None):
     elif target.status:
         status = target.status
 
-    color = _status_color(status)
-    icon = _status_icon(status)
+    color, icon = _status_color_icon(status)
 
     with ui.card().classes("w-72 cursor-pointer hover:shadow-lg").on(
         "click", on_click
