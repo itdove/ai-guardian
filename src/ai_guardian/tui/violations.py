@@ -16,6 +16,7 @@ from textual.binding import Binding
 from textual import events
 
 from ai_guardian.violation_logger import ViolationLogger
+from ai_guardian.violation_guidance import get_resolution_instructions
 from ai_guardian.tui.widgets import format_local_time
 
 
@@ -71,150 +72,36 @@ class ViolationDetailsModal(ModalScreen):
         self.violation = violation
 
     def _get_resolution_instructions(self):
-        """Return (instructions_text, config_snippet) for this violation type."""
-        vtype = self.violation.get("violation_type", "")
-        blocked = self.violation.get("blocked", {})
-        suggestion = self.violation.get("suggestion", {})
+        """Return (instructions_text, config_snippet) for this violation type.
 
-        if vtype == "tool_permission":
-            rule = suggestion.get("rule", {})
-            snippet = json.dumps({"permissions": {"rules": [rule]}}, indent=2) if rule else ""
-            return (
-                "Add this rule to [bold]permissions.rules[/bold] in ai-guardian.json:",
-                snippet,
-            )
+        Delegates to the shared violation_guidance module and adds Rich
+        markup for TUI display.
+        """
+        instructions, snippet = get_resolution_instructions(self.violation)
 
-        elif vtype == "prompt_injection":
-            pattern = blocked.get("pattern", "<pattern>")
-            snippet = json.dumps(
-                {"prompt_injection": {"allowlist_patterns": [pattern]}}, indent=2
-            )
-            return (
-                "Add this pattern to [bold]prompt_injection.allowlist_patterns[/bold]:",
-                snippet,
-            )
+        if not instructions:
+            return ("No specific resolution instructions available for this violation type.", "")
 
-        elif vtype == "jailbreak_detected":
-            pattern = blocked.get("pattern", blocked.get("matched_text", "<pattern>"))
-            snippet = json.dumps(
-                {"prompt_injection": {"allowlist_patterns": [pattern]}}, indent=2
-            )
-            return (
-                "Add this pattern to [bold]prompt_injection.allowlist_patterns[/bold]:",
-                snippet,
-            )
+        BOLD_KEYS = [
+            "permissions.rules", "prompt_injection.allowlist_patterns",
+            "secret_scanning.allowlist_patterns", "directory_rules.rules",
+            "scan_pii.allowlist_patterns", "scan_pii.ignore_files",
+            "ssrf_protection.additional_allowed_domains",
+            "config_file_scanning.ignore_files",
+            "image_scanning.ignore_files",
+        ]
+        for key in BOLD_KEYS:
+            instructions = instructions.replace(key, f"[bold]{key}[/bold]")
 
-        elif vtype == "secret_detected":
-            file_path = blocked.get("file_path", "<file>")
-            secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
-            instructions = (
-                f"Secret type: {secret_type}\n\n"
-                "[bold]Option 1:[/bold] Add a regex pattern to ai-guardian.json:\n"
-                '  "secret_scanning": {{\n'
-                '    "allowlist_patterns": ["your-regex-pattern"]\n'
-                "  }}\n\n"
-                "[bold]Option 2:[/bold] Add inline comment at the end of the line:\n"
-                "  YOUR_SECRET_LINE # gitleaks:allow\n\n"
-                "[bold]Option 3:[/bold] Add to .gitleaks.toml allowlist\n\n"
-                "[dim]Tip: Option 1 works for both file scanning and tool output scanning.\n"
-                "Options 2-3 only work for file scanning (PreToolUse).[/dim]"
-            )
-            snippet = json.dumps(
-                {"secret_scanning": {"allowlist_patterns": ["your-regex-pattern"]}}, indent=2
-            )
-            return (instructions, snippet)
+        instructions = instructions.replace("Option 1:", "[bold]Option 1:[/bold]")
+        instructions = instructions.replace("Option 2:", "[bold]Option 2:[/bold]")
+        instructions = instructions.replace("Option 3:", "[bold]Option 3:[/bold]")
 
-        elif vtype == "directory_blocking":
-            denied_dir = blocked.get("denied_directory", "<directory>")
-            instructions = (
-                "Add an allow rule to [bold]directory_rules.rules[/bold] or remove the deny pattern.\n\n"
-                f"To remove the deny file:\n  rm {denied_dir}/.ai-read-deny"
-            )
-            snippet = f"rm {denied_dir}/.ai-read-deny"
-            return (instructions, snippet)
+        if "Tip:" in instructions:
+            parts = instructions.rsplit("Tip:", 1)
+            instructions = parts[0] + "[dim]Tip:" + parts[1] + "[/dim]"
 
-        elif vtype == "pii_detected":
-            file_path = blocked.get("file_path", "<file>")
-            snippet = json.dumps(
-                {"scan_pii": {"allowlist_patterns": ["<pattern>"], "ignore_files": [file_path]}},
-                indent=2,
-            )
-            return (
-                "Add pattern to [bold]scan_pii.allowlist_patterns[/bold] "
-                "or file to [bold]scan_pii.ignore_files[/bold]:",
-                snippet,
-            )
-
-        elif vtype == "secret_redaction":
-            snippet = json.dumps(
-                {"secret_scanning": {"allowlist_patterns": ["<pattern>"]}}, indent=2
-            )
-            return (
-                "Add pattern to [bold]secret_scanning.allowlist_patterns[/bold]:",
-                snippet,
-            )
-
-        elif vtype == "ssrf_blocked":
-            tool_value = blocked.get("tool_value", "")
-            domain = "<domain>"
-            if tool_value:
-                try:
-                    from urllib.parse import urlparse
-                    parsed = urlparse(tool_value)
-                    if parsed.hostname:
-                        domain = parsed.hostname
-                except Exception:
-                    pass
-            snippet = json.dumps(
-                {"ssrf_protection": {"additional_allowed_domains": [domain]}}, indent=2
-            )
-            return (
-                "Add domain to [bold]ssrf_protection.additional_allowed_domains[/bold]:",
-                snippet,
-            )
-
-        elif vtype == "config_file_exfil":
-            file_path = blocked.get("file_path", "<file>")
-            snippet = json.dumps(
-                {"config_file_scanning": {"ignore_files": [file_path]}}, indent=2
-            )
-            return (
-                "Add file to [bold]config_file_scanning.ignore_files[/bold]:",
-                snippet,
-            )
-
-        elif vtype == "secret_in_transcript":
-            snippet = json.dumps(
-                {"secret_scanning": {"allowlist_patterns": ["<pattern>"]}}, indent=2
-            )
-            return (
-                "Secret found in transcript from '!' shell command.\n"
-                "Add pattern to [bold]secret_scanning.allowlist_patterns[/bold] "
-                "or avoid using '!' to display secrets:",
-                snippet,
-            )
-
-        elif vtype == "pii_in_transcript":
-            snippet = json.dumps(
-                {"scan_pii": {"allowlist_patterns": ["<pattern>"]}}, indent=2
-            )
-            return (
-                "PII found in transcript from '!' shell command.\n"
-                "Add pattern to [bold]scan_pii.allowlist_patterns[/bold]:",
-                snippet,
-            )
-
-        elif vtype in ("image_secret_detected", "image_pii_detected"):
-            file_path = blocked.get("file_path", "<file>")
-            snippet = json.dumps(
-                {"image_scanning": {"ignore_files": [file_path]}}, indent=2
-            )
-            return (
-                "Add file to [bold]image_scanning.ignore_files[/bold]:",
-                snippet,
-            )
-
-        return ("No specific resolution instructions available for this violation type.", "")
+        return (instructions, snippet)
 
     def compose(self) -> ComposeResult:
         """Compose the modal."""
