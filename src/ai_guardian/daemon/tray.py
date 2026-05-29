@@ -2161,10 +2161,14 @@ class DaemonTray:
                     cmd_parts, capture_output=True, text=True, timeout=60,
                 )
                 output = result.stdout.strip()
-                if result.returncode != 0 and result.stderr.strip():
-                    output = result.stderr.strip() if not output else (
-                        output + "\n\n--- stderr ---\n" + result.stderr.strip()
-                    )
+                err = result.stderr.strip()
+                if err:
+                    if result.returncode != 0:
+                        output = err if not output else (
+                            output + "\n\n--- stderr ---\n" + err
+                        )
+                    else:
+                        output = (output + "\n" + err).strip() if output else err
                 from ai_guardian.daemon.tray_plugins import show_dialog
                 show_dialog(label or "AI Guardian", output or "(no output)")
             else:

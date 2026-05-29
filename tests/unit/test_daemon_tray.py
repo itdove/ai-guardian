@@ -2065,6 +2065,34 @@ class TestPluginMenuItems:
                     assert "partial output" in msg
                     assert "warning: something" in msg
 
+    def test_execute_plugin_command_modal_shows_stderr_on_success(self):
+        """Modal includes stderr even on success (e.g. --summary output)."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="", returncode=0,
+                stderr="Sanitized image: 3 region(s) redacted\n",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
+                    DaemonTray._execute_plugin_command("cmd", "modal")
+                    mock_dialog.assert_called_once_with(
+                        "AI Guardian", "Sanitized image: 3 region(s) redacted",
+                    )
+
+    def test_execute_plugin_command_modal_merges_stdout_and_stderr_on_success(self):
+        """Modal shows both stdout and stderr on success."""
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                stdout="main output\n", returncode=0,
+                stderr="summary line\n",
+            )
+            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+                with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
+                    DaemonTray._execute_plugin_command("cmd", "modal")
+                    title, msg = mock_dialog.call_args[0]
+                    assert "main output" in msg
+                    assert "summary line" in msg
+
     def test_execute_plugin_command_uses_user_shell(self):
         """Non-terminal commands use the user's SHELL env var."""
         with mock.patch("subprocess.run") as mock_run:
