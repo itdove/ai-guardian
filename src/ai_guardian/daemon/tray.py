@@ -2234,8 +2234,10 @@ class DaemonTray:
         if label:
             prompt_cmd += ["--title", label]
 
-        from ai_guardian.tui.tray_prompt import _tkinter_available
-        if _tkinter_available():
+        from ai_guardian.tui.tray_prompt import (
+            _nicegui_available, _tkinter_available,
+        )
+        if _tkinter_available() or _nicegui_available():
             subprocess.Popen(prompt_cmd)
         else:
             from ai_guardian.daemon.multi_client import _launch_in_terminal
@@ -2337,8 +2339,10 @@ class DaemonTray:
         if label:
             prompt_cmd += ["--title", label]
 
-        from ai_guardian.tui.tray_prompt import _tkinter_available
-        if _tkinter_available():
+        from ai_guardian.tui.tray_prompt import (
+            _nicegui_available, _tkinter_available,
+        )
+        if _tkinter_available() or _nicegui_available():
             subprocess.Popen(prompt_cmd)
         else:
             from ai_guardian.daemon.multi_client import _launch_in_terminal

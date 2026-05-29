@@ -639,7 +639,7 @@ def _handle_tray_prompt(args):
 
     if app.needs_terminal and not sys.stdin.isatty():
         prompt_logger.error(
-            "tkinter not available and no interactive terminal for Textual fallback"
+            "tkinter/NiceGUI not available and no interactive terminal for Textual fallback"
         )
         return 1
 

@@ -227,7 +227,7 @@ class TestTrayPromptAppCreation:
 
 
 class TestTrayPromptFallback:
-    """Tests for tkinter-first / Textual-fallback selection."""
+    """Tests for tkinter → NiceGUI → Textual cascade selection."""
 
     def test_needs_terminal_false_when_tkinter_available(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
@@ -235,16 +235,203 @@ class TestTrayPromptFallback:
             app = TrayPromptApp([], "echo")
             assert app.needs_terminal is False
 
-    def test_needs_terminal_true_when_tkinter_missing(self):
+    def test_needs_terminal_false_when_nicegui_available(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
         with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
-            app = TrayPromptApp([], "echo")
-            assert app.needs_terminal is True
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=True):
+                app = TrayPromptApp([], "echo")
+                assert app.needs_terminal is False
+
+    def test_needs_terminal_true_when_both_unavailable(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=False):
+                app = TrayPromptApp([], "echo")
+                assert app.needs_terminal is True
 
     def test_tkinter_available_returns_bool(self):
         from ai_guardian.tui.tray_prompt import _tkinter_available
         result = _tkinter_available()
         assert isinstance(result, bool)
+
+    def test_nicegui_available_returns_bool(self):
+        from ai_guardian.tui.tray_prompt import _nicegui_available
+        result = _nicegui_available()
+        assert isinstance(result, bool)
+
+    def test_cascade_prefers_tkinter(self):
+        """When both tkinter and NiceGUI are available, tkinter is used."""
+        from ai_guardian.tui.tray_prompt import TrayPromptApp, _TkinterPromptApp
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=True):
+                with mock.patch.object(_TkinterPromptApp, "run", return_value="echo ok") as mock_run:
+                    app = TrayPromptApp([], "echo ok")
+                    result = app.run()
+                    mock_run.assert_called_once()
+                    assert result == "echo ok"
+
+    def test_cascade_uses_nicegui_when_no_tkinter(self):
+        """When tkinter unavailable but NiceGUI available, NiceGUI is used."""
+        from ai_guardian.tui.tray_prompt import TrayPromptApp, _NiceGuiPromptApp
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=True):
+                with mock.patch.object(_NiceGuiPromptApp, "run", return_value="echo ng") as mock_run:
+                    app = TrayPromptApp([], "echo ng")
+                    result = app.run()
+                    mock_run.assert_called_once()
+                    assert result == "echo ng"
+
+    def test_cascade_falls_back_to_textual(self):
+        """When tkinter and NiceGUI both unavailable, Textual is used."""
+        from ai_guardian.tui.tray_prompt import TrayPromptApp, _TextualPromptApp
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=False):
+                with mock.patch.object(_TextualPromptApp, "run", return_value="echo tx") as mock_run:
+                    app = TrayPromptApp([], "echo tx")
+                    result = app.run()
+                    mock_run.assert_called_once()
+                    assert result == "echo tx"
+
+    def test_env_var_suppresses_tkinter(self):
+        """AI_GUARDIAN_NO_TKINTER=1 skips tkinter even when importable."""
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_NO_TKINTER": "1"}):
+            assert _tkinter_available() is False
+
+    def test_env_var_suppresses_nicegui(self):
+        """AI_GUARDIAN_NO_NICEGUI=1 skips NiceGUI even when importable."""
+        from ai_guardian.tui.tray_prompt import _nicegui_available
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_NO_NICEGUI": "1"}):
+            assert _nicegui_available() is False
+
+    def test_env_var_unset_allows_tkinter(self):
+        """Without AI_GUARDIAN_NO_TKINTER, tkinter availability is based on import."""
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        env = os.environ.copy()
+        env.pop("AI_GUARDIAN_NO_TKINTER", None)
+        with mock.patch.dict(os.environ, env, clear=True):
+            result = _tkinter_available()
+            assert isinstance(result, bool)
+
+    def test_env_var_unset_allows_nicegui(self):
+        """Without AI_GUARDIAN_NO_NICEGUI, NiceGUI availability is based on import."""
+        from ai_guardian.tui.tray_prompt import _nicegui_available
+        env = os.environ.copy()
+        env.pop("AI_GUARDIAN_NO_NICEGUI", None)
+        with mock.patch.dict(os.environ, env, clear=True):
+            result = _nicegui_available()
+            assert isinstance(result, bool)
+
+
+class TestNativeFilePicker:
+    """Tests for _native_file_picker (platform-native dialogs)."""
+
+    def test_returns_path_on_macos(self):
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        mock_result = mock.MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "/Users/test/file.txt\n"
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("subprocess.run", return_value=mock_result) as mock_run:
+                path = _native_file_picker(pick_directory=False)
+                assert path == "/Users/test/file.txt"
+                cmd = mock_run.call_args[0][0]
+                assert cmd[0] == "osascript"
+                assert "choose file" in cmd[2]
+
+    def test_returns_dir_on_macos(self):
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        mock_result = mock.MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "/Users/test/\n"
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("subprocess.run", return_value=mock_result):
+                path = _native_file_picker(pick_directory=True)
+                assert path == "/Users/test/"
+
+    def test_returns_none_on_cancel(self):
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        mock_result = mock.MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("subprocess.run", return_value=mock_result):
+                assert _native_file_picker() is None
+
+    def test_returns_none_on_timeout(self):
+        import subprocess as sp
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        with mock.patch("platform.system", return_value="Darwin"):
+            with mock.patch("subprocess.run", side_effect=sp.TimeoutExpired("cmd", 120)):
+                assert _native_file_picker() is None
+
+    def test_returns_none_on_missing_tool(self):
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        with mock.patch("platform.system", return_value="Linux"):
+            with mock.patch("subprocess.run", side_effect=FileNotFoundError):
+                assert _native_file_picker() is None
+
+    def test_linux_uses_zenity(self):
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        mock_result = mock.MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "/home/test/file.txt\n"
+        with mock.patch("platform.system", return_value="Linux"):
+            with mock.patch("subprocess.run", return_value=mock_result) as mock_run:
+                path = _native_file_picker(pick_directory=False)
+                assert path == "/home/test/file.txt"
+                cmd = mock_run.call_args[0][0]
+                assert "zenity" in cmd
+                assert "--directory" not in cmd
+
+    def test_linux_zenity_directory_flag(self):
+        from ai_guardian.tui.tray_prompt import _native_file_picker
+        mock_result = mock.MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "/home/test/\n"
+        with mock.patch("platform.system", return_value="Linux"):
+            with mock.patch("subprocess.run", return_value=mock_result) as mock_run:
+                _native_file_picker(pick_directory=True)
+                cmd = mock_run.call_args[0][0]
+                assert "--directory" in cmd
+
+
+class TestNiceGuiPromptAppCreation:
+    """Tests for _NiceGuiPromptApp construction (no GUI needed)."""
+
+    def test_stores_params(self):
+        from ai_guardian.tui.tray_prompt import _NiceGuiPromptApp
+        params = [{"name": "env", "hint": "Environment", "default": "dev"}]
+        app = _NiceGuiPromptApp(params, "deploy {tray.env}", "terminal")
+        assert app._params == params
+        assert app._command_template == "deploy {tray.env}"
+        assert app._command_type == "terminal"
+
+    def test_default_title(self):
+        from ai_guardian.tui.tray_prompt import _NiceGuiPromptApp
+        app = _NiceGuiPromptApp([], "echo")
+        assert app._title == "Plugin Parameters"
+
+    def test_custom_title(self):
+        from ai_guardian.tui.tray_prompt import _NiceGuiPromptApp
+        app = _NiceGuiPromptApp([], "echo", title="My Form")
+        assert app._title == "My Form"
+
+    def test_extra_vars_stored(self):
+        from ai_guardian.tui.tray_prompt import _NiceGuiPromptApp
+        extra = {"working_dir": "/tmp"}
+        app = _NiceGuiPromptApp([], "echo", extra_vars=extra)
+        assert app._extra_vars == extra
+
+    def test_extra_vars_default_empty(self):
+        from ai_guardian.tui.tray_prompt import _NiceGuiPromptApp
+        app = _NiceGuiPromptApp([], "echo")
+        assert app._extra_vars == {}
+
+    def test_result_defaults_to_none(self):
+        from ai_guardian.tui.tray_prompt import _NiceGuiPromptApp
+        app = _NiceGuiPromptApp([], "echo")
+        assert app._result is None
 
 
 class TestTrayPromptResolveDefault:
