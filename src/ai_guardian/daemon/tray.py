@@ -830,15 +830,23 @@ class DaemonTray:
             return False
         return DaemonTray._is_web_console_alive(port_file)
 
+    _PANEL_TO_WEB_PATH = {
+        "panel-violations": "violations",
+        "panel-metrics": "metrics",
+        "panel-health-check": "health-check",
+    }
+
     @staticmethod
-    def _open_web_console(daemon_name: str = ""):
-        """Open the web console for a specific daemon."""
+    def _open_web_console(daemon_name: str = "", page: str = ""):
+        """Open the web console for a specific daemon and optional page."""
         import webbrowser
         from ai_guardian.config_utils import get_state_dir
         port_file = get_state_dir() / "web-console.port"
         try:
             port = int(port_file.read_text().strip())
             path = f"/{daemon_name}" if daemon_name else ""
+            if page:
+                path = f"{path}/{page}"
             webbrowser.open(f"http://127.0.0.1:{port}{path}")
         except (ValueError, OSError):
             pass
@@ -1405,6 +1413,11 @@ class DaemonTray:
 
         def _open_panel(panel=None):
             def action(_, __):
+                if panel and self._has_web_console and self._is_web_console_ready():
+                    web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
+                    daemon_name = self._targets[0].name if self._targets else ""
+                    self._open_web_console(daemon_name, web_page)
+                    return
                 if self._targets:
                     t = self._targets[0]
                     if self._multi_client:
@@ -1612,7 +1625,6 @@ class DaemonTray:
                 visible=_single_vis,
             ),
             pystray.MenuItem("Terminal", _open_shell(), visible=_single_vis),
-            pystray.MenuItem("Doctor", _open_doctor(), visible=_single_vis),
         ]
 
     def _build_single_daemon_daemon_items(self):
@@ -1686,6 +1698,11 @@ class DaemonTray:
 
             def _mk_open_panel(panel=None, slot=idx):
                 def action(_, __):
+                    if panel and self._has_web_console and self._is_web_console_ready():
+                        web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
+                        daemon_name = self._targets[slot].name if slot < len(self._targets) else ""
+                        self._open_web_console(daemon_name, web_page)
+                        return
                     if slot < len(self._targets):
                         t = self._targets[slot]
                         if self._multi_client:
@@ -1926,7 +1943,6 @@ class DaemonTray:
                             self._mk_change_working_dir(idx),
                         ),
                         pystray.MenuItem("Terminal", _mk_open_shell()),
-                        pystray.MenuItem("Doctor", _mk_doctor()),
                         pystray.Menu.SEPARATOR,
                         *multi_plugin_items,
                         pystray.Menu.SEPARATOR,

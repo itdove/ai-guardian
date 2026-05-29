@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Default bundled tray plugins** (Issue #831)
+  - Ships `default-global.json` and `default-daemon.json` with useful built-in commands
+  - Global: Quick Actions submenu (Scan Directory, Check for Updates) + Open Documentation
+  - Per-daemon: Maintenance submenu (Reload Config, Install Scanner, View Doctor)
+  - Nested submenus for logical grouping
+  - All commands work on macOS and Linux (platform maps)
+  - Installed automatically on first run, `ai-guardian setup`, or daemon start
+  - Users can customize or remove from `~/.config/ai-guardian/tray-plugins/`
+
 - **`--ide` CLI parameter for deterministic adapter selection** (Issue #849)
   - `ai-guardian --ide <name>` explicitly declares which IDE adapter to use
   - Eliminates adapter mis-detection bugs like #847 (field-matching heuristics)

@@ -10,6 +10,7 @@ import logging
 import platform
 import re
 import shlex
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union
@@ -135,13 +136,62 @@ def find_project_plugins_dir(
         current = parent
 
 
+def _get_bundled_plugins_dir() -> Optional[Path]:
+    """Return the path to bundled default plugin templates in the package."""
+    try:
+        from importlib.resources import files
+        d = Path(str(files("ai_guardian") / "templates" / "tray-plugins"))
+        return d if d.is_dir() else None
+    except Exception:
+        return None
+
+
+_HAS_WEB_CONSOLE = sys.version_info >= (3, 10)
+
+
+def _load_bundled_plugins(
+    daemon_tags: Optional[List[str]] = None,
+) -> List[Plugin]:
+    """Load bundled default plugins, selecting the right console variant.
+
+    Files named ``*-web.json`` are loaded on Python >= 3.10 (web console).
+    Files named ``*-tui.json`` are loaded on Python < 3.10 (TUI fallback).
+    Files without a ``-web`` or ``-tui`` suffix are always loaded.
+    """
+    bundled_dir = _get_bundled_plugins_dir()
+    if bundled_dir is None or not bundled_dir.is_dir():
+        return []
+
+    skip_suffix = "-tui.json" if _HAS_WEB_CONSOLE else "-web.json"
+
+    plugins = []
+    for path in sorted(bundled_dir.glob("*.json")):
+        if path.name.endswith(skip_suffix):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Skipping bundled plugin %s: %s", path.name, e)
+            continue
+        plugin = _parse_plugin(data, path.name)
+        if plugin is not None:
+            if plugin.items:
+                plugins.append(plugin)
+
+    return plugins
+
+
 def load_merged_plugins(
     working_dir: Optional[str] = None,
     daemon_tags: Optional[List[str]] = None,
 ) -> List[Plugin]:
-    """Load plugins from user-level and project-level directories, merged.
+    """Load plugins from bundled, user-level, and project-level directories.
 
-    Project plugins override user-level plugins with the same name.
+    Merge order (higher priority wins by plugin name):
+      1. Bundled defaults (shipped with the package)
+      2. User-level (``~/.config/ai-guardian/tray-plugins/``)
+      3. Project-level (``.ai-guardian/tray-plugins/``)
+
     Import references in each source resolve relative to their own
     directory.
 
@@ -154,21 +204,21 @@ def load_merged_plugins(
     """
     from ai_guardian.daemon import get_tray_plugins_dir
 
+    bundled_plugins = _load_bundled_plugins(daemon_tags)
+
     user_plugins = load_plugins(get_tray_plugins_dir(), daemon_tags)
 
     project_dir = find_project_plugins_dir(working_dir)
-    if project_dir is None:
-        return user_plugins
+    project_plugins = load_plugins(project_dir, daemon_tags) if project_dir else []
 
-    project_plugins = load_plugins(project_dir, daemon_tags)
-    if not project_plugins:
-        return user_plugins
+    merged: List[Plugin] = []
+    seen_names: set = set()
 
-    project_names = {p.name for p in project_plugins}
-    merged = list(project_plugins)
-    for p in user_plugins:
-        if p.name not in project_names:
-            merged.append(p)
+    for layer in (project_plugins, user_plugins, bundled_plugins):
+        for p in layer:
+            if p.name not in seen_names:
+                merged.append(p)
+                seen_names.add(p.name)
 
     return merged
 

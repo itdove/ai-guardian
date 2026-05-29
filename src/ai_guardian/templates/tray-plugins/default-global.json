@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/tray-plugin.schema.json",
+  "name": "Quick Actions",
+  "scope": "global",
+  "items": [
+    {
+      "label": "Scan Directory...",
+      "command": "ai-guardian scan {tray.directory}",
+      "type": "terminal",
+      "params": [
+        {
+          "name": "directory",
+          "hint": "Directory path to scan for secrets and security issues",
+          "default": "."
+        }
+      ]
+    },
+    {
+      "label": "Check for Updates",
+      "command": "pip index versions ai-guardian",
+      "type": "modal"
+    },
+    {
+      "label": "Open Documentation",
+      "command": {
+        "darwin": "open https://github.com/itdove/ai-guardian#readme",
+        "linux": "xdg-open https://github.com/itdove/ai-guardian#readme",
+        "default": "echo https://github.com/itdove/ai-guardian#readme"
+      },
+      "type": "background"
+    }
+  ]
+}
