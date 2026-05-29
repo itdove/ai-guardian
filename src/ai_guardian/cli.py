@@ -570,6 +570,10 @@ def main():
             help="File to sanitize (reads stdin if omitted)"
         )
         sanitize_parser.add_argument(
+            "-o", "--output",
+            help="Write output to file instead of stdout (required for image files)"
+        )
+        sanitize_parser.add_argument(
             "--no-secrets",
             action="store_true",
             help="Skip secret redaction"

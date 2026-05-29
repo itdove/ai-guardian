@@ -198,6 +198,113 @@ def sanitize_text(text: str, no_secrets: bool = False, no_pii: bool = False,
     }
 
 
+def _write_bytes(data: bytes, output_path: Optional[str]) -> None:
+    """Write bytes to a file or stdout."""
+    if output_path:
+        with open(output_path, "wb") as f:
+            f.write(data)
+    else:
+        sys.stdout.buffer.write(data)
+
+
+def _sanitize_image(input_path: str, args) -> int:
+    """Sanitize an image file: OCR text regions, redact those containing secrets/PII."""
+    try:
+        from ai_guardian.image_scanner import (
+            ImageRedactor, OCREngine, scan_image, TextRegion,
+        )
+    except ImportError:
+        print("Error: Image scanning requires rapidocr-onnxruntime and Pillow.", file=sys.stderr)
+        print("Install with: pip install 'ai-guardian[dev]'", file=sys.stderr)
+        return 1
+
+    try:
+        with open(input_path, "rb") as f:
+            image_data = f.read()
+    except FileNotFoundError:
+        print(f"Error: File not found: {input_path}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error reading file: {e}", file=sys.stderr)
+        return 1
+
+    img_config = {"min_confidence": 0.5, "max_image_size_mb": 50, "qr_scanning": True}
+    result = scan_image(image_data, img_config)
+
+    output_path = getattr(args, "output", None)
+
+    if not result.text_regions:
+        _write_bytes(image_data, output_path)
+        if args.summary:
+            msg = "No text detected in image — output unchanged"
+            if output_path:
+                msg += f" (copied to {output_path})"
+            print(msg, file=sys.stderr)
+        return 0
+
+    regions_to_redact: List[TextRegion] = []
+    total_stats = {"secrets": 0, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 0}
+
+    for region in result.text_regions:
+        san = sanitize_text(
+            region.text,
+            no_secrets=args.no_secrets,
+            no_pii=args.no_pii,
+            no_threats=args.no_threats,
+        )
+        if san["stats"]["total"] > 0:
+            regions_to_redact.append(region)
+            for key in ("secrets", "pii", "prompt_injection", "unicode"):
+                total_stats[key] += san["stats"][key]
+
+    for qr_text in result.qr_texts:
+        san = sanitize_text(qr_text, no_secrets=args.no_secrets, no_pii=args.no_pii, no_threats=args.no_threats)
+        if san["stats"]["total"] > 0:
+            for key in ("secrets", "pii", "prompt_injection", "unicode"):
+                total_stats[key] += san["stats"][key]
+
+    total_stats["total"] = sum(total_stats[k] for k in ("secrets", "pii", "prompt_injection", "unicode"))
+
+    if not regions_to_redact:
+        _write_bytes(image_data, output_path)
+        if args.summary:
+            msg = "No redactions needed"
+            if output_path:
+                msg += f" (copied to {output_path})"
+            print(msg, file=sys.stderr)
+        return 0
+
+    import os
+    ext = os.path.splitext(input_path)[1].lower()
+    fmt_map = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".bmp": "BMP",
+               ".tiff": "TIFF", ".tif": "TIFF", ".webp": "WEBP", ".gif": "GIF"}
+    output_format = fmt_map.get(ext, "PNG")
+
+    redactor = ImageRedactor(method="blur")
+    redacted_bytes = redactor.redact_regions(image_data, regions_to_redact, output_format=output_format)
+
+    _write_bytes(redacted_bytes, output_path)
+
+    if args.summary:
+        parts = []
+        if total_stats["secrets"]:
+            parts.append(f"{total_stats['secrets']} secret(s)")
+        if total_stats["pii"]:
+            parts.append(f"{total_stats['pii']} PII item(s)")
+        if total_stats["prompt_injection"]:
+            parts.append(f"{total_stats['prompt_injection']} prompt injection(s)")
+        if total_stats["unicode"]:
+            parts.append(f"{total_stats['unicode']} unicode threat(s)")
+        print(
+            f"Sanitized image: {len(regions_to_redact)} region(s) redacted — {', '.join(parts)}",
+            file=sys.stderr,
+        )
+
+    if args.exit_code and total_stats["total"] > 0:
+        return 1
+    return 0
+
+
 def sanitize_command(args) -> int:
     """
     Handle the sanitize CLI command.
@@ -210,6 +317,15 @@ def sanitize_command(args) -> int:
     """
     # Suppress all logging — stdout must be only the sanitized text
     logging.disable(logging.CRITICAL)
+
+    # Check if input is an image file
+    if hasattr(args, "input") and args.input:
+        try:
+            from ai_guardian.image_scanner import ImageDetector
+            if ImageDetector.is_image_file(args.input):
+                return _sanitize_image(args.input, args)
+        except ImportError:
+            pass
 
     # Read input
     if hasattr(args, "input") and args.input:
@@ -237,8 +353,13 @@ def sanitize_command(args) -> int:
         no_threats=args.no_threats,
     )
 
-    # stdout: only the sanitized text
-    sys.stdout.write(result["sanitized_text"])
+    # Write sanitized text to output file or stdout
+    output_path = getattr(args, "output", None)
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(result["sanitized_text"])
+    else:
+        sys.stdout.write(result["sanitized_text"])
 
     # stderr: optional summary
     if args.summary:

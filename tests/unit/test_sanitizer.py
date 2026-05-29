@@ -4,12 +4,15 @@ Tests for the sanitize command (Issue #443).
 Tests text sanitization: secrets, PII, prompt injection, and unicode attacks.
 """
 
+import io
 import os
 import tempfile
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
-from ai_guardian.sanitizer import get_sanitize_config, sanitize_text
+from ai_guardian.sanitizer import get_sanitize_config, sanitize_text, sanitize_command
 
 
 class TestGetSanitizeConfig:
@@ -376,3 +379,114 @@ class TestSanitizeCommand:
             assert "PII" in stderr_output or "Sanitized" in stderr_output
         finally:
             os.unlink(tmp_path)
+
+
+class TestSanitizeImageCommand:
+    """Tests for image file sanitization via sanitize_command."""
+
+    PNG_HEADER = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
+
+    def _make_args(self, input_path):
+        return SimpleNamespace(
+            input=input_path,
+            no_secrets=False,
+            no_pii=False,
+            no_threats=False,
+            summary=True,
+            exit_code=False,
+        )
+
+    @mock.patch("ai_guardian.image_scanner.scan_image")
+    def test_image_no_text_passes_through(self, mock_scan, tmp_path):
+        """Image with no OCR text should pass through unchanged."""
+        from ai_guardian.image_scanner import ImageScanResult
+
+        img_file = tmp_path / "clean.png"
+        img_file.write_bytes(self.PNG_HEADER)
+
+        mock_scan.return_value = ImageScanResult(extracted_text="", text_regions=[])
+
+        stdout_buf = io.BytesIO()
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stdout") as mock_stdout, \
+             mock.patch("sys.stderr", stderr_buf):
+            mock_stdout.buffer = stdout_buf
+            code = sanitize_command(self._make_args(str(img_file)))
+
+        assert code == 0
+        assert stdout_buf.getvalue() == self.PNG_HEADER
+
+    @mock.patch("ai_guardian.image_scanner.ImageRedactor")
+    @mock.patch("ai_guardian.image_scanner.scan_image")
+    def test_image_with_secret_redacts_region(self, mock_scan, mock_redactor_cls, tmp_path):
+        """Image with secret text should produce redacted image output."""
+        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+
+        img_file = tmp_path / "secret.png"
+        img_file.write_bytes(self.PNG_HEADER)
+
+        mock_scan.return_value = ImageScanResult(
+            extracted_text="TOKEN=abc123",
+            text_regions=[TextRegion(text="TOKEN=abc123", bbox=(10, 20, 100, 30), confidence=0.9)],
+            ocr_confidence=0.9,
+        )
+        redacted_bytes = b'\x89PNG_REDACTED'
+        mock_redactor_instance = mock.MagicMock()
+        mock_redactor_instance.redact_regions.return_value = redacted_bytes
+        mock_redactor_cls.return_value = mock_redactor_instance
+
+        stdout_buf = io.BytesIO()
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stdout") as mock_stdout, \
+             mock.patch("sys.stderr", stderr_buf):
+            mock_stdout.buffer = stdout_buf
+            # sanitize_text will detect "TOKEN=abc123" as a secret via SecretRedactor
+            with mock.patch("ai_guardian.sanitizer.sanitize_text") as mock_st:
+                mock_st.return_value = {
+                    "sanitized_text": "[REDACTED]",
+                    "redactions": [{"type": "secret"}],
+                    "stats": {"secrets": 1, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 1},
+                }
+                code = sanitize_command(self._make_args(str(img_file)))
+
+        assert code == 0
+        assert stdout_buf.getvalue() == redacted_bytes
+        mock_redactor_instance.redact_regions.assert_called_once()
+        assert "Sanitized image" in stderr_buf.getvalue()
+
+    @mock.patch("ai_guardian.image_scanner.scan_image")
+    def test_image_ocr_no_secrets_passes_through(self, mock_scan, tmp_path):
+        """Image with clean OCR text should pass through unchanged."""
+        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+
+        img_file = tmp_path / "clean.png"
+        img_file.write_bytes(self.PNG_HEADER)
+
+        mock_scan.return_value = ImageScanResult(
+            extracted_text="Hello World",
+            text_regions=[TextRegion(text="Hello World", bbox=(10, 20, 100, 30), confidence=0.9)],
+        )
+
+        stdout_buf = io.BytesIO()
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stdout") as mock_stdout, \
+             mock.patch("sys.stderr", stderr_buf):
+            mock_stdout.buffer = stdout_buf
+            code = sanitize_command(self._make_args(str(img_file)))
+
+        assert code == 0
+        assert stdout_buf.getvalue() == self.PNG_HEADER
+
+    def test_text_file_not_treated_as_image(self, tmp_path):
+        """Regular text files should NOT go through image sanitization."""
+        text_file = tmp_path / "readme.txt"
+        text_file.write_text("just plain text")
+
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+        with mock.patch("sys.stdout", stdout_buf), \
+             mock.patch("sys.stderr", stderr_buf):
+            code = sanitize_command(self._make_args(str(text_file)))
+
+        assert code == 0
+        assert "just plain text" in stdout_buf.getvalue()

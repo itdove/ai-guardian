@@ -69,6 +69,12 @@ try:
 except ImportError:
     HAS_PROMPT_INJECTION = False
 
+try:
+    from ai_guardian.image_scanner import ImageDetector, scan_image
+    HAS_IMAGE_SCANNER = True
+except ImportError:
+    HAS_IMAGE_SCANNER = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +115,43 @@ class FileScanner:
         self.ssrf_protector = SSRFProtector(config.get("ssrf_protection", {})) if HAS_SSRF else None
         self.unicode_detector = UnicodeAttackDetector(config.get("prompt_injection", {})) if HAS_UNICODE else None
 
+        self._image_config: Optional[Dict[str, Any]] = None
+        self._image_config_loaded = False
+
+    _IMAGE_DEFAULTS: Dict[str, Any] = {
+        "enabled": True,
+        "max_image_size_mb": 10,
+        "ignore_files": [],
+        "qr_scanning": False,
+        "face_detection": False,
+        "min_confidence": 0.5,
+    }
+
+    def _get_image_config(self) -> Optional[Dict[str, Any]]:
+        """Load image scanning config (cached per scanner instance)."""
+        if not self._image_config_loaded:
+            self._image_config_loaded = True
+            if HAS_IMAGE_SCANNER:
+                img_section = self.config.get("image_scanning")
+                if img_section is None:
+                    merged = dict(self._IMAGE_DEFAULTS)
+                elif isinstance(img_section, dict):
+                    merged = dict(self._IMAGE_DEFAULTS)
+                    merged.update(img_section)
+                else:
+                    merged = None
+                if merged and merged.get("enabled", True):
+                    self._image_config = merged
+        return self._image_config
+
+    def _is_scannable_image(self, file_path: Path) -> bool:
+        """Check if file is an image that should be OCR-scanned."""
+        if not HAS_IMAGE_SCANNER:
+            return False
+        if self._get_image_config() is None:
+            return False
+        return ImageDetector.is_image_file(str(file_path))
+
     def scan_directory(
         self,
         path: str,
@@ -137,7 +180,10 @@ class FileScanner:
 
         if scan_path.is_file():
             # Scan single file
-            self._scan_file(scan_path, scan_path.parent)
+            if self._is_scannable_image(scan_path):
+                self._scan_image_file(scan_path, scan_path.parent)
+            else:
+                self._scan_file(scan_path, scan_path.parent)
         else:
             # Scan directory
             files_to_scan = self._discover_files(
@@ -151,7 +197,10 @@ class FileScanner:
                 print(f"Scanning {len(files_to_scan)} files...")
 
             for file_path in files_to_scan:
-                self._scan_file(file_path, scan_path)
+                if self._is_scannable_image(file_path):
+                    self._scan_image_file(file_path, scan_path)
+                else:
+                    self._scan_file(file_path, scan_path)
 
         return self.findings
 
@@ -208,12 +257,12 @@ class FileScanner:
                     if file_path.is_file() and not self._is_excluded(file_path, base_path, exclude_patterns):
                         files.add(file_path)
         else:
-            # Scan all text files
+            # Scan all text files and image files (when OCR is available)
             for file_path in base_path.rglob("*"):
                 if (
                     file_path.is_file()
                     and not self._is_excluded(file_path, base_path, exclude_patterns)
-                    and self._is_text_file(file_path)
+                    and (self._is_text_file(file_path) or self._is_scannable_image(file_path))
                 ):
                     files.add(file_path)
 
@@ -335,6 +384,87 @@ class FileScanner:
         except Exception as e:
             if self.verbose:
                 logger.error(f"Error scanning {file_path}: {e}")
+
+    def _scan_image_file(self, file_path: Path, base_path: Path) -> None:
+        """Scan an image file via OCR and run security checkers on extracted text."""
+        try:
+            try:
+                relative_path = str(file_path.relative_to(base_path))
+            except ValueError:
+                relative_path = str(file_path)
+
+            img_config = self._get_image_config()
+            if not img_config:
+                return
+
+            for pattern in img_config.get("ignore_files", []):
+                if fnmatch.fnmatch(str(file_path), pattern) or fnmatch.fnmatch(file_path.name, pattern):
+                    return
+
+            try:
+                file_size = file_path.stat().st_size
+                max_size = img_config.get("max_image_size_mb", 10) * 1024 * 1024
+                if file_size > max_size:
+                    if self.verbose:
+                        logger.info(f"Skipping oversized image: {relative_path}")
+                    return
+            except OSError:
+                return
+
+            try:
+                with open(file_path, "rb") as f:
+                    image_data = f.read()
+            except Exception as e:
+                if self.verbose:
+                    logger.warning(f"Could not read image {relative_path}: {e}")
+                return
+
+            if self.verbose:
+                print(f"Scanning image: {relative_path}")
+
+            try:
+                result = scan_image(image_data, img_config)
+            except Exception as e:
+                logger.debug(f"Image scanning error for {relative_path}: {e}")
+                return
+
+            extracted_text = result.extracted_text or ""
+            if result.qr_texts:
+                qr_text = "\n".join(result.qr_texts)
+                extracted_text = f"{extracted_text}\n{qr_text}" if extracted_text else qr_text
+
+            if not extracted_text.strip():
+                return
+
+            if self.verbose:
+                print(f"  OCR extracted {len(extracted_text)} chars in {result.elapsed_ms:.0f}ms")
+
+            findings_before = len(self.findings)
+
+            if self.ssrf_protector:
+                self._check_ssrf(relative_path, extracted_text)
+
+            if self.unicode_detector:
+                self._check_unicode_attacks(relative_path, extracted_text)
+
+            if HAS_SECRET_SCANNER:
+                self._check_secrets(relative_path, extracted_text, str(file_path))
+
+            if HAS_PII_SCANNER:
+                self._check_pii(relative_path, extracted_text)
+
+            if HAS_PROMPT_INJECTION:
+                self._check_prompt_injection(relative_path, extracted_text)
+
+            for finding in self.findings[findings_before:]:
+                if "details" not in finding:
+                    finding["details"] = {}
+                finding["details"]["source_type"] = "image_ocr"
+                finding["details"]["ocr_confidence"] = result.ocr_confidence
+
+        except Exception as e:
+            if self.verbose:
+                logger.error(f"Error scanning image {file_path}: {e}")
 
     def _is_config_file(self, file_path: Path) -> bool:
         """Check if file is an AI config file."""
