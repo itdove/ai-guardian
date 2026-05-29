@@ -1270,6 +1270,7 @@ class DaemonTray:
         self._targets = targets
         self._apply_working_dirs()
         self._auto_select_target()
+        self._poll_plugins()
         self._refreshing_from_discovery = True
         self._dispatch_to_main(self._refresh_menu_and_clear_discovery_flag)
         logger.info(f"Discovery updated: {len(targets)} target(s) found")

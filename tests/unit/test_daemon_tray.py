@@ -2994,6 +2994,15 @@ class TestDiscoveryAnimation:
             ])
         assert tray._refresh_menu_and_clear_discovery_flag in dispatched
 
+    def test_on_targets_updated_polls_plugins_immediately(self):
+        tray = self._make_tray()
+        with mock.patch.object(tray, "_poll_plugins") as mock_poll, \
+             mock.patch.object(DaemonTray, "_dispatch_to_main"):
+            tray._on_targets_updated([
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ])
+            mock_poll.assert_called_once()
+
     def test_stop_cleans_up_animation(self):
         tray = self._make_tray()
         with mock.patch.object(tray, "_stop_discovery_animation") as mock_stop:
