@@ -425,6 +425,8 @@ class SecretRedactor:
             return self._redact_iban(match)
         elif strategy == 'canada_sin':
             return self._redact_canada_sin(match)
+        elif strategy == 'aadhaar':
+            return self._redact_aadhaar(match)
         else:
             # Default to preserve_prefix_suffix
             return self._preserve_prefix_suffix(match)
@@ -641,3 +643,18 @@ class SecretRedactor:
         if not self._luhn_check(sin, min_digits=9, max_digits=9):
             return (None, None)
         return ('[HIDDEN Canadian SIN]', {'method': 'canada_sin'})
+
+    def _redact_aadhaar(self, match: re.Match) -> Tuple[str, Dict]:
+        """
+        Redact Indian Aadhaar number after validation.
+
+        Returns (None, None) if the number fails validation (issue #876).
+        Real Aadhaar numbers start with 2-9 and aren't all-identical digits.
+        """
+        number = match.group(0)
+        digits = re.sub(r'[- ]', '', number)
+        if digits[0] in ('0', '1'):
+            return (None, None)
+        if len(set(digits)) == 1:
+            return (None, None)
+        return (f'[REDACTED Indian Aadhaar Number]', {'method': 'full'})

@@ -552,18 +552,18 @@ class TestIndiaAadhaarDetection:
     """Test Indian Aadhaar number detection (Issue #329)."""
 
     def test_aadhaar_with_spaces(self):
-        """Detect Aadhaar with spaces."""
+        """Detect Aadhaar with spaces (must start with 2-9)."""
         redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
-        text = "Aadhaar: 1234 5678 9012"
+        text = "Aadhaar: 2345 6789 0123"
         result = redactor.redact(text)
-        assert "1234 5678 9012" not in result['redacted_text']
+        assert "2345 6789 0123" not in result['redacted_text']
 
     def test_aadhaar_with_dashes(self):
-        """Detect Aadhaar with dashes."""
+        """Detect Aadhaar with dashes (must start with 2-9)."""
         redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
-        text = "Aadhaar: 1234-5678-9012"
+        text = "Aadhaar: 2345-6789-0123"
         result = redactor.redact(text)
-        assert "1234-5678-9012" not in result['redacted_text']
+        assert "2345-6789-0123" not in result['redacted_text']
 
     def test_aadhaar_not_credit_card(self):
         """Aadhaar pattern should not match first 12 digits of a credit card."""
@@ -584,6 +584,54 @@ class TestIndiaAadhaarDetection:
         # No separator = no aadhaar match
         aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
         assert len(aadhaar_redactions) == 0
+
+    def test_aadhaar_uuid_all_zeros_not_detected(self):
+        """UUID all-zeros should NOT be detected as Aadhaar (issue #876)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "install_uuid: 0000-0000-0000"
+        result = redactor.redact(text)
+        aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
+        assert len(aadhaar_redactions) == 0
+
+    def test_aadhaar_starts_with_zero_not_detected(self):
+        """Number starting with 0 is not a valid Aadhaar (issue #876)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "ID: 0234 5678 9012"
+        result = redactor.redact(text)
+        aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
+        assert len(aadhaar_redactions) == 0
+
+    def test_aadhaar_starts_with_one_not_detected(self):
+        """Number starting with 1 is not a valid Aadhaar (issue #876)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "ID: 1234 5678 9012"
+        result = redactor.redact(text)
+        aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
+        assert len(aadhaar_redactions) == 0
+
+    def test_aadhaar_all_same_digits_not_detected(self):
+        """All-same-digit pattern is not a valid Aadhaar (issue #876)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "ID: 2222-2222-2222"
+        result = redactor.redact(text)
+        aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
+        assert len(aadhaar_redactions) == 0
+
+    def test_aadhaar_valid_starting_with_2(self):
+        """Valid Aadhaar starting with 2 should still be detected (issue #876)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Aadhaar: 2345 6789 0123"
+        result = redactor.redact(text)
+        aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
+        assert len(aadhaar_redactions) == 1
+
+    def test_aadhaar_valid_starting_with_9(self):
+        """Valid Aadhaar starting with 9 should still be detected (issue #876)."""
+        redactor = SecretRedactor(config={'enabled': True}, pii_config=PII_CONFIG)
+        text = "Aadhaar: 9876-5432-1098"
+        result = redactor.redact(text)
+        aadhaar_redactions = [r for r in result['redactions'] if r['type'] == 'Indian Aadhaar Number']
+        assert len(aadhaar_redactions) == 1
 
 
 class TestAddressDetection:
