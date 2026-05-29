@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New `sanitize_directory` MCP tool for AI agent integration
   - Tray quick actions: "Sanitize File..." and "Sanitize Directory..." in global plugin menu
 
+- **`--redact-strategy` flag for image sanitization** (Issue #856)
+  - `ai-guardian sanitize image.png --redact-strategy blackout` — choose blur, blackout, or pixelate
+  - Default remains `blur` for backward compatibility
+  - Supported in CLI, MCP `sanitize_directory` tool, and tray quick-action plugins
+  - Tray plugins show a dropdown with the three strategies
+
 - **Image OCR scanning in `scan_directory` and `sanitize`** (Issue #855)
   - `ai-guardian scan` and the `scan_directory` MCP tool now include image files (PNG, JPEG, etc.) via OCR
   - Extracted text is scanned through all existing detectors (secrets, PII, SSRF, prompt injection, unicode)

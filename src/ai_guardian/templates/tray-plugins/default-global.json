@@ -17,18 +17,25 @@
     },
     {
       "label": "Sanitize File...",
-      "command": "ai-guardian sanitize {tray.file} --summary",
+      "command": "ai-guardian sanitize {tray.file} --redact-strategy {tray.redact_strategy} --summary",
       "type": "terminal",
       "params": [
         {
           "name": "file",
           "hint": "File path to sanitize (text or image)"
+        },
+        {
+          "name": "redact_strategy",
+          "hint": "Image redaction method",
+          "type": "choice",
+          "options": ["blur", "blackout", "pixelate"],
+          "default": "blur"
         }
       ]
     },
     {
       "label": "Sanitize Directory...",
-      "command": "ai-guardian sanitize {tray.directory} --output-dir {tray.output_dir} --summary",
+      "command": "ai-guardian sanitize {tray.directory} --output-dir {tray.output_dir} --redact-strategy {tray.redact_strategy} --summary",
       "type": "terminal",
       "params": [
         {
@@ -39,6 +46,13 @@
         {
           "name": "output_dir",
           "hint": "Output directory for sanitized files"
+        },
+        {
+          "name": "redact_strategy",
+          "hint": "Image redaction method",
+          "type": "choice",
+          "options": ["blur", "blackout", "pixelate"],
+          "default": "blur"
         }
       ]
     },

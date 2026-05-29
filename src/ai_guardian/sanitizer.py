@@ -265,7 +265,8 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
                        no_secrets: bool = False, no_pii: bool = False,
                        no_threats: bool = False, no_images: bool = False,
                        include: Optional[List[str]] = None,
-                       exclude: Optional[List[str]] = None) -> Dict:
+                       exclude: Optional[List[str]] = None,
+                       redact_strategy: str = "blur") -> Dict:
     """
     Sanitize all files in a directory, writing redacted output to output_dir.
 
@@ -317,6 +318,7 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
                     stats = _sanitize_image_to_path(
                         str(file_path), str(dest),
                         no_secrets=no_secrets, no_pii=no_pii, no_threats=no_threats,
+                        redact_strategy=redact_strategy,
                     )
                     image_count += 1
                     for key in ("secrets", "pii", "prompt_injection", "unicode"):
@@ -359,7 +361,8 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
 
 def _sanitize_image_to_path(input_path: str, output_path: str,
                              no_secrets: bool = False, no_pii: bool = False,
-                             no_threats: bool = False) -> Dict:
+                             no_threats: bool = False,
+                             redact_strategy: str = "blur") -> Dict:
     """Sanitize an image file writing to output_path. Returns stats dict."""
     try:
         from ai_guardian.image_scanner import (
@@ -409,7 +412,7 @@ def _sanitize_image_to_path(input_path: str, output_path: str,
                ".tiff": "TIFF", ".tif": "TIFF", ".webp": "WEBP", ".gif": "GIF"}
     output_format = fmt_map.get(ext, "PNG")
 
-    redactor = ImageRedactor(method="blur")
+    redactor = ImageRedactor(method=redact_strategy)
     redacted_bytes = redactor.redact_regions(image_data, regions_to_redact, output_format=output_format)
     _write_bytes(redacted_bytes, output_path)
 
@@ -489,7 +492,8 @@ def _sanitize_image(input_path: str, args) -> int:
                ".tiff": "TIFF", ".tif": "TIFF", ".webp": "WEBP", ".gif": "GIF"}
     output_format = fmt_map.get(ext, "PNG")
 
-    redactor = ImageRedactor(method="blur")
+    strategy = getattr(args, "redact_strategy", "blur") or "blur"
+    redactor = ImageRedactor(method=strategy)
     redacted_bytes = redactor.redact_regions(image_data, regions_to_redact, output_format=output_format)
 
     _write_bytes(redacted_bytes, output_path)
@@ -552,6 +556,7 @@ def _sanitize_directory_command(args) -> int:
         no_images=getattr(args, "no_images", False),
         include=getattr(args, "include", None),
         exclude=getattr(args, "exclude", None),
+        redact_strategy=getattr(args, "redact_strategy", "blur") or "blur",
     )
 
     if args.summary:
@@ -576,7 +581,12 @@ def _sanitize_directory_command(args) -> int:
         if result["file_details"]:
             print(file=sys.stderr)
             for detail in result["file_details"]:
-                rtype = "regions blurred" if detail["type"] == "image" else "redacted"
+                if detail["type"] == "image":
+                    _labels = {"blur": "blurred", "blackout": "blacked out", "pixelate": "pixelated"}
+                    strategy = getattr(args, "redact_strategy", "blur") or "blur"
+                    rtype = f"regions {_labels.get(strategy, 'redacted')}"
+                else:
+                    rtype = "redacted"
                 print(f"  {detail['file']:<40} ({detail['redactions']} {rtype})", file=sys.stderr)
 
         if result["errors"]:
