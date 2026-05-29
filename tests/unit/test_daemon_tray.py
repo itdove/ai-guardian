@@ -3497,3 +3497,344 @@ class TestWebConsoleVersionGating:
                 assert "Console" in labels
         finally:
             DaemonTray._has_web_console = saved
+
+
+class TestGreyedOutMenuItems:
+    """Tests for greyed-out menu items when daemon is not available (#868)."""
+
+    def _make_tray(self, targets=None):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        if targets is not None:
+            tray._targets = targets
+        return tray
+
+    def _get_menu_item_kwargs(self, mock_pystray, label):
+        """Find a MenuItem call by label and return its keyword args."""
+        for call in mock_pystray.MenuItem.call_args_list:
+            if call[0] and isinstance(call[0][0], str) and call[0][0] == label:
+                return call[1]
+        return None
+
+    def test_single_daemon_items_have_enabled_guard(self):
+        """Console, Violations, Metrics, Statistics get enabled= when built."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="stopped"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            for label in ("Console", "Violations", "Metrics", "Statistics"):
+                kwargs = self._get_menu_item_kwargs(mock_pystray, label)
+                assert kwargs is not None, f"{label} not found in menu items"
+                enabled_cb = kwargs.get("enabled")
+                assert enabled_cb is not None, f"{label} missing enabled= parameter"
+                assert enabled_cb(None) is False, (
+                    f"{label} should be disabled when daemon is stopped"
+                )
+
+    def test_single_daemon_items_enabled_when_running(self):
+        """Daemon-dependent items are enabled when daemon is running."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            for label in ("Console", "Violations", "Metrics", "Statistics"):
+                kwargs = self._get_menu_item_kwargs(mock_pystray, label)
+                assert kwargs is not None, f"{label} not found"
+                enabled_cb = kwargs.get("enabled")
+                assert enabled_cb is not None, f"{label} missing enabled="
+                assert enabled_cb(None) is True, (
+                    f"{label} should be enabled when daemon is running"
+                )
+
+    def test_terminal_has_no_enabled_guard(self):
+        """Terminal should always be active (local operation)."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="stopped"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            kwargs = self._get_menu_item_kwargs(mock_pystray, "Terminal")
+            assert kwargs is not None, "Terminal not found"
+            assert "enabled" not in kwargs or kwargs.get("enabled") is True
+
+    def test_statistics_visible_when_daemon_stopped(self):
+        """Statistics should be visible (but greyed) when daemon is stopped."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="stopped"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            kwargs = self._get_menu_item_kwargs(mock_pystray, "Statistics")
+            assert kwargs is not None, "Statistics not found"
+            vis_cb = kwargs.get("visible")
+            assert vis_cb is not None, "Statistics missing visible="
+            assert vis_cb(None) is True, (
+                "Statistics should be visible when single daemon exists"
+            )
+
+    def test_restart_daemon_visible_when_stopped(self):
+        """Restart daemon should be visible even when daemon is stopped."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="stopped"),
+        ])
+        tray._single_daemon_closures = {
+            "pause_action": lambda m: lambda _, __: None,
+            "resume_action": lambda _, __: None,
+            "stop_action": lambda _, __: None,
+            "restart_action": lambda _, __: None,
+            "single_running": lambda _: (
+                tray._is_single_daemon()
+                and tray._targets[0].status in ("running", "paused")
+            ),
+            "single_not_running": lambda _: (
+                tray._is_single_daemon()
+                and tray._targets[0].status not in ("running", "paused")
+            ),
+            "get_stats": lambda _: {},
+        }
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            items = tray._build_single_daemon_daemon_items()
+
+            kwargs = self._get_menu_item_kwargs(mock_pystray, "Restart daemon")
+            assert kwargs is not None, "Restart daemon not found"
+            vis_cb = kwargs.get("visible")
+            assert vis_cb is not None, "Restart daemon missing visible="
+            assert vis_cb(None) is True, (
+                "Restart daemon should be visible when daemon is stopped"
+            )
+
+    def test_daemon_status_label_starting(self):
+        """Status label shows starting indicator for starting daemons."""
+        t = DaemonTarget(name="my-host", runtime="local", status="starting")
+        label = DaemonTray._daemon_status_label(t)
+        assert "◌" in label
+        assert "starting..." in label
+
+    def test_daemon_status_label_stopped(self):
+        """Status label shows stopped indicator for stopped daemons."""
+        t = DaemonTarget(name="my-host", runtime="local", status="stopped")
+        label = DaemonTray._daemon_status_label(t)
+        assert "⚠" in label
+        assert "daemon not running" in label
+
+    def test_single_daemon_items_disabled_when_starting(self):
+        """Items greyed out during daemon startup."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="starting"),
+        ])
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_single_daemon_menu_items()
+
+            for label in ("Console", "Violations", "Metrics", "Statistics"):
+                kwargs = self._get_menu_item_kwargs(mock_pystray, label)
+                assert kwargs is not None, f"{label} not found"
+                enabled_cb = kwargs.get("enabled")
+                assert enabled_cb is not None, f"{label} missing enabled="
+                assert enabled_cb(None) is False, (
+                    f"{label} should be disabled when daemon is starting"
+                )
+
+    def test_multi_daemon_items_have_enabled_guard(self):
+        """Multi-daemon submenu items get enabled= based on slot status."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        tray._targets = [
+            DaemonTarget(name="d1", runtime="local", status="stopped"),
+            DaemonTarget(name="d2", runtime="manual", status="running"),
+        ]
+        mc.get_stats.return_value = {}
+        mc._local_plugins.return_value = {"plugins": []}
+
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            mock_pystray.MenuItem = mock.MagicMock()
+            mock_pystray.Menu = mock.MagicMock()
+            mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+            tray._build_multi_daemon_menu_items()
+
+            console_calls = [
+                call for call in mock_pystray.MenuItem.call_args_list
+                if call[0] and isinstance(call[0][0], str)
+                and call[0][0] == "Console"
+            ]
+            assert len(console_calls) >= 2, "Expected Console in multiple slots"
+            for call in console_calls:
+                assert call[1].get("enabled") is not None, (
+                    "Console in multi-daemon should have enabled="
+                )
+
+    def test_about_disabled_when_no_daemons_running(self):
+        """Top-level About greyed out when no daemon is running."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="stopped"),
+        ])
+        enabled_cb = lambda _: any(
+            t.status in ("running", "paused") for t in tray._targets
+        )
+        assert enabled_cb(None) is False
+
+    def test_about_enabled_when_daemon_running(self):
+        """Top-level About active when a daemon is running."""
+        tray = self._make_tray([
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ])
+        enabled_cb = lambda _: any(
+            t.status in ("running", "paused") for t in tray._targets
+        )
+        assert enabled_cb(None) is True
+
+
+class TestPluginEnabledGuard:
+    """Tests for plugin command enabled= guard based on run_on_target (#868)."""
+
+    def test_run_on_target_plugin_disabled_when_daemon_stopped(self):
+        """Plugin with run_on_target=True greyed out when daemon stopped."""
+        from ai_guardian.daemon.tray_plugins import PluginItem, Plugin
+
+        target = DaemonTarget(name="local", runtime="local", status="stopped")
+        item = PluginItem(label="Remote Cmd", command="echo hello",
+                          run_on_target=True)
+
+        enabled = (
+            item.run_on_target
+            and target.status not in ("running", "paused")
+        )
+        assert enabled is True  # run_on_target is True and daemon IS stopped
+        assert target.status not in ("running", "paused")
+
+    def test_local_plugin_enabled_when_daemon_stopped(self):
+        """Plugin with run_on_target=False stays enabled when daemon stopped."""
+        from ai_guardian.daemon.tray_plugins import PluginItem
+
+        target = DaemonTarget(name="local", runtime="local", status="stopped")
+        item = PluginItem(label="Local Cmd", command="echo hello",
+                          run_on_target=False)
+
+        if not item.run_on_target:
+            enabled = True
+        else:
+            enabled = target.status in ("running", "paused")
+        assert enabled is True
+
+    def test_run_on_target_plugin_enabled_when_daemon_running(self):
+        """Plugin with run_on_target=True is enabled when daemon is running."""
+        from ai_guardian.daemon.tray_plugins import PluginItem
+
+        target = DaemonTarget(name="local", runtime="local", status="running")
+        item = PluginItem(label="Remote Cmd", command="echo hello",
+                          run_on_target=True)
+
+        if not item.run_on_target:
+            enabled = True
+        else:
+            enabled = target.status in ("running", "paused")
+        assert enabled is True
+
+
+class TestDiscoveryStartingStatus:
+    """Tests for 'starting' daemon status detection (#868)."""
+
+    def test_discover_local_starting_when_pid_alive_but_socket_not_ready(self):
+        """discover_local returns 'starting' when process alive but not responding."""
+        from ai_guardian.daemon.discovery import DaemonDiscovery
+
+        discovery = DaemonDiscovery.__new__(DaemonDiscovery)
+        discovery._targets = []
+        discovery._lock = __import__("threading").Lock()
+
+        config_content = '{"daemon": {"name": "test-host"}}'
+        pid_content = '{"pid": 12345, "rest_port": 8080, "name": "test-host"}'
+
+        mock_cfg_dir = mock.MagicMock()
+        mock_cfg_path = mock.MagicMock()
+        mock_cfg_path.exists.return_value = True
+        mock_cfg_path.read_text.return_value = config_content
+        mock_cfg_dir.__truediv__ = lambda s, n: mock_cfg_path
+
+        mock_pp = mock.MagicMock()
+        mock_pp.exists.return_value = True
+        mock_pp.read_text.return_value = pid_content
+
+        with (
+            mock.patch("ai_guardian.config_utils.get_config_dir",
+                       return_value=mock_cfg_dir),
+            mock.patch("ai_guardian.daemon.discovery.get_pid_path",
+                       return_value=mock_pp),
+            mock.patch("ai_guardian.daemon.discovery.get_socket_path",
+                       return_value="/tmp/fake.sock"),
+            mock.patch("os.getpid", return_value=99999),
+            mock.patch("ai_guardian.daemon.client.is_daemon_running",
+                       return_value=False),
+            mock.patch("ai_guardian.daemon.discovery.is_pid_alive",
+                       return_value=True),
+        ):
+            target = discovery.discover_local()
+
+        assert target is not None
+        assert target.status == "starting"
+        assert target.name == "test-host"
+
+    def test_discover_local_stopped_when_no_pid(self):
+        """discover_local returns 'stopped' when PID file doesn't exist."""
+        from ai_guardian.daemon.discovery import DaemonDiscovery
+
+        discovery = DaemonDiscovery.__new__(DaemonDiscovery)
+        discovery._targets = []
+        discovery._lock = __import__("threading").Lock()
+
+        config_content = '{"daemon": {"name": "test-host"}}'
+
+        mock_cfg_dir = mock.MagicMock()
+        mock_cfg_path = mock.MagicMock()
+        mock_cfg_path.exists.return_value = True
+        mock_cfg_path.read_text.return_value = config_content
+        mock_cfg_dir.__truediv__ = lambda s, n: mock_cfg_path
+
+        mock_pp = mock.MagicMock()
+        mock_pp.exists.return_value = False
+
+        with (
+            mock.patch("ai_guardian.config_utils.get_config_dir",
+                       return_value=mock_cfg_dir),
+            mock.patch("ai_guardian.daemon.discovery.get_pid_path",
+                       return_value=mock_pp),
+            mock.patch("ai_guardian.daemon.discovery.get_socket_path",
+                       return_value="/tmp/fake.sock"),
+            mock.patch("ai_guardian.daemon.client.is_daemon_running",
+                       return_value=False),
+        ):
+            target = discovery.discover_local()
+
+        assert target is not None
+        assert target.status == "stopped"

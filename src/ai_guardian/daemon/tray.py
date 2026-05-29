@@ -369,7 +369,11 @@ class DaemonTray:
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("About", self._on_about),
+            pystray.MenuItem("About", self._on_about,
+                             enabled=lambda _: any(
+                                 t.status in ("running", "paused")
+                                 for t in self._targets
+                             )),
         )
         self._icon = pystray.Icon(
             "ai-guardian", self._create_icon(), "AI Guardian Tray", menu
@@ -1339,8 +1343,8 @@ class DaemonTray:
         from ai_guardian.daemon.working_dir import shorten_path
 
         status_icon = {
-            "running": "●", "paused": "◐", "stopped": "⚠",
-            "error": "✗", "unknown": "○",
+            "running": "●", "paused": "◐", "starting": "◌",
+            "stopped": "⚠", "error": "✗", "unknown": "○",
         }.get(target.status, "○")
         if target.runtime == "container" and target.container_engine:
             runtime = f" ({target.container_engine})"
@@ -1351,6 +1355,8 @@ class DaemonTray:
         label = f"{status_icon} {target.name}{runtime}"
         if target.status == "stopped":
             label += " — daemon not running"
+        elif target.status == "starting":
+            label += " — starting..."
         elif getattr(target, "working_dir", None):
             short = shorten_path(target.working_dir)
             if len(short) > 40:
@@ -1588,18 +1594,20 @@ class DaemonTray:
         return [
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Console", _open_panel(), visible=_single_vis),
+            pystray.MenuItem("Console", _open_panel(),
+                             visible=_single_vis, enabled=_single_running),
             pystray.MenuItem("Web Console",
                              lambda _, __: self._open_web_console(
                                  self._targets[0].name if self._targets else ""
                              ),
                              visible=lambda _: (self._has_web_console
                                                 and self._is_single_daemon()
-                                                and self._is_web_console_ready())),
+                                                and self._is_web_console_ready()),
+                             enabled=_single_running),
             pystray.MenuItem("Violations", _open_panel("panel-violations"),
-                             visible=_single_vis),
+                             visible=_single_vis, enabled=_single_running),
             pystray.MenuItem("Metrics", _open_panel("panel-metrics"),
-                             visible=_single_vis),
+                             visible=_single_vis, enabled=_single_running),
             pystray.MenuItem(
                 "Statistics",
                 pystray.Menu(
@@ -1616,7 +1624,8 @@ class DaemonTray:
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem(_s_config_reload, None),
                 ),
-                visible=_single_running,
+                visible=_single_vis,
+                enabled=_single_running,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
@@ -1642,6 +1651,7 @@ class DaemonTray:
                     ),
                 ),
                 visible=lambda _: _single_vis(_) and self._is_mcp_for_current_target(),
+                enabled=_single_running,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
@@ -1697,7 +1707,7 @@ class DaemonTray:
             pystray.MenuItem("Stop daemon", _stop_action,
                              visible=_single_running),
             pystray.MenuItem("Restart daemon", _restart_action,
-                             visible=_single_running),
+                             visible=lambda _: self._is_single_daemon()),
         ]
 
     def _build_multi_daemon_menu_items(self):
@@ -1913,12 +1923,18 @@ class DaemonTray:
                 pystray.MenuItem(
                     make_label,
                     pystray.Menu(
-                        pystray.MenuItem("Console", _mk_open_panel()),
+                        pystray.MenuItem("Console", _mk_open_panel(),
+                                         enabled=_is_slot_running),
                         pystray.MenuItem("Web Console",
                                          _mk_web_console_action(idx),
-                                         visible=_mk_web_console_visible(idx)),
-                        pystray.MenuItem("Violations", _mk_open_panel("panel-violations")),
-                        pystray.MenuItem("Metrics", _mk_open_panel("panel-metrics")),
+                                         visible=_mk_web_console_visible(idx),
+                                         enabled=_is_slot_running),
+                        pystray.MenuItem("Violations",
+                                         _mk_open_panel("panel-violations"),
+                                         enabled=_is_slot_running),
+                        pystray.MenuItem("Metrics",
+                                         _mk_open_panel("panel-metrics"),
+                                         enabled=_is_slot_running),
                         pystray.MenuItem(
                             "Statistics",
                             pystray.Menu(
@@ -1935,7 +1951,7 @@ class DaemonTray:
                                 pystray.Menu.SEPARATOR,
                                 pystray.MenuItem(stats_fns[8], None),
                             ),
-                            visible=_is_slot_running,
+                            enabled=_is_slot_running,
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
@@ -1960,7 +1976,8 @@ class DaemonTray:
                                     radio=True,
                                 ),
                             ),
-                            visible=lambda _i, s=idx: _is_slot_running(_i, s) and self._is_mcp_for_slot(s),
+                            visible=lambda _i, s=idx: self._is_mcp_for_slot(s),
+                            enabled=_is_slot_running,
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
@@ -2007,10 +2024,10 @@ class DaemonTray:
                         ),
                         pystray.MenuItem(
                             "Restart daemon", _mk_restart(),
-                            visible=_is_slot_running,
                         ),
                         pystray.Menu.SEPARATOR,
-                        pystray.MenuItem("About", self._on_daemon_about(idx)),
+                        pystray.MenuItem("About", self._on_daemon_about(idx),
+                                         enabled=_is_slot_running),
                     ),
                     visible=make_visible,
                 )
@@ -2580,8 +2597,21 @@ class DaemonTray:
                             )
                 return action
 
+            def _cmd_enabled(_item, ix=i_slot):
+                items_list = get_items_fn()
+                if ix >= len(items_list):
+                    return True
+                item = items_list[ix]
+                if not item.run_on_target:
+                    return True
+                target = get_target_fn()
+                if target is None:
+                    return False
+                return target.status in ("running", "paused")
+
             slots.append(
-                pystray.MenuItem(_cmd_label, _cmd_action(), visible=_cmd_visible)
+                pystray.MenuItem(_cmd_label, _cmd_action(),
+                                 visible=_cmd_visible, enabled=_cmd_enabled)
             )
 
             if depth < self._MAX_SUBMENU_DEPTH:

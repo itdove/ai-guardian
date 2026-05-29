@@ -61,6 +61,7 @@ from ai_guardian.daemon import (
     get_pid_path,
     get_socket_path,
     get_tray_targets_path,
+    is_pid_alive,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ class DaemonTarget:
 
     name: str
     runtime: str  # "local", "container", "kubernetes", "manual"
-    status: str = "unknown"  # "running", "paused", "error", "unknown"
+    status: str = "unknown"  # "running", "paused", "starting", "stopped", "error", "unknown"
     host: str = "127.0.0.1"
     port: int = 0
     container_id: Optional[str] = None
@@ -190,6 +191,7 @@ class DaemonDiscovery:
             config_exists=True,
         )
 
+        local_pid = 0
         pid_path = get_pid_path()
         if pid_path.exists():
             try:
@@ -202,8 +204,8 @@ class DaemonDiscovery:
                 if pid_name:
                     target.name = pid_name
 
-                pid = pid_info.get("pid", 0)
-                if pid == os.getpid():
+                local_pid = pid_info.get("pid", 0)
+                if local_pid == os.getpid():
                     target.status = "running"
                     target.last_seen = time.monotonic()
                     return target
@@ -222,7 +224,10 @@ class DaemonDiscovery:
                 target.status = "running"
             target.last_seen = time.monotonic()
         else:
-            target.status = "stopped"
+            if local_pid and is_pid_alive(local_pid):
+                target.status = "starting"
+            else:
+                target.status = "stopped"
 
         return target
 
