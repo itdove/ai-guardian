@@ -404,6 +404,9 @@ def format_csv(violations: List[Dict], stream: TextIO) -> None:
 def metrics_command(args) -> int:
     """CLI entry point for the metrics command.
 
+    Routes to the audit module for --html, --until, --severity flags
+    which need the enriched AuditComputer. Basic metrics use MetricsComputer.
+
     Args:
         args: Parsed argparse.Namespace
 
@@ -412,6 +415,16 @@ def metrics_command(args) -> int:
     """
     if getattr(args, "reset", False):
         return _reset_counters(args)
+
+    use_audit = (
+        getattr(args, "html", False)
+        or getattr(args, "until", None)
+        or getattr(args, "severity", None)
+    )
+
+    if use_audit:
+        from ai_guardian.audit import audit_command
+        return audit_command(args)
 
     try:
         since_value = getattr(args, "since", "30d") or "30d"

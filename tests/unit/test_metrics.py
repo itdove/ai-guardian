@@ -566,3 +566,54 @@ class TestCumulativeFields:
         report = MetricsReport(total_violations=5)
         output = format_human(report)
         assert "Cumulative Totals" not in output
+
+
+class TestMetricsAuditRouting:
+    """Test that metrics_command routes to audit for --html/--until/--severity."""
+
+    def _make_args(self, html=False, until=None, severity=None, **kwargs):
+        defaults = dict(json=False, csv=False, since="30d", type=None,
+                        reset=False, metrics_yes=False)
+        defaults.update(kwargs)
+        return argparse.Namespace(
+            html=html, until=until, severity=severity, **defaults
+        )
+
+    def test_html_routes_to_audit(self, _isolate_config_dir, capsys):
+        state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
+        _write_violations(state_dir, [_make_violation()])
+        result = metrics_command(self._make_args(html=True))
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "<!DOCTYPE html>" in captured.out
+
+    def test_severity_routes_to_audit(self, _isolate_config_dir, capsys):
+        state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
+        _write_violations(state_dir, [
+            _make_violation(severity="warning"),
+            _make_violation(severity="critical"),
+        ])
+        result = metrics_command(self._make_args(severity="critical", json=True))
+        assert result == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert data["summary"]["total"] == 1
+
+    def test_until_routes_to_audit(self, _isolate_config_dir, capsys):
+        state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
+        _write_violations(state_dir, [_make_violation()])
+        until_date = "2099-01-01"
+        result = metrics_command(self._make_args(until=until_date, json=True))
+        assert result == 0
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+        assert "summary" in data
+
+    def test_basic_metrics_unchanged(self, _isolate_config_dir, capsys):
+        state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
+        _write_violations(state_dir, [_make_violation()])
+        result = metrics_command(self._make_args())
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "AI Guardian Metrics" in captured.out
+        assert "<!DOCTYPE html>" not in captured.out
