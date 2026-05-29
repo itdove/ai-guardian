@@ -2129,6 +2129,11 @@ class TestFindProjectPluginsDir:
 class TestLoadMergedPlugins:
     """Tests for merging user-level and project-level plugins."""
 
+    @pytest.fixture(autouse=True)
+    def _no_bundled(self):
+        with mock.patch("ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]):
+            yield
+
     def _make_plugin_json(self, path, name, label="Action", command="echo ok"):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({
