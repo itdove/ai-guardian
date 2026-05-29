@@ -266,7 +266,7 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
                        no_threats: bool = False, no_images: bool = False,
                        include: Optional[List[str]] = None,
                        exclude: Optional[List[str]] = None,
-                       redact_strategy: str = "blur") -> Dict:
+                       redact_strategy: str = "blackout") -> Dict:
     """
     Sanitize all files in a directory, writing redacted output to output_dir.
 
@@ -362,7 +362,7 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
 def _sanitize_image_to_path(input_path: str, output_path: str,
                              no_secrets: bool = False, no_pii: bool = False,
                              no_threats: bool = False,
-                             redact_strategy: str = "blur") -> Dict:
+                             redact_strategy: str = "blackout") -> Dict:
     """Sanitize an image file writing to output_path. Returns stats dict."""
     try:
         from ai_guardian.image_scanner import (
@@ -492,7 +492,7 @@ def _sanitize_image(input_path: str, args) -> int:
                ".tiff": "TIFF", ".tif": "TIFF", ".webp": "WEBP", ".gif": "GIF"}
     output_format = fmt_map.get(ext, "PNG")
 
-    strategy = getattr(args, "redact_strategy", "blur") or "blur"
+    strategy = getattr(args, "redact_strategy", "blackout") or "blackout"
     redactor = ImageRedactor(method=strategy)
     redacted_bytes = redactor.redact_regions(image_data, regions_to_redact, output_format=output_format)
 
@@ -556,7 +556,7 @@ def _sanitize_directory_command(args) -> int:
         no_images=getattr(args, "no_images", False),
         include=getattr(args, "include", None),
         exclude=getattr(args, "exclude", None),
-        redact_strategy=getattr(args, "redact_strategy", "blur") or "blur",
+        redact_strategy=getattr(args, "redact_strategy", "blackout") or "blackout",
     )
 
     if args.summary:
@@ -583,7 +583,7 @@ def _sanitize_directory_command(args) -> int:
             for detail in result["file_details"]:
                 if detail["type"] == "image":
                     _labels = {"blur": "blurred", "blackout": "blacked out", "pixelate": "pixelated"}
-                    strategy = getattr(args, "redact_strategy", "blur") or "blur"
+                    strategy = getattr(args, "redact_strategy", "blackout") or "blackout"
                     rtype = f"regions {_labels.get(strategy, 'redacted')}"
                 else:
                     rtype = "redacted"

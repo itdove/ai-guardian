@@ -216,9 +216,9 @@ class OCREngine:
 class ImageRedactor:
     """Redacts regions of an image using blur, blackout, or pixelate."""
 
-    def __init__(self, method: str = "blur"):
+    def __init__(self, method: str = "blackout"):
         if method not in ("blur", "blackout", "pixelate"):
-            method = "blur"
+            method = "blackout"
         self.method = method
 
     def redact_regions(
@@ -244,14 +244,14 @@ class ImageRedactor:
             cropped = img.crop(box)
 
             if self.method == "blur":
-                radius = max(w, h) // 3
-                if radius < 10:
-                    radius = 10
+                radius = max(w, h) // 2
+                if radius < 20:
+                    radius = 20
                 redacted = cropped.filter(ImageFilter.GaussianBlur(radius=radius))
             elif self.method == "blackout":
                 redacted = Image.new("RGB", cropped.size, (0, 0, 0))
             elif self.method == "pixelate":
-                small_size = (max(1, w // 8), max(1, h // 8))
+                small_size = (min(w, 2), min(h, 2))
                 small = cropped.resize(small_size, Image.BILINEAR)
                 redacted = small.resize(cropped.size, Image.NEAREST)
             else:

@@ -204,8 +204,8 @@ class TestSanitizeDirectory:
         assert kwargs.get("redact_strategy") == "blackout"
 
     @patch("ai_guardian.sanitizer.sanitize_directory")
-    def test_invalid_redact_strategy_defaults_to_blur(self, mock_sanitize_dir, tmp_path):
-        """Invalid redact_strategy should fall back to blur."""
+    def test_invalid_redact_strategy_defaults_to_blackout(self, mock_sanitize_dir, tmp_path):
+        """Invalid redact_strategy should fall back to blackout."""
         input_dir = tmp_path / "src"
         input_dir.mkdir()
         (input_dir / "test.txt").write_text("hello")
@@ -221,7 +221,7 @@ class TestSanitizeDirectory:
         result = tool.fn(path=str(input_dir), redact_strategy="invalid")
 
         _, kwargs = mock_sanitize_dir.call_args
-        assert kwargs.get("redact_strategy") == "blur"
+        assert kwargs.get("redact_strategy") == "blackout"
 
 
 class TestCheckAnnotations:

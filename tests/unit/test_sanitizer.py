@@ -394,7 +394,7 @@ class TestSanitizeImageCommand:
             no_threats=False,
             summary=True,
             exit_code=False,
-            redact_strategy="blur",
+            redact_strategy="blackout",
         )
         defaults.update(kwargs)
         return SimpleNamespace(**defaults)
@@ -578,7 +578,7 @@ class TestSanitizeDirectoryCommand:
             force=False,
             summary=False,
             exit_code=False,
-            redact_strategy="blur",
+            redact_strategy="blackout",
         )
         defaults.update(kwargs)
         return SimpleNamespace(**defaults)
