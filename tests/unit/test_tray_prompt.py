@@ -212,6 +212,19 @@ class TestTrayPromptAppCreation:
         app = TrayPromptApp([], "echo")
         assert app._extra_vars == {}
 
+    def test_app_stores_path_file_param(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        params = [{"name": "file", "type": "path-file", "hint": "Pick a file"}]
+        app = TrayPromptApp(params, "sanitize {tray.file}")
+        assert app._params[0]["type"] == "path-file"
+
+    def test_app_stores_path_dir_param(self):
+        from ai_guardian.tui.tray_prompt import TrayPromptApp
+        params = [{"name": "dir", "type": "path-dir", "default": "."}]
+        app = TrayPromptApp(params, "scan {tray.dir}")
+        assert app._params[0]["type"] == "path-dir"
+        assert app._params[0]["default"] == "."
+
 
 class TestTrayPromptFallback:
     """Tests for tkinter-first / Textual-fallback selection."""

@@ -18,7 +18,10 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 logger = logging.getLogger(__name__)
 
 
-_PARAM_TYPES = frozenset({"string", "int", "number", "boolean", "choice", "combobox"})
+_PARAM_TYPES = frozenset({
+    "string", "int", "number", "boolean", "choice", "combobox",
+    "path-file", "path-dir",
+})
 
 
 @dataclass

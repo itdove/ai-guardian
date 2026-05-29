@@ -117,6 +117,19 @@ class _TkinterPromptApp:
                 widget.grid(row=i, column=1, sticky="ew", pady=(8, 2))
                 self._widgets[param["name"]] = ("entry", var)
 
+            elif ptype in ("path-file", "path-dir"):
+                var = tk.StringVar(value=default)
+                path_frame = ttk.Frame(frame)
+                path_frame.grid(row=i, column=1, sticky="ew", pady=(8, 2))
+                entry = ttk.Entry(path_frame, textvariable=var, width=25)
+                entry.pack(side="left", fill="x", expand=True)
+                browse_btn = ttk.Button(
+                    path_frame, text="Browse…",
+                    command=self._make_browse_callback(var, ptype),
+                )
+                browse_btn.pack(side="left", padx=(4, 0))
+                self._widgets[param["name"]] = ("entry", var)
+
             else:
                 var = tk.StringVar(value=default)
                 widget = ttk.Entry(frame, textvariable=var, width=30)
@@ -160,7 +173,26 @@ class _TkinterPromptApp:
         from ai_guardian.daemon.tray_plugins import substitute_params
         return substitute_params(str(value), self._extra_vars)
 
+    def _make_browse_callback(self, var, ptype):
+        def _browse():
+            from tkinter import filedialog
+            initial = var.get() or None
+            if ptype == "path-dir":
+                path = filedialog.askdirectory(
+                    parent=self._root,
+                    initialdir=initial,
+                )
+            else:
+                path = filedialog.askopenfilename(
+                    parent=self._root,
+                    initialdir=initial,
+                )
+            if path:
+                var.set(path)
+        return _browse
+
     def _submit(self):
+        import shlex
         from ai_guardian.daemon.tray_plugins import (
             PluginParam, substitute_params, validate_param_value,
         )
@@ -193,6 +225,12 @@ class _TkinterPromptApp:
                     "Validation Error", err, parent=self._root,
                 )
                 return
+
+        for param in self._params:
+            ptype = param.get("type", "string")
+            name = param["name"]
+            if ptype in ("path-file", "path-dir") and values.get(name):
+                values[name] = shlex.quote(values[name])
 
         self._result = substitute_params(self._command_template, values)
         self._root.destroy()
@@ -279,7 +317,21 @@ class _TextualPromptApp:
                                 )
                             else:
                                 placeholder = param.get("hint", "")
-                                if (
+                                if ptype == "path-file":
+                                    suffix = " [file path]"
+                                    placeholder = (
+                                        placeholder + suffix
+                                        if placeholder
+                                        else "Enter file path"
+                                    )
+                                elif ptype == "path-dir":
+                                    suffix = " [directory path]"
+                                    placeholder = (
+                                        placeholder + suffix
+                                        if placeholder
+                                        else "Enter directory path"
+                                    )
+                                elif (
                                     ptype == "combobox"
                                     and param.get("options")
                                 ):
@@ -313,6 +365,7 @@ class _TextualPromptApp:
                 self_inner.exit(result=None)
 
             def _do_submit(self_inner):
+                import shlex
                 from ai_guardian.daemon.tray_plugins import (
                     PluginParam, substitute_params, validate_param_value,
                 )
@@ -358,6 +411,12 @@ class _TextualPromptApp:
                     if not valid:
                         self_inner.notify(err, severity="error")
                         return
+
+                for param in params:
+                    ptype = param.get("type", "string")
+                    name = param["name"]
+                    if ptype in ("path-file", "path-dir") and values.get(name):
+                        values[name] = shlex.quote(values[name])
 
                 final = substitute_params(command_template, values)
                 self_inner.exit(result=final)

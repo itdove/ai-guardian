@@ -215,9 +215,9 @@
         },
         "type": {
           "type": "string",
-          "enum": ["string", "int", "number", "boolean", "choice", "combobox"],
+          "enum": ["string", "int", "number", "boolean", "choice", "combobox", "path-file", "path-dir"],
           "default": "string",
-          "description": "Field type controlling the widget and validation. 'string' (default) shows a text input, 'int'/'number' validates numeric input, 'boolean' shows a checkbox, 'choice' shows a dropdown, 'combobox' shows an editable input with suggestions."
+          "description": "Field type controlling the widget and validation. 'string' (default) shows a text input, 'int'/'number' validates numeric input, 'boolean' shows a checkbox, 'choice' shows a dropdown, 'combobox' shows an editable input with suggestions, 'path-file' opens a native file picker dialog, 'path-dir' opens a native directory picker dialog."
         },
         "required": {
           "type": "boolean",
