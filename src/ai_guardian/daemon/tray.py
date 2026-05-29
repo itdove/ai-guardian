@@ -732,6 +732,30 @@ class DaemonTray:
         return [sys.executable, "-m", "ai_guardian"] + list(args)
 
     @staticmethod
+    def _resolve_plugin_ai_guardian(command_str, run_on_target, target):
+        """Replace bare ``ai-guardian`` with the tray's Python interpreter.
+
+        Skipped for remote targets (container / kubernetes) where the
+        command must resolve via PATH on the remote host.
+        """
+        import shlex
+        import sys
+
+        is_remote = (
+            run_on_target and target
+            and getattr(target, "runtime", "local")
+            in ("container", "kubernetes")
+        )
+        if is_remote:
+            return command_str
+
+        stripped = command_str.lstrip()
+        if stripped == "ai-guardian" or stripped.startswith("ai-guardian "):
+            resolved = shlex.quote(sys.executable) + " -m ai_guardian"
+            return resolved + stripped[len("ai-guardian"):]
+        return command_str
+
+    @staticmethod
     def _launch_console(panel=None):
         """Launch the ai-guardian console in a new terminal window."""
         from ai_guardian.daemon.multi_client import _launch_in_terminal
@@ -2089,6 +2113,10 @@ class DaemonTray:
             command_str = substitute_params(
                 command_str, {"working_dir": target.working_dir},
             )
+
+        command_str = DaemonTray._resolve_plugin_ai_guardian(
+            command_str, run_on_target, target,
+        )
 
         if _needs_shell(command_str):
             cmd_parts = ["sh", "-c", command_str]
