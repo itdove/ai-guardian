@@ -238,6 +238,53 @@ def create_server() -> "FastMCP":
 
     @server.tool()
 
+    def sanitize_directory(
+        path: str,
+        output_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Sanitize a directory by redacting secrets and PII from all text and image files.
+        Preserves directory structure in the output directory.
+        Returns summary of files processed and redactions made."""
+        try:
+            valid, err, resolved = _validate_scan_path(path)
+            if not valid:
+                return {"status": "error", "message": err}
+
+            if not resolved.is_dir():
+                return {"status": "error", "message": f"Not a directory: {path}"}
+
+            if output_path:
+                out_dir = Path(output_path).resolve()
+                try:
+                    out_dir.relative_to(resolved)
+                    return {"status": "error", "message": "Output directory cannot be inside source directory"}
+                except ValueError:
+                    pass
+            else:
+                out_dir = Path(tempfile.mkdtemp(prefix="ai-guardian-sanitized-"))
+                (out_dir / ".ai-read-deny").touch()
+
+            from ai_guardian.sanitizer import sanitize_directory as _sanitize_dir
+
+            result = _sanitize_dir(input_dir=resolved, output_dir=out_dir)
+
+            return {
+                "output_path": str(out_dir),
+                "text_files": result["text_files"],
+                "image_files": result["image_files"],
+                "binary_files": result["binary_files"],
+                "skipped_files": result["skipped_files"],
+                "total_redactions": result["total_redaction_count"],
+                "redaction_details": result["total_redactions"],
+                "errors": result["errors"],
+                "message": f"Sanitized {result['text_files'] + result['image_files']} files to {out_dir}",
+            }
+        except Exception as e:
+            logger.error("sanitize_directory error: %s", e)
+            return {"status": "error", "message": "Unable to sanitize directory"}
+
+    @server.tool()
+
     def check_annotations(file_path: str) -> Dict[str, Any]:
         """Verify ai-guardian annotation pairs are matched in a file. Results are advisory — hooks provide enforcement."""
         try:

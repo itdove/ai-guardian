@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Directory sanitization** (Issue #857)
+  - `ai-guardian sanitize /path/to/dir --output-dir /path/to/sanitized` recursively sanitizes all files
+  - Text files redacted (secrets, PII, threats); image files OCR-scanned and redacted; binary files copied as-is
+  - Preserves directory structure in output
+  - `--include` / `--exclude` glob patterns for filtering files (repeatable)
+  - `--no-images` flag to skip OCR processing (copy images as-is)
+  - `--force` flag to write to an existing output directory
+  - `--summary` shows per-file redaction counts and totals
+  - Skips `.git`, `node_modules`, `__pycache__`, `.venv` directories automatically
+  - New `sanitize_directory` MCP tool for AI agent integration
+  - Tray quick actions: "Sanitize File..." and "Sanitize Directory..." in global plugin menu
+
 - **Image OCR scanning in `scan_directory` and `sanitize`** (Issue #855)
   - `ai-guardian scan` and the `scan_directory` MCP tool now include image files (PNG, JPEG, etc.) via OCR
   - Extracted text is scanned through all existing detectors (secrets, PII, SSRF, prompt injection, unicode)

@@ -598,6 +598,32 @@ def main():
             action="store_true",
             help="Exit with code 1 if redactions were made (for CI/CD)"
         )
+        sanitize_parser.add_argument(
+            "--output-dir",
+            help="Output directory for sanitized files (required when input is a directory)"
+        )
+        sanitize_parser.add_argument(
+            "--include",
+            action="append",
+            default=None,
+            help="Glob pattern for files to include (repeatable; e.g., --include '*.py')"
+        )
+        sanitize_parser.add_argument(
+            "--exclude",
+            action="append",
+            default=None,
+            help="Glob pattern for files to exclude (repeatable; e.g., --exclude '*.log')"
+        )
+        sanitize_parser.add_argument(
+            "--no-images",
+            action="store_true",
+            help="Skip image OCR processing (copy images as-is)"
+        )
+        sanitize_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Allow writing to an existing output directory"
+        )
 
         # Doctor subcommand (Issue #475)
         doctor_parser = subparsers.add_parser(
