@@ -622,8 +622,8 @@ def main():
         sanitize_parser.add_argument(
             "--redact-strategy",
             choices=["blur", "blackout", "pixelate"],
-            default="blur",
-            help="Image redaction method (default: blur)"
+            default="blackout",
+            help="Image redaction method (default: blackout)"
         )
         sanitize_parser.add_argument(
             "--force",

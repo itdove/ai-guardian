@@ -267,7 +267,7 @@ def create_server() -> "FastMCP":
 
             from ai_guardian.sanitizer import sanitize_directory as _sanitize_dir
 
-            strategy = redact_strategy if redact_strategy in ("blur", "blackout", "pixelate") else "blur"
+            strategy = redact_strategy if redact_strategy in ("blur", "blackout", "pixelate") else "blackout"
             result = _sanitize_dir(input_dir=resolved, output_dir=out_dir, redact_strategy=strategy)
 
             return {

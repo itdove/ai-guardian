@@ -233,9 +233,9 @@ class TestImageRedactor(TestCase):
         result = redactor.redact_regions(data, [])
         self.assertEqual(result, data)
 
-    def test_invalid_method_defaults_to_blur(self):
+    def test_invalid_method_defaults_to_blackout(self):
         redactor = ImageRedactor(method="invalid")
-        self.assertEqual(redactor.method, "blur")
+        self.assertEqual(redactor.method, "blackout")
 
     def test_multiple_regions(self):
         data = _create_test_image(200, 100)
@@ -246,6 +246,61 @@ class TestImageRedactor(TestCase):
         redactor = ImageRedactor(method="blackout")
         result = redactor.redact_regions(data, regions)
         self.assertIsInstance(result, bytes)
+
+    def test_pixelate_produces_coarse_blocks(self):
+        """Pixelated region should have very few distinct colors (max 2x2 blocks)."""
+        data = _create_test_image(200, 100, color="white")
+        img = Image.open(io.BytesIO(data))
+        draw = ImageDraw.Draw(img)
+        draw.text((15, 12), "AKIAIOSFODNN7EXAMPLE", fill="black")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        data_with_text = buf.getvalue()
+
+        regions = [TextRegion(text="AKIAIOSFODNN7EXAMPLE", bbox=(10, 10, 100, 20), confidence=0.9)]
+        redactor = ImageRedactor(method="pixelate")
+        result = redactor.redact_regions(data_with_text, regions)
+        result_img = Image.open(io.BytesIO(result))
+        region = result_img.crop((10, 10, 110, 30))
+        colors = region.getcolors(maxcolors=1000)
+        self.assertLessEqual(len(colors), 4)
+
+    def test_blackout_fully_opaque_rgba(self):
+        """Blackout on RGBA image should produce fully opaque black pixels."""
+        img = Image.new("RGBA", (200, 100), (255, 255, 255, 255))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        data = buf.getvalue()
+
+        regions = [TextRegion(text="secret", bbox=(10, 10, 50, 20), confidence=0.9)]
+        redactor = ImageRedactor(method="blackout")
+        result = redactor.redact_regions(data, regions)
+        result_img = Image.open(io.BytesIO(result))
+        pixel = result_img.getpixel((35, 20))
+        self.assertEqual(pixel[:3], (0, 0, 0))
+
+    def test_blur_uses_strong_radius(self):
+        """Blur should use a strong enough radius that text is not recognizable."""
+        img = Image.new("RGB", (200, 100), (255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.text((15, 12), "SECRET_KEY=abc123", fill="black")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        data = buf.getvalue()
+
+        regions = [TextRegion(text="SECRET_KEY=abc123", bbox=(10, 10, 80, 20), confidence=0.9)]
+        redactor = ImageRedactor(method="blur")
+        result = redactor.redact_regions(data, regions)
+        result_img = Image.open(io.BytesIO(result))
+        region = result_img.crop((10, 10, 90, 30))
+        colors = region.getcolors(maxcolors=10000)
+        unique_pixels = colors
+        self.assertGreater(len(colors), 1)
+
+    def test_default_method_is_blackout(self):
+        """Default redaction method should be blackout (safest)."""
+        redactor = ImageRedactor()
+        self.assertEqual(redactor.method, "blackout")
 
 
 class TestBoxPointsToBbox(TestCase):

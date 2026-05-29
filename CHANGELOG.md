@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Image redaction too weak** (Issue #870)
+  - Pixelate strategy now uses max 2x2 intermediate size (was w/8 x h/8), making text unreadable at any zoom
+  - Blur strategy minimum radius increased from 10 to 20, divisor changed from /3 to /2 for stronger blur
+  - Default redaction strategy changed from `blur` to `blackout` (safest — fully opaque rectangles)
+  - Updated default in CLI, MCP server, and sanitizer to `blackout`
+
 - **Metrics total stuck at 1000** (Issue #853)
   - Added running violation counter (`violation_counters.json`) independent of log rotation
   - Counter increments on every violation and persists across daemon restarts
