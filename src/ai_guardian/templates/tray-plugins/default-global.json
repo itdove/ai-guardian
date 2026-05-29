@@ -6,7 +6,7 @@
     {
       "label": "Scan Directory...",
       "command": "ai-guardian scan {tray.directory}",
-      "type": "terminal",
+      "type": "modal",
       "params": [
         {
           "name": "directory",
@@ -19,7 +19,7 @@
     {
       "label": "Sanitize File...",
       "command": "ai-guardian sanitize {tray.file} -o {tray.output_file} --redact-strategy {tray.redact_strategy} --summary",
-      "type": "terminal",
+      "type": "modal",
       "params": [
         {
           "name": "file",
@@ -43,7 +43,7 @@
     {
       "label": "Sanitize Directory...",
       "command": "ai-guardian sanitize {tray.directory} --output-dir {tray.output_dir} --redact-strategy {tray.redact_strategy} --summary",
-      "type": "terminal",
+      "type": "modal",
       "params": [
         {
           "name": "directory",
