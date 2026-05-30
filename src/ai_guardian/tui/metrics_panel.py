@@ -8,8 +8,9 @@ Display violation statistics, trends, and compliance audit report.
 import platform
 import subprocess
 import tempfile
-import webbrowser
 from pathlib import Path
+
+from ai_guardian.desktop_utils import open_url
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -301,7 +302,7 @@ class MetricsContent(Container):
             folder_btn.disabled = False
 
             if fmt == "html":
-                webbrowser.open(f"file://{self._last_export_path}")
+                open_url(f"file://{self._last_export_path}")
 
         except Exception as e:
             status = self.query_one("#export-status", Static)

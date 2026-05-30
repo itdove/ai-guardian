@@ -122,7 +122,21 @@ The TUI remains the primary interface. The web console is for users who prefer a
 
    Run `ai-guardian doctor` to check whether the extension is detected.
 
-5. **Linux terminal emulator**: The tray **Console** menu item opens the Console in a terminal window. A supported terminal emulator must be installed: `gnome-terminal`, `kgx` (GNOME Console), `konsole`, `xfce4-terminal`, or `xterm`. Fedora 44+ ships `kgx` by default, which is supported. If none is found, install one:
+5. **Linux browser window raising (optional)**: On KDE/GNOME, opening the Web Console may leave the browser minimized. Install one of the following so AI Guardian can raise the browser window automatically:
+
+   ```bash
+   # KDE Wayland (recommended for modern KDE)
+   sudo dnf install kdotool    # Fedora / RHEL
+   sudo apt install kdotool    # Ubuntu / Debian
+
+   # X11 (any desktop)
+   sudo dnf install xdotool    # Fedora / RHEL
+   sudo apt install xdotool    # Ubuntu / Debian
+   ```
+
+   AI Guardian tries `kdotool` (KDE Wayland), then `xdotool` (X11), then `wmctrl` (X11). Without any of these tools, the URL still opens but the browser window may stay minimized.
+
+6. **Linux terminal emulator**: The tray **Console** menu item opens the Console in a terminal window. A supported terminal emulator must be installed: `gnome-terminal`, `kgx` (GNOME Console), `konsole`, `xfce4-terminal`, or `xterm`. Fedora 44+ ships `kgx` by default, which is supported. If none is found, install one:
 
    ```bash
    # Fedora / RHEL

@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Browser window stays minimized on KDE/GNOME** (Issue #888)
+  - On Linux, after opening a URL, attempt to raise the browser window via
+    `kdotool` (KDE Wayland), `xdotool` (X11), or `wmctrl` (X11)
+  - Graceful degradation: silently continues if none is installed
+  - Applies to: Web Console, Violations, Metrics & Audit, HTML export,
+    NiceGUI web console startup, and tray-plugin parameter capture
+  - macOS and Windows unaffected
+
 - **Aadhaar PII false positive on UUID all-zeros** (Issue #876)
   - Added `aadhaar_check` post-match validator following the credit card validation pattern
   - Rejects numbers starting with 0 or 1 (real Aadhaar starts with 2-9)

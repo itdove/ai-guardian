@@ -723,12 +723,17 @@ class _NiceGuiPromptApp:
 
         app.on_disconnect(_on_disconnect)
         port = _find_free_port()
+
+        from ai_guardian.desktop_utils import open_url
+        url = f"http://127.0.0.1:{port}"
+        app.on_startup(lambda: open_url(url))
+
         ui.run(
             host="127.0.0.1",
             port=port,
             title=form_title,
             dark=True,
-            show=True,
+            show=False,
             reload=False,
         )
         return result_holder["value"]

@@ -867,15 +867,15 @@ class DaemonTray:
     @staticmethod
     def _open_web_console(daemon_name: str = "", page: str = ""):
         """Open the web console for a specific daemon and optional page."""
-        import webbrowser
         from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.desktop_utils import open_url
         port_file = get_state_dir() / "web-console.port"
         try:
             port = int(port_file.read_text().strip())
             path = f"/{daemon_name}" if daemon_name else ""
             if page:
                 path = f"{path}/{page}"
-            webbrowser.open(f"http://127.0.0.1:{port}{path}")
+            open_url(f"http://127.0.0.1:{port}{path}")
         except (ValueError, OSError):
             pass
 
