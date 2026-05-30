@@ -30,6 +30,12 @@ from ai_guardian.tool_policy import _strip_bash_heredoc_content
 from ai_guardian.utils.path_matching import match_ignore_pattern
 from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
 
+try:
+    from ai_guardian.ast_scanner import extract_scannable_content
+    HAS_AST_SCANNER = True
+except ImportError:
+    HAS_AST_SCANNER = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -1210,6 +1216,14 @@ class PromptInjectionDetector:
             if self._is_file_ignored(file_path):
                 logger.info(f"Skipping prompt injection detection for ignored file: {file_path}")
                 return False, None, False
+
+            # AST-aware scanning: for code files, extract only comments and strings
+            if HAS_AST_SCANNER and source_type == "file_content" and file_path:
+                extracted = extract_scannable_content(content, file_path)
+                if extracted is not None:
+                    content = extracted
+                    if not content.strip():
+                        return False, None, False
 
             # Strip heredoc content before checking for injection patterns
             # This prevents false positives when heredoc content mentions protected keywords
