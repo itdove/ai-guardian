@@ -674,6 +674,30 @@ def is_feature_enabled(feature_config, current_time: Optional[datetime] = None, 
     return default
 
 
+_FEATURE_KEYS = (
+    "secret_scanning", "scan_pii", "prompt_injection",
+    "config_file_scanning", "violation_logging", "ssrf_protection",
+    "secret_redaction", "transcript_scanning", "image_scanning",
+)
+
+
+def get_feature_flags(cfg: Dict) -> Dict[str, bool]:
+    """Extract feature enabled/disabled flags from a config dict.
+
+    Returns a dict mapping feature key to boolean enabled state.
+    The ``permissions`` key is included separately.
+    """
+    features: Dict[str, bool] = {}
+    for key in _FEATURE_KEYS:
+        section = cfg.get(key)
+        if isinstance(section, dict):
+            features[key] = is_feature_enabled(section.get("enabled", True))
+        else:
+            features[key] = bool(section) if section is not None else True
+    features["permissions"] = cfg.get("permissions", {}).get("enabled", True)
+    return features
+
+
 def validate_regex_pattern(pattern: str, max_length: int = 500) -> bool:
     """
     Validate a regex pattern for safety before compilation.

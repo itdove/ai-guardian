@@ -2328,7 +2328,8 @@ class TestPluginMenuItems:
             time.sleep(1.5)
             if mock_exec.called:
                 mock_exec.assert_called_once_with(
-                    "deploy prod", "terminal", target=None, label="Deploy",
+                    "deploy prod", "terminal", target=None,
+                    run_on_target=False, label="Deploy",
                 )
 
     def test_execute_plugin_command_with_params_noop_on_cancel(self):
