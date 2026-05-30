@@ -801,6 +801,22 @@ ai-guardian daemon status
 
 Disable on headless servers or when the tray icon is not needed.
 
+### How do I fix the browser staying minimized on Linux?
+
+On KDE and GNOME, clicking **Web Console**, **Violations**, or **Metrics & Audit** in the tray opens the URL but the browser window may stay minimized. Install one of these tools:
+
+```bash
+# KDE Wayland (recommended for modern KDE)
+sudo dnf install kdotool    # Fedora / RHEL
+sudo apt install kdotool    # Ubuntu / Debian
+
+# X11 (any desktop)
+sudo dnf install xdotool    # Fedora / RHEL
+sudo apt install xdotool    # Ubuntu / Debian
+```
+
+AI Guardian tries `kdotool`, then `xdotool`, then `wmctrl` — whichever is found first. If none is installed the URL still opens normally.
+
 ### How do I enable Kubernetes daemon discovery?
 
 ```json

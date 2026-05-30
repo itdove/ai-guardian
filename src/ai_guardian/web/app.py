@@ -81,6 +81,12 @@ class WebConsole:
             except OSError:
                 pass
 
+        if show:
+            from ai_guardian.desktop_utils import open_url
+            url = f"http://{host}:{port}"
+            app.on_startup(lambda: open_url(url))
+            show = False
+
         ui.run(
             host=host,
             port=port,
