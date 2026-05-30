@@ -3857,3 +3857,124 @@ class TestDiscoveryStartingStatus:
 
         assert target is not None
         assert target.status == "stopped"
+
+
+class TestTrayAutoStartDaemon:
+    """Tests for tray auto-starting daemon on user interaction (#889)."""
+
+    def _make_tray(self, standalone=True):
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            standalone=standalone,
+        )
+
+    def test_autostart_when_daemon_stopped(self):
+        tray = self._make_tray(standalone=True)
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                return_value=False,
+            ) as mock_running,
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background",
+                return_value=True,
+            ) as mock_start,
+        ):
+            tray._check_and_autostart_daemon()
+
+        mock_running.assert_called_once()
+        mock_start.assert_called_once()
+
+    def test_no_autostart_when_daemon_running(self):
+        tray = self._make_tray(standalone=True)
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                return_value=True,
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background",
+            ) as mock_start,
+        ):
+            tray._check_and_autostart_daemon()
+
+        mock_start.assert_not_called()
+
+    def test_no_autostart_when_not_standalone(self):
+        tray = self._make_tray(standalone=False)
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running",
+        ) as mock_running:
+            tray._check_and_autostart_daemon()
+
+        mock_running.assert_not_called()
+
+    def test_autostart_cooldown(self):
+        tray = self._make_tray(standalone=True)
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                return_value=False,
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background",
+                return_value=True,
+            ) as mock_start,
+        ):
+            tray._check_and_autostart_daemon()
+            tray._check_and_autostart_daemon()
+
+        mock_start.assert_called_once()
+
+    def test_autostart_triggers_discovery_refresh(self):
+        tray = self._make_tray(standalone=True)
+        tray._discovery = mock.MagicMock()
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                return_value=False,
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background",
+                return_value=True,
+            ),
+            mock.patch.object(
+                tray, "_request_discovery_refresh",
+            ) as mock_refresh,
+        ):
+            tray._check_and_autostart_daemon()
+
+        mock_refresh.assert_called_once_with(wait=False)
+
+    def test_autostart_called_from_single_daemon_action(self):
+        tray = self._make_tray(standalone=True)
+        target = DaemonTarget(
+            name="local", runtime="local", status="stopped",
+        )
+        tray._targets = [target]
+        tray._multi_client = mock.MagicMock()
+
+        with mock.patch.object(
+            tray, "_check_and_autostart_daemon",
+        ) as mock_check:
+            with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+                mock_pystray.MenuItem = mock.MagicMock()
+                mock_pystray.Menu = mock.MagicMock()
+                mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+                items = tray._build_single_daemon_menu_items()
+
+            for item_call in mock_pystray.MenuItem.call_args_list:
+                args = item_call[0]
+                if len(args) >= 2 and callable(args[1]) and args[1] is not None:
+                    label = args[0]
+                    if callable(label):
+                        label_text = label(None)
+                    else:
+                        label_text = label
+                    if label_text == "Console":
+                        args[1](None, None)
+                        break
+
+            mock_check.assert_called()

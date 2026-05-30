@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tray auto-starts daemon on user interaction** (Issue #889)
+  - When the user clicks Console, Violations, Terminal, or other tray menu
+    actions, the local daemon is automatically started if it has stopped
+    (idle timeout or crash)
+  - Paused daemons are NOT restarted — the user intentionally paused them
+  - Respects the stop-requested marker from `daemon stop`
+  - 5-second cooldown between auto-start attempts
+  - Works in both single-daemon and multi-daemon tray modes
+
 - **Compliance audit in metrics** (Issue #476)
   - `ai-guardian metrics` extended with `--html`, `--until`, `--severity` flags
   - `--html` outputs self-contained HTML audit report with inline CSS and SVG charts

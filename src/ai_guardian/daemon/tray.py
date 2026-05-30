@@ -222,6 +222,7 @@ class DaemonTray:
         self._last_discovery_refresh = 0.0
         self._refresh_event = threading.Event()
         self._web_proc = None
+        self._last_autostart_attempt = 0.0
 
     def start(self):
         """Start tray icon in a background thread.
@@ -292,6 +293,33 @@ class DaemonTray:
         try:
             port_file.unlink(missing_ok=True)
         except OSError:
+            pass
+
+    _AUTOSTART_COOLDOWN = 5.0
+
+    def _check_and_autostart_daemon(self):
+        """Auto-start local daemon if stopped (idle timeout or crash).
+
+        Only runs in standalone tray mode. Respects stop-requested
+        marker and cooldown. A paused daemon is still running and
+        is not restarted.
+        """
+        if not self._standalone:
+            return
+        now = time.monotonic()
+        if now - self._last_autostart_attempt < self._AUTOSTART_COOLDOWN:
+            return
+        self._last_autostart_attempt = now
+        try:
+            from ai_guardian.daemon.client import (
+                is_daemon_running,
+                start_daemon_background,
+            )
+            if not is_daemon_running():
+                if start_daemon_background():
+                    logger.info("Auto-started daemon from tray interaction")
+                    self._request_discovery_refresh(wait=False)
+        except Exception:
             pass
 
     def update_status(self, status):
@@ -1444,6 +1472,7 @@ class DaemonTray:
 
         def _open_panel(panel=None):
             def action(_, __):
+                self._check_and_autostart_daemon()
                 if panel and self._has_web_console and self._is_web_console_ready():
                     web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
                     daemon_name = self._targets[0].name if self._targets else ""
@@ -1459,6 +1488,7 @@ class DaemonTray:
 
         def _open_shell():
             def action(_, __):
+                self._check_and_autostart_daemon()
                 if self._targets:
                     t = self._targets[0]
                     if self._multi_client:
@@ -1471,6 +1501,7 @@ class DaemonTray:
 
         def _open_doctor():
             def action(_, __):
+                self._check_and_autostart_daemon()
                 if self._targets:
                     t = self._targets[0]
                     if self._multi_client:
@@ -1481,6 +1512,7 @@ class DaemonTray:
 
         def _pause_action(minutes):
             def action(_, __):
+                self._check_and_autostart_daemon()
                 if self._targets:
                     t = self._targets[0]
                     if self._multi_client:
@@ -1491,6 +1523,7 @@ class DaemonTray:
             return action
 
         def _resume_action(_, __):
+            self._check_and_autostart_daemon()
             if self._targets:
                 t = self._targets[0]
                 if self._multi_client:
@@ -1733,6 +1766,7 @@ class DaemonTray:
 
             def _mk_open_panel(panel=None, slot=idx):
                 def action(_, __):
+                    self._check_and_autostart_daemon()
                     if panel and self._has_web_console and self._is_web_console_ready():
                         web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
                         daemon_name = self._targets[slot].name if slot < len(self._targets) else ""
@@ -1748,6 +1782,7 @@ class DaemonTray:
 
             def _mk_web_console_action(slot=idx):
                 def action(_, __):
+                    self._check_and_autostart_daemon()
                     if slot < len(self._targets):
                         self._open_web_console(self._targets[slot].name)
                 return action
@@ -1761,6 +1796,7 @@ class DaemonTray:
 
             def _mk_open_shell(slot=idx):
                 def action(_, __):
+                    self._check_and_autostart_daemon()
                     if slot < len(self._targets):
                         t = self._targets[slot]
                         if self._multi_client:
@@ -1773,6 +1809,7 @@ class DaemonTray:
 
             def _mk_doctor(slot=idx):
                 def action(_, __):
+                    self._check_and_autostart_daemon()
                     if slot < len(self._targets):
                         t = self._targets[slot]
                         if self._multi_client:
@@ -1783,6 +1820,7 @@ class DaemonTray:
 
             def _mk_pause(minutes, slot=idx):
                 def action(_, __):
+                    self._check_and_autostart_daemon()
                     if slot < len(self._targets):
                         t = self._targets[slot]
                         if self._multi_client:
@@ -1794,6 +1832,7 @@ class DaemonTray:
 
             def _mk_resume(slot=idx):
                 def action(_, __):
+                    self._check_and_autostart_daemon()
                     if slot < len(self._targets):
                         t = self._targets[slot]
                         if self._multi_client:
