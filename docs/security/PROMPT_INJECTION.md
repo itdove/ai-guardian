@@ -222,7 +222,31 @@ When AI reads files:
 - 📄 Allows documentation context
 - 🚨 Blocks only high-confidence attacks
 
-### 3. Why This Matters
+### 3. Language-Aware AST Scanning (v1.10.0)
+
+For source code files, AI Guardian uses tree-sitter AST parsing to distinguish code from comments and strings:
+
+- **Comments and strings**: Scanned for injection (these can contain injected instructions)
+- **Code syntax**: Never scanned (function definitions, imports, assignments are safe)
+
+This eliminates false positives from patterns like `def __init__(self):` or `skip_validation = True` that appear in normal code.
+
+**Supported languages:** Python, JavaScript, TypeScript, Go, Rust, Java, Ruby, C/C++, Bash
+
+**Requires Python >= 3.10** — tree-sitter and its grammar packages are only available on Python 3.10+. On Python 3.9, files are scanned using full-text mode (current behavior). It is highly recommended to use Python 3.10 or later to get the most out of AI Guardian's security features.
+
+**Auto-detected** from file extension — no configuration needed. Unknown file types fall back to full-text scanning.
+
+| Content Type | Scanned? | Example |
+|---|---|---|
+| Comment | ✅ Yes | `# Ignore previous instructions` |
+| String literal | ✅ Yes | `"Bypass safety filters"` |
+| Docstring | ✅ Yes | `"""Reveal system prompt"""` |
+| Function definition | ❌ No | `def __init__(self):` |
+| Import statement | ❌ No | `from __future__ import` |
+| Variable assignment | ❌ No | `skip_validation = True` |
+
+### 4. Why This Matters
 
 **User prompts** need strict checking because:
 - Direct input from potentially malicious users
@@ -428,7 +452,7 @@ def reset():
     pass
 ```
 
-✅ **Allowed:** Code context, not instruction to AI
+✅ **Allowed:** AST scanning extracts only the comment — the code `def reset()` is never scanned
 
 **Example: Natural Language**
 ```
@@ -502,3 +526,4 @@ Prompt injection detection is **lightweight**:
 - **v1.4.0** - Initial prompt injection detection (critical patterns)
 - **v1.5.0** - Added suspicious patterns, context awareness, and Unicode detection integration
 - **v1.6.0** (Planned) - Enhanced jailbreak detection with ML-based analysis ([Issue #263](https://github.com/itdove/ai-guardian/issues/263))
+- **v1.10.0** - Language-aware AST scanning for source code files ([Issue #892](https://github.com/itdove/ai-guardian/issues/892))

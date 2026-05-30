@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Language-aware prompt injection scanning** (Issue #892)
+  - Uses tree-sitter AST parsing to distinguish code from comments/strings
+  - Only comments and string literals are scanned for injection in source files
+  - Code syntax (function definitions, imports, assignments) never triggers detection
+  - Eliminates false positives from patterns like `__init__`, `skip_validation`
+  - Supports Python, JavaScript, TypeScript, Go, Rust, Java, Ruby, C/C++, Bash
+  - Language auto-detected from file extension
+  - Unknown file types fall back to full-text scanning (current behavior)
+  - tree-sitter grammar packages added as core dependencies (Python >= 3.10)
+
 - **Tray auto-starts daemon on user interaction** (Issue #889)
   - When the user clicks Console, Violations, Terminal, or other tray menu
     actions, the local daemon is automatically started if it has stopped

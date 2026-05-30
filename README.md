@@ -230,7 +230,7 @@ Each detection feature (`secret_scanning`, `secret_redaction`, `ssrf_protection`
 
 ## Requirements
 
-- **Python 3.9+**
+- **Python 3.9+** (3.10+ highly recommended — several features including AST-aware scanning, MCP server, and web console require Python 3.10+)
 - **Scanner engine**: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, or gitguardian
 - **GNOME Linux**: AppIndicator extension for system tray icon ([setup steps](https://github.com/itdove/ai-guardian/blob/main/docs/CONSOLE.md#getting-started))
 
