@@ -510,10 +510,6 @@ class ConfigFileScanner:
             "  1. Remove the malicious command from the config file\n"
             "  2. Review git history to find when this was added\n"
             "  3. Rotate any credentials that may have been exposed\n\n"
-            "If this is a false positive (documentation/example):\n"
-            "  • Move to examples/ directory, or\n"
-            "  • Add to ignore_files in config:\n"
-            "    \"config_file_scanning\": {\"ignore_files\": [\"**/docs/examples.md\"]}\n\n"
             f"{'='*70}\n"
         )
 

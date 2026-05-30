@@ -355,24 +355,20 @@ class GitleaksAllowGuidanceTests(TestCase):
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
         """
-        USER EXPERIENCE: Block message gitleaks:allow guidance says "at the end of the line"
+        USER EXPERIENCE: Block message must NOT include bypass hints (Issue #897)
 
-        Issue #416: The old text said "comment to the line" which is ambiguous.
-        gitleaks:allow MUST be on the same line as the secret to work.
-
-        Expected User Experience:
-        User sees: "add '# gitleaks:allow' at the end of the line"
-        NOT: "add '# gitleaks:allow' comment to the line"
-        NOT: "before the line"
+        Remediation tips (gitleaks:allow, config paths) belong in the
+        violation log only, not in the hook response seen by the AI agent.
         """
         mock_pattern.return_value = (None, None)
         mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
-        error_with_guidance = (
+        error_no_hints = (
             "Secret Detected\n"
             "Recommendation:\n"
-            "  • If false positive: add '# gitleaks:allow' at the end of the line\n"
+            "  • Move secrets to environment variables\n"
+            "  • Never commit secrets to git\n"
         )
-        mock_gitleaks.return_value = (True, error_with_guidance)
+        mock_gitleaks.return_value = (True, error_no_hints)
         mock_redact.return_value = ({"enabled": False}, None)
         mock_pii.return_value = (None, None)
 
@@ -390,30 +386,26 @@ class GitleaksAllowGuidanceTests(TestCase):
         response = json.loads(result['output'])
         reason = response.get('reason', '')
 
-        assert "at the end of the line" in reason, \
-            f"Block message must say 'at the end of the line', got: {reason}"
-        assert "before the line" not in reason, \
-            f"Block message must NOT say 'before the line', got: {reason}"
+        assert "gitleaks:allow" not in reason, \
+            f"Block message must NOT include gitleaks:allow bypass hint, got: {reason}"
+        assert "secret_scanning.enabled" not in reason, \
+            f"Block message must NOT expose config section paths, got: {reason}"
 
-    def test_check_secrets_error_message_text(self):
+    def test_check_secrets_error_message_no_bypass_hints(self):
         """
-        USER EXPERIENCE: check_secrets_with_gitleaks error message uses correct guidance
+        USER EXPERIENCE: _build_secret_detected_message must NOT include bypass tips (Issue #897)
 
-        Directly verifies the source code text for the gitleaks:allow recommendation.
-        This test does NOT require gitleaks to be installed — it reads the source.
-        The message text lives in the _build_secret_detected_message helper which is
-        called by check_secrets_with_gitleaks.
+        Bypass hints (gitleaks:allow, config paths) belong in the violation log,
+        not in the hook response that the AI agent sees.
         """
-        import inspect
         from ai_guardian.hook_processing import _build_secret_detected_message
-        source = inspect.getsource(_build_secret_detected_message)
+        details = {"rule_id": "aws-key", "file": "test.py", "line_number": 1}
+        msg = _build_secret_detected_message("gitleaks", details, "built-in")
 
-        assert "at the end of the line" in source, \
-            "_build_secret_detected_message must say 'at the end of the line'"
-        assert "before the line" not in source, \
-            "_build_secret_detected_message must NOT say 'before the line'"
-        assert "comment to the line" not in source, \
-            "_build_secret_detected_message must NOT say 'comment to the line'"
+        assert "gitleaks:allow" not in msg, \
+            "_build_secret_detected_message must NOT include gitleaks:allow bypass hint"
+        assert "secret_scanning.enabled" not in msg, \
+            "_build_secret_detected_message must NOT expose config section paths"
 
     def test_tui_violations_gitleaks_allow_guidance(self):
         """

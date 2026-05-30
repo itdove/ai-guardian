@@ -44,6 +44,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Remove bypass hints from hook block messages** (Issue #897, #896)
+  - Hook responses no longer include annotation syntax, allowlist instructions,
+    config paths, or false-positive workaround tips
+  - Affected detectors: secret scanning, PII, prompt injection, unicode attack,
+    config file exfiltration
+  - Remediation tips moved to `suggestion` field in violation log entries
+    (violations.jsonl) where they are available to users but not to the AI agent
+  - New UX contract test enforces no-bypass-hints policy across all detectors
+
 - **Browser window stays minimized on KDE/GNOME** (Issue #888)
   - On Linux, after opening a URL, attempt to raise the browser window via
     `kdotool` (KDE Wayland), `xdotool` (X11), or `wmctrl` (X11)

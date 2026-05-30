@@ -1269,11 +1269,6 @@ def _scan_for_pii(text, pii_config):
         redactions = result.get('redactions', [])
         if redactions:
             pii_types_found = sorted(set(r['type'] for r in redactions))
-            guidance_lines = [
-                "\nIf this is a false positive, you can:",
-                "  - Allowlist the value in your config under scan_pii.allowlist_patterns",
-                "  - Disable specific PII types in scan_pii.pii_types",
-            ]
             warning = (
                 f"\n{'='*70}\n"
                 f"🔒 PII DETECTED\n"
@@ -1282,8 +1277,7 @@ def _scan_for_pii(text, pii_config):
                 + "\n".join([f"  - {r['type']}" for r in redactions[:10]])
                 + ("\n  - ..." if len(redactions) > 10 else "")
                 + f"\n\nAction: {pii_config.get('action', 'block')}\n"
-                + "\n".join(guidance_lines)
-                + f"\n{'='*70}\n"
+                + f"{'='*70}\n"
             )
             return True, result['redacted_text'], redactions, warning
         return False, text, [], None
@@ -1597,7 +1591,8 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
             context=violation_ctx,
             suggestion={
                 "action": "review_and_remove_secret",
-                "warning": "Secrets should never be committed to code or shared with AI"
+                "warning": "Secrets should never be committed to code or shared with AI",
+                "false_positive": "Add '# gitleaks:allow' or '# ai-guardian:allow' at the end of the line",
             },
             severity="critical"
         )
@@ -1733,6 +1728,14 @@ def _log_pii_violation(violation_logger, pii_config, pii_redactions,
             violation_type=ViolationType.PII_DETECTED,
             blocked=pii_blocked,
             context=pii_ctx,
+            suggestion={
+                "action": "review_pii_detection",
+                "false_positive": (
+                    "Allowlist the value in scan_pii.allowlist_patterns, "
+                    "disable specific PII types in scan_pii.pii_types, "
+                    "or add '# ai-guardian:allow' inline"
+                ),
+            },
         )
 
     return pii_action, pii_types
@@ -1770,8 +1773,7 @@ def _build_secret_detected_message(scanner_name, secret_details, pattern_descrip
         f"  • Move secrets to environment variables\n"
         f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
         f"  • Add to .gitignore if in config file\n"
-        f"  • Never commit secrets to git\n"
-        f"  • If false positive: add '# gitleaks:allow' at the end of the line\n\n"
+        f"  • Never commit secrets to git\n\n"
         f"⚠️  Secret value NOT shown in this message for security\n\n"
     )
 
@@ -1785,8 +1787,6 @@ def _build_secret_detected_message(scanner_name, secret_details, pattern_descrip
         )
 
     error_msg += (
-        f"Config: ~/.config/ai-guardian/ai-guardian.json\n"
-        f"Section: secret_scanning.enabled\n"
         f"{'='*70}\n"
     )
     return error_msg
@@ -3583,6 +3583,13 @@ def process_hook_data(hook_data, daemon_state=None):
                                         "details": config_details
                                     },
                                     context=exfil_ctx,
+                                    suggestion={
+                                        "action": "review_config_file",
+                                        "false_positive": (
+                                            "Move to examples/ directory, or add to "
+                                            "config_file_scanning.ignore_files"
+                                        ),
+                                    },
                                     severity="critical"
                                 )
                             except Exception as e:
@@ -3650,7 +3657,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                result = format_response(ide_type, has_secrets=True, error_message=_annotation_hint(error_message, file_path, annotations_config), hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
+                result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
                 return result
 
             # No secrets found, allow operation
@@ -3686,9 +3693,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
-                        final_error = _annotation_hint(pii_warning, file_path, annotations_config)
                         result = format_response(ide_type, has_secrets=True,
-                                             error_message=final_error, hook_event=hook_event,
+                                             error_message=pii_warning, hook_event=hook_event,
                                              violation_type=ViolationType.PII_DETECTED, security_message=security_message)
                         return result
 
@@ -3705,7 +3711,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                            final_error = _annotation_hint(pii_warning, file_path, annotations_config)
+                            final_error = pii_warning
                             if combined_warning:
                                 final_error = f"{combined_warning}\n\n{final_error}"
                             result = format_response(ide_type, has_secrets=True,
