@@ -7,6 +7,7 @@ Each daemon reads its own plugins and serves them via the REST API.
 
 import json
 import logging
+import os
 import platform
 import re
 import shlex
@@ -423,6 +424,13 @@ def _resolve_imports(
     for item in items:
         if item.import_file:
             import_path = (plugins_dir / item.import_file).resolve()
+            resolved_dir = str(plugins_dir.resolve()) + os.sep
+            if not str(import_path).startswith(resolved_dir):
+                logger.warning(
+                    "Import path escapes plugins directory: %s",
+                    item.import_file,
+                )
+                continue
             path_key = str(import_path)
 
             if path_key in visited:

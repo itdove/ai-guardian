@@ -3273,6 +3273,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 image_scan_result = None
                 if HAS_IMAGE_SCANNER and file_path and ImageDetector.is_image_file(file_path):
                     is_image_file = True
+                    content_to_scan = None
                     img_config, img_config_error = _load_image_scanning_config()
                     if img_config_error:
                         warning_messages.append(img_config_error)

@@ -2149,6 +2149,30 @@ class DaemonTray:
         return self._daemon_plugins.get(slot, [])
 
     @staticmethod
+    def _poll_output_file(output_path, tmpdir, timeout=300, interval=0.5):
+        """Poll for an output file, read its content, and clean up.
+
+        Returns the stripped file content, or ``None`` if the file was not
+        created before *timeout* seconds elapsed.
+        """
+        import shutil
+        import time
+        elapsed = 0.0
+        while elapsed < timeout:
+            if os.path.exists(output_path):
+                try:
+                    with open(output_path) as f:
+                        content = f.read().strip()
+                except OSError:
+                    content = ""
+                shutil.rmtree(tmpdir, ignore_errors=True)
+                return content
+            time.sleep(interval)
+            elapsed += interval
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return None
+
+    @staticmethod
     def _execute_plugin_command(
         command_str, item_type, target=None, run_on_target=False,
         label=None,
@@ -2283,29 +2307,15 @@ class DaemonTray:
             _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
         item_type = plugin_item_dict.get("type", "terminal")
+        run_on_target = plugin_item_dict.get("run_on_target", False)
 
         def _watch_and_dispatch():
-            import shutil
-            import time
-            timeout = 300
-            elapsed = 0.0
-            interval = 0.5
-            while elapsed < timeout:
-                if os.path.exists(output_path):
-                    try:
-                        with open(output_path) as f:
-                            command = f.read().strip()
-                    except OSError:
-                        command = ""
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-                    if command:
-                        DaemonTray._execute_plugin_command(
-                            command, item_type, target=target, label=label,
-                        )
-                    return
-                time.sleep(interval)
-                elapsed += interval
-            shutil.rmtree(tmpdir, ignore_errors=True)
+            command = DaemonTray._poll_output_file(output_path, tmpdir)
+            if command:
+                DaemonTray._execute_plugin_command(
+                    command, item_type, target=target,
+                    run_on_target=run_on_target, label=label,
+                )
 
         watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
         watcher.start()
@@ -2391,28 +2401,12 @@ class DaemonTray:
         run_on_target = plugin_item.run_on_target
 
         def _watch_and_dispatch():
-            import shutil
-            import time
-            timeout = 300
-            elapsed = 0.0
-            interval = 0.5
-            while elapsed < timeout:
-                if os.path.exists(output_path):
-                    try:
-                        with open(output_path) as f:
-                            command = f.read().strip()
-                    except OSError:
-                        command = ""
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-                    if command:
-                        self._execute_multi_target_command(
-                            targets, command, item_type,
-                            run_on_target=run_on_target, label=label,
-                        )
-                    return
-                time.sleep(interval)
-                elapsed += interval
-            shutil.rmtree(tmpdir, ignore_errors=True)
+            command = DaemonTray._poll_output_file(output_path, tmpdir)
+            if command:
+                self._execute_multi_target_command(
+                    targets, command, item_type,
+                    run_on_target=run_on_target, label=label,
+                )
 
         watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
         watcher.start()
@@ -2440,51 +2434,35 @@ class DaemonTray:
         _launch_in_terminal(select_cmd, keep_open=False, clear=True)
 
         def _watch_and_dispatch():
-            import shutil
-            import time
-            timeout = 300
-            elapsed = 0.0
-            interval = 0.5
-            while elapsed < timeout:
-                if os.path.exists(output_path):
-                    try:
-                        with open(output_path) as f:
-                            raw = f.read().strip()
-                    except OSError:
-                        raw = ""
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-                    if not raw:
-                        return
-                    try:
-                        indices = json_mod.loads(raw)
-                    except (json_mod.JSONDecodeError, TypeError):
-                        return
-                    if not isinstance(indices, list):
-                        return
-                    selected = [
-                        self._targets[i]
-                        for i in indices
-                        if isinstance(i, int) and 0 <= i < len(self._targets)
-                    ]
-                    if not selected:
-                        return
+            raw = DaemonTray._poll_output_file(output_path, tmpdir)
+            if not raw:
+                return
+            try:
+                indices = json_mod.loads(raw)
+            except (json_mod.JSONDecodeError, TypeError):
+                return
+            if not isinstance(indices, list):
+                return
+            selected = [
+                self._targets[i]
+                for i in indices
+                if isinstance(i, int) and 0 <= i < len(self._targets)
+            ]
+            if not selected:
+                return
 
-                    if plugin_item.params:
-                        self._execute_multi_target_with_params(
-                            plugin_item, selected,
-                        )
-                    else:
-                        cmd = resolve_command(plugin_item.command)
-                        if cmd:
-                            self._execute_multi_target_command(
-                                selected, cmd, plugin_item.type,
-                                run_on_target=plugin_item.run_on_target,
-                                label=plugin_item.label,
-                            )
-                    return
-                time.sleep(interval)
-                elapsed += interval
-            shutil.rmtree(tmpdir, ignore_errors=True)
+            if plugin_item.params:
+                self._execute_multi_target_with_params(
+                    plugin_item, selected,
+                )
+            else:
+                cmd = resolve_command(plugin_item.command)
+                if cmd:
+                    self._execute_multi_target_command(
+                        selected, cmd, plugin_item.type,
+                        run_on_target=plugin_item.run_on_target,
+                        label=plugin_item.label,
+                    )
 
         watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
         watcher.start()

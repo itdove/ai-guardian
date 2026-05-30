@@ -60,9 +60,9 @@ err() { printf '\033[1;31mError:\033[0m %s\n' "$1" >&2; }
 while [ $# -gt 0 ]; do
     case "$1" in
         --venv)    USE_VENV=true; shift ;;
-        --ide)     IDE="$2"; shift 2 ;;
-        --profile) PROFILE="$2"; shift 2 ;;
-        --version) VERSION="$2"; shift 2 ;;
+        --ide)     [ $# -ge 2 ] || { echo "Error: --ide requires a value" >&2; exit 1; }; IDE="$2"; shift 2 ;;
+        --profile) [ $# -ge 2 ] || { echo "Error: --profile requires a value" >&2; exit 1; }; PROFILE="$2"; shift 2 ;;
+        --version) [ $# -ge 2 ] || { echo "Error: --version requires a value" >&2; exit 1; }; VERSION="$2"; shift 2 ;;
         --tkinter) INSTALL_TKINTER=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *)         SETUP_ARGS+=("$1"); shift ;;

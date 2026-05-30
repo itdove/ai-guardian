@@ -350,13 +350,19 @@ class ViolationLogger:
 
         New violation types added after config creation are logged by
         default so existing users automatically get coverage for new
-        detection capabilities.
+        detection capabilities.  When ``_known_log_types`` is present
+        in the config, only types absent from that baseline are
+        auto-enabled — this lets users explicitly remove types without
+        them being re-enabled.
         """
         log_types = self.config.get("log_types", [])
         if not log_types:
             return True
         if violation_type in log_types:
             return True
+        known = self.config.get("_known_log_types")
+        if known is not None:
+            return violation_type not in known
         default_types = self._get_default_config()["log_types"]
         if violation_type in default_types and violation_type not in log_types:
             return True

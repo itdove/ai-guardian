@@ -226,26 +226,11 @@ class MultiDaemonClient:
     @staticmethod
     def _local_config() -> dict:
         from ai_guardian.config_loaders import _load_config_file
-        from ai_guardian.config_utils import is_feature_enabled
+        from ai_guardian.config_utils import get_feature_flags, is_feature_enabled
         cfg, _ = _load_config_file()
         if not cfg:
             cfg = {}
-        features = {}
-        for key in (
-            "secret_scanning", "scan_pii", "prompt_injection",
-            "config_file_scanning", "violation_logging", "ssrf_protection",
-            "secret_redaction", "transcript_scanning", "image_scanning",
-        ):
-            section = cfg.get(key)
-            if isinstance(section, dict):
-                features[key] = is_feature_enabled(
-                    section.get("enabled", True)
-                )
-            else:
-                features[key] = bool(section) if section is not None else True
-        features["permissions"] = cfg.get(
-            "permissions", {}
-        ).get("enabled", True)
+        features = get_feature_flags(cfg)
         si_section = cfg.get("security_instructions")
         features["security_instructions"] = is_feature_enabled(
             si_section.get("inject_on_prompt")
