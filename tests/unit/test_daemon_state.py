@@ -419,6 +419,32 @@ class TestProjectConfigTracking:
         stats = state.get_stats()
         assert stats["project_configs_tracked"] == 0
 
+    def test_check_project_config_created_after_seen(self, tmp_path):
+        """Config created after project was seen without one — triggers callback (#891)."""
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        fired = []
+        state._on_config_reloaded = lambda: fired.append(True)
+
+        # First call: no config file
+        state.check_project_config(str(project_dir))
+        assert fired == []
+        assert state.get_stats()["project_configs_tracked"] == 0
+
+        # Create config file
+        config_dir = project_dir / ".ai-guardian"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text(json.dumps({"v": 1}))
+
+        # Second call: config now exists — should detect and fire callback
+        state.check_project_config(str(project_dir))
+        assert fired == [True]
+        stats = state.get_stats()
+        assert stats["project_configs_tracked"] == 1
+        assert stats["last_project_config_reload_at"] is not None
+
     def test_check_project_config_none_dir(self, tmp_path):
         """None dir — no crash."""
         state = DaemonState(config_path=tmp_path / "nonexistent.json")

@@ -346,6 +346,8 @@ class DaemonState:
             self._project_dir_last_seen[project_dir] = time.monotonic()
 
             if not config_path:
+                if project_dir not in self._project_config_paths:
+                    self._project_config_paths[project_dir] = None
                 return
 
             try:
@@ -360,6 +362,7 @@ class DaemonState:
             changed = (
                 (prev_mtime is not None and current_mtime != prev_mtime)
                 or (prev_path is not None and config_path_str != prev_path)
+                or (prev_path is None and project_dir in self._project_config_paths)
             )
 
             self._project_config_mtimes[project_dir] = current_mtime
