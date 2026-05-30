@@ -215,12 +215,8 @@ class AuditComputer:
     def _count_by_key_as_list(
         violations: List[Dict], key: str, limit: int = 10
     ) -> List[Tuple[str, int]]:
-        counter: Counter = Counter()
-        for v in violations:
-            val = v.get(key)
-            if val:
-                counter[val] += 1
-        return counter.most_common(limit)
+        counts = AuditComputer._count_by_key(violations, key)
+        return sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
 
     @staticmethod
     def _count_by_action(violations: List[Dict]) -> Dict[str, int]:
