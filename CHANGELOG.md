@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Combined documentation export for single-file upload** (Issue #900)
+  - Release checklist now includes generating a combined markdown file from all docs
+  - Shell one-liner documented in AGENTS.md for concatenating docs with section headers
+  - Suitable for upload to LLM tools that require single-file sources
+
 - **Language-aware prompt injection scanning** (Issue #892)
   - Uses tree-sitter AST parsing to distinguish code from comments/strings
   - Only comments and string literals are scanned for injection in source files
