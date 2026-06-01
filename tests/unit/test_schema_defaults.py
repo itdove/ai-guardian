@@ -74,7 +74,7 @@ class TestSchemaDefaults(unittest.TestCase):
         assert isinstance(result, list)
         assert "ssn" in result
         assert "credit_card" in result
-        assert len(result) == 6
+        assert len(result) == 9
 
     def test_get_default_array_empty(self):
         sd = SchemaDefaults.get()

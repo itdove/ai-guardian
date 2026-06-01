@@ -688,14 +688,21 @@ class TestAddressDetection:
 
 
 class TestPhase2TypeFiltering:
-    """Test that Phase 2 types are opt-in only."""
+    """Test that Phase 2 types are correctly categorized as default or opt-in."""
 
-    def test_phase2_types_not_in_defaults(self):
-        """Phase 2 types should not be detected with default config."""
+    def test_phase2_default_types_in_defaults(self):
+        """Low false-positive Phase 2 types should be in defaults."""
         from ai_guardian.config_loaders import _PII_DEFAULTS
         default_types = _PII_DEFAULTS['pii_types']
-        phase2_types = ['medical_id', 'passport', 'canada_sin', 'uk_nin', 'india_aadhaar', 'address']
-        for t in phase2_types:
+        for t in ['medical_id', 'passport', 'uk_nin']:
+            assert t in default_types, f"{t} should be in defaults"
+
+    def test_phase2_optin_types_not_in_defaults(self):
+        """High false-positive Phase 2 types should remain opt-in."""
+        from ai_guardian.config_loaders import _PII_DEFAULTS
+        default_types = _PII_DEFAULTS['pii_types']
+        optin_types = ['canada_sin', 'india_aadhaar', 'address']
+        for t in optin_types:
             assert t not in default_types, f"{t} should not be in defaults"
 
     def test_phase2_type_selective_enable(self):
