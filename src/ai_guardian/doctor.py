@@ -273,8 +273,8 @@ class Doctor:
             if ps is not None:
                 if self.fix:
                     try:
-                        from ai_guardian.setup import Setup
-                        setup = Setup()
+                        from ai_guardian.setup import IDESetup
+                        setup = IDESetup()
                         success, msg = setup.check_and_migrate_pattern_server(
                             dry_run=False, interactive=False
                         )
