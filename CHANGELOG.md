@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`doctor --fix` now refreshes stale pattern cache** (Issue #916)
+  - `check_ps_cache_freshness` sets `fixable=True` for stale, expired, and missing cache
+  - When `--fix` is passed, attempts to fetch fresh patterns from pattern server
+  - Reports success/failure with specific error messages
+
 - **Connection string patterns false positive on placeholder passwords** (Issue #919)
   - `mongodb-connection`, `mysql-connection`, `postgres-connection`, and `redis-connection`
     no longer match placeholder passwords like `[HIDDEN]`, `[REDACTED]`, `<password>`, or
