@@ -3,8 +3,10 @@
 import pytest
 
 from ai_guardian.patterns.validators import (
+    connection_not_placeholder,
     env_not_file_path,
     get_validator,
+    _is_connection_placeholder,
     _is_file_path,
     _is_placeholder,
 )
@@ -155,3 +157,94 @@ class TestIsFilePath:
 
     def test_path_with_hyphens(self):
         assert _is_file_path("/opt/app-root/src") is True
+
+
+class TestIsConnectionPlaceholder:
+    """Tests for _is_connection_placeholder helper (Issue #919)."""
+
+    def test_bracket_hidden(self):
+        assert _is_connection_placeholder("[HIDDEN]") is True
+
+    def test_bracket_redacted(self):
+        assert _is_connection_placeholder("[REDACTED]") is True
+
+    def test_bracket_password(self):
+        assert _is_connection_placeholder("[PASSWORD]") is True
+
+    def test_bracket_masked(self):
+        assert _is_connection_placeholder("[MASKED]") is True
+
+    def test_bracket_case_insensitive(self):
+        assert _is_connection_placeholder("[hidden]") is True
+
+    def test_angle_bracket_password(self):
+        assert _is_connection_placeholder("<password>") is True
+
+    def test_angle_bracket_your_password(self):
+        assert _is_connection_placeholder("<your-password>") is True
+
+    def test_angle_bracket_secret(self):
+        assert _is_connection_placeholder("<secret>") is True
+
+    def test_repeated_x(self):
+        assert _is_connection_placeholder("xxxxxxxx") is True
+
+    def test_repeated_star(self):
+        assert _is_connection_placeholder("********") is True
+
+    def test_repeated_zero(self):
+        assert _is_connection_placeholder("000000") is True
+
+    def test_generic_placeholder_your(self):
+        assert _is_connection_placeholder("your-password-here") is True
+
+    def test_generic_placeholder_example(self):
+        assert _is_connection_placeholder("example-password") is True
+
+    def test_real_password(self):
+        assert _is_connection_placeholder("MySecretPass123") is False
+
+    def test_real_password_special(self):
+        assert _is_connection_placeholder("p@ssw0rd!") is False
+
+    def test_base64_password(self):
+        assert _is_connection_placeholder("dGhpcyBpcw==") is False
+
+    def test_short_repeated_not_placeholder(self):
+        assert _is_connection_placeholder("xxxxx") is False
+
+
+class TestConnectionNotPlaceholder:
+    """Tests for connection_not_placeholder validator (Issue #919)."""
+
+    def test_real_password_detected(self):
+        assert connection_not_placeholder(
+            "mongodb://user:MySecretPass123@db.example.com:27017/mydb"
+        ) is True
+
+    def test_hidden_placeholder_skipped(self):
+        assert connection_not_placeholder(
+            "mongodb://user:[HIDDEN]@db.example.com:27017/mydb"
+        ) is False
+
+    def test_redacted_placeholder_skipped(self):
+        assert connection_not_placeholder(
+            "postgres://admin:[REDACTED]@db.host:5432/app"
+        ) is False
+
+    def test_angle_bracket_skipped(self):
+        assert connection_not_placeholder(
+            "mysql://root:<password>@localhost:3306/test"
+        ) is False
+
+    def test_repeated_chars_skipped(self):
+        assert connection_not_placeholder(
+            "redis://:xxxxxxxx@cache.example.com:6379/0"
+        ) is False
+
+    def test_no_connection_string_passes(self):
+        assert connection_not_placeholder("not a connection string") is True
+
+    def test_registry_lookup(self):
+        validator = get_validator("connection_not_placeholder")
+        assert validator is connection_not_placeholder

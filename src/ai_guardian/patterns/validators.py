@@ -167,12 +167,53 @@ def env_not_file_path(matched_text: str) -> bool:
     return not _is_file_path(value)
 
 
+_BRACKET_PLACEHOLDER_RE = re.compile(
+    r'^\[(?:HIDDEN|REDACTED|PASSWORD|MASKED|REMOVED|SECRET|CENSORED)\]$',
+    re.IGNORECASE,
+)
+
+_ANGLE_PLACEHOLDER_RE = re.compile(
+    r'^<[a-z0-9_-]+>$',
+    re.IGNORECASE,
+)
+
+_REPEATED_CHAR_RE = re.compile(r'^(.)\1{5,}$')
+
+_CONNECTION_URI_RE = re.compile(
+    r'(?:mongodb|mysql|postgres(?:ql)?|redis)://[^:]*:([^@]+)@',
+    re.IGNORECASE,
+)
+
+
+def _is_connection_placeholder(password: str) -> bool:
+    """Check if a connection string password is a documentation placeholder."""
+    if _BRACKET_PLACEHOLDER_RE.match(password):
+        return True
+    if _ANGLE_PLACEHOLDER_RE.match(password):
+        return True
+    if _REPEATED_CHAR_RE.match(password):
+        return True
+    return _is_placeholder(password)
+
+
+def connection_not_placeholder(matched_text: str) -> bool:
+    """Return False (skip) if the connection string password is a placeholder."""
+    m = _CONNECTION_URI_RE.search(matched_text)
+    if not m:
+        return True
+    password = m.group(1)
+    if _is_connection_placeholder(password):
+        return False
+    return True
+
+
 VALIDATOR_REGISTRY: dict = {
     "luhn": luhn_check,
     "iban": iban_check,
     "credit_card": credit_card_check,
     "aadhaar": aadhaar_check,
     "env_not_file_path": env_not_file_path,
+    "connection_not_placeholder": connection_not_placeholder,
 }
 
 

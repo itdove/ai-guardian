@@ -66,6 +66,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Connection string patterns false positive on placeholder passwords** (Issue #919)
+  - `mongodb-connection`, `mysql-connection`, `postgres-connection`, and `redis-connection`
+    no longer match placeholder passwords like `[HIDDEN]`, `[REDACTED]`, `<password>`, or
+    repeated characters (`xxxxxxxx`) in documentation examples
+  - New `connection_not_placeholder` validator added to the TOML patterns validation pipeline
+
 - **env-variable pattern false positives on Python code and documentation** (Issue #912)
   - Tightened regex to require 2+ character uppercase env var names (rejects `_ = ...`)
   - Validator now skips values starting with `_` (Python identifiers like `_load_config_file`)
