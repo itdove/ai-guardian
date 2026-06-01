@@ -238,6 +238,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Secret Redaction page: toggle, action mode, options, custom patterns, stats
   - Sidebar navigation expanded with Permissions and Secrets groups
 
+### Fixed
+
+- **Secret scanning no longer blocks PII types excluded from `pii_types` config** (Issue #903)
+  - The `toml-patterns` scanner was unconditionally loading ALL PII patterns from `pii.toml`
+  - Email addresses (and other excluded PII types) triggered "Secret Detected" blocks
+    even when explicitly excluded from `scan_pii.pii_types`
+  - Scanner now reads `pii_types` from the PII config and filters findings accordingly
+  - Secret findings (API keys, tokens, etc.) are never affected by this filter
+
 ## [1.9.0] - 2026-05-26
 
 ### Fixed

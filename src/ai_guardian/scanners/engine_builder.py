@@ -183,8 +183,17 @@ def _build_python_preset(preset_name: str, scanner_config: Optional[dict] = None
         try:
             from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
             scanner = TomlPatternsScanner()
-            if scanner_config:
-                scanner.configure(scanner_config)
+            effective_config = dict(scanner_config) if scanner_config else {}
+            if "pii_types" not in effective_config:
+                try:
+                    from ai_guardian.config_loaders import _load_pii_config
+                    pii_config, _ = _load_pii_config()
+                    if pii_config:
+                        effective_config["pii_types"] = pii_config.get("pii_types")
+                except Exception:
+                    pass
+            if effective_config:
+                scanner.configure(effective_config)
             return EngineConfig(
                 type="python",
                 binary="__python__",
