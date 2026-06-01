@@ -233,7 +233,7 @@ class TestEnvVariablePathFiltering:
 [[rules]]
 id = "env-variable"
 match_type = "regex"
-regex = '''([A-Z_][A-Z0-9_]*)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
+regex = '''([A-Z][A-Z0-9_]+)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
 redaction_strategy = "env_assignment"
 description = "Environment Variable"
 validation = "env_not_file_path"
@@ -241,7 +241,7 @@ validation = "env_not_file_path"
 [[rules]]
 id = "exported-env-variable"
 match_type = "regex"
-regex = '''(export\\s+[A-Z_][A-Z0-9_]*)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
+regex = '''(export\\s+[A-Z][A-Z0-9_]+)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
 redaction_strategy = "env_assignment"
 description = "Exported Environment Variable"
 validation = "env_not_file_path"
@@ -291,6 +291,33 @@ validation = "env_not_file_path"
         cache.load(env_var_toml)
         dockerfile = "FROM ubi9\nENV PKGMGR=/usr/bin/microdnf\nRUN $PKGMGR install -y python3"
         findings = cache.scan(dockerfile)
+        assert len(findings) == 0
+
+    def test_python_underscore_assignment_not_flagged(self, env_var_toml):
+        """Issue #912: _ = _load_config_file should not be detected."""
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("_ = _load_config_file")
+        assert len(findings) == 0
+
+    def test_placeholder_export_not_flagged(self, env_var_toml):
+        """Issue #912: placeholder values in docs should not be detected."""
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan('export JIRA_API_TOKEN="your-personal-access-token"')
+        assert len(findings) == 0
+
+    def test_python_identifier_value_not_flagged(self, env_var_toml):
+        """Values starting with _ (Python identifiers) should not be detected."""
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("CONFIG = _internal_function_name_here")
+        assert len(findings) == 0
+
+    def test_placeholder_unquoted_not_flagged(self, env_var_toml):
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("MY_TOKEN=your-personal-access-token")
         assert len(findings) == 0
 
 

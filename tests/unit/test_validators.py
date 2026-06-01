@@ -6,6 +6,7 @@ from ai_guardian.patterns.validators import (
     env_not_file_path,
     get_validator,
     _is_file_path,
+    _is_placeholder,
 )
 
 
@@ -63,9 +64,60 @@ class TestEnvNotFilePath:
     def test_short_single_segment_path_passes(self):
         assert env_not_file_path("KEY=/verylongsinglesegment") is True
 
+    def test_underscore_value_skipped(self):
+        """Issue #912: Python identifier starting with _ should not be flagged."""
+        assert env_not_file_path("CONFIG=_internal_function_name_here") is False
+
+    def test_double_underscore_value_skipped(self):
+        assert env_not_file_path("HANDLER=__private_method_name_x") is False
+
+    def test_placeholder_your_skipped(self):
+        """Issue #912: placeholder 'your-...' should not be flagged."""
+        assert env_not_file_path('JIRA_API_TOKEN="your-personal-access-token"') is False
+
+    def test_placeholder_example_skipped(self):
+        assert env_not_file_path("API_KEY=example-token-value-here") is False
+
+    def test_placeholder_replace_skipped(self):
+        assert env_not_file_path("SECRET=replace-with-your-key") is False
+
+    def test_placeholder_test_skipped(self):
+        assert env_not_file_path("TOKEN=test-api-key-value12345") is False
+
+    def test_placeholder_here_suffix_skipped(self):
+        assert env_not_file_path("KEY=put-your-secret-here") is False
+
     def test_registry_lookup(self):
         validator = get_validator("env_not_file_path")
         assert validator is env_not_file_path
+
+
+class TestIsPlaceholder:
+    """Tests for the _is_placeholder helper."""
+
+    def test_your_prefix(self):
+        assert _is_placeholder("your-personal-access-token") is True
+
+    def test_example_prefix(self):
+        assert _is_placeholder("example-token-value") is True
+
+    def test_here_suffix(self):
+        assert _is_placeholder("put-your-secret-here") is True
+
+    def test_changeme_prefix(self):
+        assert _is_placeholder("changeme-this-value") is True
+
+    def test_dummy_prefix(self):
+        assert _is_placeholder("dummy_token_12345678") is True
+
+    def test_real_key_not_placeholder(self):
+        assert _is_placeholder("wJalrXUtnFEMIK7MDENGEXAMPLEKEY") is False
+
+    def test_base64_not_placeholder(self):
+        assert _is_placeholder("dGhpcyBpcyBhIHRlc3QgdG9rZW4=") is False
+
+    def test_random_alphanumeric_not_placeholder(self):
+        assert _is_placeholder("a1b2c3d4e5f6g7h8") is False
 
 
 class TestIsFilePath:

@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **env-variable pattern false positives on Python code and documentation** (Issue #912)
+  - Tightened regex to require 2+ character uppercase env var names (rejects `_ = ...`)
+  - Validator now skips values starting with `_` (Python identifiers like `_load_config_file`)
+  - Validator now detects placeholder values (`your-...`, `example-...`, `test-...`, etc.)
+  - AST-aware scanning for secret detection: tree-sitter extracts only comments and strings
+    from code files, skipping code syntax that matches secret patterns
+
 - **Windows: setup uses pythonw.exe to minimize console window flash** (Issue #902)
   - `ai-guardian setup` now uses `pythonw.exe -m ai_guardian` on Windows instead
     of console-mode `ai-guardian.EXE`, avoiding visible window on every hook call
