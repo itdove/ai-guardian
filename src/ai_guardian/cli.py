@@ -168,6 +168,11 @@ def main():
                  "Accepts multiple: --install-scanner gitleaks betterleaks"
         )
         setup_parser.add_argument(
+            "--use-pinned",
+            action="store_true",
+            help="Install pinned scanner version from pyproject.toml (use with --install-scanner)"
+        )
+        setup_parser.add_argument(
             "--json",
             action="store_true",
             dest="json_output",
@@ -982,6 +987,7 @@ def main():
                 auto_install_hooks=args.auto_install_hooks,
                 uninstall_hooks=args.uninstall_hooks,
                 install_scanner=install_scanner,
+                use_pinned=args.use_pinned,
                 json_output=args.json_output,
                 profile=args.profile,
                 save_profile=args.save_profile,

@@ -1395,7 +1395,7 @@ class TestInstallScannerMultiple:
                 )
 
                 assert success is True
-                mock_inst.install.assert_called_once_with("gitleaks", ensure_only=True)
+                mock_inst.install.assert_called_once_with("gitleaks", use_pinned=False, ensure_only=True)
                 mock_inst.verify_installation.assert_called_once_with("gitleaks")
 
     def test_install_multiple_scanners(self):
@@ -1418,8 +1418,8 @@ class TestInstallScannerMultiple:
 
                 assert success is True
                 assert mock_inst.install.call_count == 2
-                mock_inst.install.assert_any_call("gitleaks", ensure_only=True)
-                mock_inst.install.assert_any_call("betterleaks", ensure_only=True)
+                mock_inst.install.assert_any_call("gitleaks", use_pinned=False, ensure_only=True)
+                mock_inst.install.assert_any_call("betterleaks", use_pinned=False, ensure_only=True)
 
     def test_install_no_scanner_when_none(self):
         """No scanner installation when install_scanner is None."""
@@ -1520,7 +1520,74 @@ class TestInstallScannerMultiple:
 
                 assert success is True
                 assert mock_inst.install.call_count == 3
-                mock_inst.install.assert_any_call("leaktk", ensure_only=True)
+                mock_inst.install.assert_any_call("leaktk", use_pinned=False, ensure_only=True)
+
+    def test_install_scanner_with_use_pinned(self):
+        """--use-pinned passes use_pinned=True and ensure_only=False to installer."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.return_value = True
+                mock_inst.verify_installation.return_value = True
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks"],
+                    use_pinned=True,
+                    interactive=False
+                )
+
+                assert success is True
+                mock_inst.install.assert_called_once_with(
+                    "gitleaks", use_pinned=True, ensure_only=False
+                )
+
+    def test_install_scanner_without_use_pinned_default(self):
+        """Without --use-pinned, ensure_only=True and use_pinned=False (default)."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+                mock_inst = MockInstaller.return_value
+                mock_inst.install.return_value = True
+                mock_inst.verify_installation.return_value = True
+
+                success = setup_hooks(
+                    install_scanner=["gitleaks"],
+                    interactive=False
+                )
+
+                assert success is True
+                mock_inst.install.assert_called_once_with(
+                    "gitleaks", use_pinned=False, ensure_only=True
+                )
+
+    def test_install_scanner_use_pinned_dry_run(self, capsys):
+        """Dry run with --use-pinned prints 'pinned' in output."""
+        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
+            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+
+            success = setup_hooks(
+                install_scanner=["gitleaks"],
+                use_pinned=True,
+                dry_run=True,
+                interactive=False
+            )
+
+            assert success is True
+            captured = capsys.readouterr()
+            assert "pinned" in captured.out
+            assert "gitleaks" in captured.out
 
 
 class TestCreateDefaultConfig:

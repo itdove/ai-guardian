@@ -2183,6 +2183,7 @@ def setup_hooks(
     auto_install_hooks: bool = False,
     uninstall_hooks: bool = False,
     install_scanner: Optional[List[str]] = None,
+    use_pinned: bool = False,
     json_output: bool = False,
     profile: Optional[str] = None,
     save_profile: Optional[str] = None,
@@ -2269,7 +2270,10 @@ def setup_hooks(
     # Handle scanner installation if requested (NEW in v1.6.0)
     if install_scanner:
         if dry_run:
-            print(f"[DRY RUN] Would install scanner(s): {', '.join(install_scanner)}")
+            if use_pinned:
+                print(f"[DRY RUN] Would install pinned scanner(s): {', '.join(install_scanner)}")
+            else:
+                print(f"[DRY RUN] Would install scanner(s): {', '.join(install_scanner)}")
         else:
             try:
                 from ai_guardian.scanner_installer import ScannerInstaller
@@ -2279,7 +2283,11 @@ def setup_hooks(
                 for scanner_name in install_scanner:
                     print(f"\n🛡️  Installing {scanner_name} scanner...\n")
 
-                    success = installer.install(scanner_name, ensure_only=True)
+                    success = installer.install(
+                        scanner_name,
+                        use_pinned=use_pinned,
+                        ensure_only=not use_pinned,
+                    )
 
                     if success:
                         if installer.verify_installation(scanner_name):

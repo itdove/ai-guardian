@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--use-pinned` flag for `setup --install-scanner`** (Issue #907)
+  - Installs the pinned scanner version from `pyproject.toml` instead of latest
+  - Usage: `ai-guardian setup --install-scanner gitleaks --use-pinned`
+  - Ensures consistent scanner versions for support reproduction and tested configurations
+
 - **Combined documentation export for single-file upload** (Issue #900)
   - Release checklist now includes generating a combined markdown file from all docs
   - Shell one-liner documented in AGENTS.md for concatenating docs with section headers
