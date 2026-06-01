@@ -321,6 +321,66 @@ validation = "env_not_file_path"
         assert len(findings) == 0
 
 
+class TestConnectionStringPlaceholderFiltering:
+    """Issue #919: connection strings with placeholder passwords should not be flagged."""
+
+    @pytest.fixture
+    def connection_toml(self, tmp_path):
+        content = b"""
+[[rules]]
+id = "mongodb-connection"
+match_type = "regex"
+regex = '''(mongodb://[^:]+:)([^@]+)(@[^\\s]+)'''
+redaction_strategy = "connection_string"
+validation = "connection_not_placeholder"
+description = "MongoDB Connection"
+keywords = ["mongodb://"]
+
+[[rules]]
+id = "postgres-connection"
+match_type = "regex"
+regex = '''(postgres://[^:]+:)([^@]+)(@[^\\s]+)'''
+redaction_strategy = "connection_string"
+validation = "connection_not_placeholder"
+description = "PostgreSQL Connection"
+keywords = ["postgres://"]
+"""
+        path = tmp_path / "conn.toml"
+        path.write_bytes(content)
+        return path
+
+    def test_real_password_flagged(self, connection_toml):
+        cache = PatternCache()
+        cache.load(connection_toml)
+        findings = cache.scan("mongodb://user:MySecretPass123@db.example.com:27017/mydb")
+        assert len(findings) == 1
+
+    def test_hidden_placeholder_not_flagged(self, connection_toml):
+        """Issue #919: [HIDDEN] placeholder in docs should not be detected."""
+        cache = PatternCache()
+        cache.load(connection_toml)
+        findings = cache.scan("mongodb://user:[HIDDEN]@db.example.com:27017/mydb")
+        assert len(findings) == 0
+
+    def test_redacted_placeholder_not_flagged(self, connection_toml):
+        cache = PatternCache()
+        cache.load(connection_toml)
+        findings = cache.scan("postgres://admin:[REDACTED]@db.host:5432/app")
+        assert len(findings) == 0
+
+    def test_angle_bracket_placeholder_not_flagged(self, connection_toml):
+        cache = PatternCache()
+        cache.load(connection_toml)
+        findings = cache.scan("mongodb://user:<password>@localhost:27017/test")
+        assert len(findings) == 0
+
+    def test_repeated_x_not_flagged(self, connection_toml):
+        cache = PatternCache()
+        cache.load(connection_toml)
+        findings = cache.scan("postgres://user:xxxxxxxx@db.host:5432/app")
+        assert len(findings) == 0
+
+
 class TestPatternCacheLiteral:
 
     def test_check_literal_homoglyph(self, unicode_toml):
