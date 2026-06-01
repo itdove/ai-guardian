@@ -96,6 +96,54 @@ class TestDoctorReport:
 # --- Individual check tests ---
 
 
+class TestCheckPythonVersion:
+    def test_pass_310_plus(self, _isolate_config_dir):
+        with mock.patch("ai_guardian.doctor.sys") as mock_sys:
+            mock_sys.version_info = (3, 12, 1, "final", 0)
+            doctor = Doctor()
+            result = doctor.check_python_version()
+        assert result.status == CheckStatus.PASS
+        assert "3.12.1" in result.message
+
+    def test_warn_39(self, _isolate_config_dir):
+        with mock.patch("ai_guardian.doctor.sys") as mock_sys:
+            mock_sys.version_info = (3, 9, 18, "final", 0)
+            doctor = Doctor()
+            result = doctor.check_python_version()
+        assert result.status == CheckStatus.WARN
+        assert "3.9.18" in result.message
+        assert "AST-aware scanning disabled" in result.message
+        assert result.fix_hint is not None
+        assert "3.10+" in result.fix_hint
+
+    def test_fail_38(self, _isolate_config_dir):
+        with mock.patch("ai_guardian.doctor.sys") as mock_sys:
+            mock_sys.version_info = (3, 8, 16, "final", 0)
+            doctor = Doctor()
+            result = doctor.check_python_version()
+        assert result.status == CheckStatus.FAIL
+        assert "3.8.16" in result.message
+        assert "unsupported" in result.message
+        assert result.fix_hint is not None
+        assert "3.9+" in result.fix_hint
+
+    def test_fail_27(self, _isolate_config_dir):
+        with mock.patch("ai_guardian.doctor.sys") as mock_sys:
+            mock_sys.version_info = (2, 7, 18, "final", 0)
+            doctor = Doctor()
+            result = doctor.check_python_version()
+        assert result.status == CheckStatus.FAIL
+        assert "2.7.18" in result.message
+
+    def test_pass_310_exact(self, _isolate_config_dir):
+        with mock.patch("ai_guardian.doctor.sys") as mock_sys:
+            mock_sys.version_info = (3, 10, 0, "final", 0)
+            doctor = Doctor()
+            result = doctor.check_python_version()
+        assert result.status == CheckStatus.PASS
+        assert "3.10.0" in result.message
+
+
 class TestCheckConfigFile:
     def test_no_config_file(self, _isolate_config_dir):
         doctor = Doctor()
@@ -1077,7 +1125,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 23
+        assert len(report.checks) == 24
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):

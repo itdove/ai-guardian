@@ -94,6 +94,7 @@ class Doctor:
         self._ensure_config()
         report = DoctorReport(version=__version__)
         checks = [
+            self.check_python_version,
             self.check_config_file,
             self.check_project_config,
             self.check_deprecated_fields,
@@ -130,6 +131,32 @@ class Doctor:
                     message=f"Check crashed: {e}",
                 ))
         return report
+
+    def check_python_version(self) -> CheckResult:
+        major, minor, micro = sys.version_info[:3]
+        version_str = f"{major}.{minor}.{micro}"
+
+        if (major, minor) < (3, 9):
+            return CheckResult(
+                name="python_version",
+                status=CheckStatus.FAIL,
+                message=f"Python {version_str} — unsupported (requires 3.9+)",
+                fix_hint="Upgrade to Python 3.9+ (3.10+ recommended)",
+            )
+
+        if (major, minor) < (3, 10):
+            return CheckResult(
+                name="python_version",
+                status=CheckStatus.WARN,
+                message=f"Python {version_str} — AST-aware scanning disabled (requires 3.10+)",
+                fix_hint="Upgrade to Python 3.10+ for reduced false positives on source code",
+            )
+
+        return CheckResult(
+            name="python_version",
+            status=CheckStatus.PASS,
+            message=f"Python {version_str}",
+        )
 
     def check_config_file(self) -> CheckResult:
         self._ensure_config()
@@ -1387,6 +1414,7 @@ _STATUS_COLORS = {
 _RESET = "\033[0m"
 
 _CHECK_DISPLAY_NAMES = {
+    "python_version": "Python version",
     "config_file": "Config file",
     "deprecated_fields": "Deprecated fields",
     "global_pattern_server": "Global pattern server",
