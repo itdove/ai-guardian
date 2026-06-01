@@ -15,6 +15,7 @@ from ai_guardian.config_utils import get_config_dir
 from ai_guardian.setup import (
     IDESetup,
     setup_hooks,
+    _create_vbs_wrapper,
     _is_ai_guardian_command,
     _resolve_binary_path,
     _substitute_command,
@@ -2839,3 +2840,143 @@ class TestAbsolutePathWritten:
 
         config = json.loads(mcp_file.read_text())
         assert config["mcpServers"]["ai-guardian"]["command"] == "/mock/bin/ai-guardian"
+
+
+class TestWindowsSetup:
+    """Tests for Windows-specific setup behavior (issue #902)."""
+
+    # -- _resolve_binary_path on Windows --
+
+    def test_resolve_binary_path_uses_pythonw_on_windows(self, tmp_path):
+        """On Windows, prefer pythonw.exe -m ai_guardian over bare binary."""
+        fake_pythonw = tmp_path / "pythonw.exe"
+        fake_pythonw.touch()
+        fake_python = tmp_path / "python.exe"
+
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+            with mock.patch("ai_guardian.setup.sys") as mock_sys:
+                mock_sys.executable = str(fake_python)
+                result = _resolve_binary_path()
+
+        assert result == f"{fake_pythonw} -m ai_guardian"
+
+    def test_resolve_binary_path_fallback_when_no_pythonw(self, tmp_path):
+        """On Windows without pythonw.exe, fall back to standard resolution."""
+        fake_python = tmp_path / "python.exe"
+
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+            with mock.patch("ai_guardian.setup.shutil.which", return_value="C:\\bin\\ai-guardian.exe"):
+                with mock.patch("ai_guardian.setup.sys") as mock_sys:
+                    mock_sys.executable = str(fake_python)
+                    result = _resolve_binary_path()
+
+        assert result == "C:\\bin\\ai-guardian.exe"
+
+    def test_resolve_binary_path_unchanged_on_macos(self):
+        """macOS behavior is unchanged."""
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Darwin"):
+            with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+                assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
+
+    def test_resolve_binary_path_unchanged_on_linux(self):
+        """Linux behavior is unchanged."""
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
+            with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/bin/ai-guardian"):
+                assert _resolve_binary_path() == "/usr/bin/ai-guardian"
+
+    # -- _is_ai_guardian_command with Windows paths --
+
+    def test_windows_backslash_path(self):
+        assert _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian") is True
+
+    def test_windows_exe_suffix(self):
+        assert _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian.exe") is True
+
+    def test_windows_backslash_with_ide_flag(self):
+        assert _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian --ide claude") is True
+
+    def test_pythonw_module_invocation(self):
+        assert _is_ai_guardian_command("C:\\Python312\\pythonw.exe -m ai_guardian --ide claude") is True
+
+    def test_pythonw_module_bare(self):
+        assert _is_ai_guardian_command("pythonw.exe -m ai_guardian") is True
+
+    # -- _substitute_command with Windows values --
+
+    def test_substitute_replaces_exe_variant(self):
+        result = _substitute_command(
+            {"command": "ai-guardian.exe"}, "C:\\Python312\\pythonw.exe -m ai_guardian"
+        )
+        assert result == {"command": "C:\\Python312\\pythonw.exe -m ai_guardian"}
+
+    def test_substitute_exe_with_ide_type(self):
+        result = _substitute_command(
+            {"command": "ai-guardian.exe"},
+            "C:\\Python312\\pythonw.exe -m ai_guardian",
+            ide_type="cursor",
+        )
+        assert result == {"command": "C:\\Python312\\pythonw.exe -m ai_guardian --ide cursor"}
+
+    # -- VBS wrapper --
+
+    def test_vbs_wrapper_created_on_windows(self, tmp_path):
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+            vbs_path = _create_vbs_wrapper(
+                "C:\\Python312\\pythonw.exe -m ai_guardian --ide claude", tmp_path
+            )
+
+        assert vbs_path is not None
+        assert vbs_path.exists()
+        content = vbs_path.read_text()
+        assert 'WScript.Shell' in content
+        assert 'pythonw.exe -m ai_guardian --ide claude' in content
+        assert ', 0, True' in content
+
+    def test_vbs_wrapper_not_created_on_macos(self, tmp_path):
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Darwin"):
+            result = _create_vbs_wrapper("ai-guardian", tmp_path)
+
+        assert result is None
+
+    def test_vbs_wrapper_not_created_on_linux(self, tmp_path):
+        with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
+            result = _create_vbs_wrapper("ai-guardian", tmp_path)
+
+        assert result is None
+
+    # -- _upgrade_ide_flag with Windows paths --
+
+    def test_upgrade_ide_flag_windows_exe_path(self):
+        config = {"command": "C:\\Python312\\Scripts\\ai-guardian.exe"}
+        _upgrade_ide_flag(config, "claude")
+        assert config["command"] == "C:\\Python312\\Scripts\\ai-guardian.exe --ide claude"
+
+    def test_upgrade_ide_flag_pythonw_command(self):
+        config = {"command": "C:\\Python312\\pythonw.exe -m ai_guardian"}
+        _upgrade_ide_flag(config, "cursor")
+        assert config["command"] == "C:\\Python312\\pythonw.exe -m ai_guardian --ide cursor"
+
+    # -- End-to-end: setup_ide_hooks uses pythonw on Windows --
+
+    @pytest.mark.parametrize("ide_type", ["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "augment"])
+    def test_hooks_use_pythonw_on_windows(self, tmp_path, ide_type):
+        """All agent adapters use pythonw.exe on Windows."""
+        setup = IDESetup()
+        config_file = tmp_path / "settings.json"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {ide_type: {**IDESetup.IDE_CONFIGS[ide_type], "config_path": str(config_file)}},
+        ):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="C:\\Python312\\pythonw.exe -m ai_guardian",
+            ):
+                with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+                        success, msg = setup.setup_ide_hooks(ide_type)
+
+        assert success, msg
+        config = json.loads(config_file.read_text())
+        config_str = json.dumps(config)
+        assert "pythonw.exe -m ai_guardian" in config_str
