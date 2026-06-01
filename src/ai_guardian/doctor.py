@@ -371,6 +371,18 @@ class Doctor:
                 return ps
         return None
 
+    def _refresh_ps_cache(self, ps_config: Dict) -> tuple:
+        """Attempt to refresh pattern cache. Returns (success, error_msg)."""
+        try:
+            from ai_guardian.pattern_server import PatternServerClient
+            client = PatternServerClient(ps_config)
+            result = client.get_patterns_path()
+            if result and result.exists():
+                return True, None
+            return False, "Fetch returned no path"
+        except Exception as e:
+            return False, str(e)
+
     def check_pattern_server(self) -> CheckResult:
         ps_config = self._get_ps_config()
         if not ps_config:
@@ -603,11 +615,29 @@ class Doctor:
             cache_file = get_cache_dir() / "patterns.toml"
 
         if not cache_file.exists():
+            if self.fix:
+                ok, err = self._refresh_ps_cache(ps_config)
+                if ok:
+                    return CheckResult(
+                        name="ps_cache_freshness",
+                        status=CheckStatus.PASS,
+                        message="Fetched patterns from server",
+                        fixable=True,
+                        fixed=True,
+                    )
+                return CheckResult(
+                    name="ps_cache_freshness",
+                    status=CheckStatus.WARN,
+                    message="No cached patterns",
+                    fix_hint=f"Fetch failed: {err}" if err else "Fetch failed — check URL and auth settings",
+                    fixable=True,
+                )
             return CheckResult(
                 name="ps_cache_freshness",
                 status=CheckStatus.WARN,
                 message="No cached patterns",
-                fix_hint="Patterns will be fetched on next scan",
+                fix_hint="Run: ai-guardian doctor --fix",
+                fixable=True,
             )
 
         age_seconds = time.time() - cache_file.stat().st_mtime
@@ -627,22 +657,58 @@ class Doctor:
         rule_str = f", {rule_count} rules" if rule_count is not None else ""
 
         if age_days > expire_days:
+            if self.fix:
+                ok, err = self._refresh_ps_cache(ps_config)
+                if ok:
+                    return CheckResult(
+                        name="ps_cache_freshness",
+                        status=CheckStatus.PASS,
+                        message="Refreshed expired patterns from server",
+                        fixable=True,
+                        fixed=True,
+                    )
+                return CheckResult(
+                    name="ps_cache_freshness",
+                    status=CheckStatus.FAIL,
+                    message=f"Expired ({age_str}{rule_str})",
+                    fix_hint=f"Refresh failed: {err}" if err else "Refresh failed — check URL and auth settings",
+                    fixable=True,
+                )
             return CheckResult(
                 name="ps_cache_freshness",
                 status=CheckStatus.FAIL,
                 message=f"Expired ({age_str}{rule_str})",
-                fix_hint="Refresh failed — check URL and auth settings",
+                fix_hint="Run: ai-guardian doctor --fix",
+                fixable=True,
             )
 
         refresh_hours = cache_config.get("refresh_interval_hours", 12)
         refresh_days = refresh_hours / 24
 
         if age_days > refresh_days:
+            if self.fix:
+                ok, err = self._refresh_ps_cache(ps_config)
+                if ok:
+                    return CheckResult(
+                        name="ps_cache_freshness",
+                        status=CheckStatus.PASS,
+                        message="Refreshed stale patterns from server",
+                        fixable=True,
+                        fixed=True,
+                    )
+                return CheckResult(
+                    name="ps_cache_freshness",
+                    status=CheckStatus.WARN,
+                    message=f"Stale ({age_str}{rule_str})",
+                    fix_hint=f"Refresh failed: {err}" if err else "Refresh failed — check URL and auth settings",
+                    fixable=True,
+                )
             return CheckResult(
                 name="ps_cache_freshness",
                 status=CheckStatus.WARN,
                 message=f"Stale ({age_str}{rule_str})",
-                fix_hint="Patterns will refresh on next scan",
+                fix_hint="Run: ai-guardian doctor --fix",
+                fixable=True,
             )
 
         return CheckResult(
