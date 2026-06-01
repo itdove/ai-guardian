@@ -111,6 +111,12 @@ try:
 except ImportError:
     HAS_IMAGE_SCANNER = False
 
+try:
+    from ai_guardian.ast_scanner import extract_scannable_content
+    HAS_AST_SCANNER = True
+except ImportError:
+    HAS_AST_SCANNER = False
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_ENGINES = ["toml-patterns", "gitleaks"]
@@ -1898,6 +1904,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if _gitleaks_allowlist and file_path:
                 if _gitleaks_cfg.should_skip_file(file_path, _gitleaks_allowlist):
                     logging.info(f"Skipping secret scanning for .gitleaks.toml allowlisted path: {file_path}")
+                    return False, None
+
+        # AST-aware scanning: for code files, extract only comments and strings
+        if HAS_AST_SCANNER and file_path:
+            extracted = extract_scannable_content(content, file_path)
+            if extracted is not None:
+                content = extracted
+                if not content.strip():
                     return False, None
 
         # Use in-memory filesystem on Linux for better performance

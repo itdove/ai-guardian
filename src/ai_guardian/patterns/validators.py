@@ -9,6 +9,7 @@ Extracted from SecretRedactor for shared use by PatternCache.
 """
 
 import logging
+import re
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,6 @@ def credit_card_check(number_str: str) -> bool:
     Returns:
         True if passes both Luhn checksum AND has a valid card network prefix
     """
-    import re
     digits_only = re.sub(r'[- ]', '', number_str)
     if not luhn_check(digits_only):
         return False
@@ -103,7 +103,6 @@ def aadhaar_check(number_str: str) -> bool:
     Returns:
         True if the number looks like a plausible Aadhaar number
     """
-    import re
     digits = re.sub(r'[- ]', '', number_str)
     if len(digits) != 12 or not digits.isdigit():
         return False
@@ -136,11 +135,24 @@ def _has_path_like_segments(parts: list) -> bool:
     return True
 
 
-def env_not_file_path(matched_text: str) -> bool:
-    """Return False (skip) if the env var value is a filesystem path.
+_PLACEHOLDER_RE = re.compile(
+    r'^(?:'
+    r'(?:your|my|example|replace|insert|enter|put|test|fake|dummy|sample|placeholder|changeme)[-_]'
+    r'|'
+    r'.*[-_](?:here|placeholder|example|changeme)$'
+    r')',
+    re.IGNORECASE,
+)
 
-    Extracts the value after '=' and checks for Unix absolute paths,
-    Windows absolute paths, and relative paths starting with ./ or ../
+
+def _is_placeholder(value: str) -> bool:
+    """Check if a value looks like a documentation placeholder."""
+    return bool(_PLACEHOLDER_RE.search(value))
+
+
+def env_not_file_path(matched_text: str) -> bool:
+    """Return False (skip) if the env var value is a filesystem path,
+    starts with underscore (Python identifier), or looks like a placeholder.
     """
     eq_pos = matched_text.find('=')
     if eq_pos < 0:
@@ -148,6 +160,10 @@ def env_not_file_path(matched_text: str) -> bool:
     value = matched_text[eq_pos + 1:].strip().strip("'\"")
     if not value:
         return True
+    if value.startswith('_'):
+        return False
+    if _is_placeholder(value):
+        return False
     return not _is_file_path(value)
 
 
