@@ -1105,6 +1105,48 @@ The skill automates steps 2-6 below and provides guidance for step 7.
 6. Commit changes
 7. Create and push tag: `git tag -a vX.Y.Z -m "Release X.Y.Z"`
 8. GitHub Actions handles the rest automatically
+9. Generate combined docs for LLM upload (see below)
+
+### Generating Combined Documentation for LLM Upload
+
+Some LLM tools (e.g., NotebookLM) require single-file upload rather than crawling directories. Generate a combined markdown file from all project documentation:
+
+```bash
+# From project root — concatenate all docs with section headers
+{
+  echo "# AI Guardian — Combined Documentation"
+  echo ""
+  echo "Auto-generated combined export of all project documentation."
+  echo ""
+  for f in README.md $(find docs -name '*.md' | sort); do
+    echo ""
+    echo "# === $f ==="
+    echo ""
+    cat "$f"
+  done
+  echo ""
+  echo "# === ai-guardian-example.json ==="
+  echo ""
+  echo '```json'
+  cat ai-guardian-example.json
+  echo '```'
+  echo ""
+  echo "# === CHANGELOG.md (recent) ==="
+  echo ""
+  # Include only the first 2 released versions (plus Unreleased)
+  awk '/^## \[[0-9]/{n++} n>2{exit} {print}' CHANGELOG.md
+  echo ""
+  echo "*(Earlier versions omitted — see CHANGELOG.md for full history)*"
+} > docs/notebooklm-export.md
+```
+
+**What's included:**
+1. `README.md`
+2. All `docs/*.md` and `docs/security/*.md` files (alphabetically)
+3. `ai-guardian-example.json` (wrapped in a JSON code block)
+4. `CHANGELOG.md` (trimmed to last 2 released versions)
+
+Each file is separated by a `# === filename ===` header. Total output is ~76k words, well under the 500k-word limit of most LLM tools.
 
 ---
 

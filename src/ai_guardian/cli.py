@@ -1446,6 +1446,7 @@ def main():
                 traceback.print_exc()
                 return 1
 
+
         # If --ide specified but no subcommand, set env var and fall through to hook mode
         if not args.command and getattr(args, 'ide', None):
             os.environ["AI_GUARDIAN_IDE_TYPE"] = args.ide
