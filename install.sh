@@ -202,7 +202,12 @@ if [ -n "$IDE" ]; then
     ok "Hooks installed for $IDE"
 fi
 
-# --- Step 6: Summary ---
+# --- Step 6: Verify installation ---
+
+log "Verifying installation..."
+"$PYTHON" -m ai_guardian doctor 2>&1 | tail -5 || true
+
+# --- Step 7: Summary ---
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -235,6 +240,8 @@ if [ -z "$IDE" ]; then
     echo "    ai-guardian setup --ide <NAME>  # setup hooks for your IDE"
 fi
 echo "    ai-guardian doctor         # verify setup"
+echo "    ai-guardian daemon start   # start background daemon"
+echo "    ai-guardian tray start     # start system tray"
 echo "    ai-guardian --help         # see all commands"
 if [ "$USE_VENV" = true ]; then
     echo "    source $VENV_DIR/bin/activate  # activate venv"

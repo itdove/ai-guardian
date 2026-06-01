@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Installer post-install improvements** (Issue #911)
+  - Run `ai-guardian doctor` as a non-fatal verification step at the end of install
+  - Add `ai-guardian daemon start` and `ai-guardian tray start` to "Next steps" output
+
 - **`--use-pinned` flag for `setup --install-scanner`** (Issue #907)
   - Installs the pinned scanner version from `pyproject.toml` instead of latest
   - Usage: `ai-guardian setup --install-scanner gitleaks --use-pinned`
