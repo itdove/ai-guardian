@@ -58,6 +58,44 @@ class TestTomlPatternsScanner:
         assert scanner._cache.rule_count == initial_count + 1
 
 
+class TestTomlPatternsPiiFiltering:
+
+    def test_scan_filters_pii_by_configured_types(self):
+        """Email excluded from pii_types should not appear in findings."""
+        scanner = TomlPatternsScanner()
+        scanner.configure({"pii_types": ["ssn"]})
+        findings = scanner.scan("Contact: user@example.com")
+        assert not any(f.rule_id == "pii-email" for f in findings)
+
+    def test_scan_includes_pii_when_in_configured_types(self):
+        """Email included in pii_types should appear in findings."""
+        scanner = TomlPatternsScanner()
+        scanner.configure({"pii_types": ["email"]})
+        findings = scanner.scan("Contact: user@example.com")
+        assert any(f.rule_id == "pii-email" for f in findings)
+
+    def test_scan_without_pii_types_config_includes_all(self):
+        """Without configure(), all PII types should be returned."""
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan("Contact: user@example.com")
+        assert any(f.rule_id == "pii-email" for f in findings)
+
+    def test_scan_secrets_not_filtered_by_pii_types(self):
+        """Secret findings must never be filtered by pii_types."""
+        scanner = TomlPatternsScanner()
+        scanner.configure({"pii_types": []})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_default_pii_types_exclude_email(self):
+        """Default pii_types from config_loaders excludes email."""
+        from ai_guardian.config_loaders import _PII_DEFAULTS
+        scanner = TomlPatternsScanner()
+        scanner.configure({"pii_types": _PII_DEFAULTS["pii_types"]})
+        findings = scanner.scan("Contact: user@example.com")
+        assert not any(f.rule_id == "pii-email" for f in findings)
+
+
 class TestTomlPatternsEngineBuilder:
 
     def test_select_toml_patterns_engine(self):

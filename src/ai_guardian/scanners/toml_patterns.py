@@ -13,7 +13,7 @@ Usage in ai-guardian.json:
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from ai_guardian.patterns import BUNDLED_FILES
 from ai_guardian.patterns.cache import PatternCache
@@ -35,6 +35,7 @@ class TomlPatternsScanner(Scanner):
 
     def __init__(self):
         self._cache = PatternCache()
+        self._allowed_pii_types: Optional[Set[str]] = None
         toml_paths = []
         for key in ("secrets", "pii"):
             path = BUNDLED_FILES.get(key)
@@ -50,7 +51,12 @@ class TomlPatternsScanner(Scanner):
         Supports:
             pattern_servers: list of server configs with 'url' and 'format'
             additional_patterns: list of extra rule dicts
+            pii_types: list of PII types to detect (from scan_pii config)
         """
+        pii_types = config.get("pii_types")
+        if pii_types is not None:
+            self._allowed_pii_types = set(pii_types)
+
         servers = config.get("pattern_servers", [])
         if not servers and "pattern_server" in config:
             servers = [config["pattern_server"]]
@@ -97,6 +103,10 @@ class TomlPatternsScanner(Scanner):
         raw_findings = self._cache.scan(content, categories=["secrets", "pii"])
         findings = []
         for f in raw_findings:
+            if self._allowed_pii_types is not None and f.category == "pii":
+                pii_type = f.metadata.get("pii_type")
+                if pii_type and pii_type not in self._allowed_pii_types:
+                    continue
             findings.append(Finding(
                 rule_id=f.rule_id,
                 line_number=f.line_number,
