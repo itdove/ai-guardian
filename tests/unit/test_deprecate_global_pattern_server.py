@@ -332,3 +332,38 @@ class TestMigrationStage2:
         assert "pattern_server" not in result["secret_scanning"]
         engine = result["secret_scanning"]["engines"][0]
         assert engine["pattern_server"]["url"] == "https://global.example.com"
+
+
+# --- Doctor --fix tests ---
+
+
+class TestDoctorFixGlobalPatternServer:
+    """Test check_global_pattern_server with fix=True (Issue #915)."""
+
+    def test_fix_migrates_successfully(self, _isolate_config_dir):
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {
+                "pattern_server": {"url": "https://example.com"},
+                "engines": ["gitleaks"]
+            }
+        }))
+        doctor = Doctor(fix=True)
+        result = doctor.check_global_pattern_server()
+        assert result.status == CheckStatus.PASS
+        assert result.fixable is True
+        assert result.fixed is True
+        assert "Migrated" in result.message
+
+    def test_fix_false_still_warns(self, _isolate_config_dir):
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({
+            "secret_scanning": {
+                "pattern_server": {"url": "https://example.com"},
+                "engines": ["gitleaks"]
+            }
+        }))
+        doctor = Doctor(fix=False)
+        result = doctor.check_global_pattern_server()
+        assert result.status == CheckStatus.WARN
+        assert result.fixable is True
