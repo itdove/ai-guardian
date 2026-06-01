@@ -67,3 +67,20 @@ class TestInstallScriptHelp:
 
     def test_help_mentions_no_mcp(self, help_output):
         assert "--no-mcp" in help_output
+
+
+class TestInstallScriptContent:
+    """Verify the script body contains expected post-install content."""
+
+    @pytest.fixture()
+    def script_content(self):
+        return SCRIPT.read_text()
+
+    def test_doctor_verification_step(self, script_content):
+        assert "ai_guardian doctor" in script_content
+
+    def test_next_steps_daemon_start(self, script_content):
+        assert "ai-guardian daemon start" in script_content
+
+    def test_next_steps_tray_start(self, script_content):
+        assert "ai-guardian tray start" in script_content
