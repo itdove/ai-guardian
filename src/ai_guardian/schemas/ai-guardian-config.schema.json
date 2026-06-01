@@ -595,7 +595,7 @@
     },
     "scan_pii": {
       "type": "object",
-      "description": "PII detection for GDPR/CCPA compliance (v1.6.0+). Scans user prompts, file reads, and tool outputs for personally identifiable information. Phase 1 (v1.6.0): SSN, credit card, phone, email, US passport, IBAN, international phone. Phase 2 (v1.8.0): medical record numbers, international passports, Canadian SIN, UK NIN, Indian Aadhaar, street addresses. Phase 2 types are opt-in.",
+      "description": "PII detection for GDPR/CCPA compliance (v1.6.0+). Scans user prompts, file reads, and tool outputs for personally identifiable information. Phase 1 (v1.6.0): SSN, credit card, phone, email, US passport, IBAN, international phone. Phase 2 defaults (v1.10.0): medical_id, passport, uk_nin. Phase 2 opt-in: canada_sin, india_aadhaar, address, email.",
       "properties": {
         "immutable": {
           "$ref": "#/definitions/immutable_fields"
@@ -619,7 +619,7 @@
             "type": "string",
             "enum": ["ssn", "credit_card", "phone", "email", "us_passport", "iban", "intl_phone", "medical_id", "passport", "canada_sin", "uk_nin", "india_aadhaar", "address"]
           },
-          "default": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone"]
+          "default": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone", "medical_id", "passport", "uk_nin"]
         },
         "action": {
           "type": "string",

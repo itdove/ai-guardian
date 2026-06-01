@@ -1623,10 +1623,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_patterns": []
         },
 
-        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (v1.6.0+). Phase 1: SSN, credit card, phone, US passport, IBAN, international phone. Phase 2 (v1.8.0): medical_id, passport, canada_sin, uk_nin, india_aadhaar, address (all opt-in). Email also opt-in.",
+        "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (v1.6.0+). Phase 1: SSN, credit card, phone, US passport, IBAN, international phone. Phase 2 defaults (v1.10.0): medical_id, passport, uk_nin. Opt-in: canada_sin, india_aadhaar, address, email.",
         "scan_pii": {
             "enabled": True,
-            "pii_types": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone"],
+            "pii_types": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone", "medical_id", "passport", "uk_nin"],
             "action": "block",
             "ignore_files": [],
             "ignore_tools": [],

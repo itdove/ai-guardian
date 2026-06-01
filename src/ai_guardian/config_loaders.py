@@ -365,7 +365,7 @@ def _load_secret_redaction_config():
 
 _PII_DEFAULTS = {
     'enabled': True,
-    'pii_types': ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'],
+    'pii_types': ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone', 'medical_id', 'passport', 'uk_nin'],
     'action': 'block',
     'ignore_files': [],
     'ignore_tools': [],

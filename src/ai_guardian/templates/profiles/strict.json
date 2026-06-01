@@ -76,6 +76,9 @@
             "us_passport",
             "iban",
             "intl_phone",
+            "medical_id",
+            "passport",
+            "uk_nin",
             "email"
         ],
         "action": "block",

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Expanded default PII types** (Issue #905)
+  - Added `medical_id`, `passport`, and `uk_nin` to default `pii_types` list
+  - These types have low false-positive risk due to keyword-anchored regexes
+  - Updated in setup.py, config_loaders.py, schema, example config, and all profile templates
+  - Remaining opt-in types: `canada_sin`, `india_aadhaar`, `address`, `email`
+
 ### Added
 
 - **Combined documentation export for single-file upload** (Issue #900)

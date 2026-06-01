@@ -417,10 +417,13 @@
       "phone",
       "us_passport",
       "iban",
-      "intl_phone"
+      "intl_phone",
+      "medical_id",
+      "passport",
+      "uk_nin"
     ],
     "_comment_email_opt_in": "Email PII detection is available but not enabled by default (too noisy in codebases). Add 'email' to pii_types to enable.",
-    "_comment_phase2": "Phase 2 types (v1.8.0, all opt-in): 'medical_id' (MRN/Patient ID, context-aware), 'passport' (international passports, context-aware), 'canada_sin' (Canadian SIN, Luhn-validated), 'uk_nin' (UK National Insurance Number), 'india_aadhaar' (Indian Aadhaar), 'address' (street addresses, regex-based). Add to pii_types to enable.",
+    "_comment_phase2": "Phase 2 opt-in types (v1.8.0): 'canada_sin' (Canadian SIN, Luhn-validated), 'india_aadhaar' (Indian Aadhaar), 'address' (street addresses, regex-based). Add to pii_types to enable.",
     "action": "block",
     "ignore_files": [],
     "_comment_ignore_tools": "Tool name patterns to skip during PII scanning. Supports wildcards: * (any chars), ? (single char). Examples: 'mcp__*' (all MCP tools), 'Skill:*' (all skills), 'Bash' (Bash tool)",
