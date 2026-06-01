@@ -49,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Windows: setup uses pythonw.exe to minimize console window flash** (Issue #902)
+  - `ai-guardian setup` now uses `pythonw.exe -m ai_guardian` on Windows instead
+    of console-mode `ai-guardian.EXE`, avoiding visible window on every hook call
+  - Optional VBS wrapper generated during setup for fully hidden execution
+  - All agent adapters (Claude Code, Cursor, Copilot, Codex, Windsurf, Gemini, Augment) use pythonw on Windows
+  - `_is_ai_guardian_command()` extended to handle Windows backslash paths, `.exe` suffix, and pythonw invocations
+  - macOS and Linux behavior is unchanged
+
 - **Remove bypass hints from hook block messages** (Issue #897, #896)
   - Hook responses no longer include annotation syntax, allowlist instructions,
     config paths, or false-positive workaround tips

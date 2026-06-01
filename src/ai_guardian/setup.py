@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -22,7 +23,15 @@ from ai_guardian.config_utils import get_cache_dir, get_config_dir
 
 
 def _resolve_binary_path() -> str:
-    """Resolve absolute path to ai-guardian binary at setup time."""
+    """Resolve absolute path to ai-guardian binary at setup time.
+
+    On Windows, prefers ``pythonw.exe -m ai_guardian`` to avoid console
+    window flash on every hook invocation (see issue #902).
+    """
+    if platform.system() == "Windows":
+        pythonw = Path(sys.executable).parent / "pythonw.exe"
+        if pythonw.exists():
+            return f"{pythonw} -m ai_guardian"
     path = shutil.which("ai-guardian")
     if path:
         return path
@@ -35,12 +44,23 @@ def _resolve_binary_path() -> str:
 def _is_ai_guardian_command(cmd: str) -> bool:
     """Check if a command string refers to ai-guardian (bare or absolute path).
 
-    Handles commands with trailing arguments like ``--ide cursor``.
+    Handles commands with trailing arguments like ``--ide cursor``,
+    Windows backslash paths, ``.exe`` suffixes, and the
+    ``pythonw.exe -m ai_guardian`` invocation used on Windows.
     """
     if not cmd:
         return False
     first_token = cmd.split()[0]
-    return first_token == "ai-guardian" or first_token.endswith("/ai-guardian")
+    base = Path(first_token).stem
+    if base in ("ai-guardian", "ai-guardian.exe"):
+        return True
+    if first_token == "ai-guardian" or first_token.endswith(("/ai-guardian", "\\ai-guardian")):
+        return True
+    if first_token.endswith(("/ai-guardian.exe", "\\ai-guardian.exe")):
+        return True
+    if "-m" in cmd and "ai_guardian" in cmd:
+        return True
+    return False
 
 
 def _substitute_command(obj, abs_path: str, ide_type: str = None):
@@ -52,7 +72,7 @@ def _substitute_command(obj, abs_path: str, ide_type: str = None):
     if isinstance(obj, dict):
         result = {}
         for k, v in obj.items():
-            if k == "command" and v == "ai-guardian":
+            if k == "command" and v in ("ai-guardian", "ai-guardian.exe"):
                 cmd = abs_path
                 if ide_type:
                     cmd = f"{abs_path} --ide {ide_type}"
@@ -82,6 +102,28 @@ def _upgrade_ide_flag(obj, ide_type: str):
     elif isinstance(obj, list):
         for item in obj:
             _upgrade_ide_flag(item, ide_type)
+
+
+def _create_vbs_wrapper(cmd: str, config_dir: Path) -> Optional[Path]:
+    """Create a VBS wrapper for fully hidden execution on Windows.
+
+    The wrapper uses ``WScript.Shell.Run`` with window style 0 (hidden) so
+    that neither ``pythonw.exe`` nor a transient console flash is visible.
+    Users can point their hook command to
+    ``wscript.exe <path>`` for maximum suppression.
+
+    Returns the path to the generated ``.vbs`` file, or *None* on non-Windows.
+    """
+    if platform.system() != "Windows":
+        return None
+    vbs_path = config_dir / "ai-guardian-hook.vbs"
+    content = (
+        'Set WshShell = CreateObject("WScript.Shell")\n'
+        f'WshShell.Run "{cmd}", 0, True\n'
+    )
+    config_dir.mkdir(parents=True, exist_ok=True)
+    vbs_path.write_text(content, encoding="utf-8")
+    return vbs_path
 
 
 def _notify_daemon_reload():
@@ -1158,11 +1200,23 @@ class IDESetup:
                 json.dump(merged_config, f, indent=2)
                 f.write('\n')  # Add trailing newline
 
+            # Generate VBS wrapper on Windows for fully hidden execution
+            vbs_path = _create_vbs_wrapper(
+                f"{abs_path} --ide {ide_type}", config_path.parent
+            )
+
             # Verify Gitleaks installation
             gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
 
             message = f"✓ Successfully configured {ide_name} hooks at {config_path}\n"
             message += f"\n  {gitleaks_message}\n"
+
+            if vbs_path:
+                message += (
+                    f"\n  Windows: VBS wrapper created at {vbs_path}\n"
+                    f"  To fully hide console windows, change the hook command to:\n"
+                    f'    wscript.exe "{vbs_path}"\n'
+                )
 
             # Display hook ordering warnings if any
             if hook_warnings:
