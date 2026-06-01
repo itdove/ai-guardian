@@ -1677,6 +1677,108 @@ class TestCreateDefaultConfig:
             assert 'secret_scanning' in config
             assert 'existing' not in config
 
+    def test_force_strips_deprecated_pattern_server(self, tmp_path):
+        """Issue #914: --force must not preserve deprecated secret_scanning.pattern_server."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+        old_config = {
+            "secret_scanning": {
+                "enabled": True,
+                "pattern_server": {
+                    "url": "https://example.com",
+                    "patterns_endpoint": "/patterns/gitleaks/8.27.0",
+                },
+                "engines": [{"type": "toml-patterns"}],
+            },
+            "prompt_injection": {"enabled": True},
+        }
+        config_file.write_text(json.dumps(old_config))
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(force=True)
+
+            assert success is True
+            with open(config_file) as f:
+                config = json.load(f)
+            assert "pattern_server" not in config.get("secret_scanning", {})
+            assert "pattern_server" not in config
+
+    def test_force_with_profile_strips_deprecated_pattern_server(self, tmp_path):
+        """Issue #914: --force --profile @standard must produce clean config."""
+        from ai_guardian.setup import create_default_config
+
+        config_file = tmp_path / 'ai-guardian.json'
+        old_config = {
+            "secret_scanning": {
+                "pattern_server": {"url": "https://old.example.com"},
+            },
+        }
+        config_file.write_text(json.dumps(old_config))
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, message = create_default_config(profile="@standard", force=True)
+
+            assert success is True
+            with open(config_file) as f:
+                config = json.load(f)
+            ss = config.get("secret_scanning", {})
+            assert "pattern_server" not in ss
+            assert "engines" in ss
+
+    def test_force_creates_config_that_passes_doctor(self, tmp_path):
+        """Issue #914: config from --force must pass doctor check_global_pattern_server."""
+        from ai_guardian.setup import create_default_config
+        from ai_guardian.doctor import Doctor, CheckStatus
+
+        config_file = tmp_path / 'ai-guardian.json'
+        old_config = {
+            "secret_scanning": {
+                "pattern_server": {"url": "https://stale.example.com"},
+            },
+        }
+        config_file.write_text(json.dumps(old_config))
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            success, _ = create_default_config(force=True)
+            assert success is True
+
+            with open(config_file) as f:
+                config = json.load(f)
+
+            doctor = Doctor(fix=False)
+            doctor._config = config
+            doctor._config_loaded = True
+            result = doctor.check_global_pattern_server()
+            assert result.status == CheckStatus.PASS
+
+    def test_custom_profile_deprecated_key_stripped(self, tmp_path):
+        """Issue #914: even custom profiles with deprecated keys get stripped."""
+        from ai_guardian.setup import create_default_config
+
+        profile_file = tmp_path / "custom.json"
+        profile_config = {
+            "secret_scanning": {
+                "enabled": True,
+                "pattern_server": {"url": "https://custom.example.com"},
+                "engines": [{"type": "toml-patterns"}],
+            },
+            "prompt_injection": {"enabled": True, "sensitivity": "low"},
+        }
+        profile_file.write_text(json.dumps(profile_config))
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+
+        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(config_dir)}):
+            success, message = create_default_config(profile=str(profile_file))
+
+            assert success is True
+            config_file = config_dir / 'ai-guardian.json'
+            with open(config_file) as f:
+                config = json.load(f)
+            assert "pattern_server" not in config.get("secret_scanning", {})
+
     def test_create_default_config_dry_run(self, tmp_path):
         """Test dry-run mode for config creation."""
         from ai_guardian.setup import create_default_config

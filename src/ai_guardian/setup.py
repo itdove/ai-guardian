@@ -1485,6 +1485,8 @@ def create_default_config(
         else:
             config = _get_default_config_template(permissive)
 
+        config = _strip_deprecated_config_keys(config)
+
         if json_output:
             return True, json.dumps(config, indent=2)
 
@@ -1535,6 +1537,15 @@ def create_default_config(
 
     except Exception as e:
         return False, f"Error creating default config: {e}"
+
+
+def _strip_deprecated_config_keys(config: Dict) -> Dict:
+    """Remove deprecated config keys so new configs never contain them."""
+    ss = config.get("secret_scanning")
+    if isinstance(ss, dict):
+        ss.pop("pattern_server", None)
+    config.pop("pattern_server", None)
+    return config
 
 
 def _get_default_config_template(permissive: bool = False) -> Dict:
@@ -2485,6 +2496,7 @@ def _setup_hooks_json_output(
         else:
             ag_config = _get_default_config_template(permissive)
 
+        ag_config = _strip_deprecated_config_keys(ag_config)
         result["ai_guardian_config"] = ag_config
 
         if not dry_run:
