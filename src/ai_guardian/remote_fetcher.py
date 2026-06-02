@@ -91,7 +91,13 @@ class RemoteFetcher:
             dict or None: Parsed configuration or None if failed
         """
         # Local files: no caching, always read fresh
-        if url.startswith("file://") or url.startswith("/") or url.startswith("~"):
+        is_local = (
+            url.startswith("file://")
+            or url.startswith("/")
+            or url.startswith("~")
+            or (len(url) >= 3 and url[1] == ":" and url[2] in ("/", "\\"))
+        )
+        if is_local:
             logger.debug(f"Local file detected, bypassing cache: {url}")
             return self._fetch_from_local_file(url)
 
@@ -251,7 +257,13 @@ class RemoteFetcher:
             dict or None: Parsed configuration or None if failed
         """
         # Detect local file paths
-        if url.startswith("file://") or url.startswith("/") or url.startswith("~"):
+        is_local = (
+            url.startswith("file://")
+            or url.startswith("/")
+            or url.startswith("~")
+            or (len(url) >= 3 and url[1] == ":" and url[2] in ("/", "\\"))
+        )
+        if is_local:
             return self._fetch_from_local_file(url)
 
         try:

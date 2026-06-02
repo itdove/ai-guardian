@@ -12,8 +12,8 @@ SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "install.sh"
 PS1_SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "install.ps1"
 
 _skip_no_bash = pytest.mark.skipif(
-    shutil.which("bash") is None,
-    reason="bash not available",
+    sys.platform == "win32",
+    reason="bash install script tests not applicable on Windows",
 )
 
 

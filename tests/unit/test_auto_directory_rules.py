@@ -5,6 +5,7 @@ Unit tests for auto-generation of directory rules from skill permissions.
 Tests Issue #144: Auto-generate directory rules from skill permissions
 """
 
+import os
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -444,7 +445,7 @@ class TestMultiIDESupport:
             generator = DirectoryRuleGenerator(config)
             dirs = generator._get_skill_directories({"skill_directories": "auto"})
 
-        assert any(expected_substring in str(d) for d in dirs)
+        assert any(expected_substring.replace("/", os.sep) in str(d) for d in dirs)
 
     @patch('ai_guardian.directory_rule_generator.Path.is_dir')
     @patch('ai_guardian.directory_rule_generator.Path.exists')
@@ -463,8 +464,8 @@ class TestMultiIDESupport:
         generator = DirectoryRuleGenerator(config)
         all_candidates = generator._get_skill_directories({"skill_directories": "auto"})
 
-        # Convert to strings for easier checking
-        all_dirs = [str(d) for d in all_candidates]
+        # Convert to strings with normalized separators for cross-platform matching
+        all_dirs = [str(d).replace("\\", "/") for d in all_candidates]
 
         # Should include all IDE variations
         assert any(".claude/skills" in d for d in all_dirs)
