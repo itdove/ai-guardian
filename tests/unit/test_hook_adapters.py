@@ -20,6 +20,7 @@ from ai_guardian.hook_adapters import (
     ClineAdapter,
     KiroAdapter,
     AugmentAdapter,
+    OpenCodeAdapter,
     JunieAdapter,
 )
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
@@ -147,6 +148,11 @@ class TestAdapterRegistry:
             adapter = detect_adapter({})
             assert isinstance(adapter, AugmentAdapter)
 
+    def test_env_var_override_opencode(self):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "opencode"}):
+            adapter = detect_adapter({})
+            assert isinstance(adapter, OpenCodeAdapter)
+
     def test_env_var_override_junie(self):
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "junie"}):
             adapter = detect_adapter({})
@@ -185,6 +191,10 @@ class TestAdapterRegistry:
     def test_ide_type_field_selects_codex(self):
         adapter = detect_adapter({"_ide_type": "codex"})
         assert isinstance(adapter, CodexAdapter)
+
+    def test_ide_type_field_selects_opencode(self):
+        adapter = detect_adapter({"_ide_type": "opencode"})
+        assert isinstance(adapter, OpenCodeAdapter)
 
     def test_ide_type_field_beats_env_var(self):
         """_ide_type field takes priority over AI_GUARDIAN_IDE_TYPE env var."""
@@ -281,6 +291,14 @@ class TestAutoDetection:
             "tool_name": "Bash",
         })
         assert isinstance(adapter, ClaudeCodeAdapter)
+
+    def test_detect_opencode_from_opencode_version(self):
+        adapter = detect_adapter({"opencode_version": "1.0.0"})
+        assert isinstance(adapter, OpenCodeAdapter)
+
+    def test_detect_opencode_from_hook_source(self):
+        adapter = detect_adapter({"hook_source": "opencode"})
+        assert isinstance(adapter, OpenCodeAdapter)
 
     def test_detect_augment_from_is_mcp_tool(self):
         adapter = detect_adapter({"is_mcp_tool": False, "tool_name": "view"})

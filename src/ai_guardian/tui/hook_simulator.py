@@ -41,6 +41,7 @@ IDE_OPTIONS = [
     ("Claude Code", "claude"),
     ("Cursor", "cursor"),
     ("GitHub Copilot", "copilot"),
+    ("OpenCode", "opencode"),
 ]
 
 

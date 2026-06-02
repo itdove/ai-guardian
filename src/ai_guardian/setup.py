@@ -400,6 +400,13 @@ class IDESetup:
             "config_filename": None,
             "extension_based": True,
         },
+        "opencode": {
+            "name": "OpenCode",
+            "config_path": "~/.config/opencode/plugins",
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "plugin_file": True,
+        },
         "augment": {
             "name": "Augment Code",
             "config_path": "~/.augment/settings.json",
@@ -863,8 +870,21 @@ class IDESetup:
             if not config_path.exists():
                 return False
 
-            # Extension-based hooks (AiderDesk, OpenClaw): check directory for index.ts
             ide_config = self.IDE_CONFIGS.get(ide_type, {})
+
+            # Plugin-file hooks (OpenCode): check for ai-guardian.ts
+            if ide_config.get("plugin_file"):
+                plugin_file = config_path / "ai-guardian.ts"
+                if plugin_file.exists():
+                    try:
+                        content = plugin_file.read_text(encoding="utf-8")
+                        if "ai-guardian" in content:
+                            return True
+                    except Exception:
+                        pass
+                return False
+
+            # Extension-based hooks (AiderDesk, OpenClaw): check directory for index.ts
             if ide_config.get("extension_based"):
                 ext_dir = config_path if config_path.is_dir() else config_path.parent
                 index_path = ext_dir / "index.ts"
@@ -1024,6 +1044,92 @@ class IDESetup:
 
         return True, message
 
+    @staticmethod
+    @staticmethod
+    def _strip_jsonc_comments(text: str) -> str:
+        """Strip single-line (//) and multi-line (/* */) comments from JSONC.
+
+        Quote-aware: skips // and /* inside JSON string literals.
+        """
+        import re
+        result = []
+        i = 0
+        in_string = False
+        while i < len(text):
+            c = text[i]
+            if in_string:
+                result.append(c)
+                if c == '\\' and i + 1 < len(text):
+                    i += 1
+                    result.append(text[i])
+                elif c == '"':
+                    in_string = False
+            elif c == '"':
+                in_string = True
+                result.append(c)
+            elif c == '/' and i + 1 < len(text) and text[i + 1] == '/':
+                while i < len(text) and text[i] != '\n':
+                    i += 1
+                continue
+            elif c == '/' and i + 1 < len(text) and text[i + 1] == '*':
+                end = text.find('*/', i + 2)
+                i = end + 2 if end != -1 else len(text)
+                continue
+            else:
+                result.append(c)
+            i += 1
+        stripped = ''.join(result)
+        stripped = re.sub(r',\s*([}\]])', r'\1', stripped)
+        return stripped
+
+    def _setup_plugin_file(
+        self,
+        ide_type: str,
+        ide_config: Dict,
+        plugins_dir: Path,
+        dry_run: bool = False,
+    ) -> Tuple[bool, str]:
+        """Setup plugin-file based hooks (OpenCode).
+
+        Drops a single .ts file into the IDE's plugins directory.
+        """
+        ide_name = ide_config["name"]
+        plugin_file = plugins_dir / "ai-guardian.ts"
+
+        if dry_run:
+            message = f"[DRY RUN] Would configure {ide_name} plugin:\n"
+            message += f"  Create: {plugin_file}\n"
+            return True, message
+
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+
+        abs_path = _resolve_binary_path()
+        cmd = f"{abs_path} --ide {ide_type}"
+        plugin_file.write_text(
+            _OPENCODE_PLUGIN_TS.replace("execSync('ai-guardian'", f"execSync('{cmd}'"),
+            encoding="utf-8",
+        )
+
+        gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
+
+        message = f"✓ Successfully configured {ide_name} plugin at {plugin_file}\n"
+        message += f"\n  {gitleaks_message}\n"
+
+        if not gitleaks_installed:
+            message += (
+                "\n  ⚠️  WARNING: Secret scanning will be disabled without Gitleaks!\n"
+                "      AI Guardian requires Gitleaks for secret detection.\n"
+            )
+
+        message += f"\n  Next steps:\n"
+        step = 1
+        if not gitleaks_installed:
+            message += f"  {step}. Install Gitleaks (see above)\n"
+            step += 1
+        message += f"  {step}. Restart {ide_name} for the plugin to load\n"
+
+        return True, message
+
     def _setup_extension_based_hooks(
         self,
         ide_type: str,
@@ -1132,6 +1238,10 @@ class IDESetup:
             # Check if hooks already configured
             if not force and self.check_hooks_configured(config_path, ide_type):
                 return False, f"ai-guardian hooks already configured for {ide_name}. Use --force to overwrite."
+
+            # Plugin-file IDEs (OpenCode): drop a single .ts file in plugins dir
+            if ide_config.get("plugin_file"):
+                return self._setup_plugin_file(ide_type, ide_config, config_path, dry_run)
 
             # Extension-based IDEs (AiderDesk): create TypeScript extension
             if ide_config.get("extension_based"):
@@ -2663,6 +2773,11 @@ _MCP_IDE_CONFIGS = {
         "config_key": "mcpServers",
         "skill_dir": ".openclaw/skills",
     },
+    "opencode": {
+        "config_file": "~/.config/opencode/opencode.jsonc",
+        "config_key": "mcp",
+        "skill_dir": ".opencode/skills",
+    },
 }
 
 _MCP_SERVER_ENTRY = {
@@ -2707,15 +2822,28 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
     if config_path.exists():
         try:
             with open(config_path, "r") as f:
-                config = json.load(f)
+                raw = f.read()
+            if config_path.suffix == ".jsonc":
+                raw = IDESetup._strip_jsonc_comments(raw)
+            if raw.strip():
+                config = json.loads(raw)
         except (json.JSONDecodeError, OSError):
             pass
 
     # Add MCP server entry with absolute path
     abs_path = _resolve_binary_path()
-    mcp_entry = dict(_MCP_SERVER_ENTRY)
-    mcp_entry["command"] = abs_path
     key = mcp_ide["config_key"]
+
+    if ide_type == "opencode":
+        mcp_entry = {
+            "type": "local",
+            "command": [abs_path, "mcp-server"],
+            "enabled": True,
+        }
+    else:
+        mcp_entry = dict(_MCP_SERVER_ENTRY)
+        mcp_entry["command"] = abs_path
+
     if key not in config:
         config[key] = {}
     config[key]["ai-guardian"] = mcp_entry
@@ -3002,6 +3130,136 @@ export default class AiGuardianExtension implements Extension {
 
 
 # OpenClaw plugin file contents (Issue #640)
+_OPENCODE_PLUGIN_TS = """\
+import type { Plugin } from '@opencode-ai/plugin';
+import { execSync } from 'child_process';
+
+interface GuardianResult {
+  blocked: boolean;
+  error?: string;
+  output?: string;
+}
+
+function runGuardian(hookData: Record<string, unknown>): GuardianResult {
+  try {
+    const input = JSON.stringify(hookData);
+    const result = execSync('ai-guardian', {
+      input,
+      encoding: 'utf-8',
+      timeout: 30000,
+      env: { ...process.env, AI_GUARDIAN_IDE_TYPE: 'opencode' },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const stdout = result?.trim() || '';
+    if (stdout) {
+      try {
+        const parsed = JSON.parse(stdout);
+        if (parsed._blocked) {
+          const msg = parsed.systemMessage
+            || JSON.parse(parsed.output || '{}').systemMessage
+            || 'Blocked by ai-guardian';
+          return { blocked: true, error: msg, output: stdout };
+        }
+        const inner = parsed.output ? JSON.parse(parsed.output) : parsed;
+        if (inner.decision === 'block') {
+          return { blocked: true, error: inner.reason || 'Blocked by ai-guardian', output: stdout };
+        }
+        if (inner.hookSpecificOutput?.permissionDecision === 'deny') {
+          return { blocked: true, error: inner.systemMessage || 'Blocked by ai-guardian', output: stdout };
+        }
+      } catch {}
+    }
+    return { blocked: false, output: stdout || undefined };
+  } catch (err: any) {
+    if (err.status === 1) {
+      const errorMsg =
+        err.stderr?.toString().trim() || 'Blocked by ai-guardian';
+      return { blocked: true, error: errorMsg };
+    }
+    return { blocked: false };
+  }
+}
+
+export const AiGuardian: Plugin = async (ctx) => {
+  const cwd = ctx.directory || process.cwd();
+
+  return {
+    async 'tool.execute.before'(input, output) {
+      if (input.tool?.startsWith('ai-guardian')) return;
+      const hookData = {
+        hook_event_name: 'tool.execute.before',
+        opencode_version: '1.0.0',
+        hook_source: 'opencode',
+        tool_name: input.tool,
+        tool_use: { name: input.tool, input: output.args || {} },
+        session_id: input.sessionID,
+        tool_use_id: input.callID,
+        cwd,
+      };
+      const result = runGuardian(hookData);
+      if (result.blocked) {
+        throw new Error(result.error || 'Blocked by ai-guardian');
+      }
+    },
+
+    async 'chat.message'(input, output) {
+      const text = (output.parts || [])
+        .filter((p) => p.type === 'text' && !p.synthetic)
+        .map((p) => p.text || p.content || '')
+        .join('\\n');
+      if (!text) return;
+      const hookData = {
+        hook_event_name: 'message.submit',
+        opencode_version: '1.0.0',
+        hook_source: 'opencode',
+        prompt: text,
+        session_id: input.sessionID,
+        cwd,
+      };
+      const result = runGuardian(hookData);
+      if (result.blocked) {
+        const firstPart = output.parts[0] || {};
+        output.parts.length = 0;
+        output.parts.push({
+          ...firstPart,
+          type: 'text',
+          text: '🛡️ ai-guardian: Secret detected in user message. Original content removed for security. Tell the user their message was blocked because it contained a secret. Do NOT attempt to recover the original content.',
+          synthetic: true,
+        });
+      }
+    },
+
+    async 'tool.execute.after'(input, output) {
+      if (input.tool?.startsWith('ai-guardian')) return;
+      const hookData = {
+        hook_event_name: 'tool.execute.after',
+        opencode_version: '1.0.0',
+        hook_source: 'opencode',
+        tool_name: input.tool,
+        tool_response: { output: output.output || '' },
+        tool_use: { name: input.tool, input: input.args || {} },
+        session_id: input.sessionID,
+        tool_use_id: input.callID,
+        cwd,
+      };
+      const result = runGuardian(hookData);
+      if (result.blocked) {
+        throw new Error(result.error || 'Blocked by ai-guardian');
+      }
+      if (result.output) {
+        try {
+          const parsed = JSON.parse(result.output);
+          const hookOutput = JSON.parse(parsed.output || '{}').hookSpecificOutput;
+          if (hookOutput?.updatedToolOutput) {
+            output.output = hookOutput.updatedToolOutput;
+          }
+        } catch {}
+      }
+    },
+  };
+};
+"""
+
 _OPENCLAW_PACKAGE_JSON = """\
 {
   "name": "ai-guardian-openclaw",
