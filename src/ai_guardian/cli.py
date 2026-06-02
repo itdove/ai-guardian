@@ -78,6 +78,13 @@ def _ensure_daemon_started():
 
 def main():
     """Main entry point for the hook."""
+    if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+
     # If arguments are provided, handle them
     if len(sys.argv) > 1:
         parser = argparse.ArgumentParser(
