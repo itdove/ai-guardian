@@ -92,7 +92,7 @@ def main():
         )
         parser.add_argument(
             "--ide",
-            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw"],
+            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw", "opencode"],
             help="Specify IDE adapter for hook processing (auto-detected if not provided)"
         )
 
@@ -106,7 +106,7 @@ def main():
         )
         setup_parser.add_argument(
             "--ide",
-            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw"],
+            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw", "opencode"],
             help="Specify IDE type (auto-detected if not provided)"
         )
         setup_parser.add_argument(

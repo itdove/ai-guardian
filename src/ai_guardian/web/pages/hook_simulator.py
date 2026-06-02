@@ -18,16 +18,17 @@ from ai_guardian.tui.hook_simulator import (
 )
 
 IDE_OPTIONS = [
-    ("Claude Code", "claude"),
-    ("Cursor", "cursor"),
-    ("GitHub Copilot", "copilot"),
-    ("Windsurf", "windsurf"),
-    ("Gemini CLI", "gemini"),
-    ("Cline / ZooCode", "cline"),
-    ("Kiro", "kiro"),
     ("Augment", "augment"),
+    ("Claude Code", "claude"),
+    ("Cline / ZooCode", "cline"),
     ("Codex", "codex"),
+    ("Cursor", "cursor"),
+    ("Gemini CLI", "gemini"),
+    ("GitHub Copilot", "copilot"),
     ("Junie", "junie"),
+    ("Kiro", "kiro"),
+    ("OpenCode", "opencode"),
+    ("Windsurf", "windsurf"),
 ]
 
 

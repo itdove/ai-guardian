@@ -17,6 +17,7 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 | Augment Code | `--ide augment` | Full | N/A | **Complete** |
 | AiderDesk | `--ide aiderdesk` | Extension | N/A | **Complete** |
 | OpenClaw | `--ide openclaw` | Plugin | N/A | **Complete** |
+| OpenCode | `--ide opencode` | Plugin | N/A | **Complete** |
 | Junie (JetBrains) | `--ide junie` | N/A | Full | **MCP-only** |
 
 ## Hook Capability Matrix
@@ -32,6 +33,7 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 | Cline / ZooCode | Yes | Yes | Yes | N/A |
 | Kiro | Yes | Yes | Yes | N/A |
 | Augment Code | N/A | Yes | Yes | N/A |
+| OpenCode | Yes (chat.message) | Yes | Yes | N/A |
 | Junie | N/A | N/A | N/A | N/A |
 
 ## Protection Level by Hook Availability
@@ -47,7 +49,7 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 
 Coverage per agent depends on which hooks are available. This table shows representative agents across the enforcement spectrum: full hooks + MCP, full hooks only, partial hooks, and MCP-only.
 
-Agents with full hook support not shown individually (Codex, Windsurf, Gemini CLI, Cline, Kiro) have the same coverage as Claude Code, minus MCP and minus UserPromptSubmit where applicable — see the [Hook Capability Matrix](#hook-capability-matrix) above.
+Agents with full hook support not shown individually (Codex, Windsurf, Gemini CLI, Cline, Kiro, OpenCode) have the same coverage as Claude Code, minus MCP and minus UserPromptSubmit where applicable — see the [Hook Capability Matrix](#hook-capability-matrix) above.
 
 | Violation Type | Requires | Claude Code | Cursor | Copilot | Junie (MCP) |
 |---|---|---|---|---|---|
@@ -105,6 +107,7 @@ Testing depth varies by agent. Confidence reflects how thoroughly the hook adapt
 | Junie | Low | MCP only, no hook enforcement |
 | AiderDesk | Low | Extension-based, limited testing |
 | OpenClaw | Low | Plugin-based, limited testing |
+| OpenCode | Low | Plugin-based, limited testing |
 
 ## Community Testing Feedback
 
@@ -120,11 +123,11 @@ Report via [GitHub Discussions](https://github.com/itdove/ai-guardian/discussion
 
 Each agent uses different event names. The adapter layer normalizes these.
 
-| Concept | Claude Code | Copilot | Cursor | Windsurf | Gemini CLI | Cline | Kiro |
-|---------|------------|---------|--------|----------|-----------|-------|------|
-| Before tool | `PreToolUse` | `preToolUse` | `beforeShellExecution` | `pre_run_command` | `BeforeTool` | `PreToolUse` | `pre_tool_use` |
-| After tool | `PostToolUse` | `postToolUse` | `postToolUse` | `post_run_command` | `AfterTool` | `PostToolUse` | `post_tool_use` |
-| User prompt | `UserPromptSubmit` | `userPromptSubmitted` | `beforeSubmitPrompt` | `pre_user_prompt` | `BeforeAgent` | `UserPromptSubmit` | `prompt_submit` |
+| Concept | Claude Code | Copilot | Cursor | Windsurf | Gemini CLI | Cline | Kiro | OpenCode |
+|---------|------------|---------|--------|----------|-----------|-------|------|----------|
+| Before tool | `PreToolUse` | `preToolUse` | `beforeShellExecution` | `pre_run_command` | `BeforeTool` | `PreToolUse` | `pre_tool_use` | `tool.execute.before` |
+| After tool | `PostToolUse` | `postToolUse` | `postToolUse` | `post_run_command` | `AfterTool` | `PostToolUse` | `post_tool_use` | `tool.execute.after` |
+| User prompt | `UserPromptSubmit` | `userPromptSubmitted` | `beforeSubmitPrompt` | `pre_user_prompt` | `BeforeAgent` | `UserPromptSubmit` | `prompt_submit` | `message.submit` |
 
 ## Response Format Differences
 
@@ -138,6 +141,7 @@ Each agent uses different event names. The adapter layer normalizes these.
 | Kiro | Exit code 1 + stderr | stderr = error message |
 | Windsurf | Same as Claude Code | Same as Claude Code |
 | Codex | Same as Claude Code | Same as Claude Code |
+| OpenCode | Same as Claude Code | Same as Claude Code |
 
 ## Architecture
 
@@ -158,6 +162,7 @@ hook_adapters/
 ├── cline.py             # Cline / ZooCode
 ├── kiro.py              # Kiro + AiderDesk + OpenClaw
 ├── augment.py           # Augment Code (extends ClaudeCodeAdapter)
+├── opencode.py          # OpenCode (extends ClaudeCodeAdapter)
 └── junie.py             # Junie (MCP-only placeholder)
 ```
 
@@ -175,6 +180,7 @@ Detection priority checks unique fields:
 - `cursor_version` → Cursor
 - `kiro_hook_type` → Kiro
 - `is_mcp_tool` → Augment Code
+- `opencode_version` → OpenCode
 
 ### NormalizedHookInput
 
@@ -202,7 +208,7 @@ Install hooks for any supported agent:
 ai-guardian setup --ide <agent-name>
 ```
 
-Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `cline`, `zoocode`, `kiro`, `augment`, `aiderdesk`, `openclaw`, `junie`
+Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `cline`, `zoocode`, `kiro`, `augment`, `aiderdesk`, `openclaw`, `opencode`, `junie`
 
 ### Config File Locations
 
@@ -217,6 +223,7 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 | Cline / ZooCode | `.clinerules/hooks/` (scripts) |
 | Kiro | `.kiro/hooks/` (scripts) |
 | Augment Code | `~/.augment/settings.json` |
+| OpenCode | `~/.config/opencode/plugins/ai-guardian.ts` (plugin) |
 | Junie | `.junie/guidelines` (MCP only) |
 
 ## Per-Agent Deep-Dive Guides

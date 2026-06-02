@@ -240,6 +240,14 @@ class HookAdapter(ABC):
         if not event_name:
             event_name = hook_data.get("hookName", "").lower()
 
+        # OpenCode plugin events
+        if event_name == "tool.execute.before":
+            return HookEvent.PRE_TOOL_USE
+        elif event_name == "tool.execute.after":
+            return HookEvent.POST_TOOL_USE
+        elif event_name == "message.submit":
+            return HookEvent.PROMPT
+
         # Gemini CLI
         if event_name == "beforetool":
             return HookEvent.PRE_TOOL_USE

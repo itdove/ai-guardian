@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **OpenCode hook support via plugin adapter** (Issue #819)
+  - New `OpenCodeAdapter` in `hook_adapters/opencode.py` (extends ClaudeCodeAdapter)
+  - Plugin auto-discovered from `~/.config/opencode/plugins/ai-guardian.ts`
+  - Setup: `ai-guardian setup --ide opencode` (installs plugin + configures MCP server)
+  - Hook coverage: `tool.execute.before` (PreToolUse), `tool.execute.after` (PostToolUse), `chat.message` (UserPromptSubmit via parts mutation)
+  - MCP server configured in `~/.config/opencode/opencode.jsonc` with OpenCode's `type: "local"` format
+  - Same security coverage as Claude Code (secrets, PII, SSRF, prompt injection, directory blocking)
+  - Updated AGENT_SUPPORT.md with OpenCode in all tables
+
 ## [1.10.0] - 2026-06-01
 
 ### Changed

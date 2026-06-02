@@ -21,7 +21,8 @@ Options:
     --venv              Create a virtual environment at ~/.ai-guardian-venv/
     --ide NAME          Setup hooks for a specific IDE (skipped if omitted)
                         Choices: claude, cursor, copilot, codex, windsurf,
-                                 gemini, cline, zoocode, augment, kiro, junie, aiderdesk
+                                 gemini, cline, zoocode, augment, kiro, junie,
+                                 aiderdesk, opencode
     --profile PROFILE   Security profile: @minimal, @standard (default), @strict
     --version VERSION   Install a specific version or a local .whl file
     --tkinter           Install tkinter for native popup dialogs (optional)
