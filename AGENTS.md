@@ -1118,7 +1118,7 @@ Some LLM tools (e.g., NotebookLM) require single-file upload rather than crawlin
   echo ""
   echo "Auto-generated combined export of all project documentation."
   echo ""
-  for f in README.md $(find docs -name '*.md' | sort); do
+  for f in README.md $(find docs -name '*.md' -not -name 'notebooklm-export.md' | sort); do
     echo ""
     echo "# === $f ==="
     echo ""
