@@ -2691,7 +2691,12 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
         print(f"  MCP: IDE '{ide_type}' not supported for MCP server")
         return
 
-    config_path = Path(mcp_ide.get("config_file", "")).expanduser()
+    config_file = mcp_ide.get("config_file", "")
+    if not config_file:
+        print(f"  MCP: IDE '{ide_type}' has no user-level MCP config path, skipping")
+        return
+
+    config_path = Path(config_file).expanduser()
 
     if dry_run:
         print(f"  MCP: Would add ai-guardian MCP server to {config_path}")
@@ -2746,7 +2751,11 @@ def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) ->
     if not mcp_ide:
         return
 
-    config_path = Path(mcp_ide.get("config_file", "")).expanduser()
+    config_file = mcp_ide.get("config_file", "")
+    if not config_file:
+        return
+
+    config_path = Path(config_file).expanduser()
 
     if dry_run:
         print(f"  MCP: Would remove ai-guardian MCP server from {config_path}")

@@ -197,9 +197,14 @@ ok "Config at $CONFIG_PATH"
 
 if [ -n "$IDE" ]; then
     log "Setting up hooks for $IDE..."
-    "$PYTHON" -m ai_guardian setup --ide "$IDE" --install-scanner --yes \
-        "${SETUP_ARGS[@]+"${SETUP_ARGS[@]}"}" 2>&1 | grep -v "^$" | tail -3
-    ok "Hooks installed for $IDE"
+    SETUP_OUTPUT=$("$PYTHON" -m ai_guardian setup --ide "$IDE" --install-scanner --yes \
+        "${SETUP_ARGS[@]+"${SETUP_ARGS[@]}"}" 2>&1) || true
+    echo "$SETUP_OUTPUT" | grep -v "^$" | tail -3
+    if echo "$SETUP_OUTPUT" | grep -q "already configured"; then
+        ok "Hooks already configured for $IDE"
+    else
+        ok "Hooks installed for $IDE"
+    fi
 fi
 
 # --- Step 6: Verify installation ---

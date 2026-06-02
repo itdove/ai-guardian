@@ -787,6 +787,27 @@ ai-guardian daemon stop
 ai-guardian daemon status
 ```
 
+### Daemon start times out or says "Another daemon is starting"
+
+This happens when zombie daemon processes are stuck from previous failed starts.
+
+```bash
+# Check for zombie processes
+ps aux | grep "ai-guardian daemon" | grep -v grep
+
+# Kill them
+kill <pid1> <pid2> ...
+
+# Or kill all at once
+pkill -f "ai-guardian daemon start"
+
+# Then start fresh
+ai-guardian daemon stop        # clear any stale PID file
+ai-guardian daemon start -b    # start in background
+```
+
+`ai-guardian daemon stop` may report "not running" even when zombie processes exist, because the PID file is stale. Kill the processes manually, then start again.
+
 ### How do I disable the system tray icon?
 
 ```json
