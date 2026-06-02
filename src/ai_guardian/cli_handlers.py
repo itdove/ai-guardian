@@ -651,14 +651,14 @@ def _handle_tray_prompt(args):
         if output_file:
             tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
             os.close(tmp_fd)
-            os.rename(tmp_path, output_file)
+            os.replace(tmp_path, output_file)
         return 0
 
     if output_file:
         tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
         os.write(tmp_fd, result.encode("utf-8"))
         os.close(tmp_fd)
-        os.rename(tmp_path, output_file)
+        os.replace(tmp_path, output_file)
     else:
         print(result)
 
@@ -703,14 +703,14 @@ def _handle_tray_target_select(args):
         if output_file:
             tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
             os.close(tmp_fd)
-            os.rename(tmp_path, output_file)
+            os.replace(tmp_path, output_file)
         return 0
 
     if output_file:
         tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
         os.write(tmp_fd, result.encode("utf-8"))
         os.close(tmp_fd)
-        os.rename(tmp_path, output_file)
+        os.replace(tmp_path, output_file)
     else:
         print(result)
 

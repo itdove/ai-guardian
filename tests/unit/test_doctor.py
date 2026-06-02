@@ -7,6 +7,7 @@ Tests health check: config validation, scanner detection, hook verification, etc
 import argparse
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from unittest import mock
@@ -663,6 +664,7 @@ class TestCheckPsCachePath:
         assert result.status == CheckStatus.PASS
         assert "writable" in result.message
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod 0o444 not effective on Windows")
     def test_not_writable(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         ro_dir = tmp_path / "readonly_cache"

@@ -3149,3 +3149,62 @@ class TestWindowsSetup:
         config = json.loads(config_file.read_text())
         config_str = json.dumps(config)
         assert "pythonw.exe -m ai_guardian" in config_str
+
+    # -- Script-based hooks generate .bat on Windows --
+
+    @pytest.mark.parametrize("ide_type", ["cline", "zoocode", "kiro"])
+    def test_script_hooks_create_bat_on_windows(self, tmp_path, ide_type):
+        """Script-based IDEs create .bat files on Windows."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {ide_type: {**IDESetup.IDE_CONFIGS[ide_type], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value=r"C:\Python312\pythonw.exe -m ai_guardian"):
+                with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+                        success, msg = setup.setup_ide_hooks(ide_type, dry_run=False, force=False)
+
+        assert success, msg
+        for script_name in IDESetup.IDE_CONFIGS[ide_type]["hook_scripts"]:
+            bat_path = hooks_dir / f"{script_name}.bat"
+            assert bat_path.exists(), f"{bat_path} not created"
+            content = bat_path.read_text()
+            assert content.startswith("@echo off")
+            assert "ai_guardian" in content
+
+    def test_script_hooks_no_bat_on_unix(self, tmp_path):
+        """Script-based IDEs create shebang scripts on Unix."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
+                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+                        success, _ = setup.setup_ide_hooks("cline", dry_run=False, force=False)
+
+        assert success
+        script = (hooks_dir / "PreToolUse").read_text()
+        assert script.startswith("#!/bin/sh")
+
+    def test_is_already_configured_detects_bat(self, tmp_path):
+        """check_hooks_configured finds .bat hooks on Windows."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "PreToolUse.bat").write_text("@echo off\r\nai-guardian --ide cline\r\n")
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+                result = setup.check_hooks_configured(hooks_dir, "cline")
+
+        assert result is True

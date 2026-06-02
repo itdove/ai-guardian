@@ -1,20 +1,30 @@
-"""Tests for install.sh one-line installer."""
+"""Tests for install.sh and install.ps1 installers."""
 
 import os
+import shutil
 import subprocess
 import pathlib
+import sys
 
 import pytest
 
 SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "install.sh"
+PS1_SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "install.ps1"
+
+_skip_no_bash = pytest.mark.skipif(
+    shutil.which("bash") is None,
+    reason="bash not available",
+)
 
 
+@_skip_no_bash
 class TestInstallScriptSyntax:
     """Validate the install script is well-formed bash."""
 
     def test_script_exists(self):
         assert SCRIPT.exists(), f"{SCRIPT} not found"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="executable bit not meaningful on Windows")
     def test_script_is_executable(self):
         assert os.access(SCRIPT, os.X_OK), f"{SCRIPT} is not executable"
 
@@ -27,6 +37,7 @@ class TestInstallScriptSyntax:
         assert result.returncode == 0, f"Syntax error: {result.stderr}"
 
 
+@_skip_no_bash
 class TestInstallScriptHelp:
     """Verify --help output contains expected information."""
 
@@ -84,3 +95,47 @@ class TestInstallScriptContent:
 
     def test_next_steps_tray_start(self, script_content):
         assert "ai-guardian tray start" in script_content
+
+
+class TestInstallPs1:
+    """Tests for install.ps1 PowerShell installer."""
+
+    def test_ps1_script_exists(self):
+        assert PS1_SCRIPT.exists(), f"{PS1_SCRIPT} not found"
+
+    def test_ps1_contains_doctor(self):
+        content = PS1_SCRIPT.read_text()
+        assert "ai_guardian doctor" in content
+
+    def test_ps1_contains_daemon_start(self):
+        content = PS1_SCRIPT.read_text()
+        assert "ai-guardian daemon start" in content
+
+    def test_ps1_contains_tray_start(self):
+        content = PS1_SCRIPT.read_text()
+        assert "ai-guardian tray start" in content
+
+    def test_ps1_contains_appdata(self):
+        content = PS1_SCRIPT.read_text()
+        assert "APPDATA" in content
+
+    def test_ps1_contains_venv_option(self):
+        content = PS1_SCRIPT.read_text()
+        assert "Venv" in content
+
+    def test_ps1_contains_ide_option(self):
+        content = PS1_SCRIPT.read_text()
+        assert "IDE" in content
+
+    @pytest.mark.skipif(
+        shutil.which("pwsh") is None,
+        reason="pwsh not available",
+    )
+    def test_ps1_syntax_check(self):
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command",
+             f"$null = [System.Management.Automation.Language.Parser]::ParseFile('{PS1_SCRIPT}', [ref]$null, [ref]$errors); $errors.Count"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.stdout.strip() == "0", f"PowerShell syntax errors: {result.stdout}"

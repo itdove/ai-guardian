@@ -902,14 +902,18 @@ class IDESetup:
                 hooks_dir = config_path if config_path.is_dir() else config_path.parent
                 ide_config = self.IDE_CONFIGS.get(ide_type, {})
                 for script_name in ide_config.get("hook_scripts", []):
-                    script_path = hooks_dir / script_name
-                    if script_path.exists():
-                        try:
-                            content = script_path.read_text(encoding="utf-8")
-                            if "ai-guardian" in content:
-                                return True
-                        except Exception:
-                            pass
+                    candidates = [hooks_dir / script_name]
+                    if platform.system() == "Windows":
+                        candidates.append(hooks_dir / f"{script_name}.bat")
+                        candidates.append(hooks_dir / f"{script_name}.ps1")
+                    for script_path in candidates:
+                        if script_path.exists():
+                            try:
+                                content = script_path.read_text(encoding="utf-8")
+                                if "ai-guardian" in content:
+                                    return True
+                            except Exception:
+                                pass
                 return False
 
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -1001,16 +1005,22 @@ class IDESetup:
         """
         ide_name = ide_config["name"]
         hook_scripts = ide_config.get("hook_scripts", [])
-        script_content = ide_config.get("script_content", "#!/bin/sh\nai-guardian\n")
+        is_windows = platform.system() == "Windows"
 
         abs_path = _resolve_binary_path()
         cmd = f"{abs_path} --ide {ide_type}"
-        script_content = script_content.replace("ai-guardian", cmd, 1)
+
+        if is_windows:
+            script_content = f"@echo off\r\n{cmd}\r\n"
+        else:
+            script_content = ide_config.get("script_content", "#!/bin/sh\nai-guardian\n")
+            script_content = script_content.replace("ai-guardian", cmd, 1)
 
         if dry_run:
             message = f"[DRY RUN] Would configure {ide_name} hooks at {hooks_dir}:\n"
             for script_name in hook_scripts:
-                message += f"  Create: {hooks_dir / script_name}\n"
+                fname = f"{script_name}.bat" if is_windows else script_name
+                message += f"  Create: {hooks_dir / fname}\n"
             message += f"  Script content:\n    {script_content.strip()}\n"
             return True, message
 
@@ -1018,10 +1028,12 @@ class IDESetup:
 
         created = []
         for script_name in hook_scripts:
-            script_path = hooks_dir / script_name
+            fname = f"{script_name}.bat" if is_windows else script_name
+            script_path = hooks_dir / fname
             script_path.write_text(script_content, encoding="utf-8")
-            script_path.chmod(0o755)
-            created.append(script_name)
+            if not is_windows:
+                script_path.chmod(0o755)
+            created.append(fname)
 
         gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
 

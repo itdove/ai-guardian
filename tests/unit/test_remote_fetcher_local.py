@@ -13,6 +13,7 @@ Tests cover:
 
 import json
 import os
+import sys
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -74,6 +75,7 @@ class TestLocalFilePaths:
 
         assert config is None
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod 0o000 not effective on Windows")
     def test_permission_denied(self, tmp_path):
         """Test error handling for unreadable file."""
         config_file = tmp_path / "config.toml"
