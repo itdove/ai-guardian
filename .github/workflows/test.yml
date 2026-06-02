@@ -78,6 +78,9 @@ jobs:
           ai-guardian scanner install gitleaks --use-pinned
           ai-guardian scanner install betterleaks --use-pinned
           ai-guardian scanner install leaktk --use-pinned
+        # Windows: scanners install to /usr/local/bin which may not be in PATH;
+        # verification step fails even though binaries are present. Tests use mocks.
+        continue-on-error: ${{ matrix.os == 'windows-latest' }}
 
       - name: Run tests with coverage
         env:
