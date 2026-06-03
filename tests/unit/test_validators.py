@@ -6,9 +6,11 @@ from ai_guardian.patterns.validators import (
     connection_not_placeholder,
     env_not_file_path,
     get_validator,
+    token_not_placeholder,
     _is_connection_placeholder,
     _is_file_path,
     _is_placeholder,
+    _is_token_placeholder,
 )
 
 
@@ -248,3 +250,146 @@ class TestConnectionNotPlaceholder:
     def test_registry_lookup(self):
         validator = get_validator("connection_not_placeholder")
         assert validator is connection_not_placeholder
+
+
+class TestIsTokenPlaceholder:
+    """Tests for _is_token_placeholder helper (Issue #931)."""
+
+    def test_repeated_x_lowercase(self):
+        assert _is_token_placeholder("xxxxxxxxxxxxxxxxxxxx") is True
+
+    def test_repeated_x_uppercase(self):
+        assert _is_token_placeholder("XXXXXXXXXXXXXXXXXXXX") is True
+
+    def test_repeated_zero(self):
+        assert _is_token_placeholder("00000000000000000000") is True
+
+    def test_repeated_a(self):
+        assert _is_token_placeholder("aaaaaaaaaaaaaaaaaa") is True
+
+    def test_short_repeated_not_placeholder(self):
+        assert _is_token_placeholder("xxxxxxx") is False
+
+    def test_placeholder_your_prefix(self):
+        assert _is_token_placeholder("your-api-key-here") is True
+
+    def test_placeholder_example_prefix(self):
+        assert _is_token_placeholder("example-token-value") is True
+
+    def test_placeholder_test_prefix(self):
+        assert _is_token_placeholder("test-api-key-value12345") is True
+
+    def test_placeholder_fake_prefix(self):
+        assert _is_token_placeholder("fake-token-abcdef1234") is True
+
+    def test_placeholder_here_suffix(self):
+        assert _is_token_placeholder("put-your-secret-here") is True
+
+    def test_all_caps_underscores(self):
+        assert _is_token_placeholder("YOUR_TOKEN_HERE") is True
+
+    def test_all_caps_underscores_replace(self):
+        assert _is_token_placeholder("REPLACE_ME") is True
+
+    def test_all_caps_underscores_api_key(self):
+        assert _is_token_placeholder("API_KEY_VALUE_HERE") is True
+
+    def test_template_angle_brackets(self):
+        assert _is_token_placeholder("<your-token-here>") is True
+
+    def test_template_dollar_brace(self):
+        assert _is_token_placeholder("${TOKEN}") is True
+
+    def test_template_double_brace(self):
+        assert _is_token_placeholder("{{token}}") is True
+
+    def test_real_mixed_case_token(self):
+        assert _is_token_placeholder("AbCdEfGhIjKlMnOpQrStUv") is False
+
+    def test_real_alphanumeric_token(self):
+        assert _is_token_placeholder("a1B2c3D4e5F6g7H8i9J0k1L2") is False
+
+    def test_real_hex_token(self):
+        assert _is_token_placeholder("4f3c2a1b9e8d7c6f5a4b3c2d") is False
+
+    def test_empty_string(self):
+        assert _is_token_placeholder("") is False
+
+    def test_single_uppercase_word_not_placeholder(self):
+        assert _is_token_placeholder("ABCDEFGHIJKLMNOP") is False
+
+
+class TestTokenNotPlaceholder:
+    """Tests for token_not_placeholder validator (Issue #931)."""
+
+    def test_glpat_all_x_skipped(self):
+        assert token_not_placeholder(
+            "glpat-xxxxxxxxxxxxxxxxxxxx"
+        ) is False
+
+    def test_ghp_all_x_skipped(self):
+        assert token_not_placeholder(
+            "ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        ) is False
+
+    def test_sk_your_key_skipped(self):
+        assert token_not_placeholder(
+            "sk-your-api-key-here-abcdef"
+        ) is False
+
+    def test_xoxb_placeholder_skipped(self):
+        assert token_not_placeholder(
+            "xoxb-PLACEHOLDER-TOKEN-VALUE"
+        ) is False
+
+    def test_glpat_template_angle_skipped(self):
+        assert token_not_placeholder(
+            "glpat-<your-token-here-value>"
+        ) is False
+
+    def test_sk_template_dollar_skipped(self):
+        assert token_not_placeholder(
+            "sk-${TOKEN_VALUE_PLACEHOLDER}"
+        ) is False
+
+    def test_gho_all_caps_underscores_skipped(self):
+        assert token_not_placeholder(
+            "gho_YOUR_TOKEN_VALUE_HERE_REPLACE_ME_NOW_123456"
+        ) is False
+
+    def test_sk_ant_placeholder_skipped(self):
+        assert token_not_placeholder(
+            "sk-ant-example-key-value-abcdefghijklmnop"
+        ) is False
+
+    def test_sk_proj_placeholder_skipped(self):
+        assert token_not_placeholder(
+            "sk-proj-dummy_token_value_here_abcdef"
+        ) is False
+
+    def test_real_glpat_detected(self):
+        assert token_not_placeholder(
+            "glpat-AbCdEfGhIjKlMnOpQrSt"  # notsecret
+        ) is True
+
+    def test_real_ghp_detected(self):
+        assert token_not_placeholder(
+            "ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"  # notsecret
+        ) is True
+
+    def test_real_sk_detected(self):
+        assert token_not_placeholder(
+            "sk-a1B2c3D4e5F6g7H8i9J0k1L2"
+        ) is True
+
+    def test_real_xoxb_detected(self):
+        assert token_not_placeholder(
+            "xoxb-not-a-real-slack-token-aBcDeFgHiJ"  # notsecret
+        ) is True
+
+    def test_no_prefix_passes(self):
+        assert token_not_placeholder("not-a-token-at-all") is True
+
+    def test_registry_lookup(self):
+        validator = get_validator("token_not_placeholder")
+        assert validator is token_not_placeholder
