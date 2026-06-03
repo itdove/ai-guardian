@@ -126,7 +126,7 @@ class ViolationCounter:
             os.write(fd, content.encode("utf-8"))
             os.close(fd)
             closed = True
-            os.rename(tmp_path, str(self._path))
+            os.replace(tmp_path, str(self._path))
         except BaseException:
             if not closed:
                 os.close(fd)

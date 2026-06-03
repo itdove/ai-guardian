@@ -9,6 +9,7 @@ os.environ["PATH"] so that shutil.which() can find scanner binaries.
 
 import logging
 import os
+import platform
 import subprocess
 from pathlib import Path
 
@@ -20,6 +21,13 @@ _WELL_KNOWN_DIRS = [
     "/usr/local/bin",
     "/usr/local/sbin",
     str(Path.home() / ".local" / "bin"),
+]
+
+_WELL_KNOWN_DIRS_WINDOWS = [
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "ai-guardian", "scanners"),
+    os.path.join(os.environ.get("USERPROFILE", ""), ".local", "bin"),
+    os.path.join(os.environ.get("ProgramData", r"C:\ProgramData"), "chocolatey", "bin"),
+    os.path.join(os.environ.get("USERPROFILE", ""), "scoop", "shims"),
 ]
 
 _SCANNER_BINARIES = [
@@ -54,7 +62,10 @@ def ensure_scanner_path():
     current_dirs = set(current.split(os.pathsep))
     added = []
 
-    for d in _well_known_dirs_with_scanners():
+    is_windows = platform.system() == "Windows"
+    well_known = _WELL_KNOWN_DIRS_WINDOWS if is_windows else _WELL_KNOWN_DIRS
+
+    for d in _well_known_dirs_with_scanners(well_known):
         if d not in current_dirs and os.path.isdir(d):
             added.append(d)
             current_dirs.add(d)
@@ -69,7 +80,7 @@ def ensure_scanner_path():
             added.append(d)
             current_dirs.add(d)
 
-    for d in _WELL_KNOWN_DIRS:
+    for d in well_known:
         if d not in current_dirs and os.path.isdir(d):
             added.append(d)
             current_dirs.add(d)
@@ -79,16 +90,22 @@ def ensure_scanner_path():
         logger.info("Augmented PATH with: %s", ", ".join(added))
 
 
-def _well_known_dirs_with_scanners():
+def _well_known_dirs_with_scanners(well_known=None):
     """Return well-known directories that contain at least one scanner binary."""
+    if well_known is None:
+        well_known = _WELL_KNOWN_DIRS_WINDOWS if platform.system() == "Windows" else _WELL_KNOWN_DIRS
+    is_windows = platform.system() == "Windows"
     dirs = []
-    for d in _WELL_KNOWN_DIRS:
+    for d in well_known:
         for binary in _SCANNER_BINARIES:
-            candidate = os.path.join(d, binary)
-            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-                if d not in dirs:
-                    dirs.append(d)
-                break
+            candidates = [os.path.join(d, binary)]
+            if is_windows:
+                candidates.append(os.path.join(d, binary + ".exe"))
+            for candidate in candidates:
+                if os.path.isfile(candidate) and (is_windows or os.access(candidate, os.X_OK)):
+                    if d not in dirs:
+                        dirs.append(d)
+                    break
     return dirs
 
 
@@ -97,6 +114,8 @@ def _read_shell_path():
 
     Returns a list of directory strings, or empty list on failure.
     """
+    if platform.system() == "Windows":
+        return []
     shell = os.environ.get("SHELL")
     if not shell:
         return []

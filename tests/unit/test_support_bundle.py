@@ -5,6 +5,7 @@ Unit tests for support bundle module.
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock, patch
@@ -134,6 +135,7 @@ class TestSendBundle:
         assert result["status"] == "error"
         assert "not found" in result["message"]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Local destination path detection requires Unix-style paths")
     @patch("ai_guardian.support_bundle._get_support_config")
     def test_sends_to_local_directory(self, mock_config, tmp_path):
         dest = tmp_path / "support-output"
@@ -145,6 +147,7 @@ class TestSendBundle:
         assert result["status"] == "sent"
         assert dest.exists()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="XDG state dir differs on Windows")
     @patch("ai_guardian.support_bundle._get_support_config")
     def test_defaults_to_xdg_state_dir(self, mock_config):
         """When no export_destination configured, defaults to XDG state dir."""
@@ -339,6 +342,7 @@ class TestSupportCommand:
         assert result == 0
         assert output_dir.exists()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Local destination path detection requires Unix-style paths")
     @patch("ai_guardian.support_bundle._get_support_config")
     def test_send_with_prepare_and_yes(self, mock_config, tmp_path, capsys):
         dest = tmp_path / "send-dest"
@@ -359,6 +363,7 @@ class TestSupportCommand:
         result = support_command(args)
         assert result == 1
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Local destination path detection requires Unix-style paths")
     @patch("ai_guardian.support_bundle._get_support_config")
     @patch("builtins.input", return_value="y")
     @patch("sys.stdin")
@@ -370,6 +375,7 @@ class TestSupportCommand:
         result = support_command(args)
         assert result == 0
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Local destination path detection requires Unix-style paths")
     @patch("ai_guardian.support_bundle._get_support_config")
     def test_send_with_bundle_path(self, mock_config, tmp_path, capsys):
         dest = tmp_path / "dest"
@@ -454,6 +460,7 @@ class TestGCSTokenFromADC:
 
         assert token == "test-token-123"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="GCS ADC path ~/.config/gcloud not applicable on Windows")
     def test_returns_none_when_no_credentials(self):
         with patch.dict(os.environ, {}, clear=True):
             with patch("pathlib.Path.exists", return_value=False):

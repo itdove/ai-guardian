@@ -3,12 +3,18 @@
 import json
 import os
 import socket
+import sys
 import tempfile
 import threading
 import time
 from unittest import mock
 
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Daemon server tests require Unix sockets (AF_UNIX)",
+)
 
 from ai_guardian.daemon.protocol import (
     decode_message,

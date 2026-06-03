@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import sys
 import time
 import threading
 from unittest import mock
@@ -201,7 +202,7 @@ class TestPauseResume:
         state.pause(duration_minutes=5)
         assert state.paused
         remaining = state.pause_remaining_seconds()
-        assert 290 < remaining <= 300  # ~5 minutes
+        assert 290 < remaining <= 301  # ~5 minutes (float precision)
 
     def test_pause_auto_expires(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
@@ -674,6 +675,7 @@ class TestSessionPersistence:
         )
         assert state.should_inject_security("any-session")
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not applicable on Windows")
     def test_atomic_write_permissions(self, tmp_path):
         state = self._make_state(tmp_path)
         state.mark_security_injected("sess-perm")

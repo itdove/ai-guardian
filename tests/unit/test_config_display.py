@@ -338,7 +338,7 @@ class TestMultiIDEDisplaySupport:
         display = ConfigDisplay(config)
         dirs = display._get_skill_directories({"skill_directories": "auto"})
 
-        assert any("/custom/claude/skills" in d for d in dirs)
+        assert any("/custom/claude/skills" in d.replace("\\", "/") for d in dirs)
 
     def test_all_ide_dirs_in_preview(self):
         """Preview should list all IDE skill directories."""

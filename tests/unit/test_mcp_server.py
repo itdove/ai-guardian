@@ -657,11 +657,13 @@ class TestValidateScanPath:
         assert valid is False
         assert "not a directory" in err
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="/etc does not exist on Windows")
     def test_blocks_etc(self):
         valid, err, _ = _validate_scan_path("/etc")
         assert valid is False
         assert "not allowed" in err
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="/dev does not exist on Windows")
     def test_blocks_sys(self):
         valid, err, _ = _validate_scan_path("/dev")
         assert valid is False
@@ -741,6 +743,7 @@ class TestScanDirectory:
         assert "config.py" not in result_str
         assert "files_with_violations" not in result_str
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="/etc does not exist on Windows")
     def test_system_path_blocked(self):
         server = create_server()
         tool = server._tool_manager._tools["scan_directory"]
@@ -813,6 +816,7 @@ class TestScanDirectoryReport:
         assert "snippet" not in result_str
         assert "report_path" in result
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="/etc does not exist on Windows")
     def test_system_path_blocked(self):
         server = create_server()
         tool = server._tool_manager._tools["scan_directory_report"]

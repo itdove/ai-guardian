@@ -13,6 +13,7 @@ Tests cover:
 
 import json
 import os
+import sys
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -46,6 +47,7 @@ class TestLocalFilePaths:
         assert config is not None
         assert config["skill_allowed_patterns"] == ["test-*"]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Tilde expansion uses USERPROFILE not HOME on Windows")
     def test_tilde_expansion(self, monkeypatch, tmp_path):
         """Test tilde expansion for home directory."""
         # Mock home directory
@@ -74,6 +76,7 @@ class TestLocalFilePaths:
 
         assert config is None
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod 0o000 not effective on Windows")
     def test_permission_denied(self, tmp_path):
         """Test error handling for unreadable file."""
         config_file = tmp_path / "config.toml"
@@ -178,6 +181,7 @@ class TestLocalFilePaths:
 
         assert config is None
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Tilde expansion uses USERPROFILE not HOME on Windows")
     def test_file_url_with_tilde(self, monkeypatch, tmp_path):
         """Test file:// URL with tilde expansion."""
         # Mock home directory
@@ -358,6 +362,7 @@ class TestLocalFilePathsEdgeCases:
         # Should fail to find the file
         assert config is None
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="file:/// with Unix absolute paths not valid on Windows")
     def test_file_url_triple_slash(self, tmp_path):
         """Test file:/// with triple slash (standard)."""
         config_file = tmp_path / "config.toml"

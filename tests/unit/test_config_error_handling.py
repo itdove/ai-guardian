@@ -3,6 +3,8 @@ import json
 import sys
 import tempfile
 import unittest
+
+import pytest
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -105,6 +107,7 @@ class TestConfigErrorHandling(unittest.TestCase):
                 finally:
                     os.chdir(old_cwd)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod not effective on Windows")
     def test_unreadable_file_returns_error(self):
         """Test that unreadable config file returns error message."""
         with tempfile.TemporaryDirectory() as tmpdir:

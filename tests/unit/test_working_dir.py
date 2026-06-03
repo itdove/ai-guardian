@@ -3,6 +3,7 @@
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -64,6 +65,7 @@ class TestSaveWorkingDirs:
         assert path.exists()
         assert json.loads(path.read_text()) == {"daemon-a": "/home/user"}
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not applicable on Windows")
     def test_atomic_write_permissions(self, state_dir):
         save_working_dirs({"daemon-a": "/home/user"})
         path = state_dir / "working_dir.json"

@@ -5,6 +5,7 @@ Tests for setup command functionality.
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -707,6 +708,7 @@ class TestIDESetupParametrized:
 
     # ── setup_ide_hooks new (script-based) ───────────────────────────────
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix script hooks test")
     @pytest.mark.parametrize(
         "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
     )
@@ -857,6 +859,7 @@ class TestConfigDirEnvironmentVariable:
             config_mgr = ConfigManager()
             assert config_mgr.config_dir == xdg_dir / "ai-guardian"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses APPDATA")
     def test_default_config_dir_when_no_env_vars(self):
         """Test default config directory when no environment variables are set."""
         from ai_guardian.config_manager import ConfigManager
@@ -887,6 +890,7 @@ class TestConfigDirEnvironmentVariable:
             assert '~' not in str(config_mgr.config_dir)
             assert config_mgr.config_dir == Path('~/my-ai-guardian').expanduser()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses APPDATA")
     def test_get_config_dir_utility_function(self, tmp_path):
         """Test the get_config_dir utility function directly."""
         custom_dir = tmp_path / "test-config"
@@ -1085,6 +1089,7 @@ class TestClineSetup:
         assert content.startswith("#!/bin/sh")
         assert "ai-guardian" in content
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix script hooks test")
     def test_setup_ide_hooks_cline_force(self, tmp_path):
         """Test force flag overwrites existing Cline scripts."""
         setup = IDESetup()
@@ -2148,6 +2153,7 @@ class TestCreateDefaultConfig:
             assert '$schema' in config
             assert 'ai-guardian-config.schema.json' in config['$schema']
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows file:// URI format differs")
     def test_schema_uses_bundled_file_uri(self):
         """Test that $schema uses a file:// URI pointing to the bundled schema."""
         from ai_guardian.setup import _get_default_config_template
@@ -2798,6 +2804,7 @@ class TestMcpDefaultOn:
 class TestResolveBinaryPath:
     """Tests for _resolve_binary_path helper."""
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows prefers pythonw path")
     def test_returns_shutil_which_result(self):
         with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"):
             assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
@@ -2960,6 +2967,7 @@ class TestAbsolutePathWritten:
         config = json.loads(config_file.read_text())
         assert config["hooks"]["beforeSubmitPrompt"][0]["command"] == "/mock/bin/ai-guardian --ide cursor"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix shebang test")
     def test_script_based_hooks_use_absolute_path(self, tmp_path):
         setup = IDESetup()
         hooks_dir = tmp_path / "hooks"
@@ -3149,3 +3157,62 @@ class TestWindowsSetup:
         config = json.loads(config_file.read_text())
         config_str = json.dumps(config)
         assert "pythonw.exe -m ai_guardian" in config_str
+
+    # -- Script-based hooks generate .bat on Windows --
+
+    @pytest.mark.parametrize("ide_type", ["cline", "zoocode", "kiro"])
+    def test_script_hooks_create_bat_on_windows(self, tmp_path, ide_type):
+        """Script-based IDEs create .bat files on Windows."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {ide_type: {**IDESetup.IDE_CONFIGS[ide_type], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value=r"C:\Python312\pythonw.exe -m ai_guardian"):
+                with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+                        success, msg = setup.setup_ide_hooks(ide_type, dry_run=False, force=False)
+
+        assert success, msg
+        for script_name in IDESetup.IDE_CONFIGS[ide_type]["hook_scripts"]:
+            bat_path = hooks_dir / f"{script_name}.bat"
+            assert bat_path.exists(), f"{bat_path} not created"
+            content = bat_path.read_text()
+            assert content.startswith("@echo off")
+            assert "ai_guardian" in content
+
+    def test_script_hooks_no_bat_on_unix(self, tmp_path):
+        """Script-based IDEs create shebang scripts on Unix."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
+                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+                        success, _ = setup.setup_ide_hooks("cline", dry_run=False, force=False)
+
+        assert success
+        script = (hooks_dir / "PreToolUse").read_text()
+        assert script.startswith("#!/bin/sh")
+
+    def test_is_already_configured_detects_bat(self, tmp_path):
+        """check_hooks_configured finds .bat hooks on Windows."""
+        setup = IDESetup()
+        hooks_dir = tmp_path / "hooks"
+        hooks_dir.mkdir()
+        (hooks_dir / "PreToolUse.bat").write_text("@echo off\r\nai-guardian --ide cline\r\n")
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
+        ):
+            with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+                result = setup.check_hooks_configured(hooks_dir, "cline")
+
+        assert result is True

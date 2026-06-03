@@ -685,7 +685,7 @@ class DaemonState:
                 os.write(fd, content.encode("utf-8"))
                 os.close(fd)
                 closed = True
-                os.rename(tmp_path, str(self._sessions_file))
+                os.replace(tmp_path, str(self._sessions_file))
             except BaseException:
                 if not closed:
                     os.close(fd)

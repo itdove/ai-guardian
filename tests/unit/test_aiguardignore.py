@@ -153,13 +153,16 @@ class TestLoadAiguardignore:
         assert first is second  # same object from cache
 
     def test_cache_invalidation_on_mtime_change(self, tmp_path):
+        import os, time
         toml_file = tmp_path / ".aiguardignore.toml"
         toml_file.write_text(GLOBAL_ONLY_TOML)
 
         first = load_aiguardignore(project_root=tmp_path)
 
-        # Write new content (changes mtime)
+        # Write new content and ensure mtime advances (Windows mtime granularity)
+        time.sleep(0.05)
         toml_file.write_text(SAMPLE_TOML)
+        os.utime(toml_file, (time.time() + 1, time.time() + 1))
         second = load_aiguardignore(project_root=tmp_path)
 
         assert first is not second

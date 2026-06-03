@@ -203,11 +203,12 @@ class HookContextManager:
             )
             closed = False
             try:
-                os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
                 os.write(fd, content.encode("utf-8"))
                 os.close(fd)
                 closed = True
-                os.rename(tmp_path, str(self._context_file))
+                os.replace(tmp_path, str(self._context_file))
             except BaseException:
                 if not closed:
                     os.close(fd)

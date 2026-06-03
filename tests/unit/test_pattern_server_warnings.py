@@ -7,12 +7,23 @@ Also tests context-aware warning messages (Issue #384).
 """
 
 import logging
+import os
+import sys
 import tempfile
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
 import ai_guardian
+
+
+def _minimal_env():
+    """Return minimal env dict that preserves home dir resolution on all platforms."""
+    keep = {}
+    for key in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "SYSTEMROOT", "TEMP", "TMP"):
+        if key in os.environ:
+            keep[key] = os.environ[key]
+    return keep
 from ai_guardian.pattern_server import PatternServerClient
 
 
@@ -562,7 +573,7 @@ class PatternServerWarningsTest(TestCase):
         mock_get.return_value = mock_response
 
         # NO token in environment (public URL scenario)
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict('os.environ', _minimal_env(), clear=True):
             # Use a temporary cache directory
             with tempfile.TemporaryDirectory() as tmpdir:
                 config["cache"] = {"path": str(Path(tmpdir) / "test_patterns.toml")}
@@ -649,7 +660,7 @@ class PatternServerWarningsTest(TestCase):
         mock_get.return_value = mock_response
 
         # NO token in environment
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict('os.environ', _minimal_env(), clear=True):
             # Use a temporary cache directory
             with tempfile.TemporaryDirectory() as tmpdir:
                 config["cache"] = {"path": str(Path(tmpdir) / "test_patterns.toml")}

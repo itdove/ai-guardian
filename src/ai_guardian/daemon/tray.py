@@ -860,6 +860,18 @@ class DaemonTray:
                 ])
             elif system == "Linux":
                 subprocess.Popen(["notify-send", title, message])
+            elif system == "Windows":
+                safe_title = title.replace("'", "''")
+                safe_msg = message.replace("'", "''")
+                ps = (
+                    "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                    "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
+                    "$n = New-Object System.Windows.Forms.NotifyIcon; "
+                    "$n.Icon = [System.Drawing.SystemIcons]::Information; "
+                    "$n.Visible = $true; "
+                    f"$n.ShowBalloonTip(5000, '{safe_title}', '{safe_msg}', 'Info')"
+                )
+                subprocess.Popen(["powershell", "-NoProfile", "-Command", ps])
         except OSError:
             pass
 
@@ -913,7 +925,11 @@ class DaemonTray:
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
         import os
-        shell = os.environ.get("SHELL", "/bin/sh")
+        import platform as _plat
+        if _plat.system() == "Windows":
+            shell = os.environ.get("COMSPEC", "cmd.exe")
+        else:
+            shell = os.environ.get("SHELL", "/bin/sh")
         _launch_in_terminal([shell], keep_open=True, cwd=cwd)
 
     @staticmethod

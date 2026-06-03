@@ -18,6 +18,7 @@ NEW in v1.5.0: Optional pattern server support for homoglyph patterns.
 
 import fnmatch
 import logging
+import os
 import re
 import unicodedata
 from datetime import datetime, timezone
@@ -931,7 +932,7 @@ class PromptInjectionDetector:
 
         for pattern in self.ignore_files:
             # Expand ~ in pattern
-            expanded_pattern = str(Path(pattern).expanduser())
+            expanded_pattern = os.path.expanduser(pattern)
 
             # Use match_ignore_pattern which properly handles leading **/ patterns
             if match_ignore_pattern(file_path_expanded, expanded_pattern):

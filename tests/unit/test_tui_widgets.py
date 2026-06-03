@@ -281,7 +281,8 @@ class TestFormatLocalTime(unittest.TestCase):
         """Test that output matches expected format YYYY-MM-DD HH:MM TZ."""
         result = format_local_time("2026-01-15T12:00:00Z")
         parts = result.split()
-        self.assertEqual(len(parts), 3)
+        # At least 3 parts: date, time, timezone (TZ may be multi-word on Windows)
+        self.assertGreaterEqual(len(parts), 3)
         self.assertRegex(parts[0], r'\d{4}-\d{2}-\d{2}')
         self.assertRegex(parts[1], r'\d{2}:\d{2}')
 

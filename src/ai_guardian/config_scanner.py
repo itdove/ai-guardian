@@ -16,6 +16,7 @@ NEW in v1.5.0: Optional pattern server support for additional exfiltration patte
 """
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
@@ -289,8 +290,8 @@ class ConfigFileScanner:
         file_path_expanded = str(Path(file_path).expanduser())
 
         for pattern in self.ignore_files:
-            # Expand ~ in pattern
-            expanded_pattern = str(Path(pattern).expanduser())
+            # Expand ~ in pattern but preserve / separators for matching
+            expanded_pattern = os.path.expanduser(pattern)
 
             # Use match_ignore_pattern which properly handles leading **/ patterns
             if match_ignore_pattern(file_path_expanded, expanded_pattern):

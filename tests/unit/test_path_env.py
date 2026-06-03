@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -31,24 +32,18 @@ class TestWellKnownDirsWithScanners:
         scanner.write_text("#!/bin/sh\n")
         scanner.chmod(0o755)
 
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", [str(bin_dir)]):
-            result = _well_known_dirs_with_scanners()
-
+        result = _well_known_dirs_with_scanners(well_known=[str(bin_dir)])
         assert str(bin_dir) in result
 
     def test_skips_directory_without_scanners(self, tmp_path):
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
 
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", [str(bin_dir)]):
-            result = _well_known_dirs_with_scanners()
-
+        result = _well_known_dirs_with_scanners(well_known=[str(bin_dir)])
         assert result == []
 
     def test_skips_nonexistent_directory(self):
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", ["/nonexistent/path"]):
-            result = _well_known_dirs_with_scanners()
-
+        result = _well_known_dirs_with_scanners(well_known=["/nonexistent/path"])
         assert result == []
 
     def test_does_not_duplicate_directories(self, tmp_path):
@@ -59,48 +54,70 @@ class TestWellKnownDirsWithScanners:
             s.write_text("#!/bin/sh\n")
             s.chmod(0o755)
 
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", [str(bin_dir)]):
-            result = _well_known_dirs_with_scanners()
-
+        result = _well_known_dirs_with_scanners(well_known=[str(bin_dir)])
         assert result == [str(bin_dir)]
 
 
 class TestReadShellPath:
-    def test_returns_path_dirs_from_shell(self):
+    def _mock_non_windows(self):
+        return mock.patch("ai_guardian.daemon.path_env.platform.system", return_value="Linux")
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Tests Unix shell PATH reading")
+    def test_returns_path_dirs_from_shell(self, monkeypatch):
         fake_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin"
-        with mock.patch("ai_guardian.daemon.path_env.subprocess.run") as mock_run:
-            mock_run.return_value = mock.Mock(
-                returncode=0, stdout=fake_path + "\n"
-            )
-            result = _read_shell_path()
+        monkeypatch.setenv("SHELL", "/bin/bash")
+        with self._mock_non_windows():
+            with mock.patch("ai_guardian.daemon.path_env.subprocess.run") as mock_run:
+                mock_run.return_value = mock.Mock(
+                    returncode=0, stdout=fake_path + "\n"
+                )
+                result = _read_shell_path()
 
         assert result == ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
 
     def test_returns_empty_on_timeout(self):
-        with mock.patch("ai_guardian.daemon.path_env.subprocess.run",
-                        side_effect=subprocess.TimeoutExpired("cmd", 5)):
-            result = _read_shell_path()
+        with self._mock_non_windows():
+            with mock.patch("ai_guardian.daemon.path_env.subprocess.run",
+                            side_effect=subprocess.TimeoutExpired("cmd", 5)):
+                result = _read_shell_path()
 
         assert result == []
 
     def test_returns_empty_on_oserror(self):
-        with mock.patch("ai_guardian.daemon.path_env.subprocess.run",
-                        side_effect=OSError("no shell")):
-            result = _read_shell_path()
+        with self._mock_non_windows():
+            with mock.patch("ai_guardian.daemon.path_env.subprocess.run",
+                            side_effect=OSError("no shell")):
+                result = _read_shell_path()
 
         assert result == []
 
     def test_returns_empty_when_no_shell_env(self, monkeypatch):
         monkeypatch.delenv("SHELL", raising=False)
-        result = _read_shell_path()
+        with self._mock_non_windows():
+            result = _read_shell_path()
         assert result == []
 
     def test_returns_empty_on_nonzero_exit(self):
-        with mock.patch("ai_guardian.daemon.path_env.subprocess.run") as mock_run:
-            mock_run.return_value = mock.Mock(returncode=1, stdout="")
-            result = _read_shell_path()
+        with self._mock_non_windows():
+            with mock.patch("ai_guardian.daemon.path_env.subprocess.run") as mock_run:
+                mock_run.return_value = mock.Mock(returncode=1, stdout="")
+                result = _read_shell_path()
 
         assert result == []
+
+    def test_returns_empty_on_windows(self):
+        with mock.patch("ai_guardian.daemon.path_env.platform.system", return_value="Windows"):
+            result = _read_shell_path()
+        assert result == []
+
+
+def _mock_well_known(dirs):
+    """Context manager to mock both Unix and Windows well-known dirs."""
+    return mock.patch.multiple(
+        path_env_mod,
+        _WELL_KNOWN_DIRS=dirs,
+        _WELL_KNOWN_DIRS_WINDOWS=dirs,
+    )
 
 
 class TestEnsureScannerPath:
@@ -109,7 +126,7 @@ class TestEnsureScannerPath:
         bin_dir.mkdir(parents=True)
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", [str(bin_dir)]):
+        with _mock_well_known([str(bin_dir)]):
             with mock.patch.object(path_env_mod, "_SCANNER_BINARIES", []):
                 with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                                 return_value=[]):
@@ -119,10 +136,8 @@ class TestEnsureScannerPath:
 
     def test_skips_nonexistent_dir(self, monkeypatch):
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
-        original = os.environ["PATH"]
 
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS",
-                               ["/definitely/does/not/exist"]):
+        with _mock_well_known(["/definitely/does/not/exist"]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             return_value=[]):
                 ensure_scanner_path()
@@ -131,9 +146,8 @@ class TestEnsureScannerPath:
 
     def test_skips_dir_already_in_path(self, monkeypatch):
         monkeypatch.setenv("PATH", "/usr/bin:/bin:/usr/local/bin")
-        original = os.environ["PATH"]
 
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", ["/usr/local/bin"]):
+        with _mock_well_known(["/usr/local/bin"]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             return_value=[]):
                 ensure_scanner_path()
@@ -146,7 +160,7 @@ class TestEnsureScannerPath:
         bin_dir.mkdir()
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", [str(bin_dir)]):
+        with _mock_well_known([str(bin_dir)]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             return_value=[]):
                 ensure_scanner_path()
@@ -161,7 +175,7 @@ class TestEnsureScannerPath:
         shell_dir.mkdir()
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", []):
+        with _mock_well_known([]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             return_value=[str(shell_dir)]):
                 ensure_scanner_path()
@@ -179,8 +193,7 @@ class TestEnsureScannerPath:
         generic_dir.mkdir()
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS",
-                               [str(scanner_dir), str(generic_dir)]):
+        with _mock_well_known([str(scanner_dir), str(generic_dir)]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             return_value=[]):
                 ensure_scanner_path()
@@ -195,7 +208,7 @@ class TestEnsureScannerPath:
         bin_dir.mkdir()
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
-        with mock.patch.object(path_env_mod, "_WELL_KNOWN_DIRS", [str(bin_dir)]):
+        with _mock_well_known([str(bin_dir)]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             side_effect=Exception("unexpected")):
                 ensure_scanner_path()

@@ -37,7 +37,7 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertFalse(result.has_secrets)
         self.assertEqual(result.engine, "gitleaks")
         self.assertEqual(len(result.secrets), 0)
-        self.assertGreater(result.scan_time_ms, 0)
+        self.assertGreaterEqual(result.scan_time_ms, 0)
         os.unlink(report)
 
     @patch('ai_guardian.scanners.executor.subprocess.run')
@@ -244,7 +244,7 @@ class TestRunSingleEngine(unittest.TestCase):
         config = ENGINE_PRESETS["gitleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
 
-        self.assertGreater(result.scan_time_ms, 0)
+        self.assertGreaterEqual(result.scan_time_ms, 0)
         os.unlink(report)
 
 

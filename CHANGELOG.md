@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Full Windows support** (Issue #872)
+  - Script-based hooks (Cline, ZooCode, Kiro) generate `.bat` files on Windows
+  - `install.ps1` PowerShell installer mirroring install.sh functionality
+  - Windows notification support in tray via PowerShell `ShowBalloonTip`
+  - Shell launch uses `COMSPEC`/`cmd.exe` instead of `SHELL`/`/bin/sh` on Windows
+  - PATH augmentation includes Windows-specific directories (Chocolatey, Scoop, LOCALAPPDATA)
+  - CI test matrix includes `windows-latest` with Python 3.9 and 3.12
+  - Fixed `os.fchmod` guards in `session_state.py` and `hook_context.py` (not available on Windows)
+  - Changed `os.rename` to `os.replace` across 8 call sites for cross-platform atomic writes
+
 - **OpenCode hook support via plugin adapter** (Issue #819)
   - New `OpenCodeAdapter` in `hook_adapters/opencode.py` (extends ClaudeCodeAdapter)
   - Plugin auto-discovered from `~/.config/opencode/plugins/ai-guardian.ts`
