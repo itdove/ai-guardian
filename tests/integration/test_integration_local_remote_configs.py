@@ -6,6 +6,7 @@ real-world usage patterns.
 """
 
 import json
+import sys
 import pytest
 from pathlib import Path
 
@@ -101,6 +102,7 @@ class TestRemoteFetcherIntegration:
         assert local_result2 is not None
         assert local_result2["source"] == "local"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="file:/// URL format differs on Windows")
     def test_file_url_variations(self, tmp_path):
         """Test various file:// URL formats."""
         config = tmp_path / "config.toml"
@@ -184,6 +186,7 @@ class TestRemoteFetcherIntegration:
         assert result5 is not None
         assert result5["test"] == "fixed"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="~ expansion uses USERPROFILE on Windows")
     def test_tilde_expansion_integration(self, tmp_path, monkeypatch):
         """Test tilde expansion in real scenarios."""
         # Mock HOME
