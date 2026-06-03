@@ -30,6 +30,9 @@ def _isolate_config_dir(tmp_path):
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Set a non-existent path to prevent discovery of real project configs
     project_config_sentinel = str(tmp_path / "no_project_config.json")
+    # Suppress daemon auto-start in tests (prevents orphan processes on Windows)
+    stop_marker = state_dir / "daemon.stop-requested"
+    stop_marker.touch()
     with mock.patch.dict(os.environ, {
         "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
         "AI_GUARDIAN_STATE_DIR": str(state_dir),
