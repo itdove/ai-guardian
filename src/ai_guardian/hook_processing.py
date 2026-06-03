@@ -230,7 +230,7 @@ def _is_path_excluded(file_path, config):
                 if "**" in expanded_path:
                     # Recursive wildcard: match directory and all subdirectories
                     # Remove /** or ** from end for directory comparison
-                    base_path = expanded_path.replace("/**", "").replace("**", "")
+                    base_path = expanded_path.replace("\\**", "").replace("/**", "").replace("**", "")
                     if _startswith_path(abs_file_path, base_path):
                         logging.debug(f"Path {abs_file_path} matches recursive exclusion: {exclusion_path}")
                         return True
@@ -240,7 +240,7 @@ def _is_path_excluded(file_path, config):
                     wildcard_parent = os.path.dirname(expanded_path)
 
                     # Check if file's parent matches the wildcard pattern
-                    if _fnmatch_path(file_parent, expanded_path) or _startswith_path(file_parent, expanded_path.replace("/*", "")):
+                    if _fnmatch_path(file_parent, expanded_path) or _startswith_path(file_parent, expanded_path.replace("\\*", "").replace("/*", "")):
                         logging.debug(f"Path {abs_file_path} matches wildcard exclusion: {exclusion_path}")
                         return True
                 else:
@@ -365,7 +365,7 @@ def _check_directory_rules(file_path, config):
                         # Check for wildcards
                         if "**" in expanded_pattern:
                             # Recursive wildcard: match directory and all subdirectories
-                            base_path = expanded_pattern.replace("/**", "").replace("**", "")
+                            base_path = expanded_pattern.replace("\\**", "").replace("/**", "").replace("**", "")
 
                             # Check if base_path still contains wildcards (e.g., daf-*/**, ~/projects/*/src/**)
                             if "*" in base_path:
@@ -402,7 +402,7 @@ def _check_directory_rules(file_path, config):
                         elif "*" in expanded_pattern:
                             # Single-level wildcard: use fnmatch
                             file_parent = os.path.dirname(abs_file_path)
-                            if _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(file_parent, expanded_pattern.replace("/*", "")):
+                            if _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(file_parent, expanded_pattern.replace("\\*", "").replace("/*", "")):
                                 final_decision = mode
                                 matched_pattern = pattern
                                 logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
