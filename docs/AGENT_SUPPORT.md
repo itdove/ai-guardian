@@ -83,7 +83,7 @@ Claude Code binary file reads bypass hooks — image content may not pass throug
 
 ### Transcript scanning availability
 
-Only Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit`. Agents without this hook cannot scan for secrets or PII in the transcript, so `secret_in_transcript` and `pii_in_transcript` violations are Claude Code-only.
+Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode stores sessions in a SQLite database; ai-guardian reads it directly to scan for secrets and PII. Other agents without transcript access cannot perform transcript scanning, so `secret_in_transcript` and `pii_in_transcript` violations are limited to Claude Code and OpenCode.
 
 ### MCP-only agents
 

@@ -859,7 +859,8 @@ def _save_transcript_positions(positions: Dict[str, int]) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     pos_file = state_dir / "transcript_positions.json"
     try:
-        pruned = {k: v for k, v in positions.items() if os.path.exists(k)}
+        pruned = {k: v for k, v in positions.items()
+                  if k.startswith("opencode:") or os.path.exists(k)}
         with open(pos_file, 'w', encoding='utf-8') as f:
             json.dump(pruned, f)
     except Exception as e:
@@ -965,7 +966,8 @@ def _save_seen_findings(seen: Dict[str, Dict[str, str]]) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     sf_file = state_dir / "transcript_seen_findings.json"
     try:
-        pruned = {k: v for k, v in seen.items() if os.path.exists(k)}
+        pruned = {k: v for k, v in seen.items()
+                  if k.startswith("opencode:") or os.path.exists(k)}
         with open(sf_file, 'w', encoding='utf-8') as f:
             json.dump(pruned, f)
     except Exception as e:
@@ -1143,9 +1145,42 @@ def scan_transcript_incremental(
         _save_transcript_positions(positions)
         return warnings
 
-    # Load seen findings to deduplicate across scans (breaks self-referential loop)
+    warnings = _scan_transcript_text(
+        combined_text, transcript_path, secret_config, pii_config, hook_context
+    )
+
+    # Update position to actual bytes read
+    positions[transcript_path] = new_pos
+    _save_transcript_positions(positions)
+
+    return warnings
+
+
+def _scan_transcript_text(
+    combined_text: str,
+    transcript_key: str,
+    secret_config: Optional[Dict] = None,
+    pii_config: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+) -> list:
+    """Scan combined text for secrets and PII with deduplication.
+
+    Shared by both JSONL and SQLite transcript scanning paths.
+
+    Args:
+        combined_text: Concatenated transcript text to scan.
+        transcript_key: Key for dedup tracking (file path or ``opencode:<session_id>``).
+        secret_config: Secret scanning config.
+        pii_config: PII scanning config.
+        hook_context: Optional context with session_id for correlation.
+
+    Returns:
+        List of warning message strings.
+    """
+    warnings = []
+
     seen_all = _load_seen_findings()
-    seen = seen_all.get(transcript_path, {})
+    seen = seen_all.get(transcript_key, {})
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # --- Secret scanning ---
@@ -1179,7 +1214,7 @@ def scan_transcript_incremental(
                     )
                     warnings.append(warning_msg)
                     _log_transcript_violation(
-                        ViolationType.SECRET_IN_TRANSCRIPT, transcript_path,
+                        ViolationType.SECRET_IN_TRANSCRIPT, transcript_key,
                         details={"reason": secret_error},
                         hook_context=hook_context
                     )
@@ -1223,20 +1258,74 @@ def scan_transcript_incremental(
                     )
                     warnings.append(warning_msg)
                     _log_transcript_violation(
-                        ViolationType.PII_IN_TRANSCRIPT, transcript_path,
+                        ViolationType.PII_IN_TRANSCRIPT, transcript_key,
                         details={"pii_types": pii_types, "pii_count": len(new_redactions)},
                         hook_context=hook_context
                     )
         except Exception as e:
             logging.debug(f"Transcript PII scan error (fail-open): {e}")
 
-    # Update position to actual bytes read
-    positions[transcript_path] = new_pos
-    _save_transcript_positions(positions)
-
     # Persist seen findings
-    seen_all[transcript_path] = seen
+    seen_all[transcript_key] = seen
     _save_seen_findings(seen_all)
+
+    return warnings
+
+
+def scan_opencode_transcript_incremental(
+    db_path: str,
+    session_id: str,
+    secret_config: Optional[Dict] = None,
+    pii_config: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+) -> list:
+    """Incrementally scan OpenCode session transcript via SQLite.
+
+    Reads new message parts since the last recorded timestamp from
+    OpenCode's SQLite database. Uses the same scanning logic as the
+    JSONL transcript scanner.
+
+    Args:
+        db_path: Absolute path to opencode.db.
+        session_id: OpenCode session ID.
+        secret_config: Secret scanning config.
+        pii_config: PII scanning config.
+        hook_context: Optional context with session_id for correlation.
+
+    Returns:
+        List of warning message strings (empty if nothing found).
+    """
+    from ai_guardian.opencode_transcript import (
+        get_opencode_latest_timestamp,
+        read_opencode_transcript,
+    )
+
+    warnings = []
+    pos_key = f"opencode:{session_id}"
+
+    positions = _load_transcript_positions()
+
+    if pos_key not in positions:
+        # First scan: skip to current end (same as JSONL behaviour).
+        latest_ts = get_opencode_latest_timestamp(db_path, session_id)
+        positions[pos_key] = latest_ts
+        _save_transcript_positions(positions)
+        logging.debug(f"OpenCode transcript first seen, initialized position to {latest_ts}")
+        return warnings
+
+    last_ts = positions[pos_key]
+    combined_text, new_ts = read_opencode_transcript(db_path, session_id, last_ts)
+
+    if not combined_text:
+        return warnings
+
+    warnings = _scan_transcript_text(
+        combined_text, pos_key, secret_config, pii_config, hook_context
+    )
+
+    # Advance cursor
+    positions[pos_key] = new_ts
+    _save_transcript_positions(positions)
 
     return warnings
 
@@ -3816,6 +3905,61 @@ def process_hook_data(hook_data, daemon_state=None):
                                           error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
                                           violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
+
+        # OpenCode transcript scanning via SQLite (Issue #934)
+        # When no transcript_path is available and adapter is OpenCode,
+        # read conversation text from OpenCode's SQLite session DB.
+        if not transcript_path and hook_event == HookEvent.PROMPT and adapter and adapter.name == "OpenCode":
+            try:
+                from ai_guardian.opencode_transcript import get_opencode_db_path
+
+                ts_config, ts_error = _load_transcript_scanning_config()
+                if ts_error:
+                    logging.warning(f"Transcript scanning config error: {ts_error}")
+
+                if ts_config and is_feature_enabled(
+                    ts_config.get("enabled"),
+                    now,
+                    default=True
+                ):
+                    oc_db_path = get_opencode_db_path()
+                    oc_session_id = hook_data.get("session_id")
+                    if oc_db_path and oc_session_id:
+                        logging.info("Scanning OpenCode transcript (SQLite) for secrets/PII...")
+
+                        try:
+                            ts_secret_config = secret_config
+                        except NameError:
+                            ts_secret_config, _ = _load_secret_scanning_config()
+                        try:
+                            ts_pii_config = pii_config
+                        except NameError:
+                            ts_pii_config, _ = _load_pii_config()
+
+                        transcript_warnings = scan_opencode_transcript_incremental(
+                            oc_db_path,
+                            oc_session_id,
+                            secret_config=ts_secret_config,
+                            pii_config=ts_pii_config,
+                            hook_context={"session_id": hook_session_id} if hook_session_id else None
+                        )
+                        if transcript_warnings:
+                            warning_messages.extend(transcript_warnings)
+                            logging.warning(f"OpenCode transcript scanning found {len(transcript_warnings)} issue(s)")
+                        else:
+                            logging.info("✓ No threats detected in OpenCode transcript")
+                    elif not oc_db_path:
+                        logging.debug("OpenCode DB not found, skipping transcript scanning")
+                    elif not oc_session_id:
+                        logging.debug("No session_id in hook data, skipping OpenCode transcript scanning")
+            except Exception as e:
+                on_error = _get_on_scan_error_action()
+                if on_error == ActionMode.BLOCK:
+                    logging.error(f"OpenCode transcript scanning error (fail-closed): {e}")
+                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                          error_message=f"OpenCode transcript scanning failed (blocked): {e}",
+                                          violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
+                logging.warning(f"OpenCode transcript scanning error (fail-open): {e}")
 
         # Save PreToolUse context for PostToolUse correlation (#366)
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and context_mgr and hook_tool_use_id:

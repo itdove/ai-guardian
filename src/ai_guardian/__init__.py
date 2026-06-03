@@ -143,6 +143,8 @@ from ai_guardian.hook_processing import (  # noqa: F401
     _extract_secret_type_from_error,
     _extract_text_from_transcript_line,
     scan_transcript_incremental,
+    _scan_transcript_text,
+    scan_opencode_transcript_incremental,
     _log_transcript_violation,
     _scan_for_pii,
     _extract_block_reason,
@@ -166,6 +168,13 @@ from ai_guardian.hook_processing import (  # noqa: F401
     HAS_VIOLATION_LOGGER,
     HAS_SCANNER_ENGINE,
     HAS_ANNOTATIONS,
+)
+
+# --- opencode_transcript.py ---
+from ai_guardian.opencode_transcript import (  # noqa: F401
+    get_opencode_db_path,
+    read_opencode_transcript,
+    get_opencode_latest_timestamp,
 )
 
 # --- cli_handlers.py ---
