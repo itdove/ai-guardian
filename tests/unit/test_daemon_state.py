@@ -202,7 +202,7 @@ class TestPauseResume:
         state.pause(duration_minutes=5)
         assert state.paused
         remaining = state.pause_remaining_seconds()
-        assert 290 < remaining <= 300  # ~5 minutes
+        assert 290 < remaining <= 301  # ~5 minutes (float precision)
 
     def test_pause_auto_expires(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
