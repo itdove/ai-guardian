@@ -18,6 +18,11 @@ import glob
 def _fnmatch_path(path, pattern):
     """fnmatch with normalized separators for cross-platform path matching."""
     return fnmatch.fnmatch(path.replace("\\", "/"), pattern.replace("\\", "/"))
+
+
+def _startswith_path(path, prefix):
+    """startswith with normalized separators for cross-platform path matching."""
+    return path.replace("\\", "/").startswith(prefix.replace("\\", "/"))
 import hashlib
 import json
 import logging
@@ -207,7 +212,7 @@ def _is_path_excluded(file_path, config):
                     # Recursive wildcard: match directory and all subdirectories
                     # Remove /** or ** from end for directory comparison
                     base_path = expanded_path.replace("/**", "").replace("**", "")
-                    if abs_file_path.startswith(base_path):
+                    if _startswith_path(abs_file_path, base_path):
                         logging.debug(f"Path {abs_file_path} matches recursive exclusion: {exclusion_path}")
                         return True
                 elif "*" in expanded_path:
@@ -216,13 +221,13 @@ def _is_path_excluded(file_path, config):
                     wildcard_parent = os.path.dirname(expanded_path)
 
                     # Check if file's parent matches the wildcard pattern
-                    if _fnmatch_path(file_parent, expanded_path) or file_parent.startswith(expanded_path.replace("/*", "")):
+                    if _fnmatch_path(file_parent, expanded_path) or _startswith_path(file_parent, expanded_path.replace("/*", "")):
                         logging.debug(f"Path {abs_file_path} matches wildcard exclusion: {exclusion_path}")
                         return True
                 else:
                     # Exact path match: check if file is within excluded directory
                     # Add trailing slash to ensure directory boundary matching
-                    if abs_file_path.startswith(expanded_path + os.sep) or abs_file_path == expanded_path:
+                    if _startswith_path(abs_file_path, expanded_path + "/") or abs_file_path == expanded_path:
                         logging.debug(f"Path {abs_file_path} matches exact exclusion: {exclusion_path}")
                         return True
 
@@ -370,7 +375,7 @@ def _check_directory_rules(file_path, config):
                                     break
                             else:
                                 # No wildcards in base_path, use simple startswith
-                                if abs_file_path.startswith(base_path):
+                                if _startswith_path(abs_file_path, base_path):
                                     final_decision = mode
                                     matched_pattern = pattern
                                     logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
@@ -378,7 +383,7 @@ def _check_directory_rules(file_path, config):
                         elif "*" in expanded_pattern:
                             # Single-level wildcard: use fnmatch
                             file_parent = os.path.dirname(abs_file_path)
-                            if _fnmatch_path(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
+                            if _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(file_parent, expanded_pattern.replace("/*", "")):
                                 final_decision = mode
                                 matched_pattern = pattern
                                 logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")

@@ -1869,12 +1869,21 @@ class TestShellMenuItem:
 
     def test_launch_shell_passes_cwd(self):
         """_launch_shell passes working directory as cwd."""
-        with mock.patch.dict("os.environ", {"SHELL": "/bin/bash"}, clear=False):
-            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-                DaemonTray._launch_shell(cwd="/home/user/project")
-                mock_launch.assert_called_once_with(
-                    ["/bin/bash"], keep_open=True, cwd="/home/user/project",
-                )
+        if sys.platform == "win32":
+            env = {"COMSPEC": r"C:\Windows\cmd.exe"}
+            expected_shell = r"C:\Windows\cmd.exe"
+            platform_name = "Windows"
+        else:
+            env = {"SHELL": "/bin/bash"}
+            expected_shell = "/bin/bash"
+            platform_name = "Linux"
+        with mock.patch.dict("os.environ", env, clear=True):
+            with mock.patch("platform.system", return_value=platform_name):
+                with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                    DaemonTray._launch_shell(cwd="/home/user/project")
+                    mock_launch.assert_called_once_with(
+                        [expected_shell], keep_open=True, cwd="/home/user/project",
+                    )
 
 
 class TestPluginMenuItems:

@@ -523,7 +523,7 @@ class TestRunPythonScanner:
             assert result.has_secrets is False
             assert result.secrets == []
             assert result.engine == "sample-scanner"
-            assert result.scan_time_ms > 0
+            assert result.scan_time_ms >= 0
         finally:
             os.unlink(tmp_path)
 

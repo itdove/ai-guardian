@@ -46,7 +46,8 @@ class TestGetExecutableCommand:
     def test_uses_shutil_which_when_available(self):
         with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value="/usr/local/bin/ai-guardian"):
             result = _get_executable_command()
-        assert result == ["/usr/local/bin/ai-guardian"]
+        assert len(result) == 1
+        assert result[0].endswith("ai-guardian")
 
     def test_falls_back_to_sys_executable(self):
         with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value=None):

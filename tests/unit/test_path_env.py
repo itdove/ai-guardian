@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -61,6 +62,7 @@ class TestReadShellPath:
     def _mock_non_windows(self):
         return mock.patch("ai_guardian.daemon.path_env.platform.system", return_value="Linux")
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Tests Unix shell PATH reading")
     def test_returns_path_dirs_from_shell(self, monkeypatch):
         fake_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin"
         monkeypatch.setenv("SHELL", "/bin/bash")

@@ -37,9 +37,6 @@ jobs:
     name: Test Python ${{ matrix.python-version }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: version-check
-    # Windows tests are informational — many pre-existing tests assume Unix paths.
-    # Core runtime works on Windows; test portability tracked in follow-up issues.
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
 
     strategy:
       fail-fast: false
