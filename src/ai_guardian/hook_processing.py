@@ -23,6 +23,25 @@ def _fnmatch_path(path, pattern):
 def _startswith_path(path, prefix):
     """startswith with normalized separators for cross-platform path matching."""
     return path.replace("\\", "/").startswith(prefix.replace("\\", "/"))
+
+
+def _resolve_pattern_path(pattern):
+    """Resolve a glob pattern path: realpath for the concrete prefix, normpath for wildcard suffix."""
+    expanded = os.path.expanduser(pattern)
+    star_idx = expanded.find("*")
+    if star_idx == -1:
+        return os.path.realpath(expanded)
+    prefix = expanded[:star_idx]
+    suffix = expanded[star_idx:]
+    last_sep = max(prefix.rfind("/"), prefix.rfind("\\"))
+    if last_sep >= 0:
+        dir_prefix = prefix[:last_sep]
+        remainder = prefix[last_sep:] + suffix
+    else:
+        dir_prefix = ""
+        remainder = expanded
+    resolved_prefix = os.path.realpath(dir_prefix) if dir_prefix else ""
+    return os.path.normpath(resolved_prefix + remainder)
 import hashlib
 import json
 import logging
@@ -205,7 +224,7 @@ def _is_path_excluded(file_path, config):
 
             try:
                 # Expand tilde and convert to absolute path, resolving symlinks
-                expanded_path = os.path.realpath(os.path.expanduser(exclusion_path))
+                expanded_path = _resolve_pattern_path(exclusion_path)
 
                 # Check for wildcards
                 if "**" in expanded_path:
@@ -341,7 +360,7 @@ def _check_directory_rules(file_path, config):
                     else:
                         # For non-leading-** patterns, use the original implementation
                         # This handles absolute paths, tilde expansion, and wildcards correctly
-                        expanded_pattern = os.path.realpath(os.path.expanduser(pattern))
+                        expanded_pattern = _resolve_pattern_path(pattern)
 
                         # Check for wildcards
                         if "**" in expanded_pattern:
