@@ -16,10 +16,11 @@ from typing import List, Optional
 
 from ai_guardian.scanners.engine_builder import (
     ENGINE_PRESETS,
+    _PYTHON_SCANNER_PRESETS,
     _build_engine_config,
     resolve_engine_config_path,
 )
-from ai_guardian.scanners.executor import run_single_engine
+from ai_guardian.scanners.executor import run_engine
 from ai_guardian.scanners.strategies import SecretMatch
 
 
@@ -84,7 +85,7 @@ def test_engine(
     Returns:
         An :class:`EngineTestResult` with findings.
     """
-    if engine_name not in ENGINE_PRESETS:
+    if engine_name not in ENGINE_PRESETS and engine_name not in _PYTHON_SCANNER_PRESETS:
         return EngineTestResult(
             engine=engine_name,
             found=False,
@@ -125,7 +126,7 @@ def test_engine(
         Path(source_file).write_text(text, encoding="utf-8")
         Path(report_file).write_text("", encoding="utf-8")
 
-        scan_result = run_single_engine(
+        scan_result = run_engine(
             engine_config=engine_config,
             source_file=source_file,
             report_file=report_file,
