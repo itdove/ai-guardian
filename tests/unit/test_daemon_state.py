@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import sys
 import time
 import threading
 from unittest import mock
@@ -674,6 +675,7 @@ class TestSessionPersistence:
         )
         assert state.should_inject_security("any-session")
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not applicable on Windows")
     def test_atomic_write_permissions(self, tmp_path):
         state = self._make_state(tmp_path)
         state.mark_security_injected("sess-perm")

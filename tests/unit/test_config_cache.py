@@ -145,9 +145,10 @@ class TestConfigCache(unittest.TestCase):
                         _load_secret_scanning_config()
                         _load_prompt_injection_config()
 
+                        config_name = config_file.name
                         json_reads = [
                             c for c in mock_open.call_args_list
-                            if str(config_file) in str(c)
+                            if config_name in str(c)
                         ]
                         self.assertEqual(len(json_reads), 1,
                                          "Config file should be read only once")

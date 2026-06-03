@@ -1,5 +1,6 @@
 """Tests for daemon system tray integration."""
 
+import sys
 from unittest import mock
 
 import pytest
@@ -1844,25 +1845,31 @@ class TestShellMenuItem:
             mock_shell.assert_called_once()
 
     @pytest.mark.parametrize(
-        "env, expected_shell",
+        "platform_name, env, expected_shell",
         [
-            ({"SHELL": "/bin/zsh"}, "/bin/zsh"),
-            ({}, "/bin/sh"),
+            pytest.param("Linux", {"SHELL": "/bin/zsh"}, "/bin/zsh",
+                         id="unix-shell-env-set"),
+            pytest.param("Linux", {}, "/bin/sh",
+                         id="unix-shell-env-unset"),
+            pytest.param("Windows", {"COMSPEC": r"C:\Windows\cmd.exe"},
+                         r"C:\Windows\cmd.exe", id="win-comspec-set"),
+            pytest.param("Windows", {}, "cmd.exe",
+                         id="win-comspec-unset"),
         ],
-        ids=["shell-env-set", "shell-env-unset"],
     )
-    def test_launch_shell_resolves_shell(self, env, expected_shell):
-        """_launch_shell uses $SHELL or defaults to /bin/sh."""
+    def test_launch_shell_resolves_shell(self, platform_name, env, expected_shell):
+        """_launch_shell uses $SHELL / $COMSPEC depending on platform."""
         with mock.patch.dict("os.environ", env, clear=True):
-            with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-                DaemonTray._launch_shell()
-                mock_launch.assert_called_once_with(
-                    [expected_shell], keep_open=True, cwd=None,
-                )
+            with mock.patch("platform.system", return_value=platform_name):
+                with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                    DaemonTray._launch_shell()
+                    mock_launch.assert_called_once_with(
+                        [expected_shell], keep_open=True, cwd=None,
+                    )
 
     def test_launch_shell_passes_cwd(self):
         """_launch_shell passes working directory as cwd."""
-        with mock.patch("os.environ", {"SHELL": "/bin/bash"}):
+        with mock.patch.dict("os.environ", {"SHELL": "/bin/bash"}, clear=False):
             with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                 DaemonTray._launch_shell(cwd="/home/user/project")
                 mock_launch.assert_called_once_with(

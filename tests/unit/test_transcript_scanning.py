@@ -325,16 +325,16 @@ class TestScanTranscriptIncremental(unittest.TestCase):
         # Initialize position
         scan_transcript_incremental(str(transcript))
 
-        # Append content
+        # Append content in binary mode to avoid \r\n translation on Windows
         content = json.dumps({"text": "Hello"}) + "\n"
-        with open(str(transcript), 'a') as f:
-            f.write(content)
+        with open(str(transcript), 'ab') as f:
+            f.write(content.encode('utf-8'))
 
         mock_gitleaks.return_value = (False, None)
         scan_transcript_incremental(str(transcript))
 
         positions = _load_transcript_positions()
-        self.assertEqual(positions.get(str(transcript)), len(content))
+        self.assertEqual(positions.get(str(transcript)), len(content.encode('utf-8')))
 
     @mock.patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
     def test_incremental_only_scans_new_content(self, mock_gitleaks):
@@ -610,10 +610,10 @@ class TestPositionTrackingRegression(unittest.TestCase):
         # Initialize position
         scan_transcript_incremental(str(transcript))
 
-        # Append content
+        # Append content in binary mode to avoid \r\n translation on Windows
         content = json.dumps({"text": "Hello"}) + "\n"
-        with open(str(transcript), 'a') as f:
-            f.write(content)
+        with open(str(transcript), 'ab') as f:
+            f.write(content.encode('utf-8'))
 
         mock_gitleaks.return_value = (False, None)
         scan_transcript_incremental(str(transcript))

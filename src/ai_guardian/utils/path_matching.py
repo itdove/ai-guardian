@@ -18,7 +18,7 @@ def match_leading_doublestar_pattern(file_path, pattern):
 
     Args:
         file_path: Absolute file path to check
-        pattern: Pattern starting with **/
+        pattern: Pattern starting with **/ (or **\\ on Windows)
 
     Returns:
         bool: True if pattern matches the path
@@ -31,6 +31,9 @@ def match_leading_doublestar_pattern(file_path, pattern):
         >>> match_leading_doublestar_pattern("/home/user/docs/file.md", "**/docs/**")
         True
     """
+    # Normalize separators to / for consistent matching
+    pattern = pattern.replace("\\", "/")
+
     # Remove leading **/
     pattern_suffix = pattern[3:] if pattern.startswith("**/") else pattern[2:]
 
@@ -102,8 +105,9 @@ def match_ignore_pattern(file_path, pattern):
         >>> match_ignore_pattern("/home/user/project/src/main.py", "*.py")
         True
     """
-    if pattern.startswith("**/"):
-        return match_leading_doublestar_pattern(file_path, pattern)
+    norm_pattern = pattern.replace("\\", "/")
+    if norm_pattern.startswith("**/"):
+        return match_leading_doublestar_pattern(file_path, norm_pattern)
     else:
         # Use Path.match() for other patterns
         return Path(file_path).match(pattern)

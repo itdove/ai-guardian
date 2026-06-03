@@ -13,6 +13,11 @@ except ImportError:
     _HAS_FCNTL = False
 import fnmatch
 import glob
+
+
+def _fnmatch_path(path, pattern):
+    """fnmatch with normalized separators for cross-platform path matching."""
+    return fnmatch.fnmatch(path.replace("\\", "/"), pattern.replace("\\", "/"))
 import hashlib
 import json
 import logging
@@ -211,7 +216,7 @@ def _is_path_excluded(file_path, config):
                     wildcard_parent = os.path.dirname(expanded_path)
 
                     # Check if file's parent matches the wildcard pattern
-                    if fnmatch.fnmatch(file_parent, expanded_path) or file_parent.startswith(expanded_path.replace("/*", "")):
+                    if _fnmatch_path(file_parent, expanded_path) or file_parent.startswith(expanded_path.replace("/*", "")):
                         logging.debug(f"Path {abs_file_path} matches wildcard exclusion: {exclusion_path}")
                         return True
                 else:
@@ -351,7 +356,7 @@ def _check_directory_rules(file_path, config):
 
                                 while current_path and current_path != os.path.dirname(current_path):
                                     # Check if this directory matches the base pattern
-                                    if fnmatch.fnmatch(current_path, base_path):
+                                    if _fnmatch_path(current_path, base_path):
                                         # Found a matching directory - the file is under it
                                         matched = True
                                         break
@@ -373,7 +378,7 @@ def _check_directory_rules(file_path, config):
                         elif "*" in expanded_pattern:
                             # Single-level wildcard: use fnmatch
                             file_parent = os.path.dirname(abs_file_path)
-                            if fnmatch.fnmatch(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
+                            if _fnmatch_path(file_parent, expanded_pattern) or file_parent.startswith(expanded_pattern.replace("/*", "")):
                                 final_decision = mode
                                 matched_pattern = pattern
                                 logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
@@ -1876,7 +1881,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 else:
                     # For non-leading-** patterns, use Path.match()
                     file_path_obj = Path(abs_file_path)
-                    expanded_pattern = str(Path(pattern).expanduser())
+                    expanded_pattern = os.path.expanduser(pattern)
                     matched = file_path_obj.match(expanded_pattern)
 
                 if matched:

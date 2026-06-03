@@ -11,6 +11,7 @@ Bash/PowerShell commands remain fully blocked for all settings files.
 
 import json
 import os
+import sys
 import tempfile
 import pytest
 
@@ -179,7 +180,7 @@ class TestWriteContentAware:
         updated = {"hooks": hooks_config, "model": "new-model"}
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, dir="/tmp",
+            mode="w", suffix=".json", delete=False,
             prefix=".claude_settings_"
         ) as f:
             json.dump(original, f)
@@ -208,7 +209,7 @@ class TestWriteContentAware:
         updated = {"hooks": {"PreToolUse": []}, "model": "new"}
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, dir="/tmp",
+            mode="w", suffix=".json", delete=False,
             prefix=".claude_settings_"
         ) as f:
             json.dump(original, f)
@@ -237,7 +238,7 @@ class TestWriteContentAware:
         updated = {"model": "new"}
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, dir="/tmp",
+            mode="w", suffix=".json", delete=False,
             prefix=".claude_settings_"
         ) as f:
             json.dump(original, f)

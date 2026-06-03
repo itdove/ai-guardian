@@ -3,12 +3,18 @@
 import json
 import os
 import socket
+import sys
 import tempfile
 import threading
 import time
 from unittest import mock
 
 import pytest
+
+_skip_no_unix_socket = pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"),
+    reason="AF_UNIX not available on Windows",
+)
 
 from ai_guardian.daemon.client import (
     cleanup_stale_pid,
@@ -56,6 +62,7 @@ class TestIsDaemonRunning:
         assert not is_daemon_running()
 
 
+@_skip_no_unix_socket
 class TestSendHookRequest:
     def test_returns_none_when_no_daemon(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
@@ -320,6 +327,7 @@ class TestIsPidAlive:
 
         assert not is_pid_alive(99999999)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses ctypes, not os.kill")
     def test_permission_error_means_alive(self):
         from ai_guardian.daemon import is_pid_alive
 

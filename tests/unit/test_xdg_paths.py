@@ -7,6 +7,7 @@ follow the XDG spec and maintain backward compatibility.
 
 import os
 import json
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -37,6 +38,7 @@ class TestGetStateDir:
             result = get_state_dir()
         assert result == Path(xdg) / "ai-guardian"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses LOCALAPPDATA, not ~/.local/state")
     def test_default_fallback(self, tmp_path):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_STATE_DIR", None)
@@ -75,6 +77,7 @@ class TestGetCacheDir:
             result = get_cache_dir()
         assert result == Path(xdg) / "ai-guardian"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses LOCALAPPDATA, not ~/.cache")
     def test_default_fallback(self, tmp_path):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_CACHE_DIR", None)

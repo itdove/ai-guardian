@@ -106,6 +106,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
 class TestSecretScanningIgnoreFiles(unittest.TestCase):
     """Tests for ignore_files configuration in secret scanning."""
 
+    @unittest.skipIf(sys.platform == "win32", "Unix-style absolute paths not valid on Windows")
     def test_ignore_files_exact_match(self):
         """Test that exact file path matching works."""
         secret_content = "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"

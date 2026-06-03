@@ -317,12 +317,12 @@ class TestDetectEngine:
 
 
 class TestGetPodmanSocket:
-    @mock.patch("os.getuid", return_value=1000)
+    @mock.patch("os.getuid", create=True, return_value=1000)
     def test_returns_rootless_path(self, mock_uid):
         assert _get_podman_socket() == "/run/user/1000/podman/podman.sock"
 
     def test_returns_none_on_windows(self):
-        with mock.patch("os.getuid", side_effect=AttributeError):
+        with mock.patch("os.getuid", create=True, side_effect=AttributeError):
             assert _get_podman_socket() is None
 
 
