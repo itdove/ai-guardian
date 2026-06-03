@@ -207,6 +207,43 @@ def connection_not_placeholder(matched_text: str) -> bool:
     return True
 
 
+_TOKEN_PREFIX_RE = re.compile(
+    r'^(?:sk-(?:proj-|ant-)?|gh[pors]_|glpat-|xox[baprs]-)',
+)
+
+_REPEATED_CHAR_TOKEN_RE = re.compile(r'^(.)\1{7,}$')
+
+_ALL_CAPS_UNDERSCORES_RE = re.compile(r'^[A-Z0-9]+(?:_[A-Z0-9]+)+$')
+
+_TEMPLATE_SYNTAX_RE = re.compile(r'<[^>]+>|\$\{[^}]+\}|\{\{[^}]+\}\}')
+
+
+def _is_token_placeholder(body: str) -> bool:
+    """Check if a token body (after prefix) is a documentation placeholder."""
+    if not body:
+        return False
+    if _REPEATED_CHAR_TOKEN_RE.match(body):
+        return True
+    if _is_placeholder(body):
+        return True
+    if _ALL_CAPS_UNDERSCORES_RE.match(body):
+        return True
+    if _TEMPLATE_SYNTAX_RE.search(body):
+        return True
+    return False
+
+
+def token_not_placeholder(matched_text: str) -> bool:
+    """Return False (skip) if the token value is a placeholder."""
+    m = _TOKEN_PREFIX_RE.match(matched_text)
+    if not m:
+        return True
+    body = matched_text[m.end():]
+    if _is_token_placeholder(body):
+        return False
+    return True
+
+
 VALIDATOR_REGISTRY: dict = {
     "luhn": luhn_check,
     "iban": iban_check,
@@ -214,6 +251,7 @@ VALIDATOR_REGISTRY: dict = {
     "aadhaar": aadhaar_check,
     "env_not_file_path": env_not_file_path,
     "connection_not_placeholder": connection_not_placeholder,
+    "token_not_placeholder": token_not_placeholder,
 }
 
 
