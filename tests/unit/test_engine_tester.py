@@ -115,7 +115,7 @@ class TestGetAvailableEngines:
 
 class TestTestEngine:
 
-    @patch("ai_guardian.engine_tester.run_single_engine")
+    @patch("ai_guardian.engine_tester.run_engine")
     def test_found_secret(self, mock_run):
         mock_run.return_value = _scan_result_found()
         result = _test_engine("gitleaks", "AKIAIOSFODNN7EXAMPLE")
@@ -125,14 +125,14 @@ class TestTestEngine:
         assert result.engine == "gitleaks"
         assert result.error is None
 
-    @patch("ai_guardian.engine_tester.run_single_engine")
+    @patch("ai_guardian.engine_tester.run_engine")
     def test_no_secret(self, mock_run):
         mock_run.return_value = _scan_result_clean()
         result = _test_engine("gitleaks", "safe text")
         assert result.found is False
         assert result.secrets == []
 
-    @patch("ai_guardian.engine_tester.run_single_engine")
+    @patch("ai_guardian.engine_tester.run_engine")
     def test_engine_error(self, mock_run):
         mock_run.return_value = _scan_result_error()
         result = _test_engine("trufflehog", "test")
@@ -144,18 +144,36 @@ class TestTestEngine:
         assert result.found is False
         assert "Unknown engine" in result.error
 
-    @patch("ai_guardian.engine_tester.run_single_engine")
+    @patch("ai_guardian.engine_tester.run_engine")
     def test_pattern_server_off(self, mock_run):
         mock_run.return_value = _scan_result_clean()
         _test_engine("gitleaks", "test", use_pattern_server=False)
         _, kwargs = mock_run.call_args
         assert kwargs.get("config_path") is None
 
-    @patch("ai_guardian.engine_tester.run_single_engine")
+    @patch("ai_guardian.engine_tester.run_engine")
     def test_scan_time_propagated(self, mock_run):
         mock_run.return_value = _scan_result_clean(time_ms=123.4)
         result = _test_engine("gitleaks", "test")
         assert result.scan_time_ms == 123.4
+
+    @patch("ai_guardian.engine_tester.run_engine")
+    @patch("ai_guardian.engine_tester._build_engine_config")
+    def test_toml_patterns_engine(self, mock_build, mock_run):
+        from ai_guardian.scanners.engine_builder import EngineConfig
+        mock_scanner = MagicMock()
+        mock_scanner.name = "toml-patterns"
+        mock_build.return_value = EngineConfig(
+            type="python",
+            binary="__python__",
+            command_template=[],
+            python_scanner=mock_scanner,
+        )
+        mock_run.return_value = _scan_result_found(engine="toml-patterns")
+        result = _test_engine("toml-patterns", "export GITLAB_TOKEN=glpat-xxx")
+        assert result.found is True
+        assert result.engine == "toml-patterns"
+        assert result.error is None
 
 
 # ---------------------------------------------------------------------------
