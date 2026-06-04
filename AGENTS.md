@@ -1418,3 +1418,6 @@ For questions about:
 - **Release process**: See [RELEASING.md](RELEASING.md)
 - **Testing**: See Testing section above
 - **Contributing**: Open an issue on GitHub
+
+
+When DAF_SESSION_NAME environment variable is set, immediately follow the daf-workflow skill instructions.

@@ -2,9 +2,13 @@
 
 Copilot uses camelCase event/field names. PreToolUse returns JSON with
 permissionDecision; other events use exit code 2 for blocking.
+
+Copilot CLI stores JSONL transcripts at:
+    ~/.copilot/session-state/events.jsonl
 """
 
 import json
+import os
 import sys
 from typing import ClassVar, Dict, List, Optional
 
@@ -38,6 +42,15 @@ class CopilotAdapter(HookAdapter):
             if event in ("userPromptSubmitted", "preToolUse", "postToolUse"):
                 return True
         return False
+
+    # Default transcript location for Copilot CLI
+    TRANSCRIPT_PATH = os.path.expanduser("~/.copilot/session-state/events.jsonl")
+
+    def get_default_transcript_paths(self) -> List[str]:
+        """Return Copilot CLI transcript path if it exists."""
+        if os.path.isfile(self.TRANSCRIPT_PATH):
+            return [self.TRANSCRIPT_PATH]
+        return []
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event_name = hook_data.get("hook_event_name", "").lower()

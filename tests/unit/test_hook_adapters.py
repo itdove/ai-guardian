@@ -877,3 +877,105 @@ class TestHelperMethods:
         assert HookAdapter._combine_error_messages("error", "warn") == "warn\n\nerror"
         assert HookAdapter._combine_error_messages("error", None) == "error"
         assert HookAdapter._combine_error_messages(None, "warn") is None
+
+
+# ── Default Transcript Paths (Issue #935) ────────────────────────────────
+
+
+class TestDefaultTranscriptPaths:
+    """Test adapter-specific default transcript path resolution."""
+
+    def test_base_adapter_returns_empty(self):
+        """Base adapter returns empty list (no defaults)."""
+        adapter = ClaudeCodeAdapter()
+        assert adapter.get_default_transcript_paths() == []
+
+    def test_copilot_returns_path_when_file_exists(self, tmp_path):
+        """CopilotAdapter returns transcript path when file exists."""
+        transcript = tmp_path / "events.jsonl"
+        transcript.touch()
+
+        adapter = CopilotAdapter()
+        with mock.patch.object(CopilotAdapter, "TRANSCRIPT_PATH", str(transcript)):
+            paths = adapter.get_default_transcript_paths()
+            assert paths == [str(transcript)]
+
+    def test_copilot_returns_empty_when_no_file(self, tmp_path):
+        """CopilotAdapter returns empty list when transcript doesn't exist."""
+        adapter = CopilotAdapter()
+        with mock.patch.object(
+            CopilotAdapter, "TRANSCRIPT_PATH",
+            str(tmp_path / "nonexistent.jsonl"),
+        ):
+            assert adapter.get_default_transcript_paths() == []
+
+    def test_codex_returns_paths_sorted_by_mtime(self, tmp_path):
+        """CodexAdapter returns JSONL files sorted by modification time."""
+        import time
+
+        sessions = tmp_path / "sessions" / "2026" / "06" / "04"
+        sessions.mkdir(parents=True)
+
+        old = sessions / "old-session.jsonl"
+        old.write_text('{"text":"old"}\n')
+        time.sleep(0.05)
+        new = sessions / "new-session.jsonl"
+        new.write_text('{"text":"new"}\n')
+
+        adapter = CodexAdapter()
+        with mock.patch.object(CodexAdapter, "SESSIONS_DIR", str(tmp_path / "sessions")):
+            paths = adapter.get_default_transcript_paths()
+            assert len(paths) == 2
+            # Most recent first
+            assert paths[0] == str(new)
+            assert paths[1] == str(old)
+
+    def test_codex_returns_empty_when_no_dir(self, tmp_path):
+        """CodexAdapter returns empty list when sessions dir doesn't exist."""
+        adapter = CodexAdapter()
+        with mock.patch.object(
+            CodexAdapter, "SESSIONS_DIR",
+            str(tmp_path / "nonexistent"),
+        ):
+            assert adapter.get_default_transcript_paths() == []
+
+    def test_codex_returns_empty_when_no_jsonl_files(self, tmp_path):
+        """CodexAdapter returns empty list when dir exists but has no JSONL files."""
+        sessions = tmp_path / "sessions"
+        sessions.mkdir()
+        (sessions / "readme.txt").write_text("not a transcript")
+
+        adapter = CodexAdapter()
+        with mock.patch.object(CodexAdapter, "SESSIONS_DIR", str(sessions)):
+            assert adapter.get_default_transcript_paths() == []
+
+    def test_codex_finds_nested_jsonl(self, tmp_path):
+        """CodexAdapter finds JSONL files in nested date directories."""
+        day1 = tmp_path / "sessions" / "2026" / "06" / "03"
+        day2 = tmp_path / "sessions" / "2026" / "06" / "04"
+        day1.mkdir(parents=True)
+        day2.mkdir(parents=True)
+
+        f1 = day1 / "session-a.jsonl"
+        f1.write_text('{"text":"day1"}\n')
+        f2 = day2 / "session-b.jsonl"
+        f2.write_text('{"text":"day2"}\n')
+
+        adapter = CodexAdapter()
+        with mock.patch.object(CodexAdapter, "SESSIONS_DIR", str(tmp_path / "sessions")):
+            paths = adapter.get_default_transcript_paths()
+            assert len(paths) == 2
+            # Both files found, most recent modification first
+            assert str(f2) in paths
+            assert str(f1) in paths
+
+    def test_other_adapters_return_empty(self):
+        """Adapters without transcript defaults return empty list."""
+        for adapter_cls in [
+            CursorAdapter, WindsurfAdapter, GeminiCLIAdapter,
+            ClineAdapter, KiroAdapter, AugmentAdapter, OpenCodeAdapter,
+        ]:
+            adapter = adapter_cls()
+            assert adapter.get_default_transcript_paths() == [], (
+                f"{adapter.name} should return empty transcript paths"
+            )

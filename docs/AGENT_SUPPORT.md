@@ -49,7 +49,7 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 
 Coverage per agent depends on which hooks are available. This table shows representative agents across the enforcement spectrum: full hooks + MCP, full hooks only, partial hooks, and MCP-only.
 
-Agents with full hook support not shown individually (Codex, Windsurf, Gemini CLI, Cline, Kiro, OpenCode) have the same coverage as Claude Code, minus MCP and minus UserPromptSubmit where applicable — see the [Hook Capability Matrix](#hook-capability-matrix) above.
+Agents with full hook support not shown individually (Windsurf, Gemini CLI, Cline, Kiro, OpenCode) have the same coverage as Claude Code, minus MCP and minus UserPromptSubmit where applicable — see the [Hook Capability Matrix](#hook-capability-matrix) above. Copilot CLI and Codex support transcript scanning via adapter-resolved default paths (Issue #935).
 
 | Violation Type | Requires | Claude Code | Cursor | Copilot | Junie (MCP) |
 |---|---|---|---|---|---|
@@ -62,8 +62,8 @@ Agents with full hook support not shown individually (Codex, Windsurf, Gemini CL
 | jailbreak_detected | Pre+Prompt | Enforce | Enforce | Partial | Advisory |
 | ssrf_blocked | Pre | Enforce | Enforce | Enforce | Advisory |
 | config_file_exfil | Pre | Enforce | Enforce | Enforce | No |
-| secret_in_transcript | Prompt | Enforce | No | No | No |
-| pii_in_transcript | Prompt | Enforce | No | No | No |
+| secret_in_transcript | Prompt | Enforce | No | Enforce | No |
+| pii_in_transcript | Prompt | Enforce | No | Enforce | No |
 | image_secret | Pre | Caution | Caution | Caution | No |
 | image_pii | Pre | Caution | Caution | Caution | No |
 
@@ -83,7 +83,16 @@ Claude Code binary file reads bypass hooks — image content may not pass throug
 
 ### Transcript scanning availability
 
-Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode stores sessions in a SQLite database; ai-guardian reads it directly to scan for secrets and PII. Other agents without transcript access cannot perform transcript scanning, so `secret_in_transcript` and `pii_in_transcript` violations are limited to Claude Code and OpenCode.
+Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode stores sessions in a SQLite database; ai-guardian reads it directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
+
+| Agent | Format | Default Path |
+|-------|--------|-------------|
+| Claude Code | JSONL | Provided by IDE in hook data |
+| OpenCode | SQLite | `~/.opencode/sessions/*.db` |
+| Copilot CLI | JSONL | `~/.copilot/session-state/events.jsonl` |
+| Codex | JSONL | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |
+
+Other agents without transcript access cannot perform transcript scanning.
 
 ### MCP-only agents
 

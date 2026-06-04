@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Transcript scanning for Copilot CLI and Codex** (Issue #935)
+  - Copilot CLI: scans JSONL transcript at `~/.copilot/session-state/events.jsonl`
+  - Codex: discovers and scans JSONL transcripts in `~/.codex/sessions/YYYY/MM/DD/*.jsonl`
+  - Added `get_default_transcript_paths()` to `HookAdapter` base class for adapter-resolved paths
+  - Reuses existing JSONL incremental reader (`scan_transcript_incremental`)
+  - Position tracking and dedup work identically to Claude Code transcript scanning
+  - Updated AGENT_SUPPORT.md violation type coverage matrix
+
 - **False positive handling documentation** (Issue #946)
   - Added "Handling False Positives" section to COOKBOOK.md with `.gitleaksignore` format, allowlist patterns, common scenarios, and decision guide
   - Added "False Positives" section to SECRET_SCANNING.md with quick reference table, fingerprint workflow, and recommended workflow

@@ -1179,5 +1179,96 @@ class TestAdvanceTranscriptPosition(unittest.TestCase):
         self.assertEqual(loaded[str(other_transcript)], 500)
 
 
+class TestAdapterTranscriptPathResolution(unittest.TestCase):
+    """Test transcript path resolution from adapter defaults (Issue #935)."""
+
+    def test_copilot_adapter_provides_transcript_path(self):
+        """CopilotAdapter resolves default transcript path when hook_data has none."""
+        import tempfile
+        from ai_guardian.hook_adapters.copilot import CopilotAdapter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            transcript = os.path.join(tmp, "events.jsonl")
+            with open(transcript, 'w') as f:
+                f.write('{"text": "copilot session data"}\n')
+
+            adapter = CopilotAdapter()
+            with mock.patch.object(CopilotAdapter, "TRANSCRIPT_PATH", transcript):
+                paths = adapter.get_default_transcript_paths()
+                self.assertEqual(paths, [transcript])
+
+    def test_codex_adapter_provides_transcript_paths(self):
+        """CodexAdapter resolves transcript paths from session directories."""
+        import tempfile
+        import time
+        from ai_guardian.hook_adapters.codex import CodexAdapter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = os.path.join(tmp, "2026", "06", "04")
+            os.makedirs(session_dir)
+
+            f1 = os.path.join(session_dir, "session-1.jsonl")
+            with open(f1, 'w') as f:
+                f.write('{"text": "session 1"}\n')
+            time.sleep(0.05)
+            f2 = os.path.join(session_dir, "session-2.jsonl")
+            with open(f2, 'w') as f:
+                f.write('{"text": "session 2"}\n')
+
+            adapter = CodexAdapter()
+            with mock.patch.object(CodexAdapter, "SESSIONS_DIR", tmp):
+                paths = adapter.get_default_transcript_paths()
+                self.assertEqual(len(paths), 2)
+                self.assertEqual(paths[0], f2)  # Most recent first
+
+    def test_adapter_resolved_path_scanned_incrementally(self):
+        """Adapter-resolved path works with scan_transcript_incremental."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            transcript = os.path.join(tmp, "events.jsonl")
+            # Write initial content
+            with open(transcript, 'w') as f:
+                f.write('{"text": "initial content"}\n')
+
+            # First scan: initializes position (first-scan skip)
+            result = scan_transcript_incremental(transcript)
+            self.assertEqual(result, [])
+
+            # Append new content
+            with open(transcript, 'a') as f:
+                f.write('{"text": "new content after first scan"}\n')
+
+            # Second scan: reads only new content
+            result = scan_transcript_incremental(transcript)
+            # Should complete without error (no secrets in content)
+            self.assertEqual(result, [])
+
+    def test_advance_position_with_injected_path(self):
+        """_advance_transcript_position works when path is injected into hook_data."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            transcript = os.path.join(tmp, "transcript.jsonl")
+            with open(transcript, 'w') as f:
+                f.write('{"text": "initial"}\n')
+
+            initial_size = os.path.getsize(transcript)
+            # Initialize position (simulating first PROMPT scan)
+            _save_transcript_positions({transcript: initial_size})
+
+            # Append content (simulating tool output)
+            with open(transcript, 'a') as f:
+                f.write('{"text": "tool output"}\n')
+
+            # Simulate injected path (as process_hook_data would do)
+            hook_data = {"transcript_path": transcript}
+            _advance_transcript_position(hook_data)
+
+            # Position should be advanced
+            positions = _load_transcript_positions()
+            self.assertEqual(positions[transcript], os.path.getsize(transcript))
+
+
 if __name__ == '__main__':
     unittest.main()
