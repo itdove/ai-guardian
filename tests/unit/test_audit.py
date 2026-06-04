@@ -15,6 +15,7 @@ from ai_guardian.audit import (
     AuditComputer,
     AuditReport,
     VIOLATION_TYPE_TO_FEATURE,
+    _AggregateResult,
     audit_command,
     format_audit_csv,
     format_audit_html,
@@ -581,6 +582,66 @@ class TestAuditCommand:
         assert result == 1
         captured = capsys.readouterr()
         assert "Invalid --until" in captured.err
+
+
+class TestAggregate:
+    def test_single_pass_parity(self):
+        """Verify _aggregate produces same results as individual helpers."""
+        ts1 = _days_ago_iso(2)
+        ra1 = _days_ago_iso(1)
+        violations = [
+            _make_violation(
+                violation_type="secret_detected",
+                severity="critical",
+                file_path="/a.py",
+                tool_name="Bash",
+                session_id="s1",
+                resolved=True,
+                timestamp=ts1,
+                resolved_at=ra1,
+            ),
+            _make_violation(
+                violation_type="tool_permission",
+                severity="warning",
+                file_path="/a.py",
+                tool_name="Read",
+                session_id="s1",
+            ),
+            _make_violation(
+                violation_type="pii_detected",
+                severity="critical",
+                file_path="/b.py",
+                tool_name="Bash",
+                session_id="s2",
+            ),
+        ]
+        agg = AuditComputer._aggregate(violations)
+
+        assert agg.resolved_count == 1
+        assert agg.critical_unresolved == 1
+        assert agg.sessions == {"s1", "s2"}
+        assert agg.by_type["secret_detected"] == 1
+        assert agg.by_type["tool_permission"] == 1
+        assert agg.by_type["pii_detected"] == 1
+        assert agg.by_severity["critical"] == 2
+        assert agg.by_severity["warning"] == 1
+        assert agg.files["/a.py"] == 2
+        assert agg.files["/b.py"] == 1
+        assert agg.tools["Bash"] == 2
+        assert agg.tools["Read"] == 1
+        assert len(agg.resolution_deltas) == 1
+        assert agg.resolution_deltas[0] > 0
+        assert agg.per_feature["secret_scanning"] == 1
+        assert agg.per_feature["scan_pii"] == 1
+        assert agg.per_feature["permissions"] == 1
+        assert len(agg.dates) > 0
+
+    def test_empty_violations(self):
+        agg = AuditComputer._aggregate([])
+        assert agg.resolved_count == 0
+        assert agg.critical_unresolved == 0
+        assert len(agg.sessions) == 0
+        assert len(agg.by_type) == 0
 
 
 class TestViolationTypeMapping:
