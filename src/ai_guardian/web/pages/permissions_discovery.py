@@ -1,31 +1,9 @@
 """Permissions Discovery page — manage auto-discovery directories."""
 
-import json
-
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
 def create_permissions_discovery_page(service, daemon_name: str):
@@ -47,7 +25,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     pd = config.get("permissions_directories", {})
@@ -111,7 +89,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                         ).classes("text-xs")
 
                                     async def remove_allow(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         dirs = cfg.get(
                                             "permissions_directories", {}
                                         )
@@ -120,7 +98,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                             a.pop(i)
                                             dirs["allow"] = a
                                             cfg["permissions_directories"] = dirs
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify(
                                                 "Directory removed",
                                                 type="positive",
@@ -164,7 +142,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                         ).classes("text-xs")
 
                                     async def remove_deny(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         dirs = cfg.get(
                                             "permissions_directories", {}
                                         )
@@ -173,7 +151,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                             d.pop(i)
                                             dirs["deny"] = d
                                             cfg["permissions_directories"] = dirs
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify(
                                                 "Directory removed",
                                                 type="positive",
@@ -227,7 +205,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                         type="negative",
                                     )
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 dirs = cfg.get("permissions_directories", {})
                                 if not isinstance(dirs, dict):
                                     dirs = {"allow": [], "deny": []}
@@ -244,7 +222,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                 entries.append(entry)
                                 dirs[lt] = entries
                                 cfg["permissions_directories"] = dirs
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 matcher_input.value = ""
                                 url_input.value = ""
                                 token_input.value = ""

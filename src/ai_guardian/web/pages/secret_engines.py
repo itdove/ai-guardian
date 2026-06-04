@@ -5,32 +5,12 @@ import json
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 VALID_ENGINE_TYPES = {
     "gitleaks", "betterleaks", "leaktk", "trufflehog",
     "detect-secrets", "secretlint", "gitguardian",
 }
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _validate_engines_json(text):
@@ -75,7 +55,7 @@ def create_secret_engines_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     ss = config.get("secret_scanning", {})
@@ -113,13 +93,13 @@ def create_secret_engines_page(service, daemon_name: str):
                         threshold_row.set_visibility(strategy == "consensus")
 
                         async def save_strategy(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["execution_strategy"] = e.value
                             cfg["secret_scanning"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             threshold_row.set_visibility(e.value == "consensus")
                             ui.notify(f"Strategy: {e.value}", type="positive")
 
@@ -131,13 +111,13 @@ def create_secret_engines_page(service, daemon_name: str):
                             except (ValueError, TypeError):
                                 ui.notify("Invalid threshold", type="negative")
                                 return
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["consensus_threshold"] = val
                             cfg["secret_scanning"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Threshold: {val}", type="positive")
 
                         ui.button(
@@ -188,13 +168,13 @@ def create_secret_engines_page(service, daemon_name: str):
                                 if err:
                                     ui.notify(err, type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("secret_scanning", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
                                 sect["engines"] = parsed
                                 cfg["secret_scanning"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify(
                                     f"Saved {len(parsed)} engine(s)",
                                     type="positive",

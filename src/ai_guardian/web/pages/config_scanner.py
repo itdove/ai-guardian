@@ -1,12 +1,12 @@
 """Config Scanner page — configuration file exfiltration detection."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DEFAULT_SCANNED_FILES = {
     "AI Agent Config": [
@@ -67,27 +67,6 @@ def _parse_enabled(raw):
                 pass
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _load_stats():
@@ -172,7 +151,7 @@ def create_config_scanner_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     cs = config.get("config_file_scanning", {})
@@ -184,13 +163,13 @@ def create_config_scanner_page(service, daemon_name: str):
                     )
 
                     def save_enabled(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("config_file_scanning", {})
                         if not isinstance(sect, dict):
                             sect = {}
                         sect["enabled"] = value
                         cfg["config_file_scanning"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "Config File Scanning",
@@ -237,13 +216,13 @@ def create_config_scanner_page(service, daemon_name: str):
                         ).classes("w-64")
 
                         async def save_action(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("config_file_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["action"] = e.value
                             cfg["config_file_scanning"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Action: {e.value}", type="positive")
 
                         act_sel.on_value_change(save_action)
@@ -264,7 +243,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                     )
 
                                     async def remove_file(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("config_file_scanning", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -273,7 +252,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["additional_files"] = items
                                             cfg["config_file_scanning"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("File removed", type="positive")
                                             await refresh()
 
@@ -293,7 +272,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter a file path or pattern", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("config_file_scanning", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -304,7 +283,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["additional_files"] = items
                                 cfg["config_file_scanning"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 file_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
@@ -327,7 +306,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                     )
 
                                     async def remove_ignore(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("config_file_scanning", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -336,7 +315,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["ignore_files"] = items
                                             cfg["config_file_scanning"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Ignore pattern removed", type="positive")
                                             await refresh()
 
@@ -356,7 +335,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter a pattern", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("config_file_scanning", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -367,7 +346,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["ignore_files"] = items
                                 cfg["config_file_scanning"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ign_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
@@ -390,7 +369,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                     )
 
                                     async def remove_pat(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("config_file_scanning", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -399,7 +378,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                             pats.pop(i)
                                             sect["additional_patterns"] = pats
                                             cfg["config_file_scanning"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Pattern removed", type="positive")
                                             await refresh()
 
@@ -424,7 +403,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                 except re_mod.error as e:
                                     ui.notify(f"Invalid regex: {e}", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("config_file_scanning", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -435,7 +414,7 @@ def create_config_scanner_page(service, daemon_name: str):
                                 pats.append(pattern)
                                 sect["additional_patterns"] = pats
                                 cfg["config_file_scanning"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 pat_input.value = ""
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()

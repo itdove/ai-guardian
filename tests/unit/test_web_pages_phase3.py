@@ -292,9 +292,9 @@ class TestConfigLoadSavePhase3:
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
         ):
-            from ai_guardian.web.pages.pi_detection import _load_config
+            from ai_guardian.web.config_helpers import load_web_config
 
-            assert _load_config() == {}
+            assert load_web_config() == {}
 
     def test_load_config_valid_file(self, tmp_path):
         config_file = tmp_path / "ai-guardian.json"
@@ -303,18 +303,18 @@ class TestConfigLoadSavePhase3:
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
         ):
-            from ai_guardian.web.pages.pi_detection import _load_config
+            from ai_guardian.web.config_helpers import load_web_config
 
-            result = _load_config()
+            result = load_web_config()
             assert result["prompt_injection"]["enabled"] is True
 
     def test_save_config_creates_file(self, tmp_path):
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
         ):
-            from ai_guardian.web.pages.pi_detection import _save_config
+            from ai_guardian.web.config_helpers import save_web_config
 
-            _save_config({"test": True})
+            save_web_config({"test": True})
             config_file = tmp_path / "ai-guardian.json"
             assert config_file.exists()
             data = json.loads(config_file.read_text())
@@ -324,9 +324,9 @@ class TestConfigLoadSavePhase3:
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
         ):
-            from ai_guardian.web.pages.pi_detection import _save_config
+            from ai_guardian.web.config_helpers import save_web_config
 
-            _save_config({"a": 1, "b": 2})
+            save_web_config({"a": 1, "b": 2})
             text = (tmp_path / "ai-guardian.json").read_text()
             assert "\n" in text
             assert text.endswith("\n")

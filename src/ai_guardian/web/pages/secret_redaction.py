@@ -1,12 +1,12 @@
 """Secret Redaction page — redaction configuration and statistics."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 PROTECTED_TYPES = {
     "API Keys & Tokens": [
@@ -117,26 +117,6 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
-
 
 def _load_redaction_stats():
     """Load redaction statistics from violation logger."""
@@ -232,7 +212,7 @@ def create_secret_redaction_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     sr = config.get("secret_redaction", {})
@@ -245,13 +225,13 @@ def create_secret_redaction_page(service, daemon_name: str):
                     )
 
                     def save_redaction(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("secret_redaction", {})
                         if not isinstance(sect, dict):
                             sect = {}
                         sect["enabled"] = value
                         cfg["secret_redaction"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "Secret Redaction",
@@ -296,13 +276,13 @@ def create_secret_redaction_page(service, daemon_name: str):
                         ).classes("w-64")
 
                         async def save_action(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_redaction", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["action"] = e.value
                             cfg["secret_redaction"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Action: {e.value}", type="positive")
 
                         act_sel.on_value_change(save_action)
@@ -328,23 +308,23 @@ def create_secret_redaction_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6 ml-12")
 
                         async def save_pf(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_redaction", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["preserve_format"] = e.value
                             cfg["secret_redaction"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify("Saved", type="positive")
 
                         async def save_lr(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_redaction", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["log_redactions"] = e.value
                             cfg["secret_redaction"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify("Saved", type="positive")
 
                         pf.on_value_change(save_pf)
@@ -369,7 +349,7 @@ def create_secret_redaction_page(service, daemon_name: str):
                                     )
 
                                     async def remove_pat(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("secret_redaction", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -378,7 +358,7 @@ def create_secret_redaction_page(service, daemon_name: str):
                                             pats.pop(i)
                                             sect["additional_patterns"] = pats
                                             cfg["secret_redaction"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Pattern removed", type="positive")
                                             await refresh()
 
@@ -403,7 +383,7 @@ def create_secret_redaction_page(service, daemon_name: str):
                                 except re_mod.error as e:
                                     ui.notify(f"Invalid regex: {e}", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("secret_redaction", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -414,7 +394,7 @@ def create_secret_redaction_page(service, daemon_name: str):
                                 pats.append(pattern)
                                 sect["additional_patterns"] = pats
                                 cfg["secret_redaction"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 pat_input.value = ""
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()

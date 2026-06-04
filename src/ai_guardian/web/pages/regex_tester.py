@@ -1,11 +1,11 @@
 """Regex Tester page — test patterns against sample text."""
 
-import json
 import re as re_mod
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 TARGET_SECTIONS = {
     "prompt_injection": "Prompt Injection (allowlist_patterns)",
@@ -65,26 +65,6 @@ def _validate_pattern(pattern):
     except Exception as e:
         return False, str(e)
 
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def create_regex_tester_page(service, daemon_name: str):
@@ -218,7 +198,7 @@ def create_regex_tester_page(service, daemon_name: str):
                         ui.notify("Enter a pattern first", type="negative")
                         return
                     section = section_sel.value
-                    cfg = await run.io_bound(_load_config)
+                    cfg = await run.io_bound(load_web_config)
                     sect = cfg.get(section, {})
                     if not isinstance(sect, dict):
                         sect = {}
@@ -229,7 +209,7 @@ def create_regex_tester_page(service, daemon_name: str):
                     patterns.append(pat)
                     sect["allowlist_patterns"] = patterns
                     cfg[section] = sect
-                    await run.io_bound(_save_config, cfg)
+                    await run.io_bound(save_web_config, cfg)
                     ui.notify(
                         f"Added to {section}", type="positive"
                     )

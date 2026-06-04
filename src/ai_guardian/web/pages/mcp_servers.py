@@ -1,31 +1,9 @@
 """MCP Servers page — manage MCP server permissions and support bundle."""
 
-import json
-
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
 def _get_mcp_rules(config):
@@ -54,7 +32,7 @@ def create_mcp_servers_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     # Proactive Level
@@ -77,11 +55,11 @@ def create_mcp_servers_page(service, daemon_name: str):
                         ).classes("w-96")
 
                         async def save_level(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             if "mcp_server" not in cfg or not isinstance(cfg["mcp_server"], dict):
                                 cfg["mcp_server"] = {}
                             cfg["mcp_server"]["proactive_level"] = e.value
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Proactive level: {e.value}", type="positive")
 
                         sel.on_value_change(save_level)
@@ -107,7 +85,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                         ).props("outlined dense").classes("w-48")
 
                         async def save_support():
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             if "support" not in cfg or not isinstance(cfg["support"], dict):
                                 cfg["support"] = {}
                             cfg["support"]["export_destination"] = dest.value.strip()
@@ -115,7 +93,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                 cfg["support"]["bundle_ttl_minutes"] = int(ttl.value)
                             except (ValueError, TypeError):
                                 cfg["support"]["bundle_ttl_minutes"] = 30
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify("Support config saved", type="positive")
 
                         ui.button("Save", icon="save", on_click=save_support).props(
@@ -210,7 +188,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                                         if not new_pats:
                                                             new_pats = ["*"]
                                                         cfg = await run.io_bound(
-                                                            _load_config
+                                                            load_web_config
                                                         )
                                                         perms = cfg.get(
                                                             "permissions", {}
@@ -243,7 +221,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                                                 "rules"
                                                             ] = rules
                                                         await run.io_bound(
-                                                            _save_config, cfg
+                                                            save_web_config, cfg
                                                         )
                                                         dlg.close()
                                                         ui.notify(
@@ -269,7 +247,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                         ).props("flat dense size=sm")
 
                                         async def do_delete(i=idx):
-                                            cfg = await run.io_bound(_load_config)
+                                            cfg = await run.io_bound(load_web_config)
                                             perms = cfg.get("permissions", {})
                                             rules = perms.get("rules", []) if isinstance(perms, dict) else []
                                             mcp_idx = 0
@@ -280,7 +258,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                                         if isinstance(cfg.get("permissions"), dict):
                                                             cfg["permissions"]["rules"] = rules
                                                         await run.io_bound(
-                                                            _save_config, cfg
+                                                            save_web_config, cfg
                                                         )
                                                         ui.notify(
                                                             "Rule deleted",
@@ -343,7 +321,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                         ]
                                         if not pats:
                                             pats = ["*"]
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         perms = cfg.get("permissions", {})
                                         if not isinstance(perms, dict):
                                             perms = {"enabled": True, "rules": []}
@@ -357,7 +335,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                                         )
                                         perms["rules"] = rules
                                         cfg["permissions"] = perms
-                                        await run.io_bound(_save_config, cfg)
+                                        await run.io_bound(save_web_config, cfg)
                                         dialog.close()
                                         ui.notify(
                                             "Permission added", type="positive"
