@@ -39,6 +39,36 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Markers that indicate pasted stack traces or tool output in user prompts.
+# When 2+ markers are present, code-identifier patterns (e.g. __init__) are
+# suppressed to avoid false positives on legitimate developer output.
+# Sources: Fluent Bit multiline filter, Promtail, OpenTelemetry Filelog.
+_TOOL_OUTPUT_MARKERS = [
+    "Traceback (most recent call last)",
+    "== test session starts ==",
+    "panic:",
+    "goroutine ",
+    "panicked at",
+    "npm ERR!",
+    "cargo error",
+    "make: ***",
+    "FAILED",
+    "ERRORS",
+    "collected ",
+]
+
+# Critical patterns that match code identifiers and should be suppressed
+# when the prompt contains tool output (stack traces, test results, etc.).
+_CODE_IDENTIFIER_PATTERNS = frozenset([
+    r'__(?:class|mro|subclasses|init|globals|builtins|import)__',
+])
+
+
+def _looks_like_tool_output(text: str) -> bool:
+    """Detect pasted stack traces or tool output in prompt text."""
+    count = sum(1 for m in _TOOL_OUTPUT_MARKERS if m in text)
+    return count >= 2
+
 
 def _offset_to_line_number(text: str, offset: int) -> int:
     """Convert a character offset to a 1-based line number."""
@@ -1007,11 +1037,22 @@ class PromptInjectionDetector:
 
         # For file content, only check critical patterns with higher threshold
         # For user prompts, check all patterns
+        critical_patterns = self._compiled_critical
+
+        # Suppress code-identifier patterns when prompt contains tool output
+        # (stack traces, test results, build errors) to avoid FP on __init__ etc.
+        if source_type == "user_prompt" and _looks_like_tool_output(content):
+            critical_patterns = [
+                p for p in self._compiled_critical
+                if p.pattern not in _CODE_IDENTIFIER_PATTERNS
+            ]
+            logger.debug("Tool output detected in prompt — suppressing code-identifier patterns")
+
         if source_type == "file_content":
-            pattern_sets = [("high", self._compiled_critical, "injection")]
+            pattern_sets = [("high", critical_patterns, "injection")]
         else:
             pattern_sets = [
-                ("high", self._compiled_critical, "injection"),
+                ("high", critical_patterns, "injection"),
                 ("high", self._compiled_documentation, "injection"),
                 ("high", self._compiled_jailbreak, "jailbreak"),
             ]
