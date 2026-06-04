@@ -1729,6 +1729,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
                                     matched_pattern: Optional[str] = None,
                                     matched_text: Optional[str] = None,
                                     confidence: Optional[float] = None,
+                                    line_number: Optional[int] = None,
                                     violation_logger=None):
     """
     Log a prompt injection or jailbreak violation.
@@ -1740,6 +1741,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         hook_context: Optional dict with tool_use_id, session_id for correlation
         matched_pattern: The regex or pattern name that matched
         matched_text: The text that triggered detection
+        line_number: 1-based line number where the match was found
         confidence: Actual confidence score from the detector
     """
     if not HAS_VIOLATION_LOGGER:
@@ -1766,6 +1768,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             violation_ctx["session_id"] = hctx["session_id"]
         blocked_entry = {
             "file_path": full_path,
+            "line_number": line_number,
             "source": "prompt" if filename == "user_prompt" else "file",
             "pattern": matched_pattern or "Unknown",
             "confidence": confidence if confidence is not None else 0.0,
@@ -3631,7 +3634,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             hook_context=inj_hook_ctx if inj_hook_ctx else None,
                             matched_pattern=detector.last_matched_pattern,
                             matched_text=detector.last_matched_text,
-                            confidence=detector.last_confidence
+                            confidence=detector.last_confidence,
+                            line_number=detector.last_line_number
                         )
 
                     if should_block:
