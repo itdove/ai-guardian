@@ -937,20 +937,35 @@
   "_comment_mcp_audit4": "Run 'ai-guardian mcp scan' for deep source code analysis",
   "_comment_mcp_audit5": "Trust derived from permissions.rules — no separate config needed",
 
-  "_comment_support": "Support bundle export (NEW in v1.7.0, Issue #477)",
+  "_comment_support": "Support bundle export (NEW in v1.7.0, Issue #477; email: Issue #932)",
   "_comment_support2": "Allows AI agents to prepare sanitized diagnostic bundles for troubleshooting",
   "_comment_support3": "Two-step process: prepare (sanitize + review) then send (with user approval)",
   "_comment_support4": "Destination preconfigured by admin — agent cannot override",
-  "_comment_support5": "Local path, S3 URI (requires boto3), or GCS URI (gs://bucket-name/prefix/). GCS uses Application Default Credentials or gcloud CLI — no extra dependencies.",
+  "_comment_support5": "Local path, S3 URI (requires boto3), GCS URI (gs://bucket-name/prefix/), or email (mailto:support@company.com). GCS uses Application Default Credentials or gcloud CLI — no extra dependencies. Email uses Python stdlib only.",
   "_comment_support_gcs_example": "GCS with Vertex AI (auto-detect credentials): export_destination = gs://company-bucket/ai-guardian/support/config-bundle/",
   "_comment_support_gcs_vertex": "Vertex AI users: credentials are auto-detected from GOOGLE_APPLICATION_CREDENTIALS or ~/.config/gcloud/application_default_credentials.json — set auth.method to 'none'",
   "_comment_support_gcs_manual": "Non-Vertex users: run 'gcloud auth application-default login' or set GOOGLE_APPLICATION_CREDENTIALS to a service account key file",
+  "_comment_support_email": "Email: set export_destination to mailto:support@company.com. Configure SMTP in the email section below.",
+  "_comment_support_email_auth": "Email auth: 'none' for corporate SMTP relays (no credentials), 'env' for env vars (recommended), 'inline' for hardcoded creds (doctor warns).",
+  "_comment_support_email_fallback": "If no smtp_host is set, opens system mailto: with the bundle zipped for manual attachment.",
   "support": {
     "export_destination": "",
-    "_comment_export_destination_examples": "Local: ~/support-bundles | S3: s3://bucket/prefix/ | GCS+Vertex: gs://company-bucket/ai-guardian/support/config-bundle/",
+    "_comment_export_destination_examples": "Local: ~/support-bundles | S3: s3://bucket/prefix/ | GCS+Vertex: gs://company-bucket/ai-guardian/support/config-bundle/ | Email: mailto:support@company.com",
     "auth": {
       "method": "none",
       "token_env": ""
+    },
+    "email": {
+      "smtp_host": "",
+      "smtp_port": 587,
+      "smtp_tls": true,
+      "from": "",
+      "subject_prefix": "[AI Guardian Support]",
+      "auth": {
+        "method": "none",
+        "username_env": "",
+        "password_env": ""
+      }
     },
     "bundle_ttl_minutes": 30
   }

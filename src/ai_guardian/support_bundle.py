@@ -13,10 +13,16 @@ import json
 import logging
 import os
 import shutil
+import smtplib
 import subprocess
 import tempfile
 import uuid
+import webbrowser
+import zipfile
 from datetime import datetime, timezone
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
@@ -513,17 +519,41 @@ def _get_bundle_status() -> Dict[str, Any]:
         dest_type = "s3"
     elif destination.startswith("gs://"):
         dest_type = "gcs"
+    elif destination.startswith("mailto:") or "@" in destination:
+        dest_type = "email"
     elif destination:
         dest_type = "local"
     else:
         dest_type = "none"
 
     auth = support_config.get("auth", {})
-    auth_method = auth.get("method", "none")
-    token_env = auth.get("token_env", "")
-    auth_configured = bool(
-        auth_method == "env" and token_env and os.environ.get(token_env)
-    )
+    email_config = support_config.get("email", {})
+    email_auth = email_config.get("auth", {})
+    email_auth_method = email_auth.get("method", "none")
+
+    if dest_type == "email":
+        auth_method = email_auth_method
+        if email_auth_method == "env":
+            username_env = email_auth.get("username_env", "")
+            password_env = email_auth.get("password_env", "")
+            auth_configured = bool(
+                username_env
+                and password_env
+                and os.environ.get(username_env)
+                and os.environ.get(password_env)
+            )
+        elif email_auth_method == "inline":
+            auth_configured = bool(
+                email_auth.get("username") and email_auth.get("password")
+            )
+        else:
+            auth_configured = True  # "none" means no auth needed
+    else:
+        auth_method = auth.get("method", "none")
+        token_env = auth.get("token_env", "")
+        auth_configured = bool(
+            auth_method == "env" and token_env and os.environ.get(token_env)
+        )
 
     pending = []
     for bid, info in _active_bundles.items():
@@ -584,6 +614,8 @@ def send_bundle(bundle_id: str) -> Dict[str, Any]:
             return _send_to_s3(bundle_id, temp_path, destination)
         elif destination.startswith("gs://"):
             return _send_to_gcs(bundle_id, temp_path, destination)
+        elif destination.startswith("mailto:") or "@" in destination:
+            return _send_to_email(bundle_id, temp_path, destination)
         elif destination.startswith("/") or destination.startswith("~"):
             return _send_to_local(bundle_id, temp_path, destination)
         elif not destination:
@@ -797,6 +829,171 @@ def _send_to_gcs(bundle_id: str, temp_path: Path, destination: str) -> Dict:
             "status": "error",
             "message": f"GCS upload failed: {e}. Bundle files at: {temp_path}",
         }
+
+
+_SIZE_WARNING_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _zip_bundle(temp_path: Path, bundle_id: str) -> Path:
+    """Zip all bundle files into a single archive.
+
+    Returns the path to the created zip file.
+    Excludes .ai-read-deny markers.
+    """
+    zip_path = temp_path.parent / f"{bundle_id}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for item in sorted(temp_path.iterdir()):
+            if item.name == ".ai-read-deny":
+                continue
+            zf.write(item, item.name)
+    return zip_path
+
+
+def _send_to_email(
+    bundle_id: str, temp_path: Path, destination: str
+) -> Dict:
+    """Send bundle via SMTP email as a zip attachment.
+
+    Falls back to opening the system mailto: handler when no SMTP
+    host is configured. Issue #932.
+    """
+    support_config = _get_support_config()
+    email_config = support_config.get("email", {})
+    smtp_host = email_config.get("smtp_host", "")
+
+    # Determine recipient address
+    to_addr = destination
+    if to_addr.startswith("mailto:"):
+        to_addr = to_addr[len("mailto:"):]
+
+    # --- Fallback: no SMTP configured → system mailto: ---
+    if not smtp_host:
+        zip_path = _zip_bundle(temp_path, bundle_id)
+        subject_prefix = email_config.get(
+            "subject_prefix", "[AI Guardian Support]"
+        )
+        subject = f"{subject_prefix} Bundle {bundle_id}"
+
+        mailto_url = (
+            f"mailto:{quote(to_addr, safe='@')}"
+            f"?subject={quote(subject, safe='')}"
+            f"&body={quote('Please attach the zip file referenced below.', safe='')}"
+        )
+        try:
+            webbrowser.open(mailto_url)
+        except Exception:
+            pass  # best-effort
+
+        return {
+            "status": "sent",
+            "destination": f"mailto:{to_addr}",
+            "zip_path": str(zip_path),
+            "message": (
+                f"No SMTP configured. Bundle zipped to {zip_path}\n"
+                "Your default mail client has been opened. "
+                "Please attach the zip and send."
+            ),
+        }
+
+    # --- SMTP send path ---
+    zip_path = _zip_bundle(temp_path, bundle_id)
+    zip_size = zip_path.stat().st_size
+    size_warning = ""
+    if zip_size > _SIZE_WARNING_BYTES:
+        size_mb = zip_size / (1024 * 1024)
+        size_warning = (
+            f" Warning: attachment is {size_mb:.1f} MB — "
+            "some SMTP servers reject messages >10 MB. "
+            "Consider S3 or GCS for large bundles."
+        )
+
+    from_addr = email_config.get("from", f"ai-guardian@{os.uname().nodename}")
+    subject_prefix = email_config.get(
+        "subject_prefix", "[AI Guardian Support]"
+    )
+    subject = f"{subject_prefix} Bundle {bundle_id}"
+
+    smtp_port = email_config.get("smtp_port", 587)
+    smtp_tls = email_config.get("smtp_tls", True)
+
+    # Build MIME message
+    msg = MIMEMultipart()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+
+    body = (
+        f"AI Guardian support bundle: {bundle_id}\n\n"
+        f"Attached: {zip_path.name} ({zip_size} bytes)\n"
+    )
+    msg.attach(MIMEText(body, "plain"))
+
+    zip_data = zip_path.read_bytes()
+    attachment = MIMEApplication(zip_data, Name=zip_path.name)
+    attachment["Content-Disposition"] = (
+        f'attachment; filename="{zip_path.name}"'
+    )
+    msg.attach(attachment)
+
+    # Resolve SMTP credentials
+    auth_config = email_config.get("auth", {})
+    auth_method = auth_config.get("method", "none")
+    username = None
+    password = None
+
+    if auth_method == "env":
+        username_env = auth_config.get("username_env", "")
+        password_env = auth_config.get("password_env", "")
+        if username_env:
+            username = os.environ.get(username_env)
+        if password_env:
+            password = os.environ.get(password_env)
+    elif auth_method == "inline":
+        username = auth_config.get("username")
+        password = auth_config.get("password")
+    # method == "none" → no credentials
+
+    try:
+        if smtp_port == 465:
+            # Implicit SSL (SMTPS)
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+            if smtp_tls:
+                server.starttls()
+
+        try:
+            if username and password:
+                server.login(username, password)
+            server.sendmail(from_addr, [to_addr], msg.as_string())
+        finally:
+            server.quit()
+    except smtplib.SMTPAuthenticationError as e:
+        return {
+            "status": "error",
+            "message": (
+                f"SMTP authentication failed: {e}. "
+                "Check credentials in support.email.auth."
+            ),
+        }
+    except (smtplib.SMTPException, OSError) as e:
+        return {
+            "status": "error",
+            "message": (
+                f"SMTP send failed: {e}. "
+                f"Bundle zip available at: {zip_path}"
+            ),
+        }
+    finally:
+        # Clean up zip file
+        if zip_path.exists():
+            zip_path.unlink()
+
+    return {
+        "status": "sent",
+        "destination": f"mailto:{to_addr}",
+        "message": f"Bundle emailed to {to_addr}.{size_warning}",
+    }
 
 
 def _cleanup_bundle(bundle_id: str) -> None:

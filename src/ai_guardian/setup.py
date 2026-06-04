@@ -1955,12 +1955,25 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "proactive_level": "low",
         },
 
-        "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path, S3 URI, or GCS URI (gs://bucket-name/). (NEW in v1.7.0, Issue #477)",
+        "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path, S3 URI, GCS URI (gs://bucket-name/), or email (mailto:support@company.com). (NEW in v1.7.0, Issue #477; email: Issue #932)",
         "support": {
             "export_destination": "",
             "auth": {
                 "method": "none",
                 "token_env": "",
+            },
+            "_comment_email": "SMTP email settings for mailto: destinations. Zero new dependencies (Python stdlib only).",
+            "email": {
+                "smtp_host": "",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "",
+                "subject_prefix": "[AI Guardian Support]",
+                "auth": {
+                    "method": "none",
+                    "username_env": "",
+                    "password_env": "",
+                },
             },
             "bundle_ttl_minutes": 30,
         },
