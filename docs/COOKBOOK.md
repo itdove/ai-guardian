@@ -11,6 +11,7 @@ For full configuration reference, see [CONFIGURATION.md](CONFIGURATION.md). For 
 - [SSRF Protection](#ssrf-protection)
 - [PII Detection](#pii-detection)
 - [Secret Scanning](#secret-scanning)
+- [Handling False Positives](#handling-false-positives)
 - [Prompt Injection](#prompt-injection)
 - [Permissions](#permissions)
 - [Directory Rules](#directory-rules)
@@ -295,6 +296,162 @@ The pattern auto-expires on the given date. Mix strings and objects in the same 
 ```
 
 Time-based disabling automatically re-enables scanning after the specified time.
+
+---
+
+## Handling False Positives
+
+AI Guardian provides several ways to suppress false-positive secret findings. Choose the approach that matches your situation.
+
+### Which approach should I use?
+
+| Situation | Approach | Scope |
+|-----------|----------|-------|
+| One specific finding by fingerprint hash | `.gitleaksignore` | Per-project, Gitleaks only |
+| All findings in a file or directory | `ignore_files` in `ai-guardian.json` | All scanners |
+| A known-safe value pattern (e.g., test keys) | `allowlist_patterns` in `ai-guardian.json` | All scanners |
+| A single line in source code | `ai-guardian:allow` inline annotation | All scanners |
+| A block of lines in source code | `ai-guardian:begin-allow` / `end-allow` | All scanners |
+| All test fixtures across scanners | `.aiguardignore.toml` | All scanners |
+| Gitleaks-specific path or regex rules | `.gitleaks.toml` `[allowlist]` | Gitleaks only |
+
+### How do I use .gitleaksignore to ignore specific findings?
+
+Create a `.gitleaksignore` file at your project root. Each line is a fingerprint hash from Gitleaks output:
+
+```
+# .gitleaksignore — one fingerprint per line
+# Get fingerprints from gitleaks scan output or ai-guardian violation logs
+
+# Example: ignore a known test API key in tests/conftest.py
+a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+
+# Example: ignore a placeholder connection string in docs/setup.md
+f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5
+
+# Comments start with #
+# Blank lines are ignored
+```
+
+**How to find fingerprints:**
+
+```bash
+# Run gitleaks directly to see fingerprints
+gitleaks detect --source . --verbose 2>&1 | grep Fingerprint
+
+# Or check ai-guardian violation logs
+ai-guardian violations --type secret_detected --limit 10
+```
+
+Each finding in Gitleaks output includes a `Fingerprint:` field — copy that hash into `.gitleaksignore`.
+
+**Important:** `.gitleaksignore` only works with the Gitleaks scanner engine. If you use BetterLeaks or LeakTK, use `allowlist_patterns` or `ignore_files` instead.
+
+### How do I ignore common false-positive patterns?
+
+For values that match secret patterns but are not real secrets:
+
+```json
+{
+  "secret_scanning": {
+    "allowlist_patterns": [
+      "YOUR_TOKEN_HERE",
+      "EXAMPLE_API_KEY",
+      "xxxx+",
+      "pk_test_[A-Za-z0-9]{24,}",
+      "\\$\\{[A-Z_]+\\}",
+      "\\$[A-Z_]+",
+      "<your-.*-here>"
+    ]
+  }
+}
+```
+
+Common false-positive scenarios and suggested patterns:
+
+| Scenario | Pattern | Explanation |
+|----------|---------|-------------|
+| Placeholder values | `"YOUR_TOKEN_HERE"`, `"REPLACE_ME"` | Documentation placeholders |
+| All-X masking | `"x{8,}"` | Masked/redacted values |
+| Environment variable references | `"\\$\\{[A-Z_]+\\}"`, `"\\$[A-Z_]+"` | `$SECRET_KEY`, `${API_TOKEN}` |
+| Test/public keys | `"pk_test_[A-Za-z0-9]{24,}"` | Stripe public test keys |
+| HTML/template placeholders | `"<your-.*-here>"` | `<your-api-key-here>` |
+| Connection strings with dummy passwords | `"password=example"`, `"password=changeme"` | Docs/examples |
+
+### How do I ignore findings in test fixtures?
+
+Use `ignore_files` for entire directories, or `.aiguardignore.toml` for project-level ignores:
+
+**Option A — ai-guardian.json (global):**
+
+```json
+{
+  "secret_scanning": {
+    "ignore_files": [
+      "tests/fixtures/**",
+      "tests/unit/test_secret_*.py",
+      "**/examples/**/*.example.*"
+    ]
+  }
+}
+```
+
+**Option B — .aiguardignore.toml (project, committed to VCS):**
+
+```toml
+[secret_scanning.allowlist]
+    paths = [
+        "tests/fixtures/.*",
+        "tests/unit/test_secret_redaction.py",
+    ]
+```
+
+**Option C — .gitleaks.toml (Gitleaks-specific, project-level):**
+
+```toml
+[allowlist]
+    description = "Allow test fixtures"
+    paths = [
+        '''tests/fixtures/.*''',
+        '''tests/unit/test_secret_.*\.py'''
+    ]
+```
+
+### How do I suppress a single line in source code?
+
+Use an inline annotation:
+
+```python
+API_KEY = "pk_test_example123456789012"  # ai-guardian:allow
+```
+
+Or for Gitleaks-only suppression:
+
+```python
+API_KEY = "pk_test_example123456789012"  # gitleaks:allow
+```
+
+See [Annotations](#annotations) for block annotations and custom keywords.
+
+### How do I combine approaches for a project?
+
+A typical project setup uses multiple layers:
+
+1. **`.gitleaksignore`** — for specific one-off fingerprints (rotated test keys, etc.)
+2. **`.aiguardignore.toml`** — for test fixture directories (committed, shared with team)
+3. **`ai-guardian.json` `allowlist_patterns`** — for known-safe value patterns across all projects
+4. **Inline annotations** — for individual lines in source code
+
+```
+project-root/
+├── .gitleaksignore           # Gitleaks fingerprint hashes
+├── .aiguardignore.toml       # Project-level scanner ignores
+├── .gitleaks.toml            # Gitleaks-specific path/regex allowlists
+├── .ai-guardian/
+│   └── ai-guardian.json      # Project-level config overlay
+└── tests/
+    └── fixtures/             # Ignored via .aiguardignore.toml
+```
 
 ---
 
