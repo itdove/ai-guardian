@@ -12,6 +12,7 @@ Issue #477
 import json
 import logging
 import os
+import platform
 import shutil
 import smtplib
 import subprocess
@@ -907,7 +908,7 @@ def _send_to_email(
             "Consider S3 or GCS for large bundles."
         )
 
-    from_addr = email_config.get("from", f"ai-guardian@{os.uname().nodename}")
+    from_addr = email_config.get("from", f"ai-guardian@{platform.node()}")
     subject_prefix = email_config.get(
         "subject_prefix", "[AI Guardian Support]"
     )
