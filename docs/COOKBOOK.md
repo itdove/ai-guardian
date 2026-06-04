@@ -419,19 +419,62 @@ Use `ignore_files` for entire directories, or `.aiguardignore.toml` for project-
 
 ### How do I suppress a single line in source code?
 
-Use an inline annotation:
+Add an inline annotation comment to the line. Out of the box, two aliases are available:
 
 ```python
 API_KEY = "pk_test_example123456789012"  # ai-guardian:allow
-```
-
-Or for Gitleaks-only suppression:
-
-```python
 API_KEY = "pk_test_example123456789012"  # gitleaks:allow
 ```
 
-See [Annotations](#annotations) for block annotations and custom keywords.
+| Built-in alias | Suppresses | Notes |
+|----------------|-----------|-------|
+| `ai-guardian:allow` | Secrets + PII | Broadest suppression |
+| `gitleaks:allow` | Secrets only | PII still scanned |
+
+These are the only aliases that work by default. To use other keywords (e.g., `notsecret`, `nosec`), you must configure them first — see below.
+
+For block suppression, use `ai-guardian:begin-allow` / `ai-guardian:end-allow`:
+
+```python
+# ai-guardian:begin-allow
+TEST_SECRETS = {
+    "stripe": "pk_test_example123456789012",
+    "aws": "AKIAIOSFODNN7EXAMPLE",
+}
+# ai-guardian:end-allow
+```
+
+### How do I add custom annotation aliases?
+
+The built-in aliases (`ai-guardian:allow`, `gitleaks:allow`) may not match your team's conventions. You can add any custom keywords:
+
+```json
+{
+  "annotations": {
+    "inline_allow": ["nosec"],
+    "inline_allow_secrets": ["notsecret"]
+  }
+}
+```
+
+| Config key | What it adds | Suppresses | Built-in default |
+|-----------|-------------|-----------|-----------------|
+| `inline_allow` | Custom aliases | Secrets + PII | `[]` (built-in: `ai-guardian:allow`) |
+| `inline_allow_secrets` | Custom aliases | Secrets only | `["gitleaks:allow"]` |
+| `block_begin` | Custom block-start markers | Secrets + PII | `[]` (built-in: `ai-guardian:begin-allow`) |
+| `block_end` | Custom block-end markers | Secrets + PII | `[]` (built-in: `ai-guardian:end-allow`) |
+
+User config **extends** defaults — adding `"nosec"` does not remove `ai-guardian:allow`. Both work side by side.
+
+After configuring the example above:
+
+```python
+API_KEY = "pk_test_example123456789012"  # notsecret  (works — configured alias)
+DB_CONN = "postgresql://user:changeme@localhost/db"  # nosec  (works — configured alias)
+API_KEY = "pk_test_example123456789012"  # ai-guardian:allow  (still works — built-in)
+```
+
+See [Annotations](#annotations) for the full configuration reference.
 
 ### How do I combine approaches for a project?
 

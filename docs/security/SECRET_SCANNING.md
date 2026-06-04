@@ -578,7 +578,30 @@ Suppress a single line with an inline comment:
 API_KEY = "pk_test_example123456789012"  # ai-guardian:allow
 ```
 
-Or suppress a block:
+**Built-in aliases** (work out of the box):
+
+| Alias | Suppresses |
+|-------|-----------|
+| `ai-guardian:allow` | Secrets + PII |
+| `gitleaks:allow` | Secrets only |
+
+These are the only aliases available by default. To use other keywords (e.g., `notsecret`, `nosec`), configure them in `ai-guardian.json`:
+
+```json
+{
+  "annotations": {
+    "inline_allow": ["nosec"],
+    "inline_allow_secrets": ["notsecret"]
+  }
+}
+```
+
+- `inline_allow` — adds custom aliases suppressing secrets + PII (extends built-in `ai-guardian:allow`)
+- `inline_allow_secrets` — adds custom aliases suppressing secrets only (extends built-in `gitleaks:allow`)
+
+Custom aliases are additive — built-in aliases always remain active.
+
+Block annotations use `ai-guardian:begin-allow` / `ai-guardian:end-allow` (also configurable via `block_begin` / `block_end`):
 
 ```python
 # ai-guardian:begin-allow
@@ -589,7 +612,7 @@ TEST_DATA = {
 # ai-guardian:end-allow
 ```
 
-See [Annotations](../ANNOTATIONS.md) for custom keywords and configuration.
+See [Annotations](../ANNOTATIONS.md) for the full configuration reference.
 
 ### Recommended Workflow
 
