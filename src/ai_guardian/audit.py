@@ -86,6 +86,23 @@ class AuditReport:
     security_posture: str = ""
 
 
+@dataclass
+class _AggregateResult:
+    """Single-pass aggregation over violations list."""
+
+    resolved_count: int = 0
+    critical_unresolved: int = 0
+    sessions: set = field(default_factory=set)
+    by_type: Counter = field(default_factory=Counter)
+    by_severity: Counter = field(default_factory=Counter)
+    by_action: Counter = field(default_factory=Counter)
+    files: Counter = field(default_factory=Counter)
+    tools: Counter = field(default_factory=Counter)
+    dates: Counter = field(default_factory=Counter)
+    resolution_deltas: List[float] = field(default_factory=list)
+    per_feature: Counter = field(default_factory=Counter)
+
+
 class AuditComputer:
     """Reads violations and computes a full audit report."""
 
@@ -125,17 +142,23 @@ class AuditComputer:
             )
             return report
 
+        agg = self._aggregate(violations)
+
         report.total_violations = len(violations)
-        report.resolved_count = sum(1 for v in violations if v.get("resolved"))
-        report.unresolved_count = report.total_violations - report.resolved_count
-        report.session_count = self._count_sessions(violations)
-        report.by_type = self._count_by_key(violations, "violation_type")
-        report.by_severity = self._count_by_key(violations, "severity")
-        report.by_action = self._count_by_action(violations)
-        report.top_files = self._top_items(violations, "file_path")
-        report.top_tools = self._top_tools(violations)
-        report.top_types = self._count_by_key_as_list(violations, "violation_type")
-        report.time_trend = self._time_trend(violations)
+        report.resolved_count = agg.resolved_count
+        report.unresolved_count = report.total_violations - agg.resolved_count
+        report.session_count = len(agg.sessions)
+        report.by_type = dict(agg.by_type.most_common())
+        report.by_severity = dict(agg.by_severity.most_common())
+        report.by_action = dict(agg.by_action.most_common())
+        report.top_files = agg.files.most_common(10)
+        report.top_tools = agg.tools.most_common(10)
+        report.top_types = sorted(
+            agg.by_type.items(), key=lambda x: x[1], reverse=True
+        )[:10]
+        report.time_trend = [
+            {"date": d, "count": c} for d, c in sorted(agg.dates.items())
+        ]
 
         report.prev_period_total = len(prev_violations)
         if report.prev_period_total > 0:
@@ -146,22 +169,80 @@ class AuditComputer:
 
         if report.total_violations > 0:
             report.resolution_pct = (
-                report.resolved_count / report.total_violations * 100
+                agg.resolved_count / report.total_violations * 100
             )
-        report.avg_resolution_seconds = self._avg_resolution_time(violations)
+        report.avg_resolution_seconds = (
+            sum(agg.resolution_deltas) / len(agg.resolution_deltas)
+            if agg.resolution_deltas
+            else None
+        )
 
         report.compliance_features = self._load_compliance()
-        report.violations_per_feature = self._violations_per_feature(violations)
+        report.violations_per_feature = dict(agg.per_feature.most_common())
 
-        critical_unresolved = sum(
-            1 for v in violations
-            if v.get("severity") == "critical" and not v.get("resolved")
-        )
         report.security_posture = self._compute_posture(
-            report.compliance_features, critical_unresolved
+            report.compliance_features, agg.critical_unresolved
         )
 
         return report
+
+    @staticmethod
+    def _aggregate(violations: List[Dict]) -> _AggregateResult:
+        """Single-pass aggregation over the violations list."""
+        agg = _AggregateResult()
+        for v in violations:
+            resolved = v.get("resolved")
+            if resolved:
+                agg.resolved_count += 1
+
+            severity = v.get("severity")
+            if severity == "critical" and not resolved:
+                agg.critical_unresolved += 1
+
+            context = v.get("context") or {}
+            sid = context.get("session_id")
+            if sid:
+                agg.sessions.add(sid)
+
+            vtype = v.get("violation_type")
+            if vtype:
+                agg.by_type[vtype] += 1
+
+            if severity:
+                agg.by_severity[severity] += 1
+
+            action = context.get("action")
+            if action:
+                agg.by_action[action] += 1
+
+            blocked = v.get("blocked") or {}
+            fp = blocked.get("file_path")
+            if fp:
+                agg.files[fp] += 1
+
+            tool = (
+                blocked.get("tool_name")
+                or blocked.get("tool")
+                or blocked.get("source")
+            )
+            if tool:
+                agg.tools[tool] += 1
+
+            ts = _parse_timestamp(v.get("timestamp"))
+            agg.dates[ts.strftime("%Y-%m-%d")] += 1
+
+            if resolved:
+                resolved_at = v.get("resolved_at")
+                timestamp = v.get("timestamp")
+                if resolved_at and timestamp:
+                    ra = _parse_timestamp(resolved_at)
+                    if ra > ts:
+                        agg.resolution_deltas.append((ra - ts).total_seconds())
+
+            feature = VIOLATION_TYPE_TO_FEATURE.get(vtype or "", "other")
+            agg.per_feature[feature] += 1
+
+        return agg
 
     def _read_violations(self) -> List[Dict]:
         mc = MetricsComputer(
