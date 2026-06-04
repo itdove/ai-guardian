@@ -3,6 +3,7 @@
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.local_time import inject_local_time_js
 
 
 def _load_local_daemon_config():
@@ -375,7 +376,7 @@ def create_daemon_detail_page(service, daemon_name: str):
                 vlist = (v_data or {}).get("violations", [])
                 with violations_container:
                     if vlist:
-                        ui.table(
+                        table = ui.table(
                             columns=[
                                 {"name": "timestamp", "label": "Time",
                                  "field": "timestamp"},
@@ -388,6 +389,14 @@ def create_daemon_detail_page(service, daemon_name: str):
                             ],
                             rows=vlist, row_key="timestamp",
                         ).classes("w-full")
+                        table.add_slot(
+                            "body-cell-timestamp",
+                            '<td><span class="utc-timestamp" '
+                            'data-utc="{{props.value}}">'
+                            "{{props.value.slice(0, 19)}}"
+                            "</span></td>",
+                        )
+                        inject_local_time_js()
                     else:
                         ui.label("No recent violations").classes(
                             "text-sm text-grey-6"

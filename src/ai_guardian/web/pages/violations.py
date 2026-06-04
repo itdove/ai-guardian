@@ -4,6 +4,11 @@ import json
 
 from nicegui import run, ui
 
+from ai_guardian.web.components.local_time import (
+    inject_local_time_js,
+    local_time_label,
+)
+
 from ai_guardian.violation_guidance import get_resolution_instructions
 from ai_guardian.web.components.header import create_header, create_sidebar
 
@@ -182,6 +187,8 @@ def create_violations_page(service, daemon_name: str):
                     for v in all_violations:
                         _render_violation_card(v)
 
+                inject_local_time_js()
+
             ui.timer(0.1, load_violations, once=True)
 
 
@@ -218,7 +225,7 @@ def _render_violation_card(v: dict):
                 ui.badge("RESOLVED", color="green").classes("text-xs")
             if daemon:
                 ui.badge(daemon, color="blue-grey").classes("text-xs")
-            ui.label(timestamp[:19]).classes("text-xs text-grey-6 ml-auto")
+            local_time_label(timestamp).classes("ml-auto")
 
         fields = DETAIL_FIELDS.get(vtype, [])
         if fields:
