@@ -9,6 +9,7 @@ This guide explains how AI Guardian's secret scanning works, including configura
 - [Configuration](#configuration)
 - [Pattern Server Integration](#pattern-server-integration)
 - [Secret Redaction Security](#secret-redaction-security)
+- [False Positives](#false-positives)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -499,6 +500,129 @@ Detection Source:
   URL: https://raw.githubusercontent.com
   Endpoint: /leaktk/patterns/main/target/patterns/gitleaks/8.27.0
 ```
+
+## False Positives
+
+When secret scanning flags a value that is not a real secret, you have several options to suppress it. The right choice depends on whether the false positive is a one-off finding, a recurring pattern, or an entire file.
+
+### Quick Reference
+
+| Approach | Best For | Scope |
+|----------|----------|-------|
+| `.gitleaksignore` | One specific finding by fingerprint | Gitleaks only |
+| `allowlist_patterns` | Recurring patterns (test keys, placeholders) | All scanners |
+| `ignore_files` | Entire files or directories | All scanners |
+| `.aiguardignore.toml` | Project-level file ignores (shared via VCS) | All scanners |
+| `.gitleaks.toml` `[allowlist]` | Gitleaks-specific path/regex rules | Gitleaks only |
+| Inline annotations | Single lines in source code | All scanners |
+
+### .gitleaksignore
+
+Create a `.gitleaksignore` file at your project root to ignore specific findings by fingerprint hash:
+
+```
+# .gitleaksignore — one fingerprint per line
+# Get fingerprints from gitleaks output or ai-guardian violation logs
+
+a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5
+
+# Comments start with #
+# Blank lines are ignored
+```
+
+**Finding fingerprints:**
+
+```bash
+# From gitleaks output
+gitleaks detect --source . --verbose 2>&1 | grep Fingerprint
+
+# From ai-guardian violation logs
+ai-guardian violations --type secret_detected --limit 10
+```
+
+**Limitations:** `.gitleaksignore` only works with the Gitleaks engine. For BetterLeaks or LeakTK, use `allowlist_patterns` or `ignore_files`.
+
+### Allowlist Patterns
+
+Suppress recurring false positives across all scanners with regex patterns in `ai-guardian.json`:
+
+```json
+{
+  "secret_scanning": {
+    "allowlist_patterns": [
+      "YOUR_TOKEN_HERE",
+      "EXAMPLE_API_KEY",
+      "pk_test_[A-Za-z0-9]{24,}",
+      "\\$\\{[A-Z_]+\\}",
+      "<your-.*-here>"
+    ]
+  }
+}
+```
+
+Common scenarios:
+- **Placeholder values**: `"YOUR_TOKEN_HERE"`, `"REPLACE_ME"`, `"changeme"`
+- **Environment variable references**: `"\\$\\{[A-Z_]+\\}"`, `"\\$[A-Z_]+"`
+- **Test/public keys**: `"pk_test_[A-Za-z0-9]{24,}"`
+- **Template placeholders**: `"<your-.*-here>"`
+- **Masked values**: `"x{8,}"`
+
+Supports time-limited patterns — see [COOKBOOK.md](../COOKBOOK.md#how-do-i-add-a-time-limited-allowlist-pattern).
+
+### Inline Annotations
+
+Suppress a single line with an inline comment:
+
+```python
+API_KEY = "pk_test_example123456789012"  # ai-guardian:allow
+```
+
+**Built-in aliases** (work out of the box):
+
+| Alias | Suppresses |
+|-------|-----------|
+| `ai-guardian:allow` | Secrets + PII |
+| `gitleaks:allow` | Secrets only |
+
+These are the only aliases available by default. To use other keywords (e.g., `notsecret`, `nosec`), configure them in `ai-guardian.json`:
+
+```json
+{
+  "annotations": {
+    "inline_allow": ["nosec"],
+    "inline_allow_secrets": ["notsecret"]
+  }
+}
+```
+
+- `inline_allow` — adds custom aliases suppressing secrets + PII (extends built-in `ai-guardian:allow`)
+- `inline_allow_secrets` — adds custom aliases suppressing secrets only (extends built-in `gitleaks:allow`)
+
+Custom aliases are additive — built-in aliases always remain active.
+
+Block annotations use `ai-guardian:begin-allow` / `ai-guardian:end-allow` (also configurable via `block_begin` / `block_end`):
+
+```python
+# ai-guardian:begin-allow
+TEST_DATA = {
+    "token": "ghp_faketoken1234567890123456789012345",
+    "key": "AKIAIOSFODNN7EXAMPLE",
+}
+# ai-guardian:end-allow
+```
+
+See [Annotations](../ANNOTATIONS.md) for the full configuration reference.
+
+### Recommended Workflow
+
+1. **Investigate** — check `ai-guardian violations` to confirm the finding is a false positive
+2. **Choose scope** — use the quick reference table above to pick the narrowest suppression
+3. **Apply** — add the suppression rule
+4. **Verify** — re-run scanning to confirm the false positive is suppressed
+5. **Commit** — check `.gitleaksignore` and `.aiguardignore.toml` into version control so the team benefits
+
+For detailed examples and common false-positive scenarios, see [COOKBOOK.md — Handling False Positives](../COOKBOOK.md#handling-false-positives).
 
 ## Pattern Server Integration
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **False positive handling documentation** (Issue #946)
+  - Added "Handling False Positives" section to COOKBOOK.md with `.gitleaksignore` format, allowlist patterns, common scenarios, and decision guide
+  - Added "False Positives" section to SECRET_SCANNING.md with quick reference table, fingerprint workflow, and recommended workflow
+
 - **Full Windows support** (Issue #872)
   - Script-based hooks (Cline, ZooCode, Kiro) generate `.bat` files on Windows
   - `install.ps1` PowerShell installer mirroring install.sh functionality
