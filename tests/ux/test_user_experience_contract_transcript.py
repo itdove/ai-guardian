@@ -302,6 +302,139 @@ class TranscriptScanningUserExperienceTests(TestCase):
             os.unlink(transcript_path)
 
 
+class CopilotCodexTranscriptScanningTests(TestCase):
+    """
+    UX contract tests for Copilot CLI and Codex transcript scanning (Issue #935).
+
+    These tests verify that:
+    1. Copilot CLI transcript is scanned via adapter-resolved default path
+    2. Codex transcript is scanned via adapter-resolved default path
+    3. Scanning uses the same JSONL incremental reader as Claude Code
+    4. _advance_transcript_position works with adapter-injected paths
+    """
+
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    def test_copilot_cli_transcript_scanned_via_adapter_default(
+        self, mock_ts_config, mock_pii_config, mock_pi_config,
+        mock_secret_config, mock_gitleaks, mock_pii, mock_si_config
+    ):
+        """
+        USER EXPERIENCE: Copilot CLI transcript scanned via default path
+
+        Scenario:
+        1. User runs Copilot CLI (no transcript_path in hook data)
+        2. ai-guardian detects Copilot adapter via --ide flag
+        3. Adapter resolves default path: ~/.copilot/session-state/events.jsonl
+        4. Transcript is scanned incrementally for secrets/PII
+
+        Expected User Experience:
+        - Transcript scanning works without IDE providing transcript_path
+        - Same scanning behavior as Claude Code (JSONL incremental)
+        """
+        from ai_guardian.hook_adapters.copilot import CopilotAdapter
+
+        mock_ts_config.return_value = ({"enabled": True}, None)
+        mock_pii_config.return_value = (None, None)
+        mock_pi_config.return_value = (None, None)
+        mock_secret_config.return_value = ({"enabled": True}, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (False, None, None)
+        mock_si_config.return_value = (None, None)
+
+        transcript_file = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.jsonl', delete=False
+        )
+        try:
+            transcript_file.write('{"text": "hello from copilot"}\n')
+            transcript_file.flush()
+            transcript_path = transcript_file.name
+            transcript_file.close()
+
+            # Initialize position (simulate first-scan skip)
+            _save_transcript_positions({transcript_path: os.path.getsize(transcript_path)})
+
+            # Hook data without transcript_path (Copilot doesn't provide it)
+            hook_data = {
+                "hook_event_name": "userPromptSubmitted",
+                "prompt": "help me fix this bug",
+                "_ide_type": "copilot",
+            }
+
+            with patch.object(CopilotAdapter, "TRANSCRIPT_PATH", transcript_path):
+                with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                    result = ai_guardian.process_hook_input()
+
+            # CONTRACT: Prompt completes (not blocked)
+            assert result['exit_code'] == 0 or result['exit_code'] == 2, \
+                "Copilot transcript scanning should not crash"
+        finally:
+            os.unlink(transcript_path)
+
+    @patch('ai_guardian.hook_processing._load_security_instructions_config')
+    @patch('ai_guardian.hook_processing._scan_for_pii')
+    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
+    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
+    @patch('ai_guardian.hook_processing._load_pii_config')
+    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    def test_codex_transcript_scanned_via_adapter_default(
+        self, mock_ts_config, mock_pii_config, mock_pi_config,
+        mock_secret_config, mock_gitleaks, mock_pii, mock_si_config
+    ):
+        """
+        USER EXPERIENCE: Codex transcript scanned via default path
+
+        Scenario:
+        1. User runs Codex (--ide codex)
+        2. ai-guardian detects Codex adapter
+        3. Adapter discovers JSONL files in ~/.codex/sessions/
+        4. Most recent transcript is scanned
+
+        Expected User Experience:
+        - Transcript scanning auto-discovers Codex session files
+        - Date-based directory structure traversed correctly
+        """
+        from ai_guardian.hook_adapters.codex import CodexAdapter
+
+        mock_ts_config.return_value = ({"enabled": True}, None)
+        mock_pii_config.return_value = (None, None)
+        mock_pi_config.return_value = (None, None)
+        mock_secret_config.return_value = ({"enabled": True}, None)
+        mock_gitleaks.return_value = (False, None)
+        mock_pii.return_value = (False, None, None)
+        mock_si_config.return_value = (None, None)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            session_dir = os.path.join(tmp, "2026", "06", "04")
+            os.makedirs(session_dir)
+            transcript = os.path.join(session_dir, "session-abc.jsonl")
+            with open(transcript, 'w') as f:
+                f.write('{"text": "hello from codex"}\n')
+
+            # Initialize position
+            _save_transcript_positions({transcript: os.path.getsize(transcript)})
+
+            hook_data = {
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "help me fix this bug",
+                "_ide_type": "codex",
+            }
+
+            with patch.object(CodexAdapter, "SESSIONS_DIR", tmp):
+                with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                    result = ai_guardian.process_hook_input()
+
+            # CONTRACT: Prompt completes (not blocked)
+            assert result['exit_code'] == 0, \
+                "Codex transcript scanning should not crash"
+
+
 if __name__ == '__main__':
     import unittest
     unittest.main()

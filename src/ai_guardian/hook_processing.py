@@ -2854,6 +2854,19 @@ def process_hook_data(hook_data, daemon_state=None):
         hook_tool_use_id = normalized.tool_use_id or hook_data.get("tool_use_id")
         hook_session_id = normalized.session_id or hook_data.get("session_id")
 
+        # Resolve transcript path from adapter defaults (Issue #935)
+        # When hook_data has no transcript_path, agents like Copilot CLI and Codex
+        # have known default locations where JSONL transcripts are stored.
+        # Inject early so _advance_transcript_position (PostToolUse) sees the path too.
+        if not _get_transcript_path(hook_data) and adapter:
+            adapter_default_paths = adapter.get_default_transcript_paths()
+            if adapter_default_paths:
+                hook_data["transcript_path"] = adapter_default_paths[0]
+                logging.debug(
+                    "Resolved transcript path from %s adapter: %s",
+                    adapter.name, adapter_default_paths[0],
+                )
+
         # Create cross-hook context manager for PreToolUse/PostToolUse correlation
         context_mgr = None
         try:
@@ -3861,11 +3874,20 @@ def process_hook_data(hook_data, daemon_state=None):
                         else:
                             logging.warning(f"Unknown PII action '{pii_action}', allowing through")
 
-        # Transcript scanning for secrets and PII (Issue #430, #442)
+        # Transcript scanning for secrets and PII (Issue #430, #442, #935)
         # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
         # Prompt injection scanning intentionally excluded — too many false positives in conversation context
+        #
+        # transcript_path may already be injected into hook_data by adapter defaults
+        # resolution above (Issue #935). Build the list of paths to scan:
+        # - IDE-provided path (from hook_data), OR
+        # - All adapter-default paths (Codex may have multiple session files)
         transcript_path = _get_transcript_path(hook_data)
-        if transcript_path and hook_event == HookEvent.PROMPT:
+        transcript_paths_to_scan = [transcript_path] if transcript_path else []
+        if not transcript_paths_to_scan and adapter:
+            transcript_paths_to_scan = adapter.get_default_transcript_paths()
+
+        if transcript_paths_to_scan and hook_event == HookEvent.PROMPT:
             try:
                 ts_config, ts_error = _load_transcript_scanning_config()
                 if ts_error:
@@ -3888,17 +3910,18 @@ def process_hook_data(hook_data, daemon_state=None):
                     except NameError:
                         ts_pii_config, _ = _load_pii_config()
 
-                    transcript_warnings = scan_transcript_incremental(
-                        transcript_path,
-                        secret_config=ts_secret_config,
-                        pii_config=ts_pii_config,
-                        hook_context={"session_id": hook_session_id} if hook_session_id else None
-                    )
-                    if transcript_warnings:
-                        warning_messages.extend(transcript_warnings)
-                        logging.warning(f"Transcript scanning found {len(transcript_warnings)} issue(s)")
-                    else:
-                        logging.info("✓ No threats detected in transcript")
+                    for ts_path in transcript_paths_to_scan:
+                        transcript_warnings = scan_transcript_incremental(
+                            ts_path,
+                            secret_config=ts_secret_config,
+                            pii_config=ts_pii_config,
+                            hook_context={"session_id": hook_session_id} if hook_session_id else None
+                        )
+                        if transcript_warnings:
+                            warning_messages.extend(transcript_warnings)
+                            logging.warning(f"Transcript scanning found {len(transcript_warnings)} issue(s) in {ts_path}")
+                        else:
+                            logging.info(f"✓ No threats detected in transcript: {ts_path}")
                 elif ts_config and ide_type != IDEType.CURSOR:
                     logging.info("⚠️  Transcript scanning temporarily disabled")
             except Exception as e:

@@ -101,6 +101,21 @@ class HookAdapter(ABC):
         """
         return {}
 
+    def get_default_transcript_paths(self) -> List[str]:
+        """Return default transcript file paths for this agent.
+
+        When the IDE does not provide a transcript_path in hook data,
+        the adapter can supply agent-specific default paths where
+        JSONL transcripts are stored.
+
+        Override in subclasses for agents with known transcript locations
+        (e.g., Copilot CLI, Codex). Returns only paths that exist on disk.
+
+        Returns:
+            List of absolute paths to JSONL transcript files, or empty list.
+        """
+        return []
+
     # -- Helpers available to all adapters --
 
     @staticmethod
