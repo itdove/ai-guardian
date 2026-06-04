@@ -21,6 +21,7 @@ from ai_guardian.setup import (
     _resolve_binary_path,
     _substitute_command,
     _upgrade_ide_flag,
+    _walk_commands,
 )
 
 
@@ -2855,6 +2856,40 @@ class TestIsAiGuardianCommand:
 
     def test_venv_path_with_ide_flag(self):
         assert _is_ai_guardian_command("/home/user/.venv/bin/ai-guardian --ide gemini") is True
+
+
+class TestWalkCommands:
+    """Tests for _walk_commands generalized tree walker."""
+
+    def test_copy_preserves_original(self):
+        original = {"command": "ai-guardian"}
+        result = _walk_commands(original, lambda v: v == "ai-guardian", lambda _: "/new", copy=True)
+        assert result == {"command": "/new"}
+        assert original == {"command": "ai-guardian"}
+
+    def test_mutate_changes_in_place(self):
+        obj = {"command": "ai-guardian"}
+        _walk_commands(obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=False)
+        assert obj == {"command": "/new"}
+
+    def test_predicate_filters(self):
+        obj = {"command": "other-tool"}
+        result = _walk_commands(obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=True)
+        assert result == {"command": "other-tool"}
+
+    def test_nested_dict_and_list(self):
+        obj = {"hooks": [{"command": "ai-guardian"}, {"command": "other"}]}
+        result = _walk_commands(obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=True)
+        assert result == {"hooks": [{"command": "/new"}, {"command": "other"}]}
+
+    def test_scalar_passthrough(self):
+        assert _walk_commands(42, lambda v: True, lambda _: 0, copy=True) == 42
+        assert _walk_commands("text", lambda v: True, lambda _: "", copy=True) == "text"
+
+    def test_mutate_nested(self):
+        obj = {"hooks": {"pre": [{"command": "ai-guardian"}]}}
+        _walk_commands(obj, lambda v: v == "ai-guardian", lambda v: f"{v} --ide test", copy=False)
+        assert obj["hooks"]["pre"][0]["command"] == "ai-guardian --ide test"
 
 
 class TestSubstituteCommand:

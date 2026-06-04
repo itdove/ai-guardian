@@ -1,12 +1,12 @@
 """Annotations page — inline and block annotation suppression settings."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DURATION_RE = re_mod.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re_mod.IGNORECASE)
 
@@ -56,26 +56,6 @@ def _parse_enabled(raw):
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
 
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
@@ -138,7 +118,7 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
         ui.label(title).classes("text-lg font-bold")
         ui.label(desc).classes("text-xs text-grey-6")
 
-        cfg = _load_config()
+        cfg = load_web_config()
         sect = cfg.get("annotations", {})
         if not isinstance(sect, dict):
             sect = {}
@@ -153,7 +133,7 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
                     )
 
                     async def remove_alias(i=idx):
-                        cfg2 = await run.io_bound(_load_config)
+                        cfg2 = await run.io_bound(load_web_config)
                         sect2 = cfg2.get("annotations", {})
                         if not isinstance(sect2, dict):
                             return
@@ -162,7 +142,7 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
                             items.pop(i)
                             sect2[config_key] = items
                             cfg2["annotations"] = sect2
-                            await run.io_bound(_save_config, cfg2)
+                            await run.io_bound(save_web_config, cfg2)
                             ui.notify("Alias removed", type="positive")
                             await refresh_fn()
 
@@ -182,7 +162,7 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
                 if not val:
                     ui.notify("Enter an alias", type="negative")
                     return
-                cfg2 = await run.io_bound(_load_config)
+                cfg2 = await run.io_bound(load_web_config)
                 sect2 = cfg2.get("annotations", {})
                 if not isinstance(sect2, dict):
                     sect2 = {}
@@ -193,7 +173,7 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
                 items.append(val)
                 sect2[config_key] = items
                 cfg2["annotations"] = sect2
-                await run.io_bound(_save_config, cfg2)
+                await run.io_bound(save_web_config, cfg2)
                 inp.value = ""
                 ui.notify(f"Added: {val}", type="positive")
                 await refresh_fn()
@@ -218,7 +198,7 @@ def create_annotations_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     an = config.get("annotations", {})
@@ -230,13 +210,13 @@ def create_annotations_page(service, daemon_name: str):
                     )
 
                     def save_enabled(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("annotations", {})
                         if not isinstance(sect, dict):
                             sect = {}
                         sect["enabled"] = value
                         cfg["annotations"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "Annotations",

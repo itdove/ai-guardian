@@ -1,12 +1,12 @@
 """PII Scanning page — personally identifiable information detection settings."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 PHASE1_PII_TYPES = [
     ("ssn", "Social Security Number"),
@@ -76,27 +76,6 @@ def _parse_enabled(raw):
                 pass
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _load_stats():
@@ -200,7 +179,7 @@ def create_scan_pii_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     sp = config.get("scan_pii", {})
@@ -212,13 +191,13 @@ def create_scan_pii_page(service, daemon_name: str):
                     )
 
                     def save_enabled(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("scan_pii", {})
                         if not isinstance(sect, dict):
                             sect = {}
                         sect["enabled"] = value
                         cfg["scan_pii"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "PII Scanning",
@@ -244,13 +223,13 @@ def create_scan_pii_page(service, daemon_name: str):
                         ).classes("w-64")
 
                         async def save_action(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("scan_pii", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["action"] = e.value
                             cfg["scan_pii"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Action: {e.value}", type="positive")
 
                         act_sel.on_value_change(save_action)
@@ -274,7 +253,7 @@ def create_scan_pii_page(service, daemon_name: str):
                             )
 
                             async def on_pii_change(e, k=key):
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -287,7 +266,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                     current.remove(k)
                                 sect["pii_types"] = current
                                 cfg["scan_pii"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify("Saved", type="positive")
 
                             cb.on_value_change(on_pii_change)
@@ -301,7 +280,7 @@ def create_scan_pii_page(service, daemon_name: str):
                             )
 
                             async def on_pii_change2(e, k=key):
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -314,7 +293,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                     current.remove(k)
                                 sect["pii_types"] = current
                                 cfg["scan_pii"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify("Saved", type="positive")
 
                             cb.on_value_change(on_pii_change2)
@@ -335,7 +314,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                     )
 
                                     async def remove_ignore_file(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("scan_pii", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -344,7 +323,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["ignore_files"] = items
                                             cfg["scan_pii"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("File pattern removed", type="positive")
                                             await refresh()
 
@@ -364,7 +343,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter a pattern", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -375,7 +354,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["ignore_files"] = items
                                 cfg["scan_pii"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 if_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
@@ -398,7 +377,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                     )
 
                                     async def remove_ignore_tool(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("scan_pii", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -407,7 +386,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["ignore_tools"] = items
                                             cfg["scan_pii"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Tool pattern removed", type="positive")
                                             await refresh()
 
@@ -427,7 +406,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter a pattern", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -438,7 +417,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["ignore_tools"] = items
                                 cfg["scan_pii"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 it_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
@@ -469,7 +448,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                         ui.badge(exp_text, color=exp_color).classes("text-xs")
 
                                     async def remove_allowlist(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("scan_pii", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -478,7 +457,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                             pats.pop(i)
                                             sect["allowlist_patterns"] = pats
                                             cfg["scan_pii"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Pattern removed", type="positive")
                                             await refresh()
 
@@ -506,7 +485,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                 except re_mod.error as e:
                                     ui.notify(f"Invalid regex: {e}", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -527,7 +506,7 @@ def create_scan_pii_page(service, daemon_name: str):
                                     pats.append(pattern)
                                 sect["allowlist_patterns"] = pats
                                 cfg["scan_pii"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 al_input.value = ""
                                 al_exp.value = ""
                                 ui.notify(f"Added: {pattern}", type="positive")

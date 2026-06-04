@@ -1,12 +1,12 @@
 """Secret Scanning page — secret detection settings and pattern server config."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DURATION_RE = re_mod.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re_mod.IGNORECASE)
 
@@ -56,27 +56,6 @@ def _parse_enabled(raw):
                 pass
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
@@ -156,7 +135,7 @@ def create_secrets_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     ss = config.get("secret_scanning", {})
@@ -169,13 +148,13 @@ def create_secrets_page(service, daemon_name: str):
                     )
 
                     def save_scanning(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("secret_scanning", {})
                         if not isinstance(sect, dict):
                             sect = {}
                         sect["enabled"] = value
                         cfg["secret_scanning"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "Secret Scanning",
@@ -201,7 +180,7 @@ def create_secrets_page(service, daemon_name: str):
                                     )
 
                                     async def remove_pat(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("secret_scanning", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -210,7 +189,7 @@ def create_secrets_page(service, daemon_name: str):
                                             pats.pop(i)
                                             sect["allowlist_patterns"] = pats
                                             cfg["secret_scanning"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Pattern removed", type="positive")
                                             await refresh()
 
@@ -235,7 +214,7 @@ def create_secrets_page(service, daemon_name: str):
                                 except re_mod.error as e:
                                     ui.notify(f"Invalid regex: {e}", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("secret_scanning", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -246,7 +225,7 @@ def create_secrets_page(service, daemon_name: str):
                                 pats.append(pattern)
                                 sect["allowlist_patterns"] = pats
                                 cfg["secret_scanning"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 al_input.value = ""
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
@@ -263,7 +242,7 @@ def create_secrets_page(service, daemon_name: str):
                     )
 
                     def save_ps_enabled(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("secret_scanning", {})
                         if not isinstance(sect, dict):
                             sect = {}
@@ -271,7 +250,7 @@ def create_secrets_page(service, daemon_name: str):
                             sect["pattern_server"] = {}
                         sect["pattern_server"]["enabled"] = value
                         cfg["secret_scanning"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "Pattern Server (Enhanced Patterns)",
@@ -316,7 +295,7 @@ def create_secrets_page(service, daemon_name: str):
                         )
 
                         async def save_ps_settings():
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
@@ -332,7 +311,7 @@ def create_secrets_page(service, daemon_name: str):
                                 "token_file": ps_token_file.value.strip(),
                             }
                             cfg["secret_scanning"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify("Pattern server settings saved", type="positive")
 
                         ui.button(
@@ -360,7 +339,7 @@ def create_secrets_page(service, daemon_name: str):
                         ).props("outlined dense").classes("w-48")
 
                         async def save_cache():
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
@@ -372,7 +351,7 @@ def create_secrets_page(service, daemon_name: str):
                                 "expire_after_hours": int(cache_expire.value or 168),
                             }
                             cfg["secret_scanning"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify("Cache settings saved", type="positive")
 
                         ui.button(

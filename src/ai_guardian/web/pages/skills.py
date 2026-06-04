@@ -1,33 +1,12 @@
 """Skills page — manage Skill tool allow/deny permission patterns."""
 
-import json
 import re
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
 def _get_skill_patterns(config):
@@ -131,7 +110,7 @@ def create_skills_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     permissions = config.get("permissions", {})
@@ -178,11 +157,11 @@ def create_skills_page(service, daemon_name: str):
                                 )
 
                             async def do_reenable():
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 if "permissions" not in cfg or not isinstance(cfg["permissions"], dict):
                                     cfg["permissions"] = {"enabled": True, "rules": []}
                                 cfg["permissions"]["enabled"] = True
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify("Permissions re-enabled", type="positive")
                                 await refresh()
 
@@ -203,11 +182,11 @@ def create_skills_page(service, daemon_name: str):
                                 ).classes("text-xs text-grey-6")
 
                                 async def on_toggle(e):
-                                    cfg = await run.io_bound(_load_config)
+                                    cfg = await run.io_bound(load_web_config)
                                     if "permissions" not in cfg or not isinstance(cfg["permissions"], dict):
                                         cfg["permissions"] = {"enabled": True, "rules": []}
                                     cfg["permissions"]["enabled"] = e.value
-                                    await run.io_bound(_save_config, cfg)
+                                    await run.io_bound(save_web_config, cfg)
                                     ui.notify(
                                         f"Permissions {'enabled' if e.value else 'disabled'}",
                                         type="positive",
@@ -238,11 +217,11 @@ def create_skills_page(service, daemon_name: str):
                                     rv = r.value.strip()
                                     if rv:
                                         entry["reason"] = rv
-                                    cfg = await run.io_bound(_load_config)
+                                    cfg = await run.io_bound(load_web_config)
                                     if "permissions" not in cfg or not isinstance(cfg["permissions"], dict):
                                         cfg["permissions"] = {"enabled": True, "rules": []}
                                     cfg["permissions"]["enabled"] = entry
-                                    await run.io_bound(_save_config, cfg)
+                                    await run.io_bound(save_web_config, cfg)
                                     ui.notify(
                                         f"Permissions temp disabled for {d.value or '30m'}",
                                         type="warning",
@@ -276,7 +255,7 @@ def create_skills_page(service, daemon_name: str):
                                         ui.badge(exp[0], color=exp[1]).classes("text-xs")
 
                                     async def do_remove(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         perms = cfg.get("permissions", {})
                                         rules = perms.get("rules", []) if isinstance(perms, dict) else []
                                         for rule in rules:
@@ -288,7 +267,7 @@ def create_skills_page(service, daemon_name: str):
                                                         rules.remove(rule)
                                                     if isinstance(cfg.get("permissions"), dict):
                                                         cfg["permissions"]["rules"] = rules
-                                                    await run.io_bound(_save_config, cfg)
+                                                    await run.io_bound(save_web_config, cfg)
                                                     ui.notify(f"Removed: {removed}", type="positive")
                                                     await refresh()
                                                 break
@@ -311,7 +290,7 @@ def create_skills_page(service, daemon_name: str):
                                 if not pattern:
                                     ui.notify("Enter a pattern", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 perms = cfg.get("permissions", {})
                                 if not isinstance(perms, dict):
                                     perms = {"enabled": True, "rules": []}
@@ -330,7 +309,7 @@ def create_skills_page(service, daemon_name: str):
                                     rules.append({"matcher": "Skill", "mode": "allow", "patterns": [pattern]})
                                 perms["rules"] = rules
                                 cfg["permissions"] = perms
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify(f"Added allow: {pattern}", type="positive")
                                 allow_input.value = ""
                                 await refresh()
@@ -358,7 +337,7 @@ def create_skills_page(service, daemon_name: str):
                                         ui.badge(exp[0], color=exp[1]).classes("text-xs")
 
                                     async def do_remove_deny(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         perms = cfg.get("permissions", {})
                                         rules = perms.get("rules", []) if isinstance(perms, dict) else []
                                         for rule in rules:
@@ -370,7 +349,7 @@ def create_skills_page(service, daemon_name: str):
                                                         rules.remove(rule)
                                                     if isinstance(cfg.get("permissions"), dict):
                                                         cfg["permissions"]["rules"] = rules
-                                                    await run.io_bound(_save_config, cfg)
+                                                    await run.io_bound(save_web_config, cfg)
                                                     ui.notify(f"Removed: {removed}", type="positive")
                                                     await refresh()
                                                 break
@@ -393,7 +372,7 @@ def create_skills_page(service, daemon_name: str):
                                 if not pattern:
                                     ui.notify("Enter a pattern", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 perms = cfg.get("permissions", {})
                                 if not isinstance(perms, dict):
                                     perms = {"enabled": True, "rules": []}
@@ -412,7 +391,7 @@ def create_skills_page(service, daemon_name: str):
                                     rules.append({"matcher": "Skill", "mode": "deny", "patterns": [pattern]})
                                 perms["rules"] = rules
                                 cfg["permissions"] = perms
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify(f"Added deny: {pattern}", type="positive")
                                 deny_input.value = ""
                                 await refresh()

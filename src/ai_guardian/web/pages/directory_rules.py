@@ -5,27 +5,7 @@ import json
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
 def _get_editable_rules(config):
@@ -85,7 +65,7 @@ def create_directory_rules_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     dr = config.get("directory_rules", {})
@@ -107,11 +87,11 @@ def create_directory_rules_page(service, daemon_name: str):
                         ).classes("w-48")
 
                         async def save_action(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             if "directory_rules" not in cfg or not isinstance(cfg["directory_rules"], dict):
                                 cfg["directory_rules"] = {}
                             cfg["directory_rules"]["action"] = e.value
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Action: {e.value}", type="positive")
 
                         act_sel.on_value_change(save_action)
@@ -154,12 +134,12 @@ def create_directory_rules_page(service, daemon_name: str):
                                 if err:
                                     ui.notify(err, type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 preserved = _get_preserved_rules(cfg)
                                 if "directory_rules" not in cfg or not isinstance(cfg["directory_rules"], dict):
                                     cfg["directory_rules"] = {}
                                 cfg["directory_rules"]["rules"] = preserved + parsed
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify(
                                     f"Saved {len(parsed)} rule(s)",
                                     type="positive",

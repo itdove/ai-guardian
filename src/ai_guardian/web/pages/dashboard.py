@@ -1,11 +1,11 @@
 """Security Dashboard — comprehensive overview of all security features."""
 
-import json
 from datetime import datetime, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config
 
 FEATURE_GROUPS = [
     ("Scanning", [
@@ -31,18 +31,6 @@ FEATURE_GROUPS = [
         ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
     ]),
 ]
-
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
 
 
 def _get_feature_status(config, key):
@@ -240,7 +228,7 @@ def create_dashboard_page(service, daemon_name: str):
 
             async def build_page():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 all_features = []
                 for _, features in FEATURE_GROUPS:

@@ -1,12 +1,12 @@
 """SSRF Protection page — network request filtering and IP blocking."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 CORE_PROTECTIONS = {
     "Private IP Ranges": [
@@ -70,26 +70,6 @@ def _parse_enabled(raw):
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
 
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _load_stats():
@@ -174,7 +154,7 @@ def create_ssrf_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     sp = config.get("ssrf_protection", {})
@@ -186,13 +166,13 @@ def create_ssrf_page(service, daemon_name: str):
                     )
 
                     def save_enabled(value):
-                        cfg = _load_config()
+                        cfg = load_web_config()
                         sect = cfg.get("ssrf_protection", {})
                         if not isinstance(sect, dict):
                             sect = {}
                         sect["enabled"] = value
                         cfg["ssrf_protection"] = sect
-                        _save_config(cfg)
+                        save_web_config(cfg)
 
                     _render_toggle(
                         "SSRF Protection",
@@ -239,13 +219,13 @@ def create_ssrf_page(service, daemon_name: str):
                         ).classes("w-64")
 
                         async def save_action(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("ssrf_protection", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["action"] = e.value
                             cfg["ssrf_protection"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify(f"Action: {e.value}", type="positive")
 
                         act_sel.on_value_change(save_action)
@@ -261,13 +241,13 @@ def create_ssrf_page(service, daemon_name: str):
                         )
 
                         async def save_localhost(e):
-                            cfg = await run.io_bound(_load_config)
+                            cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("ssrf_protection", {})
                             if not isinstance(sect, dict):
                                 sect = {}
                             sect["allow_localhost"] = e.value
                             cfg["ssrf_protection"] = sect
-                            await run.io_bound(_save_config, cfg)
+                            await run.io_bound(save_web_config, cfg)
                             ui.notify("Saved", type="positive")
 
                         lh_sw.on_value_change(save_localhost)
@@ -288,7 +268,7 @@ def create_ssrf_page(service, daemon_name: str):
                                     )
 
                                     async def remove_ip(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("ssrf_protection", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -297,7 +277,7 @@ def create_ssrf_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["additional_blocked_ips"] = items
                                             cfg["ssrf_protection"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("IP removed", type="positive")
                                             await refresh()
 
@@ -317,7 +297,7 @@ def create_ssrf_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter an IP or CIDR", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("ssrf_protection", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -328,7 +308,7 @@ def create_ssrf_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["additional_blocked_ips"] = items
                                 cfg["ssrf_protection"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ip_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
@@ -351,7 +331,7 @@ def create_ssrf_page(service, daemon_name: str):
                                     )
 
                                     async def remove_domain(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("ssrf_protection", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -360,7 +340,7 @@ def create_ssrf_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["additional_blocked_domains"] = items
                                             cfg["ssrf_protection"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Domain removed", type="positive")
                                             await refresh()
 
@@ -380,7 +360,7 @@ def create_ssrf_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter a domain", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("ssrf_protection", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -391,7 +371,7 @@ def create_ssrf_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["additional_blocked_domains"] = items
                                 cfg["ssrf_protection"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 dom_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
@@ -415,7 +395,7 @@ def create_ssrf_page(service, daemon_name: str):
                                     )
 
                                     async def remove_allowed(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("ssrf_protection", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -424,7 +404,7 @@ def create_ssrf_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["allowed_domains"] = items
                                             cfg["ssrf_protection"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Domain removed", type="positive")
                                             await refresh()
 
@@ -444,7 +424,7 @@ def create_ssrf_page(service, daemon_name: str):
                                 if not val:
                                     ui.notify("Enter a domain", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("ssrf_protection", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -455,7 +435,7 @@ def create_ssrf_page(service, daemon_name: str):
                                 items.append(val)
                                 sect["allowed_domains"] = items
                                 cfg["ssrf_protection"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 allow_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()

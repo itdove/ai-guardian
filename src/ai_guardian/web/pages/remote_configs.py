@@ -1,6 +1,5 @@
 """Remote Configs page — manage remote configuration URLs."""
 
-import json
 import os
 import urllib.request
 import urllib.error
@@ -8,6 +7,7 @@ import urllib.error
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
 def _normalize_url_entry(entry):
@@ -48,27 +48,6 @@ def _test_url_connectivity(url, token_env=None):
         return False, str(e)
 
 
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
-
-
 def create_remote_configs_page(service, daemon_name: str):
     """Create the Remote Configs page."""
     create_header(daemon_name)
@@ -86,7 +65,7 @@ def create_remote_configs_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     rc = config.get("remote_configs", {})
@@ -131,7 +110,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                     ).props("dense")
 
                                     async def toggle_enabled(e, i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("remote_configs", {})
                                         items = sect.get("urls", [])
                                         if i < len(items):
@@ -143,7 +122,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                             sect["urls"] = items
                                             cfg["remote_configs"] = sect
                                             await run.io_bound(
-                                                _save_config, cfg
+                                                save_web_config, cfg
                                             )
                                             ui.notify(
                                                 "Updated", type="positive"
@@ -174,7 +153,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                     )
 
                                     async def remove_url(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("remote_configs", {})
                                         items = sect.get("urls", [])
                                         if i < len(items):
@@ -182,7 +161,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                             sect["urls"] = items
                                             cfg["remote_configs"] = sect
                                             await run.io_bound(
-                                                _save_config, cfg
+                                                save_web_config, cfg
                                             )
                                             ui.notify(
                                                 "Removed", type="positive"
@@ -225,7 +204,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                         type="negative",
                                     )
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("remote_configs", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -237,7 +216,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                 items.append(entry)
                                 sect["urls"] = items
                                 cfg["remote_configs"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 url_input.value = ""
                                 token_input.value = ""
                                 ui.notify(f"Added: {val}", type="positive")
@@ -270,7 +249,7 @@ def create_remote_configs_page(service, daemon_name: str):
                             ).props("dense outlined").classes("w-48")
 
                             async def save_cache():
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("remote_configs", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -281,7 +260,7 @@ def create_remote_configs_page(service, daemon_name: str):
                                     expire_input.value or 168
                                 )
                                 cfg["remote_configs"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 ui.notify("Cache settings saved",
                                           type="positive")
 

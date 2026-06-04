@@ -1,10 +1,9 @@
 """Prompt Injection Unicode Detection page — unicode attack detection settings."""
 
-import json
-
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 UNICODE_CHECKS = [
     ("detect_zero_width", True,
@@ -28,26 +27,6 @@ UNICODE_CHECKS = [
 ]
 
 
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
-
 
 def create_pi_unicode_page(service, daemon_name: str):
     """Create the Prompt Injection Unicode Detection page."""
@@ -66,7 +45,7 @@ def create_pi_unicode_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     pi = config.get("prompt_injection", {})
@@ -89,7 +68,7 @@ def create_pi_unicode_page(service, daemon_name: str):
                                 ui.label(desc).classes("text-xs text-grey-6")
 
                                 async def on_change(e, k=key):
-                                    cfg = await run.io_bound(_load_config)
+                                    cfg = await run.io_bound(load_web_config)
                                     sect = cfg.get("prompt_injection", {})
                                     if not isinstance(sect, dict):
                                         sect = {}
@@ -99,7 +78,7 @@ def create_pi_unicode_page(service, daemon_name: str):
                                     usect[k] = e.value
                                     sect["unicode_detection"] = usect
                                     cfg["prompt_injection"] = sect
-                                    await run.io_bound(_save_config, cfg)
+                                    await run.io_bound(save_web_config, cfg)
                                     ui.notify("Saved", type="positive")
 
                                 sw.on_value_change(on_change)

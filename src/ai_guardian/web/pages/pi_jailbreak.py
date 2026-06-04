@@ -1,12 +1,12 @@
 """Prompt Injection Jailbreak page — jailbreak categories and custom patterns."""
 
-import json
 import re as re_mod
 from datetime import datetime, timedelta, timezone
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 BUILTIN_JAILBREAK_CATEGORIES = {
     "Role-play Attacks": "DAN mode, sudo mode, unrestricted mode prompts",
@@ -64,26 +64,6 @@ def _parse_enabled(raw):
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
 
-
-def _load_config():
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_config(config):
-    from ai_guardian.config_utils import get_config_dir
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
 
 
 def _load_jailbreak_stats():
@@ -178,7 +158,7 @@ def create_pi_jailbreak_page(service, daemon_name: str):
 
             async def refresh():
                 content.clear()
-                config = await run.io_bound(_load_config)
+                config = await run.io_bound(load_web_config)
 
                 with content:
                     pi = config.get("prompt_injection", {})
@@ -216,7 +196,7 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                     )
 
                                     async def remove_pat(i=idx):
-                                        cfg = await run.io_bound(_load_config)
+                                        cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("prompt_injection", {})
                                         if not isinstance(sect, dict):
                                             return
@@ -225,7 +205,7 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                             pats.pop(i)
                                             sect["jailbreak_patterns"] = pats
                                             cfg["prompt_injection"] = sect
-                                            await run.io_bound(_save_config, cfg)
+                                            await run.io_bound(save_web_config, cfg)
                                             ui.notify("Pattern removed", type="positive")
                                             await refresh()
 
@@ -250,7 +230,7 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                 except re_mod.error as e:
                                     ui.notify(f"Invalid regex: {e}", type="negative")
                                     return
-                                cfg = await run.io_bound(_load_config)
+                                cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("prompt_injection", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
@@ -261,7 +241,7 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                 pats.append(pattern)
                                 sect["jailbreak_patterns"] = pats
                                 cfg["prompt_injection"] = sect
-                                await run.io_bound(_save_config, cfg)
+                                await run.io_bound(save_web_config, cfg)
                                 pat_input.value = ""
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
