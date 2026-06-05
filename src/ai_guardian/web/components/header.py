@@ -51,6 +51,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ("MCP Settings", f"{prefix}/mcp-servers"),
             ("MCP Security", f"{prefix}/mcp-security"),
             ("Permissions Discovery", f"{prefix}/permissions-discovery"),
+            ("Auto Directory Rules", f"{prefix}/auto-directory-rules"),
             ("Directory Rules", f"{prefix}/directory-rules"),
         ]),
         ("Secrets", [

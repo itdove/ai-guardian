@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Web and TUI console panel for auto_directory_rules** (Issue #966)
+  - New "Auto Directory Rules" page in web console under Permissions sidebar group
+  - Toggle enabled/disabled and allow_symlinks settings
+  - Read-only preview of discovered skills, matched skills, and generated directory rules
+  - Status indicators: directories scanned, skills discovered, skills matched, rules generated
+  - Skill permission patterns display (from permissions.rules[Skill] allow rules)
+  - Scanned directories listing with all standard IDE skill locations
+  - Matching TUI panel with switches, status display, and rules list
+  - 33 new tests (14 web, 19 TUI) covering imports, routing, sidebar, generator, and config save
+
 - **Support bundle email destination (SMTP)** (Issue #932)
   - Email as a support bundle destination alongside S3, GCS, and local filesystem
   - `_zip_bundle()` helper zips all bundle files into a single attachment

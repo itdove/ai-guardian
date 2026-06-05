@@ -106,6 +106,7 @@ NAV_GROUPS = [
         ("MCP Servers", "panel-mcp"),
         ("MCP Security", "panel-mcp-security"),
         ("Permissions Discovery", "panel-permissions-discovery"),
+        ("Auto Directory Rules", "panel-auto-directory-rules"),
         ("Directory Rules", "panel-directory-rules"),
     ]),
     ("Secrets", [
@@ -315,6 +316,18 @@ HELP_DOCS = {
         "  - Tool name and parameters\n"
         "  - Timestamp and frequency\n"
         "  - Quick-add buttons for allow/deny rules"
+    ),
+    "panel-auto-directory-rules": (
+        "[bold]Auto Directory Rules[/bold]\n\n"
+        "Auto-generate directory access rules from skill permissions.\n\n"
+        "When enabled, AI Guardian scans standard skill directories for\n"
+        "installed skills and creates directory rules for those matching\n"
+        "your Skill permission allow patterns.\n\n"
+        "[bold]Settings:[/bold]\n"
+        "  [bold]Enabled[/bold]     Toggle auto-generation on/off\n"
+        "  [bold]Symlinks[/bold]    Follow symlinks during skill discovery\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Refresh discovery results"
     ),
     "Prompt Injection": (
         "[bold]Prompt Injection[/bold]\n\n"
@@ -1045,6 +1058,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-permissions-discovery"):
                     from ai_guardian.tui.permissions_discovery import PermissionsDiscoveryContent
                     yield PermissionsDiscoveryContent()
+
+                with Container(id="panel-auto-directory-rules"):
+                    from ai_guardian.tui.auto_directory_rules import AutoDirectoryRulesContent
+                    yield AutoDirectoryRulesContent()
 
                 with Container(id="panel-pi-detection"):
                     from ai_guardian.tui.pi_detection import PIDetectionContent
