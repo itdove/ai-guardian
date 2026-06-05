@@ -358,4 +358,133 @@ def create_secrets_page(service, daemon_name: str):
                             "Save Cache Settings", icon="save", on_click=save_cache
                         ).props("dense").classes("mt-2")
 
+                    # --- Secret Validation (opt-in, Issue #976) ---
+                    validate_on = ss.get("validate_secrets", False)
+
+                    with ui.card().classes("w-full"):
+                        ui.label("Secret Validation").classes("text-lg font-bold")
+                        ui.label(
+                            "Validate detected secrets against provider APIs "
+                            "to check if they are still active."
+                        ).classes("text-xs text-grey-6")
+
+                        sv_switch = ui.switch(
+                            "Enable Secret Validation",
+                            value=bool(validate_on),
+                        )
+
+                        # Privacy consent banner — visible only when enabled
+                        privacy_banner = ui.card().classes("w-full").style(
+                            "background-color: rgba(255, 152, 0, 0.1); "
+                            "border-left: 4px solid #ff9800"
+                        )
+                        privacy_banner.set_visibility(bool(validate_on))
+
+                        with privacy_banner:
+                            with ui.row().classes("items-center gap-2"):
+                                ui.icon("warning").classes("text-amber")
+                                ui.label("Privacy Warning").classes(
+                                    "font-bold text-sm text-amber"
+                                )
+                            ui.label(
+                                "Detected secrets will be sent to external provider "
+                                "APIs for liveness validation. This happens "
+                                "automatically on every detection. By enabling this "
+                                "feature you consent to outbound network calls with "
+                                "sensitive data."
+                            ).classes("text-xs text-grey-7 ml-8")
+
+                        async def on_validate_toggle(e, banner=privacy_banner):
+                            banner.set_visibility(e.value)
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("secret_scanning", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            sect["validate_secrets"] = e.value
+                            cfg["secret_scanning"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            ui.notify(
+                                f"Secret validation "
+                                f"{'enabled' if e.value else 'disabled'}",
+                                type="positive",
+                            )
+
+                        sv_switch.on_value_change(on_validate_toggle)
+
+                    # --- Validation timeout ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Validation Timeout").classes("text-lg font-bold")
+                        ui.label(
+                            "Timeout in milliseconds per secret validation "
+                            "HTTP request (per-secret, not total)."
+                        ).classes("text-xs text-grey-6")
+
+                        timeout_val = ss.get("validation_timeout_ms", 3000)
+                        timeout_input = ui.number(
+                            label="Timeout (ms)",
+                            value=timeout_val,
+                            min=500,
+                            max=30000,
+                            step=100,
+                        ).props("dense outlined").classes("w-48")
+
+                        async def save_timeout(e):
+                            try:
+                                val = int(e.value)
+                                if val < 500 or val > 30000:
+                                    ui.notify(
+                                        "Timeout must be between 500 and 30000 ms",
+                                        type="negative",
+                                    )
+                                    return
+                            except (ValueError, TypeError):
+                                ui.notify(
+                                    "Timeout must be a number", type="negative"
+                                )
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("secret_scanning", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            sect["validation_timeout_ms"] = val
+                            cfg["secret_scanning"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            ui.notify(
+                                f"Validation timeout: {val} ms", type="positive"
+                            )
+
+                        timeout_input.on("blur", save_timeout)
+
+                    # --- On inactive action ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Inactive Secret Action").classes("text-lg font-bold")
+                        ui.label(
+                            "Action to take when a detected secret is validated "
+                            "as inactive (revoked/expired). Active and unverified "
+                            "secrets always block regardless of this setting."
+                        ).classes("text-xs text-grey-6")
+
+                        on_inactive_val = ss.get("on_inactive", "warn")
+                        inactive_sel = ui.select(
+                            options={
+                                "warn": "Warn — log warning, skip block",
+                                "allow": "Allow — silently skip",
+                            },
+                            value=on_inactive_val,
+                        ).classes("w-64")
+
+                        async def save_on_inactive(e):
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("secret_scanning", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            sect["on_inactive"] = e.value
+                            cfg["secret_scanning"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            ui.notify(
+                                f"Inactive action: {e.value}", type="positive"
+                            )
+
+                        inactive_sel.on_value_change(save_on_inactive)
+
             ui.timer(0.1, refresh, once=True)

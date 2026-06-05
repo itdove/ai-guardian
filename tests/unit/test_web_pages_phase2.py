@@ -616,3 +616,152 @@ class TestConfigLoadSave:
             text = (tmp_path / "ai-guardian.json").read_text()
             assert "\n" in text
             assert text.endswith("\n")
+
+
+# ---------------------------------------------------------------------------
+# Secret Validation config logic (Issue #976)
+# ---------------------------------------------------------------------------
+
+class TestSecretValidationConfigLogic:
+    """Tests for secret validation UI config read/write patterns."""
+
+    def test_validate_secrets_default_false(self, tmp_path):
+        """validate_secrets defaults to False when not in config."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {"enabled": true}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config
+
+            config = load_web_config()
+            ss = config.get("secret_scanning", {})
+            assert ss.get("validate_secrets", False) is False
+
+    def test_validate_secrets_roundtrip(self, tmp_path):
+        """validate_secrets can be saved and loaded back."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config, save_web_config
+
+            cfg = load_web_config()
+            cfg["secret_scanning"]["validate_secrets"] = True
+            save_web_config(cfg)
+
+            cfg2 = load_web_config()
+            assert cfg2["secret_scanning"]["validate_secrets"] is True
+
+    def test_validation_timeout_ms_default(self, tmp_path):
+        """validation_timeout_ms defaults to 3000 when absent."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config
+
+            config = load_web_config()
+            ss = config.get("secret_scanning", {})
+            assert ss.get("validation_timeout_ms", 3000) == 3000
+
+    def test_validation_timeout_ms_roundtrip(self, tmp_path):
+        """validation_timeout_ms can be saved and loaded back."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config, save_web_config
+
+            cfg = load_web_config()
+            cfg["secret_scanning"]["validation_timeout_ms"] = 5000
+            save_web_config(cfg)
+
+            cfg2 = load_web_config()
+            assert cfg2["secret_scanning"]["validation_timeout_ms"] == 5000
+
+    def test_on_inactive_default_warn(self, tmp_path):
+        """on_inactive defaults to 'warn' when absent."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config
+
+            config = load_web_config()
+            ss = config.get("secret_scanning", {})
+            assert ss.get("on_inactive", "warn") == "warn"
+
+    def test_on_inactive_roundtrip(self, tmp_path):
+        """on_inactive can be saved and loaded back."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text('{"secret_scanning": {}}')
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config, save_web_config
+
+            cfg = load_web_config()
+            cfg["secret_scanning"]["on_inactive"] = "allow"
+            save_web_config(cfg)
+
+            cfg2 = load_web_config()
+            assert cfg2["secret_scanning"]["on_inactive"] == "allow"
+
+    def test_validation_fields_preserve_other_config(self, tmp_path):
+        """Saving validation fields does not clobber existing config."""
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text(json.dumps({
+            "secret_scanning": {
+                "enabled": True,
+                "allowlist_patterns": ["pk_test_.*"],
+                "pattern_server": {"enabled": False},
+            }
+        }))
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config, save_web_config
+
+            cfg = load_web_config()
+            cfg["secret_scanning"]["validate_secrets"] = True
+            cfg["secret_scanning"]["validation_timeout_ms"] = 2000
+            cfg["secret_scanning"]["on_inactive"] = "allow"
+            save_web_config(cfg)
+
+            cfg2 = load_web_config()
+            ss = cfg2["secret_scanning"]
+            # New fields saved
+            assert ss["validate_secrets"] is True
+            assert ss["validation_timeout_ms"] == 2000
+            assert ss["on_inactive"] == "allow"
+            # Existing fields preserved
+            assert ss["enabled"] is True
+            assert ss["allowlist_patterns"] == ["pk_test_.*"]
+            assert ss["pattern_server"]["enabled"] is False
+
+    def test_validation_fields_in_empty_config(self, tmp_path):
+        """Saving validation fields works when starting from empty config."""
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ):
+            from ai_guardian.web.config_helpers import load_web_config, save_web_config
+
+            cfg = load_web_config()  # {} since file doesn't exist
+            ss = cfg.setdefault("secret_scanning", {})
+            ss["validate_secrets"] = True
+            save_web_config(cfg)
+
+            cfg2 = load_web_config()
+            assert cfg2["secret_scanning"]["validate_secrets"] is True

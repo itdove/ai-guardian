@@ -11,7 +11,7 @@ from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Button, Input, Label, Checkbox
+from textual.widgets import Static, Button, Input, Label, Checkbox, Select
 
 from ai_guardian.config_utils import get_cache_dir, get_config_dir
 from ai_guardian.tui.schema_defaults import (
@@ -244,6 +244,57 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                         f"{default_indicator('secret_scanning.pattern_server.cache.expire_after_hours')}"
                     )
 
+            # Secret Validation section (Issue #976)
+            with Container(classes="section"):
+                yield Static("[bold]Secret Validation[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Validate detected secrets against provider APIs to check "
+                    "if they are still active. Inactive secrets produce a warning "
+                    "instead of blocking.[/dim]",
+                    classes="section-title",
+                )
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Validate Secrets:")
+                    yield Checkbox(
+                        "", id="validate-secrets-checkbox", value=False
+                    )
+                    yield Static(
+                        f"[dim]Enable secret liveness validation (opt-in)[/dim] "
+                        f"{default_indicator('secret_scanning.validate_secrets')}"
+                    )
+
+                yield Static(
+                    "",
+                    id="validate-secrets-privacy-warning",
+                )
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Timeout (ms):")
+                    yield Input(
+                        placeholder=default_placeholder("secret_scanning.validation_timeout_ms"),
+                        id="validation-timeout-ms",
+                    )
+                    yield Static(
+                        f"[dim]Per-secret HTTP timeout (500-30000, Press Enter to save)[/dim] "
+                        f"{default_indicator('secret_scanning.validation_timeout_ms')}"
+                    )
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("On Inactive:")
+                    yield Select(
+                        [
+                            ("Warn — log warning, skip block", "warn"),
+                            ("Allow — silently skip", "allow"),
+                        ],
+                        value="warn",
+                        id="on-inactive-select",
+                    )
+                    yield Static(
+                        f"[dim]Action for revoked/expired secrets[/dim] "
+                        f"{default_indicator('secret_scanning.on_inactive')}"
+                    )
+
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -400,12 +451,57 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass  # Widgets may not be mounted yet
 
+        # Secret validation settings (Issue #976)
+        validate_on = secret_scanning.get("validate_secrets", False)
+        timeout_ms = secret_scanning.get("validation_timeout_ms", 3000)
+        on_inactive = secret_scanning.get("on_inactive", "warn")
+
+        try:
+            self.query_one("#validate-secrets-checkbox", Checkbox).value = bool(validate_on)
+            self.query_one("#validation-timeout-ms", Input).value = str(timeout_ms)
+            self.query_one("#on-inactive-select", Select).value = on_inactive
+        except Exception:
+            pass  # Widgets may not be mounted yet
+
+        # Privacy warning — visible only when validation is enabled
+        try:
+            warning_widget = self.query_one("#validate-secrets-privacy-warning", Static)
+            if validate_on:
+                warning_widget.update(
+                    "[bold yellow]⚠ Privacy Warning:[/bold yellow] "
+                    "[yellow]Detected secrets will be sent to external provider "
+                    "APIs for liveness validation. This happens automatically on "
+                    "every detection. By enabling this feature you consent to "
+                    "outbound network calls with sensitive data.[/yellow]"
+                )
+            else:
+                warning_widget.update("")
+        except Exception:
+            pass
+
         self._apply_default_indicators(ps)
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox toggle."""
         if event.checkbox.id == "pattern-server-warn-on-failure":
             self.save_pattern_server_field("warn_on_failure", event.value)
+        elif event.checkbox.id == "validate-secrets-checkbox":
+            self._save_secret_scanning_field("validate_secrets", event.value)
+            # Update privacy warning visibility
+            try:
+                warning_widget = self.query_one("#validate-secrets-privacy-warning", Static)
+                if event.value:
+                    warning_widget.update(
+                        "[bold yellow]\u26a0 Privacy Warning:[/bold yellow] "
+                        "[yellow]Detected secrets will be sent to external provider "
+                        "APIs for liveness validation. This happens automatically on "
+                        "every detection. By enabling this feature you consent to "
+                        "outbound network calls with sensitive data.[/yellow]"
+                    )
+                else:
+                    warning_widget.update("")
+            except Exception:
+                pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press in TimeBasedToggle - save immediately."""
@@ -466,8 +562,28 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 self.save_cache_field("expire_after_hours", hours)
             except ValueError:
                 self.app.notify("Expire after must be a number", severity="error")
+        elif event.input.id == "validation-timeout-ms":
+            try:
+                val = int(event.value)
+                if val < 500 or val > 30000:
+                    self.app.notify(
+                        "Timeout must be between 500 and 30000 ms",
+                        severity="error",
+                    )
+                    return
+                self._save_secret_scanning_field("validation_timeout_ms", val)
+            except ValueError:
+                self.app.notify("Timeout must be a number", severity="error")
         elif event.input.id == "secret-allowlist-input":
             self._add_allowlist_pattern()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Handle select dropdown changes."""
+        if getattr(self, '_loading', False):
+            return
+        if event.select.id == "on-inactive-select":
+            if event.value is not Select.BLANK:
+                self._save_secret_scanning_field("on_inactive", event.value)
 
     def action_test_server(self) -> None:
         """Test pattern server connection (triggered by 't' key)."""
@@ -513,6 +629,31 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error saving config: {e}", severity="error")
+
+    def _save_secret_scanning_field(self, field: str, value) -> None:
+        """Save a field under secret_scanning to config."""
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+
+            if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+                config["secret_scanning"] = {}
+
+            config["secret_scanning"][field] = value
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            self.app.notify(f"\u2713 Saved {field}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error saving {field}: {e}", severity="error")
 
     def save_pattern_server_enabled_value(self, value: Union[bool, Dict[str, Any]]) -> None:
         """Save pattern server enabled state to config (supports time-based format).
