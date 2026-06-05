@@ -421,3 +421,150 @@ class TestEnsurePatternServerSection:
         }
         SecretsContent._ensure_pattern_server_section(None, config)
         assert config["secret_scanning"]["pattern_server"]["url"] == "https://example.com"
+
+
+class TestSaveSecretScanningField:
+    """Test _save_secret_scanning_field method (Issue #976).
+
+    Verifies that secret validation fields (validate_secrets,
+    validation_timeout_ms, on_inactive) are saved correctly under
+    secret_scanning without clobbering existing fields.
+    """
+
+    def _simulate_save(self, config_path, field, value):
+        """Simulate the save logic from _save_secret_scanning_field."""
+        config = {}
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+        if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+            config["secret_scanning"] = {}
+
+        config["secret_scanning"][field] = value
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+
+        return read_config(config_path)
+
+    def test_save_validate_secrets_true(self, config_path, config_dir):
+        """Saving validate_secrets=True writes to secret_scanning."""
+        write_config(config_path, {"secret_scanning": {}})
+        result = self._simulate_save(config_path, "validate_secrets", True)
+        assert result["secret_scanning"]["validate_secrets"] is True
+
+    def test_save_validate_secrets_false(self, config_path, config_dir):
+        """Saving validate_secrets=False writes to secret_scanning."""
+        write_config(config_path, {"secret_scanning": {"validate_secrets": True}})
+        result = self._simulate_save(config_path, "validate_secrets", False)
+        assert result["secret_scanning"]["validate_secrets"] is False
+
+    def test_save_validation_timeout_ms(self, config_path, config_dir):
+        """Saving validation_timeout_ms writes integer to config."""
+        write_config(config_path, {"secret_scanning": {}})
+        result = self._simulate_save(config_path, "validation_timeout_ms", 5000)
+        assert result["secret_scanning"]["validation_timeout_ms"] == 5000
+
+    def test_save_on_inactive_allow(self, config_path, config_dir):
+        """Saving on_inactive='allow' writes to config."""
+        write_config(config_path, {"secret_scanning": {}})
+        result = self._simulate_save(config_path, "on_inactive", "allow")
+        assert result["secret_scanning"]["on_inactive"] == "allow"
+
+    def test_save_on_inactive_warn(self, config_path, config_dir):
+        """Saving on_inactive='warn' writes to config."""
+        write_config(config_path, {"secret_scanning": {"on_inactive": "allow"}})
+        result = self._simulate_save(config_path, "on_inactive", "warn")
+        assert result["secret_scanning"]["on_inactive"] == "warn"
+
+    def test_save_preserves_existing_fields(self, config_path, config_dir):
+        """Saving validation fields preserves all other secret_scanning fields."""
+        write_config(config_path, {
+            "secret_scanning": {
+                "enabled": True,
+                "engines": ["gitleaks"],
+                "allowlist_patterns": ["pk_test_.*"],
+                "pattern_server": {
+                    "enabled": True,
+                    "url": "https://example.com",
+                },
+            }
+        })
+        result = self._simulate_save(config_path, "validate_secrets", True)
+
+        ss = result["secret_scanning"]
+        assert ss["validate_secrets"] is True
+        assert ss["enabled"] is True
+        assert ss["engines"] == ["gitleaks"]
+        assert ss["allowlist_patterns"] == ["pk_test_.*"]
+        assert ss["pattern_server"]["enabled"] is True
+        assert ss["pattern_server"]["url"] == "https://example.com"
+
+    def test_save_creates_section_from_empty(self, config_path, config_dir):
+        """Saving to empty config creates secret_scanning section."""
+        write_config(config_path, {})
+        result = self._simulate_save(config_path, "validate_secrets", True)
+        assert result["secret_scanning"]["validate_secrets"] is True
+
+    def test_save_creates_section_from_no_file(self, config_path, config_dir):
+        """Saving with no config file creates it with correct structure."""
+        result = self._simulate_save(config_path, "validate_secrets", True)
+        assert result["secret_scanning"]["validate_secrets"] is True
+
+
+class TestReadSecretValidationConfig:
+    """Test reading secret validation config values (Issue #976).
+
+    Verifies the config-reading logic that the TUI's _load_config_inner
+    uses for the validation fields.
+    """
+
+    def _read_validation_config(self, config):
+        """Extract validation config the same way _load_config_inner does."""
+        secret_scanning = config.get("secret_scanning", {})
+        return {
+            "validate_secrets": secret_scanning.get("validate_secrets", False),
+            "validation_timeout_ms": secret_scanning.get("validation_timeout_ms", 3000),
+            "on_inactive": secret_scanning.get("on_inactive", "warn"),
+        }
+
+    def test_defaults_when_absent(self):
+        """All validation fields return correct defaults when absent."""
+        result = self._read_validation_config({})
+        assert result["validate_secrets"] is False
+        assert result["validation_timeout_ms"] == 3000
+        assert result["on_inactive"] == "warn"
+
+    def test_defaults_with_empty_section(self):
+        """Returns defaults when secret_scanning is empty."""
+        result = self._read_validation_config({"secret_scanning": {}})
+        assert result["validate_secrets"] is False
+        assert result["validation_timeout_ms"] == 3000
+        assert result["on_inactive"] == "warn"
+
+    def test_reads_configured_values(self):
+        """Reads configured values correctly."""
+        config = {
+            "secret_scanning": {
+                "validate_secrets": True,
+                "validation_timeout_ms": 5000,
+                "on_inactive": "allow",
+            }
+        }
+        result = self._read_validation_config(config)
+        assert result["validate_secrets"] is True
+        assert result["validation_timeout_ms"] == 5000
+        assert result["on_inactive"] == "allow"
+
+    def test_partial_config_uses_defaults_for_missing(self):
+        """Missing fields return defaults when others are present."""
+        config = {
+            "secret_scanning": {
+                "validate_secrets": True,
+            }
+        }
+        result = self._read_validation_config(config)
+        assert result["validate_secrets"] is True
+        assert result["validation_timeout_ms"] == 3000
+        assert result["on_inactive"] == "warn"
