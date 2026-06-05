@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Secret liveness validation** (Issue #971)
+  - After pattern-match detection, optionally validate secrets against their provider API to check if they're still active
+  - **Built-in validators** for 6 services: GitHub tokens, OpenAI API keys, Anthropic API keys, Slack tokens, GitLab tokens, npm tokens
+  - **Custom validators** via TOML pattern rules using `live_validation = { url, auth, expect }` syntax
+  - **Result categories**: `verified` (active, block), `unverified` (no validator, block), `inactive` (revoked/expired, warn only)
+  - **Opt-in only** (`secret_scanning.validate_secrets: true`) — privacy-sensitive, sends secrets to provider APIs
+  - New config options: `validate_secrets`, `validation_timeout_ms`, `on_inactive`
+  - Parallel validation with configurable timeout (default 3000ms)
+  - Integration at all secret detection paths (strategy, legacy subprocess, fallthroughs)
+  - 65 new tests covering all validators, batch validation, filtering, and hook integration
+  - New `validation_status` field on `SecretMatch` dataclass
+
 - **Per-directory pause for daemon scanning** (Issue #958)
   - Pause scanning for a specific project directory without affecting other projects
   - `DaemonState`: new `pause_dir()`, `resume_dir()`, `is_dir_paused()`, `get_paused_dirs()` methods

@@ -31,6 +31,7 @@ class SecretMatch:
     engine: str = ""  # Which engine found it
     confidence: float = 1.0  # 0.0-1.0 confidence score
     verified: bool = False  # For engines that support verification
+    validation_status: str = "unverified"  # "verified", "inactive", or "unverified" (Issue #971)
 
 
 @dataclass

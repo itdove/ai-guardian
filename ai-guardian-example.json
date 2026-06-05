@@ -330,7 +330,19 @@
     "_compliance_example": {
       "_comment": "Compliance reporting: generate reports for HIPAA, PCI-DSS, or SOC2",
       "framework": "soc2"
-    }
+    },
+
+    "_comment_validation": "NEW in v1.11.0: Secret liveness validation (Issue #971)",
+    "_comment_validation2": "After detection, optionally check if secrets are still active by calling provider APIs.",
+    "_comment_validation3": "PRIVACY: sends detected secrets to provider APIs. Must be explicitly opted in.",
+    "_comment_validation4": "Built-in validators: github-personal-token, openai-api-key, anthropic-api-key, slack-token, gitlab-personal-token, npm-token",
+    "_comment_validation5": "Custom validators: add 'live_validation' to TOML pattern rules (see docs)",
+    "validate_secrets": false,
+    "_validate_secrets_comment": "Set to true to enable secret liveness validation. Default: false (no network calls from scanner).",
+    "validation_timeout_ms": 3000,
+    "_validation_timeout_comment": "Timeout per validation request in milliseconds. Default: 3000ms.",
+    "on_inactive": "warn",
+    "_on_inactive_comment": "Action for inactive (revoked/expired) secrets: 'warn' (log warning, don't block) or 'allow' (silently skip). Verified-active and unverified secrets always block."
   },
 
   "prompt_injection": {
