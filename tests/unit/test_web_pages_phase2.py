@@ -15,6 +15,12 @@ pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
 class TestPageImports:
     """Verify each Phase 2 page module imports and exposes its create function."""
 
+    def test_permission_rules_page_exists(self):
+        from ai_guardian.web.pages.permission_rules import (
+            create_permission_rules_page,
+        )
+        assert callable(create_permission_rules_page)
+
     def test_skills_page_exists(self):
         from ai_guardian.web.pages.skills import create_skills_page
         assert callable(create_skills_page)
@@ -61,9 +67,23 @@ class TestPageImports:
 # ---------------------------------------------------------------------------
 
 class TestRouteSidebarConsistency:
-    """Verify every Phase 2 route path appears in the sidebar navigation."""
+    """Verify every Phase 2 route path appears in the sidebar and app."""
 
-    PHASE2_ROUTES = [
+    # Routes that appear in the sidebar
+    SIDEBAR_ROUTES = [
+        "/permission-rules",
+        "/mcp-servers",
+        "/mcp-security",
+        "/permissions-discovery",
+        "/directory-rules",
+        "/secrets",
+        "/secret-engines",
+        "/secret-redaction",
+    ]
+
+    # Routes registered in app.py (includes legacy routes for backward compat)
+    APP_ROUTES = [
+        "/permission-rules",
         "/skills",
         "/mcp-servers",
         "/mcp-security",
@@ -80,23 +100,160 @@ class TestRouteSidebarConsistency:
         from ai_guardian.web.app import WebConsole
 
         source = inspect.getsource(WebConsole._register_pages)
-        for route in self.PHASE2_ROUTES:
+        for route in self.APP_ROUTES:
             assert route in source, f"Route {route} not found in app.py"
 
-    def test_all_routes_in_sidebar(self):
-        """Check that header.py sidebar includes all Phase 2 paths."""
+    def test_all_sidebar_routes_in_sidebar(self):
+        """Check that header.py sidebar includes all active paths."""
         import inspect
         from ai_guardian.web.components.header import create_sidebar
 
         source = inspect.getsource(create_sidebar)
-        for route in self.PHASE2_ROUTES:
+        for route in self.SIDEBAR_ROUTES:
             assert route in source, (
                 f"Route {route} not found in sidebar navigation"
             )
 
+    def test_skills_route_not_in_sidebar(self):
+        """Skills route should NOT be in sidebar (consolidated)."""
+        import inspect
+        from ai_guardian.web.components.header import create_sidebar
+
+        source = inspect.getsource(create_sidebar)
+        # /skills should not appear, but /permission-rules should
+        # Note: we check the full path to avoid matching substrings
+        lines = source.split("\n")
+        skill_entries = [
+            line for line in lines
+            if '"/skills"' in line or "'/skills'" in line
+            or 'f"{prefix}/skills"' in line
+        ]
+        assert not skill_entries, (
+            "Legacy /skills route should not appear in sidebar"
+        )
+
 
 # ---------------------------------------------------------------------------
-# Skills config logic
+# Permission Rules config logic (consolidated page)
+# ---------------------------------------------------------------------------
+
+class TestPermissionRulesConfigLogic:
+    def test_get_all_rules_empty(self):
+        from ai_guardian.web.pages.permission_rules import _get_all_rules
+
+        assert _get_all_rules({}) == []
+
+    def test_get_all_rules_returns_all(self):
+        from ai_guardian.web.pages.permission_rules import _get_all_rules
+
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]},
+                    {"matcher": "mcp__foo", "mode": "allow", "patterns": ["*"]},
+                    {"matcher": "*", "mode": "deny", "patterns": ["*"]},
+                ],
+            }
+        }
+        rules = _get_all_rules(config)
+        assert len(rules) == 3
+        assert rules[0]["matcher"] == "Skill"
+        assert rules[1]["matcher"] == "mcp__foo"
+        assert rules[2]["matcher"] == "*"
+
+    def test_get_all_rules_non_dict_permissions(self):
+        from ai_guardian.web.pages.permission_rules import _get_all_rules
+
+        assert _get_all_rules({"permissions": "invalid"}) == []
+
+    def test_classify_matcher_mcp(self):
+        from ai_guardian.web.pages.permission_rules import _classify_matcher
+
+        label, icon, color = _classify_matcher("mcp__server__*")
+        assert label == "MCP"
+        assert color == "purple"
+
+    def test_classify_matcher_skill(self):
+        from ai_guardian.web.pages.permission_rules import _classify_matcher
+
+        label, icon, color = _classify_matcher("Skill")
+        assert label == "Skill"
+        assert color == "blue"
+
+    def test_classify_matcher_tool(self):
+        from ai_guardian.web.pages.permission_rules import _classify_matcher
+
+        for tool in ("Bash", "Write", "Read", "Edit", "Glob", "Grep", "WebFetch"):
+            label, icon, color = _classify_matcher(tool)
+            assert label == "Tool"
+            assert color == "orange"
+
+    def test_classify_matcher_global(self):
+        from ai_guardian.web.pages.permission_rules import _classify_matcher
+
+        label, icon, color = _classify_matcher("*")
+        assert label == "Global"
+        assert color == "grey"
+
+    def test_classify_matcher_custom(self):
+        from ai_guardian.web.pages.permission_rules import _classify_matcher
+
+        label, icon, color = _classify_matcher("MyCustomTool")
+        assert label == "Custom"
+        assert color == "teal"
+
+    def test_format_expiration_none(self):
+        from ai_guardian.web.pages.permission_rules import _format_expiration
+
+        assert _format_expiration(None) is None
+        assert _format_expiration("") is None
+
+    def test_format_expiration_expired(self):
+        from ai_guardian.web.pages.permission_rules import _format_expiration
+
+        result = _format_expiration("2020-01-01T00:00:00Z")
+        assert result is not None
+        assert result[0] == "EXPIRED"
+        assert result[1] == "red"
+
+    def test_format_expiration_future(self):
+        from ai_guardian.web.pages.permission_rules import _format_expiration
+        from datetime import datetime, timezone, timedelta
+
+        future = (datetime.now(timezone.utc) + timedelta(days=5)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        result = _format_expiration(future)
+        assert result is not None
+        assert "expires" in result[0]
+
+    def test_parse_duration_valid(self):
+        from ai_guardian.web.pages.permission_rules import _parse_duration
+        from datetime import timedelta
+
+        assert _parse_duration("30m") == timedelta(minutes=30)
+        assert _parse_duration("2h") == timedelta(hours=2)
+        assert _parse_duration("1d") == timedelta(days=1)
+        assert _parse_duration("1d2h30m") == timedelta(
+            days=1, hours=2, minutes=30
+        )
+
+    def test_parse_duration_plain_number(self):
+        from ai_guardian.web.pages.permission_rules import _parse_duration
+        from datetime import timedelta
+
+        assert _parse_duration("60") == timedelta(minutes=60)
+
+    def test_parse_duration_invalid(self):
+        from ai_guardian.web.pages.permission_rules import _parse_duration
+
+        assert _parse_duration("abc") is None
+        assert _parse_duration("0d0h0m") is None
+
+
+# ---------------------------------------------------------------------------
+# Skills config logic (legacy — still tested for backward compat)
 # ---------------------------------------------------------------------------
 
 class TestSkillsConfigLogic:

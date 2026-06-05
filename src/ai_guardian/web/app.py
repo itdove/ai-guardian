@@ -143,6 +143,13 @@ class WebConsole:
             from ai_guardian.web.pages.logs import create_logs_page
             create_logs_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/permission-rules")
+        def permission_rules_page(daemon_name: str):
+            from ai_guardian.web.pages.permission_rules import (
+                create_permission_rules_page,
+            )
+            create_permission_rules_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/skills")
         def skills_page(daemon_name: str):
             from ai_guardian.web.pages.skills import create_skills_page
