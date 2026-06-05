@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Expand toml-patterns with platform-specific secret rules** (Issue #972)
+  - Added 8 new gap-filling rules for platforms not covered by gitleaks/leaktk engines
+  - **Payment/Financial**: Square OAuth Secret (`sq0csp-`), PayPal/Braintree Access Token (`access_token$`), PayPal Client Secret (context-based)
+  - **CI/CD**: CircleCI API Token, Jenkins API Token (context-based with hex validation)
+  - **Database**: MongoDB Atlas API Key (UUID format with context), Supabase Service/Anon Key (JWT with context)
+  - **AI/ML**: Replicate API Token (`r8_` prefix)
+  - Updated `token_not_placeholder` validator to support `sq0csp-` and `r8_` prefixes
+  - Audited all 6 issue categories against gitleaks rule set; 15 platforms already covered by gitleaks skipped
+  - secrets.toml now contains 52 rules (up from 44)
+  - 24 new tests covering detection, false positive resistance, and placeholder rejection
+
 - **Secret liveness validation** (Issue #971)
   - After pattern-match detection, optionally validate secrets against their provider API to check if they're still active
   - **Built-in validators** for 6 services: GitHub tokens, OpenAI API keys, Anthropic API keys, Slack tokens, GitLab tokens, npm tokens
