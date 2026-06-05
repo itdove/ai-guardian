@@ -147,3 +147,36 @@ def make_status_request():
 def make_reload_config():
     """Create a config reload request message."""
     return {"version": PROTOCOL_VERSION, "type": "reload_config"}
+
+
+def make_pause_dir(directory, minutes=0):
+    """Create a per-directory pause request message.
+
+    Args:
+        directory: Absolute path of the project directory to pause
+        minutes: Pause duration in minutes. 0 = indefinite.
+
+    Returns:
+        dict: Request envelope with version, type, and data
+    """
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "pause_dir",
+        "data": {"dir": directory, "minutes": minutes},
+    }
+
+
+def make_resume_dir(directory):
+    """Create a per-directory resume request message.
+
+    Args:
+        directory: Absolute path of the project directory to resume
+
+    Returns:
+        dict: Request envelope with version, type, and data
+    """
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "resume_dir",
+        "data": {"dir": directory},
+    }

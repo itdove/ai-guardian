@@ -523,6 +523,125 @@ class TestDaemonServerPauseResumeProtocol:
             sock.close()
 
 
+class TestDaemonServerPerDirPauseProtocol:
+    """Test socket protocol handlers for per-directory pause/resume (#958)."""
+
+    @pytest.fixture
+    def running_server(self, monkeypatch):
+        import tempfile
+        d = tempfile.mkdtemp(prefix="ag")
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
+        from pathlib import Path
+
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        sock_path = Path(d) / "daemon.sock"
+        for _ in range(30):
+            if sock_path.exists():
+                break
+            time.sleep(0.1)
+
+        yield server, sock_path
+
+        server.stop()
+        thread.join(timeout=3)
+        import shutil
+        shutil.rmtree(d, ignore_errors=True)
+
+    def _connect(self, sock_path, timeout=2.0):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect(str(sock_path))
+        return sock
+
+    def test_pause_dir_message(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "pause_dir",
+                   "data": {"dir": "/project/a", "minutes": 30}}
+            sock.sendall(encode_message(msg))
+            response = decode_message(sock, timeout=2.0)
+            assert response["type"] == "response"
+            assert response["data"]["status"] == "dir_paused"
+            assert response["data"]["dir"] == "/project/a"
+        finally:
+            sock.close()
+        assert server.state.is_dir_paused("/project/a")
+
+    def test_resume_dir_message(self, running_server):
+        server, sock_path = running_server
+        server.state.pause_dir("/project/a")
+
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "resume_dir",
+                   "data": {"dir": "/project/a"}}
+            sock.sendall(encode_message(msg))
+            response = decode_message(sock, timeout=2.0)
+            assert response["type"] == "response"
+            assert response["data"]["status"] == "dir_resumed"
+        finally:
+            sock.close()
+        assert not server.state.is_dir_paused("/project/a")
+
+    def test_pause_dir_missing_dir_returns_error(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        try:
+            msg = {"version": 1, "type": "pause_dir", "data": {}}
+            sock.sendall(encode_message(msg))
+            response = decode_message(sock, timeout=2.0)
+            assert "error" in response["data"]
+        finally:
+            sock.close()
+
+    def test_per_dir_pause_does_not_affect_other_dirs(self, running_server):
+        """Pausing one dir should not pause another."""
+        server, sock_path = running_server
+        server.state.pause_dir("/project/a")
+
+        # Hook from /project/b (not paused) should be processed
+        assert not server.state.is_dir_paused("/project/b")
+        assert server.state.is_dir_paused("/project/a")
+
+    def test_paused_dir_hook_returns_empty(self, running_server):
+        """Hook from a paused directory should return empty JSON."""
+        server, sock_path = running_server
+        server.state.pause_dir("/project/a")
+
+        sock = self._connect(sock_path)
+        try:
+            hook_data = {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls"},
+                "_daemon_cwd": "/project/a",
+            }
+            sock.sendall(encode_message(make_hook_request(hook_data)))
+            response = decode_message(sock, timeout=5.0)
+            assert response["data"]["output"] == "{}"
+            assert response["data"]["exit_code"] == 0
+        finally:
+            sock.close()
+
+    def test_status_includes_paused_dirs(self, running_server):
+        server, sock_path = running_server
+        server.state.pause_dir("/project/a")
+
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_status_request()))
+            response = decode_message(sock, timeout=2.0)
+            stats = response["data"]
+            assert "paused_dirs" in stats
+            assert len(stats["paused_dirs"]) == 1
+        finally:
+            sock.close()
+
+
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
         from pathlib import Path

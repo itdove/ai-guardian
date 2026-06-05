@@ -73,6 +73,9 @@ class DaemonState:
         self._paused = False
         self._paused_until = 0.0  # monotonic timestamp, 0 = not time-limited
 
+        # Per-directory pause (#958)
+        self._paused_dirs = {}  # project_dir -> monotonic timestamp (0 = indefinite)
+
         # Config reload tracking (#610)
         self._last_config_reload_at = None  # unix timestamp
         self._on_config_reloaded = None  # optional callback
@@ -512,6 +515,92 @@ class DaemonState:
             remaining = self._paused_until - time.monotonic()
             return max(0.0, remaining)
 
+    # --- Per-directory pause/resume (#958) ---
+
+    def pause_dir(self, directory, duration_minutes=0):
+        """Pause scanning for a specific project directory.
+
+        Args:
+            directory: Absolute path string of the project directory
+            duration_minutes: Pause duration in minutes. 0 = indefinite.
+        """
+        directory = os.path.realpath(directory)
+        with self._lock:
+            if duration_minutes > 0:
+                self._paused_dirs[directory] = (
+                    time.monotonic() + duration_minutes * 60
+                )
+                logger.info(
+                    "Directory paused for %d minutes: %s",
+                    duration_minutes, directory,
+                )
+            else:
+                self._paused_dirs[directory] = 0.0
+                logger.info("Directory paused indefinitely: %s", directory)
+
+    def resume_dir(self, directory):
+        """Resume scanning for a specific project directory.
+
+        Args:
+            directory: Absolute path string of the project directory
+        """
+        directory = os.path.realpath(directory)
+        with self._lock:
+            removed = self._paused_dirs.pop(directory, None)
+            if removed is not None:
+                logger.info("Directory resumed: %s", directory)
+            else:
+                logger.debug("Directory was not paused: %s", directory)
+
+    def is_dir_paused(self, directory):
+        """Check if scanning is paused for a specific directory.
+
+        Handles expiration of time-limited per-directory pauses.
+
+        Args:
+            directory: Absolute path string of the project directory
+
+        Returns:
+            bool: True if the directory is paused
+        """
+        if not directory:
+            return False
+        directory = os.path.realpath(directory)
+        with self._lock:
+            until = self._paused_dirs.get(directory)
+            if until is None:
+                return False
+            if until > 0 and time.monotonic() >= until:
+                del self._paused_dirs[directory]
+                logger.info("Directory pause expired: %s", directory)
+                return False
+            return True
+
+    def get_paused_dirs(self):
+        """Get a snapshot of all paused directories with remaining seconds.
+
+        Expired entries are cleaned up during iteration.
+
+        Returns:
+            dict: {directory: remaining_seconds} where 0 means indefinite
+        """
+        now = time.monotonic()
+        result = {}
+        expired = []
+        with self._lock:
+            for d, until in self._paused_dirs.items():
+                if until > 0 and now >= until:
+                    expired.append(d)
+                elif until > 0:
+                    result[d] = until - now
+                else:
+                    result[d] = 0.0
+            for d in expired:
+                del self._paused_dirs[d]
+        if expired:
+            logger.info("Cleaned up %d expired directory pauses", len(expired))
+        return result
+
     # --- Stats ---
 
     def get_stats(self):
@@ -565,6 +654,7 @@ class DaemonState:
                 "project_configs_tracked": len(self._project_config_mtimes),
                 "config_error": self._config_error,
                 "mcp_installed": self._mcp_installed,
+                "paused_dirs": self._get_paused_dirs_locked(),
             }
 
     @staticmethod
@@ -586,6 +676,27 @@ class DaemonState:
             return 0.0
         remaining = self._paused_until - time.monotonic()
         return max(0.0, remaining)
+
+    def _get_paused_dirs_locked(self):
+        """Get paused dirs snapshot (must be called with lock held).
+
+        Returns:
+            dict: {directory: remaining_seconds} where 0 means indefinite.
+                  Expired entries are cleaned up.
+        """
+        now = time.monotonic()
+        result = {}
+        expired = []
+        for d, until in self._paused_dirs.items():
+            if until > 0 and now >= until:
+                expired.append(d)
+            elif until > 0:
+                result[d] = until - now
+            else:
+                result[d] = 0.0
+        for d in expired:
+            del self._paused_dirs[d]
+        return result
 
     # --- Session persistence (#592) ---
 

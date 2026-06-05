@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Per-directory pause for daemon scanning** (Issue #958)
+  - Pause scanning for a specific project directory without affecting other projects
+  - `DaemonState`: new `pause_dir()`, `resume_dir()`, `is_dir_paused()`, `get_paused_dirs()` methods
+  - CLI: `ai-guardian daemon pause --dir /path [--minutes N]` and `ai-guardian daemon resume --dir /path`
+  - CLI: `ai-guardian daemon pause [--minutes N]` and `ai-guardian daemon resume` for global pause/resume
+  - Socket protocol: new `pause_dir` / `resume_dir` message types
+  - REST API: new `POST /api/pause_dir` and `POST /api/resume_dir` endpoints
+  - `daemon status` now displays paused directories with remaining time
+  - Global pause takes precedence; per-dir pause is independent
+  - Time-limited per-dir pauses auto-expire like global pauses
+  - Protocol: new `make_pause_dir()` / `make_resume_dir()` message factories
+  - Client: new `send_pause_dir()` / `send_resume_dir()` functions
+  - 21 new tests covering state, protocol, and server integration
+
 - **Web and TUI console panel for auto_directory_rules** (Issue #966)
   - New "Auto Directory Rules" page in web console under Permissions sidebar group
   - Toggle enabled/disabled and allow_symlinks settings

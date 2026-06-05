@@ -346,6 +346,18 @@ def _handle_daemon_command(args):
                 else:
                     print(f"Project configs tracked: {project_count}")
 
+            # Per-directory pauses (#958)
+            paused_dirs = stats.get("paused_dirs", {})
+            if paused_dirs:
+                print(f"Paused directories: {len(paused_dirs)}")
+                for d, remaining in paused_dirs.items():
+                    if remaining > 0:
+                        mins = int(remaining // 60)
+                        secs = int(remaining % 60)
+                        print(f"  {d} ({mins}m {secs}s left)")
+                    else:
+                        print(f"  {d} (indefinite)")
+
             print(f"Active contexts: {stats.get('active_contexts', 0)}")
             print(f"Cached patterns: {stats.get('cached_patterns', 0)}")
         else:
@@ -382,8 +394,92 @@ def _handle_daemon_command(args):
             print("Failed to reload daemon config", file=sys.stderr)
             return 1
 
+    elif cmd == "pause":
+        from ai_guardian.daemon.client import is_daemon_running, send_pause_dir
+
+        if not is_daemon_running():
+            print("ai-guardian daemon is not running", file=sys.stderr)
+            return 1
+
+        directory = getattr(args, "dir", None)
+        minutes = getattr(args, "minutes", 0)
+
+        if directory:
+            directory = os.path.realpath(directory)
+            result = send_pause_dir(directory, minutes, timeout=_get_client_timeout())
+            if result and result.get("status") == "dir_paused":
+                dur = f" for {minutes} minutes" if minutes > 0 else " indefinitely"
+                print(f"ai-guardian daemon: scanning paused{dur} for {directory}")
+                return 0
+            else:
+                print("Failed to pause directory scanning", file=sys.stderr)
+                return 1
+        else:
+            # Global pause via existing socket protocol
+            from ai_guardian.daemon.protocol import encode_message, PROTOCOL_VERSION
+            from ai_guardian.daemon.client import _connect
+            from ai_guardian.daemon.protocol import decode_message
+            try:
+                sock = _connect(timeout=_get_client_timeout())
+                if sock is None:
+                    print("Failed to connect to daemon", file=sys.stderr)
+                    return 1
+                msg = {"version": PROTOCOL_VERSION, "type": "pause",
+                       "data": {"minutes": minutes}}
+                sock.sendall(encode_message(msg))
+                response = decode_message(sock, timeout=_get_client_timeout())
+                sock.close()
+                if response.get("type") == "response":
+                    dur = f" for {minutes} minutes" if minutes > 0 else " indefinitely"
+                    print(f"ai-guardian daemon: scanning paused{dur}")
+                    return 0
+            except Exception:
+                pass
+            print("Failed to pause daemon", file=sys.stderr)
+            return 1
+
+    elif cmd == "resume":
+        from ai_guardian.daemon.client import is_daemon_running, send_resume_dir
+
+        if not is_daemon_running():
+            print("ai-guardian daemon is not running", file=sys.stderr)
+            return 1
+
+        directory = getattr(args, "dir", None)
+
+        if directory:
+            directory = os.path.realpath(directory)
+            result = send_resume_dir(directory, timeout=_get_client_timeout())
+            if result and result.get("status") == "dir_resumed":
+                print(f"ai-guardian daemon: scanning resumed for {directory}")
+                return 0
+            else:
+                print("Failed to resume directory scanning", file=sys.stderr)
+                return 1
+        else:
+            # Global resume via existing socket protocol
+            from ai_guardian.daemon.protocol import encode_message, PROTOCOL_VERSION
+            from ai_guardian.daemon.client import _connect
+            from ai_guardian.daemon.protocol import decode_message
+            try:
+                sock = _connect(timeout=_get_client_timeout())
+                if sock is None:
+                    print("Failed to connect to daemon", file=sys.stderr)
+                    return 1
+                msg = {"version": PROTOCOL_VERSION, "type": "resume"}
+                sock.sendall(encode_message(msg))
+                response = decode_message(sock, timeout=_get_client_timeout())
+                sock.close()
+                if response.get("type") == "response":
+                    print("ai-guardian daemon: scanning resumed")
+                    return 0
+            except Exception:
+                pass
+            print("Failed to resume daemon", file=sys.stderr)
+            return 1
+
     else:
-        print("Usage: ai-guardian daemon {start|stop|status|restart|reload}")
+        print("Usage: ai-guardian daemon {start|stop|status|restart|reload|pause|resume}")
         return 1
 
 
