@@ -208,7 +208,7 @@ def connection_not_placeholder(matched_text: str) -> bool:
 
 
 _TOKEN_PREFIX_RE = re.compile(
-    r'^(?:sk-(?:proj-|ant-)?|gh[pors]_|glpat-|xox[baprs]-)',
+    r'^(?:sk-(?:proj-|ant-)?|gh[pors]_|glpat-|xox[baprs]-|sq0csp-|r8_)',
 )
 
 _REPEATED_CHAR_TOKEN_RE = re.compile(r'^(.)\1{7,}$')

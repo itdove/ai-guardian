@@ -96,6 +96,128 @@ class TestTomlPatternsPiiFiltering:
         assert not any(f.rule_id == "pii-email" for f in findings)
 
 
+class TestTomlPatternsGapFillingRules:
+    """Tests for platform-specific gap-filling rules (Issue #972).
+
+    These rules cover platforms NOT detected by gitleaks/leaktk engines.
+    """
+
+    def _find(self, text, rule_id):
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan(text)
+        return any(f.rule_id == rule_id for f in findings)
+
+    # --- Payment / Financial ---
+
+    def test_square_oauth_secret_detected(self):
+        token = "sq0csp-" + "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789ABCDEFG"
+        assert self._find(f"SECRET={token}", "square-oauth-secret")
+
+    def test_square_oauth_secret_placeholder_skipped(self):
+        token = "sq0csp-" + "X" * 43
+        assert not self._find(f"SECRET={token}", "square-oauth-secret")
+
+    def test_square_access_token_not_matched_as_oauth_secret(self):
+        # sq0atp- is an access token (covered by gitleaks), not our rule
+        token = "sq0atp-" + "A" * 43
+        assert not self._find(f"TOKEN={token}", "square-oauth-secret")
+
+    def test_paypal_braintree_production_token(self):
+        text = "token=access_token$production$abc123def456abcd"
+        assert self._find(text, "paypal-braintree-token")
+
+    def test_paypal_braintree_sandbox_token(self):
+        text = "token=access_token$sandbox$abc123def456abcdef01"
+        assert self._find(text, "paypal-braintree-token")
+
+    def test_paypal_braintree_short_value_not_matched(self):
+        # Value after $production$ must be >= 16 chars
+        text = "token=access_token$production$short"
+        assert not self._find(text, "paypal-braintree-token")
+
+    def test_paypal_client_secret_env_var(self):
+        text = "PAYPAL_CLIENT_SECRET=AbCdEfGhIjKlMnOpQrStUvWx"
+        assert self._find(text, "paypal-client-secret")
+
+    def test_paypal_secret_case_insensitive(self):
+        text = "paypal_secret = 'AbCdEfGhIjKlMnOpQrStUvWx'"
+        assert self._find(text, "paypal-client-secret")
+
+    def test_generic_secret_not_matched_as_paypal(self):
+        text = "MY_SECRET=AbCdEfGhIjKlMnOpQrStUvWx"
+        assert not self._find(text, "paypal-client-secret")
+
+    # --- CI/CD ---
+
+    def test_circleci_token_detected(self):
+        text = "CIRCLE_TOKEN=" + "a1b2c3d4" * 5  # 40 hex chars
+        assert self._find(text, "circleci-api-token")
+
+    def test_circleci_ci_token_detected(self):
+        text = "CIRCLECI_API_TOKEN=" + "abcdef01" * 5  # 40 hex chars
+        assert self._find(text, "circleci-api-token")
+
+    def test_circleci_non_hex_not_matched(self):
+        text = "CIRCLE_TOKEN=not_a_real_hex_token_value_here"
+        assert not self._find(text, "circleci-api-token")
+
+    def test_jenkins_token_detected(self):
+        text = "JENKINS_API_TOKEN=" + "a1b2c3d4" * 4 + "ab"  # 34 hex chars
+        assert self._find(text, "jenkins-api-token")
+
+    def test_jenkins_token_case_insensitive(self):
+        text = "jenkins_token: " + "abcdef01" * 4  # 32 hex chars
+        assert self._find(text, "jenkins-api-token")
+
+    def test_jenkins_non_hex_not_matched(self):
+        text = "JENKINS_TOKEN=not-hex-characters-here!"
+        assert not self._find(text, "jenkins-api-token")
+
+    # --- Database ---
+
+    def test_mongodb_atlas_api_key_detected(self):
+        text = "MONGODB_ATLAS_PRIVATE_KEY=abcd1234-ab12-cd34-ef56-abcdef123456"
+        assert self._find(text, "mongodb-atlas-api-key")
+
+    def test_mongo_atlas_key_variant(self):
+        text = "MONGO_ATLAS_KEY: abcd1234-ab12-cd34-ef56-abcdef123456"
+        assert self._find(text, "mongodb-atlas-api-key")
+
+    def test_generic_uuid_without_atlas_context_not_matched(self):
+        text = "REQUEST_ID=abcd1234-ab12-cd34-ef56-abcdef123456"
+        assert not self._find(text, "mongodb-atlas-api-key")
+
+    def test_supabase_service_role_key_detected(self):
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.M2d_0djnGBiRw1rXznITPA"
+        text = f"SUPABASE_SERVICE_ROLE_KEY={jwt}"
+        assert self._find(text, "supabase-service-role-key")
+
+    def test_supabase_anon_key_detected(self):
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20nEV9cklpv9e3yw3PVyZLmKs5qLD6nGL1SI"
+        text = f"SUPABASE_ANON_KEY={jwt}"
+        assert self._find(text, "supabase-service-role-key")
+
+    def test_generic_jwt_without_supabase_context_not_matched(self):
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20nEV9cklpv9e3yw3PVyZLmKs5qLD6nGL1SI"
+        text = f"AUTH_TOKEN={jwt}"
+        assert not self._find(text, "supabase-service-role-key")
+
+    # --- AI/ML ---
+
+    def test_replicate_api_token_detected(self):
+        token = "r8_" + "aBcDeFgHiJ" * 4  # 40 alphanumeric chars
+        assert self._find(f"TOKEN={token}", "replicate-api-token")
+
+    def test_replicate_placeholder_rejected(self):
+        token = "r8_" + "X" * 40
+        assert not self._find(f"TOKEN={token}", "replicate-api-token")
+
+    def test_short_r8_prefix_not_matched(self):
+        # r8_ followed by < 40 chars should not match
+        text = "r8_shortvalue"
+        assert not self._find(text, "replicate-api-token")
+
+
 class TestTomlPatternsEngineBuilder:
 
     def test_select_toml_patterns_engine(self):
