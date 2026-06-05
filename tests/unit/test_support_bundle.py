@@ -20,7 +20,10 @@ from ai_guardian.support_bundle import (
     _get_gcs_token_from_adc,
     _get_gcs_token_from_gcloud,
     _load_bundle_from_path,
+    _send_to_email,
     _send_to_gcs,
+    _zip_bundle,
+    _SIZE_WARNING_BYTES,
     prepare_bundle,
     send_bundle,
     support_command,
@@ -632,3 +635,517 @@ class TestSendToGCS:
 
         assert mock_gcs.called
         assert result["status"] == "sent"
+
+
+# --- Email destination tests (Issue #932) ---
+
+
+class TestZipBundle:
+    """Test _zip_bundle() helper."""
+
+    def test_creates_zip_file(self, tmp_path):
+        """Zip bundle creates a valid zip with all files except .ai-read-deny."""
+        bundle_dir = tmp_path / "bundle"
+        bundle_dir.mkdir()
+        (bundle_dir / "config.json").write_text('{"key": "value"}')
+        (bundle_dir / "violations.json").write_text("[]")
+        (bundle_dir / ".ai-read-deny").write_text("")
+
+        zip_path = _zip_bundle(bundle_dir, "test-bundle-001")
+
+        assert zip_path.exists()
+        assert zip_path.name == "test-bundle-001.zip"
+        import zipfile
+        with zipfile.ZipFile(zip_path) as zf:
+            names = zf.namelist()
+            assert "config.json" in names
+            assert "violations.json" in names
+            assert ".ai-read-deny" not in names
+
+    def test_empty_bundle(self, tmp_path):
+        """Zip bundle with only .ai-read-deny produces empty zip."""
+        bundle_dir = tmp_path / "bundle"
+        bundle_dir.mkdir()
+        (bundle_dir / ".ai-read-deny").write_text("")
+
+        zip_path = _zip_bundle(bundle_dir, "empty-bundle")
+
+        assert zip_path.exists()
+        import zipfile
+        with zipfile.ZipFile(zip_path) as zf:
+            assert len(zf.namelist()) == 0
+
+
+class TestSendToEmail:
+    """Test _send_to_email() function with all auth methods."""
+
+    def _make_bundle_dir(self, tmp_path):
+        bundle_dir = tmp_path / "bundle"
+        bundle_dir.mkdir()
+        (bundle_dir / "config.json").write_text('{"sanitized": true}')
+        (bundle_dir / "system.json").write_text('{"version": "1.0"}')
+        (bundle_dir / ".ai-read-deny").write_text("")
+        return bundle_dir
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_send_with_starttls_no_auth(self, mock_smtp_cls, mock_config, tmp_path):
+        """Send via SMTP with STARTTLS and no authentication (corporate relay)."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "relay.company.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "guardian@company.com",
+                "subject_prefix": "[Support]",
+                "auth": {"method": "none"},
+            }
+        }
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-001", bundle_dir, "mailto:support@company.com")
+
+        assert result["status"] == "sent"
+        assert "support@company.com" in result["destination"]
+        mock_smtp_cls.assert_called_once_with("relay.company.com", 587, timeout=30)
+        mock_server.starttls.assert_called_once()
+        mock_server.login.assert_not_called()
+        mock_server.sendmail.assert_called_once()
+        mock_server.quit.assert_called_once()
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_send_with_env_auth(self, mock_smtp_cls, mock_config, tmp_path, monkeypatch):
+        """Send via SMTP with environment variable credentials."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {
+                    "method": "env",
+                    "username_env": "SMTP_USER",
+                    "password_env": "SMTP_PASSWORD",
+                },
+            }
+        }
+        monkeypatch.setenv("SMTP_USER", "testuser")
+        monkeypatch.setenv("SMTP_PASSWORD", "testpass")
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-002", bundle_dir, "support@example.com")
+
+        assert result["status"] == "sent"
+        mock_server.login.assert_called_once_with("testuser", "testpass")
+        mock_server.sendmail.assert_called_once()
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_send_with_inline_auth(self, mock_smtp_cls, mock_config, tmp_path):
+        """Send via SMTP with inline credentials."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {
+                    "method": "inline",
+                    "username": "inlineuser",
+                    "password": "inlinepass",
+                },
+            }
+        }
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-003", bundle_dir, "mailto:admin@example.com")
+
+        assert result["status"] == "sent"
+        mock_server.login.assert_called_once_with("inlineuser", "inlinepass")
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP_SSL")
+    def test_send_with_implicit_ssl(self, mock_smtp_ssl_cls, mock_config, tmp_path):
+        """Send via SMTPS (port 465, implicit SSL)."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 465,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {"method": "none"},
+            }
+        }
+        mock_server = MagicMock()
+        mock_smtp_ssl_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-004", bundle_dir, "mailto:admin@example.com")
+
+        assert result["status"] == "sent"
+        mock_smtp_ssl_cls.assert_called_once_with("smtp.example.com", 465, timeout=30)
+        # SMTP_SSL doesn't call starttls
+        mock_server.starttls.assert_not_called()
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_send_without_tls(self, mock_smtp_cls, mock_config, tmp_path):
+        """Send via plain SMTP (no TLS, port 25)."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "internal-relay.local",
+                "smtp_port": 25,
+                "smtp_tls": False,
+                "from": "guardian@internal.local",
+                "auth": {"method": "none"},
+            }
+        }
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-005", bundle_dir, "ops@internal.local")
+
+        assert result["status"] == "sent"
+        mock_smtp_cls.assert_called_once_with("internal-relay.local", 25, timeout=30)
+        mock_server.starttls.assert_not_called()
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_smtp_auth_error(self, mock_smtp_cls, mock_config, tmp_path):
+        """SMTP authentication failure returns error status."""
+        import smtplib
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {
+                    "method": "inline",
+                    "username": "bad",
+                    "password": "creds",
+                },
+            }
+        }
+        mock_server = MagicMock()
+        mock_server.login.side_effect = smtplib.SMTPAuthenticationError(
+            535, b"Authentication failed"
+        )
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-006", bundle_dir, "mailto:support@example.com")
+
+        assert result["status"] == "error"
+        assert "authentication failed" in result["message"].lower()
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_smtp_connection_error(self, mock_smtp_cls, mock_config, tmp_path):
+        """SMTP connection failure returns error with zip path."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "unreachable.example.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {"method": "none"},
+            }
+        }
+        mock_smtp_cls.side_effect = OSError("Connection refused")
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-007", bundle_dir, "mailto:support@example.com")
+
+        assert result["status"] == "error"
+        assert "Connection refused" in result["message"]
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.webbrowser.open")
+    def test_fallback_no_smtp_configured(self, mock_webbrowser, mock_config, tmp_path):
+        """When no SMTP host is configured, fall back to system mailto:."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "",
+                "subject_prefix": "[Test]",
+            }
+        }
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-008", bundle_dir, "mailto:help@example.com")
+
+        assert result["status"] == "sent"
+        assert "zip_path" in result
+        assert Path(result["zip_path"]).name == "bundle-008.zip"
+        assert "No SMTP configured" in result["message"]
+        mock_webbrowser.assert_called_once()
+        # Verify the zip was created
+        assert Path(result["zip_path"]).exists()
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.webbrowser.open")
+    def test_fallback_no_email_config(self, mock_webbrowser, mock_config, tmp_path):
+        """When email section is entirely missing, fall back to system mailto:."""
+        mock_config.return_value = {}
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-009", bundle_dir, "support@example.com")
+
+        assert result["status"] == "sent"
+        assert "zip_path" in result
+        assert "No SMTP configured" in result["message"]
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_size_warning_large_bundle(self, mock_smtp_cls, mock_config, tmp_path):
+        """Large bundles >10MB produce a size warning in the message."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {"method": "none"},
+            }
+        }
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        # Create a large file that will exceed 10 MB (compressed is smaller,
+        # but incompressible random data stays large).
+        import os as _os
+        large_file = bundle_dir / "large_data.bin"
+        large_file.write_bytes(_os.urandom(11 * 1024 * 1024))
+
+        result = _send_to_email("bundle-big", bundle_dir, "mailto:support@example.com")
+
+        assert result["status"] == "sent"
+        assert "Warning" in result["message"]
+        assert "MB" in result["message"]
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    def test_strips_mailto_prefix(self, mock_smtp_cls, mock_config, tmp_path):
+        """The mailto: prefix is stripped from the destination address."""
+        mock_config.return_value = {
+            "email": {
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "smtp_tls": True,
+                "from": "noreply@example.com",
+                "auth": {"method": "none"},
+            }
+        }
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value = mock_server
+
+        bundle_dir = self._make_bundle_dir(tmp_path)
+        result = _send_to_email("bundle-010", bundle_dir, "mailto:user@example.com")
+
+        assert result["status"] == "sent"
+        # Verify sendmail was called with the correct to address (no mailto: prefix)
+        call_args = mock_server.sendmail.call_args
+        assert call_args[0][1] == ["user@example.com"]
+
+
+class TestEmailDestinationType:
+    """Test email destination detection in _get_bundle_status and send_bundle routing."""
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_mailto_detected_as_email_type(self, mock_config):
+        mock_config.return_value = {
+            "export_destination": "mailto:support@company.com",
+        }
+        status = _get_bundle_status()
+        assert status["destination_type"] == "email"
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_at_sign_detected_as_email_type(self, mock_config):
+        mock_config.return_value = {
+            "export_destination": "support@company.com",
+        }
+        status = _get_bundle_status()
+        assert status["destination_type"] == "email"
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_send_bundle_routes_to_email(self, mock_config, tmp_path):
+        mock_config.return_value = {
+            "export_destination": "mailto:support@company.com",
+            "bundle_ttl_minutes": 30,
+        }
+        bundle = prepare_bundle()
+        bundle_id = bundle["bundle_id"]
+
+        with patch("ai_guardian.support_bundle._send_to_email") as mock_email:
+            mock_email.return_value = {
+                "status": "sent",
+                "destination": "mailto:support@company.com",
+                "message": "ok",
+            }
+            result = send_bundle(bundle_id)
+
+        assert mock_email.called
+        assert result["status"] == "sent"
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_send_bundle_routes_at_sign_to_email(self, mock_config, tmp_path):
+        mock_config.return_value = {
+            "export_destination": "support@company.com",
+            "bundle_ttl_minutes": 30,
+        }
+        bundle = prepare_bundle()
+        bundle_id = bundle["bundle_id"]
+
+        with patch("ai_guardian.support_bundle._send_to_email") as mock_email:
+            mock_email.return_value = {
+                "status": "sent",
+                "destination": "mailto:support@company.com",
+                "message": "ok",
+            }
+            result = send_bundle(bundle_id)
+
+        assert mock_email.called
+        assert result["status"] == "sent"
+
+
+class TestEmailAuthStatus:
+    """Test auth_configured for email destinations in _get_bundle_status."""
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_email_no_auth_configured(self, mock_config):
+        """No auth method means auth_configured is True (no creds needed)."""
+        mock_config.return_value = {
+            "export_destination": "mailto:support@company.com",
+            "email": {"auth": {"method": "none"}},
+        }
+        status = _get_bundle_status()
+        assert status["auth_configured"] is True
+        assert status["auth_method"] == "none"
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_email_env_auth_configured(self, mock_config, monkeypatch):
+        """Env auth is configured when both env vars are set."""
+        mock_config.return_value = {
+            "export_destination": "mailto:support@company.com",
+            "email": {
+                "auth": {
+                    "method": "env",
+                    "username_env": "MY_USER",
+                    "password_env": "MY_PASS",
+                },
+            },
+        }
+        monkeypatch.setenv("MY_USER", "user")
+        monkeypatch.setenv("MY_PASS", "pass")
+        status = _get_bundle_status()
+        assert status["auth_configured"] is True
+        assert status["auth_method"] == "env"
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_email_env_auth_not_configured(self, mock_config, monkeypatch):
+        """Env auth is not configured when env vars are missing."""
+        mock_config.return_value = {
+            "export_destination": "mailto:support@company.com",
+            "email": {
+                "auth": {
+                    "method": "env",
+                    "username_env": "MISSING_USER",
+                    "password_env": "MISSING_PASS",
+                },
+            },
+        }
+        monkeypatch.delenv("MISSING_USER", raising=False)
+        monkeypatch.delenv("MISSING_PASS", raising=False)
+        status = _get_bundle_status()
+        assert status["auth_configured"] is False
+
+    @patch("ai_guardian.support_bundle._get_support_config")
+    def test_email_inline_auth_configured(self, mock_config):
+        """Inline auth is configured when username and password are set."""
+        mock_config.return_value = {
+            "export_destination": "mailto:support@company.com",
+            "email": {
+                "auth": {
+                    "method": "inline",
+                    "username": "user",
+                    "password": "pass",
+                },
+            },
+        }
+        status = _get_bundle_status()
+        assert status["auth_configured"] is True
+        assert status["auth_method"] == "inline"
+
+
+class TestDoctorEmailAuth:
+    """Test doctor check for email auth configuration."""
+
+    @staticmethod
+    def _make_doctor(config):
+        """Create a Doctor with pre-loaded config (skip disk I/O)."""
+        from ai_guardian.doctor import Doctor
+        doc = Doctor.__new__(Doctor)
+        doc.fix = False
+        doc.check_connectivity = False
+        doc._config = config
+        doc._config_error = None
+        doc._config_loaded = True
+        return doc
+
+    def test_inline_auth_warns(self):
+        """Doctor warns when SMTP credentials are hardcoded."""
+        doc = self._make_doctor({
+            "support": {
+                "email": {
+                    "auth": {"method": "inline", "username": "u", "password": "p"}
+                }
+            }
+        })
+        result = doc.check_email_auth()
+        assert result.status.value == "warn"
+        assert "hardcoded" in result.message.lower()
+
+    def test_env_auth_passes(self):
+        """Doctor passes for env var auth."""
+        doc = self._make_doctor({
+            "support": {
+                "email": {
+                    "auth": {"method": "env", "username_env": "U", "password_env": "P"}
+                }
+            }
+        })
+        result = doc.check_email_auth()
+        assert result.status.value == "pass"
+
+    def test_no_smtp_host_warns(self):
+        """Doctor warns when email destination set but no SMTP host."""
+        doc = self._make_doctor({
+            "support": {
+                "export_destination": "mailto:support@company.com",
+                "email": {"smtp_host": ""},
+            }
+        })
+        result = doc.check_email_auth()
+        assert result.status.value == "warn"
+        assert "mailto" in result.message.lower()
+
+    def test_no_config_skips(self):
+        """Doctor skips when no config loaded."""
+        doc = self._make_doctor(None)
+        result = doc.check_email_auth()
+        assert result.status.value == "skip"
+
+    def test_no_email_section_passes(self):
+        """Doctor passes when support section has no email config."""
+        doc = self._make_doctor({"support": {"export_destination": "/tmp/bundles"}})
+        result = doc.check_email_auth()
+        assert result.status.value == "pass"

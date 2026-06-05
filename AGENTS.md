@@ -1,13 +1,3 @@
-# DevAIFlow Session
-
-**IMPORTANT:** If the `DAF_SESSION_NAME` environment variable is set, you MUST:
-1. Read and follow the **daf-workflow** skill instructions immediately
-2. Run `daf info` to get session metadata
-3. Read the issue tracker ticket with comments
-4. Start working on the task described in the session goal
-
-Do NOT wait for user input — begin the session initialization workflow now.
-
 # Agent Instructions for AI Guardian
 
 ## General Instructions

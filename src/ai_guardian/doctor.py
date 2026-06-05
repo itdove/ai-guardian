@@ -118,6 +118,7 @@ class Doctor:
             self.check_self_protection,
             self.check_image_scanning,
             self.check_tray_plugins,
+            self.check_email_auth,
         ]
         for check_fn in checks:
             try:
@@ -1394,6 +1395,49 @@ class Doctor:
             message=f"{len(json_files)} plugin file(s) OK",
         )
 
+    def check_email_auth(self) -> CheckResult:
+        """Warn if SMTP credentials are hardcoded in config (inline auth)."""
+        self._ensure_config()
+        if not self._config:
+            return CheckResult(
+                name="email_auth",
+                status=CheckStatus.SKIP,
+                message="No config loaded",
+            )
+
+        support = self._config.get("support", {})
+        email = support.get("email", {})
+        auth = email.get("auth", {})
+        method = auth.get("method", "none")
+
+        if method == "inline":
+            return CheckResult(
+                name="email_auth",
+                status=CheckStatus.WARN,
+                message=(
+                    "SMTP credentials are hardcoded in config (auth.method=inline). "
+                    "Use env var auth (method=env) for better security."
+                ),
+            )
+
+        destination = support.get("export_destination", "")
+        if destination.startswith("mailto:") or "@" in destination:
+            if not email.get("smtp_host"):
+                return CheckResult(
+                    name="email_auth",
+                    status=CheckStatus.WARN,
+                    message=(
+                        "Email destination configured but no SMTP host set. "
+                        "Bundle will use system mailto: fallback."
+                    ),
+                )
+
+        return CheckResult(
+            name="email_auth",
+            status=CheckStatus.PASS,
+            message="Email auth OK",
+        )
+
 
 # --- Output formatters ---
 
@@ -1437,6 +1481,7 @@ _CHECK_DISPLAY_NAMES = {
     "self_protection": "Self-protection",
     "image_scanning": "Image scanning",
     "tray_plugins": "Tray plugins",
+    "email_auth": "Email auth",
 }
 
 

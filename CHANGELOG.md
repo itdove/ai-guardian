@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Support bundle email destination (SMTP)** (Issue #932)
+  - Email as a support bundle destination alongside S3, GCS, and local filesystem
+  - `_zip_bundle()` helper zips all bundle files into a single attachment
+  - `_send_to_email()` with MIME multipart message and zip attachment
+  - Three auth methods: `none` (corporate relay), `env` (environment variables), `inline` (hardcoded, doctor warns)
+  - STARTTLS (port 587) and implicit SSL (port 465) support
+  - Zip size check with warning when >10 MB
+  - Fallback: opens system `mailto:` handler when no SMTP host configured
+  - `mailto:` and `@` destination detection in `send_bundle()`
+  - Doctor `check_email_auth` warns for inline credentials and missing SMTP host
+  - Config schema, setup.py, example config, and all profiles updated
+  - Zero new dependencies (Python stdlib: `smtplib`, `email.mime`, `zipfile`)
+  - 26 new tests covering all auth methods, TLS modes, errors, and fallback
+
 - **Transcript scanning for Copilot CLI and Codex** (Issue #935)
   - Copilot CLI: scans JSONL transcript at `~/.copilot/session-state/events.jsonl`
   - Codex: discovers and scans JSONL transcripts in `~/.codex/sessions/YYYY/MM/DD/*.jsonl`

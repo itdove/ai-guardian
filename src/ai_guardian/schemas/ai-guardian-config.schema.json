@@ -1778,12 +1778,12 @@
       "properties": {
         "export_destination": {
           "type": "string",
-          "description": "Destination for support bundles. Local path (e.g., '~/support-bundles'), S3 URI (e.g., 's3://bucket/prefix/'), or GCS URI (e.g., 'gs://bucket-name/'). Default: XDG state directory (~/.local/state/ai-guardian/support-bundles/). Preconfigured by admin — agent cannot override.",
+          "description": "Destination for support bundles. Local path (e.g., '~/support-bundles'), S3 URI (e.g., 's3://bucket/prefix/'), GCS URI (e.g., 'gs://bucket-name/'), or email (e.g., 'mailto:support@company.com'). Default: XDG state directory (~/.local/state/ai-guardian/support-bundles/). Preconfigured by admin — agent cannot override.",
           "default": ""
         },
         "auth": {
           "type": "object",
-          "description": "Authentication for the export destination.",
+          "description": "Authentication for S3/GCS export destinations.",
           "properties": {
             "method": {
               "type": "string",
@@ -1795,6 +1795,71 @@
               "type": "string",
               "default": "",
               "description": "Environment variable name containing the auth token (when method='env')."
+            }
+          },
+          "additionalProperties": false
+        },
+        "email": {
+          "type": "object",
+          "description": "SMTP email settings for mailto: destinations. Uses Python stdlib only (smtplib, email.mime, zipfile).",
+          "properties": {
+            "smtp_host": {
+              "type": "string",
+              "default": "",
+              "description": "SMTP server hostname. Leave empty to use system mailto: fallback (opens default mail client)."
+            },
+            "smtp_port": {
+              "type": "integer",
+              "default": 587,
+              "description": "SMTP server port. 587 for STARTTLS (default), 465 for implicit SSL, 25 for plain."
+            },
+            "smtp_tls": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable STARTTLS for port 587. Ignored for port 465 (uses implicit SSL)."
+            },
+            "from": {
+              "type": "string",
+              "default": "",
+              "description": "Sender email address. Defaults to ai-guardian@hostname."
+            },
+            "subject_prefix": {
+              "type": "string",
+              "default": "[AI Guardian Support]",
+              "description": "Subject line prefix for support bundle emails."
+            },
+            "auth": {
+              "type": "object",
+              "description": "SMTP authentication settings.",
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": ["none", "env", "inline"],
+                  "default": "none",
+                  "description": "Auth method: 'none' for corporate relays (no credentials), 'env' reads from environment variables (recommended), 'inline' stores credentials in config (doctor warns)."
+                },
+                "username_env": {
+                  "type": "string",
+                  "default": "",
+                  "description": "Environment variable for SMTP username (when method='env')."
+                },
+                "password_env": {
+                  "type": "string",
+                  "default": "",
+                  "description": "Environment variable for SMTP password (when method='env')."
+                },
+                "username": {
+                  "type": "string",
+                  "default": "",
+                  "description": "SMTP username (when method='inline'). Not recommended — doctor will warn."
+                },
+                "password": {
+                  "type": "string",
+                  "default": "",
+                  "description": "SMTP password (when method='inline'). Not recommended — doctor will warn."
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
