@@ -72,6 +72,7 @@ from ai_guardian.config_loaders import (
     _load_annotations_config,
     _load_image_scanning_config,
     _load_security_instructions_config,
+    _load_context_poisoning_config,
     _get_on_scan_error_action,
 )
 
@@ -106,6 +107,12 @@ try:
     HAS_PROMPT_INJECTION = True
 except ImportError:
     HAS_PROMPT_INJECTION = False
+
+try:
+    from ai_guardian.context_poisoning import ContextPoisoningDetector
+    HAS_CONTEXT_POISONING = True
+except ImportError:
+    HAS_CONTEXT_POISONING = False
 
 try:
     from ai_guardian.config_scanner import check_config_file_threats
@@ -1789,6 +1796,56 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         )
     except Exception as e:
         logger.debug(f"Failed to log prompt injection violation: {e}")
+
+
+def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = None,
+                                     hook_context: Optional[Dict] = None,
+                                     matched_pattern: Optional[str] = None,
+                                     matched_text: Optional[str] = None,
+                                     confidence: Optional[float] = None,
+                                     line_number: Optional[int] = None,
+                                     violation_logger=None):
+    """Log a context poisoning violation."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        ctx = context or {}
+        hctx = hook_context or {}
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
+        violation_ctx = {
+            "ide_type": ctx.get("ide_type", "unknown"),
+            "hook_event": ctx.get("hook_event", "unknown"),
+            "project_path": os.getcwd()
+        }
+        if hctx.get("tool_use_id"):
+            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
+        if hctx.get("session_id"):
+            violation_ctx["session_id"] = hctx["session_id"]
+        blocked_entry = {
+            "file_path": ctx.get("file_path"),
+            "line_number": line_number,
+            "source": "prompt",
+            "pattern": matched_pattern or "Unknown",
+            "confidence": confidence if confidence is not None else 0.0,
+            "method": "heuristic",
+            "reason": "Context poisoning attempt detected"
+        }
+        if matched_text:
+            blocked_entry["matched_text"] = matched_text[:100]
+        violation_logger.log_violation(
+            violation_type=ViolationType.CONTEXT_POISONING,
+            blocked=blocked_entry,
+            context=violation_ctx,
+            suggestion={
+                "action": "add_allowlist_pattern",
+                "note": "If this is a legitimate persistent instruction, add to context_poisoning.allowlist_patterns in ai-guardian.json"
+            },
+            severity="medium"
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log context poisoning violation: {e}")
 
 
 def _count_gitleaks_patterns(config_path):
@@ -3830,6 +3887,48 @@ def process_hook_data(hook_data, daemon_state=None):
                                           error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
                                           violation_type=ViolationType.PROMPT_INJECTION, security_message=security_message)
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
+
+        # Check for context poisoning (LLM03) — only on user prompts
+        if HAS_CONTEXT_POISONING and hook_event == HookEvent.PROMPT and content_to_scan:
+            try:
+                cp_config, cp_error = _load_context_poisoning_config()
+                if cp_error:
+                    warning_messages.append(cp_error)
+
+                if cp_config and is_feature_enabled(
+                    cp_config.get("enabled"),
+                    now,
+                    default=True
+                ):
+                    cp_detector = ContextPoisoningDetector(cp_config)
+                    cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
+
+                    if cp_detected:
+                        cp_hook_ctx = {}
+                        if hook_tool_use_id:
+                            cp_hook_ctx["tool_use_id"] = hook_tool_use_id
+                        if hook_session_id:
+                            cp_hook_ctx["session_id"] = hook_session_id
+                        _log_context_poisoning_violation(
+                            filename,
+                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
+                            hook_context=cp_hook_ctx if cp_hook_ctx else None,
+                            matched_pattern=cp_detector.last_matched_pattern,
+                            matched_text=cp_detector.last_matched_text,
+                            confidence=cp_detector.last_confidence,
+                            line_number=cp_detector.last_line_number
+                        )
+
+                    if cp_should_block:
+                        logging.info("Blocking operation due to context poisoning detection")
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        result = format_response(ide_type, has_secrets=True, error_message=cp_error_msg, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONTEXT_POISONING, security_message=security_message)
+                        return result
+                    elif cp_detected and cp_error_msg:
+                        warning_messages.append(cp_error_msg)
+
+            except Exception as e:
+                logging.warning(f"Context poisoning check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
         # Only scan for PreToolUse/Read operations on actual files

@@ -9,6 +9,7 @@ from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 TARGET_SECTIONS = {
     "prompt_injection": "Prompt Injection (allowlist_patterns)",
+    "context_poisoning": "Context Poisoning (allowlist_patterns)",
     "scan_pii": "PII Scanning (allowlist_patterns)",
     "secret_scanning": "Secret Scanning (allowlist_patterns)",
 }

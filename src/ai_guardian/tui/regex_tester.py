@@ -20,6 +20,7 @@ MAX_MATCHES_DISPLAYED = 100
 
 CONFIG_SECTIONS = {
     "prompt_injection": ("prompt_injection", "allowlist_patterns"),
+    "context_poisoning": ("context_poisoning", "allowlist_patterns"),
     "scan_pii": ("scan_pii", "allowlist_patterns"),
     "secret_scanning": ("secret_scanning", "allowlist_patterns"),
 }
@@ -178,6 +179,7 @@ class RegexTesterContent(Container):
                 yield Select(
                     [
                         ("Prompt Injection Allowlist", "prompt_injection"),
+                        ("Context Poisoning Allowlist", "context_poisoning"),
                         ("PII Detection Allowlist", "scan_pii"),
                         ("Secret Scanning Allowlist", "secret_scanning"),
                     ],
@@ -360,6 +362,7 @@ class RegexTesterContent(Container):
 
             section_labels = {
                 "prompt_injection": "Prompt Injection",
+                "context_poisoning": "Context Poisoning",
                 "scan_pii": "PII Detection",
                 "secret_scanning": "Secret Scanning",
             }

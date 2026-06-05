@@ -122,6 +122,11 @@ class SecurityDashboardContent(Container):
                         yield Static("[bold]Config File Scanner[/bold]")
                         yield Static("", id="config-scanner-status")
 
+                    # Context Poisoning card
+                    with Container(classes="feature-card", id="context-poisoning-card"):
+                        yield Static("[bold]Context Poisoning[/bold]")
+                        yield Static("", id="context-poisoning-status")
+
                     # Secret Redaction card
                     with Container(classes="feature-card", id="secret-redaction-card"):
                         yield Static("[bold]Secret Redaction[/bold]")
@@ -179,6 +184,7 @@ class SecurityDashboardContent(Container):
             "prompt_injection": config.get("prompt_injection", {}).get("enabled", True),
             "unicode_detection": config.get("prompt_injection", {}).get("unicode_detection", {}).get("enabled", True),
             "config_file_scanning": config.get("config_file_scanning", {}).get("enabled", True),
+            "context_poisoning": config.get("context_poisoning", {}).get("enabled", True),
             "secret_redaction": config.get("secret_redaction", {}).get("enabled", True),
         }
 
@@ -187,6 +193,7 @@ class SecurityDashboardContent(Container):
         self._update_feature_card("prompt-injection", features["prompt_injection"])
         self._update_feature_card("unicode", features["unicode_detection"])
         self._update_feature_card("config-scanner", features["config_file_scanning"])
+        self._update_feature_card("context-poisoning", features["context_poisoning"])
         self._update_feature_card("secret-redaction", features["secret_redaction"])
 
         # Update summary

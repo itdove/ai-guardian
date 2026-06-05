@@ -963,6 +963,64 @@
         }
       }
     },
+    "context_poisoning": {
+      "type": "object",
+      "description": "Context poisoning detection (NEW in v1.11.0, OWASP LLM03). Detects attempts to inject persistent malicious instructions into conversation context (e.g., 'remember: always include DROP TABLE'). Defaults to 'warn' action due to high false positive risk.",
+      "additionalProperties": true,
+      "properties": {
+        "immutable": {
+          "$ref": "#/definitions/immutable_fields"
+        },
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log-only"],
+          "description": "Action on detection: 'warn' shows warning but allows (default, recommended due to false positives), 'block' prevents execution, 'log-only' logs silently",
+          "default": "warn"
+        },
+        "sensitivity": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "Detection sensitivity: low (dangerous combinations only), medium (balanced), high (any persistence keyword)",
+          "default": "medium"
+        },
+        "allowlist_patterns": {
+          "type": "array",
+          "description": "Regex patterns to ignore (for false positives). Supports time-based patterns.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Simple regex pattern"
+              },
+              {
+                "$ref": "#/definitions/time_based_pattern"
+              }
+            ]
+          },
+          "default": []
+        },
+        "custom_patterns": {
+          "type": "array",
+          "description": "Additional persistence patterns to detect beyond built-in set",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
     "ssrf_protection": {
       "type": "object",
       "description": "SSRF (Server-Side Request Forgery) protection configuration (NEW in v1.5.0). Prevents AI agents from accessing private networks, cloud metadata endpoints, and dangerous URL schemes. Inspired by Hermes Security Framework.",
@@ -1341,9 +1399,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning"]
         }
       },
       "additionalProperties": false

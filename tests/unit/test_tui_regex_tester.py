@@ -162,11 +162,12 @@ class TestFindMatches:
 class TestConfigSections:
     """Tests for config section mapping."""
 
-    def test_config_sections_has_three_entries(self):
-        assert len(CONFIG_SECTIONS) == 3
+    def test_config_sections_has_four_entries(self):
+        assert len(CONFIG_SECTIONS) == 4
 
     def test_config_sections_keys(self):
         assert "prompt_injection" in CONFIG_SECTIONS
+        assert "context_poisoning" in CONFIG_SECTIONS
         assert "scan_pii" in CONFIG_SECTIONS
         assert "secret_scanning" in CONFIG_SECTIONS
 

@@ -237,6 +237,13 @@ class WebConsole:
             )
             create_pi_unicode_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/context-poisoning")
+        def context_poisoning_page(daemon_name: str):
+            from ai_guardian.web.pages.context_poisoning import (
+                create_context_poisoning_page,
+            )
+            create_context_poisoning_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page
