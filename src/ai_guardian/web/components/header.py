@@ -47,8 +47,8 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ("Logs", f"{prefix}/logs"),
         ]),
         ("Permissions", [
-            ("Skills", f"{prefix}/skills"),
-            ("MCP Servers", f"{prefix}/mcp-servers"),
+            ("Permission Rules", f"{prefix}/permission-rules"),
+            ("MCP Settings", f"{prefix}/mcp-servers"),
             ("MCP Security", f"{prefix}/mcp-security"),
             ("Permissions Discovery", f"{prefix}/permissions-discovery"),
             ("Directory Rules", f"{prefix}/directory-rules"),
