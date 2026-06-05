@@ -251,6 +251,67 @@ class TestPermissionRulesConfigLogic:
         assert _parse_duration("abc") is None
         assert _parse_duration("0d0h0m") is None
 
+    def test_pattern_to_str_string(self):
+        from ai_guardian.web.pages.permission_rules import _pattern_to_str
+
+        assert _pattern_to_str("daf-*") == "daf-*"
+
+    def test_pattern_to_str_dict(self):
+        from ai_guardian.web.pages.permission_rules import _pattern_to_str
+
+        assert _pattern_to_str({"pattern": "temp", "valid_until": "x"}) == "temp"
+
+    def test_pattern_to_str_dict_no_pattern_key(self):
+        from ai_guardian.web.pages.permission_rules import _pattern_to_str
+
+        result = _pattern_to_str({"foo": "bar"})
+        assert isinstance(result, str)
+
+    def test_matches_search_empty_queries(self):
+        from ai_guardian.web.pages.permission_rules import _matches_search
+
+        rule = {"matcher": "Skill", "patterns": ["daf-*"]}
+        assert _matches_search(rule, "", "") is True
+        assert _matches_search(rule, None, None) is True
+        assert _matches_search(rule, "", None) is True
+
+    def test_matches_search_by_matcher(self):
+        from ai_guardian.web.pages.permission_rules import _matches_search
+
+        rule = {"matcher": "mcp__notebook__*", "patterns": ["*"]}
+        assert _matches_search(rule, "notebook", "") is True
+        assert _matches_search(rule, "NOTEBOOK", "") is True
+        assert _matches_search(rule, "xyz", "") is False
+
+    def test_matches_search_by_pattern(self):
+        from ai_guardian.web.pages.permission_rules import _matches_search
+
+        rule = {"matcher": "Skill", "patterns": ["daf-*", "review-pr"]}
+        assert _matches_search(rule, "", "review") is True
+        assert _matches_search(rule, "", "daf") is True
+        assert _matches_search(rule, "", "xyz") is False
+
+    def test_matches_search_both_fields(self):
+        from ai_guardian.web.pages.permission_rules import _matches_search
+
+        rule = {"matcher": "Skill", "patterns": ["daf-*", "review-pr"]}
+        # Both match
+        assert _matches_search(rule, "Skill", "daf") is True
+        # Matcher matches but pattern doesn't
+        assert _matches_search(rule, "Skill", "xyz") is False
+        # Pattern matches but matcher doesn't
+        assert _matches_search(rule, "mcp", "daf") is False
+
+    def test_matches_search_dict_pattern(self):
+        from ai_guardian.web.pages.permission_rules import _matches_search
+
+        rule = {
+            "matcher": "Skill",
+            "patterns": [{"pattern": "temp-skill", "valid_until": "x"}],
+        }
+        assert _matches_search(rule, "", "temp") is True
+        assert _matches_search(rule, "", "xyz") is False
+
 
 # ---------------------------------------------------------------------------
 # Skills config logic (legacy — still tested for backward compat)

@@ -95,6 +95,31 @@ def _classify_matcher(matcher: str) -> tuple:
     return "Custom", "tune", "teal"
 
 
+def _pattern_to_str(p) -> str:
+    """Extract the display string from a pattern (str or dict)."""
+    if isinstance(p, dict):
+        return p.get("pattern", str(p))
+    return str(p)
+
+
+def _matches_search(rule, matcher_query: str, pattern_query: str) -> bool:
+    """Return True if *rule* matches the search queries (case-insensitive).
+
+    Both queries must match (AND logic). An empty query matches everything.
+    """
+    if matcher_query:
+        if matcher_query.lower() not in rule.get("matcher", "").lower():
+            return False
+    if pattern_query:
+        q = pattern_query.lower()
+        if not any(
+            q in _pattern_to_str(p).lower()
+            for p in rule.get("patterns", [])
+        ):
+            return False
+    return True
+
+
 def _get_all_rules(config):
     """Return the full permissions.rules[] list."""
     permissions = config.get("permissions", {})
@@ -121,8 +146,33 @@ def create_permission_rules_page(service, daemon_name: str):
                 "Last matching rule wins."
             ).classes("text-xs text-grey-6")
 
-            # State for filter
-            filter_state = {"type": "all"}
+            # State for filter and search
+            filter_state = {
+                "type": "all",
+                "matcher_q": "",
+                "pattern_q": "",
+            }
+
+            # --- Search bar (outside refreshable content) ---
+            with ui.card().classes("w-full"):
+                with ui.row().classes("items-center gap-2 w-full"):
+                    ui.icon("search").classes("text-grey-6")
+                    matcher_search_input = (
+                        ui.input(
+                            label="Matcher",
+                            placeholder="e.g. Skill, mcp__...",
+                        )
+                        .props("dense outlined clearable")
+                        .classes("w-56")
+                    )
+                    pattern_search_input = (
+                        ui.input(
+                            label="Pattern",
+                            placeholder="e.g. daf-*, notebook...",
+                        )
+                        .props("dense outlined clearable")
+                        .classes("w-56")
+                    )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -286,7 +336,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                     on_click=do_temp,
                                 ).props("dense size=sm")
 
-                    # --- Filter bar ---
+                    # --- Filter + search bar ---
                     all_rules = _get_all_rules(config)
                     type_counts = {}
                     for rule in all_rules:
@@ -296,7 +346,7 @@ def create_permission_rules_page(service, daemon_name: str):
                         type_counts[t_label] = type_counts.get(t_label, 0) + 1
 
                     with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-2"):
+                        with ui.row().classes("items-center gap-2 w-full"):
                             ui.label("Filter:").classes("text-sm font-bold")
 
                             async def set_filter(t):
@@ -306,13 +356,23 @@ def create_permission_rules_page(service, daemon_name: str):
                             btn_all = ui.button(
                                 f"All ({len(all_rules)})",
                                 on_click=lambda: set_filter("all"),
-                            ).props("dense size=sm flat" if filter_state["type"] != "all" else "dense size=sm")
+                            ).props(
+                                "dense size=sm flat"
+                                if filter_state["type"] != "all"
+                                else "dense size=sm"
+                            )
                             if filter_state["type"] == "all":
                                 btn_all.classes("bg-blue-grey-8")
 
                             for t_label, count in sorted(type_counts.items()):
                                 _, _, color = _classify_matcher(
-                                    {"MCP": "mcp__x", "Skill": "Skill", "Tool": "Bash", "Global": "*", "Custom": "x"}.get(t_label, "x")
+                                    {
+                                        "MCP": "mcp__x",
+                                        "Skill": "Skill",
+                                        "Tool": "Bash",
+                                        "Global": "*",
+                                        "Custom": "x",
+                                    }.get(t_label, "x")
                                 )
 
                                 async def _click(t=t_label):
@@ -330,11 +390,16 @@ def create_permission_rules_page(service, daemon_name: str):
                                     btn.classes("bg-blue-grey-8")
 
                     # --- Rules list ---
+                    pat_q = filter_state["pattern_q"].lower()
+
                     with ui.card().classes("w-full"):
                         with ui.row().classes("items-center gap-2 w-full"):
-                            ui.label("Rules").classes("text-lg font-bold flex-grow")
+                            ui.label("Rules").classes(
+                                "text-lg font-bold flex-grow"
+                            )
                             ui.label(
-                                f"{len(all_rules)} rule{'s' if len(all_rules) != 1 else ''}"
+                                f"{len(all_rules)} rule"
+                                f"{'s' if len(all_rules) != 1 else ''}"
                             ).classes("text-xs text-grey-6")
 
                         if not all_rules:
@@ -348,74 +413,86 @@ def create_permission_rules_page(service, daemon_name: str):
                                 patterns = rule.get("patterns", [])
                                 action = rule.get("action", "")
                                 immutable = rule.get("immutable", False)
-                                t_label, t_icon, t_color = _classify_matcher(
-                                    matcher
+                                t_label, t_icon, t_color = (
+                                    _classify_matcher(matcher)
                                 )
 
-                                # Apply filter
+                                # Type filter
                                 if (
                                     filter_state["type"] != "all"
                                     and filter_state["type"] != t_label
                                 ):
                                     continue
 
+                                # Matcher search
+                                mq = filter_state["matcher_q"]
+                                if mq and mq.lower() not in matcher.lower():
+                                    continue
+
+                                # Filter patterns by pattern search
+                                if pat_q:
+                                    visible_pats = [
+                                        (pi, p)
+                                        for pi, p in enumerate(patterns)
+                                        if pat_q
+                                        in _pattern_to_str(p).lower()
+                                    ]
+                                    if not visible_pats:
+                                        continue
+                                else:
+                                    visible_pats = list(enumerate(patterns))
+
                                 mode_color = (
                                     "green" if mode == "allow" else "red"
                                 )
                                 border_hex = (
-                                    "#4caf50" if mode == "allow" else "#f44336"
+                                    "#4caf50"
+                                    if mode == "allow"
+                                    else "#f44336"
                                 )
 
                                 with ui.card().classes("w-full").style(
                                     f"border-left: 3px solid {border_hex}"
                                 ):
+                                    # --- Rule header row ---
                                     with ui.row().classes(
                                         "items-center gap-2 w-full"
                                     ):
-                                        # Index badge
                                         ui.badge(
                                             str(idx), color="blue-grey"
                                         ).classes("text-xs").props("outline")
-
-                                        # Type icon + label
                                         ui.icon(t_icon).classes(
                                             f"text-{t_color}"
                                         )
                                         ui.badge(
                                             t_label, color=t_color
                                         ).classes("text-xs")
-
-                                        # Mode badge
                                         ui.badge(
                                             mode.upper(), color=mode_color
                                         ).classes("text-xs")
-
-                                        # Matcher
                                         ui.label(matcher).classes(
                                             "font-bold text-sm"
                                         )
-
-                                        # Action badge (deny only)
                                         if action and mode == "deny":
-                                            action_color = {
-                                                "block": "red",
-                                                "warn": "amber",
-                                                "log-only": "blue-grey",
-                                            }.get(action, "grey")
                                             ui.badge(
-                                                action, color=action_color
+                                                action,
+                                                color={
+                                                    "block": "red",
+                                                    "warn": "amber",
+                                                    "log-only": "blue-grey",
+                                                }.get(action, "grey"),
                                             ).classes("text-xs")
-
-                                        # Immutable badge
                                         if immutable:
                                             ui.badge(
-                                                "immutable", color="blue-grey"
+                                                "immutable",
+                                                color="blue-grey",
                                             ).classes("text-xs").props(
                                                 "outline"
                                             )
 
-                                        # Spacer
-                                        ui.element("div").classes("flex-grow")
+                                        ui.element("div").classes(
+                                            "flex-grow"
+                                        )
 
                                         if not immutable:
                                             # Move up
@@ -425,20 +502,18 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 cfg = await run.io_bound(
                                                     load_web_config
                                                 )
-                                                perms = cfg.get(
+                                                p = cfg.get(
                                                     "permissions", {}
                                                 )
-                                                rules = (
-                                                    perms.get("rules", [])
-                                                    if isinstance(
-                                                        perms, dict
-                                                    )
+                                                rl = (
+                                                    p.get("rules", [])
+                                                    if isinstance(p, dict)
                                                     else []
                                                 )
-                                                if i < len(rules):
-                                                    rules[i], rules[i - 1] = (
-                                                        rules[i - 1],
-                                                        rules[i],
+                                                if i < len(rl):
+                                                    rl[i], rl[i - 1] = (
+                                                        rl[i - 1],
+                                                        rl[i],
                                                     )
                                                     if isinstance(
                                                         cfg.get(
@@ -448,9 +523,10 @@ def create_permission_rules_page(service, daemon_name: str):
                                                     ):
                                                         cfg["permissions"][
                                                             "rules"
-                                                        ] = rules
+                                                        ] = rl
                                                     await run.io_bound(
-                                                        save_web_config, cfg
+                                                        save_web_config,
+                                                        cfg,
                                                     )
                                                     await refresh()
 
@@ -471,20 +547,18 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 cfg = await run.io_bound(
                                                     load_web_config
                                                 )
-                                                perms = cfg.get(
+                                                p = cfg.get(
                                                     "permissions", {}
                                                 )
-                                                rules = (
-                                                    perms.get("rules", [])
-                                                    if isinstance(
-                                                        perms, dict
-                                                    )
+                                                rl = (
+                                                    p.get("rules", [])
+                                                    if isinstance(p, dict)
                                                     else []
                                                 )
-                                                if i < len(rules) - 1:
-                                                    rules[i], rules[i + 1] = (
-                                                        rules[i + 1],
-                                                        rules[i],
+                                                if i < len(rl) - 1:
+                                                    rl[i], rl[i + 1] = (
+                                                        rl[i + 1],
+                                                        rl[i],
                                                     )
                                                     if isinstance(
                                                         cfg.get(
@@ -494,13 +568,13 @@ def create_permission_rules_page(service, daemon_name: str):
                                                     ):
                                                         cfg["permissions"][
                                                             "rules"
-                                                        ] = rules
+                                                        ] = rl
                                                     await run.io_bound(
-                                                        save_web_config, cfg
+                                                        save_web_config,
+                                                        cfg,
                                                     )
                                                     await refresh()
 
-                                            is_last = idx == len(all_rules) - 1
                                             ui.button(
                                                 icon="arrow_downward",
                                                 on_click=do_move_down,
@@ -508,64 +582,42 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 "flat dense size=sm"
                                                 + (
                                                     " disable"
-                                                    if is_last
+                                                    if idx
+                                                    == len(all_rules) - 1
                                                     else ""
                                                 )
                                             )
 
-                                            # Edit
-                                            async def do_edit(
+                                            # Edit rule (matcher/mode/action)
+                                            async def do_edit_rule(
                                                 i=idx,
-                                                r_matcher=matcher,
-                                                r_mode=mode,
-                                                r_patterns=patterns,
-                                                r_action=action,
+                                                rm=matcher,
+                                                rmo=mode,
+                                                ra=action,
                                             ):
                                                 with ui.dialog() as dlg, ui.card().classes(
-                                                    "w-[500px]"
+                                                    "w-[400px]"
                                                 ):
                                                     ui.label(
                                                         "Edit Rule"
                                                     ).classes(
                                                         "text-lg font-bold"
                                                     )
-                                                    e_matcher = ui.input(
+                                                    em = ui.input(
                                                         label="Matcher",
-                                                        value=r_matcher,
+                                                        value=rm,
                                                     ).props(
                                                         "outlined dense"
                                                     ).classes("w-full")
-                                                    e_mode = ui.select(
+                                                    emd = ui.select(
                                                         label="Mode",
                                                         options={
                                                             "allow": "Allow",
                                                             "deny": "Deny",
                                                         },
-                                                        value=r_mode,
+                                                        value=rmo,
                                                     ).classes("w-48")
-                                                    # Format patterns for display
-                                                    pat_strs = []
-                                                    for p in r_patterns:
-                                                        if isinstance(p, dict):
-                                                            pat_strs.append(
-                                                                p.get(
-                                                                    "pattern",
-                                                                    str(p),
-                                                                )
-                                                            )
-                                                        else:
-                                                            pat_strs.append(
-                                                                str(p)
-                                                            )
-                                                    e_pats = ui.input(
-                                                        label="Patterns (comma-separated)",
-                                                        value=", ".join(
-                                                            pat_strs
-                                                        ),
-                                                    ).props(
-                                                        "outlined dense"
-                                                    ).classes("w-full")
-                                                    e_action = ui.select(
+                                                    ea = ui.select(
                                                         label="Action (deny only)",
                                                         options={
                                                             "": "Default",
@@ -573,72 +625,336 @@ def create_permission_rules_page(service, daemon_name: str):
                                                             "warn": "Warn",
                                                             "log-only": "Log only",
                                                         },
-                                                        value=r_action or "",
+                                                        value=ra or "",
                                                     ).classes("w-48")
+
+                                                    async def _save(ii=i):
+                                                        mv = em.value.strip()
+                                                        if not mv:
+                                                            ui.notify(
+                                                                "Matcher required",
+                                                                type="negative",
+                                                            )
+                                                            return
+                                                        cfg = await run.io_bound(
+                                                            load_web_config
+                                                        )
+                                                        pr = cfg.get(
+                                                            "permissions",
+                                                            {},
+                                                        )
+                                                        rl = (
+                                                            pr.get(
+                                                                "rules", []
+                                                            )
+                                                            if isinstance(
+                                                                pr, dict
+                                                            )
+                                                            else []
+                                                        )
+                                                        if ii < len(rl):
+                                                            rl[ii][
+                                                                "matcher"
+                                                            ] = mv
+                                                            rl[ii][
+                                                                "mode"
+                                                            ] = emd.value
+                                                            av = ea.value
+                                                            if (
+                                                                av
+                                                                and emd.value
+                                                                == "deny"
+                                                            ):
+                                                                rl[ii][
+                                                                    "action"
+                                                                ] = av
+                                                            else:
+                                                                rl[ii].pop(
+                                                                    "action",
+                                                                    None,
+                                                                )
+                                                            if isinstance(
+                                                                cfg.get(
+                                                                    "permissions"
+                                                                ),
+                                                                dict,
+                                                            ):
+                                                                cfg[
+                                                                    "permissions"
+                                                                ][
+                                                                    "rules"
+                                                                ] = rl
+                                                            await run.io_bound(
+                                                                save_web_config,
+                                                                cfg,
+                                                            )
+                                                        dlg.close()
+                                                        ui.notify(
+                                                            "Rule updated",
+                                                            type="positive",
+                                                        )
+                                                        await refresh()
 
                                                     with ui.row().classes(
                                                         "gap-2 mt-2"
                                                     ):
+                                                        ui.button(
+                                                            "Save",
+                                                            icon="save",
+                                                            on_click=_save,
+                                                        ).props("dense")
+                                                        ui.button(
+                                                            "Cancel",
+                                                            on_click=dlg.close,
+                                                        ).props("dense flat")
+                                                dlg.open()
 
-                                                        async def do_save(
-                                                            ii=i,
+                                            ui.button(
+                                                icon="edit",
+                                                on_click=do_edit_rule,
+                                            ).props("flat dense size=sm")
+
+                                            # Delete rule
+                                            async def do_delete_rule(
+                                                i=idx,
+                                            ):
+                                                cfg = await run.io_bound(
+                                                    load_web_config
+                                                )
+                                                p = cfg.get(
+                                                    "permissions", {}
+                                                )
+                                                rl = (
+                                                    p.get("rules", [])
+                                                    if isinstance(p, dict)
+                                                    else []
+                                                )
+                                                if i < len(rl):
+                                                    rl.pop(i)
+                                                    if isinstance(
+                                                        cfg.get(
+                                                            "permissions"
+                                                        ),
+                                                        dict,
+                                                    ):
+                                                        cfg["permissions"][
+                                                            "rules"
+                                                        ] = rl
+                                                    await run.io_bound(
+                                                        save_web_config,
+                                                        cfg,
+                                                    )
+                                                    ui.notify(
+                                                        "Rule deleted",
+                                                        type="positive",
+                                                    )
+                                                    await refresh()
+
+                                            ui.button(
+                                                icon="delete",
+                                                on_click=do_delete_rule,
+                                                color="red",
+                                            ).props("flat dense size=sm")
+
+                                    # --- Patterns section ---
+                                    n_total = len(patterns)
+                                    n_shown = len(visible_pats)
+                                    label_text = (
+                                        f"Patterns ({n_total})"
+                                        if not pat_q
+                                        else f"Patterns ({n_shown}/{n_total} matching)"
+                                    )
+
+                                    with ui.expansion(
+                                        label_text,
+                                        value=n_total <= 10,
+                                    ).classes(
+                                        "ml-6 w-full text-xs"
+                                    ).props("dense"):
+                                        for pi, p in visible_pats:
+                                            pat_str = _pattern_to_str(p)
+                                            with ui.row().classes(
+                                                "items-center gap-1 "
+                                                "w-full py-0"
+                                            ).style(
+                                                "min-height: 28px"
+                                            ):
+                                                ui.label(pat_str).classes(
+                                                    "text-xs text-grey-4 "
+                                                    "font-mono flex-grow"
+                                                )
+                                                if isinstance(p, dict):
+                                                    exp = _format_expiration(
+                                                        p.get("valid_until")
+                                                    )
+                                                    if exp:
+                                                        ui.badge(
+                                                            exp[0],
+                                                            color=exp[1],
+                                                        ).classes(
+                                                            "text-xs"
+                                                        )
+
+                                                if not immutable:
+                                                    # Edit pattern
+                                                    async def do_edit_pat(
+                                                        ri=idx,
+                                                        pii=pi,
+                                                        old=pat_str,
+                                                    ):
+                                                        with ui.dialog() as d, ui.card().classes(
+                                                            "w-[400px]"
                                                         ):
-                                                            m_val = e_matcher.value.strip()
-                                                            if not m_val:
-                                                                ui.notify(
-                                                                    "Matcher is required",
-                                                                    type="negative",
-                                                                )
-                                                                return
-                                                            new_pats = [
-                                                                p.strip()
-                                                                for p in e_pats.value.split(
-                                                                    ","
-                                                                )
-                                                                if p.strip()
-                                                            ]
-                                                            if not new_pats:
-                                                                new_pats = [
-                                                                    "*"
-                                                                ]
-                                                            cfg = await run.io_bound(
-                                                                load_web_config
+                                                            ui.label(
+                                                                "Edit Pattern"
+                                                            ).classes(
+                                                                "text-sm "
+                                                                "font-bold"
                                                             )
-                                                            perms = cfg.get(
-                                                                "permissions",
-                                                                {},
+                                                            ep = ui.input(
+                                                                label="Pattern",
+                                                                value=old,
+                                                            ).props(
+                                                                "outlined "
+                                                                "dense"
+                                                            ).classes(
+                                                                "w-full"
                                                             )
-                                                            rules = (
-                                                                perms.get(
-                                                                    "rules",
-                                                                    [],
-                                                                )
-                                                                if isinstance(
-                                                                    perms,
-                                                                    dict,
-                                                                )
-                                                                else []
-                                                            )
-                                                            if ii < len(
-                                                                rules
+
+                                                            async def _sp(
+                                                                rii=ri,
+                                                                piii=pii,
                                                             ):
-                                                                new_rule = {
-                                                                    "matcher": m_val,
-                                                                    "mode": e_mode.value,
-                                                                    "patterns": new_pats,
-                                                                }
-                                                                act = e_action.value
+                                                                v = ep.value.strip()
+                                                                if not v:
+                                                                    ui.notify(
+                                                                        "Pattern required",
+                                                                        type="negative",
+                                                                    )
+                                                                    return
+                                                                cfg = await run.io_bound(
+                                                                    load_web_config
+                                                                )
+                                                                pr = cfg.get(
+                                                                    "permissions",
+                                                                    {},
+                                                                )
+                                                                rl = (
+                                                                    pr.get(
+                                                                        "rules",
+                                                                        [],
+                                                                    )
+                                                                    if isinstance(
+                                                                        pr,
+                                                                        dict,
+                                                                    )
+                                                                    else []
+                                                                )
                                                                 if (
-                                                                    act
-                                                                    and e_mode.value
-                                                                    == "deny"
+                                                                    rii
+                                                                    < len(rl)
                                                                 ):
-                                                                    new_rule[
-                                                                        "action"
-                                                                    ] = act
-                                                                rules[
-                                                                    ii
-                                                                ] = new_rule
+                                                                    pts = rl[
+                                                                        rii
+                                                                    ].get(
+                                                                        "patterns",
+                                                                        [],
+                                                                    )
+                                                                    if (
+                                                                        piii
+                                                                        < len(
+                                                                            pts
+                                                                        )
+                                                                    ):
+                                                                        pts[
+                                                                            piii
+                                                                        ] = v
+                                                                        rl[
+                                                                            rii
+                                                                        ][
+                                                                            "patterns"
+                                                                        ] = pts
+                                                                        if isinstance(
+                                                                            cfg.get(
+                                                                                "permissions"
+                                                                            ),
+                                                                            dict,
+                                                                        ):
+                                                                            cfg[
+                                                                                "permissions"
+                                                                            ][
+                                                                                "rules"
+                                                                            ] = rl
+                                                                        await run.io_bound(
+                                                                            save_web_config,
+                                                                            cfg,
+                                                                        )
+                                                                d.close()
+                                                                ui.notify(
+                                                                    "Pattern updated",
+                                                                    type="positive",
+                                                                )
+                                                                await refresh()
+
+                                                            with ui.row().classes(
+                                                                "gap-2 mt-1"
+                                                            ):
+                                                                ui.button(
+                                                                    "Save",
+                                                                    icon="save",
+                                                                    on_click=_sp,
+                                                                ).props(
+                                                                    "dense"
+                                                                )
+                                                                ui.button(
+                                                                    "Cancel",
+                                                                    on_click=d.close,
+                                                                ).props(
+                                                                    "dense flat"
+                                                                )
+                                                        d.open()
+
+                                                    ui.button(
+                                                        icon="edit",
+                                                        on_click=do_edit_pat,
+                                                    ).props(
+                                                        "flat dense size=xs"
+                                                    )
+
+                                                    # Delete pattern
+                                                    async def do_del_pat(
+                                                        ri=idx, pii=pi
+                                                    ):
+                                                        cfg = await run.io_bound(
+                                                            load_web_config
+                                                        )
+                                                        pr = cfg.get(
+                                                            "permissions",
+                                                            {},
+                                                        )
+                                                        rl = (
+                                                            pr.get(
+                                                                "rules", []
+                                                            )
+                                                            if isinstance(
+                                                                pr, dict
+                                                            )
+                                                            else []
+                                                        )
+                                                        if ri < len(rl):
+                                                            pts = rl[
+                                                                ri
+                                                            ].get(
+                                                                "patterns",
+                                                                [],
+                                                            )
+                                                            if pii < len(
+                                                                pts
+                                                            ):
+                                                                pts.pop(pii)
+                                                                rl[ri][
+                                                                    "patterns"
+                                                                ] = pts
                                                                 if isinstance(
                                                                     cfg.get(
                                                                         "permissions"
@@ -649,129 +965,139 @@ def create_permission_rules_page(service, daemon_name: str):
                                                                         "permissions"
                                                                     ][
                                                                         "rules"
-                                                                    ] = rules
+                                                                    ] = rl
                                                                 await run.io_bound(
                                                                     save_web_config,
                                                                     cfg,
                                                                 )
-                                                            dlg.close()
-                                                            ui.notify(
-                                                                "Rule updated",
-                                                                type="positive",
-                                                            )
-                                                            await refresh()
+                                                                ui.notify(
+                                                                    "Pattern removed",
+                                                                    type="positive",
+                                                                )
+                                                                await refresh()
 
+                                                    ui.button(
+                                                        icon="delete",
+                                                        on_click=do_del_pat,
+                                                        color="red",
+                                                    ).props(
+                                                        "flat dense size=xs"
+                                                    )
+
+                                        # Add pattern button
+                                        if not immutable:
+
+                                            async def do_add_pat(ri=idx):
+                                                with ui.dialog() as d, ui.card().classes(
+                                                    "w-[400px]"
+                                                ):
+                                                    ui.label(
+                                                        "Add Pattern"
+                                                    ).classes(
+                                                        "text-sm font-bold"
+                                                    )
+                                                    np = ui.input(
+                                                        label="Pattern",
+                                                        placeholder="e.g. daf-*, *",
+                                                    ).props(
+                                                        "outlined dense"
+                                                    ).classes("w-full")
+
+                                                    async def _ap(rii=ri):
+                                                        v = np.value.strip()
+                                                        if not v:
+                                                            ui.notify(
+                                                                "Pattern required",
+                                                                type="negative",
+                                                            )
+                                                            return
+                                                        cfg = await run.io_bound(
+                                                            load_web_config
+                                                        )
+                                                        pr = cfg.get(
+                                                            "permissions",
+                                                            {},
+                                                        )
+                                                        rl = (
+                                                            pr.get(
+                                                                "rules", []
+                                                            )
+                                                            if isinstance(
+                                                                pr, dict
+                                                            )
+                                                            else []
+                                                        )
+                                                        if rii < len(rl):
+                                                            rl[rii].setdefault(
+                                                                "patterns",
+                                                                [],
+                                                            ).append(v)
+                                                            if isinstance(
+                                                                cfg.get(
+                                                                    "permissions"
+                                                                ),
+                                                                dict,
+                                                            ):
+                                                                cfg[
+                                                                    "permissions"
+                                                                ][
+                                                                    "rules"
+                                                                ] = rl
+                                                            await run.io_bound(
+                                                                save_web_config,
+                                                                cfg,
+                                                            )
+                                                        d.close()
+                                                        ui.notify(
+                                                            "Pattern added",
+                                                            type="positive",
+                                                        )
+                                                        await refresh()
+
+                                                    with ui.row().classes(
+                                                        "gap-2 mt-1"
+                                                    ):
                                                         ui.button(
-                                                            "Save",
-                                                            icon="save",
-                                                            on_click=do_save,
+                                                            "Add",
+                                                            icon="add",
+                                                            on_click=_ap,
                                                         ).props("dense")
                                                         ui.button(
                                                             "Cancel",
-                                                            on_click=dlg.close,
-                                                        ).props("dense flat")
-                                                dlg.open()
+                                                            on_click=d.close,
+                                                        ).props(
+                                                            "dense flat"
+                                                        )
+                                                d.open()
 
                                             ui.button(
-                                                icon="edit",
-                                                on_click=do_edit,
-                                            ).props("flat dense size=sm")
-
-                                            # Delete
-                                            async def do_delete(i=idx):
-                                                cfg = await run.io_bound(
-                                                    load_web_config
-                                                )
-                                                perms = cfg.get(
-                                                    "permissions", {}
-                                                )
-                                                rules = (
-                                                    perms.get("rules", [])
-                                                    if isinstance(
-                                                        perms, dict
-                                                    )
-                                                    else []
-                                                )
-                                                if i < len(rules):
-                                                    rules.pop(i)
-                                                    if isinstance(
-                                                        cfg.get(
-                                                            "permissions"
-                                                        ),
-                                                        dict,
-                                                    ):
-                                                        cfg["permissions"][
-                                                            "rules"
-                                                        ] = rules
-                                                    await run.io_bound(
-                                                        save_web_config, cfg
-                                                    )
-                                                    ui.notify(
-                                                        "Rule deleted",
-                                                        type="positive",
-                                                    )
-                                                    await refresh()
-
-                                            ui.button(
-                                                icon="delete",
-                                                on_click=do_delete,
-                                                color="red",
-                                            ).props("flat dense size=sm")
-
-                                    # Pattern list
-                                    if patterns:
-                                        with ui.row().classes(
-                                            "items-center gap-1 flex-wrap ml-8"
-                                        ):
-                                            ui.label("Patterns:").classes(
-                                                "text-xs text-grey-6"
-                                            )
-                                            for p in patterns:
-                                                if isinstance(p, dict):
-                                                    pat_str = p.get(
-                                                        "pattern", str(p)
-                                                    )
-                                                    valid_until = p.get(
-                                                        "valid_until"
-                                                    )
-                                                    ui.badge(
-                                                        pat_str,
-                                                        color="blue-grey",
-                                                    ).classes(
-                                                        "text-xs"
-                                                    ).props("outline")
-                                                    exp = _format_expiration(
-                                                        valid_until
-                                                    )
-                                                    if exp:
-                                                        ui.badge(
-                                                            exp[0],
-                                                            color=exp[1],
-                                                        ).classes("text-xs")
-                                                else:
-                                                    ui.badge(
-                                                        str(p),
-                                                        color="blue-grey",
-                                                    ).classes(
-                                                        "text-xs"
-                                                    ).props("outline")
+                                                "Add Pattern",
+                                                icon="add",
+                                                on_click=do_add_pat,
+                                            ).props(
+                                                "dense size=sm flat"
+                                            ).classes("mt-1")
 
                         # --- Add rule button + dialog ---
                         async def show_add_dialog():
                             with ui.dialog() as dialog, ui.card().classes(
-                                "w-[500px]"
+                                "w-[400px]"
                             ):
                                 ui.label("Add Permission Rule").classes(
                                     "text-lg font-bold"
                                 )
                                 ui.label(
-                                    "Common matchers: Skill, mcp__server-name__*, "
-                                    "Bash, Write, Read, Edit, *"
+                                    "Common matchers: Skill, "
+                                    "mcp__server-name__*, Bash, *"
                                 ).classes("text-xs text-grey-6")
-                                a_matcher = ui.input(
-                                    label="Matcher",
-                                    placeholder="e.g. Skill, mcp__my-server__*, Bash, *",
-                                ).props("outlined dense").classes("w-full")
+                                a_matcher = (
+                                    ui.input(
+                                        label="Matcher",
+                                        placeholder="e.g. Skill, mcp__my-server__*, *",
+                                    )
+                                    .props("outlined dense")
+                                    .classes("w-full")
+                                )
                                 a_mode = ui.select(
                                     label="Mode",
                                     options={
@@ -780,10 +1106,6 @@ def create_permission_rules_page(service, daemon_name: str):
                                     },
                                     value="allow",
                                 ).classes("w-48")
-                                a_patterns = ui.input(
-                                    label="Patterns (comma-separated)",
-                                    placeholder="*, daf-*, notebook_*",
-                                ).props("outlined dense").classes("w-full")
                                 a_action = ui.select(
                                     label="Action (deny only)",
                                     options={
@@ -794,6 +1116,11 @@ def create_permission_rules_page(service, daemon_name: str):
                                     },
                                     value="",
                                 ).classes("w-48")
+                                ui.label(
+                                    "The rule is created with a single "
+                                    "\"*\" pattern. Add more patterns "
+                                    "inline after creation."
+                                ).classes("text-xs text-grey-6 mt-2")
 
                                 with ui.row().classes("gap-2 mt-2"):
 
@@ -805,15 +1132,6 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 type="negative",
                                             )
                                             return
-                                        pats = [
-                                            p.strip()
-                                            for p in a_patterns.value.split(
-                                                ","
-                                            )
-                                            if p.strip()
-                                        ]
-                                        if not pats:
-                                            pats = ["*"]
                                         cfg = await run.io_bound(
                                             load_web_config
                                         )
@@ -827,7 +1145,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                         new_rule = {
                                             "matcher": m_val,
                                             "mode": a_mode.value,
-                                            "patterns": pats,
+                                            "patterns": ["*"],
                                         }
                                         act = a_action.value
                                         if act and a_mode.value == "deny":
@@ -872,5 +1190,19 @@ def create_permission_rules_page(service, daemon_name: str):
                             "(last-match-wins). Use the arrow buttons to "
                             "reorder rules. Lower index = evaluated first."
                         ).classes("text-xs text-grey-6")
+
+            # Wire search inputs (defined outside content, so they
+            # keep focus across refreshes)
+            async def _on_matcher_search(e):
+                filter_state["matcher_q"] = e.value if e.value else ""
+                await refresh()
+
+            matcher_search_input.on_value_change(_on_matcher_search)
+
+            async def _on_pattern_search(e):
+                filter_state["pattern_q"] = e.value if e.value else ""
+                await refresh()
+
+            pattern_search_input.on_value_change(_on_pattern_search)
 
             ui.timer(0.1, refresh, once=True)
