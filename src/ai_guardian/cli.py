@@ -716,6 +716,32 @@ def main():
         daemon_sub.add_parser("restart", help="Restart daemon")
         daemon_sub.add_parser("reload", help="Force config reload without restart")
 
+        # Per-directory pause/resume (#958)
+        daemon_pause_parser = daemon_sub.add_parser(
+            "pause", help="Pause scanning (global or per-directory)"
+        )
+        daemon_pause_parser.add_argument(
+            "--dir",
+            type=str,
+            default=None,
+            help="Project directory to pause (default: global pause)"
+        )
+        daemon_pause_parser.add_argument(
+            "--minutes",
+            type=int,
+            default=0,
+            help="Pause duration in minutes (default: indefinite)"
+        )
+        daemon_resume_parser = daemon_sub.add_parser(
+            "resume", help="Resume scanning (global or per-directory)"
+        )
+        daemon_resume_parser.add_argument(
+            "--dir",
+            type=str,
+            default=None,
+            help="Project directory to resume (default: global resume)"
+        )
+
         # Standalone tray subcommand (Issue #527)
         tray_parser = subparsers.add_parser(
             "tray",

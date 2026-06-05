@@ -221,6 +221,106 @@ class TestPauseResume:
         assert state.pause_remaining_seconds() == 0.0
 
 
+class TestPerDirectoryPause:
+    """Tests for per-directory pause/resume (#958)."""
+
+    def test_default_no_dirs_paused(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert not state.is_dir_paused("/some/project")
+        assert state.get_paused_dirs() == {}
+
+    def test_pause_dir_indefinite(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a")
+        assert state.is_dir_paused("/project/a")
+        assert not state.is_dir_paused("/project/b")
+
+    def test_pause_dir_with_duration(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a", duration_minutes=5)
+        assert state.is_dir_paused("/project/a")
+        dirs = state.get_paused_dirs()
+        assert "/project/a" in dirs or os.path.realpath("/project/a") in dirs
+
+    def test_pause_dir_auto_expires(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a", duration_minutes=0.002)  # ~0.12 seconds
+        assert state.is_dir_paused("/project/a")
+        time.sleep(0.15)
+        assert not state.is_dir_paused("/project/a")
+
+    def test_resume_dir(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a")
+        assert state.is_dir_paused("/project/a")
+        state.resume_dir("/project/a")
+        assert not state.is_dir_paused("/project/a")
+
+    def test_resume_dir_not_paused(self, tmp_path):
+        """Resuming a directory that is not paused should be a no-op."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.resume_dir("/project/nonexistent")  # should not raise
+
+    def test_multiple_dirs(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a")
+        state.pause_dir("/project/b", duration_minutes=10)
+        assert state.is_dir_paused("/project/a")
+        assert state.is_dir_paused("/project/b")
+        assert not state.is_dir_paused("/project/c")
+
+        state.resume_dir("/project/a")
+        assert not state.is_dir_paused("/project/a")
+        assert state.is_dir_paused("/project/b")
+
+    def test_global_pause_independent_of_dir_pause(self, tmp_path):
+        """Global pause and per-dir pause are independent."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a")
+        assert not state.paused  # global is not paused
+        assert state.is_dir_paused("/project/a")
+
+        state.pause()
+        assert state.paused  # global is paused
+        assert state.is_dir_paused("/project/a")  # dir still paused
+
+        state.resume()
+        assert not state.paused
+        assert state.is_dir_paused("/project/a")  # dir still paused
+
+    def test_get_paused_dirs_snapshot(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a")
+        state.pause_dir("/project/b", duration_minutes=10)
+        dirs = state.get_paused_dirs()
+        a_key = os.path.realpath("/project/a")
+        b_key = os.path.realpath("/project/b")
+        assert a_key in dirs
+        assert dirs[a_key] == 0.0  # indefinite
+        assert b_key in dirs
+        assert dirs[b_key] > 0  # has remaining seconds
+
+    def test_get_paused_dirs_cleans_expired(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/expire", duration_minutes=0.002)
+        time.sleep(0.15)
+        dirs = state.get_paused_dirs()
+        assert os.path.realpath("/project/expire") not in dirs
+
+    def test_is_dir_paused_with_none(self, tmp_path):
+        """is_dir_paused should return False for None directory."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert not state.is_dir_paused(None)
+        assert not state.is_dir_paused("")
+
+    def test_stats_include_paused_dirs(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.pause_dir("/project/a")
+        stats = state.get_stats()
+        assert "paused_dirs" in stats
+        assert len(stats["paused_dirs"]) == 1
+
+
 class TestStats:
     def test_initial_stats(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
@@ -236,6 +336,8 @@ class TestStats:
         assert stats["last_block_seconds_ago"] is None
         assert stats["active_contexts"] == 0
         assert stats["paused"] is False
+        assert "paused_dirs" in stats
+        assert stats["paused_dirs"] == {}
         assert "uptime_seconds" in stats
         assert "started_at" in stats
 

@@ -86,6 +86,30 @@ class _RestHandler(BaseHTTPRequestHandler):
         elif self.path == "/api/resume":
             self.server.daemon_state.resume()
             self._send_json({"status": "resumed"})
+        elif self.path == "/api/pause_dir":
+            body = self._read_body()
+            if body is None:
+                return
+            directory = body.get("dir", "")
+            if not directory:
+                self._send_error(400, "dir is required")
+                return
+            minutes = body.get("minutes", 0)
+            if not isinstance(minutes, (int, float)) or minutes < 0 or minutes > 1440:
+                self._send_error(400, "minutes must be a number between 0 and 1440")
+                return
+            self.server.daemon_state.pause_dir(directory, minutes)
+            self._send_json({"status": "dir_paused", "dir": directory, "minutes": minutes})
+        elif self.path == "/api/resume_dir":
+            body = self._read_body()
+            if body is None:
+                return
+            directory = body.get("dir", "")
+            if not directory:
+                self._send_error(400, "dir is required")
+                return
+            self.server.daemon_state.resume_dir(directory)
+            self._send_json({"status": "dir_resumed", "dir": directory})
         elif self.path == "/api/reload":
             self.server.daemon_state.force_reload_config()
             self._send_json({"status": "config_reloaded"})
@@ -95,9 +119,11 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_status(self):
         state = self.server.daemon_state
         stats = state.get_stats()
+        paused_dirs = stats.get("paused_dirs", {})
         result = {
             "running": True,
             "paused": stats.get("paused", False),
+            "paused_dirs": len(paused_dirs),
             "uptime_seconds": stats.get("uptime_seconds", 0),
             "version": self._get_version(),
             "name": self._get_instance_name(),

@@ -231,6 +231,28 @@ class DaemonServer:
             elif msg_type == "resume":
                 self.state.resume()
                 response = make_response({"status": "resumed"})
+            elif msg_type == "pause_dir":
+                data = request.get("data", {})
+                directory = data.get("dir", "")
+                minutes = data.get("minutes", 0)
+                if not directory:
+                    response = make_response({"error": "dir is required"})
+                else:
+                    self.state.pause_dir(directory, minutes)
+                    response = make_response({
+                        "status": "dir_paused", "dir": directory,
+                        "minutes": minutes,
+                    })
+            elif msg_type == "resume_dir":
+                data = request.get("data", {})
+                directory = data.get("dir", "")
+                if not directory:
+                    response = make_response({"error": "dir is required"})
+                else:
+                    self.state.resume_dir(directory)
+                    response = make_response({
+                        "status": "dir_resumed", "dir": directory,
+                    })
             elif msg_type == "reload_config":
                 self.state.force_reload_config()
                 response = make_response({"status": "config_reloaded"})
@@ -265,6 +287,10 @@ class DaemonServer:
         self.state.record_activity()
 
         cwd = hook_data.pop("_daemon_cwd", None)
+
+        # Per-directory pause (#958): skip scanning if this directory is paused
+        if cwd and self.state.is_dir_paused(cwd):
+            return {"output": "{}", "exit_code": 0}
         if cwd:
             from ai_guardian.config_utils import set_project_dir_override, clear_project_dir_override
             from ai_guardian.config_loaders import _clear_config_cache

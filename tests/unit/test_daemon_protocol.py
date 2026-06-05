@@ -14,10 +14,12 @@ from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
     make_hook_request,
+    make_pause_dir,
     make_ping,
     make_pong,
     make_reload_config,
     make_response,
+    make_resume_dir,
     make_shutdown,
     make_status_request,
 )
@@ -162,3 +164,20 @@ class TestMessageFactories:
     def test_make_reload_config(self):
         msg = make_reload_config()
         assert msg["type"] == "reload_config"
+
+    def test_make_pause_dir(self):
+        msg = make_pause_dir("/project/a", minutes=30)
+        assert msg["version"] == PROTOCOL_VERSION
+        assert msg["type"] == "pause_dir"
+        assert msg["data"]["dir"] == "/project/a"
+        assert msg["data"]["minutes"] == 30
+
+    def test_make_pause_dir_indefinite(self):
+        msg = make_pause_dir("/project/a")
+        assert msg["data"]["minutes"] == 0
+
+    def test_make_resume_dir(self):
+        msg = make_resume_dir("/project/a")
+        assert msg["version"] == PROTOCOL_VERSION
+        assert msg["type"] == "resume_dir"
+        assert msg["data"]["dir"] == "/project/a"

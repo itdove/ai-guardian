@@ -21,7 +21,9 @@ from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
     make_hook_request,
+    make_pause_dir,
     make_ping,
+    make_resume_dir,
     make_shutdown,
     make_status_request,
     make_reload_config,
@@ -172,6 +174,61 @@ def send_reload_config(timeout=2.0):
             sock.close()
     except Exception:
         return False
+
+
+def send_pause_dir(directory, minutes=0, timeout=2.0):
+    """Pause scanning for a specific project directory.
+
+    Args:
+        directory: Absolute path of the project directory
+        minutes: Pause duration in minutes. 0 = indefinite.
+        timeout: Connection + response timeout in seconds
+
+    Returns:
+        dict or None: Response data, or None on failure
+    """
+    try:
+        sock = _connect(timeout=timeout)
+        if sock is None:
+            return None
+
+        try:
+            sock.sendall(encode_message(make_pause_dir(directory, minutes)))
+            response = decode_message(sock, timeout=timeout)
+            if response.get("type") == "response":
+                return response.get("data")
+            return None
+        finally:
+            sock.close()
+    except Exception:
+        return None
+
+
+def send_resume_dir(directory, timeout=2.0):
+    """Resume scanning for a specific project directory.
+
+    Args:
+        directory: Absolute path of the project directory
+        timeout: Connection + response timeout in seconds
+
+    Returns:
+        dict or None: Response data, or None on failure
+    """
+    try:
+        sock = _connect(timeout=timeout)
+        if sock is None:
+            return None
+
+        try:
+            sock.sendall(encode_message(make_resume_dir(directory)))
+            response = decode_message(sock, timeout=timeout)
+            if response.get("type") == "response":
+                return response.get("data")
+            return None
+        finally:
+            sock.close()
+    except Exception:
+        return None
 
 
 def cleanup_stale_pid():
