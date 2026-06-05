@@ -176,6 +176,13 @@ class WebConsole:
             )
             create_permissions_discovery_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/auto-directory-rules")
+        def auto_directory_rules_page(daemon_name: str):
+            from ai_guardian.web.pages.auto_directory_rules import (
+                create_auto_directory_rules_page,
+            )
+            create_auto_directory_rules_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/directory-rules")
         def directory_rules_page(daemon_name: str):
             from ai_guardian.web.pages.directory_rules import (
