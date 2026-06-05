@@ -499,6 +499,24 @@
               }
             }
           }
+        },
+        "validate_secrets": {
+          "type": "boolean",
+          "description": "Enable secret liveness validation (NEW in v1.11.0). When enabled, detected secrets are validated against their provider API to check if they're still active. Inactive (revoked/expired) secrets produce a warning instead of blocking. PRIVACY NOTE: sends detected secrets to provider APIs. Requires explicit opt-in. See Issue #971.",
+          "default": false
+        },
+        "validation_timeout_ms": {
+          "type": "integer",
+          "description": "Timeout in milliseconds for each secret validation HTTP request. Applies per-secret, not total. Default: 3000ms.",
+          "default": 3000,
+          "minimum": 500,
+          "maximum": 30000
+        },
+        "on_inactive": {
+          "type": "string",
+          "description": "Action to take when a secret is validated as inactive (revoked/expired). 'warn' logs a warning but does not block. 'allow' silently skips without warning. Verified-active and unverified secrets always block regardless of this setting.",
+          "enum": ["warn", "allow"],
+          "default": "warn"
         }
       },
       "additionalProperties": true

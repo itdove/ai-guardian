@@ -50,6 +50,11 @@ from ai_guardian.scanners.python_loader import (
     discover_entry_points,
     discover_scanner_directory,
 )
+from ai_guardian.scanners.secret_validator import (
+    SecretValidator,
+    ValidationStatus,
+    ValidationResult,
+)
 
 __all__ = [
     'EngineConfig',
@@ -89,4 +94,7 @@ __all__ = [
     'load_from_file',
     'discover_entry_points',
     'discover_scanner_directory',
+    'SecretValidator',
+    'ValidationStatus',
+    'ValidationResult',
 ]

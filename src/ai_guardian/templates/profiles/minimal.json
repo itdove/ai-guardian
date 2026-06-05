@@ -34,7 +34,11 @@
         "_comment_incremental": "Incremental scanning: only scan files whose content changed (v1.7.0+, requires cache_results)",
         "incremental": false,
         "_comment_audit": "Audit logging: log all scan operations for compliance (v1.7.0+)",
-        "audit_logging": false
+        "audit_logging": false,
+        "_comment_validate_secrets": "Secret liveness validation: check if detected secrets are still active (v1.11.0+). PRIVACY: sends secrets to provider APIs. Requires explicit opt-in.",
+        "validate_secrets": false,
+        "validation_timeout_ms": 3000,
+        "on_inactive": "warn"
     },
     "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
     "prompt_injection": {
