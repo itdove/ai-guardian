@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Replace unmaintained `toml` package with `tomli-w` for TOML writing** (Issue #969)
+  - Replaced undeclared `toml` dependency (unmaintained since Dec 2020) with `tomli-w>=1.0.0`
+  - TOML reading now uses `tomllib` (stdlib 3.11+) / `tomli` (backport), matching the rest of the codebase
+  - TOML writing uses `tomli_w.dump()` with binary mode
+  - Removed `toml is None` fallback guards (both libraries are now declared dependencies)
+
 ### Added
 
 - **Web and TUI console panel for auto_directory_rules** (Issue #966)
