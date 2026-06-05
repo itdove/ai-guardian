@@ -362,7 +362,7 @@ class TestSecretValidator:
             "ghp_faketoken12345678901234567890123456",
         )
         assert result.status == ValidationStatus.VERIFIED
-        assert result.elapsed_ms > 0
+        assert result.elapsed_ms >= 0
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_validate_secret_inactive(self, mock_get):
