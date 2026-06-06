@@ -497,17 +497,19 @@ class TestApplySecretValidation:
         )
         assert result is None
 
-    def test_no_validators_for_rules_returns_none(self):
+    def test_no_validators_returns_unverified(self):
         from ai_guardian.hook_processing import _apply_secret_validation
         result = _apply_secret_validation(
             {"validate_secrets": True},
             [{"rule_id": "aws-access-key", "line_number": 1}],
             "AKIA1234567890123456",  # notsecret
         )
-        assert result is None
+        assert result is not None
+        assert result["skip_block"] is False
+        assert result["validation_info"]["status"] == "unverified"
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
-    def test_all_inactive_returns_true(self, mock_get):
+    def test_all_inactive_returns_skip_block(self, mock_get):
         from ai_guardian.hook_processing import _apply_secret_validation
         mock_get.return_value = MagicMock(status_code=401)
         result = _apply_secret_validation(
@@ -515,10 +517,12 @@ class TestApplySecretValidation:
             [{"rule_id": "github-personal-token", "line_number": 1, "secret": "ghp_revoked"}],  # notsecret
             "ghp_revoked",
         )
-        assert result is True  # Skip blocking
+        assert result is not None
+        assert result["skip_block"] is True
+        assert result["validation_info"]["status"] == "inactive"
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
-    def test_active_secret_returns_false(self, mock_get):
+    def test_active_secret_returns_no_skip(self, mock_get):
         from ai_guardian.hook_processing import _apply_secret_validation
         mock_get.return_value = MagicMock(status_code=200)
         result = _apply_secret_validation(
@@ -526,7 +530,9 @@ class TestApplySecretValidation:
             [{"rule_id": "github-personal-token", "line_number": 1, "secret": "ghp_active"}],  # notsecret
             "ghp_active",
         )
-        assert result is False  # Block
+        assert result is not None
+        assert result["skip_block"] is False
+        assert result["validation_info"]["status"] == "verified"
 
 
 class TestSecretMatchValidationStatus:
