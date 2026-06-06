@@ -2,7 +2,60 @@
 
 import pytest
 
-from ai_guardian.web.pages.pi_ml_engines import (
+
+class TestTUIParseEngines:
+    """Test the TUI parse function (same logic, different error format)."""
+
+    def test_parse_engines_import(self):
+        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
+        result, err = panel._parse_engines("[]")
+        assert result == []
+        assert err is None
+
+    def test_parse_engines_valid(self):
+        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
+        result, err = panel._parse_engines(
+            '[{"type": "llm-guard", "model": "test-model"}]'
+        )
+        assert err is None
+        assert len(result) == 1
+
+    def test_parse_engines_invalid_json(self):
+        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
+        result, err = panel._parse_engines("{bad")
+        assert result is None
+        assert "Line" in err
+
+    def test_parse_engines_missing_model(self):
+        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
+        result, err = panel._parse_engines('[{"type": "llm-guard"}]')
+        assert result is None
+        assert "missing 'model'" in err
+
+    def test_parse_engines_unknown_type(self):
+        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
+        result, err = panel._parse_engines(
+            '[{"type": "bad-type", "model": "test"}]'
+        )
+        assert result is None
+        assert "unknown type" in err
+
+    def test_parse_engines_empty_string(self):
+        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
+        result, err = panel._parse_engines("")
+        assert result == []
+        assert err is None
+
+
+pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
+
+from ai_guardian.web.pages.pi_ml_engines import (  # noqa: E402
     _validate_ml_engines_json,
     VALID_ML_ENGINE_TYPES,
 )
@@ -113,53 +166,3 @@ class TestValidateMLEnginesJSON:
 
     def test_valid_engine_types_constant(self):
         assert "llm-guard" in VALID_ML_ENGINE_TYPES
-
-
-class TestTUIParseEngines:
-    """Test the TUI parse function (same logic, different error format)."""
-
-    def test_parse_engines_import(self):
-        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
-        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines("[]")
-        assert result == []
-        assert err is None
-
-    def test_parse_engines_valid(self):
-        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
-        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines(
-            '[{"type": "llm-guard", "model": "test-model"}]'
-        )
-        assert err is None
-        assert len(result) == 1
-
-    def test_parse_engines_invalid_json(self):
-        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
-        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines("{bad")
-        assert result is None
-        assert "Line" in err
-
-    def test_parse_engines_missing_model(self):
-        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
-        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines('[{"type": "llm-guard"}]')
-        assert result is None
-        assert "missing 'model'" in err
-
-    def test_parse_engines_unknown_type(self):
-        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
-        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines(
-            '[{"type": "bad-type", "model": "test"}]'
-        )
-        assert result is None
-        assert "unknown type" in err
-
-    def test_parse_engines_empty_string(self):
-        from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
-        panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines("")
-        assert result == []
-        assert err is None
