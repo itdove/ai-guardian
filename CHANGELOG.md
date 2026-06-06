@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **ML-based prompt injection detection** (Issue #185)
+  - Multi-engine ML detection using ONNX models running in daemon process
+  - New detector modes: `ml` (ML-only) and `hybrid` (heuristic + ML for uncertain cases)
+  - Multi-engine execution strategies: `first-match`, `any-match`, `consensus` (mirrors secret scanning pattern)
+  - Configurable `fallback_on_error`: `heuristic` (default), `block`, or `allow`
+  - Default model: `protectai/deberta-v3-base-prompt-injection-v2` (DeBERTa v3, ~370 MB)
+  - New CLI: `ai-guardian ml download|list|status|verify`
+  - New daemon endpoints: socket `ml_detect`, REST `POST /api/ml-detect`, `GET /api/ml-status`
+  - Doctor health check for ML dependencies and model availability
+  - Optional dependencies: `pip install ai-guardian[ml]` (onnxruntime, tokenizers)
+
 ### Fixed
 
 - **Replace unmaintained `toml` package with `tomli-w` for TOML writing** (Issue #969)

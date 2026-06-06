@@ -366,8 +366,25 @@
       "_explanation": "Local configs cannot change prompt injection settings when immutable is true"
     },
     "detector": "heuristic",
-    "_detector_options": ["heuristic", "rebuff", "llm-guard"],
-    "_detector_note": "heuristic = local patterns (default, <1ms), rebuff/llm-guard = ML-based (requires setup)",
+    "_detector_options": ["heuristic", "ml", "hybrid", "rebuff", "llm-guard"],
+    "_detector_note": "heuristic = local patterns (default, <1ms), ml = ML-only via daemon (10-50ms), hybrid = heuristic first then ML for uncertain cases, rebuff/llm-guard = legacy stubs",
+    "ml_engines": [],
+    "_ml_engines_note": "ML engines for prompt injection detection (NEW in v1.11.0). Requires daemon mode, pip install ai-guardian[ml], and ai-guardian ml download.",
+    "_ml_engines_example": [
+      {
+        "type": "llm-guard",
+        "model": "protectai/deberta-v3-base-prompt-injection-v2",
+        "threshold": 0.85
+      }
+    ],
+    "ml_strategy": "any-match",
+    "_ml_strategy_options": ["first-match", "any-match", "consensus"],
+    "_ml_strategy_note": "first-match = use first engine result, any-match = flag if any engine detects, consensus = flag if N engines agree",
+    "consensus_threshold": 2,
+    "_consensus_threshold_note": "Minimum engines that must agree for consensus strategy",
+    "fallback_on_error": "heuristic",
+    "_fallback_options": ["heuristic", "block", "allow"],
+    "_fallback_note": "Action when ML unavailable: heuristic = use pattern detection, block = fail closed, allow = fail open",
     "sensitivity": "medium",
     "_sensitivity_options": ["low", "medium", "high"],
     "_sensitivity_note": "low = very obvious attacks only, medium = balanced, high = more aggressive",

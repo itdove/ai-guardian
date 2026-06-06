@@ -825,8 +825,53 @@
         },
         "detector": {
           "type": "string",
-          "enum": ["heuristic", "rebuff", "llm-guard"],
-          "description": "Detection method: heuristic (local patterns, <1ms), rebuff/llm-guard (ML-based, requires setup)",
+          "enum": ["heuristic", "ml", "hybrid", "rebuff", "llm-guard"],
+          "description": "Detection method: heuristic (local patterns, <1ms), ml (ML-only via daemon, 10-50ms), hybrid (heuristic first, ML for uncertain cases), rebuff/llm-guard (legacy stubs)",
+          "default": "heuristic"
+        },
+        "ml_engines": {
+          "type": "array",
+          "description": "ML engines for prompt injection detection (NEW in v1.11.0, Issue #185). Each engine runs an ONNX model in the daemon process. Requires: pip install ai-guardian[ml] and ai-guardian ml download.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["llm-guard"],
+                "description": "Engine type"
+              },
+              "model": {
+                "type": "string",
+                "description": "Model name from registry (e.g., protectai/deberta-v3-base-prompt-injection-v2)"
+              },
+              "threshold": {
+                "type": "number",
+                "description": "Confidence threshold for this engine (0.0-1.0)",
+                "default": 0.85,
+                "minimum": 0.0,
+                "maximum": 1.0
+              }
+            },
+            "required": ["type", "model"]
+          },
+          "default": []
+        },
+        "ml_strategy": {
+          "type": "string",
+          "enum": ["first-match", "any-match", "consensus"],
+          "description": "Execution strategy across ML engines: first-match (use first detection), any-match (flag if any engine detects), consensus (flag if N engines agree)",
+          "default": "any-match"
+        },
+        "consensus_threshold": {
+          "type": "integer",
+          "description": "Minimum engines that must agree for consensus strategy",
+          "default": 2,
+          "minimum": 1
+        },
+        "fallback_on_error": {
+          "type": "string",
+          "enum": ["heuristic", "block", "allow"],
+          "description": "Action when ML detection is unavailable (daemon not running, model not loaded): heuristic (use pattern detection), block (fail closed), allow (fail open)",
           "default": "heuristic"
         },
         "sensitivity": {

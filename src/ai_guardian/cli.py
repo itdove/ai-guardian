@@ -76,6 +76,81 @@ def _ensure_daemon_started():
         pass
 
 
+def _handle_ml_command(args, ml_parser):
+    """Handle ML model management subcommands."""
+    cmd = getattr(args, "ml_command", None)
+
+    if cmd is None:
+        ml_parser.print_help()
+        return 1
+
+    if cmd == "download":
+        from ai_guardian.ml_detection import is_ml_available, download_model
+        if not is_ml_available():
+            print("Error: ML dependencies not installed.", file=sys.stderr)
+            print("Install with: pip install ai-guardian[ml]", file=sys.stderr)
+            return 1
+        try:
+            model_dir = download_model(
+                model_name=args.model, force=args.force
+            )
+            print(f"Model downloaded to: {model_dir}")
+            return 0
+        except Exception as e:
+            print(f"Error downloading model: {e}", file=sys.stderr)
+            return 1
+
+    elif cmd == "list":
+        from ai_guardian.ml_detection import is_ml_available, list_registered_models
+        print("ML Dependencies:", "installed" if is_ml_available() else "NOT installed")
+        print()
+        models = list_registered_models()
+        for m in models:
+            status = "downloaded" if m["downloaded"] else "not downloaded"
+            print(f"  {m['name']}")
+            print(f"    Status: {status}")
+            print(f"    Description: {m['description']}")
+            if m["path"]:
+                print(f"    Path: {m['path']}")
+            print()
+        if not models:
+            print("  No models in registry")
+        return 0
+
+    elif cmd == "status":
+        from ai_guardian.ml_detection import is_ml_available, verify_model, get_models_dir
+        print(f"ML dependencies installed: {is_ml_available()}")
+        print(f"Models directory: {get_models_dir()}")
+        is_valid, msg = verify_model()
+        print(f"Default model valid: {is_valid}")
+        print(f"  {msg}")
+
+        try:
+            from ai_guardian.daemon.client import is_daemon_running, send_status_request
+            if is_daemon_running():
+                status = send_status_request()
+                if status:
+                    print(f"\nDaemon ML model loaded: {status.get('ml_model_loaded', False)}")
+                    ml_err = status.get("ml_load_error")
+                    if ml_err:
+                        print(f"  Load error: {ml_err}")
+            else:
+                print("\nDaemon: not running")
+        except Exception:
+            print("\nDaemon: status unavailable")
+        return 0
+
+    elif cmd == "verify":
+        from ai_guardian.ml_detection import verify_model
+        is_valid, msg = verify_model(args.model)
+        print(msg)
+        return 0 if is_valid else 1
+
+    else:
+        ml_parser.print_help()
+        return 1
+
+
 def main():
     """Main entry point for the hook."""
     if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
@@ -532,6 +607,46 @@ def main():
             "--json",
             action="store_true",
             help="Output as JSON"
+        )
+
+        # ML model management subcommand (#185)
+        ml_parser = subparsers.add_parser(
+            "ml",
+            help="Manage ML models for prompt injection detection"
+        )
+        ml_sub = ml_parser.add_subparsers(
+            dest="ml_command",
+            help="ML model commands"
+        )
+
+        ml_download_parser = ml_sub.add_parser(
+            "download",
+            help="Download ML model from HuggingFace"
+        )
+        ml_download_parser.add_argument(
+            "model",
+            nargs="?",
+            default="protectai/deberta-v3-base-prompt-injection-v2",
+            help="Model name from registry (default: protectai/deberta-v3-base-prompt-injection-v2)"
+        )
+        ml_download_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Re-download even if model already exists"
+        )
+
+        ml_sub.add_parser("list", help="List available and downloaded models")
+        ml_sub.add_parser("status", help="Show ML detection status")
+
+        ml_verify_parser = ml_sub.add_parser(
+            "verify",
+            help="Verify ML model integrity"
+        )
+        ml_verify_parser.add_argument(
+            "model",
+            nargs="?",
+            default="protectai/deberta-v3-base-prompt-injection-v2",
+            help="Model name to verify"
         )
 
         # Pattern-servers subcommand
@@ -1263,6 +1378,10 @@ def main():
                 import traceback
                 traceback.print_exc()
                 return 1
+
+        # Handle ml command (#185)
+        if args.command == "ml":
+            return _handle_ml_command(args, ml_parser)
 
         # Handle pattern-servers command
         if args.command == "pattern-servers":

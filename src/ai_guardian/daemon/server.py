@@ -256,6 +256,26 @@ class DaemonServer:
             elif msg_type == "reload_config":
                 self.state.force_reload_config()
                 response = make_response({"status": "config_reloaded"})
+            elif msg_type == "ml_detect":
+                data = request.get("data", {})
+                content = data.get("content", "")
+                if not content:
+                    response = make_response({"error": "content is required"})
+                else:
+                    manager = self.state.get_ml_engine_manager()
+                    if manager is None:
+                        ml_status = self.state.get_ml_status()
+                        response = make_response({
+                            "available": False,
+                            "error": ml_status.get(
+                                "ml_load_error", "ML model not available"
+                            ),
+                        })
+                    else:
+                        result = manager.detect(content)
+                        response = make_response(result)
+            elif msg_type == "ml_status":
+                response = make_response(self.state.get_ml_status())
             else:
                 response = make_response(
                     {"error": f"Unknown message type: {msg_type}"}

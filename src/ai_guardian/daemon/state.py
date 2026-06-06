@@ -102,6 +102,11 @@ class DaemonState:
         # MCP installed detection (#756)
         self._mcp_installed = self._check_mcp_installed()
 
+        # ML engine manager (#185) — lazy-loaded on first ml_detect request
+        self._ml_engine_manager = None
+        self._ml_load_attempted = False
+        self._ml_load_error = None
+
         # Initial config load
         self._reload_config()
 
@@ -655,6 +660,8 @@ class DaemonState:
                 "config_error": self._config_error,
                 "mcp_installed": self._mcp_installed,
                 "paused_dirs": self._get_paused_dirs_locked(),
+                "ml_model_loaded": self._ml_engine_manager is not None,
+                "ml_load_error": self._ml_load_error,
             }
 
     @staticmethod
@@ -669,6 +676,88 @@ class DaemonState:
         """Get current config error message, if any."""
         with self._lock:
             return self._config_error
+
+    # --- ML engine management (#185) ---
+
+    def get_ml_engine_manager(self):
+        """Get or lazily load ML engine manager. Thread-safe.
+
+        Returns:
+            MLEngineManager or None if unavailable
+        """
+        with self._lock:
+            if self._ml_engine_manager is not None:
+                return self._ml_engine_manager
+            if self._ml_load_attempted:
+                return None
+            self._ml_load_attempted = True
+
+        try:
+            from ai_guardian.ml_detection import is_ml_available, MLEngineManager
+            if not is_ml_available():
+                with self._lock:
+                    self._ml_load_error = "ML dependencies not installed (pip install ai-guardian[ml])"
+                return None
+
+            config = self.get_config() or {}
+            pi_config = config.get("prompt_injection", {})
+            engines_config = pi_config.get("ml_engines", [])
+
+            if not engines_config:
+                with self._lock:
+                    self._ml_load_error = "No ml_engines configured in prompt_injection config"
+                return None
+
+            strategy = pi_config.get("ml_strategy", "any-match")
+            consensus_threshold = pi_config.get("consensus_threshold", 2)
+
+            manager = MLEngineManager(
+                engines_config, strategy=strategy,
+                consensus_threshold=consensus_threshold,
+            )
+
+            if not manager.available:
+                with self._lock:
+                    self._ml_load_error = (
+                        "No ML engines loaded: "
+                        + "; ".join(manager.load_errors)
+                    )
+                return None
+
+            with self._lock:
+                self._ml_engine_manager = manager
+                self._ml_load_error = None
+            logger.info(
+                f"ML engine manager loaded: {len(manager.engines)} engines, "
+                f"strategy={strategy}"
+            )
+            return manager
+        except Exception as e:
+            with self._lock:
+                self._ml_load_error = str(e)
+            logger.warning(f"Failed to load ML engine manager: {e}")
+            return None
+
+    def reload_ml_engines(self):
+        """Force reload of ML engines (after model download or config change)."""
+        with self._lock:
+            self._ml_engine_manager = None
+            self._ml_load_attempted = False
+            self._ml_load_error = None
+
+    def get_ml_status(self):
+        """Get ML engine status for reporting."""
+        with self._lock:
+            if self._ml_engine_manager is not None:
+                status = self._ml_engine_manager.get_status()
+                status["ml_available"] = True
+                return status
+            return {
+                "ml_available": False,
+                "ml_engines_loaded": 0,
+                "ml_engines_total": 0,
+                "ml_load_error": self._ml_load_error,
+            }
 
     def _pause_remaining_locked(self):
         """Get remaining pause seconds (must be called with lock held)."""

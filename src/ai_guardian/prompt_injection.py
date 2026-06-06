@@ -812,6 +812,15 @@ class PromptInjectionDetector:
         self.ignore_tools = self.config.get("ignore_tools", [])
         self.action = self.config.get("action", "block")
 
+        # ML engine config (#185)
+        self.ml_engines = self.config.get("ml_engines", [])
+        self.ml_strategy = self.config.get("ml_strategy", "any-match")
+        self.fallback_on_error = self.config.get("fallback_on_error", "heuristic")
+
+        # ML result tracking
+        self.last_ml_results = []
+        self.last_ml_strategy = ""
+
         # Load patterns from bundled TOML (primary source, fallback to class attributes)
         toml_patterns = self._load_patterns_from_toml()
 
@@ -1143,6 +1152,102 @@ class PromptInjectionDetector:
 
         return is_injection, confidence, matched_text, matched_pattern, attack_type, line_number
 
+    def _ml_or_hybrid_detection(self, content, source_type="user_prompt"):
+        """Perform ML or hybrid (heuristic + ML) detection.
+
+        When detector="ml": query daemon for ML prediction, fallback on error.
+        When detector="hybrid": run heuristic first, use ML for uncertain cases.
+
+        Returns:
+            Same tuple as _heuristic_detection:
+            (is_injection, confidence, matched_text, matched_pattern, attack_type, line_number)
+        """
+        if self.detector_type == "hybrid":
+            h_result = self._heuristic_detection(content, source_type)
+            is_inj, conf, matched_text, matched_pattern, attack_type, line_num = h_result
+
+            if conf >= 0.85 or conf < 0.3:
+                return h_result
+
+            logger.debug(
+                f"Heuristic uncertain (confidence={conf:.2f}), consulting ML"
+            )
+            ml_result = self._query_ml_daemon(content)
+            if ml_result is None:
+                logger.debug("ML unavailable, using heuristic result")
+                return h_result
+
+            ml_is_inj = ml_result.get("is_injection", False)
+            ml_conf = ml_result.get("confidence", 0.0)
+
+            self.last_ml_results = ml_result.get("results", [])
+            self.last_ml_strategy = ml_result.get("strategy", "")
+
+            if ml_conf > conf:
+                return (
+                    ml_is_inj, ml_conf,
+                    matched_text or content[:100],
+                    "ml_model", "injection", line_num,
+                )
+            return h_result
+
+        # detector="ml" — ML-only mode
+        ml_result = self._query_ml_daemon(content)
+        if ml_result is None:
+            return self._apply_fallback(content, source_type)
+
+        ml_is_inj = ml_result.get("is_injection", False)
+        ml_conf = ml_result.get("confidence", 0.0)
+
+        self.last_ml_results = ml_result.get("results", [])
+        self.last_ml_strategy = ml_result.get("strategy", "")
+
+        return (
+            ml_is_inj, ml_conf,
+            content[:100] if ml_is_inj else "",
+            "ml_model", "injection", None,
+        )
+
+    def _query_ml_daemon(self, content):
+        """Query daemon for ML-based detection.
+
+        Returns:
+            dict with detection results or None if unavailable
+        """
+        try:
+            from ai_guardian.daemon.client import is_daemon_running, send_ml_detect
+            if not is_daemon_running():
+                return None
+            result = send_ml_detect(content, timeout=2.0)
+            if result and result.get("available"):
+                return result
+            return None
+        except Exception as e:
+            logger.debug(f"ML daemon query failed: {e}")
+            return None
+
+    def _apply_fallback(self, content, source_type):
+        """Apply fallback_on_error strategy when ML is unavailable.
+
+        Returns:
+            Same tuple as _heuristic_detection
+        """
+        if self.fallback_on_error == "heuristic":
+            logger.warning(
+                "ML detection unavailable, falling back to heuristic"
+            )
+            return self._heuristic_detection(content, source_type)
+        elif self.fallback_on_error == "block":
+            logger.warning(
+                "ML detection unavailable, blocking (fallback_on_error=block)"
+            )
+            return (True, 1.0, "", "ml_unavailable", "injection", None)
+        else:
+            logger.warning(
+                "ML detection unavailable, allowing (fallback_on_error=allow)"
+            )
+            return (False, 0.0, "", "", "", None)
+
     def _format_error_message(
         self,
         confidence: float,
@@ -1331,16 +1436,15 @@ class PromptInjectionDetector:
             # Perform detection based on configured detector type (use stripped content)
             if self.detector_type == "heuristic":
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
+            elif self.detector_type in ("ml", "hybrid"):
+                is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._ml_or_hybrid_detection(content_to_check, source_type)
             elif self.detector_type == "rebuff":
-                # Placeholder for Rebuff integration
                 logger.warning("Rebuff detector not implemented yet, falling back to heuristic")
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
             elif self.detector_type == "llm-guard":
-                # Placeholder for LLM Guard integration
                 logger.warning("LLM Guard detector not implemented yet, falling back to heuristic")
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
             else:
-                # Unknown detector type, use heuristic
                 logger.warning(f"Unknown detector type '{self.detector_type}', using heuristic")
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
 
