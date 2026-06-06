@@ -1687,11 +1687,12 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         hctx = hook_context or {}
 
         # Build blocked info with detailed location if available
+        engine_name = details.get("engine", "Gitleaks")
         blocked_info = {
             "file_path": filename if filename != "user_prompt" else None,
             "source": "prompt" if filename == "user_prompt" else "file",
             "secret_type": details.get("rule_id", "Unknown"),
-            "reason": "Gitleaks detected sensitive information"
+            "reason": f"{engine_name} detected sensitive information"
         }
 
         # Add line number information if available
@@ -1729,6 +1730,88 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         )
     except Exception as e:
         logger.debug(f"Failed to log secret detection violation: {e}")
+
+
+# Category → (ViolationType, reason template, severity)
+_CATEGORY_VIOLATION_MAP = {
+    "pii": (ViolationType.PII_DETECTED, "PII detected", "high"),
+    "prompt_injection": (ViolationType.PROMPT_INJECTION, "Prompt injection detected", "high"),
+    "unicode": (ViolationType.PROMPT_INJECTION, "Unicode attack detected", "high"),
+    "config_exfil": (ViolationType.CONFIG_FILE_EXFIL, "Config exfiltration pattern detected", "high"),
+    "ssrf": (ViolationType.SSRF_BLOCKED, "SSRF pattern detected", "high"),
+}
+
+
+def _log_finding_violation(filename: str, context: Optional[Dict] = None,
+                           secret_details: Optional[Dict] = None,
+                           hook_context: Optional[Dict] = None, violation_logger=None):
+    """Route a scanner finding to the correct violation type based on category.
+
+    Checks the 'category' field in secret_details to determine the violation
+    type. Falls back to _log_secret_detection_violation for secrets or unknown
+    categories.
+    """
+    details = secret_details or {}
+    category = details.get("category")
+
+    if category is None or category == "secrets":
+        _log_secret_detection_violation(filename, context, secret_details, hook_context, violation_logger)
+        return
+
+    mapping = _CATEGORY_VIOLATION_MAP.get(category)
+    if mapping is None:
+        _log_secret_detection_violation(filename, context, secret_details, hook_context, violation_logger)
+        return
+
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        vtype, reason_label, severity = mapping
+        ctx = context or {}
+        hctx = hook_context or {}
+        engine_name = details.get("engine", "toml-patterns")
+        rule_id = details.get("rule_id", "Unknown")
+
+        blocked_info = {
+            "file_path": filename if filename != "user_prompt" else None,
+            "source": "prompt" if filename == "user_prompt" else "file",
+            "secret_type": rule_id,
+            "reason": f"{engine_name}: {reason_label} ({rule_id})"
+        }
+
+        if details.get("line_number"):
+            blocked_info["line_number"] = details["line_number"]
+            if details.get("end_line") and details["end_line"] != details["line_number"]:
+                blocked_info["end_line"] = details["end_line"]
+
+        if details.get("total_findings"):
+            blocked_info["total_findings"] = details["total_findings"]
+
+        violation_ctx = {
+            "ide_type": ctx.get("ide_type", "unknown"),
+            "hook_event": ctx.get("hook_event", "unknown"),
+            "project_path": os.getcwd()
+        }
+        if hctx.get("tool_use_id"):
+            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
+        if hctx.get("session_id"):
+            violation_ctx["session_id"] = hctx["session_id"]
+
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
+        violation_logger.log_violation(
+            violation_type=vtype,
+            blocked=blocked_info,
+            context=violation_ctx,
+            suggestion={
+                "action": "review_finding",
+                "false_positive": "Add '# ai-guardian:allow' at the end of the line",
+            },
+            severity=severity
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log finding violation: {e}")
 
 
 def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
@@ -1925,43 +2008,146 @@ def _log_pii_violation(violation_logger, pii_config, pii_redactions,
     return pii_action, pii_types
 
 
+_CATEGORY_BANNER = {
+    "pii": {
+        "title": "PII Detected",
+        "type_label": "PII Type",
+        "why": (
+            "Personally identifiable information (PII) must not be exposed to AI\n"
+            "assistants or committed to version control."
+        ),
+        "recommendations": [
+            "Redact or mask PII before sharing with AI",
+            "Use synthetic/test data instead of real PII",
+            "Review scan_pii settings in ai-guardian.json",
+        ],
+        "footer": "",
+        "protection": "PII Scanning",
+    },
+    "prompt_injection": {
+        "title": "Prompt Injection Detected",
+        "type_label": "Pattern",
+        "why": (
+            "Prompt injection patterns can manipulate AI assistant behavior\n"
+            "and bypass security controls."
+        ),
+        "recommendations": [
+            "Remove or sanitize the injection pattern",
+            "Add to allowlist if this is legitimate documentation",
+        ],
+        "footer": "",
+        "protection": "Prompt Injection Detection",
+    },
+    "unicode": {
+        "title": "Unicode Attack Detected",
+        "type_label": "Pattern",
+        "why": (
+            "Invisible or misleading Unicode characters can be used to obfuscate\n"
+            "malicious content and bypass text-based security checks."
+        ),
+        "recommendations": [
+            "Remove invisible/zero-width characters",
+            "Replace homoglyphs with ASCII equivalents",
+            "Add to allowlist if this is legitimate Unicode content",
+        ],
+        "footer": "",
+        "protection": "Unicode Attack Detection",
+    },
+    "config_exfil": {
+        "title": "Config Exfiltration Detected",
+        "type_label": "Pattern",
+        "why": (
+            "This pattern may exfiltrate configuration data, environment variables,\n"
+            "or credentials to external services."
+        ),
+        "recommendations": [
+            "Review the command for unintended data exposure",
+            "Avoid piping secrets or env vars to external URLs",
+        ],
+        "footer": "",
+        "protection": "Config Exfiltration Detection",
+    },
+    "ssrf": {
+        "title": "SSRF Pattern Detected",
+        "type_label": "Pattern",
+        "why": (
+            "Server-Side Request Forgery (SSRF) patterns target internal networks,\n"
+            "cloud metadata endpoints, or private services."
+        ),
+        "recommendations": [
+            "Avoid requests to internal/private IP ranges",
+            "Do not access cloud metadata endpoints",
+            "Use allowlisted URLs only",
+        ],
+        "footer": "",
+        "protection": "SSRF Protection",
+    },
+}
+
+
 def _build_secret_detected_message(scanner_name, secret_details, pattern_description,
                                    protection_label="Secret Scanning"):
-    """Build a consistent 'Secret Detected' error banner."""
+    """Build a category-aware detection error banner."""
+    category = secret_details.get("category") if secret_details else None
+    banner = _CATEGORY_BANNER.get(category) if category else None
+
+    if banner:
+        title = banner["title"]
+        type_label = banner["type_label"]
+        why_text = banner["why"]
+        recommendations = banner["recommendations"]
+        footer_text = banner["footer"]
+        if protection_label == "Secret Scanning":
+            protection_label = banner["protection"]
+    else:
+        title = "Secret Detected"
+        type_label = "Secret Type"
+        why_text = (
+            "Hard-coded secrets in source code can leak to version control\n"
+            "and be accessed by unauthorized users."
+        )
+        recommendations = [
+            "Move secrets to environment variables",
+            "Use secret management (AWS Secrets Manager, HashiCorp Vault)",
+            "Add to .gitignore if in config file",
+            "Never commit secrets to git",
+        ]
+        footer_text = "⚠️  Secret value NOT shown in this message for security\n"
+
     error_msg = (
         f"\n{'='*70}\n"
-        f"🛡️ Secret Detected\n"
+        f"🛡️ {title}\n"
         f"{'='*70}\n\n"
         f"Protection: {protection_label}\n"
     )
 
     if secret_details:
-        error_msg += f"Secret Type: {secret_details['rule_id']}\n"
+        error_msg += f"{type_label}: {secret_details['rule_id']}\n"
         if secret_details.get('line_number'):
             error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
         else:
             error_msg += f"Location: {secret_details['file']}\n"
     else:
-        error_msg += "Secret Type: (multiple or unknown)\n"
+        error_msg += f"{type_label}: (multiple or unknown)\n"
 
     error_msg += f"Scanner: {scanner_name}\n"
     error_msg += f"Patterns: {pattern_description}\n"
 
     error_msg += (
-        f"\nWhy blocked: Hard-coded secrets in source code can leak to version control\n"
-        f"and be accessed by unauthorized users.\n\n"
+        f"\nWhy blocked: {why_text}\n\n"
         f"This operation has been blocked for security.\n"
-        f"Please remove the sensitive information and try again.\n\n"
-        f"DO NOT attempt to bypass this protection - it prevents credential leaks.\n\n"
+        f"Please remove the flagged content and try again.\n\n"
+        f"DO NOT attempt to bypass this protection.\n\n"
         f"Recommendation:\n"
-        f"  • Move secrets to environment variables\n"
-        f"  • Use secret management (AWS Secrets Manager, HashiCorp Vault)\n"
-        f"  • Add to .gitignore if in config file\n"
-        f"  • Never commit secrets to git\n\n"
-        f"⚠️  Secret value NOT shown in this message for security\n\n"
     )
+    for rec in recommendations:
+        error_msg += f"  • {rec}\n"
+    error_msg += "\n"
 
-    if not secret_details:
+    if footer_text:
+        error_msg += f"{footer_text}\n"
+
+    if not secret_details and not banner:
         error_msg += (
             "Common secret types:\n"
             "  • API keys and tokens\n"
@@ -2397,7 +2583,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             "line_number": first_secret.line_number,
                             "end_line": first_secret.end_line or 0,
                             "commit": first_secret.commit or "N/A",
-                            "total_findings": len(strategy_result.secrets)
+                            "total_findings": len(strategy_result.secrets),
+                            "engine": strategy_result.engine,
+                            "category": first_secret.category,
                         }
 
                         scanner_name = strategy_result.engine
@@ -2407,8 +2595,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             f"Secret Scanning ({execution_strategy_name} strategy)",
                         )
 
-                        _log_secret_detection_violation(file_path or filename, context, secret_details,
-                                                        hook_context=context)
+                        _log_finding_violation(file_path or filename, context, secret_details,
+                                               hook_context=context)
                         logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
                         return True, error_msg
 
@@ -2668,7 +2856,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "line_number": first_secret.line_number,
                                     "end_line": first_secret.end_line or 0,
                                     "commit": first_secret.commit or "N/A",
-                                    "total_findings": len(fallback_result.secrets)
+                                    "total_findings": len(fallback_result.secrets),
+                                    "engine": fallback_result.engine,
+                                    "category": first_secret.category,
                                 }
                                 scanner_name = fallback_result.engine
                                 error_msg = _build_secret_detected_message(
@@ -2676,8 +2866,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "Built-in Defaults",
                                     "Secret Scanning (first-match fallthrough)",
                                 )
-                                _log_secret_detection_violation(file_path or filename, context, secret_details,
-                                                                hook_context=context)
+                                _log_finding_violation(file_path or filename, context, secret_details,
+                                                       hook_context=context)
                                 logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
                                 return True, error_msg
                     return False, None
@@ -2759,9 +2949,11 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     _describe_patterns(engine_config, resolved_config_path, config_source, pattern_config_for_msg),
                 )
 
-                # Log secret detection violation with details
-                _log_secret_detection_violation(file_path or filename, context, secret_details,
-                                                hook_context=context)
+                # Log violation with category-aware routing (Issue #984)
+                if secret_details is not None:
+                    secret_details.setdefault("engine", scanner_name)
+                _log_finding_violation(file_path or filename, context, secret_details,
+                                       hook_context=context)
 
                 # Always block - secret scanning does not support "log" mode
                 # (unless validation confirmed all secrets are inactive - Issue #971)
@@ -2815,7 +3007,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "line_number": first_secret.line_number,
                                 "end_line": first_secret.end_line or 0,
                                 "commit": first_secret.commit or "N/A",
-                                "total_findings": len(fallback_result.secrets)
+                                "total_findings": len(fallback_result.secrets),
+                                "engine": fallback_result.engine,
+                                "category": first_secret.category,
                             }
                             scanner_name = fallback_result.engine
                             fallback_engine_config = next(
@@ -2833,8 +3027,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 fallback_pattern_desc,
                                 "Secret Scanning (first-match fallthrough)",
                             )
-                            _log_secret_detection_violation(file_path or filename, context, secret_details,
-                                                            hook_context=context)
+                            _log_finding_violation(file_path or filename, context, secret_details,
+                                                    hook_context=context)
                             logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
                             return True, error_msg
 

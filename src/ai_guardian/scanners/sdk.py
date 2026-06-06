@@ -41,6 +41,7 @@ class Finding:
         severity: Severity level — "critical", "warning", or "info"
         end_line: Optional ending line number for multi-line findings
         commit: Optional git commit hash (for git-aware scanners)
+        category: Pattern category (e.g., "secrets", "pii") for violation routing
     """
     rule_id: str
     line_number: int
@@ -49,6 +50,7 @@ class Finding:
     severity: str = "warning"
     end_line: Optional[int] = None
     commit: Optional[str] = None
+    category: Optional[str] = None
 
 
 class Scanner(ABC):

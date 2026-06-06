@@ -250,6 +250,7 @@ def run_python_scanner(
                 end_line=finding.end_line,
                 commit=finding.commit,
                 engine=scanner_name,
+                category=finding.category,
             ))
 
         logging.info(
