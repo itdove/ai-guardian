@@ -410,10 +410,11 @@ def create_secret_finding(
     Returns:
         Finding dictionary for SARIF formatter
     """
+    from ai_guardian.secret_type_names import get_secret_type_display
     return {
         "rule_id": "SECRET-001",
         "level": "error",
-        "message": f"Secret detected: {secret_type}",
+        "message": f"Secret detected: {get_secret_type_display(secret_type)}",
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,

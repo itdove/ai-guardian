@@ -235,6 +235,9 @@ def _render_violation_card(v: dict):
                     if val is not None:
                         ui.label(f"{label}:").classes("text-xs text-grey-6")
                         display = str(val)
+                        if key == "secret_type":
+                            from ai_guardian.secret_type_names import get_secret_type_display
+                            display = get_secret_type_display(display)
                         if isinstance(val, list):
                             display = ", ".join(str(x) for x in val)
                         if isinstance(val, float):

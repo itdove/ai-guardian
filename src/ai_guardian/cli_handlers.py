@@ -137,8 +137,9 @@ def _handle_violations_command(args):
                 print(location)
             else:
                 print(f"  Source: {source}")
+            from ai_guardian.secret_type_names import get_secret_type_display
             secret_type = blocked.get("secret_type", "Unknown")
-            print(f"  Secret type: {secret_type}")
+            print(f"  Secret type: {get_secret_type_display(secret_type)}")
 
         elif v.get("violation_type") in (ViolationType.PROMPT_INJECTION, ViolationType.JAILBREAK_DETECTED):
             source = blocked.get("source", "unknown")
