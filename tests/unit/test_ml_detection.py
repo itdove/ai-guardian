@@ -126,8 +126,8 @@ class TestMLEngine(unittest.TestCase):
 
     def test_predict_injection(self):
         """Mocked model returns injection score > threshold."""
+        np = pytest.importorskip("numpy")
         from ai_guardian.ml_detection import MLEngine
-        import numpy as np
 
         engine = MLEngine.__new__(MLEngine)
         engine.engine_type = "llm-guard"
@@ -161,8 +161,8 @@ class TestMLEngine(unittest.TestCase):
 
     def test_predict_safe(self):
         """Mocked model returns safe score."""
+        np = pytest.importorskip("numpy")
         from ai_guardian.ml_detection import MLEngine
-        import numpy as np
 
         engine = MLEngine.__new__(MLEngine)
         engine.engine_type = "llm-guard"
