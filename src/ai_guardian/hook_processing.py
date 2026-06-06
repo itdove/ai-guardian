@@ -1705,6 +1705,10 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         if details.get("total_findings"):
             blocked_info["total_findings"] = details["total_findings"]
 
+        # Add validation status when validate_secrets is enabled (Issue #983)
+        if details.get("validation"):
+            blocked_info["validation"] = details["validation"]
+
         violation_ctx = {
             "ide_type": ctx.get("ide_type", "unknown"),
             "hook_event": ctx.get("hook_event", "unknown"),
@@ -1787,6 +1791,10 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
 
         if details.get("total_findings"):
             blocked_info["total_findings"] = details["total_findings"]
+
+        # Add validation status when validate_secrets is enabled (Issue #983)
+        if details.get("validation"):
+            blocked_info["validation"] = details["validation"]
 
         violation_ctx = {
             "ide_type": ctx.get("ide_type", "unknown"),
@@ -2189,8 +2197,8 @@ def _apply_secret_validation(
     secrets_info: list,
     content: str,
     context: Optional[Dict] = None,
-) -> Optional[bool]:
-    """Apply secret liveness validation if enabled (Issue #971).
+) -> Optional[Dict]:
+    """Apply secret liveness validation if enabled (Issue #971, #983).
 
     Called after detection + allowlist filtering, before the block decision.
     Validates detected secrets against provider APIs to check if they're
@@ -2204,9 +2212,8 @@ def _apply_secret_validation(
         context: Optional context dict for logging.
 
     Returns:
-        None  — validation disabled or not applicable, caller should proceed normally
-        True  — all secrets are inactive, caller should skip blocking
-        False — at least one secret is active/unverified, caller should block
+        None  — validation disabled or not applicable, no validation field in violation
+        dict  — {"skip_block": bool, "validation_info": {"status": ..., "message": ..., "elapsed_ms": ...}}
     """
     if not secret_config or not secret_config.get("validate_secrets", False):
         return None  # Validation not enabled
@@ -2224,10 +2231,20 @@ def _apply_secret_validation(
         # Check if any secrets have validators
         has_any_validator = any(validator.has_validator(s.get("rule_id", "")) for s in secrets_info)
         if not has_any_validator:
-            return None  # No validators available — proceed with default blocking
+            return {
+                "skip_block": False,
+                "validation_info": {
+                    "status": "unverified",
+                    "message": "No validator for this rule",
+                    "elapsed_ms": 0,
+                },
+            }
 
         results = validator.validate_secrets(secrets_info, content)
         active_secrets, inactive_secrets = validator.filter_inactive(secrets_info, results)
+
+        # Build validation_info from first result (matches primary secret in violation)
+        primary_result = results[0] if results else None
 
         if not active_secrets and inactive_secrets:
             # All secrets are inactive — log and skip blocking
@@ -2247,7 +2264,14 @@ def _apply_secret_validation(
                 f"All {len(inactive_secrets)} detected secret(s) validated as inactive — "
                 f"skipping block (on_inactive={on_inactive})"
             )
-            return True  # Skip blocking
+            return {
+                "skip_block": True,
+                "validation_info": {
+                    "status": primary_result.status.value if primary_result else "inactive",
+                    "message": primary_result.message if primary_result else "",
+                    "elapsed_ms": primary_result.elapsed_ms if primary_result else 0,
+                },
+            }
 
         # At least one secret is active or unverified — block
         for result in results:
@@ -2261,14 +2285,33 @@ def _apply_secret_validation(
                     f"Secret '{result.rule_id}' inactive but other secrets "
                     f"still active — blocking all"
                 )
-        return False  # Block
+
+        # Use first active/verified result for validation_info, fall back to primary
+        active_result = next(
+            (r for r in results if r.status == ValidationStatus.VERIFIED), primary_result
+        )
+        return {
+            "skip_block": False,
+            "validation_info": {
+                "status": active_result.status.value if active_result else "unverified",
+                "message": active_result.message if active_result else "",
+                "elapsed_ms": active_result.elapsed_ms if active_result else 0,
+            },
+        }
 
     except ImportError:
         logging.debug("Secret validator module not available — skipping validation")
         return None
     except Exception as e:
         logging.warning(f"Secret validation error (fail-closed): {e}")
-        return None  # On error, proceed with default blocking
+        return {
+            "skip_block": False,
+            "validation_info": {
+                "status": "error",
+                "message": str(e),
+                "elapsed_ms": 0,
+            },
+        }
 
 
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
@@ -2560,7 +2603,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 logging.info("All strategy findings matched .gitleaks.toml allowlist — skipping")
                                 return False, None
 
-                        # Secret liveness validation (Issue #971)
+                        # Secret liveness validation (Issue #971, #983)
                         secrets_for_validation = [
                             {
                                 "rule_id": s.rule_id,
@@ -2569,14 +2612,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             }
                             for s in strategy_result.secrets
                         ]
-                        validation_skip = _apply_secret_validation(
+                        validation_result = _apply_secret_validation(
                             secret_config, secrets_for_validation,
                             content if isinstance(content, str) else str(content),
                             context=context,
                         )
-                        if validation_skip is True:
-                            logging.info("All secrets validated as inactive (strategy path) — allowing")
-                            return False, None
+                        validation_info = validation_result.get("validation_info") if validation_result else None
 
                         first_secret = strategy_result.secrets[0]
                         secret_details = {
@@ -2589,6 +2630,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             "engine": strategy_result.engine,
                             "category": first_secret.category,
                         }
+                        if validation_info:
+                            secret_details["validation"] = validation_info
+
+                        if validation_result and validation_result.get("skip_block"):
+                            _log_finding_violation(file_path or filename, context, secret_details,
+                                                   hook_context=context)
+                            logging.info("All secrets validated as inactive (strategy path) — allowing")
+                            return False, None
 
                         scanner_name = strategy_result.engine
                         error_msg = _build_secret_detected_message(
@@ -2837,7 +2886,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 context={"filename": filename}
                             )
                             if fallback_result.has_secrets and fallback_result.secrets:
-                                # Secret liveness validation (Issue #971) — fallthrough path 1
+                                # Secret liveness validation (Issue #971, #983) — fallthrough path 1
                                 fb_secrets = [
                                     {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
                                     for s in fallback_result.secrets
@@ -2847,9 +2896,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     content if isinstance(content, str) else str(content),
                                     context=context,
                                 )
-                                if fb_validation is True:
-                                    logging.info("All secrets validated as inactive (fallthrough 1) — allowing")
-                                    return False, None
+                                fb_validation_info = fb_validation.get("validation_info") if fb_validation else None
 
                                 first_secret = fallback_result.secrets[0]
                                 secret_details = {
@@ -2862,6 +2909,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "engine": fallback_result.engine,
                                     "category": first_secret.category,
                                 }
+                                if fb_validation_info:
+                                    secret_details["validation"] = fb_validation_info
+
+                                if fb_validation and fb_validation.get("skip_block"):
+                                    _log_finding_violation(file_path or filename, context, secret_details,
+                                                           hook_context=context)
+                                    logging.info("All secrets validated as inactive (fallthrough 1) — allowing")
+                                    return False, None
+
                                 scanner_name = fallback_result.engine
                                 error_msg = _build_secret_detected_message(
                                     scanner_name, secret_details,
@@ -2929,17 +2985,27 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 if secret_details:
                     secret_details['file'] = file_path or filename
 
-                # Secret liveness validation (Issue #971) — legacy subprocess path
+                # Secret liveness validation (Issue #971, #983) — legacy subprocess path
+                validation_result_legacy = None
                 if secret_details:
                     secrets_for_validation = [secret_details]
                     if scan_result and scan_result.get("findings"):
                         secrets_for_validation = scan_result["findings"]
-                    validation_skip = _apply_secret_validation(
+                    validation_result_legacy = _apply_secret_validation(
                         secret_config, secrets_for_validation,
                         content if isinstance(content, str) else str(content),
                         context=context,
                     )
-                    if validation_skip is True:
+                    legacy_validation_info = validation_result_legacy.get("validation_info") if validation_result_legacy else None
+                    if legacy_validation_info:
+                        secret_details["validation"] = legacy_validation_info
+
+                    if validation_result_legacy and validation_result_legacy.get("skip_block"):
+                        scanner_name = engine_config.type if engine_config else "Gitleaks"
+                        if secret_details is not None:
+                            secret_details.setdefault("engine", scanner_name)
+                        _log_finding_violation(file_path or filename, context, secret_details,
+                                               hook_context=context)
                         logging.info("All secrets validated as inactive (legacy path) — allowing")
                         return False, None
 
@@ -2988,7 +3054,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             context={"filename": filename}
                         )
                         if fallback_result.has_secrets and fallback_result.secrets:
-                            # Secret liveness validation (Issue #971) — fallthrough path 2
+                            # Secret liveness validation (Issue #971, #983) — fallthrough path 2
                             fb2_secrets = [
                                 {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
                                 for s in fallback_result.secrets
@@ -2998,9 +3064,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 content if isinstance(content, str) else str(content),
                                 context=context,
                             )
-                            if fb2_validation is True:
-                                logging.info("All secrets validated as inactive (fallthrough 2) — allowing")
-                                return False, None
+                            fb2_validation_info = fb2_validation.get("validation_info") if fb2_validation else None
 
                             first_secret = fallback_result.secrets[0]
                             secret_details = {
@@ -3013,6 +3077,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "engine": fallback_result.engine,
                                 "category": first_secret.category,
                             }
+                            if fb2_validation_info:
+                                secret_details["validation"] = fb2_validation_info
+
+                            if fb2_validation and fb2_validation.get("skip_block"):
+                                _log_finding_violation(file_path or filename, context, secret_details,
+                                                        hook_context=context)
+                                logging.info("All secrets validated as inactive (fallthrough 2) — allowing")
+                                return False, None
+
                             scanner_name = fallback_result.engine
                             fallback_engine_config = next(
                                 (e for e in remaining if e.type == scanner_name), None

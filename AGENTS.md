@@ -185,6 +185,16 @@ def test_user_experience_feature_name(self, mock_pattern_config, mock_scan_confi
 
 ## Common Issues
 
+### AI Guardian Blocking File Reads
+
+If ai-guardian hooks prevent you from reading project files (e.g., `Hook PreToolUse:Read denied this tool`), ask the user to pause ai-guardian temporarily:
+
+```bash
+ai-guardian pause 5   # Pause for 5 minutes
+```
+
+The user can resume protection at any time with `ai-guardian resume`.
+
 ### GitHub Push Protection Blocking Test Secrets
 
 When writing tests that include fake/test secrets (API keys, tokens, etc.), GitHub's secret scanning push protection may block your push even though the secrets are intentionally fake. This is especially common when testing secret detection or redaction features.
