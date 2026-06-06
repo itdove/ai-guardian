@@ -67,6 +67,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
         ]),
         ("Threat Detection", [
             ("SSRF Protection", f"{prefix}/ssrf"),
+            ("Context Poisoning", f"{prefix}/context-poisoning"),
             ("Config Scanner", f"{prefix}/config-scanner"),
             ("PII Detection", f"{prefix}/scan-pii"),
             ("Annotations", f"{prefix}/annotations"),
