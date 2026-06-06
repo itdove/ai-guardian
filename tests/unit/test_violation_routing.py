@@ -147,7 +147,7 @@ class TestErrorBannerCategoryAware:
 
     def test_pii_banner_type_label(self):
         msg = self._build("pii", "pii-ssn")
-        assert "PII Type: pii-ssn" in msg
+        assert "PII Type: Social Security Number (SSN)" in msg
 
     def test_pii_banner_protection_label(self):
         msg = self._build("pii", "pii-ssn")
@@ -172,7 +172,7 @@ class TestErrorBannerCategoryAware:
     def test_secrets_banner_unchanged(self):
         msg = self._build("secrets", "openai-api-key")
         assert "Secret Detected" in msg
-        assert "Secret Type: openai-api-key" in msg
+        assert "Secret Type: OpenAI API Key" in msg
 
     def test_none_category_shows_secret_banner(self):
         msg = self._build(None, "some-rule")

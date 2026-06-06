@@ -32,7 +32,7 @@ class TestBuildSecretDetectedMessage:
         )
         assert "Secret Detected" in msg
         assert "Protection: Secret Scanning" in msg
-        assert "Secret Type: generic-api-key" in msg
+        assert "Secret Type: Generic API Key" in msg
         assert "Location: config.py:42" in msg
         assert "Scanner: gitleaks" in msg
         assert "Patterns: Built-in gitleaks rules" in msg

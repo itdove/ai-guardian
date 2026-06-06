@@ -2122,7 +2122,9 @@ def _build_secret_detected_message(scanner_name, secret_details, pattern_descrip
     )
 
     if secret_details:
-        error_msg += f"{type_label}: {secret_details['rule_id']}\n"
+        from ai_guardian.secret_type_names import get_secret_type_display
+        display_name = get_secret_type_display(secret_details['rule_id'])
+        error_msg += f"{type_label}: {display_name}\n"
         if secret_details.get('line_number'):
             error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
         else:

@@ -263,9 +263,10 @@ class ViolationCard(Vertical):
             else:
                 yield Static(f"Location: {source}", classes="violation-detail")
 
-            # Show secret type (rule ID)
+            # Show secret type (human-readable name)
             if secret_type and secret_type != "Unknown":
-                yield Static(f"Type: {secret_type}", classes="violation-detail")
+                from ai_guardian.secret_type_names import get_secret_type_display
+                yield Static(f"Type: {get_secret_type_display(secret_type)}", classes="violation-detail")
 
             # Show detection info
             yield Static(f"Detected by: Gitleaks scanner", classes="violation-detail")
@@ -421,7 +422,8 @@ class ViolationCard(Vertical):
             source = blocked.get("source", "transcript")
             if file_path:
                 yield Static(f"File: {file_path}", classes="violation-detail")
-            yield Static(f"Type: {secret_type}", classes="violation-detail")
+            from ai_guardian.secret_type_names import get_secret_type_display
+            yield Static(f"Type: {get_secret_type_display(secret_type)}", classes="violation-detail")
             yield Static(f"Source: {source}", classes="violation-detail")
 
         elif vtype == "pii_in_transcript":
@@ -438,7 +440,8 @@ class ViolationCard(Vertical):
             file_path = blocked.get("file_path", "Unknown")
             secret_type = blocked.get("secret_type", "Unknown")
             yield Static(f"Image: {file_path}", classes="violation-detail")
-            yield Static(f"Secret type: {secret_type}", classes="violation-detail")
+            from ai_guardian.secret_type_names import get_secret_type_display
+            yield Static(f"Secret type: {get_secret_type_display(secret_type)}", classes="violation-detail")
 
         elif vtype == "image_pii_detected":
             file_path = blocked.get("file_path", "Unknown")

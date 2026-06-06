@@ -58,8 +58,9 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
         secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
         file_path = blocked.get("file_path")
         placeholder = f"<regex-for-{secret_type}>" if secret_type != "unknown" else "<regex>"
+        from ai_guardian.secret_type_names import get_secret_type_display
         instructions = (
-            f"Secret type: {secret_type}\n\n"
+            f"Secret type: {get_secret_type_display(secret_type)}\n\n"
             "Option 1: Add a regex pattern to ai-guardian.json:\n"
             f'  "secret_scanning": {{"allowlist_patterns": ["{placeholder}"]}}\n\n'
             "Option 2: Add inline comment at the end of the line:\n"
