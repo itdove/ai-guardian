@@ -116,6 +116,7 @@ NAV_GROUPS = [
     ]),
     ("Prompt Injection", [
         ("Detection Settings", "panel-pi-detection"),
+        ("ML Engines", "panel-pi-ml-engines"),
         ("Patterns", "panel-pi-patterns"),
         ("Jailbreak", "panel-pi-jailbreak"),
         ("Unicode Detection", "panel-pi-unicode"),
@@ -358,6 +359,21 @@ HELP_DOCS = {
         "  Glob patterns for files and tool names to skip\n\n"
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]s[/bold]  Save detector/sensitivity settings"
+    ),
+    "panel-pi-ml-engines": (
+        "[bold]ML Prompt Injection Engines[/bold]\n\n"
+        "Configure ML-based prompt injection detection engines.\n\n"
+        "[bold]Settings:[/bold]\n"
+        "  [bold]Strategy[/bold] — first-match, any-match, consensus\n"
+        "  [bold]Fallback[/bold] — heuristic, block, allow\n"
+        "  [bold]Engines[/bold] — JSON array of ML engine configs\n\n"
+        "[bold]Each engine requires:[/bold]\n"
+        "  type: llm-guard\n"
+        "  model: model name from registry\n"
+        "  threshold: 0.0-1.0 (optional, default 0.85)\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]Ctrl+S[/bold]  Save engines\n"
+        "  [bold]Ctrl+R[/bold]  Reload from disk"
     ),
     "panel-pi-patterns": (
         "[bold]Allowlist & Custom Patterns[/bold]\n\n"
@@ -1066,6 +1082,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-pi-detection"):
                     from ai_guardian.tui.pi_detection import PIDetectionContent
                     yield PIDetectionContent()
+
+                with Container(id="panel-pi-ml-engines"):
+                    from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+                    yield PIMLEnginesContent()
 
                 with Container(id="panel-pi-patterns"):
                     from ai_guardian.tui.pi_patterns import PIPatternsContent

@@ -216,6 +216,13 @@ class WebConsole:
             )
             create_pi_detection_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/pi-ml-engines")
+        def pi_ml_engines_page(daemon_name: str):
+            from ai_guardian.web.pages.pi_ml_engines import (
+                create_pi_ml_engines_page,
+            )
+            create_pi_ml_engines_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/pi-patterns")
         def pi_patterns_page(daemon_name: str):
             from ai_guardian.web.pages.pi_patterns import (

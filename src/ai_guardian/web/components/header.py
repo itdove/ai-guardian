@@ -61,6 +61,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
         ]),
         ("Prompt Injection", [
             ("Detection", f"{prefix}/pi-detection"),
+            ("ML Engines", f"{prefix}/pi-ml-engines"),
             ("Patterns", f"{prefix}/pi-patterns"),
             ("Jailbreak", f"{prefix}/pi-jailbreak"),
             ("Unicode Detection", f"{prefix}/pi-unicode"),
