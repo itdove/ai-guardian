@@ -13,22 +13,22 @@ from ai_guardian.violation_guidance import get_resolution_instructions
 from ai_guardian.web.components.header import create_header, create_sidebar
 
 FILTER_TABS = [
-    ("All", None),
-    ("Tool Permission", "tool_permission"),
-    ("Secrets", "secret_detected"),
-    ("Secret Redaction", "secret_redaction"),
-    ("Directories", "directory_blocking"),
-    ("Prompt Injection", "prompt_injection"),
-    ("Jailbreak", "jailbreak_detected"),
-    ("SSRF Blocked", "ssrf_blocked"),
-    ("Config Exfil", "config_file_exfil"),
-    ("PII Detected", "pii_detected"),
-    ("Secret in Transcript", "secret_in_transcript"),
-    ("PII in Transcript", "pii_in_transcript"),
-    ("PI in Transcript", "prompt_injection_in_transcript"),
-    ("Annotation Suppressed", "annotation_suppressed"),
-    ("Image Secret", "image_secret_detected"),
-    ("Image PII", "image_pii_detected"),
+    ("All", None, "Show all violation types"),
+    ("Tool Permission", "tool_permission", "Blocked tool/MCP server execution (permission rules)"),
+    ("Secrets", "secret_detected", "Hard-coded secrets detected in files or prompts (API keys, tokens, passwords)"),
+    ("Secret Redaction", "secret_redaction", "Secrets found in tool output and redacted before reaching the AI model"),
+    ("Directories", "directory_blocking", "File access blocked by directory protection rules"),
+    ("Prompt Injection", "prompt_injection", "Attempts to manipulate AI behavior detected in prompts or files"),
+    ("Jailbreak", "jailbreak_detected", "Attempts to bypass AI safety constraints"),
+    ("SSRF Blocked", "ssrf_blocked", "Blocked access to private networks, metadata endpoints, or dangerous URLs"),
+    ("Config Exfil", "config_file_exfil", "Credential exfiltration commands detected in AI config files (CLAUDE.md, AGENTS.md)"),
+    ("PII Detected", "pii_detected", "Personal Identifiable Information found in files or prompts (SSN, credit card, phone)"),
+    ("Secret in Transcript", "secret_in_transcript", "Secret found in conversation history (possibly from ! shell command)"),
+    ("PII in Transcript", "pii_in_transcript", "Personal Identifiable Information found in conversation history"),
+    ("Injection in Transcript", "prompt_injection_in_transcript", "Prompt injection pattern found in conversation history"),
+    ("Annotation Suppressed", "annotation_suppressed", "Finding suppressed by an inline annotation (ai-guardian:allow, gitleaks:allow)"),
+    ("Image Secret", "image_secret_detected", "Secret detected in image via OCR scanning"),
+    ("Image PII", "image_pii_detected", "PII detected in image via OCR scanning"),
 ]
 
 DETAIL_FIELDS = {
@@ -126,7 +126,7 @@ def create_violations_page(service, daemon_name: str):
             buttons = {}
 
             with ui.row().classes("gap-1 flex-wrap"):
-                for label, vtype in FILTER_TABS:
+                for label, vtype, tooltip in FILTER_TABS:
                     async def on_click(vt=vtype, lbl=label):
                         active_filter["vtype"] = vt
                         for bl, b in buttons.items():
@@ -144,7 +144,7 @@ def create_violations_page(service, daemon_name: str):
                     ).props(
                         "dense size=sm no-caps"
                         + (" color=primary" if is_all else " outline")
-                    )
+                    ).tooltip(tooltip)
                     buttons[label] = btn
 
             cards_container = ui.column().classes("w-full gap-1")
