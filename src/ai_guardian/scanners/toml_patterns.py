@@ -113,5 +113,6 @@ class TomlPatternsScanner(Scanner):
                 matched_text=f.matched_text,
                 description=f.description or f.rule_id,
                 severity="warning",
+                category=f.category,
             ))
         return findings

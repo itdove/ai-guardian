@@ -96,6 +96,52 @@ class TestTomlPatternsPiiFiltering:
         assert not any(f.rule_id == "pii-email" for f in findings)
 
 
+class TestTomlPatternsFindingCategory:
+    """Tests for category propagation through Finding objects (Issue #984)."""
+
+    def test_secret_finding_has_secrets_category(self):
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        secret_findings = [f for f in findings if f.rule_id == "openai-api-key"]
+        assert len(secret_findings) >= 1
+        assert secret_findings[0].category == "secrets"
+
+    def test_pii_finding_has_pii_category(self):
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan("SSN: 123-45-6789")
+        pii_findings = [f for f in findings if f.rule_id == "pii-ssn"]
+        assert len(pii_findings) >= 1
+        assert pii_findings[0].category == "pii"
+
+    def test_email_finding_has_pii_category(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"pii_types": ["email"]})
+        findings = scanner.scan("Contact: user@example.com")
+        email_findings = [f for f in findings if f.rule_id == "pii-email"]
+        assert len(email_findings) >= 1
+        assert email_findings[0].category == "pii"
+
+    def test_finding_category_field_exists(self):
+        """Finding dataclass has category attribute."""
+        f = Finding(
+            rule_id="test",
+            line_number=1,
+            matched_text="test",
+            description="test",
+            category="pii",
+        )
+        assert f.category == "pii"
+
+    def test_finding_category_defaults_to_none(self):
+        f = Finding(
+            rule_id="test",
+            line_number=1,
+            matched_text="test",
+            description="test",
+        )
+        assert f.category is None
+
+
 class TestTomlPatternsGapFillingRules:
     """Tests for platform-specific gap-filling rules (Issue #972).
 
