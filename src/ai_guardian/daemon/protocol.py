@@ -180,3 +180,20 @@ def make_resume_dir(directory):
         "type": "resume_dir",
         "data": {"dir": directory},
     }
+
+
+def make_ml_detect_request(content, source_type="user_prompt"):
+    """Create an ML detection request message.
+
+    Args:
+        content: Text to classify for prompt injection
+        source_type: "user_prompt" or "file_content"
+
+    Returns:
+        dict: Request envelope with version, type, and data
+    """
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "ml_detect",
+        "data": {"content": content, "source_type": source_type},
+    }

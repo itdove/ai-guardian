@@ -55,6 +55,10 @@ classifiers = [
 
 [project.optional-dependencies]
 skill-discovery = []
+ml = [
+  "onnxruntime>=1.16.0",
+  "tokenizers>=0.15.0",
+]
 dev = [
   "pytest>=8.4.2",
 ]

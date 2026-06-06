@@ -21,6 +21,7 @@ from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
     make_hook_request,
+    make_ml_detect_request,
     make_pause_dir,
     make_ping,
     make_resume_dir,
@@ -221,6 +222,37 @@ def send_resume_dir(directory, timeout=2.0):
 
         try:
             sock.sendall(encode_message(make_resume_dir(directory)))
+            response = decode_message(sock, timeout=timeout)
+            if response.get("type") == "response":
+                return response.get("data")
+            return None
+        finally:
+            sock.close()
+    except Exception:
+        return None
+
+
+def send_ml_detect(content, source_type="user_prompt", timeout=2.0):
+    """Send ML detection request to daemon.
+
+    Args:
+        content: Text to classify for prompt injection
+        source_type: "user_prompt" or "file_content"
+        timeout: Connection + response timeout in seconds
+
+    Returns:
+        dict or None: Detection result with 'available', 'is_injection',
+                      'confidence', etc., or None if daemon unreachable
+    """
+    try:
+        sock = _connect(timeout=timeout)
+        if sock is None:
+            return None
+
+        try:
+            sock.sendall(encode_message(
+                make_ml_detect_request(content, source_type)
+            ))
             response = decode_message(sock, timeout=timeout)
             if response.get("type") == "response":
                 return response.get("data")

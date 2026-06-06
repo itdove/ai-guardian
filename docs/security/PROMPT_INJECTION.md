@@ -17,6 +17,76 @@ Think of it like **SQL injection for AI assistants** - instead of injecting data
 
 ---
 
+## ML-Based Detection
+
+> **v1.11.0**: ML-based prompt injection detection added ([Issue #185](https://github.com/itdove/ai-guardian/issues/185)) — runs ONNX models inside the daemon process for high-accuracy detection. Supports multi-engine execution strategies.
+
+### How It Works
+
+ML detection uses pre-trained transformer models (DeBERTa v3) exported to ONNX format for fast inference (~10-50ms). Models run inside the daemon process, loaded once and kept in memory.
+
+Three detector modes are available via `prompt_injection.detector`:
+
+| Mode | Speed | Accuracy | Daemon Required |
+|------|-------|----------|-----------------|
+| `heuristic` (default) | <1ms | Good | No |
+| `ml` | 10-50ms | Best | Yes |
+| `hybrid` | <1ms + 10-50ms | Best | Yes (fallback to heuristic) |
+
+- **heuristic**: Local regex patterns only. Fast, no dependencies.
+- **ml**: ML-only via daemon. Falls back based on `fallback_on_error` setting.
+- **hybrid**: Heuristic first. If uncertain (confidence 0.3-0.85), consults ML model for final verdict.
+
+### Setup
+
+```bash
+# 1. Install ML dependencies
+pip install ai-guardian[ml]
+
+# 2. Download the model (~370 MB)
+ai-guardian ml download
+
+# 3. Configure detector mode
+# In ai-guardian.json:
+{
+  "prompt_injection": {
+    "detector": "hybrid",
+    "ml_engines": [
+      {
+        "type": "llm-guard",
+        "model": "protectai/deberta-v3-base-prompt-injection-v2",
+        "threshold": 0.85
+      }
+    ],
+    "ml_strategy": "any-match",
+    "fallback_on_error": "heuristic"
+  }
+}
+
+# 4. Start daemon (loads model into memory)
+ai-guardian daemon start
+```
+
+### Multi-Engine Support
+
+Multiple ML engines can run simultaneously with execution strategies:
+
+- **first-match**: Use first engine that detects injection
+- **any-match**: Flag if ANY engine detects (defense-in-depth)
+- **consensus**: Flag only if N engines agree (reduces false positives)
+
+See [ML Engine Support](../ML_ENGINE_SUPPORT.md) for details.
+
+### Verification
+
+```bash
+ai-guardian ml status    # Check dependencies, model, daemon status
+ai-guardian ml verify    # Verify model file integrity
+ai-guardian doctor       # Full health check including ML
+```
+
+---
+
 ## Attack Examples
 
 ### 1. Instruction Override

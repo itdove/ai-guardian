@@ -56,6 +56,8 @@ class _RestHandler(BaseHTTPRequestHandler):
             vtype = qs.get("type", [None])[0]
             severity = qs.get("severity", [None])[0]
             self._send_json(self._get_audit(since, until, vtype, severity))
+        elif path == "/api/ml-status":
+            self._send_json(self.server.daemon_state.get_ml_status())
         else:
             self._send_error(404, "Not found")
 
@@ -113,6 +115,26 @@ class _RestHandler(BaseHTTPRequestHandler):
         elif self.path == "/api/reload":
             self.server.daemon_state.force_reload_config()
             self._send_json({"status": "config_reloaded"})
+        elif self.path == "/api/ml-detect":
+            body = self._read_body()
+            if body is None:
+                return
+            content = body.get("content", "")
+            if not content:
+                self._send_error(400, "content is required")
+                return
+            manager = self.server.daemon_state.get_ml_engine_manager()
+            if manager is None:
+                ml_status = self.server.daemon_state.get_ml_status()
+                self._send_json({
+                    "available": False,
+                    "error": ml_status.get(
+                        "ml_load_error", "ML model not available"
+                    ),
+                })
+            else:
+                result = manager.detect(content)
+                self._send_json(result)
         else:
             self._send_error(404, "Not found")
 

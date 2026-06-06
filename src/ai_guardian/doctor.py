@@ -119,6 +119,7 @@ class Doctor:
             self.check_image_scanning,
             self.check_tray_plugins,
             self.check_email_auth,
+            self.check_ml_detection,
         ]
         for check_fn in checks:
             try:
@@ -1358,6 +1359,67 @@ class Doctor:
                 message="rapidocr-onnxruntime not installed (required for image scanning)",
                 fix_hint="pip install rapidocr-onnxruntime",
             )
+
+    def check_ml_detection(self) -> CheckResult:
+        """Check ML prompt injection model availability."""
+        self._ensure_config()
+        pi_config = (self._config or {}).get("prompt_injection", {})
+        detector = pi_config.get("detector", "heuristic")
+
+        if detector not in ("ml", "hybrid"):
+            return CheckResult(
+                name="ml_detection",
+                status=CheckStatus.SKIP,
+                message=f"ML detection not configured (detector='{detector}')",
+            )
+
+        try:
+            from ai_guardian.ml_detection import is_ml_available, verify_model
+        except ImportError:
+            return CheckResult(
+                name="ml_detection",
+                status=CheckStatus.FAIL,
+                message="ML detection module not found",
+            )
+
+        if not is_ml_available():
+            return CheckResult(
+                name="ml_detection",
+                status=CheckStatus.FAIL,
+                message="ML dependencies not installed (onnxruntime, tokenizers)",
+                fix_hint="pip install ai-guardian[ml]",
+            )
+
+        engines_config = pi_config.get("ml_engines", [])
+        if not engines_config:
+            return CheckResult(
+                name="ml_detection",
+                status=CheckStatus.WARN,
+                message="detector is 'ml'/'hybrid' but no ml_engines configured",
+                fix_hint="Add ml_engines to prompt_injection config in ai-guardian.json",
+            )
+
+        errors = []
+        for eng in engines_config:
+            model = eng.get("model", "")
+            if model:
+                is_valid, msg = verify_model(model)
+                if not is_valid:
+                    errors.append(f"{model}: {msg}")
+
+        if errors:
+            return CheckResult(
+                name="ml_detection",
+                status=CheckStatus.FAIL,
+                message=f"ML model issues: {'; '.join(errors)}",
+                fix_hint="ai-guardian ml download",
+            )
+
+        return CheckResult(
+            name="ml_detection",
+            status=CheckStatus.PASS,
+            message=f"ML detection ready ({len(engines_config)} engine(s), strategy={pi_config.get('ml_strategy', 'any-match')})",
+        )
 
     def check_tray_plugins(self) -> CheckResult:
         """Check tray plugin files for validity and circular imports."""
