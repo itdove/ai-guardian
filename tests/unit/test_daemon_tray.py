@@ -4042,6 +4042,10 @@ class TestGetMergedDirList:
         assert result == ["/a", "/b", "/c"]
 
 
+@pytest.mark.skipif(
+    not is_tray_available(),
+    reason="pystray/Pillow not installed",
+)
 class TestBuildDirPauseItems:
     """Test _build_dir_pause_items returns correct slot structure (#997)."""
 
