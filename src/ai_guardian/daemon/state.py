@@ -621,22 +621,8 @@ class DaemonState:
         Returns:
             dict: {directory: remaining_seconds} where 0 means indefinite
         """
-        now = time.monotonic()
-        result = {}
-        expired = []
         with self._lock:
-            for d, until in self._paused_dirs.items():
-                if until > 0 and now >= until:
-                    expired.append(d)
-                elif until > 0:
-                    result[d] = until - now
-                else:
-                    result[d] = 0.0
-            for d in expired:
-                del self._paused_dirs[d]
-        if expired:
-            logger.info("Cleaned up %d expired directory pauses", len(expired))
-        return result
+            return self._get_paused_dirs_locked()
 
     # --- Stats ---
 

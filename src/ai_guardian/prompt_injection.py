@@ -1434,18 +1434,13 @@ class PromptInjectionDetector:
                     return True, error_msg, True  # Block, error message, detected
 
             # Perform detection based on configured detector type (use stripped content)
-            if self.detector_type == "heuristic":
-                is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
-            elif self.detector_type in ("ml", "hybrid"):
+            if self.detector_type in ("ml", "hybrid"):
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._ml_or_hybrid_detection(content_to_check, source_type)
-            elif self.detector_type == "rebuff":
-                logger.warning("Rebuff detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
-            elif self.detector_type == "llm-guard":
-                logger.warning("LLM Guard detector not implemented yet, falling back to heuristic")
-                is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
             else:
-                logger.warning(f"Unknown detector type '{self.detector_type}', using heuristic")
+                if self.detector_type not in ("heuristic", "rebuff", "llm-guard"):
+                    logger.warning(f"Unknown detector type '{self.detector_type}', using heuristic")
+                elif self.detector_type != "heuristic":
+                    logger.warning(f"{self.detector_type} detector not implemented yet, falling back to heuristic")
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number = self._heuristic_detection(content_to_check, source_type)
 
             if is_injection:

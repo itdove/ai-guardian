@@ -1091,7 +1091,6 @@ class IDESetup:
         return True, message
 
     @staticmethod
-    @staticmethod
     def _strip_jsonc_comments(text: str) -> str:
         """Strip single-line (//) and multi-line (/* */) comments from JSONC.
 

@@ -55,201 +55,112 @@ class ValidationResult:
 # The rule_id from pattern detection maps to a validator function.
 # ---------------------------------------------------------------------------
 
-def _validate_github_token(secret: str, timeout_s: float) -> ValidationResult:
-    """Validate GitHub personal/OAuth/secret token."""
-    rule_id = "github-personal-token"
+def _http_validate(
+    rule_id: str, label: str, url: str, headers: Dict[str, str],
+    secret: str, timeout_s: float, *, method: str = "GET",
+    check_body: Optional[Callable] = None,
+) -> ValidationResult:
+    """Shared HTTP validation: 200 = VERIFIED, else INACTIVE, exception = UNVERIFIED.
+
+    Args:
+        check_body: Optional callable(resp) -> ValidationResult for APIs that
+                    need response body inspection (e.g., Slack).  Called only
+                    when status_code == 200.  Return None to fall through to
+                    the default VERIFIED result.
+    """
     try:
-        resp = requests.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"token {secret}", "User-Agent": "ai-guardian-validator"},
-            timeout=timeout_s,
-        )
+        req_fn = requests.post if method == "POST" else requests.get
+        resp = req_fn(url, headers=headers, timeout=timeout_s)
         if resp.status_code == 200:
+            if check_body:
+                body_result = check_body(resp)
+                if body_result is not None:
+                    return body_result
             return ValidationResult(
                 status=ValidationStatus.VERIFIED,
                 rule_id=rule_id,
-                message="GitHub token is active",
+                message=f"{label} is active",
                 response_code=resp.status_code,
             )
         return ValidationResult(
             status=ValidationStatus.INACTIVE,
             rule_id=rule_id,
-            message=f"GitHub token returned {resp.status_code}",
+            message=f"{label} returned {resp.status_code}",
             response_code=resp.status_code,
         )
     except requests.RequestException as e:
-        logger.warning(f"GitHub token validation failed: {e}")
+        logger.warning(f"{label} validation failed: {e}")
         return ValidationResult(
             status=ValidationStatus.UNVERIFIED,
             rule_id=rule_id,
             message=f"Network error: {e}",
         )
+
+
+def _validate_github_token(secret: str, timeout_s: float) -> ValidationResult:
+    return _http_validate(
+        "github-personal-token", "GitHub token",
+        "https://api.github.com/user",
+        {"Authorization": f"token {secret}", "User-Agent": "ai-guardian-validator"},
+        secret, timeout_s,
+    )
 
 
 def _validate_openai_key(secret: str, timeout_s: float) -> ValidationResult:
-    """Validate OpenAI API key."""
-    rule_id = "openai-api-key"
-    try:
-        resp = requests.get(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {secret}"},
-            timeout=timeout_s,
-        )
-        if resp.status_code == 200:
-            return ValidationResult(
-                status=ValidationStatus.VERIFIED,
-                rule_id=rule_id,
-                message="OpenAI API key is active",
-                response_code=resp.status_code,
-            )
-        return ValidationResult(
-            status=ValidationStatus.INACTIVE,
-            rule_id=rule_id,
-            message=f"OpenAI API key returned {resp.status_code}",
-            response_code=resp.status_code,
-        )
-    except requests.RequestException as e:
-        logger.warning(f"OpenAI key validation failed: {e}")
-        return ValidationResult(
-            status=ValidationStatus.UNVERIFIED,
-            rule_id=rule_id,
-            message=f"Network error: {e}",
-        )
+    return _http_validate(
+        "openai-api-key", "OpenAI API key",
+        "https://api.openai.com/v1/models",
+        {"Authorization": f"Bearer {secret}"},
+        secret, timeout_s,
+    )
 
 
 def _validate_anthropic_key(secret: str, timeout_s: float) -> ValidationResult:
-    """Validate Anthropic API key."""
-    rule_id = "anthropic-api-key"
-    try:
-        resp = requests.get(
-            "https://api.anthropic.com/v1/models",
-            headers={
-                "x-api-key": secret,
-                "anthropic-version": "2023-06-01",
-            },
-            timeout=timeout_s,
-        )
-        if resp.status_code == 200:
-            return ValidationResult(
-                status=ValidationStatus.VERIFIED,
-                rule_id=rule_id,
-                message="Anthropic API key is active",
-                response_code=resp.status_code,
-            )
-        return ValidationResult(
-            status=ValidationStatus.INACTIVE,
-            rule_id=rule_id,
-            message=f"Anthropic API key returned {resp.status_code}",
-            response_code=resp.status_code,
-        )
-    except requests.RequestException as e:
-        logger.warning(f"Anthropic key validation failed: {e}")
-        return ValidationResult(
-            status=ValidationStatus.UNVERIFIED,
-            rule_id=rule_id,
-            message=f"Network error: {e}",
-        )
+    return _http_validate(
+        "anthropic-api-key", "Anthropic API key",
+        "https://api.anthropic.com/v1/models",
+        {"x-api-key": secret, "anthropic-version": "2023-06-01"},
+        secret, timeout_s,
+    )
 
 
 def _validate_slack_token(secret: str, timeout_s: float) -> ValidationResult:
-    """Validate Slack token."""
-    rule_id = "slack-token"
-    try:
-        resp = requests.post(
-            "https://slack.com/api/auth.test",
-            headers={"Authorization": f"Bearer {secret}"},
-            timeout=timeout_s,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("ok"):
-                return ValidationResult(
-                    status=ValidationStatus.VERIFIED,
-                    rule_id=rule_id,
-                    message="Slack token is active",
-                    response_code=resp.status_code,
-                )
+    def _check_slack_body(resp):
+        data = resp.json()
+        if not data.get("ok"):
             return ValidationResult(
                 status=ValidationStatus.INACTIVE,
-                rule_id=rule_id,
+                rule_id="slack-token",
                 message=f"Slack token invalid: {data.get('error', 'unknown')}",
                 response_code=resp.status_code,
             )
-        return ValidationResult(
-            status=ValidationStatus.INACTIVE,
-            rule_id=rule_id,
-            message=f"Slack token returned {resp.status_code}",
-            response_code=resp.status_code,
-        )
-    except requests.RequestException as e:
-        logger.warning(f"Slack token validation failed: {e}")
-        return ValidationResult(
-            status=ValidationStatus.UNVERIFIED,
-            rule_id=rule_id,
-            message=f"Network error: {e}",
-        )
+        return None
+
+    return _http_validate(
+        "slack-token", "Slack token",
+        "https://slack.com/api/auth.test",
+        {"Authorization": f"Bearer {secret}"},
+        secret, timeout_s, method="POST",
+        check_body=_check_slack_body,
+    )
 
 
 def _validate_gitlab_token(secret: str, timeout_s: float) -> ValidationResult:
-    """Validate GitLab personal access token."""
-    rule_id = "gitlab-personal-token"
-    try:
-        resp = requests.get(
-            "https://gitlab.com/api/v4/user",
-            headers={"PRIVATE-TOKEN": secret},
-            timeout=timeout_s,
-        )
-        if resp.status_code == 200:
-            return ValidationResult(
-                status=ValidationStatus.VERIFIED,
-                rule_id=rule_id,
-                message="GitLab token is active",
-                response_code=resp.status_code,
-            )
-        return ValidationResult(
-            status=ValidationStatus.INACTIVE,
-            rule_id=rule_id,
-            message=f"GitLab token returned {resp.status_code}",
-            response_code=resp.status_code,
-        )
-    except requests.RequestException as e:
-        logger.warning(f"GitLab token validation failed: {e}")
-        return ValidationResult(
-            status=ValidationStatus.UNVERIFIED,
-            rule_id=rule_id,
-            message=f"Network error: {e}",
-        )
+    return _http_validate(
+        "gitlab-personal-token", "GitLab token",
+        "https://gitlab.com/api/v4/user",
+        {"PRIVATE-TOKEN": secret},
+        secret, timeout_s,
+    )
 
 
 def _validate_npm_token(secret: str, timeout_s: float) -> ValidationResult:
-    """Validate npm token."""
-    rule_id = "npm-token"
-    try:
-        resp = requests.get(
-            "https://registry.npmjs.org/-/whoami",
-            headers={"Authorization": f"Bearer {secret}"},
-            timeout=timeout_s,
-        )
-        if resp.status_code == 200:
-            return ValidationResult(
-                status=ValidationStatus.VERIFIED,
-                rule_id=rule_id,
-                message="npm token is active",
-                response_code=resp.status_code,
-            )
-        return ValidationResult(
-            status=ValidationStatus.INACTIVE,
-            rule_id=rule_id,
-            message=f"npm token returned {resp.status_code}",
-            response_code=resp.status_code,
-        )
-    except requests.RequestException as e:
-        logger.warning(f"npm token validation failed: {e}")
-        return ValidationResult(
-            status=ValidationStatus.UNVERIFIED,
-            rule_id=rule_id,
-            message=f"Network error: {e}",
-        )
+    return _http_validate(
+        "npm-token", "npm token",
+        "https://registry.npmjs.org/-/whoami",
+        {"Authorization": f"Bearer {secret}"},
+        secret, timeout_s,
+    )
 
 
 # ---------------------------------------------------------------------------

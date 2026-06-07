@@ -21,6 +21,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from ai_guardian.config_utils import is_expired, validate_regex_pattern
 from ai_guardian import allowlist_utils
 from ai_guardian.patterns import load_bundled_rules
+from ai_guardian.prompt_injection import _offset_to_line_number
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +86,6 @@ def _get_compiled_patterns():
         _COMPILED_PERSISTENCE = [re.compile(p, re.IGNORECASE) for p in persistence]
         _COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in dangerous]
     return _COMPILED_PERSISTENCE, _COMPILED_DANGEROUS
-
-
-def _offset_to_line_number(text: str, offset: int) -> int:
-    return text[:offset].count('\n') + 1
 
 
 class ContextPoisoningDetector:
@@ -177,33 +174,27 @@ class ContextPoisoningDetector:
             logger.exception("Context poisoning detection error")
             return False, None, False
 
+    @staticmethod
+    def _first_match(patterns, text):
+        """Return first regex match across patterns, or None."""
+        for pat in patterns:
+            m = pat.search(text)
+            if m:
+                return m
+        return None
+
     def _run_detection(self, content: str) -> Tuple[bool, Optional[str], bool]:
         persistence_compiled, dangerous_compiled = _get_compiled_patterns()
         low_threshold, high_threshold = self._get_sensitivity_thresholds()
 
-        persistence_match = None
-        for pat in persistence_compiled:
-            m = pat.search(content)
-            if m:
-                persistence_match = m
-                break
-
+        persistence_match = self._first_match(persistence_compiled, content)
         if not persistence_match:
-            for pat in self.custom_patterns:
-                m = pat.search(content)
-                if m:
-                    persistence_match = m
-                    break
+            persistence_match = self._first_match(self.custom_patterns, content)
 
         if not persistence_match:
             return False, None, False
 
-        dangerous_match = None
-        for pat in dangerous_compiled:
-            m = pat.search(content)
-            if m:
-                dangerous_match = m
-                break
+        dangerous_match = self._first_match(dangerous_compiled, content)
 
         if dangerous_match:
             confidence = high_threshold
