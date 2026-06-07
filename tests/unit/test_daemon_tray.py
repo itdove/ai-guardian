@@ -4462,19 +4462,25 @@ class TestDaemonUpgrade:
         tray = self._make_tray()
         import time as _time
         tray._pypi_last_check = _time.monotonic()
-        from ai_guardian.daemon.multi_client import MultiDaemonClient
-        with mock.patch.object(
-            MultiDaemonClient, "check_pypi_version",
-        ) as mock_check:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client.urlopen",
+        ) as mock_urlopen:
             tray._check_pypi_version()
-            mock_check.assert_not_called()
+            mock_urlopen.assert_not_called()
 
     def test_check_pypi_version_runs_when_stale(self):
+        import json
         tray = self._make_tray()
         tray._pypi_last_check = 0.0
-        from ai_guardian.daemon.multi_client import MultiDaemonClient
-        with mock.patch.object(
-            MultiDaemonClient, "check_pypi_version", return_value="2.0.0",
+        fake_resp = mock.MagicMock()
+        fake_resp.read.return_value = json.dumps(
+            {"info": {"version": "2.0.0"}}
+        ).encode()
+        fake_resp.__enter__ = mock.MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = mock.MagicMock(return_value=False)
+        with mock.patch(
+            "ai_guardian.daemon.multi_client.urlopen",
+            return_value=fake_resp,
         ):
             tray._check_pypi_version()
             assert tray._pypi_latest == "2.0.0"
