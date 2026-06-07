@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tray: keep menu items enabled when daemon is idle-stopped** (Issue #999)
+  - Console, Violations, Metrics & Audit, Statistics, and About menu items now stay enabled when the daemon is idle-stopped but auto-restart is possible
+  - Clicking an enabled item auto-starts the daemon (via existing `_check_and_autostart_daemon()`) then opens the requested view
+  - Items remain grayed out when the daemon was explicitly stopped (`daemon.stop-requested` marker) or when running in embedded (non-standalone) mode
+  - Added `_can_autostart_daemon()` helper that checks standalone mode and stop-requested marker
+  - `_check_and_autostart_daemon()` now returns bool indicating if daemon is ready after the call
+
 - **Replace unmaintained `toml` package with `tomli-w` for TOML writing** (Issue #969)
   - Replaced undeclared `toml` dependency (unmaintained since Dec 2020) with `tomli-w>=1.0.0`
   - TOML reading now uses `tomllib` (stdlib 3.11+) / `tomli` (backport), matching the rest of the codebase
