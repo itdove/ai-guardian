@@ -1712,6 +1712,34 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
         logger.debug(f"Failed to log directory blocking violation: {e}")
 
 
+def _build_violation_context(context, hook_context):
+    """Build standard violation context dict from context and hook_context."""
+    ctx = context or {}
+    hctx = hook_context or {}
+    violation_ctx = {
+        "ide_type": ctx.get("ide_type", "unknown"),
+        "hook_event": ctx.get("hook_event", "unknown"),
+        "project_path": os.getcwd()
+    }
+    if hctx.get("tool_use_id"):
+        violation_ctx["tool_use_id"] = hctx["tool_use_id"]
+    if hctx.get("session_id"):
+        violation_ctx["session_id"] = hctx["session_id"]
+    return violation_ctx
+
+
+def _enrich_blocked_from_details(blocked_info, details):
+    """Add line_number, end_line, total_findings, validation from scan details."""
+    if details.get("line_number"):
+        blocked_info["line_number"] = details["line_number"]
+        if details.get("end_line") and details["end_line"] != details["line_number"]:
+            blocked_info["end_line"] = details["end_line"]
+    if details.get("total_findings"):
+        blocked_info["total_findings"] = details["total_findings"]
+    if details.get("validation"):
+        blocked_info["validation"] = details["validation"]
+
+
 def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None, secret_details: Optional[Dict] = None,
                                     hook_context: Optional[Dict] = None, violation_logger=None):
     """
@@ -1727,11 +1755,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         return
 
     try:
-        ctx = context or {}
         details = secret_details or {}
-        hctx = hook_context or {}
-
-        # Build blocked info with detailed location if available
         engine_name = details.get("engine", "Gitleaks")
         blocked_info = {
             "file_path": filename if filename != "user_prompt" else None,
@@ -1739,37 +1763,14 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
             "secret_type": details.get("rule_id", "Unknown"),
             "reason": f"{engine_name} detected sensitive information"
         }
-
-        # Add line number information if available
-        if details.get("line_number"):
-            blocked_info["line_number"] = details["line_number"]
-            if details.get("end_line") and details["end_line"] != details["line_number"]:
-                blocked_info["end_line"] = details["end_line"]
-
-        # Add total findings count if available
-        if details.get("total_findings"):
-            blocked_info["total_findings"] = details["total_findings"]
-
-        # Add validation status when validate_secrets is enabled (Issue #983)
-        if details.get("validation"):
-            blocked_info["validation"] = details["validation"]
-
-        violation_ctx = {
-            "ide_type": ctx.get("ide_type", "unknown"),
-            "hook_event": ctx.get("hook_event", "unknown"),
-            "project_path": os.getcwd()
-        }
-        if hctx.get("tool_use_id"):
-            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
-        if hctx.get("session_id"):
-            violation_ctx["session_id"] = hctx["session_id"]
+        _enrich_blocked_from_details(blocked_info, details)
 
         if violation_logger is None:
             violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type=ViolationType.SECRET_DETECTED,
             blocked=blocked_info,
-            context=violation_ctx,
+            context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "review_and_remove_secret",
                 "warning": "Secrets should never be committed to code or shared with AI",
@@ -1817,8 +1818,6 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
 
     try:
         vtype, reason_label, severity = mapping
-        ctx = context or {}
-        hctx = hook_context or {}
         engine_name = details.get("engine", "toml-patterns")
         rule_id = details.get("rule_id", "Unknown")
 
@@ -1828,35 +1827,14 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
             "secret_type": rule_id,
             "reason": f"{engine_name}: {reason_label} ({rule_id})"
         }
-
-        if details.get("line_number"):
-            blocked_info["line_number"] = details["line_number"]
-            if details.get("end_line") and details["end_line"] != details["line_number"]:
-                blocked_info["end_line"] = details["end_line"]
-
-        if details.get("total_findings"):
-            blocked_info["total_findings"] = details["total_findings"]
-
-        # Add validation status when validate_secrets is enabled (Issue #983)
-        if details.get("validation"):
-            blocked_info["validation"] = details["validation"]
-
-        violation_ctx = {
-            "ide_type": ctx.get("ide_type", "unknown"),
-            "hook_event": ctx.get("hook_event", "unknown"),
-            "project_path": os.getcwd()
-        }
-        if hctx.get("tool_use_id"):
-            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
-        if hctx.get("session_id"):
-            violation_ctx["session_id"] = hctx["session_id"]
+        _enrich_blocked_from_details(blocked_info, details)
 
         if violation_logger is None:
             violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type=vtype,
             blocked=blocked_info,
-            context=violation_ctx,
+            context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "review_finding",
                 "false_positive": "Add '# ai-guardian:allow' at the end of the line",
@@ -1892,23 +1870,11 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
 
     try:
         ctx = context or {}
-        hctx = hook_context or {}
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
         vtype = ViolationType.JAILBREAK_DETECTED if attack_type == "jailbreak" else ViolationType.PROMPT_INJECTION
         reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
         full_path = ctx.get("file_path")
         if not full_path and filename != "user_prompt":
             full_path = filename
-        violation_ctx = {
-            "ide_type": ctx.get("ide_type", "unknown"),
-            "hook_event": ctx.get("hook_event", "unknown"),
-            "project_path": os.getcwd()
-        }
-        if hctx.get("tool_use_id"):
-            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
-        if hctx.get("session_id"):
-            violation_ctx["session_id"] = hctx["session_id"]
         blocked_entry = {
             "file_path": full_path,
             "line_number": line_number,
@@ -1920,10 +1886,12 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         }
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type=vtype,
             blocked=blocked_entry,
-            context=violation_ctx,
+            context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "add_allowlist_pattern",
                 "note": "If this is legitimate (e.g., documentation), add to allowlist in ai-guardian.json"
@@ -1947,18 +1915,6 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
 
     try:
         ctx = context or {}
-        hctx = hook_context or {}
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
-        violation_ctx = {
-            "ide_type": ctx.get("ide_type", "unknown"),
-            "hook_event": ctx.get("hook_event", "unknown"),
-            "project_path": os.getcwd()
-        }
-        if hctx.get("tool_use_id"):
-            violation_ctx["tool_use_id"] = hctx["tool_use_id"]
-        if hctx.get("session_id"):
-            violation_ctx["session_id"] = hctx["session_id"]
         blocked_entry = {
             "file_path": ctx.get("file_path"),
             "line_number": line_number,
@@ -1970,10 +1926,12 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
         }
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
         violation_logger.log_violation(
             violation_type=ViolationType.CONTEXT_POISONING,
             blocked=blocked_entry,
-            context=violation_ctx,
+            context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "add_allowlist_pattern",
                 "note": "If this is a legitimate persistent instruction, add to context_poisoning.allowlist_patterns in ai-guardian.json"
