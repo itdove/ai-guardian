@@ -338,8 +338,18 @@ class TestStats:
         assert stats["paused"] is False
         assert "paused_dirs" in stats
         assert stats["paused_dirs"] == {}
+        assert "active_project_dirs" in stats
+        assert stats["active_project_dirs"] == []
         assert "uptime_seconds" in stats
         assert "started_at" in stats
+
+    def test_stats_include_active_project_dirs(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.check_project_config("/home/user/project-a")
+        state.check_project_config("/home/user/project-b")
+        stats = state.get_stats()
+        dirs = stats["active_project_dirs"]
+        assert set(dirs) == {"/home/user/project-a", "/home/user/project-b"}
 
     def test_stats_accumulate(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")

@@ -130,6 +130,33 @@ class MultiDaemonClient:
         result = self._rest_request(target, "POST", "/api/resume")
         return result is not None
 
+    def send_pause_dir(
+        self, target: DaemonTarget, directory: str, minutes: int,
+    ) -> bool:
+        """Pause scanning for a specific directory."""
+        if target.runtime == "local":
+            return MultiDaemonClient._local_socket_send(
+                {"version": 1, "type": "pause_dir",
+                 "data": {"dir": directory, "minutes": minutes}}
+            )
+        result = self._rest_request(
+            target, "POST", "/api/pause_dir",
+            {"dir": directory, "minutes": minutes},
+        )
+        return result is not None
+
+    def send_resume_dir(self, target: DaemonTarget, directory: str) -> bool:
+        """Resume scanning for a specific directory."""
+        if target.runtime == "local":
+            return MultiDaemonClient._local_socket_send(
+                {"version": 1, "type": "resume_dir",
+                 "data": {"dir": directory}}
+            )
+        result = self._rest_request(
+            target, "POST", "/api/resume_dir", {"dir": directory},
+        )
+        return result is not None
+
     def send_stop(self, target: DaemonTarget) -> bool:
         """Stop daemon."""
         if target.runtime == "local":

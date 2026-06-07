@@ -1310,6 +1310,157 @@ class DaemonTray:
         return "Resume (paused)"
 
 
+    def _get_merged_dir_list(self, stats):
+        """Merge active project dirs and paused dirs into a sorted list."""
+        active = set(stats.get("active_project_dirs") or [])
+        paused = set(stats.get("paused_dirs") or {})
+        return sorted(active | paused)
+
+    def _multi_global_pause_label(self, stats_fns, _item):
+        """Format global pause label with status circle for multi-daemon."""
+        is_paused = stats_fns[9](_item)
+        if is_paused:
+            stats = stats_fns[11](_item)
+            remaining = stats.get("pause_remaining_seconds", 0)
+            if remaining > 0:
+                mins = int(remaining // 60)
+                secs = int(remaining % 60)
+                return f"◐ Daemon (global) ({mins}m {secs}s)"
+            return "◐ Daemon (global)"
+        return "● Daemon (global)"
+
+    def _mk_multi_pause_dir(self, slot):
+        """Create a pause_dir callback for a multi-daemon slot."""
+        def pause_dir_fn(directory, minutes):
+            if slot < len(self._targets) and self._multi_client:
+                self._multi_client.send_pause_dir(
+                    self._targets[slot], directory, minutes,
+                )
+        return pause_dir_fn
+
+    def _mk_multi_resume_dir(self, slot):
+        """Create a resume_dir callback for a multi-daemon slot."""
+        def resume_dir_fn(directory):
+            if slot < len(self._targets) and self._multi_client:
+                self._multi_client.send_resume_dir(
+                    self._targets[slot], directory,
+                )
+        return resume_dir_fn
+
+    def _build_dir_pause_items(self, get_stats_fn, pause_dir_fn, resume_dir_fn):
+        """Build pre-allocated per-directory pause/resume menu items.
+
+        Returns a list of pystray.MenuItem, one per slot, each with a
+        submenu for duration options or resume. Uses visibility lambdas
+        to show only slots with actual directories.
+        """
+        from ai_guardian.daemon.working_dir import shorten_path
+
+        items = []
+        for i in range(self._MAX_DIR_PAUSE_SLOTS):
+            slot = i
+
+            def _dir_at(s, stats, slot=slot):
+                dirs = self._get_merged_dir_list(stats)
+                if slot < len(dirs):
+                    return dirs[slot]
+                return None
+
+            def _is_visible(_item, slot=slot):
+                stats = get_stats_fn(_item)
+                return _dir_at(None, stats, slot) is not None
+
+            def _label(_item, slot=slot):
+                stats = get_stats_fn(_item)
+                d = _dir_at(None, stats, slot)
+                if d is None:
+                    return ""
+                paused_dirs = stats.get("paused_dirs") or {}
+                short = shorten_path(d)
+                if len(short) > 40:
+                    short = "..." + short[-37:]
+                if d in paused_dirs:
+                    remaining = paused_dirs[d]
+                    if remaining > 0:
+                        mins = int(remaining // 60)
+                        secs = int(remaining % 60)
+                        return f"◐ {short} ({mins}m {secs}s)"
+                    return f"◐ {short}"
+                return f"● {short}"
+
+            def _is_paused(_item, slot=slot):
+                stats = get_stats_fn(_item)
+                d = _dir_at(None, stats, slot)
+                if d is None:
+                    return False
+                return d in (stats.get("paused_dirs") or {})
+
+            def _is_active(_item, slot=slot):
+                stats = get_stats_fn(_item)
+                d = _dir_at(None, stats, slot)
+                if d is None:
+                    return False
+                return d not in (stats.get("paused_dirs") or {})
+
+            def _mk_dir_pause(minutes, slot=slot):
+                def action(_, __):
+                    stats = get_stats_fn(None)
+                    d = _dir_at(None, stats, slot)
+                    if d:
+                        pause_dir_fn(d, minutes)
+                return action
+
+            def _mk_dir_resume(slot=slot):
+                def action(_, __):
+                    stats = get_stats_fn(None)
+                    d = _dir_at(None, stats, slot)
+                    if d:
+                        resume_dir_fn(d)
+                return action
+
+            def _full_path_label(_item, slot=slot):
+                stats = get_stats_fn(_item)
+                d = _dir_at(None, stats, slot)
+                return shorten_path(d) if d else ""
+
+            items.append(
+                pystray.MenuItem(
+                    _label,
+                    pystray.Menu(
+                        pystray.MenuItem(
+                            _full_path_label, None, enabled=False,
+                        ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "5 minutes", _mk_dir_pause(5),
+                            visible=_is_active,
+                        ),
+                        pystray.MenuItem(
+                            "15 minutes", _mk_dir_pause(15),
+                            visible=_is_active,
+                        ),
+                        pystray.MenuItem(
+                            "30 minutes", _mk_dir_pause(30),
+                            visible=_is_active,
+                        ),
+                        pystray.MenuItem(
+                            "1 hour", _mk_dir_pause(60),
+                            visible=_is_active,
+                        ),
+                        pystray.MenuItem(
+                            "Until resume", _mk_dir_pause(0),
+                            visible=_is_active,
+                        ),
+                        pystray.MenuItem(
+                            "Resume", _mk_dir_resume(),
+                            visible=_is_paused,
+                        ),
+                    ),
+                    visible=_is_visible,
+                )
+            )
+        return items
+
     def _on_targets_updated(self, targets):
         """Callback from background discovery with updated target list."""
         self._discovery_in_progress = False
@@ -1368,6 +1519,7 @@ class DaemonTray:
         return self._get_stats()
 
     _MAX_DAEMON_SLOTS = 8
+    _MAX_DIR_PAUSE_SLOTS = 16
     _MAX_PLUGIN_SLOTS = 8
     _MAX_ITEMS_PER_PLUGIN = 12
     _MAX_SUBMENU_ITEMS = 8
@@ -1727,29 +1879,81 @@ class DaemonTray:
         _single_not_running = c["single_not_running"]
         _get_stats = c["get_stats"]
 
+        def _global_pause_label(_item):
+            stats = _get_stats(_item)
+            if stats.get("paused"):
+                remaining = stats.get("pause_remaining_seconds", 0)
+                if remaining > 0:
+                    mins = int(remaining // 60)
+                    secs = int(remaining % 60)
+                    return f"◐ Daemon (global) ({mins}m {secs}s)"
+                return "◐ Daemon (global)"
+            return "● Daemon (global)"
+
+        def _global_is_paused(_item):
+            return _get_stats(_item).get("paused", False)
+
+        def _global_is_active(_item):
+            return not _get_stats(_item).get("paused", False)
+
+        def _pause_dir_action(directory, minutes):
+            if self._targets and self._multi_client:
+                self._multi_client.send_pause_dir(
+                    self._targets[0], directory, minutes,
+                )
+
+        def _resume_dir_action(directory):
+            if self._targets and self._multi_client:
+                self._multi_client.send_resume_dir(
+                    self._targets[0], directory,
+                )
+
+        dir_pause_items = self._build_dir_pause_items(
+            _get_stats, _pause_dir_action, _resume_dir_action,
+        )
+
+        def _has_dirs(_item):
+            stats = _get_stats(_item)
+            return bool(self._get_merged_dir_list(stats))
+
         return [
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
                 "Pause...",
                 pystray.Menu(
-                    pystray.MenuItem("5 minutes", _pause_action(5)),
-                    pystray.MenuItem("15 minutes", _pause_action(15)),
-                    pystray.MenuItem("30 minutes", _pause_action(30)),
-                    pystray.MenuItem("1 hour", _pause_action(60)),
-                    pystray.MenuItem("Until resume", _pause_action(0)),
+                    pystray.MenuItem(
+                        _global_pause_label,
+                        pystray.Menu(
+                            pystray.MenuItem(
+                                "5 minutes", _pause_action(5),
+                                visible=_global_is_active,
+                            ),
+                            pystray.MenuItem(
+                                "15 minutes", _pause_action(15),
+                                visible=_global_is_active,
+                            ),
+                            pystray.MenuItem(
+                                "30 minutes", _pause_action(30),
+                                visible=_global_is_active,
+                            ),
+                            pystray.MenuItem(
+                                "1 hour", _pause_action(60),
+                                visible=_global_is_active,
+                            ),
+                            pystray.MenuItem(
+                                "Until resume", _pause_action(0),
+                                visible=_global_is_active,
+                            ),
+                            pystray.MenuItem(
+                                "Resume", _resume_action,
+                                visible=_global_is_paused,
+                            ),
+                        ),
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    *dir_pause_items,
                 ),
-                visible=lambda _: (
-                    _single_running(_)
-                    and not _get_stats(_).get("paused")
-                ),
-            ),
-            pystray.MenuItem(
-                lambda _: self._resume_menu_label(),
-                _resume_action,
-                visible=lambda _: (
-                    _single_running(_)
-                    and _get_stats(_).get("paused")
-                ),
+                visible=_single_running,
             ),
             pystray.MenuItem("Start daemon", _restart_action,
                              visible=_single_not_running),
@@ -1964,7 +2168,7 @@ class DaemonTray:
                 return (requests, blocked, warned, logged,
                         violations, critical, warning_sev,
                         last_block, config_reload,
-                        is_paused, resume_label)
+                        is_paused, resume_label, _get)
 
             stats_fns = _mk_stats()
 
@@ -2046,23 +2250,57 @@ class DaemonTray:
                         pystray.MenuItem(
                             "Pause...",
                             pystray.Menu(
-                                pystray.MenuItem("5 minutes", _mk_pause(5)),
-                                pystray.MenuItem("15 minutes", _mk_pause(15)),
-                                pystray.MenuItem("30 minutes", _mk_pause(30)),
-                                pystray.MenuItem("1 hour", _mk_pause(60)),
-                                pystray.MenuItem("Until resume", _mk_pause(0)),
+                                pystray.MenuItem(
+                                    lambda _i, _sf=stats_fns: (
+                                        self._multi_global_pause_label(_sf, _i)
+                                    ),
+                                    pystray.Menu(
+                                        pystray.MenuItem(
+                                            "5 minutes", _mk_pause(5),
+                                            visible=lambda _i, _sf=stats_fns: (
+                                                not _sf[9](_i)
+                                            ),
+                                        ),
+                                        pystray.MenuItem(
+                                            "15 minutes", _mk_pause(15),
+                                            visible=lambda _i, _sf=stats_fns: (
+                                                not _sf[9](_i)
+                                            ),
+                                        ),
+                                        pystray.MenuItem(
+                                            "30 minutes", _mk_pause(30),
+                                            visible=lambda _i, _sf=stats_fns: (
+                                                not _sf[9](_i)
+                                            ),
+                                        ),
+                                        pystray.MenuItem(
+                                            "1 hour", _mk_pause(60),
+                                            visible=lambda _i, _sf=stats_fns: (
+                                                not _sf[9](_i)
+                                            ),
+                                        ),
+                                        pystray.MenuItem(
+                                            "Until resume", _mk_pause(0),
+                                            visible=lambda _i, _sf=stats_fns: (
+                                                not _sf[9](_i)
+                                            ),
+                                        ),
+                                        pystray.MenuItem(
+                                            "Resume", _mk_resume(),
+                                            visible=lambda _i, _sf=stats_fns: (
+                                                _sf[9](_i)
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                pystray.Menu.SEPARATOR,
+                                *self._build_dir_pause_items(
+                                    stats_fns[11],
+                                    self._mk_multi_pause_dir(idx),
+                                    self._mk_multi_resume_dir(idx),
+                                ),
                             ),
-                            visible=lambda _i, s=idx, _sf=stats_fns: (
-                                _is_slot_running(_i, s)
-                                and not _sf[9](_i)
-                            ),
-                        ),
-                        pystray.MenuItem(
-                            stats_fns[10], _mk_resume(),
-                            visible=lambda _i, s=idx, _sf=stats_fns: (
-                                _is_slot_running(_i, s)
-                                and _sf[9](_i)
-                            ),
+                            visible=_is_slot_running,
                         ),
                         pystray.MenuItem(
                             "Start daemon", _mk_restart(),

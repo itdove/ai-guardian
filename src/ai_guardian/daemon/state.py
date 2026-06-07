@@ -660,6 +660,7 @@ class DaemonState:
                 "config_error": self._config_error,
                 "mcp_installed": self._mcp_installed,
                 "paused_dirs": self._get_paused_dirs_locked(),
+                "active_project_dirs": list(self._project_dir_last_seen.keys()),
                 "ml_model_loaded": self._ml_engine_manager is not None,
                 "ml_load_error": self._ml_load_error,
             }
