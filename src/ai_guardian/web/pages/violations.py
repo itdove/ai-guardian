@@ -99,6 +99,42 @@ def _get_resolution_instructions(violation: dict):
     return get_resolution_instructions(violation)
 
 
+def _format_violation_markdown(v: dict) -> str:
+    """Format a violation dict as readable Markdown for clipboard sharing."""
+    vtype = v.get("violation_type", v.get("type", "unknown"))
+    severity = v.get("severity", "warning")
+    timestamp = v.get("timestamp", "")
+    blocked = v.get("blocked", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+
+    lines = [f"**Type:** {vtype}"]
+    lines.append(f"**Severity:** {severity}")
+
+    fields = DETAIL_FIELDS.get(vtype, [])
+    for label, key in fields:
+        val = blocked.get(key)
+        if val is not None:
+            if key == "secret_type":
+                from ai_guardian.secret_type_names import get_secret_type_display
+                val = get_secret_type_display(str(val))
+            if isinstance(val, list):
+                val = ", ".join(str(x) for x in val)
+            lines.append(f"**{label}:** {val}")
+
+    if timestamp:
+        lines.append(f"**Time:** {timestamp}")
+
+    suggestion = v.get("suggestion", {})
+    if isinstance(suggestion, dict) and suggestion.get("rule"):
+        lines.append(
+            f"**Suggested Rule:**\n```json\n"
+            f"{json.dumps(suggestion['rule'], indent=2)}\n```"
+        )
+
+    return "\n".join(lines)
+
+
 def _load_local_violations(limit, violation_type):
     from ai_guardian.violation_logger import ViolationLogger
     vl = ViolationLogger()
@@ -267,10 +303,31 @@ def _render_violation_card(v: dict):
             def show_details(violation=v):
                 with ui.dialog() as dialog, ui.card().classes("w-[600px]"):
                     ui.label("Violation Details").classes("text-lg font-bold")
+                    violation_json = json.dumps(
+                        violation, indent=2, default=str,
+                    )
                     ui.code(
-                        json.dumps(violation, indent=2, default=str),
-                        language="json",
+                        violation_json, language="json",
                     ).classes("max-h-[300px] overflow-auto text-xs")
+
+                    with ui.row().classes("gap-2 mt-1"):
+                        ui.button(
+                            "Copy JSON", icon="data_object",
+                            on_click=lambda vj=violation_json: (
+                                ui.run_javascript(
+                                    f"navigator.clipboard.writeText({json.dumps(vj)})"
+                                )
+                            ),
+                        ).props("flat dense size=sm")
+                        violation_md = _format_violation_markdown(violation)
+                        ui.button(
+                            "Copy as Markdown", icon="article",
+                            on_click=lambda md=violation_md: (
+                                ui.run_javascript(
+                                    f"navigator.clipboard.writeText({json.dumps(md)})"
+                                )
+                            ),
+                        ).props("flat dense size=sm")
 
                     ui.separator()
                     ui.label("How to Resolve").classes("font-bold mt-2")
