@@ -655,3 +655,169 @@ class TestLaunchInTerminalErrorHandling:
         from ai_guardian.daemon.multi_client import _launch_in_terminal
         result = _launch_in_terminal(["echo", "hello"])
         assert result is True
+
+
+class TestUpgradeTransport:
+    """Tests for pip upgrade transport methods."""
+
+    def test_check_pip_available_local(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=0)
+            assert client.check_pip_available(target) is True
+
+    def test_check_pip_unavailable_local(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(returncode=1)
+            assert client.check_pip_available(target) is False
+
+    def test_check_pip_available_container(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="c1", runtime="container", status="running",
+            container_id="abc123def456", container_engine="podman",
+        )
+        with mock.patch.object(
+            MultiDaemonClient, "_container_exec", return_value="pip 24.0"
+        ):
+            assert client.check_pip_available(target) is True
+
+    def test_check_pip_unavailable_container(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="c1", runtime="container", status="running",
+            container_id="abc123def456", container_engine="podman",
+        )
+        with mock.patch.object(
+            MultiDaemonClient, "_container_exec", return_value=None
+        ):
+            assert client.check_pip_available(target) is False
+
+    def test_check_pip_available_kubernetes(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="k1", runtime="kubernetes", status="running",
+            pod_name="guardian-pod", namespace="default",
+        )
+        with mock.patch.object(
+            MultiDaemonClient, "_kubectl_exec", return_value="pip 24.0"
+        ):
+            assert client.check_pip_available(target) is True
+
+    def test_check_pypi_version_success(self):
+        import json
+        fake_resp = mock.MagicMock()
+        fake_resp.read.return_value = json.dumps(
+            {"info": {"version": "2.0.0"}}
+        ).encode()
+        fake_resp.__enter__ = mock.MagicMock(return_value=fake_resp)
+        fake_resp.__exit__ = mock.MagicMock(return_value=False)
+        with mock.patch(
+            "ai_guardian.daemon.multi_client.urlopen", return_value=fake_resp
+        ):
+            result = MultiDaemonClient.check_pypi_version()
+            assert result == "2.0.0"
+
+    def test_check_pypi_version_network_error(self):
+        from urllib.error import URLError
+        with mock.patch(
+            "ai_guardian.daemon.multi_client.urlopen",
+            side_effect=URLError("no network"),
+        ):
+            result = MultiDaemonClient.check_pypi_version()
+            assert result is None
+
+    def test_run_pip_upgrade_local_success(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=0, stdout="Successfully installed", stderr="",
+            )
+            success, output = client.run_pip_upgrade(target)
+            assert success is True
+            assert "Successfully installed" in output
+            args = mock_run.call_args
+            assert args[1]["timeout"] == 120
+
+    def test_run_pip_upgrade_local_failure(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=1, stdout="", stderr="Permission denied",
+            )
+            success, output = client.run_pip_upgrade(target)
+            assert success is False
+
+    def test_run_pip_upgrade_container(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="c1", runtime="container", status="running",
+            container_id="abc123def456", container_engine="podman",
+        )
+        with mock.patch.object(
+            MultiDaemonClient, "_container_exec",
+            return_value="Successfully installed",
+        ) as mock_exec:
+            success, output = client.run_pip_upgrade(target)
+            assert success is True
+            mock_exec.assert_called_once_with(
+                target,
+                ["pip", "install", "--upgrade", "ai-guardian"],
+                timeout=120,
+            )
+
+    def test_run_pip_upgrade_kubernetes(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="k1", runtime="kubernetes", status="running",
+            pod_name="guardian-pod", namespace="default",
+        )
+        with mock.patch.object(
+            MultiDaemonClient, "_kubectl_exec",
+            return_value="Successfully installed",
+        ) as mock_exec:
+            success, output = client.run_pip_upgrade(target)
+            assert success is True
+            mock_exec.assert_called_once_with(
+                target,
+                ["pip", "install", "--upgrade", "ai-guardian"],
+                timeout=120,
+            )
+
+    def test_run_pip_upgrade_timeout(self):
+        import subprocess
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired("pip", 120)):
+            success, output = client.run_pip_upgrade(target)
+            assert success is False
+            assert "timed out" in output.lower()
+
+    def test_container_exec_custom_timeout(self):
+        target = DaemonTarget(
+            name="c1", runtime="container", status="running",
+            container_id="abc123def456", container_engine="podman",
+        )
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=0, stdout="ok",
+            )
+            MultiDaemonClient._container_exec(target, ["echo"], timeout=120)
+            assert mock_run.call_args[1]["timeout"] == 120
+
+    def test_kubectl_exec_custom_timeout(self):
+        target = DaemonTarget(
+            name="k1", runtime="kubernetes", status="running",
+            pod_name="guardian-pod", namespace="default",
+        )
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = mock.MagicMock(
+                returncode=0, stdout="ok",
+            )
+            MultiDaemonClient._kubectl_exec(target, ["echo"], timeout=120)
+            assert mock_run.call_args[1]["timeout"] == 120

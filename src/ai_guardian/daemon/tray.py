@@ -212,6 +212,10 @@ class DaemonTray:
         self._version_mismatch_notified = set()
         self._daemon_versions = {}
         self._daemon_about_cache = {}
+        self._pip_available = {}
+        self._pypi_latest = None
+        self._pypi_last_check = 0.0
+        self._upgrade_in_progress = set()
         self._discovery_animating = False
         self._discovery_anim_stop = threading.Event()
         self._discovery_timer = None
@@ -1210,6 +1214,13 @@ class DaemonTray:
                         daemon=True,
                         name="version-mismatch-notify",
                     ).start()
+                if key not in self._pip_available:
+                    threading.Thread(
+                        target=self._check_pip_available_for_target,
+                        args=(target,),
+                        daemon=True,
+                        name="pip-check",
+                    ).start()
             elif key in self._version_mismatch_notified:
                 self._version_mismatch_notified.discard(key)
 
@@ -1225,6 +1236,138 @@ class DaemonTray:
             )
         except Exception:
             pass
+
+    def _check_pypi_version(self):
+        """Fetch latest version from PyPI (throttled to every 300s)."""
+        import time as _time
+        now = _time.monotonic()
+        if now - self._pypi_last_check < 300:
+            return
+        self._pypi_last_check = now
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+            version = MultiDaemonClient.check_pypi_version()
+            if version:
+                self._pypi_latest = version
+        except Exception:
+            pass
+
+    def _check_pip_available_for_target(self, target):
+        """Check pip availability on a target (runs in background thread)."""
+        key = (target.name, target.runtime)
+        try:
+            if self._multi_client:
+                available = self._multi_client.check_pip_available(target)
+            else:
+                import subprocess as _sp
+                result = _sp.run(
+                    [sys.executable, "-m", "pip", "--version"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                available = result.returncode == 0
+            self._pip_available[key] = available
+        except Exception:
+            self._pip_available[key] = False
+
+    def _is_upgrade_available(self, target):
+        """Return True if target has a version mismatch and pip is available."""
+        if not target:
+            return False
+        key = (target.name, target.runtime)
+        return (
+            key in self._version_mismatch_notified
+            and self._pip_available.get(key, False)
+            and key not in self._upgrade_in_progress
+        )
+
+    def _upgrade_label(self, target):
+        """Dynamic label for the Upgrade menu item."""
+        if target:
+            key = (target.name, target.runtime)
+            if key in self._upgrade_in_progress:
+                return "Upgrading…"
+        if self._pypi_latest:
+            return f"Upgrade to v{self._pypi_latest}"
+        return "Upgrade daemon"
+
+    def _do_upgrade_daemon(self, target):
+        """Run pip upgrade on a target daemon (runs in background thread)."""
+        key = (target.name, target.runtime)
+        self._upgrade_in_progress.add(key)
+        self._dispatch_to_main(self._refresh_menu)
+        try:
+            from ai_guardian.daemon.tray_plugins import send_notification
+            send_notification(
+                "AI Guardian",
+                f"Upgrading ai-guardian on '{target.name}'…",
+            )
+        except Exception:
+            pass
+
+        success = False
+        output = ""
+        try:
+            if self._multi_client:
+                success, output = self._multi_client.run_pip_upgrade(target)
+            else:
+                import subprocess as _sp
+                result = _sp.run(
+                    [sys.executable, "-m", "pip", "install",
+                     "--upgrade", "ai-guardian"],
+                    capture_output=True, text=True, timeout=120,
+                )
+                success = result.returncode == 0
+                output = result.stdout + result.stderr
+        except Exception as exc:
+            output = str(exc)
+
+        try:
+            from ai_guardian.daemon.tray_plugins import send_notification
+            if success:
+                send_notification(
+                    "AI Guardian",
+                    f"Upgrade complete on '{target.name}'. Restarting daemon…",
+                )
+                if self._multi_client:
+                    self._multi_client.send_restart(target)
+                self._version_mismatch_notified.discard(key)
+                self._daemon_versions.pop(key, None)
+                self._pip_available.pop(key, None)
+            else:
+                first_line = output.strip().split("\n")[-1][:120] if output else "unknown error"
+                send_notification(
+                    "AI Guardian",
+                    f"Upgrade failed on '{target.name}': {first_line}",
+                )
+        except Exception:
+            pass
+        finally:
+            self._upgrade_in_progress.discard(key)
+            self._dispatch_to_main(self._refresh_menu)
+
+    def _on_upgrade_single(self, _icon, _item):
+        """Click handler for single-daemon Upgrade menu item."""
+        if self._targets:
+            target = self._targets[0]
+            threading.Thread(
+                target=self._do_upgrade_daemon,
+                args=(target,),
+                daemon=True,
+                name="daemon-upgrade",
+            ).start()
+
+    def _mk_upgrade(self, slot):
+        """Factory returning a click handler for multi-daemon Upgrade item."""
+        def action(_, __):
+            if slot < len(self._targets):
+                target = self._targets[slot]
+                threading.Thread(
+                    target=self._do_upgrade_daemon,
+                    args=(target,),
+                    daemon=True,
+                    name=f"daemon-upgrade-{slot}",
+                ).start()
+        return action
 
     def _update_global_pause_status(self):
         """Set tray icon to paused only when ALL daemons are paused."""
@@ -1312,6 +1455,7 @@ class DaemonTray:
                     self._dispatch_to_main(self._sync_pause_state)
                     self._check_config_error_notification()
                     self._check_version_mismatch()
+                    self._check_pypi_version()
                     self._poll_plugins()
                     self._request_discovery_refresh(wait=False)
                     self._dispatch_to_main(self._refresh_menu)
@@ -1988,6 +2132,17 @@ class DaemonTray:
                              visible=_single_running),
             pystray.MenuItem("Restart daemon", _restart_action,
                              visible=lambda _: self._is_single_daemon()),
+            pystray.MenuItem(
+                lambda _: self._upgrade_label(
+                    self._targets[0] if self._targets else None,
+                ),
+                self._on_upgrade_single,
+                visible=lambda _: (
+                    self._is_single_daemon()
+                    and self._targets
+                    and self._is_upgrade_available(self._targets[0])
+                ),
+            ),
         ]
 
     def _build_multi_daemon_menu_items(self):
@@ -2347,6 +2502,19 @@ class DaemonTray:
                         ),
                         pystray.MenuItem(
                             "Restart daemon", _mk_restart(),
+                        ),
+                        pystray.MenuItem(
+                            lambda _i, s=idx: self._upgrade_label(
+                                self._targets[s]
+                                if s < len(self._targets) else None,
+                            ),
+                            self._mk_upgrade(idx),
+                            visible=lambda _i, s=idx: (
+                                s < len(self._targets)
+                                and self._is_upgrade_available(
+                                    self._targets[s]
+                                )
+                            ),
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem("About", self._on_daemon_about(idx),

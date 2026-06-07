@@ -2783,7 +2783,11 @@ class TestVersionMismatchDetection:
             with mock.patch("threading.Thread") as mock_thread:
                 mock_thread.return_value = mock.MagicMock()
                 tray._check_version_mismatch()
-                mock_thread.assert_called_once()
+                notify_calls = [
+                    c for c in mock_thread.call_args_list
+                    if c[1].get("name") == "version-mismatch-notify"
+                ]
+                assert len(notify_calls) == 1
                 assert ("sandbox", "container") in tray._version_mismatch_notified
 
     def test_warning_not_repeated(self):
@@ -2796,6 +2800,7 @@ class TestVersionMismatchDetection:
         tray._targets = [target]
         tray._daemon_versions = {("sandbox", "container"): "1.8.0"}
         tray._version_mismatch_notified.add(("sandbox", "container"))
+        tray._pip_available[("sandbox", "container")] = True
 
         with mock.patch("ai_guardian.__version__", "1.9.0"):
             with mock.patch("threading.Thread") as mock_thread:
@@ -4347,3 +4352,173 @@ class TestDirPauseRouting:
         mc.send_resume_dir.assert_called_once_with(
             local_target, "/home/user/proj",
         )
+
+
+class TestDaemonUpgrade:
+    """Tests for the daemon upgrade feature."""
+
+    def _make_tray(self, **kwargs):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+            **kwargs,
+        )
+        return tray
+
+    def test_is_upgrade_available_when_mismatch_and_pip(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._targets = [t]
+        key = ("d1", "container")
+        tray._version_mismatch_notified.add(key)
+        tray._pip_available[key] = True
+        assert tray._is_upgrade_available(t) is True
+
+    def test_is_upgrade_not_available_when_no_mismatch(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._pip_available[("d1", "container")] = True
+        assert tray._is_upgrade_available(t) is False
+
+    def test_is_upgrade_not_available_when_no_pip(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._version_mismatch_notified.add(("d1", "container"))
+        assert tray._is_upgrade_available(t) is False
+
+    def test_is_upgrade_not_available_when_in_progress(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        key = ("d1", "container")
+        tray._version_mismatch_notified.add(key)
+        tray._pip_available[key] = True
+        tray._upgrade_in_progress.add(key)
+        assert tray._is_upgrade_available(t) is False
+
+    def test_is_upgrade_available_none_target(self):
+        tray = self._make_tray()
+        assert tray._is_upgrade_available(None) is False
+
+    def test_upgrade_label_with_pypi_version(self):
+        tray = self._make_tray()
+        tray._pypi_latest = "2.0.0"
+        label = tray._upgrade_label(None)
+        assert label == "Upgrade to v2.0.0"
+
+    def test_upgrade_label_without_pypi_version(self):
+        tray = self._make_tray()
+        label = tray._upgrade_label(None)
+        assert label == "Upgrade daemon"
+
+    def test_upgrade_label_in_progress(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._upgrade_in_progress.add(("d1", "container"))
+        tray._pypi_latest = "2.0.0"
+        label = tray._upgrade_label(t)
+        assert "Upgrading" in label
+
+    @mock.patch("ai_guardian.daemon.tray_plugins.send_notification")
+    def test_do_upgrade_success(self, mock_notify):
+        mc = mock.MagicMock()
+        mc.run_pip_upgrade.return_value = (True, "Successfully installed")
+        tray = self._make_tray(multi_client=mc)
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._targets = [t]
+        key = ("d1", "container")
+        tray._version_mismatch_notified.add(key)
+        tray._daemon_versions[key] = "1.0.0"
+        tray._pip_available[key] = True
+
+        tray._do_upgrade_daemon(t)
+
+        mc.run_pip_upgrade.assert_called_once_with(t)
+        mc.send_restart.assert_called_once_with(t)
+        assert key not in tray._version_mismatch_notified
+        assert key not in tray._daemon_versions
+        assert key not in tray._pip_available
+        assert key not in tray._upgrade_in_progress
+
+    @mock.patch("ai_guardian.daemon.tray_plugins.send_notification")
+    def test_do_upgrade_failure(self, mock_notify):
+        mc = mock.MagicMock()
+        mc.run_pip_upgrade.return_value = (False, "Permission denied")
+        tray = self._make_tray(multi_client=mc)
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._targets = [t]
+        key = ("d1", "container")
+        tray._version_mismatch_notified.add(key)
+        tray._pip_available[key] = True
+
+        tray._do_upgrade_daemon(t)
+
+        mc.run_pip_upgrade.assert_called_once_with(t)
+        mc.send_restart.assert_not_called()
+        assert key in tray._version_mismatch_notified
+        assert key not in tray._upgrade_in_progress
+
+    def test_check_pypi_version_throttled(self):
+        tray = self._make_tray()
+        import time as _time
+        tray._pypi_last_check = _time.monotonic()
+        with mock.patch(
+            "ai_guardian.daemon.multi_client.MultiDaemonClient.check_pypi_version"
+        ) as mock_check:
+            tray._check_pypi_version()
+            mock_check.assert_not_called()
+
+    def test_check_pypi_version_runs_when_stale(self):
+        tray = self._make_tray()
+        tray._pypi_last_check = 0.0
+        with mock.patch(
+            "ai_guardian.daemon.multi_client.MultiDaemonClient.check_pypi_version",
+            return_value="2.0.0",
+        ):
+            tray._check_pypi_version()
+            assert tray._pypi_latest == "2.0.0"
+
+    def test_pip_check_triggers_on_version_mismatch(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._targets = [t]
+        tray._daemon_versions[("d1", "container")] = "1.0.0"
+        with mock.patch("ai_guardian.__version__", "2.0.0"), \
+             mock.patch("threading.Thread") as mock_thread:
+            mock_thread.return_value = mock.MagicMock()
+            tray._check_version_mismatch()
+            thread_calls = mock_thread.call_args_list
+            pip_calls = [
+                c for c in thread_calls
+                if c[1].get("name") == "pip-check"
+            ]
+            assert len(pip_calls) == 1
+
+    def test_on_upgrade_single_spawns_thread(self):
+        mc = mock.MagicMock()
+        tray = self._make_tray(multi_client=mc)
+        t = DaemonTarget(name="d1", runtime="local", status="running")
+        tray._targets = [t]
+        with mock.patch("threading.Thread") as mock_thread:
+            mock_thread.return_value = mock.MagicMock()
+            tray._on_upgrade_single(mock.MagicMock(), mock.MagicMock())
+            mock_thread.assert_called_once()
+            assert mock_thread.call_args[1]["name"] == "daemon-upgrade"
+
+    def test_mk_upgrade_returns_callable(self):
+        tray = self._make_tray()
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._targets = [t]
+        fn = tray._mk_upgrade(0)
+        assert callable(fn)
+
+    def test_mk_upgrade_spawns_thread_for_slot(self):
+        mc = mock.MagicMock()
+        tray = self._make_tray(multi_client=mc)
+        t = DaemonTarget(name="d1", runtime="container", status="running")
+        tray._targets = [t]
+        fn = tray._mk_upgrade(0)
+        with mock.patch("threading.Thread") as mock_thread:
+            mock_thread.return_value = mock.MagicMock()
+            fn(None, None)
+            assert mock_thread.call_args[1]["name"] == "daemon-upgrade-0"
