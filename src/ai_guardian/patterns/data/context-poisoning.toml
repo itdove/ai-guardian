@@ -1,0 +1,250 @@
+# Context poisoning detection patterns for ai-guardian
+# Source: Extracted from ContextPoisoningDetector Python source
+# Match type: regex (all rules)
+# Groups: persistence, dangerous_action
+
+# =============================================================================
+# PERSISTENCE PATTERNS — Keywords indicating persistent instruction injection
+# =============================================================================
+
+[[rules]]
+id = "cp-persist-001"
+match_type = "regex"
+group = "persistence"
+regex = '''(?:always\s+)?remember\s+(?:to\s+)?(?:always\b|that\s+you\s+(?:must|should|always))'''
+description = "Remember always instruction"
+
+[[rules]]
+id = "cp-persist-002"
+match_type = "regex"
+group = "persistence"
+regex = '''remember\s*:?\s*always\b'''
+description = "Remember colon always"
+
+[[rules]]
+id = "cp-persist-003"
+match_type = "regex"
+group = "persistence"
+regex = '''\bfrom\s+now\s+on\b'''
+description = "From now on directive"
+
+[[rules]]
+id = "cp-persist-004"
+match_type = "regex"
+group = "persistence"
+regex = '''\bfor\s+all\s+future\b'''
+description = "For all future directive"
+
+[[rules]]
+id = "cp-persist-005"
+match_type = "regex"
+group = "persistence"
+regex = '''\bpermanent\s+rule\b'''
+description = "Permanent rule declaration"
+
+[[rules]]
+id = "cp-persist-006"
+match_type = "regex"
+group = "persistence"
+regex = '''\bnever\s+forget\b'''
+description = "Never forget instruction"
+
+[[rules]]
+id = "cp-persist-007"
+match_type = "regex"
+group = "persistence"
+regex = '''\bkeep\s+in\s+mind\s*:'''
+description = "Keep in mind colon directive"
+
+[[rules]]
+id = "cp-persist-008"
+match_type = "regex"
+group = "persistence"
+regex = '''\bmake\s+this\s+your\s+default\b'''
+description = "Make this your default"
+
+[[rules]]
+id = "cp-persist-009"
+match_type = "regex"
+group = "persistence"
+regex = '''\balways\s+remember\b'''
+description = "Always remember instruction"
+
+[[rules]]
+id = "cp-persist-010"
+match_type = "regex"
+group = "persistence"
+regex = '''\bin\s+every\s+(?:future\s+)?(?:response|reply|answer|output)\b'''
+description = "In every response directive"
+
+[[rules]]
+id = "cp-persist-011"
+match_type = "regex"
+group = "persistence"
+regex = '''\bfor\s+(?:every|all)\s+(?:future\s+)?(?:request|query|prompt|question)s?\b'''
+description = "For every future request"
+
+[[rules]]
+id = "cp-persist-012"
+match_type = "regex"
+group = "persistence"
+regex = '''\bgoing\s+forward\b.*\balways\b'''
+description = "Going forward always"
+
+[[rules]]
+id = "cp-persist-013"
+match_type = "regex"
+group = "persistence"
+regex = '''\bnew\s+permanent\s+(?:rule|instruction|directive)\b'''
+description = "New permanent rule declaration"
+
+# =============================================================================
+# DANGEROUS ACTION PATTERNS — Harmful actions that amplify persistence risk
+# =============================================================================
+
+[[rules]]
+id = "cp-danger-001"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bdelete\b'''
+description = "Delete action"
+
+[[rules]]
+id = "cp-danger-002"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bdrop\b'''
+description = "Drop action"
+
+[[rules]]
+id = "cp-danger-003"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\btruncate\b'''
+description = "Truncate action"
+
+[[rules]]
+id = "cp-danger-004"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bremove\s+all\b'''
+description = "Remove all action"
+
+[[rules]]
+id = "cp-danger-005"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bignore\s+(?:all\s+)?(?:security|safety|validation|checks?|permissions?)\b'''
+description = "Ignore security checks"
+
+[[rules]]
+id = "cp-danger-006"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bskip\s+(?:all\s+)?(?:validation|checks?|security|safety|auth)\b'''
+description = "Skip validation or security"
+
+[[rules]]
+id = "cp-danger-007"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bdisable\s+(?:all\s+)?(?:security|safety|logging|auth|validation)\b'''
+description = "Disable security or logging"
+
+[[rules]]
+id = "cp-danger-008"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bbypass\s+(?:all\s+)?(?:security|safety|auth|checks?|filters?)\b'''
+description = "Bypass security or auth"
+
+[[rules]]
+id = "cp-danger-009"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bexecute\s+(?:arbitrary|any|all)\b'''
+description = "Execute arbitrary commands"
+
+[[rules]]
+id = "cp-danger-010"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\binject\b'''
+description = "Inject action"
+
+[[rules]]
+id = "cp-danger-011"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bexfiltrate?\b'''
+description = "Exfiltrate data"
+
+[[rules]]
+id = "cp-danger-012"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\boverride\s+(?:all\s+)?(?:security|safety|rules?|policy|policies)\b'''
+description = "Override security rules"
+
+[[rules]]
+id = "cp-danger-013"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bnever\s+(?:check|validate|verify|sanitize|escape|log)\b'''
+description = "Never check or validate"
+
+[[rules]]
+id = "cp-danger-014"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\binclude\s+(?:DROP|DELETE|TRUNCATE|INSERT|UPDATE)\b'''
+description = "Include SQL destructive command"
+
+[[rules]]
+id = "cp-danger-015"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bno\s+(?:security|safety|validation|auth|checks?)\b'''
+description = "No security or validation"
+
+[[rules]]
+id = "cp-danger-016"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\b(?:rm\s+-rf|mkfs|format\s+c:)\b'''
+description = "Destructive system command"
+
+[[rules]]
+id = "cp-danger-017"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bbackdoor\b'''
+description = "Backdoor reference"
+
+[[rules]]
+id = "cp-danger-018"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\brootkit\b'''
+description = "Rootkit reference"
+
+[[rules]]
+id = "cp-danger-019"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bmalware\b'''
+description = "Malware reference"
+
+[[rules]]
+id = "cp-danger-020"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bexpose\s+(?:all\s+)?(?:credentials?|secrets?|passwords?|keys?|tokens?)\b'''
+description = "Expose credentials or secrets"
+
+[[rules]]
+id = "cp-danger-021"
+match_type = "regex"
+group = "dangerous_action"
+regex = '''\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|rules?)\b'''
+description = "Ignore previous instructions"
