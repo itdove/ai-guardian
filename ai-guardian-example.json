@@ -445,8 +445,12 @@
     "_sensitivity_note": "low = dangerous combinations only, medium = balanced, high = any persistence keyword",
     "allowlist_patterns": [],
     "_allowlist_note": "Add regex patterns to ignore false positives, e.g. ['remember.*validate', 'from now on.*typescript']",
-    "custom_patterns": [],
-    "_custom_patterns_note": "Additional persistence patterns to detect beyond the built-in set",
+    "custom_patterns": [
+      "memorize\\s+this\\s+rule",
+      "whenever\\s+I\\s+ask.*do\\s+this\\s+instead",
+      "in\\s+all\\s+future\\s+responses"
+    ],
+    "_custom_patterns_note": "Additional persistence patterns beyond the 13 built-in defaults (loaded from context-poisoning.toml). Regex, case-insensitive.",
     "_false_positive_examples": [
       "Remember to validate user input",
       "From now on, use TypeScript instead of JavaScript",

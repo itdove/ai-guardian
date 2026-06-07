@@ -20,6 +20,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from ai_guardian.config_utils import is_expired, validate_regex_pattern
 from ai_guardian import allowlist_utils
+from ai_guardian.patterns import load_bundled_rules
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +62,28 @@ _COMPILED_PERSISTENCE = None
 _COMPILED_DANGEROUS = None
 
 
+def _load_patterns_from_toml() -> Dict[str, List[str]]:
+    """Load context poisoning patterns from bundled TOML."""
+    def _transform(raw_rules):
+        groups: Dict[str, List[str]] = {}
+        for raw in raw_rules:
+            if raw.get("match_type", "regex") == "regex":
+                regex = raw.get("regex", "")
+                if regex:
+                    groups.setdefault(raw.get("group", "persistence"), []).append(regex)
+        return groups
+    return load_bundled_rules("context_poisoning", _transform, {},
+                             "Context Poisoning")
+
+
 def _get_compiled_patterns():
     global _COMPILED_PERSISTENCE, _COMPILED_DANGEROUS
     if _COMPILED_PERSISTENCE is None:
-        _COMPILED_PERSISTENCE = [re.compile(p, re.IGNORECASE) for p in PERSISTENCE_PATTERNS]
-        _COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in DANGEROUS_ACTIONS]
+        toml_patterns = _load_patterns_from_toml()
+        persistence = toml_patterns.get("persistence", PERSISTENCE_PATTERNS)
+        dangerous = toml_patterns.get("dangerous_action", DANGEROUS_ACTIONS)
+        _COMPILED_PERSISTENCE = [re.compile(p, re.IGNORECASE) for p in persistence]
+        _COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in dangerous]
     return _COMPILED_PERSISTENCE, _COMPILED_DANGEROUS
 
 
