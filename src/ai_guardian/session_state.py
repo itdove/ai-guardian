@@ -98,6 +98,40 @@ class SessionStateManager:
 
         self._update_file(session_key, reinject=True)
 
+    def cleanup_session(self, session_key: str) -> None:
+        """Remove a session from injection tracking.
+
+        Called on session end to finalize session state.
+        """
+        if not session_key:
+            return
+
+        if self._daemon_state:
+            self._daemon_state.cleanup_session_state(session_key)
+            return
+
+        if not self._state_file:
+            return
+
+        lock_path = str(self._state_file) + ".lock"
+        try:
+            lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+            try:
+                if HAS_FCNTL:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+                data = self._read_file()
+                if data and session_key in data.get("sessions", {}):
+                    del data["sessions"][session_key]
+                    self._write_file(data)
+                    logger.debug(f"Session cleanup: removed state for {session_key[:16]}...")
+            finally:
+                if HAS_FCNTL:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+        except OSError as e:
+            logger.debug(f"Session state cleanup failed: {e}")
+
     def _should_inject_from_file(self, session_key: str) -> bool:
         data = self._read_file()
         if not data:

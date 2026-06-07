@@ -255,6 +255,10 @@ class HookAdapter(ABC):
         if not event_name:
             event_name = hook_data.get("hookName", "").lower()
 
+        # Stop / session-end events
+        if event_name in ("stop", "session.idle", "session.end", "sessionend"):
+            return HookEvent.STOP
+
         # OpenCode plugin events
         if event_name == "tool.execute.before":
             return HookEvent.PRE_TOOL_USE

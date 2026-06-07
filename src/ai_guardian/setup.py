@@ -213,6 +213,17 @@ class IDESetup:
                             }
                         ]
                     }
+                ],
+                "Stop": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian",
+                                "statusMessage": "🛡️ Finalizing session..."
+                            }
+                        ]
+                    }
                 ]
             }
         },
@@ -648,8 +659,8 @@ class IDESetup:
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
 
-            # Merge UserPromptSubmit, PreToolUse, and PostToolUse hooks
-            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+            # Merge UserPromptSubmit, PreToolUse, PostToolUse, and Stop hooks
+            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]:
                 if hook_name not in ai_guardian_hooks:
                     continue
 
@@ -3308,6 +3319,10 @@ export const AiGuardian: Plugin = async (ctx) => {
         } catch {}
       }
     },
+
+    async 'session.end'() {
+      runGuardian({ hook_event_name: 'session.end', opencode_version: '1.0.0', hook_source: 'opencode', cwd });
+    },
   };
 };
 """
@@ -3399,7 +3414,7 @@ export default definePluginEntry({
     });
 
     api.on('session_end', async () => {
-      // no-op: allow ai-guardian to log session end
+      runGuardian({ hook_event_name: 'session.end', hook_source: 'openclaw' });
     });
   },
 });

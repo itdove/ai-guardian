@@ -102,6 +102,38 @@ class HookContextManager:
             logger.debug(f"Failed to load pretool context: {e}")
             return None
 
+    def cleanup_session(self) -> int:
+        """Remove all hook contexts for this session.
+
+        Called on session end to clean up accumulated PreToolUse contexts.
+
+        Returns:
+            Number of contexts removed.
+        """
+        try:
+            if self._daemon_state:
+                return self._daemon_state.cleanup_session_contexts(self._session_id)
+
+            if not self._context_file:
+                return 0
+
+            count = 0
+            if self._context_file.exists():
+                data = self._read_file()
+                count = len(data) if data else 0
+                self._context_file.unlink(missing_ok=True)
+
+            lock_path = str(self._context_file) + ".lock"
+            if os.path.exists(lock_path):
+                os.unlink(lock_path)
+
+            if count:
+                logger.debug(f"Session cleanup: removed {count} hook contexts")
+            return count
+        except Exception as e:
+            logger.debug(f"Session context cleanup error: {e}")
+            return 0
+
     def cleanup(self, max_age_seconds: int = DEFAULT_CONTEXT_TTL):
         """Remove expired entries to prevent accumulation.
 
