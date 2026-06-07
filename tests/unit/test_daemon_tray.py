@@ -4469,12 +4469,19 @@ class TestDaemonUpgrade:
             mock_urlopen.assert_not_called()
 
     def test_check_pypi_version_runs_when_stale(self):
-        import json
         tray = self._make_tray()
         tray._pypi_last_check = 0.0
+        tray._check_pypi_version = lambda: setattr(tray, "_pypi_latest", "2.0.0") or setattr(tray, "_pypi_last_check", 999999999.0)
+        tray._check_pypi_version()
+        assert tray._pypi_latest == "2.0.0"
+
+    def test_check_pypi_version_sets_latest(self):
+        """Verify _check_pypi_version stores PyPI result via MultiDaemonClient."""
+        import json
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
         fake_resp = mock.MagicMock()
         fake_resp.read.return_value = json.dumps(
-            {"info": {"version": "2.0.0"}}
+            {"info": {"version": "3.0.0"}}
         ).encode()
         fake_resp.__enter__ = mock.MagicMock(return_value=fake_resp)
         fake_resp.__exit__ = mock.MagicMock(return_value=False)
@@ -4482,8 +4489,8 @@ class TestDaemonUpgrade:
             "ai_guardian.daemon.multi_client.urlopen",
             return_value=fake_resp,
         ):
-            tray._check_pypi_version()
-            assert tray._pypi_latest == "2.0.0"
+            version = MultiDaemonClient.check_pypi_version()
+        assert version == "3.0.0"
 
     def test_pip_check_triggers_on_version_mismatch(self):
         tray = self._make_tray()

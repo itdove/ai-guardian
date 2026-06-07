@@ -1249,7 +1249,7 @@ class DaemonTray:
             version = MultiDaemonClient.check_pypi_version()
             if version:
                 self._pypi_latest = version
-        except Exception:
+        except (OSError, ValueError, KeyError):
             pass
 
     def _check_pip_available_for_target(self, target):
