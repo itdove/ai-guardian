@@ -3995,3 +3995,210 @@ class TestTrayAutoStartDaemon:
                         break
 
             mock_check.assert_called()
+
+
+class TestGetMergedDirList:
+    """Test _get_merged_dir_list merges active and paused dirs (#997)."""
+
+    def test_empty_stats(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        assert tray._get_merged_dir_list({}) == []
+
+    def test_active_dirs_only(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        stats = {"active_project_dirs": ["/b", "/a"], "paused_dirs": {}}
+        result = tray._get_merged_dir_list(stats)
+        assert result == ["/a", "/b"]
+
+    def test_paused_dirs_only(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        stats = {"active_project_dirs": [], "paused_dirs": {"/c": 120.0}}
+        result = tray._get_merged_dir_list(stats)
+        assert result == ["/c"]
+
+    def test_merged_and_deduplicated(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        stats = {
+            "active_project_dirs": ["/a", "/b"],
+            "paused_dirs": {"/b": 60.0, "/c": 0.0},
+        }
+        result = tray._get_merged_dir_list(stats)
+        assert result == ["/a", "/b", "/c"]
+
+
+class TestBuildDirPauseItems:
+    """Test _build_dir_pause_items returns correct slot structure (#997)."""
+
+    def test_returns_max_slots(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        items = tray._build_dir_pause_items(
+            lambda _: {}, lambda d, m: None, lambda d: None,
+        )
+        assert len(items) == tray._MAX_DIR_PAUSE_SLOTS
+
+    def test_slots_visible_for_active_dirs(self):
+        stats = {
+            "active_project_dirs": ["/proj-a", "/proj-b"],
+            "paused_dirs": {},
+        }
+        tray = DaemonTray(
+            get_stats_callback=lambda: stats,
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        items = tray._build_dir_pause_items(
+            lambda _: stats, lambda d, m: None, lambda d: None,
+        )
+        assert items[0].visible is True
+        assert items[1].visible is True
+        assert items[2].visible is False
+
+    def test_paused_dir_label_shows_half_circle(self):
+        stats = {
+            "active_project_dirs": ["/proj-a"],
+            "paused_dirs": {"/proj-a": 120.5},
+        }
+        tray = DaemonTray(
+            get_stats_callback=lambda: stats,
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        items = tray._build_dir_pause_items(
+            lambda _: stats, lambda d, m: None, lambda d: None,
+        )
+        label = items[0].text
+        assert label.startswith("◐")
+        assert "2m" in label
+
+    def test_active_dir_label_shows_full_circle(self):
+        stats = {
+            "active_project_dirs": ["/proj-a"],
+            "paused_dirs": {},
+        }
+        tray = DaemonTray(
+            get_stats_callback=lambda: stats,
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        items = tray._build_dir_pause_items(
+            lambda _: stats, lambda d, m: None, lambda d: None,
+        )
+        label = items[0].text
+        assert label.startswith("●")
+
+
+class TestMultiGlobalPauseLabel:
+    """Test _multi_global_pause_label shows correct status circle (#997)."""
+
+    def test_active_shows_full_circle(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        stats_fns = [None] * 12
+        stats_fns[9] = lambda _: False
+        stats_fns[11] = lambda _: {}
+        label = tray._multi_global_pause_label(stats_fns, None)
+        assert label == "● Daemon (global)"
+
+    def test_paused_indefinite_shows_half_circle(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        stats_fns = [None] * 12
+        stats_fns[9] = lambda _: True
+        stats_fns[11] = lambda _: {"pause_remaining_seconds": 0}
+        label = tray._multi_global_pause_label(stats_fns, None)
+        assert label == "◐ Daemon (global)"
+
+    def test_paused_with_timer_shows_remaining(self):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+        )
+        stats_fns = [None] * 12
+        stats_fns[9] = lambda _: True
+        stats_fns[11] = lambda _: {"pause_remaining_seconds": 305}
+        label = tray._multi_global_pause_label(stats_fns, None)
+        assert "◐ Daemon (global)" in label
+        assert "5m" in label
+
+
+class TestDirPauseRouting:
+    """Test per-directory pause actions route through multi_client (#997)."""
+
+    def test_single_daemon_pause_dir_routes_through_multi_client(self):
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(
+            name="local", runtime="local", status="running",
+        )
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+        with mock.patch("ai_guardian.daemon.tray.pystray", create=True):
+            tray._build_single_daemon_menu_items()
+        mc.send_pause_dir.assert_not_called()
+
+    def test_mk_multi_pause_dir_calls_multi_client(self):
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(
+            name="local", runtime="local", status="running",
+        )
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+        fn = tray._mk_multi_pause_dir(0)
+        fn("/home/user/proj", 15)
+        mc.send_pause_dir.assert_called_once_with(
+            local_target, "/home/user/proj", 15,
+        )
+
+    def test_mk_multi_resume_dir_calls_multi_client(self):
+        mc = mock.MagicMock()
+        local_target = DaemonTarget(
+            name="local", runtime="local", status="running",
+        )
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda _: None,
+            multi_client=mc,
+        )
+        tray._targets = [local_target]
+        fn = tray._mk_multi_resume_dir(0)
+        fn("/home/user/proj")
+        mc.send_resume_dir.assert_called_once_with(
+            local_target, "/home/user/proj",
+        )

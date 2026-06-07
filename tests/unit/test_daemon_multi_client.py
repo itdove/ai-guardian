@@ -59,6 +59,68 @@ class TestLocalPauseResumeRouting:
         assert result is False
 
 
+class TestLocalDirPauseResumeRouting:
+    """Test per-directory pause/resume via socket (#997)."""
+
+    @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=True)
+    def test_pause_dir_local_sends_socket_message(self, mock_send):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.send_pause_dir(target, "/home/user/project", 5)
+        assert result is True
+        mock_send.assert_called_once_with(
+            {"version": 1, "type": "pause_dir",
+             "data": {"dir": "/home/user/project", "minutes": 5}}
+        )
+
+    @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=True)
+    def test_resume_dir_local_sends_socket_message(self, mock_send):
+        client = MultiDaemonClient()
+        target = DaemonTarget(name="local", runtime="local")
+        result = client.send_resume_dir(target, "/home/user/project")
+        assert result is True
+        mock_send.assert_called_once_with(
+            {"version": 1, "type": "resume_dir",
+             "data": {"dir": "/home/user/project"}}
+        )
+
+    def test_pause_dir_remote_uses_rest(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="container",
+            host="127.0.0.1", port=49200,
+            container_id="abc123def456abc123", container_engine="podman",
+        )
+        with mock.patch.object(
+            client, "_rest_request",
+            return_value={"status": "dir_paused"},
+        ) as mock_rest:
+            result = client.send_pause_dir(target, "/app/project", 30)
+            assert result is True
+            mock_rest.assert_called_once_with(
+                target, "POST", "/api/pause_dir",
+                {"dir": "/app/project", "minutes": 30},
+            )
+
+    def test_resume_dir_remote_uses_rest(self):
+        client = MultiDaemonClient()
+        target = DaemonTarget(
+            name="test", runtime="container",
+            host="127.0.0.1", port=49200,
+            container_id="abc123def456abc123", container_engine="podman",
+        )
+        with mock.patch.object(
+            client, "_rest_request",
+            return_value={"status": "dir_resumed"},
+        ) as mock_rest:
+            result = client.send_resume_dir(target, "/app/project")
+            assert result is True
+            mock_rest.assert_called_once_with(
+                target, "POST", "/api/resume_dir",
+                {"dir": "/app/project"},
+            )
+
+
 class TestContainerRouting:
     def test_status_via_rest(self):
         client = MultiDaemonClient()
