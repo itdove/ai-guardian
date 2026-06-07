@@ -1,6 +1,7 @@
 """Tests for daemon system tray integration."""
 
 import sys
+import time
 from unittest import mock
 
 import pytest
@@ -3995,6 +3996,146 @@ class TestTrayAutoStartDaemon:
                         break
 
             mock_check.assert_called()
+
+
+class TestCanAutostartDaemon:
+    """Tests for _can_autostart_daemon() (#999)."""
+
+    def _make_tray(self, standalone=True):
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            standalone=standalone,
+        )
+
+    def test_can_autostart_when_standalone_no_marker(self):
+        tray = self._make_tray(standalone=True)
+        with mock.patch(
+            "ai_guardian.config_utils.get_state_dir",
+        ) as mock_dir:
+            mock_marker = mock.MagicMock()
+            mock_marker.exists.return_value = False
+            mock_dir.return_value.__truediv__ = mock.MagicMock(
+                return_value=mock_marker,
+            )
+            assert tray._can_autostart_daemon() is True
+
+    def test_cannot_autostart_when_not_standalone(self):
+        tray = self._make_tray(standalone=False)
+        assert tray._can_autostart_daemon() is False
+
+    def test_cannot_autostart_when_stop_requested(self):
+        tray = self._make_tray(standalone=True)
+        with mock.patch(
+            "ai_guardian.config_utils.get_state_dir",
+        ) as mock_dir:
+            mock_marker = mock.MagicMock()
+            mock_marker.exists.return_value = True
+            mock_dir.return_value.__truediv__ = mock.MagicMock(
+                return_value=mock_marker,
+            )
+            assert tray._can_autostart_daemon() is False
+
+
+class TestAutostartEnabledMenuItems:
+    """Tests for menu items enabled when daemon idle-stopped (#999).
+
+    When daemon is stopped but auto-restart is possible (standalone
+    tray, no stop-requested marker), menu items like Console,
+    Violations, Metrics should remain enabled so clicking them
+    triggers auto-start.
+    """
+
+    def _make_tray(self, standalone=True, status="stopped"):
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            standalone=standalone,
+        )
+        tray._targets = [
+            DaemonTarget(name="local", runtime="local", status=status),
+        ]
+        return tray
+
+    def test_single_running_true_when_stopped_can_autostart(self):
+        """Menu items enabled when daemon stopped but autostart possible."""
+        tray = self._make_tray(standalone=True, status="stopped")
+        with mock.patch.object(
+            tray, "_can_autostart_daemon", return_value=True,
+        ):
+            fn = lambda _item: (
+                tray._is_single_daemon()
+                and (
+                    tray._targets[0].status in ("running", "paused")
+                    or tray._can_autostart_daemon()
+                )
+            )
+            assert fn(None) is True
+
+    def test_single_running_false_when_stopped_cannot_autostart(self):
+        """Menu items disabled when stopped and autostart not possible."""
+        tray = self._make_tray(standalone=False, status="stopped")
+        fn = lambda _item: (
+            tray._is_single_daemon()
+            and (
+                tray._targets[0].status in ("running", "paused")
+                or tray._can_autostart_daemon()
+            )
+        )
+        assert fn(None) is False
+
+    def test_check_autostart_returns_true_when_already_running(self):
+        tray = self._make_tray(standalone=True, status="running")
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running",
+            return_value=True,
+        ):
+            assert tray._check_and_autostart_daemon() is True
+
+    def test_check_autostart_returns_true_after_start(self):
+        tray = self._make_tray(standalone=True, status="stopped")
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                return_value=False,
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background",
+                return_value=True,
+            ),
+            mock.patch.object(tray, "_request_discovery_refresh"),
+        ):
+            assert tray._check_and_autostart_daemon() is True
+
+    def test_check_autostart_returns_false_when_start_fails(self):
+        tray = self._make_tray(standalone=True, status="stopped")
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                return_value=False,
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background",
+                return_value=False,
+            ),
+        ):
+            assert tray._check_and_autostart_daemon() is False
+
+    def test_check_autostart_returns_true_when_not_standalone(self):
+        """Non-standalone tray returns True (daemon managed externally)."""
+        tray = self._make_tray(standalone=False)
+        assert tray._check_and_autostart_daemon() is True
+
+    def test_check_autostart_returns_false_on_cooldown(self):
+        tray = self._make_tray(standalone=True, status="stopped")
+        tray._last_autostart_attempt = time.monotonic()
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running",
+            return_value=False,
+        ):
+            assert tray._check_and_autostart_daemon() is False
 
 
 class TestGetMergedDirList:

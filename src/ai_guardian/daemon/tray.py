@@ -297,30 +297,51 @@ class DaemonTray:
 
     _AUTOSTART_COOLDOWN = 5.0
 
+    def _can_autostart_daemon(self):
+        """Check if daemon auto-restart is possible.
+
+        Returns True when the tray is standalone and no stop-requested
+        marker exists (user explicitly stopped the daemon).
+        """
+        if not self._standalone:
+            return False
+        try:
+            from ai_guardian.config_utils import get_state_dir
+            marker = get_state_dir() / "daemon.stop-requested"
+            return not marker.exists()
+        except Exception:
+            return False
+
     def _check_and_autostart_daemon(self):
         """Auto-start local daemon if stopped (idle timeout or crash).
 
         Only runs in standalone tray mode. Respects stop-requested
         marker and cooldown. A paused daemon is still running and
         is not restarted.
+
+        Returns True if daemon is running after this call.
         """
         if not self._standalone:
-            return
+            return True
+        try:
+            from ai_guardian.daemon.client import is_daemon_running
+            if is_daemon_running():
+                return True
+        except Exception:
+            return False
         now = time.monotonic()
         if now - self._last_autostart_attempt < self._AUTOSTART_COOLDOWN:
-            return
+            return False
         self._last_autostart_attempt = now
         try:
-            from ai_guardian.daemon.client import (
-                is_daemon_running,
-                start_daemon_background,
-            )
-            if not is_daemon_running():
-                if start_daemon_background():
-                    logger.info("Auto-started daemon from tray interaction")
-                    self._request_discovery_refresh(wait=False)
+            from ai_guardian.daemon.client import start_daemon_background
+            if start_daemon_background():
+                logger.info("Auto-started daemon from tray interaction")
+                self._request_discovery_refresh(wait=False)
+                return True
         except Exception:
             pass
+        return False
 
     def update_status(self, status):
         """Update tray icon status and manage pause timer.
@@ -398,9 +419,12 @@ class DaemonTray:
             pystray.MenuItem("Quit", self._on_quit),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("About", self._on_about,
-                             enabled=lambda _: any(
-                                 t.status in ("running", "paused")
-                                 for t in self._targets
+                             enabled=lambda _: (
+                                 any(
+                                     t.status in ("running", "paused")
+                                     for t in self._targets
+                                 )
+                                 or self._can_autostart_daemon()
                              )),
         )
         self._icon = pystray.Icon(
@@ -1626,8 +1650,11 @@ class DaemonTray:
             return self._is_single_daemon()
 
         def _single_running(_item):
-            return (self._is_single_daemon()
-                    and self._targets[0].status in ("running", "paused"))
+            if not self._is_single_daemon():
+                return False
+            if self._targets[0].status in ("running", "paused"):
+                return True
+            return self._can_autostart_daemon()
 
         def _single_not_running(_item):
             return (self._is_single_daemon()
@@ -2173,8 +2200,11 @@ class DaemonTray:
             stats_fns = _mk_stats()
 
             def _is_slot_running(_item, slot=idx):
-                return (slot < len(self._targets)
-                        and self._targets[slot].status in ("running", "paused"))
+                if slot >= len(self._targets):
+                    return False
+                if self._targets[slot].status in ("running", "paused"):
+                    return True
+                return self._can_autostart_daemon()
 
             multi_plugin_items = self._build_multi_daemon_plugin_slots(idx)
 
