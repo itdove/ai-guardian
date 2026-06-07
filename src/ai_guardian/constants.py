@@ -39,6 +39,7 @@ class HookEvent(str, Enum):
     PRE_TOOL_USE = "pretooluse"
     POST_TOOL_USE = "posttooluse"
     BEFORE_READ_FILE = "beforereadfile"
+    STOP = "stop"
 
 
 AUGMENT_TOOL_MAP = {

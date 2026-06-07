@@ -177,6 +177,38 @@ class DaemonState:
                 logger.debug(f"Cleaned up {len(expired)} expired hook contexts")
         self._cleanup_stale_project_configs()
 
+    def cleanup_session_contexts(self, session_id):
+        """Remove all hook contexts for a specific session.
+
+        Called on session end to clean up accumulated PreToolUse contexts.
+
+        Returns:
+            int: Number of contexts removed
+        """
+        if not session_id:
+            return 0
+        prefix = f"{session_id}:"
+        with self._lock:
+            keys_to_remove = [k for k in self._hook_contexts if k.startswith(prefix)]
+            for key in keys_to_remove:
+                del self._hook_contexts[key]
+            if keys_to_remove:
+                logger.debug(f"Cleaned up {len(keys_to_remove)} contexts for session {session_id[:16]}...")
+            return len(keys_to_remove)
+
+    def cleanup_session_state(self, session_key):
+        """Remove a session from security injection tracking.
+
+        Called on session end to finalize session state.
+        """
+        if not session_key:
+            return
+        with self._lock:
+            self._security_injected_sessions.discard(session_key)
+            self._security_reinject_sessions.discard(session_key)
+            self._session_last_activity.pop(session_key, None)
+        self._schedule_persist()
+
     # --- Security injection tracking (#584) ---
 
     def should_inject_security(self, session_key):

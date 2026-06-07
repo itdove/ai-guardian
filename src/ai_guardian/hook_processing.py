@@ -874,6 +874,51 @@ def _save_transcript_positions(positions: Dict[str, int]) -> None:
         logging.debug(f"Failed to save transcript positions: {e}")
 
 
+def _handle_session_end(hook_data, daemon_state, session_id, adapter):
+    """Handle session end (Stop / session.idle) with cleanup.
+
+    Performs best-effort cleanup actions:
+    1. Advance transcript position to EOF
+    2. Clean up hook contexts for this session
+    3. Remove session from security injection tracking
+    4. Log session summary
+
+    All steps are fail-open: errors are logged but never raised.
+
+    Returns:
+        dict: Empty allow response (exit_code 0)
+    """
+    session_label = (session_id[:16] + "...") if session_id and len(session_id) > 16 else (session_id or "unknown")
+    adapter_name = adapter.name if adapter else "unknown"
+    logging.info(f"Session ended for {session_label} (adapter: {adapter_name})")
+
+    contexts_cleaned = 0
+
+    try:
+        _advance_transcript_position(hook_data)
+    except Exception as e:
+        logging.debug(f"Session end: transcript position advance failed (non-fatal): {e}")
+
+    try:
+        from ai_guardian.hook_context import HookContextManager
+        context_mgr = HookContextManager(session_id=session_id, daemon_state=daemon_state)
+        contexts_cleaned = context_mgr.cleanup_session()
+    except Exception as e:
+        logging.debug(f"Session end: hook context cleanup failed (non-fatal): {e}")
+
+    try:
+        from ai_guardian.session_state import SessionStateManager, derive_session_key
+        session_key = derive_session_key(hook_data)
+        state_mgr = SessionStateManager(daemon_state=daemon_state)
+        state_mgr.cleanup_session(session_key)
+    except Exception as e:
+        logging.debug(f"Session end: session state cleanup failed (non-fatal): {e}")
+
+    logging.info(f"Session cleanup complete: {contexts_cleaned} contexts removed")
+
+    return {"output": None, "exit_code": 0}
+
+
 def _advance_transcript_position(hook_data: dict) -> None:
     """Advance transcript position to current file size after PostToolUse.
 
@@ -3327,6 +3372,10 @@ def process_hook_data(hook_data, daemon_state=None):
         # Use correlation IDs from normalized input
         hook_tool_use_id = normalized.tool_use_id or hook_data.get("tool_use_id")
         hook_session_id = normalized.session_id or hook_data.get("session_id")
+
+        # Handle session end (Stop / session.idle) — early return, no scanning
+        if hook_event == HookEvent.STOP:
+            return _handle_session_end(hook_data, daemon_state, hook_session_id, adapter)
 
         # Resolve transcript path from adapter defaults (Issue #935)
         # When hook_data has no transcript_path, agents like Copilot CLI and Codex

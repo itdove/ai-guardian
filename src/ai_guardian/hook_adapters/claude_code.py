@@ -35,7 +35,7 @@ class ClaudeCodeAdapter(HookAdapter):
     @classmethod
     def can_handle(cls, hook_data: Dict) -> bool:
         event = hook_data.get("hook_event_name", "")
-        return event in ("UserPromptSubmit", "PreToolUse", "PostToolUse")
+        return event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event = self._detect_event_from_all_formats(hook_data)
