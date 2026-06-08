@@ -2317,6 +2317,22 @@ def _apply_secret_validation(
         }
 
 
+def _run_secret_validation(secret_config, secrets_list, content, context):
+    """Run secret liveness validation and return (validation_info, should_skip).
+
+    Shared helper for the 4 code paths in check_secrets_with_gitleaks that
+    perform secret validation after detection.
+    """
+    validation_result = _apply_secret_validation(
+        secret_config, secrets_list,
+        content if isinstance(content, str) else str(content),
+        context=context,
+    )
+    validation_info = validation_result.get("validation_info") if validation_result else None
+    should_skip = bool(validation_result and validation_result.get("skip_block"))
+    return validation_info, should_skip
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
                                 ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
@@ -2608,19 +2624,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                         # Secret liveness validation (Issue #971, #983)
                         secrets_for_validation = [
-                            {
-                                "rule_id": s.rule_id,
-                                "line_number": s.line_number,
-                                "secret": s.secret,
-                            }
+                            {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
                             for s in strategy_result.secrets
                         ]
-                        validation_result = _apply_secret_validation(
-                            secret_config, secrets_for_validation,
-                            content if isinstance(content, str) else str(content),
-                            context=context,
+                        validation_info, should_skip = _run_secret_validation(
+                            secret_config, secrets_for_validation, content, context,
                         )
-                        validation_info = validation_result.get("validation_info") if validation_result else None
 
                         first_secret = strategy_result.secrets[0]
                         secret_details = {
@@ -2636,7 +2645,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         if validation_info:
                             secret_details["validation"] = validation_info
 
-                        if validation_result and validation_result.get("skip_block"):
+                        if should_skip:
                             _log_finding_violation(file_path or filename, context, secret_details,
                                                    hook_context=context)
                             logging.info("All secrets validated as inactive (strategy path) — allowing")
@@ -2894,12 +2903,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
                                     for s in fallback_result.secrets
                                 ]
-                                fb_validation = _apply_secret_validation(
-                                    secret_config, fb_secrets,
-                                    content if isinstance(content, str) else str(content),
-                                    context=context,
+                                fb_validation_info, fb_should_skip = _run_secret_validation(
+                                    secret_config, fb_secrets, content, context,
                                 )
-                                fb_validation_info = fb_validation.get("validation_info") if fb_validation else None
 
                                 first_secret = fallback_result.secrets[0]
                                 secret_details = {
@@ -2915,7 +2921,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 if fb_validation_info:
                                     secret_details["validation"] = fb_validation_info
 
-                                if fb_validation and fb_validation.get("skip_block"):
+                                if fb_should_skip:
                                     _log_finding_violation(file_path or filename, context, secret_details,
                                                            hook_context=context)
                                     logging.info("All secrets validated as inactive (fallthrough 1) — allowing")
@@ -2989,21 +2995,17 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     secret_details['file'] = file_path or filename
 
                 # Secret liveness validation (Issue #971, #983) — legacy subprocess path
-                validation_result_legacy = None
                 if secret_details:
                     secrets_for_validation = [secret_details]
                     if scan_result and scan_result.get("findings"):
                         secrets_for_validation = scan_result["findings"]
-                    validation_result_legacy = _apply_secret_validation(
-                        secret_config, secrets_for_validation,
-                        content if isinstance(content, str) else str(content),
-                        context=context,
+                    legacy_validation_info, legacy_should_skip = _run_secret_validation(
+                        secret_config, secrets_for_validation, content, context,
                     )
-                    legacy_validation_info = validation_result_legacy.get("validation_info") if validation_result_legacy else None
                     if legacy_validation_info:
                         secret_details["validation"] = legacy_validation_info
 
-                    if validation_result_legacy and validation_result_legacy.get("skip_block"):
+                    if legacy_should_skip:
                         scanner_name = engine_config.type if engine_config else "Gitleaks"
                         if secret_details is not None:
                             secret_details.setdefault("engine", scanner_name)
@@ -3062,12 +3064,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
                                 for s in fallback_result.secrets
                             ]
-                            fb2_validation = _apply_secret_validation(
-                                secret_config, fb2_secrets,
-                                content if isinstance(content, str) else str(content),
-                                context=context,
+                            fb2_validation_info, fb2_should_skip = _run_secret_validation(
+                                secret_config, fb2_secrets, content, context,
                             )
-                            fb2_validation_info = fb2_validation.get("validation_info") if fb2_validation else None
 
                             first_secret = fallback_result.secrets[0]
                             secret_details = {
@@ -3083,7 +3082,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             if fb2_validation_info:
                                 secret_details["validation"] = fb2_validation_info
 
-                            if fb2_validation and fb2_validation.get("skip_block"):
+                            if fb2_should_skip:
                                 _log_finding_violation(file_path or filename, context, secret_details,
                                                         hook_context=context)
                                 logging.info("All secrets validated as inactive (fallthrough 2) — allowing")

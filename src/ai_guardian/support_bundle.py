@@ -985,11 +985,9 @@ def _send_to_email(
                 f"Bundle zip available at: {zip_path}"
             ),
         }
-    finally:
-        # Clean up zip file
-        if zip_path.exists():
-            zip_path.unlink()
 
+    if zip_path.exists():
+        zip_path.unlink()
     return {
         "status": "sent",
         "destination": f"mailto:{to_addr}",

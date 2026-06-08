@@ -15,6 +15,7 @@ ALL_LOG_TYPES = [
     "secret_in_transcript", "pii_in_transcript",
     "prompt_injection_in_transcript", "annotation_suppressed",
     "image_secret_detected", "image_pii_detected",
+    "context_poisoning",
 ]
 
 

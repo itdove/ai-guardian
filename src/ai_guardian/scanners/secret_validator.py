@@ -89,7 +89,7 @@ def _http_validate(
             response_code=resp.status_code,
         )
     except requests.RequestException as e:
-        logger.warning(f"{label} validation failed: {e}")
+        logger.warning(f"{label} validation failed: {type(e).__name__}")
         return ValidationResult(
             status=ValidationStatus.UNVERIFIED,
             rule_id=rule_id,
@@ -217,11 +217,10 @@ class CustomValidatorConfig:
     header_name: str = "Authorization"  # Custom header name for auth="header"
 
 
-def _build_custom_validator(config: CustomValidatorConfig) -> ValidatorFn:
+def _build_custom_validator(config: CustomValidatorConfig, rule_id: str = "custom") -> ValidatorFn:
     """Build a validator function from custom TOML config."""
 
     def _validate(secret: str, timeout_s: float) -> ValidationResult:
-        rule_id = "custom"
         try:
             headers = {}
             params = {}
@@ -243,6 +242,20 @@ def _build_custom_validator(config: CustomValidatorConfig) -> ValidatorFn:
             if config.auth == "basic":
                 kwargs["auth"] = (secret, "")
 
+            try:
+                from ai_guardian.ssrf_protector import SSRFProtector
+                protector = SSRFProtector()
+                is_ssrf, reason = protector._check_url(config.url)
+                if is_ssrf:
+                    logger.warning("Custom validation URL blocked by SSRF protection: %s", reason)
+                    return ValidationResult(
+                        status=ValidationStatus.UNVERIFIED,
+                        rule_id=rule_id,
+                        message=f"Validation URL blocked: {reason}",
+                    )
+            except ImportError:
+                pass
+
             resp = requests.request(config.method, config.url, **kwargs)
 
             if resp.status_code == config.expect:
@@ -259,7 +272,7 @@ def _build_custom_validator(config: CustomValidatorConfig) -> ValidatorFn:
                 response_code=resp.status_code,
             )
         except requests.RequestException as e:
-            logger.warning(f"Custom validation failed for {config.url}: {e}")
+            logger.warning(f"Custom validation failed for {config.url.split('?')[0]}: {type(e).__name__}")
             return ValidationResult(
                 status=ValidationStatus.UNVERIFIED,
                 rule_id=rule_id,
@@ -296,7 +309,7 @@ def parse_custom_validator(rule: dict) -> Optional[Tuple[str, ValidatorFn]]:
     )
 
     rule_id = rule.get("id", "custom")
-    validator = _build_custom_validator(config)
+    validator = _build_custom_validator(config, rule_id=rule_id)
     return rule_id, validator
 
 
@@ -480,7 +493,7 @@ class SecretValidator:
                         results[idx] = future.result()
                     except Exception as e:
                         rule_id = secrets[idx].get("rule_id", "unknown")
-                        logger.warning(f"Validation error for {rule_id}: {e}")
+                        logger.warning(f"Validation error for {rule_id}: {type(e).__name__}")
                         results[idx] = ValidationResult(
                             status=ValidationStatus.UNVERIFIED,
                             rule_id=rule_id,

@@ -889,8 +889,8 @@ class DaemonTray:
             elif system == "Linux":
                 subprocess.Popen(["notify-send", title, message])
             elif system == "Windows":
-                safe_title = title.replace("'", "''")
-                safe_msg = message.replace("'", "''")
+                safe_title = title.replace("'", "''").replace("`", "``").replace("$", "`$")
+                safe_msg = message.replace("'", "''").replace("`", "``").replace("$", "`$")
                 ps = (
                     "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
                     "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
