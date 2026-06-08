@@ -255,8 +255,12 @@ class HookAdapter(ABC):
         if not event_name:
             event_name = hook_data.get("hookName", "").lower()
 
-        # Stop / session-end events
-        if event_name in ("stop", "session.idle", "session.end", "sessionend"):
+        # Session lifecycle events
+        if event_name in ("sessionend",):
+            return HookEvent.SESSION_END
+        if event_name in ("postcompact",):
+            return HookEvent.POST_COMPACT
+        if event_name in ("stop", "session.idle", "session.end"):
             return HookEvent.STOP
 
         # OpenCode plugin events

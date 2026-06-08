@@ -214,13 +214,22 @@ class IDESetup:
                         ]
                     }
                 ],
-                "Stop": [
+                "SessionEnd": [
                     {
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": "ai-guardian",
-                                "statusMessage": "🛡️ Finalizing session..."
+                                "command": "ai-guardian"
+                            }
+                        ]
+                    }
+                ],
+                "PostCompact": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian"
                             }
                         ]
                     }
@@ -659,8 +668,9 @@ class IDESetup:
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
 
-            # Merge UserPromptSubmit, PreToolUse, PostToolUse, and Stop hooks
-            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]:
+            # Merge UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact hooks
+            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse",
+                              "SessionEnd", "PostCompact"]:
                 if hook_name not in ai_guardian_hooks:
                     continue
 

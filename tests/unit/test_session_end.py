@@ -1,4 +1,4 @@
-"""Tests for Stop/SessionEnd hook handling (Issue #765)."""
+"""Tests for Stop/SessionEnd/PostCompact hook handling (Issue #765, #1007)."""
 
 import json
 import os
@@ -25,11 +25,33 @@ class TestHookEventStop(TestCase):
         assert isinstance(HookEvent.STOP, str)
 
 
+class TestHookEventSessionEnd(TestCase):
+    """HookEvent.SESSION_END enum tests (Issue #1007)."""
+
+    def test_session_end_enum_exists(self):
+        assert HookEvent.SESSION_END == "sessionend"
+
+    def test_session_end_in_all_hook_events(self):
+        assert "sessionend" in ALL_HOOK_EVENTS
+
+    def test_post_compact_enum_exists(self):
+        assert HookEvent.POST_COMPACT == "postcompact"
+
+    def test_post_compact_in_all_hook_events(self):
+        assert "postcompact" in ALL_HOOK_EVENTS
+
+
 class TestClaudeCodeStopDetection(TestCase):
     """Claude Code adapter handles Stop event."""
 
     def test_can_handle_stop(self):
         assert ClaudeCodeAdapter.can_handle({"hook_event_name": "Stop"})
+
+    def test_can_handle_session_end(self):
+        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "SessionEnd"})
+
+    def test_can_handle_post_compact(self):
+        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "PostCompact"})
 
     def test_can_handle_still_handles_existing_events(self):
         assert ClaudeCodeAdapter.can_handle({"hook_event_name": "PreToolUse"})
@@ -45,6 +67,24 @@ class TestClaudeCodeStopDetection(TestCase):
         assert normalized.event == HookEvent.STOP
         assert normalized.session_id == "sess-123"
 
+    def test_normalize_session_end_event(self):
+        adapter = ClaudeCodeAdapter()
+        normalized = adapter.normalize_input({
+            "hook_event_name": "SessionEnd",
+            "session_id": "sess-456",
+        })
+        assert normalized.event == HookEvent.SESSION_END
+        assert normalized.session_id == "sess-456"
+
+    def test_normalize_post_compact_event(self):
+        adapter = ClaudeCodeAdapter()
+        normalized = adapter.normalize_input({
+            "hook_event_name": "PostCompact",
+            "session_id": "sess-789",
+        })
+        assert normalized.event == HookEvent.POST_COMPACT
+        assert normalized.session_id == "sess-789"
+
 
 class TestEventDetection(TestCase):
     """_detect_event_from_all_formats maps stop/session-end events."""
@@ -57,13 +97,17 @@ class TestEventDetection(TestCase):
         result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "session.idle"})
         assert result == HookEvent.STOP
 
-    def test_session_end_event(self):
+    def test_session_end_event_dot_format(self):
         result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "session.end"})
         assert result == HookEvent.STOP
 
     def test_sessionend_event(self):
-        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "sessionend"})
-        assert result == HookEvent.STOP
+        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "SessionEnd"})
+        assert result == HookEvent.SESSION_END
+
+    def test_postcompact_event(self):
+        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "PostCompact"})
+        assert result == HookEvent.POST_COMPACT
 
     def test_existing_events_unchanged(self):
         assert HookAdapter._detect_event_from_all_formats(
@@ -78,7 +122,7 @@ class TestEventDetection(TestCase):
 
 
 class TestProcessHookDataStop(TestCase):
-    """process_hook_data handles Stop event with cleanup."""
+    """process_hook_data handles Stop event as no-op (Issue #1007)."""
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
@@ -97,6 +141,35 @@ class TestProcessHookDataStop(TestCase):
 
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    def test_stop_without_session_id(self, mock_pattern_config, mock_redaction_config):
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        from ai_guardian.hook_processing import process_hook_data
+        result = process_hook_data({"hook_event_name": "Stop"})
+
+        assert result["exit_code"] == 0
+        assert result["output"] is None
+
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch('ai_guardian.hook_processing._advance_transcript_position')
+    def test_stop_does_not_call_session_cleanup(self, mock_advance, mock_pattern_config, mock_redaction_config):
+        """Stop is per-turn — must NOT clean up session state (#1007)."""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        from ai_guardian.hook_processing import process_hook_data
+        result = process_hook_data({
+            "hook_event_name": "Stop",
+            "session_id": "test-session-123",
+        })
+
+        assert result["exit_code"] == 0
+        mock_advance.assert_not_called()
+
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     def test_stop_with_opencode_session_end(self, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -112,49 +185,91 @@ class TestProcessHookDataStop(TestCase):
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+
+class TestProcessHookDataSessionEnd(TestCase):
+    """process_hook_data handles SessionEnd event with cleanup (Issue #1007)."""
+
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     @patch('ai_guardian.hook_processing._advance_transcript_position')
-    def test_stop_advances_transcript_position(self, mock_advance, mock_redaction_config, mock_pattern_config):
+    def test_session_end_calls_cleanup(self, mock_advance, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
         hook_data = {
-            "hook_event_name": "Stop",
+            "hook_event_name": "SessionEnd",
             "session_id": "test-session",
             "transcript_path": "/tmp/test-transcript.jsonl",
         }
-        process_hook_data(hook_data)
+        result = process_hook_data(hook_data)
 
+        assert result["exit_code"] == 0
         mock_advance.assert_called_once_with(hook_data)
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
     @patch('ai_guardian.hook_processing._advance_transcript_position', side_effect=OSError("disk full"))
-    def test_stop_fail_open_on_transcript_error(self, mock_advance, mock_redaction_config, mock_pattern_config):
+    def test_session_end_fail_open_on_error(self, mock_advance, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
         result = process_hook_data({
-            "hook_event_name": "Stop",
+            "hook_event_name": "SessionEnd",
             "session_id": "test-session",
         })
 
         assert result["exit_code"] == 0
 
+
+class TestProcessHookDataPostCompact(TestCase):
+    """process_hook_data handles PostCompact event (Issue #1007)."""
+
     @patch('ai_guardian.hook_processing._load_secret_redaction_config')
     @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_stop_without_session_id(self, mock_pattern_config, mock_redaction_config):
+    def test_post_compact_returns_allow(self, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
-        result = process_hook_data({"hook_event_name": "Stop"})
+        result = process_hook_data({
+            "hook_event_name": "PostCompact",
+            "session_id": "test-session-123",
+        })
 
         assert result["exit_code"] == 0
         assert result["output"] is None
+
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    def test_post_compact_flags_reinject(self, mock_pattern_config, mock_redaction_config):
+        """PostCompact must flag session for security re-injection (#1007)."""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        from ai_guardian.hook_processing import process_hook_data
+        from ai_guardian.session_state import SessionStateManager
+
+        with patch.object(SessionStateManager, 'mark_security_reinject') as mock_reinject:
+            result = process_hook_data({
+                "hook_event_name": "PostCompact",
+                "session_id": "compact-session-456",
+            })
+
+            assert result["exit_code"] == 0
+            mock_reinject.assert_called_once_with("compact-session-456")
+
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    def test_post_compact_without_session_id(self, mock_pattern_config, mock_redaction_config):
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        from ai_guardian.hook_processing import process_hook_data
+        result = process_hook_data({"hook_event_name": "PostCompact"})
+
+        assert result["exit_code"] == 0
 
 
 class TestHandleSessionEnd(TestCase):
