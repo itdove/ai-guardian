@@ -477,6 +477,54 @@ class TestSecretRedactorLineNumber:
         assert r['column'] == len("second: ") + 1
 
 
+class TestPIIWarningMessageFilePathLineNumber:
+    """Test that _scan_for_pii warning message includes file_path and line numbers (#1010)."""
+
+    def test_warning_includes_file_path(self):
+        from ai_guardian.hook_processing import _scan_for_pii
+        text = "My SSN is 123-45-6789"
+        pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'block'}
+        has_pii, _, _, warning = _scan_for_pii(text, pii_config, file_path='/repo/data.csv')
+        assert has_pii
+        assert "File: /repo/data.csv" in warning
+
+    def test_warning_includes_line_numbers(self):
+        from ai_guardian.hook_processing import _scan_for_pii
+        text = "line one\nline two\nMy email is user@example.com\nline four"
+        pii_config = {'enabled': True, 'pii_types': ['email'], 'action': 'block'}
+        has_pii, _, _, warning = _scan_for_pii(text, pii_config, file_path='/repo/data.txt')
+        assert has_pii
+        assert "(line " in warning
+
+    def test_warning_no_file_path_omits_file_line(self):
+        from ai_guardian.hook_processing import _scan_for_pii
+        text = "My SSN is 123-45-6789"
+        pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'block'}
+        has_pii, _, _, warning = _scan_for_pii(text, pii_config)
+        assert has_pii
+        assert "File:" not in warning
+        assert "PII DETECTED" in warning
+
+    def test_warning_long_path_truncated(self):
+        from ai_guardian.hook_processing import _scan_for_pii
+        long_path = "/very/long/" + "x" * 150 + "/data.csv"
+        text = "My SSN is 123-45-6789"
+        pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'block'}
+        has_pii, _, _, warning = _scan_for_pii(text, pii_config, file_path=long_path)
+        assert has_pii
+        assert "..." in warning
+        assert long_path not in warning
+
+    def test_warning_multiple_types_on_different_lines(self):
+        from ai_guardian.hook_processing import _scan_for_pii
+        text = "SSN: 123-45-6789\nno pii\nemail: user@example.com"
+        pii_config = {'enabled': True, 'pii_types': ['ssn', 'email'], 'action': 'block'}
+        has_pii, _, redactions, warning = _scan_for_pii(text, pii_config, file_path='/repo/data.txt')
+        assert has_pii
+        assert "File: /repo/data.txt" in warning
+        assert "(line " in warning
+
+
 class TestPIIViolationLineNumberPopulated:
     """Test that PII violation logging populates line_number from redactions (Issue #359)."""
 
