@@ -468,7 +468,7 @@ ai-guardian/
    - **⚠️ IMPORTANT**: When adding new CLI commands, config options, IDE adapters, detection patterns, or daemon endpoints, update this workflow to test them. The `/release` skill runs this workflow as a gate before releasing.
 
 5. **Smoke Tests** (`.github/workflows/smoke-tests.yml`)
-   - Runs on: push to main, workflow_call, workflow_dispatch
+   - Runs on: pull_request to main, workflow_call, workflow_dispatch
    - Jobs:
      - **detection-scan**: All violation types via `ai-guardian scan` (secrets, PII Phase 1+2, prompt injection, jailbreak, SSRF, config exfil, context poisoning)
      - **hook-pipeline**: Hook event processing via `process_hook_data()` (PreToolUse secret deny, PreToolUse directory block, PostToolUse redaction, UserPromptSubmit injection)
