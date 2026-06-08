@@ -595,7 +595,7 @@ class SSRFProtector:
             logger.warning(f"Invalid path pattern: {pattern}")
             return False
 
-    def _check_url(self, url: str) -> Tuple[bool, str]:
+    def _check_url(self, url: str) -> Tuple[bool, str, bool]:
         """
         Check if a URL is an SSRF attack.
 
@@ -609,40 +609,35 @@ class SSRFProtector:
             url: URL to check
 
         Returns:
-            Tuple of (is_ssrf, reason)
+            Tuple of (is_ssrf, reason, is_immutable)
+            - is_immutable: True for core protections that cannot be overridden by action mode
         """
         scheme, hostname, path, _ = self._parse_url(url)
 
         if not scheme:
-            # Failed to parse - fail closed
-            return True, "failed to parse URL"
+            # Failed to parse - fail closed (treat as immutable)
+            return True, "failed to parse URL", True
 
         # IMMUTABLE: Check dangerous schemes (cannot be overridden by allow-list)
         if scheme in self.DANGEROUS_SCHEMES:
-            return True, f"dangerous URL scheme '{scheme}://'"
+            return True, f"dangerous URL scheme '{scheme}://'", True
 
         if not hostname:
-            # No hostname (e.g., data: URLs without hostname)
-            # Already blocked by scheme check above
-            return False, ""
+            return False, "", False
 
         # IMMUTABLE: Check core metadata endpoints (cannot be overridden by allow-list)
-        # These are critical security protections that must always be blocked
         hostname_lower = hostname.lower()
 
-        # AWS/GCP metadata endpoints - immutable protection
         if hostname_lower in ["metadata.google.internal", "metadata.goog", "169.254.169.254", "fd00:ec2::254", "instance-data"]:
-            return True, f"blocked domain '{hostname}'"
+            return True, f"blocked domain '{hostname}'", True
 
-        # Check if it's a subdomain of metadata endpoints
         for core_metadata in ["metadata.google.internal", "metadata.goog"]:
             if hostname_lower.endswith('.' + core_metadata):
-                return True, f"blocked domain '{hostname}'"
+                return True, f"blocked domain '{hostname}'", True
 
         # IMMUTABLE: Check if hostname is a private IP (cannot be overridden by allow-list)
-        # This includes all RFC 1918 ranges, loopback, link-local
         if self._is_ip_blocked(hostname):
-            return True, f"private IP address '{hostname}'"
+            return True, f"private IP address '{hostname}'", True
 
         # Check deny-list (additional_blocked_domains only)
         # This can be overridden by allow-list or path-based rules
@@ -653,43 +648,26 @@ class SSRFProtector:
         path_rules = self._path_based_rules.get(hostname_lower)
 
         if domain_blocked and not domain_allowed:
-            # Domain is blocked - check if path-based rules allow this specific path
             if path_rules and path_rules.get("allowed_paths"):
-                # Check if this path is in the allowed list
                 for allowed_pattern in path_rules["allowed_paths"]:
                     if self._match_path_pattern(path, allowed_pattern):
                         logger.debug(f"Domain {hostname} blocked but path {path} allowed by path rule")
-                        # Path is allowed - continue to check if it's also in blocked_paths
                         if path_rules.get("blocked_paths"):
                             for blocked_pattern in path_rules["blocked_paths"]:
                                 if self._match_path_pattern(path, blocked_pattern):
                                     logger.debug(f"Path {path} in both allowed and blocked lists - blocked wins")
-                                    return True, f"blocked path '{path}' on domain '{hostname}'"
-                        return False, ""
+                                    return True, f"blocked path '{path}' on domain '{hostname}'", False
+                        return False, "", False
 
-            # Domain blocked and path not in allowed list
-            return True, f"blocked domain '{hostname}'"
+            return True, f"blocked domain '{hostname}'", False
 
-        # Domain is allowed (either not in block list or in allow list) or neutral
-        # Check if path-based rules block this specific path
         if path_rules and path_rules.get("blocked_paths"):
-            # Check if this path is in the blocked list
             for blocked_pattern in path_rules["blocked_paths"]:
                 if self._match_path_pattern(path, blocked_pattern):
                     logger.debug(f"Path {path} blocked by path rule on domain {hostname}")
-                    return True, f"blocked path '{path}' on domain '{hostname}'"
+                    return True, f"blocked path '{path}' on domain '{hostname}'", False
 
-        # Try to resolve hostname to IP (if it looks like a domain name)
-        # NOTE: We deliberately DO NOT do DNS resolution here to avoid:
-        # 1. DNS rebinding attacks
-        # 2. Performance overhead
-        # 3. Network dependencies
-        #
-        # This means we rely on domain blocking and direct IP checking only.
-        # An attacker using a public domain that resolves to a private IP would bypass this.
-        # This is a known limitation - full protection requires DNS resolution + TOCTOU prevention.
-
-        return False, ""
+        return False, "", False
 
     def check(self, tool_name: str, tool_input: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         """
@@ -727,14 +705,17 @@ class SSRFProtector:
 
             # Check each URL for SSRF
             for url in urls:
-                is_ssrf, reason = self._check_url(url)
+                is_ssrf, reason, is_immutable = self._check_url(url)
 
                 if is_ssrf:
                     # SSRF detected!
                     logger.error(f"SSRF attempt detected: {reason}, URL={url}")
 
-                    # Format error message based on action
-                    if self.action == "warn":
+                    # Immutable patterns (core IPs, metadata endpoints, dangerous schemes)
+                    # ALWAYS block regardless of action mode — cannot be downgraded
+                    effective_action = "block" if is_immutable else self.action
+
+                    if effective_action == "warn":
                         warn_msg = (
                             f"⚠️  SSRF Protection Warning: {reason}\n"
                             f"   URL: {url}\n"
@@ -747,15 +728,21 @@ class SSRFProtector:
                         logger.warning(f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed")
                         return False, warn_msg
 
-                    elif self.action == "log-only":
-                        logger.warning(f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed (silent)")
-                        return False, None
+                    elif effective_action == "log-only":
+                        log_msg = (
+                            f"⚠️  SSRF Protection (log-only): {reason}\n"
+                            f"   URL: {url}\n"
+                            f"   Execution allowed (log-only mode)"
+                        )
+                        logger.warning(f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed")
+                        return False, log_msg
 
-                    else:  # block mode (default)
+                    else:  # block mode (default) or immutable override
+                        immutable_note = " (immutable — cannot be downgraded to warn/log-only)" if is_immutable and self.action != "block" else ""
                         error_msg = (
                             f"\n{'='*70}\n"
                             f"🚨 BLOCKED BY POLICY\n"
-                            f"🚨 SSRF PATTERN DETECTED\n"
+                            f"🚨 SSRF PATTERN DETECTED{immutable_note}\n"
                             f"{'='*70}\n\n"
                             "AI Guardian has detected a Server-Side Request Forgery (SSRF) attempt.\n"
                             "This operation has been blocked for security.\n\n"

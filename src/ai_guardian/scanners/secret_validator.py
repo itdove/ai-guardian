@@ -245,7 +245,7 @@ def _build_custom_validator(config: CustomValidatorConfig, rule_id: str = "custo
             try:
                 from ai_guardian.ssrf_protector import SSRFProtector
                 protector = SSRFProtector()
-                is_ssrf, reason = protector._check_url(config.url)
+                is_ssrf, reason, _is_immutable = protector._check_url(config.url)
                 if is_ssrf:
                     logger.warning("Custom validation URL blocked by SSRF protection: %s", reason)
                     return ValidationResult(
