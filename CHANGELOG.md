@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Detection tests via `ai-guardian scan`: secrets, PII Phase 1+2, prompt injection, jailbreak, SSRF, config exfil, context poisoning
   - Hook pipeline tests via `process_hook_data()`: PreToolUse (secret deny, directory block), PostToolUse (redaction), UserPromptSubmit (injection)
   - False positive checks: clean Python, env var PATH, pytest tracebacks
-  - Triggers: push to main, workflow_call, workflow_dispatch
+  - Triggers: pull_request to main, workflow_call, workflow_dispatch
   - Release-readiness.yml now calls smoke-tests via `workflow_call` instead of inline detection-end-to-end job
 
 - **ML-based prompt injection detection** (Issue #185)
