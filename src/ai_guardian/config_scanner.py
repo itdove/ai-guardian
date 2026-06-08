@@ -515,6 +515,73 @@ class ConfigFileScanner:
         )
 
 
+    def check_command(self, command: str) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+        """
+        Check a Bash command for credential exfiltration patterns.
+
+        Unlike scan(), this bypasses the config file check — it applies
+        exfil patterns directly to the command string.
+
+        Args:
+            command: Bash command string to check
+
+        Returns:
+            Tuple of (should_block, error_message, details)
+        """
+        if not self.enabled:
+            return False, None, None
+
+        if not command or not command.strip():
+            return False, None, None
+
+        try:
+            is_malicious, reason, details = self._check_exfil_patterns(command, "bash_command")
+
+            if not is_malicious:
+                return False, None, None
+
+            if self.action == "warn":
+                warn_msg = (
+                    f"⚠️  Config Exfiltration Warning: {reason}\n"
+                    f"   Command: {command[:100]}{'...' if len(command) > 100 else ''}\n"
+                    f"   Pattern: {details['pattern_name']}\n"
+                    f"   Execution allowed (warn mode)"
+                )
+                logger.warning(f"Exfil pattern detected in Bash command (warn mode): {reason}")
+                return False, warn_msg, details
+
+            elif self.action == "log-only":
+                log_msg = (
+                    f"⚠️  Config Exfiltration (log-only): {reason}\n"
+                    f"   Command: {command[:100]}{'...' if len(command) > 100 else ''}\n"
+                    f"   Execution allowed (log-only mode)"
+                )
+                logger.warning(f"Exfil pattern detected in Bash command (log-only mode): {reason}")
+                return False, log_msg, details
+
+            else:  # block mode (default)
+                error_msg = (
+                    f"\n{'='*70}\n"
+                    f"🚨 BLOCKED BY POLICY\n"
+                    f"🚨 CREDENTIAL EXFILTRATION DETECTED IN BASH COMMAND\n"
+                    f"{'='*70}\n\n"
+                    "AI Guardian has detected a credential exfiltration attempt\n"
+                    "in a Bash command. This operation has been blocked.\n\n"
+                    f"Pattern: {details['pattern_name']} ({details['pattern_description']})\n"
+                    f"Command: {command[:200]}{'...' if len(command) > 200 else ''}\n\n"
+                    "Why this is dangerous:\n"
+                    "  • This command can exfiltrate secrets, API keys, or credentials\n"
+                    "  • Environment variables often contain sensitive tokens\n"
+                    "  • Config files (.env, .aws) contain cloud credentials\n\n"
+                    f"{'='*70}\n"
+                )
+                return True, error_msg, details
+
+        except Exception as e:
+            logger.error(f"Error during Bash command exfil scan: {e}")
+            return False, None, None
+
+
 def check_config_file_threats(
     file_path: str,
     content: str,
@@ -533,3 +600,21 @@ def check_config_file_threats(
     """
     scanner = ConfigFileScanner(config)
     return scanner.scan(file_path, content)
+
+
+def check_bash_command_threats(
+    command: str,
+    config: Optional[Dict[str, Any]] = None
+) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    """
+    Convenience function to check Bash commands for exfiltration patterns.
+
+    Args:
+        command: Bash command string to check
+        config: Optional configuration dictionary
+
+    Returns:
+        Tuple of (should_block, error_message, details)
+    """
+    scanner = ConfigFileScanner(config)
+    return scanner.check_command(command)

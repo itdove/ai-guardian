@@ -58,6 +58,14 @@ except ImportError:
     HAS_SSRF_PROTECTOR = False
     logging.debug("ssrf_protector module not available")
 
+# Import config exfiltration scanner
+try:
+    from ai_guardian.config_scanner import ConfigFileScanner
+    HAS_CONFIG_SCANNER = True
+except ImportError:
+    HAS_CONFIG_SCANNER = False
+    logging.debug("config_scanner module not available")
+
 logger = logging.getLogger(__name__)
 
 # Hardcoded critical protections - cannot be disabled or bypassed
@@ -714,6 +722,38 @@ class ToolPolicyChecker:
                             violation_type=ViolationType.SSRF_BLOCKED
                         )
                         # Continue to other checks (warning is logged, execution allowed)
+
+            # PRIORITY 0.5: Check config exfiltration patterns in Bash commands
+            # Detects credential exfiltration (env|curl, aws s3 cp, etc.)
+            if HAS_CONFIG_SCANNER and tool_name == "Bash":
+                exfil_config = self.config.get("config_file_scanning", {})
+                if is_feature_enabled(exfil_config.get("enabled"), datetime.now(timezone.utc), default=True):
+                    exfil_scanner = ConfigFileScanner(exfil_config)
+                    bash_command = tool_input.get("command", "")
+                    exfil_block, exfil_msg, exfil_details = exfil_scanner.check_command(bash_command)
+
+                    if exfil_block:
+                        logger.error(f"🚨 BLOCKED: {tool_name} - credential exfiltration detected")
+                        self._log_violation(
+                            tool_name=tool_name,
+                            check_value=bash_command,
+                            reason="Credential exfiltration detected in Bash command",
+                            matcher=tool_name,
+                            hook_data=hook_data,
+                            violation_type=ViolationType.CONFIG_FILE_EXFIL
+                        )
+                        return False, exfil_msg, tool_name
+
+                    elif exfil_msg:
+                        logger.warning(f"Config exfil warning for {tool_name}: {exfil_msg}")
+                        self._log_violation(
+                            tool_name=tool_name,
+                            check_value=bash_command,
+                            reason="Config exfil warning (allowed)",
+                            matcher=tool_name,
+                            hook_data=hook_data,
+                            violation_type=ViolationType.CONFIG_FILE_EXFIL
+                        )
 
             # PRIORITY 1: Check immutable deny patterns (cannot be overridden)
             # These protect ai-guardian config, IDE hooks, and pip-installed package code
