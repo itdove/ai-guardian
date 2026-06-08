@@ -106,6 +106,7 @@ class DaemonState:
         self._ml_engine_manager = None
         self._ml_load_attempted = False
         self._ml_load_error = None
+        self._ml_load_event = threading.Event()
 
         # Initial config load
         self._reload_config()
@@ -708,7 +709,13 @@ class DaemonState:
             if self._ml_engine_manager is not None:
                 return self._ml_engine_manager
             if self._ml_load_attempted:
-                return None
+                # Another thread is loading — wait for it to finish
+                self._lock.release()
+                try:
+                    self._ml_load_event.wait(timeout=60)
+                finally:
+                    self._lock.acquire()
+                return self._ml_engine_manager
             self._ml_load_attempted = True
 
         try:
@@ -756,6 +763,8 @@ class DaemonState:
                 self._ml_load_error = str(e)
             logger.warning(f"Failed to load ML engine manager: {e}")
             return None
+        finally:
+            self._ml_load_event.set()
 
     def reload_ml_engines(self):
         """Force reload of ML engines (after model download or config change)."""
@@ -763,6 +772,7 @@ class DaemonState:
             self._ml_engine_manager = None
             self._ml_load_attempted = False
             self._ml_load_error = None
+            self._ml_load_event = threading.Event()
 
     def get_ml_status(self):
         """Get ML engine status for reporting."""

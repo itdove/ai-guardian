@@ -41,13 +41,19 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self._get_config())
         elif path == "/api/violations":
             qs = urllib.parse.parse_qs(parsed.query)
-            limit = int(qs.get("limit", ["50"])[0])
+            try:
+                limit = int(qs.get("limit", ["50"])[0])
+            except ValueError:
+                limit = 50
             vtype = qs.get("type", [None])[0]
             self._send_json(self._get_violations(limit, vtype))
         elif path == "/api/metrics":
             qs = urllib.parse.parse_qs(parsed.query)
             since_str = qs.get("since_days", [None])[0]
-            since_days = int(since_str) if since_str else None
+            try:
+                since_days = int(since_str) if since_str else None
+            except ValueError:
+                since_days = None
             self._send_json(self._get_metrics(since_days))
         elif path == "/api/audit":
             qs = urllib.parse.parse_qs(parsed.query)

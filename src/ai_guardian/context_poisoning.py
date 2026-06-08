@@ -15,6 +15,7 @@ Legitimate prompts like "remember to validate input" are common.
 
 import logging
 import re
+import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -61,6 +62,7 @@ DANGEROUS_ACTIONS = [
 
 _COMPILED_PERSISTENCE = None
 _COMPILED_DANGEROUS = None
+_PATTERN_LOCK = threading.Lock()
 
 
 def _load_patterns_from_toml() -> Dict[str, List[str]]:
@@ -79,12 +81,15 @@ def _load_patterns_from_toml() -> Dict[str, List[str]]:
 
 def _get_compiled_patterns():
     global _COMPILED_PERSISTENCE, _COMPILED_DANGEROUS
-    if _COMPILED_PERSISTENCE is None:
-        toml_patterns = _load_patterns_from_toml()
-        persistence = toml_patterns.get("persistence", PERSISTENCE_PATTERNS)
-        dangerous = toml_patterns.get("dangerous_action", DANGEROUS_ACTIONS)
-        _COMPILED_PERSISTENCE = [re.compile(p, re.IGNORECASE) for p in persistence]
-        _COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in dangerous]
+    if _COMPILED_PERSISTENCE is not None:
+        return _COMPILED_PERSISTENCE, _COMPILED_DANGEROUS
+    with _PATTERN_LOCK:
+        if _COMPILED_PERSISTENCE is None:
+            toml_patterns = _load_patterns_from_toml()
+            persistence = toml_patterns.get("persistence", PERSISTENCE_PATTERNS)
+            dangerous = toml_patterns.get("dangerous_action", DANGEROUS_ACTIONS)
+            _COMPILED_PERSISTENCE = [re.compile(p, re.IGNORECASE) for p in persistence]
+            _COMPILED_DANGEROUS = [re.compile(p, re.IGNORECASE) for p in dangerous]
     return _COMPILED_PERSISTENCE, _COMPILED_DANGEROUS
 
 

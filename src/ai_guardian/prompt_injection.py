@@ -52,8 +52,8 @@ _TOOL_OUTPUT_MARKERS = [
     "npm ERR!",
     "cargo error",
     "make: ***",
-    "FAILED",
-    "ERRORS",
+    "FAILED ",
+    " ERRORS ",
     "collected ",
 ]
 

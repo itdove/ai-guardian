@@ -1,5 +1,7 @@
 """Client-side UTC → local-timezone display for timestamps."""
 
+from html import escape
+
 from nicegui import ui
 
 # JavaScript that converts all elements with class 'utc-timestamp' to local
@@ -31,10 +33,10 @@ def local_time_label(utc_iso: str) -> ui.html:
     Server-side renders the truncated UTC string as a fallback;
     client-side JS replaces it with the locale-formatted local time.
     """
-    fallback = utc_iso[:19] if utc_iso else ""
+    fallback = escape(utc_iso[:19]) if utc_iso else ""
     return ui.html(
         f'<span class="utc-timestamp text-xs text-grey-6" '
-        f'data-utc="{utc_iso}">{fallback}</span>'
+        f'data-utc="{escape(utc_iso)}">{fallback}</span>'
     )
 
 
