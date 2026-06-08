@@ -875,7 +875,7 @@ def _save_transcript_positions(positions: Dict[str, int]) -> None:
 
 
 def _handle_session_end(hook_data, daemon_state, session_id, adapter):
-    """Handle session end (Stop / session.idle) with cleanup.
+    """Handle true session end (SessionEnd event) with cleanup.
 
     Performs best-effort cleanup actions:
     1. Advance transcript position to EOF
@@ -3330,9 +3330,23 @@ def process_hook_data(hook_data, daemon_state=None):
         hook_tool_use_id = normalized.tool_use_id or hook_data.get("tool_use_id")
         hook_session_id = normalized.session_id or hook_data.get("session_id")
 
-        # Handle session end (Stop / session.idle) — early return, no scanning
-        if hook_event == HookEvent.STOP:
+        # Handle session lifecycle events — early return, no scanning
+        if hook_event == HookEvent.SESSION_END:
             return _handle_session_end(hook_data, daemon_state, hook_session_id, adapter)
+
+        if hook_event == HookEvent.POST_COMPACT:
+            try:
+                from ai_guardian.session_state import SessionStateManager, derive_session_key
+                session_key = derive_session_key(hook_data)
+                state_mgr = SessionStateManager(daemon_state=daemon_state)
+                state_mgr.mark_security_reinject(session_key)
+                logging.info(f"PostCompact: flagged session {session_key[:16]}... for security re-injection")
+            except Exception as e:
+                logging.debug(f"PostCompact: security reinject flag failed (non-fatal): {e}")
+            return {"output": None, "exit_code": 0}
+
+        if hook_event == HookEvent.STOP:
+            return {"output": None, "exit_code": 0}
 
         # Resolve transcript path from adapter defaults (Issue #935)
         # When hook_data has no transcript_path, agents like Copilot CLI and Codex
