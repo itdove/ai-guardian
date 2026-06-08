@@ -1426,13 +1426,14 @@ def _log_transcript_violation(
         logging.debug(f"Failed to log transcript violation: {e}")
 
 
-def _scan_for_pii(text, pii_config):
+def _scan_for_pii(text, pii_config, file_path=None):
     """
     Scan text for PII using SecretRedactor with PII patterns.
 
     Args:
         text: Text to scan
         pii_config: PII config dict with enabled, pii_types, action
+        file_path: Optional file path for inclusion in warning message
 
     Returns:
         tuple: (has_pii, redacted_text, redactions, warning_message)
@@ -1444,14 +1445,42 @@ def _scan_for_pii(text, pii_config):
         result = redactor.redact(text)
         redactions = result.get('redactions', [])
         if redactions:
-            pii_types_found = sorted(set(r['type'] for r in redactions))
+            # Group redactions by type, collecting line numbers
+            type_lines = {}
+            for r in redactions:
+                rtype = r['type']
+                line_num = r.get('line_number')
+                if rtype not in type_lines:
+                    type_lines[rtype] = []
+                if line_num is not None:
+                    type_lines[rtype].append(line_num)
+
+            # Build per-type display with line numbers
+            display_items = []
+            for rtype in sorted(type_lines.keys()):
+                lines = sorted(set(type_lines[rtype]))
+                if lines:
+                    if len(lines) <= 3:
+                        line_info = ", ".join(str(ln) for ln in lines)
+                    else:
+                        line_info = ", ".join(str(ln) for ln in lines[:3]) + ", ..."
+                    display_items.append(f"  - {rtype} (line {line_info})")
+                else:
+                    display_items.append(f"  - {rtype}")
+
+            file_info = ""
+            if file_path:
+                display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
+                file_info = f"File: {display_path}\n"
+
             warning = (
                 f"\n{'='*70}\n"
                 f"🔒 PII DETECTED\n"
                 f"{'='*70}\n"
-                f"Found {len(redactions)} PII item(s):\n"
-                + "\n".join([f"  - {r['type']}" for r in redactions[:10]])
-                + ("\n  - ..." if len(redactions) > 10 else "")
+                + file_info
+                + f"Found {len(redactions)} PII item(s):\n"
+                + "\n".join(display_items[:10])
+                + ("\n  - ..." if len(display_items) > 10 else "")
                 + f"\n\nAction: {pii_config.get('action', 'block')}\n"
                 + f"{'='*70}\n"
             )
@@ -3712,7 +3741,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                 if not pii_skip_scan:
                     logging.info("Scanning tool output for PII...")
-                    has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config)
+                    has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config, file_path=pii_file_path)
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
@@ -4374,7 +4403,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 if should_scan_pii:
                     logging.info(f"Scanning {'prompt' if hook_event == HookEvent.PROMPT else filename} for PII...")
                     pii_scan_content = pii_content_to_scan if pii_content_to_scan is not None else content_to_scan
-                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config)
+                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config, file_path=file_path)
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
