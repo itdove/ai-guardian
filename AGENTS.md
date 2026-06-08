@@ -462,12 +462,20 @@ ai-guardian/
      - **upgrade-from-previous**: Upgrade from previous stable release, permissions migration
      - **multi-agent-setup**: All IDE adapters (claude, cursor, copilot, gemini, codex, windsurf, cline, augment, kiro)
      - **daemon-lifecycle**: Start/status/reload/REST API (health, status, pause, resume)/stop
-     - **detection-end-to-end**: Secrets, PII Phase 1+2, prompt injection, false positive check
+     - **smoke-tests**: Calls `.github/workflows/smoke-tests.yml` (detection scan, hook pipeline, false positives)
      - **config-validation**: Doctor, permissions migration, profiles, config merge (project + user level)
      - **mcp-server**: JSON-RPC initialize and tool call response
    - **⚠️ IMPORTANT**: When adding new CLI commands, config options, IDE adapters, detection patterns, or daemon endpoints, update this workflow to test them. The `/release` skill runs this workflow as a gate before releasing.
 
-5. **Integration Tests** (`.github/workflows/integration-tests.yml`)
+5. **Smoke Tests** (`.github/workflows/smoke-tests.yml`)
+   - Runs on: push to main, workflow_call, workflow_dispatch
+   - Jobs:
+     - **detection-scan**: All violation types via `ai-guardian scan` (secrets, PII Phase 1+2, prompt injection, jailbreak, SSRF, config exfil, context poisoning)
+     - **hook-pipeline**: Hook event processing via `process_hook_data()` (PreToolUse secret deny, PreToolUse directory block, PostToolUse redaction, UserPromptSubmit injection)
+     - **false-positives**: Clean code, env vars, pytest tracebacks produce no findings
+   - Called by release-readiness.yml via `workflow_call`
+
+6. **Integration Tests** (`.github/workflows/integration-tests.yml`)
    - Runs on: schedule (daily 2 AM UTC), workflow_dispatch, pull requests
    - Jobs:
      - **version-check**: Verifies scanner versions exist (runs on all triggers)
