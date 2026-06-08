@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Generic password/secret assignment detection** (Issue #1015)
+  - New TOML pattern `generic-password-assignment` detects `password = "value"` format
+  - Covers: password, passwd, secret, secret_key, api_secret, db_password, db_passwd
+  - Case-insensitive matching, supports both single and double quotes
+  - Minimum 8-char value length to avoid short-value false positives
+  - Uses `env_not_file_path` validator to skip file paths and placeholders
+
 - **Smoke test workflow** (Issue #1006)
   - New `.github/workflows/smoke-tests.yml` covering all 16 violation types
   - Detection tests via `ai-guardian scan`: secrets, PII Phase 1+2, prompt injection, jailbreak, SSRF, config exfil, context poisoning
