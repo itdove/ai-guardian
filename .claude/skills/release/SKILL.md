@@ -257,8 +257,11 @@ Before creating the release branch, trigger the automated release readiness work
 - `detection-end-to-end` — Secret, PII, and prompt injection detection
 - `config-validation` — Config profiles, migration, doctor checks
 - `mcp-server` — MCP server initialize and tool call response
+- `smoke-tests` — End-to-end violation detection for all types (secret, PII, prompt injection, SSRF, directory blocking, config exfil, jailbreak, context poisoning)
 
 **Skipping**: The readiness check may be skipped for hotfix releases (`/release hotfix`) when the fix is urgent, but this should be documented in the release notes.
+
+**Note**: The release readiness workflow includes smoke tests (`smoke-tests.yml`) as a reusable workflow — no need to run smoke tests separately.
 
 ## Documentation Review (mandatory)
 
@@ -359,6 +362,7 @@ Before creating the release branch, check for open Dependabot security alerts an
 9. [ ] (Hotfix only) Cherry-pick fix to main
 10. [ ] Generate combined docs export — run the shell one-liner from AGENTS.md "Generating Combined Documentation for LLM Upload" section to create `docs/notebooklm-export.md`
 11. [ ] Update NotebookLM sources — if the `notebooklm-mcp` MCP server is available, upload the generated `docs/notebooklm-export.md` and update other sources in the AI Guardian notebook using `source_add`
+12. [ ] Generate demo guide — create `X.Y-demo-guide.md` in the external docs directory (see AGENTS.md) documenting new features with step-by-step demonstrations for stakeholder walkthroughs
 
 **If you are NOT authorized:**
 - ❌ DO NOT push the tag
