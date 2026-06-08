@@ -281,6 +281,70 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         assert result['redacted_text'] is None
         assert len(result['redactions']) == 0
 
+    def test_generic_password_assignment_redaction(self):
+        """Test password = 'value' assignment detection and redaction."""
+        redactor = SecretRedactor()
+
+        text = 'password = "SuperSecret123!"'
+        result = redactor.redact(text)
+        assert "SuperSecret123!" not in result['redacted_text']
+        assert 'password' in result['redacted_text']
+        assert len(result['redactions']) >= 1
+
+    def test_generic_password_assignment_case_insensitive(self):
+        """Test case-insensitive detection of PASSWORD = 'value'."""
+        redactor = SecretRedactor()
+
+        text = 'PASSWORD = "MySecretValueHere"'
+        result = redactor.redact(text)
+        assert "MySecretValueHere" not in result['redacted_text']
+
+    def test_generic_password_assignment_variants(self):
+        """Test db_password, secret_key, api_secret variants."""
+        redactor = SecretRedactor()
+
+        for keyword in ['db_password', 'secret_key', 'api_secret', 'passwd', 'db_passwd']:
+            text = f'{keyword} = "some_long_value_here"'
+            result = redactor.redact(text)
+            assert "some_long_value_here" not in result['redacted_text'], (
+                f"Failed to redact {keyword} assignment"
+            )
+
+    def test_generic_password_assignment_single_quotes(self):
+        """Test single-quoted values: password = 'value'."""
+        redactor = SecretRedactor()
+
+        text = "password = 'SuperSecret123!'"
+        result = redactor.redact(text)
+        assert "SuperSecret123!" not in result['redacted_text']
+
+    def test_generic_password_assignment_no_fp_file_path(self):
+        """File paths should NOT trigger generic password assignment."""
+        redactor = SecretRedactor()
+
+        text = 'secret = "/etc/secrets/production.key"'
+        result = redactor.redact(text)
+        fp = [r for r in result['redactions'] if r.get('rule_id') == 'generic-password-assignment']
+        assert len(fp) == 0
+
+    def test_generic_password_assignment_no_fp_short(self):
+        """Short values (<8 chars) should not trigger detection."""
+        redactor = SecretRedactor()
+
+        text = 'password = "short"'
+        result = redactor.redact(text)
+        fp = [r for r in result['redactions'] if r.get('rule_id') == 'generic-password-assignment']
+        assert len(fp) == 0
+
+    def test_generic_password_assignment_no_fp_unrelated_key(self):
+        """Non-secret keys should not trigger detection."""
+        redactor = SecretRedactor()
+
+        text = 'username = "admin_user_here"'
+        result = redactor.redact(text)
+        fp = [r for r in result['redactions'] if r.get('rule_id') == 'generic-password-assignment']
+        assert len(fp) == 0
+
     def test_hex_secret_redaction(self):
         """Test long hex string redaction with context."""
         redactor = SecretRedactor()
