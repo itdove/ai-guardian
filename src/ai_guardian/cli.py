@@ -495,15 +495,13 @@ def main():
         )
         scan_parser.add_argument(
             "--pr",
-            type=int,
-            metavar="N",
-            help="Scan files changed in GitHub PR number N (requires gh CLI)"
+            metavar="N_OR_URL",
+            help="Scan files changed in GitHub PR (number or URL, requires gh CLI)"
         )
         scan_parser.add_argument(
             "--mr",
-            type=int,
-            metavar="N",
-            help="Scan files changed in GitLab MR number N (requires glab CLI)"
+            metavar="N_OR_URL",
+            help="Scan files changed in GitLab MR (number or URL, requires glab CLI)"
         )
         scan_parser.add_argument(
             "--stdin-diff",

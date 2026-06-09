@@ -36,13 +36,13 @@ def _make_args(**overrides):
 class TestScanCommandDiffValidation:
 
     def test_mutual_exclusivity_diff_and_pr(self, capsys):
-        args = _make_args(diff=True, pr=42)
+        args = _make_args(diff=True, pr="42")
         rc = scan_command(args)
         assert rc == 1
         assert "mutually exclusive" in capsys.readouterr().err
 
     def test_mutual_exclusivity_pr_and_mr(self, capsys):
-        args = _make_args(pr=1, mr=2)
+        args = _make_args(pr="1", mr="2")
         rc = scan_command(args)
         assert rc == 1
         assert "mutually exclusive" in capsys.readouterr().err
@@ -108,11 +108,11 @@ class TestScanCommandDiffMode:
         mock_pr.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
 
-        args = _make_args(pr=123)
+        args = _make_args(pr="123")
         rc = scan_command(args)
 
         assert rc == 0
-        mock_pr.assert_called_once_with(123, repo_path=".")
+        mock_pr.assert_called_once_with("123", repo_path=".")
 
     @mock.patch("ai_guardian.diff_provider.get_mr_diff")
     @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
@@ -120,11 +120,11 @@ class TestScanCommandDiffMode:
         mock_mr.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
 
-        args = _make_args(mr=42)
+        args = _make_args(mr="42")
         rc = scan_command(args)
 
         assert rc == 0
-        mock_mr.assert_called_once_with(42, repo_path=".")
+        mock_mr.assert_called_once_with("42", repo_path=".")
 
     @mock.patch("ai_guardian.scanner.sys.stdin")
     @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
@@ -170,7 +170,7 @@ class TestScanCommandDiffMode:
         from ai_guardian.diff_provider import DiffProviderError
         mock_pr.side_effect = DiffProviderError("gh CLI not found")
 
-        args = _make_args(pr=123)
+        args = _make_args(pr="123")
         rc = scan_command(args)
 
         assert rc == 1

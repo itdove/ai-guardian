@@ -19,6 +19,44 @@ class DiffProviderError(Exception):
     """Raised when diff operations fail."""
 
 
+_PR_URL_RE = re.compile(r"/pull/(\d+)")
+_MR_URL_RE = re.compile(r"^(https?://.+)/-/merge_requests/(\d+)")
+
+
+def parse_pr_ref(value: str) -> int:
+    """Parse PR number from integer string or GitHub URL."""
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    m = _PR_URL_RE.search(value)
+    if m:
+        return int(m.group(1))
+    raise DiffProviderError(
+        f"Cannot parse PR number from: {value}\n"
+        "Expected: a number (e.g., 123) or a GitHub PR URL"
+    )
+
+
+def parse_mr_ref(value: str) -> tuple:
+    """Parse MR ref from integer string or GitLab URL.
+
+    Returns (mr_number: int, repo_url: Optional[str]).
+    repo_url is the project URL when parsed from a URL, None when just a number.
+    """
+    try:
+        return int(value), None
+    except ValueError:
+        pass
+    m = _MR_URL_RE.search(value)
+    if m:
+        return int(m.group(2)), m.group(1)
+    raise DiffProviderError(
+        f"Cannot parse MR number from: {value}\n"
+        "Expected: a number (e.g., 42) or a GitLab MR URL"
+    )
+
+
 def detect_platform(repo_path: str = ".") -> str:
     """Detect hosting platform from git remote URL.
 
@@ -98,11 +136,15 @@ def get_diff_unified(
     return result.stdout
 
 
-def get_pr_diff(pr_number: int, repo_path: str = ".") -> str:
-    """Get unified diff for a GitHub PR using gh CLI."""
+def get_pr_diff(pr_ref: str, repo_path: str = ".") -> str:
+    """Get unified diff for a GitHub PR using gh CLI.
+
+    Args:
+        pr_ref: PR number or full GitHub PR URL (gh accepts both)
+    """
     try:
         result = subprocess.run(
-            ["gh", "pr", "diff", str(pr_number)],
+            ["gh", "pr", "diff", str(pr_ref)],
             capture_output=True, text=True, timeout=30, cwd=repo_path,
         )
     except FileNotFoundError:
@@ -116,11 +158,20 @@ def get_pr_diff(pr_number: int, repo_path: str = ".") -> str:
     return result.stdout
 
 
-def get_mr_diff(mr_number: int, repo_path: str = ".") -> str:
-    """Get unified diff for a GitLab MR using glab CLI."""
+def get_mr_diff(mr_ref: str, repo_path: str = ".") -> str:
+    """Get unified diff for a GitLab MR using glab CLI.
+
+    Args:
+        mr_ref: MR number or GitLab MR URL. URLs are parsed to extract
+                the number and repo, passing --repo to glab for cross-project use.
+    """
+    mr_number, repo_url = parse_mr_ref(mr_ref)
+    cmd = ["glab", "mr", "diff", str(mr_number)]
+    if repo_url:
+        cmd.extend(["--repo", repo_url])
     try:
         result = subprocess.run(
-            ["glab", "mr", "diff", str(mr_number)],
+            cmd,
             capture_output=True, text=True, timeout=30, cwd=repo_path,
         )
     except FileNotFoundError:

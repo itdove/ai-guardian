@@ -13,6 +13,8 @@ from ai_guardian.diff_provider import (
     get_merge_base,
     get_mr_diff,
     get_pr_diff,
+    parse_mr_ref,
+    parse_pr_ref,
     parse_unified_diff,
 )
 
@@ -329,20 +331,31 @@ class TestGetMergeBase:
 class TestGetPRDiff:
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
-    def test_success(self, mock_run):
+    def test_success_with_number(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="diff content here\n", stderr=""
         )
-        result = get_pr_diff(123)
+        result = get_pr_diff("123")
         assert result == "diff content here\n"
         cmd = mock_run.call_args[0][0]
         assert cmd == ["gh", "pr", "diff", "123"]
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    def test_success_with_url(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout="diff from url\n", stderr=""
+        )
+        url = "https://github.com/owner/repo/pull/456"
+        result = get_pr_diff(url)
+        assert result == "diff from url\n"
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["gh", "pr", "diff", url]
+
+    @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_gh_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         with pytest.raises(DiffProviderError, match="gh CLI not found"):
-            get_pr_diff(123)
+            get_pr_diff("123")
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_gh_error(self, mock_run):
@@ -350,32 +363,46 @@ class TestGetPRDiff:
             returncode=1, stdout="", stderr="not found"
         )
         with pytest.raises(DiffProviderError, match="gh pr diff failed"):
-            get_pr_diff(999)
+            get_pr_diff("999")
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_gh_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
         with pytest.raises(DiffProviderError, match="timed out"):
-            get_pr_diff(123)
+            get_pr_diff("123")
 
 
 class TestGetMRDiff:
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
-    def test_success(self, mock_run):
+    def test_success_with_number(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="mr diff content\n", stderr=""
         )
-        result = get_mr_diff(42)
+        result = get_mr_diff("42")
         assert result == "mr diff content\n"
         cmd = mock_run.call_args[0][0]
         assert cmd == ["glab", "mr", "diff", "42"]
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    def test_success_with_url(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout="mr diff from url\n", stderr=""
+        )
+        url = "https://gitlab.cee.redhat.com/atat/harness/-/merge_requests/127"
+        result = get_mr_diff(url)
+        assert result == "mr diff from url\n"
+        cmd = mock_run.call_args[0][0]
+        assert cmd == [
+            "glab", "mr", "diff", "127",
+            "--repo", "https://gitlab.cee.redhat.com/atat/harness",
+        ]
+
+    @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_glab_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         with pytest.raises(DiffProviderError, match="glab CLI not found"):
-            get_mr_diff(42)
+            get_mr_diff("42")
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_glab_error(self, mock_run):
@@ -383,10 +410,50 @@ class TestGetMRDiff:
             returncode=1, stdout="", stderr="error"
         )
         with pytest.raises(DiffProviderError, match="glab mr diff failed"):
-            get_mr_diff(42)
+            get_mr_diff("42")
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_glab_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="glab", timeout=30)
         with pytest.raises(DiffProviderError, match="timed out"):
-            get_mr_diff(42)
+            get_mr_diff("42")
+
+
+class TestParsePRRef:
+
+    def test_integer_string(self):
+        assert parse_pr_ref("123") == 123
+
+    def test_github_url(self):
+        assert parse_pr_ref("https://github.com/owner/repo/pull/456") == 456
+
+    def test_github_url_with_trailing(self):
+        assert parse_pr_ref("https://github.com/org/repo/pull/789/files") == 789
+
+    def test_invalid_value(self):
+        with pytest.raises(DiffProviderError, match="Cannot parse PR number"):
+            parse_pr_ref("not-a-number-or-url")
+
+
+class TestParseMRRef:
+
+    def test_integer_string(self):
+        mr_num, repo_url = parse_mr_ref("42")
+        assert mr_num == 42
+        assert repo_url is None
+
+    def test_gitlab_url(self):
+        url = "https://gitlab.com/group/project/-/merge_requests/127"
+        mr_num, repo_url = parse_mr_ref(url)
+        assert mr_num == 127
+        assert repo_url == "https://gitlab.com/group/project"
+
+    def test_self_hosted_gitlab_url(self):
+        url = "https://gitlab.cee.redhat.com/atat/harness/-/merge_requests/127"
+        mr_num, repo_url = parse_mr_ref(url)
+        assert mr_num == 127
+        assert repo_url == "https://gitlab.cee.redhat.com/atat/harness"
+
+    def test_invalid_value(self):
+        with pytest.raises(DiffProviderError, match="Cannot parse MR number"):
+            parse_mr_ref("not-a-number-or-url")
