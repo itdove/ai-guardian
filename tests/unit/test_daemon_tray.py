@@ -957,7 +957,7 @@ class TestPausedTargetMenuVisibility:
         """Status label shows paused icon for paused daemon."""
         t = DaemonTarget(name="my-host", runtime="local", status="paused")
         label = DaemonTray._daemon_status_label(t)
-        assert "◐" in label
+        assert "☾" in label
         assert "my-host" in label
 
     @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
@@ -4237,7 +4237,7 @@ class TestBuildDirPauseItems:
             lambda _: stats, lambda d, m: None, lambda d: None,
         )
         label = items[0].text
-        assert label.startswith("◐")
+        assert label.startswith("☾")
         assert "2m" in label
 
     def test_active_dir_label_shows_full_circle(self):
@@ -4282,7 +4282,7 @@ class TestMultiGlobalPauseLabel:
         stats_fns[9] = lambda _: True
         stats_fns[11] = lambda _: {"pause_remaining_seconds": 0}
         label = tray._multi_global_pause_label(stats_fns, None)
-        assert label == "◐ Daemon (global)"
+        assert label == "☾ Daemon (global)"
 
     def test_paused_with_timer_shows_remaining(self):
         tray = DaemonTray(
@@ -4294,7 +4294,7 @@ class TestMultiGlobalPauseLabel:
         stats_fns[9] = lambda _: True
         stats_fns[11] = lambda _: {"pause_remaining_seconds": 305}
         label = tray._multi_global_pause_label(stats_fns, None)
-        assert "◐ Daemon (global)" in label
+        assert "☾ Daemon (global)" in label
         assert "5m" in label
 
 

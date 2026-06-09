@@ -1019,7 +1019,7 @@ class DaemonTray:
         for target in self._targets:
             key = (target.name, target.runtime)
             ver = self._daemon_versions.get(key, "?")
-            icon = {"running": "●", "paused": "◐", "stopped": "⚠"}.get(
+            icon = {"running": "●", "paused": "☾", "stopped": "⚠"}.get(
                 target.status, "○"
             )
             suffix = ""
@@ -1493,8 +1493,8 @@ class DaemonTray:
             if remaining > 0:
                 mins = int(remaining // 60)
                 secs = int(remaining % 60)
-                return f"◐ Daemon (global) ({mins}m {secs}s)"
-            return "◐ Daemon (global)"
+                return f"☾ Daemon (global) ({mins}m {secs}s)"
+            return "☾ Daemon (global)"
         return "● Daemon (global)"
 
     def _mk_multi_pause_dir(self, slot):
@@ -1552,8 +1552,8 @@ class DaemonTray:
                     if remaining > 0:
                         mins = int(remaining // 60)
                         secs = int(remaining % 60)
-                        return f"◐ {short} ({mins}m {secs}s)"
-                    return f"◐ {short}"
+                        return f"☾ {short} ({mins}m {secs}s)"
+                    return f"☾ {short}"
                 return f"● {short}"
 
             def _is_paused(_item, slot=slot):
@@ -1707,7 +1707,7 @@ class DaemonTray:
         from ai_guardian.daemon.working_dir import shorten_path
 
         status_icon = {
-            "running": "●", "paused": "◐", "starting": "◌",
+            "running": "●", "paused": "☾", "starting": "◌",
             "stopped": "⚠", "error": "✗", "unknown": "○",
         }.get(target.status, "○")
         if target.runtime == "container" and target.container_engine:
@@ -2057,8 +2057,8 @@ class DaemonTray:
                 if remaining > 0:
                     mins = int(remaining // 60)
                     secs = int(remaining % 60)
-                    return f"◐ Daemon (global) ({mins}m {secs}s)"
-                return "◐ Daemon (global)"
+                    return f"☾ Daemon (global) ({mins}m {secs}s)"
+                return "☾ Daemon (global)"
             return "● Daemon (global)"
 
         def _global_is_paused(_item):
