@@ -20,17 +20,29 @@ system library at compile time.  When unavailable NiceGUI (Python 3.10+)
 or the Textual fallback is used automatically.
 """
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 def _tkinter_available():
-    """Return True if tkinter can be imported and is not suppressed."""
+    """Return True if tkinter can be imported and Tcl/Tk runtime works.
+
+    ``import tkinter`` can succeed even when Tcl/Tk runtime files are
+    missing (e.g. uv's python-build-standalone ships ``_tkinter.so``
+    but not ``init.tcl``).  We verify by loading the Tk package via a
+    Tcl interpreter — this validates the runtime without creating any
+    visible window or dock/menubar icon.
+    """
     if os.environ.get("AI_GUARDIAN_NO_TKINTER"):
         return False
     try:
-        import tkinter  # noqa: F401
+        import tkinter
+        tcl = tkinter.Tcl()
+        tcl.eval("package require Tk")
         return True
-    except ImportError:
+    except Exception:
         return False
 
 
@@ -61,8 +73,16 @@ class _TkinterPromptApp:
         self._widgets = {}
 
     def run(self):
+        import platform
         import tkinter as tk
         from tkinter import ttk, messagebox
+
+        if platform.system() == "Darwin":
+            try:
+                from AppKit import NSApplication
+                NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
 
         self._tk = tk
         self._ttk = ttk
@@ -762,22 +782,18 @@ class TrayPromptApp:
         )
 
     def run(self):
+        args = (
+            self._params, self._command_template,
+            self._command_type, self._extra_vars, self._title,
+        )
         if _tkinter_available():
-            app = _TkinterPromptApp(
-                self._params, self._command_template,
-                self._command_type, self._extra_vars, self._title,
-            )
-        elif _nicegui_available():
-            app = _NiceGuiPromptApp(
-                self._params, self._command_template,
-                self._command_type, self._extra_vars, self._title,
-            )
-        else:
-            app = _TextualPromptApp(
-                self._params, self._command_template,
-                self._command_type, self._extra_vars, self._title,
-            )
-        return app.run()
+            try:
+                return _TkinterPromptApp(*args).run()
+            except Exception:
+                logger.warning("tkinter failed at runtime, falling back")
+        if _nicegui_available():
+            return _NiceGuiPromptApp(*args).run()
+        return _TextualPromptApp(*args).run()
 
     def _resolve_default(self, value):
         """Resolve {tray.*} variables in a param default value."""

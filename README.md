@@ -265,6 +265,7 @@ python -m venv ~/.ai-guardian-venv
 # Optional: tkinter for native tray plugin popup dialogs (see docs/MULTI_DAEMON_TRAY.md)
 # RHEL/Fedora: dnf install python3-tkinter | Debian: apt install python3-tk
 # macOS: included with system Python; pyenv users need tcl-tk (brew install tcl-tk)
+# uv: tkinter unavailable — NiceGUI browser form used automatically as fallback
 ```
 
 **Windows (PowerShell):**

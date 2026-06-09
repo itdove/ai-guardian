@@ -322,6 +322,66 @@ class TestTrayPromptFallback:
             result = _nicegui_available()
             assert isinstance(result, bool)
 
+    def test_tkinter_available_false_when_tk_package_missing(self):
+        """_tkinter_available() returns False when Tk package is unavailable."""
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        mock_tk = mock.MagicMock()
+        mock_tcl = mock.MagicMock()
+        mock_tcl.eval.side_effect = Exception("can't find package Tk")
+        mock_tk.Tcl.return_value = mock_tcl
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AI_GUARDIAN_NO_TKINTER", None)
+            with mock.patch.dict("sys.modules", {"tkinter": mock_tk}):
+                assert _tkinter_available() is False
+
+    def test_tkinter_available_false_on_import_error(self):
+        """_tkinter_available() returns False when tkinter can't be imported."""
+        from ai_guardian.tui.tray_prompt import _tkinter_available
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AI_GUARDIAN_NO_TKINTER", None)
+            with mock.patch.dict("sys.modules", {"tkinter": None}):
+                assert _tkinter_available() is False
+
+    def test_cascade_falls_through_on_tkinter_runtime_error(self):
+        """When tkinter check passes but run() crashes, falls back to NiceGUI."""
+        from ai_guardian.tui.tray_prompt import (
+            TrayPromptApp, _NiceGuiPromptApp, _TkinterPromptApp,
+        )
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=True):
+                with mock.patch.object(
+                    _TkinterPromptApp, "run",
+                    side_effect=Exception("TclError"),
+                ):
+                    with mock.patch.object(
+                        _NiceGuiPromptApp, "run",
+                        return_value="echo ng",
+                    ) as ng_run:
+                        app = TrayPromptApp([], "echo ng")
+                        result = app.run()
+                        ng_run.assert_called_once()
+                        assert result == "echo ng"
+
+    def test_cascade_falls_through_to_textual_on_both_failure(self):
+        """When tkinter crashes and NiceGUI unavailable, falls back to Textual."""
+        from ai_guardian.tui.tray_prompt import (
+            TrayPromptApp, _TextualPromptApp, _TkinterPromptApp,
+        )
+        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=False):
+                with mock.patch.object(
+                    _TkinterPromptApp, "run",
+                    side_effect=Exception("TclError"),
+                ):
+                    with mock.patch.object(
+                        _TextualPromptApp, "run",
+                        return_value="echo tx",
+                    ) as tx_run:
+                        app = TrayPromptApp([], "echo tx")
+                        result = app.run()
+                        tx_run.assert_called_once()
+                        assert result == "echo tx"
+
 
 class TestNativeFilePicker:
     """Tests for _native_file_picker (platform-native dialogs)."""

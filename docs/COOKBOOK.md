@@ -1884,6 +1884,7 @@ Install tkinter for your platform for the best experience (native OS dialogs). W
 
 - **macOS (pyenv):** `brew install tcl-tk` then rebuild Python with `pyenv install <version> --force`
 - **macOS (system):** included by default in `/usr/bin/python3`
+- **uv (`uv tool install`):** tkinter is not available — uv's Python (python-build-standalone) ships the `_tkinter` C extension but pins an exact Tcl/Tk patch version (e.g. 8.6.18) that doesn't match any Homebrew or system package. Installing `tcl-tk` via Homebrew won't help due to the version mismatch. NiceGUI browser form is used automatically as fallback — no action needed.
 - **RHEL/Fedora:** `dnf install python3-tkinter`
 - **Debian/Ubuntu:** `apt install python3-tk`
 - **Windows:** included by default in the python.org installer
