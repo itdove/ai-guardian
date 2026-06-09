@@ -35,6 +35,7 @@ dependencies = [
   "mcp>=1.10.0; python_version >= '3.10'",
   "rapidocr-onnxruntime>=1.4.0; python_version < '3.13'",
   "nicegui>=3.0.0; python_version >= '3.10'",
+  "tokenizers>=0.15.0; python_version >= '3.10'",
 ]
 keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
 classifiers = [
@@ -55,10 +56,7 @@ classifiers = [
 
 [project.optional-dependencies]
 skill-discovery = []
-ml = [
-  "onnxruntime>=1.16.0",
-  "tokenizers>=0.15.0",
-]
+ml = []
 dev = [
   "pytest>=8.4.2",
 ]

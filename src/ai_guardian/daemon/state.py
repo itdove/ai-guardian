@@ -722,7 +722,7 @@ class DaemonState:
             from ai_guardian.ml_detection import is_ml_available, MLEngineManager
             if not is_ml_available():
                 with self._lock:
-                    self._ml_load_error = "ML dependencies not installed (pip install ai-guardian[ml])"
+                    self._ml_load_error = "ML dependencies not available (onnxruntime required)"
                 return None
 
             config = self.get_config() or {}

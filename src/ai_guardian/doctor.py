@@ -1386,8 +1386,8 @@ class Doctor:
             return CheckResult(
                 name="ml_detection",
                 status=CheckStatus.FAIL,
-                message="ML dependencies not installed (onnxruntime, tokenizers)",
-                fix_hint="pip install ai-guardian[ml]",
+                message="ML dependencies not available (onnxruntime required, available on Python < 3.13 via rapidocr-onnxruntime)",
+                fix_hint="pip install onnxruntime",
             )
 
         engines_config = pi_config.get("ml_engines", [])
