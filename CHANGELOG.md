@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hook-pipeline smoke tests for SSRF, config exfil, and password** (Issue #1017)
+  - PreToolUse: SSRF detection in Bash commands (`curl` to metadata endpoint)
+  - PreToolUse: Config exfiltration in Bash commands (`env | curl` pattern)
+  - UserPromptSubmit: Password detection in user prompts via toml-patterns engine
+
 - **Generic password/secret assignment detection** (Issue #1015)
   - New TOML pattern `generic-password-assignment` detects `password = "value"` format
   - Covers: password, passwd, secret, secret_key, api_secret, db_password, db_passwd
