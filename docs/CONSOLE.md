@@ -95,7 +95,7 @@ The TUI remains the primary interface. The web console is for users who prefer a
 
 1. **AI Guardian installed**:
    ```bash
-   pip install ai-guardian
+   pip install ai-guardian            # or: uv tool install ai-guardian
    ```
 
 2. **Terminal with 256-color support** (most modern terminals)

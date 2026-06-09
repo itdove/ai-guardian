@@ -3,7 +3,7 @@ set -euo pipefail
 
 VERSION=""
 PROFILE="@standard"
-USE_VENV=false
+INSTALL_MODE=""
 VENV_DIR="$HOME/.ai-guardian-venv"
 IDE=""
 INSTALL_TKINTER=false
@@ -17,8 +17,17 @@ Usage:
     curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash
     curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- [OPTIONS]
 
+Install modes (mutually exclusive, default: auto-detect):
+    --pip               Force: bare pip install (no isolation)
+    --venv              Force: python -m venv + pip install
+    --uv                Force: uv tool install (isolated, binary in PATH)
+
+    Auto-detect (no flag) tries the best available method:
+      1. uv installed  → uv tool install
+      2. uv missing    → python -m venv + pip install
+      3. venv fails    → bare pip install
+
 Options:
-    --venv              Create a virtual environment at ~/.ai-guardian-venv/
     --ide NAME          Setup hooks for a specific IDE (skipped if omitted)
                         Choices: claude, cursor, copilot, codex, windsurf,
                                  gemini, cline, zoocode, augment, kiro, junie,
@@ -35,11 +44,17 @@ Options:
     --install-scanner, --force, --rules, --dry-run, --permissive).
 
 Examples:
-    # Default: install latest, @standard profile
+    # Default: auto-detect best install method
     curl -fsSL .../install.sh | bash
 
-    # Install in a venv with strict profile for Claude
-    curl -fsSL .../install.sh | bash -s -- --venv --ide claude --profile @strict
+    # Force uv tool install with Claude hooks
+    curl -fsSL .../install.sh | bash -s -- --uv --ide claude --profile @strict
+
+    # Force venv install
+    curl -fsSL .../install.sh | bash -s -- --venv
+
+    # Force bare pip install
+    curl -fsSL .../install.sh | bash -s -- --pip
 
     # Install a specific version
     curl -fsSL .../install.sh | bash -s -- --version 1.9.0
@@ -56,11 +71,15 @@ log() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 ok()  { printf '\033[1;32m  ✓\033[0m %s\n' "$1"; }
 err() { printf '\033[1;31mError:\033[0m %s\n' "$1" >&2; }
 
+has_uv() { command -v uv >/dev/null 2>&1; }
+
 # --- Parse arguments ---
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --venv)    USE_VENV=true; shift ;;
+        --pip)     [ -z "$INSTALL_MODE" ] || { err "--pip, --venv, and --uv are mutually exclusive"; exit 1; }; INSTALL_MODE=pip; shift ;;
+        --venv)    [ -z "$INSTALL_MODE" ] || { err "--pip, --venv, and --uv are mutually exclusive"; exit 1; }; INSTALL_MODE=venv; shift ;;
+        --uv)      [ -z "$INSTALL_MODE" ] || { err "--pip, --venv, and --uv are mutually exclusive"; exit 1; }; INSTALL_MODE=uv; shift ;;
         --ide)     [ $# -ge 2 ] || { echo "Error: --ide requires a value" >&2; exit 1; }; IDE="$2"; shift 2 ;;
         --profile) [ $# -ge 2 ] || { echo "Error: --profile requires a value" >&2; exit 1; }; PROFILE="$2"; shift 2 ;;
         --version) [ $# -ge 2 ] || { echo "Error: --version requires a value" >&2; exit 1; }; VERSION="$2"; shift 2 ;;
@@ -69,6 +88,18 @@ while [ $# -gt 0 ]; do
         *)         SETUP_ARGS+=("$1"); shift ;;
     esac
 done
+
+# --- Auto-detect install mode ---
+
+if [ -z "$INSTALL_MODE" ]; then
+    if has_uv; then
+        INSTALL_MODE=uv
+        log "Auto-detected: uv available, using uv tool install"
+    else
+        INSTALL_MODE=venv
+        log "Auto-detected: uv not found, using venv + pip"
+    fi
+fi
 
 # --- Step 1: Find Python 3.9+ ---
 
@@ -94,20 +125,8 @@ PYTHON=$(find_python) || {
 PY_VERSION=$("$PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
 ok "Python $PY_VERSION ($PYTHON)"
 
-# --- Step 2: Create venv (optional) ---
+# --- Step 2: Build package spec ---
 
-if [ "$USE_VENV" = true ]; then
-    log "Creating virtual environment at $VENV_DIR..."
-    "$PYTHON" -m venv "$VENV_DIR"
-    # shellcheck disable=SC1091
-    . "$VENV_DIR/bin/activate"
-    PYTHON="$VENV_DIR/bin/python"
-    ok "Virtual environment activated"
-fi
-
-# --- Step 3: Install ai-guardian ---
-
-log "Installing ai-guardian..."
 PKG="ai-guardian"
 if [ -n "$VERSION" ]; then
     case "$VERSION" in
@@ -123,9 +142,61 @@ if [ -n "$VERSION" ]; then
             ;;
     esac
 fi
-"$PYTHON" -m pip install --quiet "$PKG"
-AG_VERSION=$("$PYTHON" -m ai_guardian --version 2>&1 | awk '{print $NF}')
-ok "ai-guardian $AG_VERSION installed"
+
+# --- Step 3: Install ai-guardian ---
+
+INSTALL_DESC=""
+
+case "$INSTALL_MODE" in
+    uv)
+        if ! has_uv; then
+            err "uv is required but not installed."
+            echo "  Install uv: https://docs.astral.sh/uv/getting-started/installation/"
+            exit 1
+        fi
+        log "Installing ai-guardian via uv tool install..."
+        uv tool install "$PKG"
+        INSTALL_DESC="uv tool install"
+        ;;
+    venv)
+        log "Creating virtual environment at $VENV_DIR..."
+        if has_uv; then
+            uv venv "$VENV_DIR" --python "$PYTHON" --quiet
+        else
+            "$PYTHON" -m venv "$VENV_DIR"
+        fi
+        # shellcheck disable=SC1091
+        . "$VENV_DIR/bin/activate"
+        PYTHON="$VENV_DIR/bin/python"
+        ok "Virtual environment activated"
+
+        log "Installing ai-guardian..."
+        if has_uv; then
+            uv pip install --python "$PYTHON" --quiet "$PKG"
+        else
+            "$PYTHON" -m pip install --quiet "$PKG"
+        fi
+        INSTALL_DESC="pip (venv at $VENV_DIR)"
+        ;;
+    pip)
+        log "Installing ai-guardian via pip..."
+        "$PYTHON" -m pip install --quiet "$PKG"
+        INSTALL_DESC="pip (system)"
+        ;;
+esac
+
+# Resolve the ai-guardian command for post-install steps
+if [ "$INSTALL_MODE" = "uv" ]; then
+    AG_CMD="ai-guardian"
+    if ! command -v ai-guardian >/dev/null 2>&1; then
+        AG_CMD="$HOME/.local/bin/ai-guardian"
+    fi
+    AG_VERSION=$("$AG_CMD" --version 2>&1 | awk '{print $NF}')
+else
+    AG_CMD="$PYTHON -m ai_guardian"
+    AG_VERSION=$($AG_CMD --version 2>&1 | awk '{print $NF}')
+fi
+ok "ai-guardian $AG_VERSION installed ($INSTALL_DESC)"
 
 # --- Step 3b: Install tkinter (optional) ---
 
@@ -190,7 +261,7 @@ fi
 # --- Step 4: Create config ---
 
 log "Creating configuration (profile: $PROFILE)..."
-"$PYTHON" -m ai_guardian setup --create-config --profile "$PROFILE" --yes 2>&1 | tail -1
+$AG_CMD setup --create-config --profile "$PROFILE" --yes 2>&1 | tail -1
 CONFIG_PATH="$HOME/.config/ai-guardian/ai-guardian.json"
 ok "Config at $CONFIG_PATH"
 
@@ -198,7 +269,7 @@ ok "Config at $CONFIG_PATH"
 
 if [ -n "$IDE" ]; then
     log "Setting up hooks for $IDE..."
-    SETUP_OUTPUT=$("$PYTHON" -m ai_guardian setup --ide "$IDE" --install-scanner --yes \
+    SETUP_OUTPUT=$($AG_CMD setup --ide "$IDE" --install-scanner --yes \
         "${SETUP_ARGS[@]+"${SETUP_ARGS[@]}"}" 2>&1) || true
     echo "$SETUP_OUTPUT" | grep -v "^$" | tail -3
     if echo "$SETUP_OUTPUT" | grep -q "already configured"; then
@@ -211,7 +282,7 @@ fi
 # --- Step 6: Verify installation ---
 
 log "Verifying installation..."
-"$PYTHON" -m ai_guardian doctor 2>&1 | tail -5 || true
+$AG_CMD doctor 2>&1 | tail -5 || true
 
 # --- Step 7: Summary ---
 
@@ -221,9 +292,10 @@ echo "  AI Guardian $AG_VERSION installed successfully"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Version:  $AG_VERSION"
+echo "  Install:  $INSTALL_DESC"
 echo "  Config:   $CONFIG_PATH"
 echo "  Profile:  $PROFILE"
-if [ "$USE_VENV" = true ]; then
+if [ "$INSTALL_MODE" = "venv" ]; then
     echo "  Venv:     $VENV_DIR"
 fi
 if [ -n "$IDE" ]; then
@@ -249,7 +321,7 @@ echo "    ai-guardian doctor         # verify setup"
 echo "    ai-guardian daemon start   # start background daemon"
 echo "    ai-guardian tray start     # start system tray"
 echo "    ai-guardian --help         # see all commands"
-if [ "$USE_VENV" = true ]; then
+if [ "$INSTALL_MODE" = "venv" ]; then
     echo "    source $VENV_DIR/bin/activate  # activate venv"
 fi
 echo ""
