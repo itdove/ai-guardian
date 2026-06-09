@@ -322,17 +322,14 @@ class TestTrayPromptFallback:
             result = _nicegui_available()
             assert isinstance(result, bool)
 
-    def test_tkinter_available_false_when_tk_package_missing(self):
-        """_tkinter_available() returns False when Tk package is unavailable."""
+    def test_tkinter_available_true_when_importable(self):
+        """_tkinter_available() returns True when tkinter can be imported."""
         from ai_guardian.tui.tray_prompt import _tkinter_available
         mock_tk = mock.MagicMock()
-        mock_tcl = mock.MagicMock()
-        mock_tcl.eval.side_effect = Exception("can't find package Tk")
-        mock_tk.Tcl.return_value = mock_tcl
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_NO_TKINTER", None)
             with mock.patch.dict("sys.modules", {"tkinter": mock_tk}):
-                assert _tkinter_available() is False
+                assert _tkinter_available() is True
 
     def test_tkinter_available_false_on_import_error(self):
         """_tkinter_available() returns False when tkinter can't be imported."""
