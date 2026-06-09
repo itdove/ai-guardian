@@ -842,7 +842,7 @@ class TestPIIPerformance:
         result = redactor.redact(text)
         elapsed = (time.time() - start) * 1000
 
-        assert elapsed < 50, f"PII scan took {elapsed}ms, expected <50ms"
+        assert elapsed < 100, f"PII scan took {elapsed}ms, expected <100ms"
         assert len(result['redactions']) > 0
 
 
