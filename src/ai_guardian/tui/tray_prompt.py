@@ -27,22 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 def _tkinter_available():
-    """Return True if tkinter can be imported and Tcl/Tk runtime works.
+    """Return True if tkinter can be imported.
 
-    ``import tkinter`` can succeed even when Tcl/Tk runtime files are
-    missing (e.g. uv's python-build-standalone ships ``_tkinter.so``
-    but not ``init.tcl``).  We verify by loading the Tk package via a
-    Tcl interpreter — this validates the runtime without creating any
-    visible window or dock/menubar icon.
+    Runtime failures (broken Tcl/Tk, no display, etc.) are caught by
+    the try/except cascade in ``TrayPromptApp.run()`` which falls
+    through to NiceGUI or Textual automatically.
     """
     if os.environ.get("AI_GUARDIAN_NO_TKINTER"):
         return False
     try:
-        import tkinter
-        tcl = tkinter.Tcl()
-        tcl.eval("package require Tk")
+        import tkinter  # noqa: F401
         return True
-    except Exception:
+    except ImportError:
         return False
 
 
@@ -74,8 +70,22 @@ class _TkinterPromptApp:
 
     def run(self):
         import platform
+        import sys
         import tkinter as tk
         from tkinter import ttk, messagebox
+
+        if not os.environ.get("TCL_LIBRARY"):
+            import pathlib
+            real_exe = pathlib.Path(sys.executable).resolve()
+            tcl_lib = real_exe.parent.parent / "lib" / "tcl8.6"
+            if (tcl_lib / "init.tcl").exists():
+                os.environ["TCL_LIBRARY"] = str(tcl_lib)
+
+        self._tk = tk
+        self._ttk = ttk
+        self._messagebox = messagebox
+
+        self._root = tk.Tk()
 
         if platform.system() == "Darwin":
             try:
@@ -83,12 +93,6 @@ class _TkinterPromptApp:
                 NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
             except Exception:
                 pass
-
-        self._tk = tk
-        self._ttk = ttk
-        self._messagebox = messagebox
-
-        self._root = tk.Tk()
         self._root.title(self._title)
         self._root.resizable(False, False)
         self._root.protocol("WM_DELETE_WINDOW", self._cancel)
