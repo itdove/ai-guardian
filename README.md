@@ -246,7 +246,6 @@ See [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/ma
 
 ```bash
 pip install ai-guardian                   # Stable release from PyPI
-pip install ai-guardian[skill-discovery]  # With auto-discovery from GitHub/GitLab
 # Optional: tkinter for native tray plugin popup dialogs (see docs/MULTI_DAEMON_TRAY.md)
 # RHEL/Fedora: dnf install python3-tkinter | Debian: apt install python3-tk
 # macOS: included with system Python; pyenv users need tcl-tk (brew install tcl-tk)

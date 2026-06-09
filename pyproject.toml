@@ -55,7 +55,6 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-skill-discovery = []
 ml = []
 dev = [
   "pytest>=8.4.2",

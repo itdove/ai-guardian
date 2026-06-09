@@ -140,7 +140,7 @@ class PatternServerClient:
 
         if not HAS_REQUESTS:
             logger.warning("Pattern server enabled but requests library not installed")
-            logger.info("Install with: pip install ai-guardian[skill-discovery]")
+            logger.info("Install with: pip install ai-guardian")
             return None
 
         if not self.base_url:
