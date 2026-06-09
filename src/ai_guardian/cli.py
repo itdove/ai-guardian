@@ -483,6 +483,38 @@ def main():
             action="store_true",
             help="Enable verbose output"
         )
+        scan_parser.add_argument(
+            "--diff",
+            action="store_true",
+            help="Scan only files changed between base branch and HEAD"
+        )
+        scan_parser.add_argument(
+            "--base",
+            metavar="REF",
+            help="Base ref for --diff (default: auto-detect default branch)"
+        )
+        scan_parser.add_argument(
+            "--pr",
+            type=int,
+            metavar="N",
+            help="Scan files changed in GitHub PR number N (requires gh CLI)"
+        )
+        scan_parser.add_argument(
+            "--mr",
+            type=int,
+            metavar="N",
+            help="Scan files changed in GitLab MR number N (requires glab CLI)"
+        )
+        scan_parser.add_argument(
+            "--stdin-diff",
+            action="store_true",
+            help="Read unified diff from stdin and scan changed files"
+        )
+        scan_parser.add_argument(
+            "--changed-lines-only",
+            action="store_true",
+            help="Filter findings to only lines changed in the diff"
+        )
 
         # Show-config subcommand (NEW in v1.5.0)
         show_config_parser = subparsers.add_parser(

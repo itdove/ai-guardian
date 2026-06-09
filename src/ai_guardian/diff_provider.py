@@ -1,0 +1,230 @@
+"""
+Diff provider for ai-guardian scan command.
+
+Resolves file lists and changed line ranges from git diffs, GitHub PRs,
+and GitLab MRs. Used by scan_command() when --diff, --pr, --mr, or
+--stdin-diff flags are provided.
+"""
+
+import logging
+import re
+import subprocess
+import sys
+from typing import Any, Dict, List, Optional, Set
+
+logger = logging.getLogger(__name__)
+
+
+class DiffProviderError(Exception):
+    """Raised when diff operations fail."""
+
+
+def detect_platform(repo_path: str = ".") -> str:
+    """Detect hosting platform from git remote URL.
+
+    Returns "github", "gitlab", or "unknown".
+    """
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=10, cwd=repo_path,
+        )
+        if result.returncode != 0:
+            return "unknown"
+        url = result.stdout.strip().lower()
+        if "github.com" in url:
+            return "github"
+        if "gitlab" in url:
+            return "gitlab"
+        return "unknown"
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return "unknown"
+
+
+def get_merge_base(base_ref: Optional[str] = None, repo_path: str = ".") -> str:
+    """Get the merge base commit between base_ref and HEAD.
+
+    If base_ref is None, auto-detects the default branch.
+    """
+    if base_ref is None:
+        base_ref = _detect_default_branch(repo_path)
+
+    result = subprocess.run(
+        ["git", "merge-base", base_ref, "HEAD"],
+        capture_output=True, text=True, timeout=10, cwd=repo_path,
+    )
+    if result.returncode != 0:
+        raise DiffProviderError(
+            f"Failed to find merge base for '{base_ref}': {result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def _detect_default_branch(repo_path: str = ".") -> str:
+    """Auto-detect the default branch (origin/main, origin/master, etc.)."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"],
+        capture_output=True, text=True, timeout=10, cwd=repo_path,
+    )
+    if result.returncode == 0:
+        ref = result.stdout.strip()
+        if ref and ref != "origin/HEAD":
+            return ref
+
+    for candidate in ["origin/main", "origin/master"]:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", candidate],
+            capture_output=True, text=True, timeout=10, cwd=repo_path,
+        )
+        if result.returncode == 0:
+            return candidate
+
+    raise DiffProviderError(
+        "Could not detect default branch. Use --base to specify explicitly."
+    )
+
+
+def get_diff_unified(
+    base_ref: Optional[str] = None, repo_path: str = "."
+) -> str:
+    """Get unified diff between base and HEAD."""
+    merge_base = get_merge_base(base_ref, repo_path)
+    result = subprocess.run(
+        ["git", "diff", f"{merge_base}...HEAD"],
+        capture_output=True, text=True, timeout=60, cwd=repo_path,
+    )
+    if result.returncode != 0:
+        raise DiffProviderError(f"git diff failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def get_pr_diff(pr_number: int, repo_path: str = ".") -> str:
+    """Get unified diff for a GitHub PR using gh CLI."""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "diff", str(pr_number)],
+            capture_output=True, text=True, timeout=30, cwd=repo_path,
+        )
+    except FileNotFoundError:
+        raise DiffProviderError(
+            "gh CLI not found. Install from https://cli.github.com/"
+        )
+    except subprocess.TimeoutExpired:
+        raise DiffProviderError("gh pr diff timed out after 30 seconds")
+    if result.returncode != 0:
+        raise DiffProviderError(f"gh pr diff failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def get_mr_diff(mr_number: int, repo_path: str = ".") -> str:
+    """Get unified diff for a GitLab MR using glab CLI."""
+    try:
+        result = subprocess.run(
+            ["glab", "mr", "diff", str(mr_number)],
+            capture_output=True, text=True, timeout=30, cwd=repo_path,
+        )
+    except FileNotFoundError:
+        raise DiffProviderError(
+            "glab CLI not found. Install from https://gitlab.com/gitlab-org/cli"
+        )
+    except subprocess.TimeoutExpired:
+        raise DiffProviderError("glab mr diff timed out after 30 seconds")
+    if result.returncode != 0:
+        raise DiffProviderError(f"glab mr diff failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+_DIFF_FILE_HEADER = re.compile(r"^\+\+\+ b/(.+)$", re.MULTILINE)
+_HUNK_HEADER = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
+
+
+def parse_unified_diff(diff_text: str) -> Dict[str, Set[int]]:
+    """Parse unified diff to extract changed line numbers per file.
+
+    Only tracks lines with '+' prefix (additions) since those are
+    the lines present in the working tree.
+
+    Returns dict mapping file path -> set of 1-based line numbers.
+    """
+    changed_lines: Dict[str, Set[int]] = {}
+    current_file: Optional[str] = None
+    current_line = 0
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            match = _DIFF_FILE_HEADER.match(line)
+            if match:
+                current_file = match.group(1)
+                if current_file == "/dev/null":
+                    current_file = None
+                elif current_file not in changed_lines:
+                    changed_lines[current_file] = set()
+            else:
+                current_file = None
+            continue
+
+        if line.startswith("--- "):
+            continue
+
+        hunk_match = _HUNK_HEADER.match(line)
+        if hunk_match:
+            current_line = int(hunk_match.group(1))
+            continue
+
+        if current_file is None:
+            continue
+
+        if line.startswith("+"):
+            changed_lines[current_file].add(current_line)
+            current_line += 1
+        elif line.startswith("-"):
+            pass  # deleted lines don't advance new-file line counter
+        elif line.startswith("\\"):
+            pass  # "\ No newline at end of file"
+        else:
+            # context line
+            current_line += 1
+
+    return changed_lines
+
+
+def get_changed_files_from_diff(diff_text: str) -> List[str]:
+    """Extract file paths from unified diff +++ headers.
+
+    Skips deleted files (target is /dev/null).
+    """
+    files = []
+    for match in _DIFF_FILE_HEADER.finditer(diff_text):
+        path = match.group(1)
+        if path != "/dev/null":
+            files.append(path)
+    return files
+
+
+def filter_findings_by_changed_lines(
+    findings: List[Dict[str, Any]],
+    changed_lines: Dict[str, Set[int]],
+) -> List[Dict[str, Any]]:
+    """Filter findings to only those on changed lines.
+
+    Findings without line_number are conservatively kept (cannot prove
+    they are not on changed lines). Findings for files not in
+    changed_lines are also kept (may come from include/config scanning).
+    """
+    filtered = []
+    for finding in findings:
+        file_path = finding.get("file_path", "")
+        line_num = finding.get("line_number")
+
+        if line_num is None:
+            filtered.append(finding)
+            continue
+
+        if file_path not in changed_lines:
+            filtered.append(finding)
+            continue
+
+        if line_num in changed_lines[file_path]:
+            filtered.append(finding)
+
+    return filtered
