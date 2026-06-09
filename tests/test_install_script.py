@@ -70,6 +70,12 @@ class TestInstallScriptHelp:
     def test_help_shows_usage(self, help_output):
         assert "curl" in help_output
 
+    def test_help_mentions_pip(self, help_output):
+        assert "--pip" in help_output
+
+    def test_help_mentions_uv(self, help_output):
+        assert "--uv" in help_output
+
     def test_help_mentions_whl(self, help_output):
         assert ".whl" in help_output
 
@@ -88,13 +94,58 @@ class TestInstallScriptContent:
         return SCRIPT.read_text()
 
     def test_doctor_verification_step(self, script_content):
-        assert "ai_guardian doctor" in script_content
+        assert "ai_guardian" in script_content
+        assert "doctor" in script_content
 
     def test_next_steps_daemon_start(self, script_content):
         assert "ai-guardian daemon start" in script_content
 
     def test_next_steps_tray_start(self, script_content):
         assert "ai-guardian tray start" in script_content
+
+
+@_skip_no_bash
+class TestInstallScriptModes:
+    """Verify install mode flags work correctly."""
+
+    def test_mutually_exclusive_pip_uv(self):
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "--pip", "--uv"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert "mutually exclusive" in result.stderr
+
+    def test_mutually_exclusive_pip_venv(self):
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "--pip", "--venv"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert "mutually exclusive" in result.stderr
+
+    def test_mutually_exclusive_venv_uv(self):
+        result = subprocess.run(
+            ["bash", str(SCRIPT), "--venv", "--uv"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert "mutually exclusive" in result.stderr
+
+    def test_script_has_auto_detect(self):
+        content = SCRIPT.read_text()
+        assert "Auto-detect" in content or "auto-detect" in content
+
+    def test_script_has_uv_tool_install(self):
+        content = SCRIPT.read_text()
+        assert "uv tool install" in content
+
+    def test_script_has_has_uv_helper(self):
+        content = SCRIPT.read_text()
+        assert "has_uv" in content
 
 
 class TestInstallPs1:

@@ -36,8 +36,13 @@ See [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECUR
 **One-line install** (creates config, installs scanner, sets up hooks):
 
 ```bash
-# Linux / macOS
+# Linux / macOS (auto-detects uv → venv → pip)
 curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- --ide claude
+
+# Force a specific install method
+curl -fsSL .../install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
+curl -fsSL .../install.sh | bash -s -- --venv --ide claude  # venv + pip
+curl -fsSL .../install.sh | bash -s -- --pip --ide claude   # bare pip
 
 # Windows (PowerShell)
 irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
@@ -46,7 +51,7 @@ irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
 Or install manually:
 
 ```bash
-pip install ai-guardian
+pip install ai-guardian                    # or: uv tool install ai-guardian
 ai-guardian setup --ide claude --create-config --install-scanner
 ```
 
@@ -244,20 +249,48 @@ See [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/ma
 
 ## Installation
 
+**Linux / macOS:**
+
 ```bash
-pip install ai-guardian                   # Stable release from PyPI
+# Recommended: uv tool install (isolated, binary in PATH, no activation needed)
+uv tool install ai-guardian
+
+# Alternative: pip install
+pip install ai-guardian
+
+# Alternative: venv + pip
+python -m venv ~/.ai-guardian-venv
+~/.ai-guardian-venv/bin/pip install ai-guardian
+
 # Optional: tkinter for native tray plugin popup dialogs (see docs/MULTI_DAEMON_TRAY.md)
 # RHEL/Fedora: dnf install python3-tkinter | Debian: apt install python3-tk
 # macOS: included with system Python; pyenv users need tcl-tk (brew install tcl-tk)
 ```
 
-> **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`pip install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
+**Windows (PowerShell):**
+
+```powershell
+# Recommended: uv tool install
+uv tool install ai-guardian
+
+# Alternative: pip install
+pip install ai-guardian
+
+# Alternative: venv + pip
+python -m venv $env:USERPROFILE\.ai-guardian-venv
+& "$env:USERPROFILE\.ai-guardian-venv\Scripts\pip" install ai-guardian
+
+# Or use the one-line installer:
+irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
+```
+
+> **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`pip install ai-guardian` or `uv tool install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
 
 For development and contributing:
 
 ```bash
 git clone https://github.com/itdove/ai-guardian.git
-cd ai-guardian && pip install -e .
+cd ai-guardian && pip install -e .         # or: uv pip install -e .
 ```
 
 > **Dev builds:** CI builds a wheel on every PR and merge. Download from the [Actions tab](https://github.com/itdove/ai-guardian/actions/workflows/build-wheel.yml) for testing only; use PyPI for stable releases.
