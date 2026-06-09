@@ -20,6 +20,9 @@
 .PARAMETER Version
     Install a specific version or a local .whl file.
 
+.PARAMETER NoSetup
+    Install only, don't auto-detect or update existing IDE hooks.
+
 .PARAMETER Tkinter
     Verify tkinter availability (included with python.org installers).
 
@@ -35,6 +38,7 @@ param(
     [string]$IDE = "",
     [string]$Profile = "@standard",
     [string]$Version = "",
+    [switch]$NoSetup,
     [switch]$Tkinter,
     [switch]$Help,
     [Parameter(ValueFromRemainingArguments)]
@@ -130,6 +134,72 @@ if ($Tkinter) {
     }
 }
 
+# --- Step 3c: Auto-detect and update existing agent hooks ---
+
+function Detect-InstalledAgents {
+    $agents = @()
+
+    # JSON-config agents: check file exists + contains "ai-guardian"
+    $claudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
+    $claudeConfig = Join-Path $claudeDir "settings.json"
+    if ((Test-Path $claudeConfig) -and (Select-String -Path $claudeConfig -Pattern "ai-guardian" -Quiet)) { $agents += "claude" }
+
+    $cursorConfig = Join-Path $HOME ".cursor\hooks.json"
+    if ((Test-Path $cursorConfig) -and (Select-String -Path $cursorConfig -Pattern "ai-guardian" -Quiet)) { $agents += "cursor" }
+
+    $copilotConfig = Join-Path $HOME ".github\hooks\hooks.json"
+    if ((Test-Path $copilotConfig) -and (Select-String -Path $copilotConfig -Pattern "ai-guardian" -Quiet)) { $agents += "copilot" }
+
+    $codexConfig = Join-Path $HOME ".codex\hooks.json"
+    if ((Test-Path $codexConfig) -and (Select-String -Path $codexConfig -Pattern "ai-guardian" -Quiet)) { $agents += "codex" }
+
+    $windsurfConfig = Join-Path $HOME ".codeium\windsurf\hooks.json"
+    if ((Test-Path $windsurfConfig) -and (Select-String -Path $windsurfConfig -Pattern "ai-guardian" -Quiet)) { $agents += "windsurf" }
+
+    $geminiConfig = Join-Path $HOME ".gemini\settings.json"
+    if ((Test-Path $geminiConfig) -and (Select-String -Path $geminiConfig -Pattern "ai-guardian" -Quiet)) { $agents += "gemini" }
+
+    $augmentConfig = Join-Path $HOME ".augment\settings.json"
+    if ((Test-Path $augmentConfig) -and (Select-String -Path $augmentConfig -Pattern "ai-guardian" -Quiet)) { $agents += "augment" }
+
+    # Plugin-file agents
+    $opencodePlugin = Join-Path $HOME ".config\opencode\plugins\ai-guardian.ts"
+    if (Test-Path $opencodePlugin) { $agents += "opencode" }
+
+    # Extension-based agents
+    $aiderdeskExt = Join-Path $HOME ".aider-desk\extensions\ai-guardian\index.ts"
+    if (Test-Path $aiderdeskExt) { $agents += "aiderdesk" }
+
+    $openclawExt = Join-Path $HOME ".openclaw\plugins\ai-guardian\index.ts"
+    if (Test-Path $openclawExt) { $agents += "openclaw" }
+
+    return $agents
+}
+
+if (-not $IDE -and -not $NoSetup) {
+    $DetectedAgents = Detect-InstalledAgents
+    if ($DetectedAgents.Count -gt 0) {
+        Log "Detected existing hooks, updating..."
+        $UpdatedAgents = @()
+        foreach ($agent in $DetectedAgents) {
+            try {
+                & $Python -m ai_guardian setup --ide $agent --force --yes @SetupArgs 2>&1 | Out-Null
+                $UpdatedAgents += $agent
+            } catch { }
+        }
+        if ($UpdatedAgents.Count -gt 0) {
+            Ok "Updated hooks for: $($UpdatedAgents -join ', ')"
+        }
+    } else {
+        Write-Host ""
+        Write-Host "  No existing hooks found. Run setup for your IDE:"
+        Write-Host "    ai-guardian setup --ide claude"
+        Write-Host "    ai-guardian setup --ide opencode"
+        Write-Host "    ai-guardian setup --ide cursor"
+        Write-Host ""
+    }
+}
+
 # --- Step 4: Create config ---
 
 Log "Creating configuration (profile: $Profile)..."
@@ -175,6 +245,8 @@ if ($Venv) {
 }
 if ($IDE) {
     Write-Host "  IDE:      $IDE"
+} elseif ($UpdatedAgents -and $UpdatedAgents.Count -gt 0) {
+    Write-Host "  Updated:  $($UpdatedAgents -join ', ')"
 }
 
 & $Python -c "import tkinter" 2>$null
@@ -195,7 +267,7 @@ Write-Host '    $env:AI_GUARDIAN_NO_TKINTER=1   skip tkinter, use NiceGUI or Tex
 Write-Host '    $env:AI_GUARDIAN_NO_NICEGUI=1   skip NiceGUI, use Textual'
 Write-Host ""
 Write-Host "  Next steps:"
-if (-not $IDE) {
+if (-not $IDE -and (-not $UpdatedAgents -or $UpdatedAgents.Count -eq 0)) {
     Write-Host "    ai-guardian setup --ide <NAME>  # setup hooks for your IDE"
 }
 Write-Host "    ai-guardian doctor         # verify setup"
