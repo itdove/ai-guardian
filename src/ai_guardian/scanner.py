@@ -12,6 +12,7 @@ Scans repository files for security issues using all Phase 1-4 detectors:
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
@@ -26,7 +27,7 @@ except ImportError:
     HAS_SSRF = False
 
 try:
-    from ai_guardian.prompt_injection import UnicodeAttackDetector
+    from ai_guardian.prompt_injection import UnicodeAttackDetector, _offset_to_line_number
     HAS_UNICODE = True
 except ImportError:
     HAS_UNICODE = False
@@ -64,7 +65,7 @@ except ImportError:
     HAS_PII_SCANNER = False
 
 try:
-    from ai_guardian.prompt_injection import check_prompt_injection
+    from ai_guardian.prompt_injection import check_prompt_injection, PromptInjectionDetector
     HAS_PROMPT_INJECTION = True
 except ImportError:
     HAS_PROMPT_INJECTION = False
@@ -77,6 +78,41 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_line_snippet(content: str, line_number: int, max_length: int = 80) -> Optional[str]:
+    """Extract a single-line snippet from content at the given 1-based line number."""
+    if not content or not line_number or line_number < 1:
+        return None
+    lines = content.split('\n')
+    if line_number > len(lines):
+        return None
+    snippet = lines[line_number - 1].strip()
+    if len(snippet) > max_length:
+        snippet = snippet[:max_length] + "..."
+    return snippet if snippet else None
+
+
+def _parse_position_from_details(details: str) -> Optional[int]:
+    """Extract character position from unicode detector details string."""
+    if not details:
+        return None
+    match = re.search(r'at position (\d+)', details)
+    return int(match.group(1)) if match else None
+
+
+def _find_in_original(content: str, matched_text: Optional[str]) -> Optional[int]:
+    """Find matched_text in original content and return 1-based line number.
+
+    The detector may operate on AST-extracted content, so its line numbers
+    don't map to the original file. Re-locate by searching original lines.
+    """
+    if not content or not matched_text:
+        return None
+    for i, line in enumerate(content.split('\n'), 1):
+        if matched_text in line:
+            return i
+    return None
 
 
 # Config file patterns (from Phase 3)
@@ -501,7 +537,6 @@ class FileScanner:
 
             if should_block:
                 # Extract the problematic URL from the reason or content
-                import re
                 url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
                 urls = re.findall(url_pattern, content)
 
@@ -535,53 +570,31 @@ class FileScanner:
     def _check_unicode_attacks(self, file_path: str, content: str) -> None:
         """Check for Unicode attacks in file content."""
         try:
-            # Check zero-width characters
-            is_attack, details = self.unicode_detector.detect_zero_width(content)
-            if is_attack:
-                finding = create_unicode_finding(
-                    attack_type="zero-width characters",
-                    details=f"Zero-width characters detected: {details}",
-                    file_path=file_path
-                )
-                self.findings.append(finding)
-                if self.verbose:
-                    print(f"  [UNICODE] Zero-width characters detected")
-
-            # Check bidirectional override
-            is_attack, details = self.unicode_detector.detect_bidi_override(content)
-            if is_attack:
-                finding = create_unicode_finding(
-                    attack_type="bidirectional override",
-                    details="Bidirectional override characters detected",
-                    file_path=file_path
-                )
-                self.findings.append(finding)
-                if self.verbose:
-                    print(f"  [UNICODE] Bidirectional override detected")
-
-            # Check homoglyphs
-            is_attack, details = self.unicode_detector.detect_homoglyphs(content)
-            if is_attack:
-                finding = create_unicode_finding(
-                    attack_type="homoglyphs",
-                    details=f"Homoglyph characters detected: {details}",
-                    file_path=file_path
-                )
-                self.findings.append(finding)
-                if self.verbose:
-                    print(f"  [UNICODE] Homoglyphs detected")
-
-            # Check tag characters
-            is_attack, details = self.unicode_detector.detect_tag_chars(content)
-            if is_attack:
-                finding = create_unicode_finding(
-                    attack_type="tag characters",
-                    details=f"Tag characters detected: {details}",
-                    file_path=file_path
-                )
-                self.findings.append(finding)
-                if self.verbose:
-                    print(f"  [UNICODE] Tag characters detected")
+            checks = [
+                ("zero-width characters", self.unicode_detector.detect_zero_width),
+                ("bidirectional override", self.unicode_detector.detect_bidi_override),
+                ("homoglyphs", self.unicode_detector.detect_homoglyphs),
+                ("tag characters", self.unicode_detector.detect_tag_chars),
+            ]
+            for attack_type, detect_fn in checks:
+                is_attack, details = detect_fn(content)
+                if is_attack:
+                    line_number = None
+                    snippet = None
+                    position = _parse_position_from_details(details)
+                    if position is not None:
+                        line_number = _offset_to_line_number(content, position)
+                        snippet = _get_line_snippet(content, line_number)
+                    finding = create_unicode_finding(
+                        attack_type=attack_type,
+                        details=f"{attack_type.title()} detected: {details}",
+                        file_path=file_path,
+                        line_number=line_number,
+                        snippet=snippet,
+                    )
+                    self.findings.append(finding)
+                    if self.verbose:
+                        print(f"  [UNICODE] {attack_type.title()} detected")
 
         except Exception as e:
             logger.debug(f"Error checking Unicode attacks: {e}")
@@ -601,9 +614,19 @@ class FileScanner:
             )
 
             if has_secrets and error_message:
+                line_number = None
+                secret_type = "secret"
+                if error_message:
+                    loc_match = re.search(r'Location: .*?:(\d+)', error_message)
+                    if loc_match:
+                        line_number = int(loc_match.group(1)) or None
+                    type_match = re.search(r'(?:Secret Type|Credential Type|PII Type): (.+)', error_message)
+                    if type_match:
+                        secret_type = type_match.group(1).strip()
                 finding = create_secret_finding(
-                    secret_type="secret",
+                    secret_type=secret_type,
                     file_path=file_path,
+                    line_number=line_number,
                 )
                 self.findings.append(finding)
                 if self.verbose:
@@ -623,9 +646,16 @@ class FileScanner:
             if has_pii and redactions:
                 pii_types_found = sorted({r.get("type", "unknown") for r in redactions})
                 for pii_type in pii_types_found:
+                    first_of_type = next(
+                        (r for r in redactions if r.get("type") == pii_type), {}
+                    )
+                    line_number = first_of_type.get("line_number")
+                    snippet = _get_line_snippet(content, line_number) if line_number else None
                     finding = create_pii_finding(
                         pii_type=pii_type,
                         file_path=file_path,
+                        line_number=line_number,
+                        snippet=snippet,
                     )
                     self.findings.append(finding)
                 if self.verbose:
@@ -640,17 +670,23 @@ class FileScanner:
             if not injection_config.get("enabled", True):
                 return
 
-            _should_block, error_message, detected = check_prompt_injection(
+            detector = PromptInjectionDetector(injection_config)
+            _should_block, error_message, detected = detector.detect(
                 content,
-                config=injection_config,
                 file_path=file_path,
                 source_type="file_content",
             )
 
             if detected and error_message:
+                line_number = _find_in_original(content, detector.last_matched_text)
+                if line_number is None:
+                    line_number = detector.last_line_number
+                snippet = _get_line_snippet(content, line_number) if line_number else None
                 finding = create_prompt_injection_finding(
                     description=error_message.splitlines()[0] if error_message else "Prompt injection detected",
                     file_path=file_path,
+                    line_number=line_number,
+                    snippet=snippet,
                 )
                 self.findings.append(finding)
                 if self.verbose:
