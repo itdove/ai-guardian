@@ -154,6 +154,72 @@ ai-guardian daemon start
 
 ---
 
+## Tray Plugin Popup Issues
+
+### Tray Quick Actions Open Browser Instead of Native Dialog (uv install)
+
+**Symptom:** Tray plugin parameter popups open a NiceGUI browser form instead of a native tkinter dialog, even on a system where tkinter should be available.
+
+**Cause:** When ai-guardian is installed via `uv tool install`, the Python runtime is python-build-standalone which may have an incomplete Tcl/Tk installation. Earlier versions of ai-guardian used an overly strict tkinter check (`package require Tk`) that failed on uv's Python even when tkinter itself worked fine. This was fixed in [#1037](https://github.com/itdove/ai-guardian/issues/1037).
+
+**Fix:** Upgrade to ai-guardian v1.11.0 or later:
+```bash
+uv tool upgrade ai-guardian
+```
+
+**Workaround:** The NiceGUI browser form is functionally identical — it opens in your default browser instead of a native window. No data or functionality is lost.
+
+**Verify tkinter works in your environment:**
+```bash
+# For uv installs:
+$(uv tool dir)/ai-guardian/bin/python -c "import tkinter; root = tkinter.Tk(); root.destroy(); print('OK')"
+
+# For venv/pip installs:
+python -c "import tkinter; root = tkinter.Tk(); root.destroy(); print('OK')"
+```
+
+**Force a specific popup backend:**
+```bash
+AI_GUARDIAN_NO_TKINTER=1    # skip tkinter, use NiceGUI or Textual
+AI_GUARDIAN_NO_NICEGUI=1    # skip NiceGUI, use Textual
+```
+
+### tkinter Not Available on Python 3.14 (uv)
+
+**Symptom:** `import tkinter` fails with Python 3.14 installed via uv.
+
+**Cause:** uv uses python-build-standalone binaries which may not include Tcl/Tk libraries for newer Python versions. This is a [known upstream issue](https://github.com/astral-sh/uv/issues/7036).
+
+**Workaround:** Use Python 3.12 or 3.13 for full tkinter/tray support:
+```bash
+uv tool install ai-guardian --python 3.13
+```
+
+Or use the NiceGUI/Textual fallback — the tray plugin cascade handles this automatically.
+
+### tkinter Crashes with SIGABRT on macOS
+
+**Symptom:** The tray popup crashes immediately with a `SIGABRT` or `NSInvalidArgumentException` on macOS.
+
+**Cause:** On macOS, if PyObjC's `NSApplication.sharedApplication()` is initialized before `tkinter.Tk()`, the Objective-C runtime creates an NSApplication wrapper that lacks Tk's `macOSVersion` category method. When tkinter later tries to call this method, the process aborts.
+
+**Fix:** This was fixed in [#1037](https://github.com/itdove/ai-guardian/issues/1037). Upgrade to v1.11.0 or later.
+
+**Workaround:** Skip tkinter and use the NiceGUI fallback:
+```bash
+export AI_GUARDIAN_NO_TKINTER=1
+```
+
+### Tcl Can't Find init.tcl from Tray Daemon
+
+**Symptom:** tkinter works from the CLI but fails when launched from the tray daemon subprocess with an error like `can't find a usable init.tcl`.
+
+**Cause:** uv's venv uses symlinks to the python-build-standalone install. When the tray daemon resolves the Python executable, Tcl searches for `init.tcl` relative to the symlink rather than the real Python install path.
+
+**Fix:** Fixed in [#1037](https://github.com/itdove/ai-guardian/issues/1037) — ai-guardian now resolves the real Python path and sets `TCL_LIBRARY` to the correct location. Upgrade to v1.11.0 or later.
+
+---
+
 ## Container-Specific Issues
 
 ### Container Entrypoint Starting Daemon Before Config Is Ready
