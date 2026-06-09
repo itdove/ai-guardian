@@ -7,6 +7,7 @@ INSTALL_MODE=""
 VENV_DIR="$HOME/.ai-guardian-venv"
 IDE=""
 INSTALL_TKINTER=false
+NO_SETUP=false
 SETUP_ARGS=()
 
 usage() {
@@ -32,6 +33,7 @@ Options:
                         Choices: claude, cursor, copilot, codex, windsurf,
                                  gemini, cline, zoocode, augment, kiro, junie,
                                  aiderdesk, opencode
+    --no-setup          Install only, don't auto-detect or update IDE hooks
     --profile PROFILE   Security profile: @minimal, @standard (default), @strict
     --version VERSION   Install a specific version or a local .whl file
     --tkinter           Install tkinter for native popup dialogs (optional)
@@ -56,6 +58,9 @@ Examples:
     # Force bare pip install
     curl -fsSL .../install.sh | bash -s -- --pip
 
+    # Install only, don't update existing IDE hooks
+    curl -fsSL .../install.sh | bash -s -- --uv --no-setup
+
     # Install a specific version
     curl -fsSL .../install.sh | bash -s -- --version 1.9.0
 
@@ -73,6 +78,29 @@ err() { printf '\033[1;31mError:\033[0m %s\n' "$1" >&2; }
 
 has_uv() { command -v uv >/dev/null 2>&1; }
 
+detect_installed_agents() {
+    local agents=()
+
+    # JSON-config agents: check file exists + contains "ai-guardian"
+    local claude_config="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+    [ -f "$claude_config" ] && grep -q "ai-guardian" "$claude_config" 2>/dev/null && agents+=("claude")
+    [ -f "$HOME/.cursor/hooks.json" ] && grep -q "ai-guardian" "$HOME/.cursor/hooks.json" 2>/dev/null && agents+=("cursor")
+    [ -f "$HOME/.github/hooks/hooks.json" ] && grep -q "ai-guardian" "$HOME/.github/hooks/hooks.json" 2>/dev/null && agents+=("copilot")
+    [ -f "$HOME/.codex/hooks.json" ] && grep -q "ai-guardian" "$HOME/.codex/hooks.json" 2>/dev/null && agents+=("codex")
+    [ -f "$HOME/.codeium/windsurf/hooks.json" ] && grep -q "ai-guardian" "$HOME/.codeium/windsurf/hooks.json" 2>/dev/null && agents+=("windsurf")
+    [ -f "$HOME/.gemini/settings.json" ] && grep -q "ai-guardian" "$HOME/.gemini/settings.json" 2>/dev/null && agents+=("gemini")
+    [ -f "$HOME/.augment/settings.json" ] && grep -q "ai-guardian" "$HOME/.augment/settings.json" 2>/dev/null && agents+=("augment")
+
+    # Plugin-file agents: check file exists
+    [ -f "$HOME/.config/opencode/plugins/ai-guardian.ts" ] && agents+=("opencode")
+
+    # Extension-based agents: check index.ts exists + contains "ai-guardian"
+    [ -f "$HOME/.aider-desk/extensions/ai-guardian/index.ts" ] && agents+=("aiderdesk")
+    [ -f "$HOME/.openclaw/plugins/ai-guardian/index.ts" ] && agents+=("openclaw")
+
+    echo "${agents[@]}"
+}
+
 # --- Parse arguments ---
 
 while [ $# -gt 0 ]; do
@@ -83,6 +111,7 @@ while [ $# -gt 0 ]; do
         --ide)     [ $# -ge 2 ] || { echo "Error: --ide requires a value" >&2; exit 1; }; IDE="$2"; shift 2 ;;
         --profile) [ $# -ge 2 ] || { echo "Error: --profile requires a value" >&2; exit 1; }; PROFILE="$2"; shift 2 ;;
         --version) [ $# -ge 2 ] || { echo "Error: --version requires a value" >&2; exit 1; }; VERSION="$2"; shift 2 ;;
+        --no-setup) NO_SETUP=true; shift ;;
         --tkinter) INSTALL_TKINTER=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *)         SETUP_ARGS+=("$1"); shift ;;
@@ -258,6 +287,32 @@ if [ "$INSTALL_TKINTER" = true ]; then
     fi
 fi
 
+# --- Step 3c: Auto-detect and update existing agent hooks ---
+
+if [ -z "$IDE" ] && [ "$NO_SETUP" = false ]; then
+    DETECTED=$(detect_installed_agents)
+    if [ -n "$DETECTED" ]; then
+        log "Detected existing hooks, updating..."
+        UPDATED=()
+        for agent in $DETECTED; do
+            if $AG_CMD setup --ide "$agent" --force --yes \
+                "${SETUP_ARGS[@]+"${SETUP_ARGS[@]}"}" >/dev/null 2>&1; then
+                UPDATED+=("$agent")
+            fi
+        done
+        if [ ${#UPDATED[@]} -gt 0 ]; then
+            ok "Updated hooks for: ${UPDATED[*]}"
+        fi
+    else
+        echo ""
+        echo "  No existing hooks found. Run setup for your IDE:"
+        echo "    ai-guardian setup --ide claude"
+        echo "    ai-guardian setup --ide opencode"
+        echo "    ai-guardian setup --ide cursor"
+        echo ""
+    fi
+fi
+
 # --- Step 4: Create config ---
 
 log "Creating configuration (profile: $PROFILE)..."
@@ -300,6 +355,8 @@ if [ "$INSTALL_MODE" = "venv" ]; then
 fi
 if [ -n "$IDE" ]; then
     echo "  IDE:      $IDE"
+elif [ -n "${UPDATED+x}" ] && [ ${#UPDATED[@]} -gt 0 ]; then
+    echo "  Updated:  ${UPDATED[*]}"
 fi
 if "$PYTHON" -c "import tkinter" 2>/dev/null; then
     echo "  Popups:   tkinter (native dialogs)"
@@ -314,7 +371,7 @@ echo "    AI_GUARDIAN_NO_TKINTER=1   skip tkinter, use NiceGUI or Textual"
 echo "    AI_GUARDIAN_NO_NICEGUI=1   skip NiceGUI, use Textual"
 echo ""
 echo "  Next steps:"
-if [ -z "$IDE" ]; then
+if [ -z "$IDE" ] && { [ -z "${UPDATED+x}" ] || [ ${#UPDATED[@]} -eq 0 ]; }; then
     echo "    ai-guardian setup --ide <NAME>  # setup hooks for your IDE"
 fi
 echo "    ai-guardian doctor         # verify setup"
