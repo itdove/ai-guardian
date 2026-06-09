@@ -150,9 +150,21 @@ def _is_placeholder(value: str) -> bool:
     return bool(_PLACEHOLDER_RE.search(value))
 
 
+_CONTAINER_IMAGE_RE = re.compile(
+    r'^(?:localhost|[\w.-]+\.(?:io|com|net|org|dev|cloud|local))'
+    r'/[\w./-]+(?::[\w./-]+)?$',
+)
+
+
+def _is_container_image(value: str) -> bool:
+    """Check if a value looks like a container image reference."""
+    return bool(_CONTAINER_IMAGE_RE.match(value))
+
+
 def env_not_file_path(matched_text: str) -> bool:
     """Return False (skip) if the env var value is a filesystem path,
-    starts with underscore (Python identifier), or looks like a placeholder.
+    starts with underscore (Python identifier), looks like a placeholder,
+    or is a container image reference.
     """
     eq_pos = matched_text.find('=')
     if eq_pos < 0:
@@ -163,6 +175,8 @@ def env_not_file_path(matched_text: str) -> bool:
     if value.startswith('_'):
         return False
     if _is_placeholder(value):
+        return False
+    if _is_container_image(value):
         return False
     return not _is_file_path(value)
 

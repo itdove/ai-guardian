@@ -8,6 +8,7 @@ from ai_guardian.patterns.validators import (
     get_validator,
     token_not_placeholder,
     _is_connection_placeholder,
+    _is_container_image,
     _is_file_path,
     _is_placeholder,
     _is_token_placeholder,
@@ -91,9 +92,68 @@ class TestEnvNotFilePath:
     def test_placeholder_here_suffix_skipped(self):
         assert env_not_file_path("KEY=put-your-secret-here") is False
 
+    def test_container_image_localhost_skipped(self):
+        """Issue #1019: container image references should not be flagged."""
+        assert env_not_file_path("CARBONITE_IMAGE=localhost/carbonite-dev") is False
+
+    def test_container_image_ghcr_skipped(self):
+        assert env_not_file_path("IMAGE=ghcr.io/org/my-image") is False
+
+    def test_container_image_registry_skipped(self):
+        assert env_not_file_path("IMG=registry.example.com/project/image") is False
+
+    def test_container_image_with_tag_skipped(self):
+        assert env_not_file_path("IMG=quay.io/namespace/app:latest") is False
+
+    def test_container_image_quoted_skipped(self):
+        assert env_not_file_path('IMAGE="localhost/carbonite-dev"') is False
+
+    def test_container_image_nested_path_skipped(self):
+        assert env_not_file_path("IMG=registry.redhat.io/rhel9/python-312") is False
+
+    def test_container_image_dot_local_skipped(self):
+        assert env_not_file_path("IMG=myregistry.local/team/service") is False
+
     def test_registry_lookup(self):
         validator = get_validator("env_not_file_path")
         assert validator is env_not_file_path
+
+
+class TestIsContainerImage:
+    """Tests for _is_container_image helper (Issue #1019)."""
+
+    def test_localhost_image(self):
+        assert _is_container_image("localhost/carbonite-dev") is True
+
+    def test_ghcr_io(self):
+        assert _is_container_image("ghcr.io/org/image") is True
+
+    def test_quay_io_with_tag(self):
+        assert _is_container_image("quay.io/namespace/app:latest") is True
+
+    def test_registry_com(self):
+        assert _is_container_image("registry.example.com/project/image") is True
+
+    def test_registry_dot_local(self):
+        assert _is_container_image("myregistry.local/team/service") is True
+
+    def test_docker_io(self):
+        assert _is_container_image("docker.io/library/nginx") is True
+
+    def test_gcr_io(self):
+        assert _is_container_image("gcr.io/project/image:v1.2.3") is True
+
+    def test_registry_dev(self):
+        assert _is_container_image("registry.dev/my-org/my-app") is True
+
+    def test_bare_value_not_image(self):
+        assert _is_container_image("wJalrXUtnFEMIK7MDENG") is False
+
+    def test_no_slash_not_image(self):
+        assert _is_container_image("localhost") is False
+
+    def test_random_host_no_tld_not_image(self):
+        assert _is_container_image("myhost/something") is False
 
 
 class TestIsPlaceholder:
