@@ -831,7 +831,7 @@
         },
         "ml_engines": {
           "type": "array",
-          "description": "ML engines for prompt injection detection (NEW in v1.11.0, Issue #185). Each engine runs an ONNX model in the daemon process. Requires: pip install ai-guardian[ml] and ai-guardian ml download.",
+          "description": "ML engines for prompt injection detection (NEW in v1.11.0, Issue #185). Each engine runs an ONNX model in the daemon process. Requires: onnxruntime (included on Python < 3.13) and ai-guardian ml download.",
           "items": {
             "type": "object",
             "properties": {

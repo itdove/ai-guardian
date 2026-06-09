@@ -192,7 +192,7 @@ class PIMLEnginesContent(Container):
                     ']\n\n'
                     "Valid engine types: llm-guard\n"
                     "threshold: 0.0-1.0 (default 0.85)\n\n"
-                    "Requires: pip install ai-guardian[ml]\n"
+                    "Requires: onnxruntime (included on Python < 3.13)\n"
                     "Download models: ai-guardian ml download",
                     markup=False,
                 )
@@ -273,10 +273,10 @@ class PIMLEnginesContent(Container):
 
             lines = []
             if available:
-                lines.append("[green]ML dependencies installed (onnxruntime, tokenizers)[/green]")
+                lines.append("[green]ML dependencies available (onnxruntime, tokenizers)[/green]")
             else:
-                lines.append("[red]ML dependencies not installed[/red]")
-                lines.append("[dim]Install with: pip install ai-guardian\\[ml][/dim]")
+                lines.append("[red]ML dependencies not available[/red]")
+                lines.append("[dim]onnxruntime required (included on Python < 3.13 via rapidocr-onnxruntime)[/dim]")
 
             for m in models:
                 status = "[green]downloaded[/green]" if m.get("downloaded") else "[dim]not downloaded[/dim]"

@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New CLI: `ai-guardian ml download|list|status|verify`
   - New daemon endpoints: socket `ml_detect`, REST `POST /api/ml-detect`, `GET /api/ml-status`
   - Doctor health check for ML dependencies and model availability
-  - Optional dependencies: `pip install ai-guardian[ml]` (onnxruntime, tokenizers)
+  - `tokenizers` moved to main dependencies (Python 3.10+); `onnxruntime` bundled via `rapidocr-onnxruntime` (Python < 3.13)
 
 ### Fixed
 

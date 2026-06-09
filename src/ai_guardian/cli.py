@@ -87,8 +87,7 @@ def _handle_ml_command(args, ml_parser):
     if cmd == "download":
         from ai_guardian.ml_detection import is_ml_available, download_model
         if not is_ml_available():
-            print("Error: ML dependencies not installed.", file=sys.stderr)
-            print("Install with: pip install ai-guardian[ml]", file=sys.stderr)
+            print("Error: ML dependencies not available (onnxruntime required).", file=sys.stderr)
             return 1
         try:
             model_dir = download_model(

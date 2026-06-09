@@ -56,8 +56,10 @@ Models run exclusively in the daemon process to avoid the startup cost on every 
 ### Prerequisites
 
 ```bash
-# Install ML dependencies (onnxruntime + tokenizers)
-pip install ai-guardian[ml]
+# tokenizers is included as a main dependency
+# onnxruntime is included via rapidocr-onnxruntime on Python < 3.13
+# On Python 3.13+, install onnxruntime separately:
+# pip install onnxruntime
 
 # Download the default model (~370 MB)
 ai-guardian ml download
@@ -211,17 +213,19 @@ Response:
 |--------|-----------|-----------|--------|
 | Latency | <1ms | 10-50ms | <1ms (most), +10-50ms (uncertain) |
 | Memory | ~5 MB | ~400-600 MB per model | Same as ML |
-| Dependencies | None | onnxruntime, tokenizers | Same as ML |
+| Dependencies | None | onnxruntime (bundled), tokenizers (bundled) | Same as ML |
 | Startup | Instant | 1-3s (first load) | Same as ML |
 
 The hybrid mode provides the best balance: most requests are handled by the fast heuristic, with ML consulted only for uncertain cases (confidence between 0.3 and 0.85).
 
 ## Troubleshooting
 
-### "ML dependencies not installed"
+### "ML dependencies not available"
 
 ```bash
-pip install ai-guardian[ml]
+# onnxruntime is bundled via rapidocr-onnxruntime on Python < 3.13
+# On Python 3.13+, install separately:
+pip install onnxruntime
 ```
 
 ### "Model not downloaded"

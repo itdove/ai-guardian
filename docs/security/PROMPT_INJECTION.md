@@ -40,10 +40,10 @@ Three detector modes are available via `prompt_injection.detector`:
 ### Setup
 
 ```bash
-# 1. Install ML dependencies
-pip install ai-guardian[ml]
+# ML dependencies (tokenizers, onnxruntime) are bundled on Python 3.10+
+# On Python 3.13+, install onnxruntime separately: pip install onnxruntime
 
-# 2. Download the model (~370 MB)
+# 1. Download the model (~370 MB)
 ai-guardian ml download
 
 # 3. Configure detector mode

@@ -369,7 +369,7 @@
     "_detector_options": ["heuristic", "ml", "hybrid", "rebuff", "llm-guard"],
     "_detector_note": "heuristic = local patterns (default, <1ms), ml = ML-only via daemon (10-50ms), hybrid = heuristic first then ML for uncertain cases, rebuff/llm-guard = legacy stubs",
     "ml_engines": [],
-    "_ml_engines_note": "ML engines for prompt injection detection (NEW in v1.11.0). Requires daemon mode, pip install ai-guardian[ml], and ai-guardian ml download.",
+    "_ml_engines_note": "ML engines for prompt injection detection (NEW in v1.11.0). Requires daemon mode, onnxruntime (included on Python < 3.13), and ai-guardian ml download.",
     "_ml_engines_example": [
       {
         "type": "llm-guard",
