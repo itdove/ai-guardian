@@ -172,6 +172,28 @@ if [ -n "$VERSION" ]; then
     esac
 fi
 
+# --- Step 2b: Detect running daemon/tray (for restart after upgrade) ---
+
+DAEMON_WAS_RUNNING=false
+TRAY_WAS_RUNNING=false
+STATE_DIR="${AI_GUARDIAN_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ai-guardian}"
+
+DAEMON_PID_FILE="$STATE_DIR/daemon.pid"
+if [ -f "$DAEMON_PID_FILE" ]; then
+    DAEMON_PID=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['pid'])" "$DAEMON_PID_FILE" 2>/dev/null)
+    if [ -n "$DAEMON_PID" ] && kill -0 "$DAEMON_PID" 2>/dev/null; then
+        DAEMON_WAS_RUNNING=true
+    fi
+fi
+
+TRAY_LOCK="$STATE_DIR/tray.lock"
+if [ -f "$TRAY_LOCK" ]; then
+    TRAY_PID=$(cat "$TRAY_LOCK" 2>/dev/null)
+    if [ -n "$TRAY_PID" ] && kill -0 "$TRAY_PID" 2>/dev/null; then
+        TRAY_WAS_RUNNING=true
+    fi
+fi
+
 # --- Step 3: Install ai-guardian ---
 
 INSTALL_DESC=""
@@ -226,6 +248,27 @@ else
     AG_VERSION=$($AG_CMD --version 2>&1 | awk '{print $NF}')
 fi
 ok "ai-guardian $AG_VERSION installed ($INSTALL_DESC)"
+
+# --- Step 3a: Restart daemon/tray if they were running before upgrade ---
+
+RESTARTED=""
+if [ "$DAEMON_WAS_RUNNING" = true ]; then
+    log "Restarting daemon (was running before upgrade)..."
+    $AG_CMD daemon stop 2>/dev/null || true
+    $AG_CMD daemon start 2>/dev/null && {
+        ok "Daemon restarted"
+        RESTARTED="${RESTARTED:+$RESTARTED, }daemon"
+    } || echo "  Warning: daemon restart failed — start manually with: ai-guardian daemon start"
+fi
+
+if [ "$TRAY_WAS_RUNNING" = true ]; then
+    log "Restarting tray (was running before upgrade)..."
+    $AG_CMD tray stop 2>/dev/null || true
+    $AG_CMD tray start 2>/dev/null && {
+        ok "Tray restarted"
+        RESTARTED="${RESTARTED:+$RESTARTED, }tray"
+    } || echo "  Warning: tray restart failed — start manually with: ai-guardian tray start"
+fi
 
 # --- Step 3b: Install tkinter (optional) ---
 
@@ -360,10 +403,17 @@ elif [ -n "${UPDATED+x}" ] && [ ${#UPDATED[@]} -gt 0 ]; then
 fi
 if "$PYTHON" -c "import tkinter" 2>/dev/null; then
     echo "  Popups:   tkinter (native dialogs)"
+    if [ "$INSTALL_MODE" = "uv" ]; then
+        echo "            Note: uv's python-build-standalone may have incomplete Tcl/Tk."
+        echo "            If native popups fail, NiceGUI browser fallback activates automatically."
+    fi
 elif "$PYTHON" -c "import nicegui" 2>/dev/null; then
     echo "  Popups:   NiceGUI (browser-based form)"
 else
     echo "  Popups:   Textual (terminal fallback)"
+fi
+if [ -n "$RESTARTED" ]; then
+    echo "  Restarted: $RESTARTED"
 fi
 echo ""
 echo "  Popup override env vars:"
@@ -375,8 +425,12 @@ if [ -z "$IDE" ] && { [ -z "${UPDATED+x}" ] || [ ${#UPDATED[@]} -eq 0 ]; }; then
     echo "    ai-guardian setup --ide <NAME>  # setup hooks for your IDE"
 fi
 echo "    ai-guardian doctor         # verify setup"
-echo "    ai-guardian daemon start   # start background daemon"
-echo "    ai-guardian tray start     # start system tray"
+if [ "$DAEMON_WAS_RUNNING" != true ]; then
+    echo "    ai-guardian daemon start   # start background daemon"
+fi
+if [ "$TRAY_WAS_RUNNING" != true ]; then
+    echo "    ai-guardian tray start     # start system tray"
+fi
 echo "    ai-guardian --help         # see all commands"
 if [ "$INSTALL_MODE" = "venv" ]; then
     echo "    source $VENV_DIR/bin/activate  # activate venv"

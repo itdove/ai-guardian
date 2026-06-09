@@ -112,6 +112,7 @@ class Doctor:
             self.check_directory_rules,
             self.check_console_deps,
             self.check_tray_support,
+            self.check_tkinter_support,
             self.check_terminal_emulator,
             self.check_config_consistency,
             self.check_tighten_only,
@@ -1227,6 +1228,50 @@ class Doctor:
                 "log out/in, then: gnome-extensions enable "
                 "appindicatorsupport@rgcjonas.gmail.com"
             ),
+        )
+
+    def check_tkinter_support(self) -> CheckResult:
+        """Check if tkinter is available for native tray plugin popups."""
+        if os.environ.get("AI_GUARDIAN_NO_TKINTER"):
+            return CheckResult(
+                name="tkinter_support",
+                status=CheckStatus.SKIP,
+                message="Disabled via AI_GUARDIAN_NO_TKINTER",
+            )
+
+        try:
+            import tkinter  # noqa: F401
+        except ImportError:
+            try:
+                import nicegui  # noqa: F401
+                return CheckResult(
+                    name="tkinter_support",
+                    status=CheckStatus.PASS,
+                    message="tkinter unavailable — NiceGUI fallback active",
+                )
+            except ImportError:
+                return CheckResult(
+                    name="tkinter_support",
+                    status=CheckStatus.WARN,
+                    message="tkinter unavailable — popups use Textual terminal fallback",
+                    fix_hint=(
+                        "Install tkinter for native popups: "
+                        "brew install tcl-tk (macOS/pyenv), "
+                        "dnf install python3-tkinter (RHEL), "
+                        "apt install python3-tk (Debian)"
+                    ),
+                )
+
+        try:
+            import nicegui  # noqa: F401
+            fallback = "NiceGUI"
+        except ImportError:
+            fallback = "Textual"
+
+        return CheckResult(
+            name="tkinter_support",
+            status=CheckStatus.PASS,
+            message=f"tkinter available (fallback: {fallback})",
         )
 
     def check_terminal_emulator(self) -> CheckResult:
