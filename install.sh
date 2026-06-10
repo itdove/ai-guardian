@@ -205,37 +205,45 @@ fi
 # --- Step 2c: Install Linux system headers for PyGObject (if needed) ---
 
 if [ "$(uname -s)" = "Linux" ]; then
-    NEED_GI_HEADERS=false
-    "$PYTHON" -c "import gi" 2>/dev/null || NEED_GI_HEADERS=true
+    # Skip on headless — tray (and PyGObject) only needed with a display
+    HEADERS_HAS_DISPLAY=false
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && HEADERS_HAS_DISPLAY=true
 
-    if [ "$NEED_GI_HEADERS" = true ]; then
-        log "Installing GObject Introspection headers (required for tray on Linux)..."
-        if command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc 2>/dev/null && \
-                ok "GObject headers installed via dnf" || \
-                echo "  Warning: could not install GObject headers — tray may not work"
-        elif command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-ayatanaappindicator3-0.1 2>/dev/null && \
-                ok "GObject headers installed via apt" || \
-                echo "  Warning: could not install GObject headers — tray may not work"
-        elif command -v zypper >/dev/null 2>&1; then
-            sudo zypper install -y gobject-introspection-devel cairo-devel pkg-config python3-devel gcc 2>/dev/null && \
-                ok "GObject headers installed via zypper" || \
-                echo "  Warning: could not install GObject headers — tray may not work"
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm gobject-introspection cairo pkgconf python gcc 2>/dev/null && \
-                ok "GObject headers installed via pacman" || \
-                echo "  Warning: could not install GObject headers — tray may not work"
-        else
-            echo "  Warning: could not detect package manager for GObject headers."
-            echo "  Install manually:"
-            echo "    Fedora/RHEL:     sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
-            echo "    Debian/Ubuntu:   sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
-            echo "    openSUSE:        sudo zypper install gobject-introspection-devel cairo-devel pkg-config python3-devel gcc"
-            echo "    Arch:            sudo pacman -S gobject-introspection cairo pkgconf python gcc"
-        fi
+    if [ "$HEADERS_HAS_DISPLAY" = false ]; then
+        echo "  Skipping GObject headers — no display detected (headless environment)"
     else
-        ok "GObject Introspection already available"
+        NEED_GI_HEADERS=false
+        "$PYTHON" -c "import gi" 2>/dev/null || NEED_GI_HEADERS=true
+
+        if [ "$NEED_GI_HEADERS" = true ]; then
+            log "Installing GObject Introspection headers (required for tray on Linux)..."
+            if command -v dnf >/dev/null 2>&1; then
+                sudo dnf install -y gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc 2>/dev/null && \
+                    ok "GObject headers installed via dnf" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            elif command -v apt-get >/dev/null 2>&1; then
+                sudo apt-get install -y libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-ayatanaappindicator3-0.1 2>/dev/null && \
+                    ok "GObject headers installed via apt" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            elif command -v zypper >/dev/null 2>&1; then
+                sudo zypper install -y gobject-introspection-devel cairo-devel pkg-config python3-devel gcc 2>/dev/null && \
+                    ok "GObject headers installed via zypper" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            elif command -v pacman >/dev/null 2>&1; then
+                sudo pacman -S --noconfirm gobject-introspection cairo pkgconf python gcc 2>/dev/null && \
+                    ok "GObject headers installed via pacman" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            else
+                echo "  Warning: could not detect package manager for GObject headers."
+                echo "  Install manually:"
+                echo "    Fedora/RHEL:     sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
+                echo "    Debian/Ubuntu:   sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
+                echo "    openSUSE:        sudo zypper install gobject-introspection-devel cairo-devel pkg-config python3-devel gcc"
+                echo "    Arch:            sudo pacman -S gobject-introspection cairo pkgconf python gcc"
+            fi
+        else
+            ok "GObject Introspection already available"
+        fi
     fi
 fi
 
@@ -294,7 +302,53 @@ else
 fi
 ok "ai-guardian $AG_VERSION installed ($INSTALL_DESC)"
 
-# --- Step 3a: Restart daemon/tray if they were running before upgrade ---
+# --- Step 3a: Install PyGObject for Linux tray support ---
+
+if [ "$(uname -s)" = "Linux" ]; then
+    # Skip on headless systems — tray needs a display
+    LINUX_HAS_DISPLAY=false
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && LINUX_HAS_DISPLAY=true
+
+    if [ "$LINUX_HAS_DISPLAY" = false ]; then
+        echo "  Skipping PyGObject — no display detected (headless environment)"
+    else
+    log "Installing PyGObject for Linux tray support..."
+    GI_INSTALLED=false
+    case "$INSTALL_MODE" in
+        uv)
+            # Install into uv tool's isolated environment
+            UV_TOOL_ENV="$HOME/.local/share/uv/tools/ai-guardian"
+            if [ -d "$UV_TOOL_ENV" ]; then
+                UV_TOOL_PYTHON=$(find "$UV_TOOL_ENV" -path "*/bin/python3" -type f 2>/dev/null | head -1)
+                if [ -n "$UV_TOOL_PYTHON" ]; then
+                    uv pip install --python "$UV_TOOL_PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+                fi
+            fi
+            ;;
+        venv)
+            if has_uv; then
+                uv pip install --python "$PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+            fi
+            if [ "$GI_INSTALLED" = false ]; then
+                "$PYTHON" -m pip install --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+            fi
+            ;;
+        pip)
+            "$PYTHON" -m pip install --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+            ;;
+    esac
+    if [ "$GI_INSTALLED" = true ]; then
+        ok "PyGObject installed (tray will use AppIndicator backend)"
+    else
+        echo "  Warning: PyGObject install failed — tray may not work on Linux"
+        echo "  System headers may be needed:"
+        echo "    Fedora/RHEL:   sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
+        echo "    Debian/Ubuntu: sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
+    fi
+    fi  # LINUX_HAS_DISPLAY
+fi
+
+# --- Step 3b: Restart daemon/tray if they were running before upgrade ---
 
 RESTARTED=""
 if [ "$DAEMON_WAS_RUNNING" = true ]; then
@@ -315,7 +369,7 @@ if [ "$TRAY_WAS_RUNNING" = true ]; then
     } || echo "  Warning: tray restart failed — start manually with: ai-guardian tray start"
 fi
 
-# --- Step 3b: Install tkinter (optional) ---
+# --- Step 3c: Install tkinter (optional) ---
 
 if [ "$INSTALL_TKINTER" = true ]; then
     # Skip on headless systems — tkinter needs a display
@@ -375,7 +429,7 @@ if [ "$INSTALL_TKINTER" = true ]; then
     fi
 fi
 
-# --- Step 3c: Auto-detect and update existing agent hooks ---
+# --- Step 3d: Auto-detect and update existing agent hooks ---
 
 if [ -z "$IDE" ] && [ "$NO_SETUP" = false ]; then
     DETECTED=$(detect_installed_agents)
