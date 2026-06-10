@@ -1333,7 +1333,7 @@ class Doctor:
         )
 
     def check_self_protection(self) -> CheckResult:
-        """Verify immutable patterns protect config/state/cache from agent Read access."""
+        """Verify immutable patterns protect config/state/cache from agent access."""
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
 
         issues = []
@@ -1358,18 +1358,28 @@ class Doctor:
             if required not in bash_patterns:
                 issues.append(f"Missing Bash pattern: {required}")
 
+        for required in [
+            "*ai-guardian*pause*",
+            "*ai-guardian*resume*",
+            "*ai-guardian*stop*",
+            "*ai-guardian*disable*",
+            "*ai-guardian*uninstall*",
+        ]:
+            if required not in bash_patterns:
+                issues.append(f"Missing Bash CLI pattern: {required}")
+
         if issues:
             return CheckResult(
                 name="self_protection",
                 status=CheckStatus.FAIL,
-                message=f"{len(issues)} gap(s) in agent read protection",
+                message=f"{len(issues)} gap(s) in agent protection",
                 detail="\n".join(f"  - {i}" for i in issues),
             )
 
         return CheckResult(
             name="self_protection",
             status=CheckStatus.PASS,
-            message="Config, state, cache read-protected from agent",
+            message="Config, state, cache, CLI read-protected from agent",
         )
 
     def check_image_scanning(self) -> CheckResult:

@@ -1025,5 +1025,41 @@ def test_bash_blocks_agent_hook_commands(policy_checker, command):
     assert not is_allowed, f"Bash command should be blocked: {command}"
 
 
+# ============================================================================
+# Issue #1072: Self-protection — block agent from running ai-guardian CLI
+# ============================================================================
+
+CLI_SELF_PROTECTION_BLOCKED_COMMANDS = [
+    # pause
+    pytest.param("ai-guardian pause 5", id="pause-with-minutes"),
+    pytest.param("ai-guardian pause", id="pause-no-args"),
+    # resume
+    pytest.param("ai-guardian resume", id="resume"),
+    # stop
+    pytest.param("ai-guardian stop", id="stop"),
+    # disable
+    pytest.param("ai-guardian disable", id="disable"),
+    # uninstall
+    pytest.param("ai-guardian uninstall", id="uninstall"),
+    # daemon stop
+    pytest.param("ai-guardian daemon stop", id="daemon-stop"),
+    # tray stop
+    pytest.param("ai-guardian tray stop", id="tray-stop"),
+]
+
+
+@pytest.mark.parametrize("command", CLI_SELF_PROTECTION_BLOCKED_COMMANDS)
+def test_bash_blocks_ai_guardian_cli_self_protection(policy_checker, command):
+    """AI cannot run ai-guardian pause/resume/stop/disable/uninstall (Issue #1072)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Bash", "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Bash command should be blocked: {command}"
+
+
 if __name__ == '__main__':
     pytest.main([__file__])
