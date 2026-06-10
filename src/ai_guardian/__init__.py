@@ -73,9 +73,12 @@ _suppress_logging = (
     or "mcp-server" in sys.argv
     or ("setup" in sys.argv and "--json" in sys.argv)
 )
+_scan_quiet = ("scan" in sys.argv and "--verbose" not in sys.argv and "-v" not in sys.argv)
 _quiet_stderr = "tray-prompt" in sys.argv or "tray-target-select" in sys.argv
 if _quiet_stderr:
     _stderr_handler.setLevel(logging.CRITICAL)
+    import platform
+elif _scan_quiet:
     import platform
 elif not _suppress_logging:
     logger.info(f"AI Guardian v{__version__} initialized")

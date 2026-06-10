@@ -189,3 +189,45 @@ class TestScanCommandDiffMode:
         rc = scan_command(args)
 
         assert rc == 1
+
+
+class TestScanCommandLoggingSuppression:
+    """Tests for --verbose logging control (issue #1044)."""
+
+    import logging
+
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_directory")
+    def test_default_suppresses_stderr_logging(self, mock_scan):
+        """Without --verbose, stderr handlers should be raised to CRITICAL+1."""
+        mock_scan.return_value = []
+
+        args = _make_args(verbose=False)
+        scan_command(args)
+
+        root = self.logging.getLogger()
+        stream_handlers = [
+            h for h in root.handlers
+            if isinstance(h, self.logging.StreamHandler)
+            and not isinstance(h, self.logging.FileHandler)
+        ]
+        for h in stream_handlers:
+            assert h.level > self.logging.ERROR
+
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_directory")
+    def test_verbose_preserves_stderr_logging(self, mock_scan):
+        """With --verbose, stderr handler levels should not be raised."""
+        mock_scan.return_value = []
+
+        root = self.logging.getLogger()
+        stream_handlers = [
+            h for h in root.handlers
+            if isinstance(h, self.logging.StreamHandler)
+            and not isinstance(h, self.logging.FileHandler)
+        ]
+        original_levels = [h.level for h in stream_handlers]
+
+        args = _make_args(verbose=True)
+        scan_command(args)
+
+        for h, orig in zip(stream_handlers, original_levels):
+            assert h.level == orig
