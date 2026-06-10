@@ -2,12 +2,11 @@
 """
 Security Dashboard Tab Content
 
-Overview of all Hermes Security features and centralized management.
+Overview of all security features and centralized management.
 Provides quick status view, bulk operations, and security analytics.
 """
 
 import json
-from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
 
@@ -20,13 +19,101 @@ from textual.widgets import ContentSwitcher
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
 
+FEATURE_GROUPS = [
+    ("Scanning", [
+        ("secret_scanning", "Secret Scanning", "Scan for API keys, tokens, credentials"),
+        ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
+        ("image_scanning", "Image Scanning", "OCR-based image scanning for secrets and PII"),
+        ("transcript_scanning", "Transcript Scanning", "Scan conversation for secrets/PII from ! commands"),
+    ]),
+    ("Threat Detection", [
+        ("prompt_injection", "Prompt Injection", "Detect and block prompt injection attacks"),
+        ("ssrf_protection", "SSRF Protection", "Block requests to private networks and metadata"),
+        ("config_file_scanning", "Config File Scanner", "Detect credential exfiltration in config files"),
+        ("context_poisoning", "Context Poisoning", "Detect context poisoning attempts"),
+        ("supply_chain", "Supply Chain", "Detect malicious hooks, MCP servers, and plugins"),
+    ]),
+    ("Response Protection", [
+        ("secret_redaction", "Secret Redaction", "Redact secrets from tool outputs"),
+        ("annotations", "Annotations", "Inline suppression for secrets and PII"),
+    ]),
+    ("Access Control", [
+        ("permissions", "Permissions", "Tool permission enforcement"),
+        ("security_instructions", "Security Instructions", "Security rule injection into AI context"),
+        ("directory_rules", "Directory Rules", "Block access to protected directories"),
+    ]),
+    ("Monitoring", [
+        ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
+        ("latency_tracking", "Latency Tracking", "Record per-hook timing to latency.jsonl"),
+    ]),
+]
+
 CARD_PANEL_MAP = {
-    "ssrf-card": "panel-ssrf",
+    "secret-scanning-card": "panel-secrets",
+    "scan-pii-card": "panel-scan-pii",
     "prompt-injection-card": "panel-pi-detection",
-    "unicode-card": "panel-pi-unicode",
+    "ssrf-card": "panel-ssrf",
     "config-scanner-card": "panel-config-scanner",
     "secret-redaction-card": "panel-secret-redaction",
+    "annotations-card": "panel-annotations",
+    "permissions-card": "panel-skills",
+    "directory-rules-card": "panel-directory-rules",
+    "violation-logging-card": "panel-violation-logging",
 }
+
+_DEFAULT_ACTIONS = {
+    "secret_scanning": "block",
+    "transcript_scanning": "scan",
+    "annotations": "suppress",
+    "permissions": "enforce",
+    "security_instructions": "inject",
+    "violation_logging": "log",
+    "latency_tracking": "log",
+}
+
+
+def _card_id(key):
+    return key.replace("_", "-") + "-card"
+
+
+def _status_id(key):
+    return key.replace("_", "-") + "-status"
+
+
+def _get_feature_status(config, key):
+    if key == "permissions":
+        return config.get("permissions", {}).get("enabled", True)
+    if key == "security_instructions":
+        si = config.get("security_instructions", {})
+        if isinstance(si, dict):
+            return si.get("inject_on_prompt", True)
+        return True
+    if key == "annotations":
+        return config.get("annotations", {}).get("enabled", True)
+    if key == "image_scanning":
+        return config.get("image_scanning", {}).get("enabled", True)
+    section = config.get(key, {})
+    if isinstance(section, dict):
+        enabled = section.get("enabled", True)
+        if isinstance(enabled, dict):
+            return enabled
+        return enabled
+    return True
+
+
+def _parse_status(status):
+    if isinstance(status, dict):
+        return status.get("value", True)
+    return bool(status)
+
+
+def _get_action(config, key):
+    section = config.get(key, {})
+    if isinstance(section, dict):
+        action = section.get("action")
+        if action:
+            return action
+    return _DEFAULT_ACTIONS.get(key)
 
 
 class SecurityDashboardContent(Container):
@@ -111,65 +198,45 @@ class SecurityDashboardContent(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the security dashboard tab content."""
-        yield Static("[bold]Hermes Security Dashboard[/bold]", id="dashboard-header")
+        yield Static("[bold]Security Dashboard[/bold]", id="dashboard-header")
 
         with VerticalScroll():
-            # Overview section with feature status
+            for group_name, features in FEATURE_GROUPS:
+                with Container(classes="section"):
+                    yield Static(f"[bold]{group_name}[/bold]", classes="section-title")
+
+                    cols = min(len(features), 3)
+                    rows = (len(features) + cols - 1) // cols
+                    with Grid(classes="feature-grid") as grid:
+                        grid.styles.grid_size_columns = cols
+                        grid.styles.grid_size_rows = rows
+                        for key, label, _desc in features:
+                            cid = _card_id(key)
+                            with Container(classes="feature-card", id=cid):
+                                yield Static(f"[bold]{label}[/bold]")
+                                yield Static("", id=_status_id(key))
+
+            # Summary
             with Container(classes="section"):
-                yield Static("[bold]Security Features Status[/bold]", classes="section-title")
+                yield Static("[bold]Summary[/bold]", classes="section-title")
                 yield Static("", id="features-overview")
+                yield Static("", id="summary-status")
 
-                with Grid(classes="feature-grid"):
-                    # SSRF Protection card
-                    with Container(classes="feature-card", id="ssrf-card"):
-                        yield Static("[bold]SSRF Protection[/bold]")
-                        yield Static("", id="ssrf-status")
-
-                    # Prompt Injection card
-                    with Container(classes="feature-card", id="prompt-injection-card"):
-                        yield Static("[bold]Prompt Injection[/bold]")
-                        yield Static("", id="prompt-injection-status")
-
-                    # Unicode Attack Detection card
-                    with Container(classes="feature-card", id="unicode-card"):
-                        yield Static("[bold]Unicode Attacks[/bold]")
-                        yield Static("", id="unicode-status")
-
-                    # Config File Scanner card
-                    with Container(classes="feature-card", id="config-scanner-card"):
-                        yield Static("[bold]Config File Scanner[/bold]")
-                        yield Static("", id="config-scanner-status")
-
-                    # Context Poisoning card
-                    with Container(classes="feature-card", id="context-poisoning-card"):
-                        yield Static("[bold]Context Poisoning[/bold]")
-                        yield Static("", id="context-poisoning-status")
-
-                    # Secret Redaction card
-                    with Container(classes="feature-card", id="secret-redaction-card"):
-                        yield Static("[bold]Secret Redaction[/bold]")
-                        yield Static("", id="secret-redaction-status")
-
-                    # Summary card
-                    with Container(classes="feature-card", id="summary-card"):
-                        yield Static("[bold]Summary[/bold]")
-                        yield Static("", id="summary-status")
-
-            # Quick actions section
+            # Quick actions
             with Container(classes="section"):
                 yield Static("[bold]Quick Actions[/bold]", classes="section-title")
 
                 with Horizontal(classes="setting-row"):
-                    yield Button("Enable All Hermes Features", id="enable-all-btn", variant="success")
-                    yield Button("Disable All Hermes Features", id="disable-all-btn", variant="error")
+                    yield Button("Enable All Features", id="enable-all-btn", variant="success")
+                    yield Button("Disable All Features", id="disable-all-btn", variant="error")
                     yield Button("Export Security Config", id="export-config-btn", variant="primary")
 
-            # Recent violations section
+            # Recent violations
             with Container(classes="section"):
                 yield Static("[bold]Recent Security Violations (Last 24 Hours)[/bold]", classes="section-title")
                 yield Static("", id="recent-violations")
 
-            # Security recommendations section
+            # Recommendations
             with Container(classes="section"):
                 yield Static("[bold]Security Recommendations[/bold]", classes="section-title")
                 yield Static("", id="recommendations")
@@ -194,7 +261,6 @@ class SecurityDashboardContent(Container):
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
-        # Load config
         config = {}
         if config_path.exists():
             try:
@@ -203,82 +269,48 @@ class SecurityDashboardContent(Container):
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
 
-        # Extract feature statuses
-        features = {
-            "ssrf_protection": config.get("ssrf_protection", {}).get("enabled", True),
-            "prompt_injection": config.get("prompt_injection", {}).get("enabled", True),
-            "unicode_detection": config.get("prompt_injection", {}).get("unicode_detection", {}).get("enabled", True),
-            "config_file_scanning": config.get("config_file_scanning", {}).get("enabled", True),
-            "context_poisoning": config.get("context_poisoning", {}).get("enabled", True),
-            "secret_redaction": config.get("secret_redaction", {}).get("enabled", True),
-        }
+        enabled_count = 0
+        total_count = 0
 
-        # Update feature cards
-        self._update_feature_card("ssrf", features["ssrf_protection"])
-        self._update_feature_card("prompt-injection", features["prompt_injection"])
-        self._update_feature_card("unicode", features["unicode_detection"])
-        self._update_feature_card("config-scanner", features["config_file_scanning"])
-        self._update_feature_card("context-poisoning", features["context_poisoning"])
-        self._update_feature_card("secret-redaction", features["secret_redaction"])
+        for _group_name, features in FEATURE_GROUPS:
+            for key, _label, _desc in features:
+                total_count += 1
+                status = _get_feature_status(config, key)
+                is_enabled = _parse_status(status)
+                action_val = _get_action(config, key)
 
-        # Update summary
-        enabled_count = sum(1 for status in features.values() if self._parse_status(status))
-        total_count = len(features)
+                if is_enabled:
+                    enabled_count += 1
+
+                self._update_feature_card(key, status, action_val)
+
         summary_text = f"{enabled_count}/{total_count} Enabled"
-        self.query_one("#summary-status", Static).update(summary_text)
+        try:
+            self.query_one("#summary-status", Static).update(summary_text)
+        except Exception:
+            pass
 
-        # Update summary card style
-        summary_card = self.query_one("#summary-card", Container)
-        if enabled_count == total_count:
-            summary_card.add_class("feature-enabled")
-            summary_card.remove_class("feature-disabled")
-        elif enabled_count == 0:
-            summary_card.add_class("feature-disabled")
-            summary_card.remove_class("feature-enabled")
-        else:
-            summary_card.remove_class("feature-enabled")
-            summary_card.remove_class("feature-disabled")
-
-        # Update features overview
         overview_text = (
             f"[green]●[/green] Enabled: {enabled_count}    "
             f"[red]●[/red] Disabled: {total_count - enabled_count}"
         )
-        self.query_one("#features-overview", Static).update(overview_text)
-
-        # Load violations
-        self._load_recent_violations()
-
-        # Generate recommendations
-        self._generate_recommendations(features)
-
-    def _parse_status(self, status) -> bool:
-        """
-        Parse feature status (handles bool or time-based dict).
-
-        Args:
-            status: Feature status (bool or dict with 'value' key)
-
-        Returns:
-            bool: True if enabled, False if disabled
-        """
-        if isinstance(status, dict):
-            return status.get("value", True)
-        return bool(status)
-
-    def _update_feature_card(self, feature_id: str, status) -> None:
-        """
-        Update a feature card with current status.
-
-        Args:
-            feature_id: Feature identifier
-            status: Feature status (bool or time-based dict)
-        """
         try:
-            card = self.query_one(f"#{feature_id}-card", Container)
-            status_widget = self.query_one(f"#{feature_id}-status", Static)
+            self.query_one("#features-overview", Static).update(overview_text)
+        except Exception:
+            pass
 
-            is_enabled = self._parse_status(status)
+        self._load_recent_violations()
+        self._generate_recommendations(enabled_count, total_count)
+
+    def _update_feature_card(self, key: str, status, action_val=None) -> None:
+        """Update a feature card with current status and action badge."""
+        try:
+            cid = _card_id(key)
+            sid = _status_id(key)
+            card = self.query_one(f"#{cid}", Container)
+            status_widget = self.query_one(f"#{sid}", Static)
+
+            is_enabled = _parse_status(status)
 
             if is_enabled:
                 status_text = "[green]✓ Enabled[/green]"
@@ -289,15 +321,17 @@ class SecurityDashboardContent(Container):
                 card.add_class("feature-disabled")
                 card.remove_class("feature-enabled")
 
-            # Check for time-based status
             if isinstance(status, dict) and status.get("disabled_until"):
                 disabled_until = status.get("disabled_until", "")
                 status_text += f"\n[dim]Until: {format_local_time(disabled_until)}[/dim]"
 
+            if action_val:
+                status_text += f"  [dim]({action_val})[/dim]"
+
             status_widget.update(status_text)
 
         except Exception:
-            pass  # Widget may not be mounted yet
+            pass
 
     def _load_recent_violations(self) -> None:
         """Load and display recent security violations."""
@@ -307,7 +341,6 @@ class SecurityDashboardContent(Container):
             logger = ViolationLogger()
             violations = logger.get_recent_violations(limit=100)
 
-            # Filter to last 24 hours
             now = datetime.now()
             recent = []
 
@@ -320,10 +353,9 @@ class SecurityDashboardContent(Container):
                     if hours_ago <= 24:
                         recent.append(v)
                 except Exception:
-                    pass  # Skip if timestamp parsing fails
+                    pass
 
             if recent:
-                # Group by type
                 violation_types = {}
                 for v in recent:
                     reason = v.get("reason", "Unknown")
@@ -344,15 +376,7 @@ class SecurityDashboardContent(Container):
             self.query_one("#recent-violations", Static).update(f"[dim]Error loading violations: {e}[/dim]")
 
     def _categorize_violation(self, reason: str) -> str:
-        """
-        Categorize a violation by its reason.
-
-        Args:
-            reason: Violation reason string
-
-        Returns:
-            str: Category name
-        """
+        """Categorize a violation by its reason."""
         reason_lower = reason.lower()
 
         if "ssrf" in reason_lower:
@@ -369,28 +393,33 @@ class SecurityDashboardContent(Container):
             return "PII Detection"
         elif "secret" in reason_lower or "redact" in reason_lower:
             return "Secret Redaction"
+        elif "image" in reason_lower or "ocr" in reason_lower:
+            return "Image Scanning"
+        elif "transcript" in reason_lower:
+            return "Transcript Scanning"
+        elif "permission" in reason_lower or "tool" in reason_lower or "skill" in reason_lower:
+            return "Permissions"
+        elif "directory" in reason_lower:
+            return "Directory Blocking"
+        elif "supply" in reason_lower or "chain" in reason_lower:
+            return "Supply Chain"
+        elif "context" in reason_lower or "poison" in reason_lower:
+            return "Context Poisoning"
         else:
             return "Other"
 
-    def _generate_recommendations(self, features: Dict[str, Any]) -> None:
-        """
-        Generate security recommendations based on current config.
-
-        Args:
-            features: Dictionary of feature statuses
-        """
+    def _generate_recommendations(self, enabled_count: int, total_count: int) -> None:
+        """Generate security recommendations."""
         recommendations = []
 
-        # Check for disabled features
-        disabled_features = [name for name, status in features.items() if not self._parse_status(status)]
+        disabled_count = total_count - enabled_count
 
-        if disabled_features:
+        if disabled_count:
             recommendations.append(
-                f"⚠ {len(disabled_features)} security feature(s) disabled. "
-                "Consider enabling all Hermes features for maximum protection."
+                f"⚠ {disabled_count} security feature(s) disabled. "
+                "Consider enabling all features for maximum protection."
             )
 
-        # Load violation counts for recommendations
         try:
             from ai_guardian.violation_logger import ViolationLogger
 
@@ -402,11 +431,9 @@ class SecurityDashboardContent(Container):
                     f"⚠ {len(recent)} total violations detected. "
                     "Review violation log to identify patterns and adjust configuration."
                 )
-
         except Exception:
             pass
 
-        # Add best practice recommendations
         if not recommendations:
             recommendations.append("✓ All security features enabled - good security posture!")
             recommendations.append("💡 Tip: Review the Violations tab regularly to monitor security events.")
@@ -452,7 +479,7 @@ class SecurityDashboardContent(Container):
             self.export_security_config()
 
     def enable_all_features(self) -> None:
-        """Enable all Hermes security features."""
+        """Enable all security features."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -463,12 +490,17 @@ class SecurityDashboardContent(Container):
             else:
                 config = {}
 
-            # Enable all Hermes features
             features_to_enable = [
                 "ssrf_protection",
                 "prompt_injection",
                 "config_file_scanning",
-                "secret_redaction"
+                "secret_redaction",
+                "context_poisoning",
+                "supply_chain",
+                "scan_pii",
+                "image_scanning",
+                "secret_scanning",
+                "directory_rules",
             ]
 
             for feature in features_to_enable:
@@ -476,24 +508,17 @@ class SecurityDashboardContent(Container):
                     config[feature] = {}
                 config[feature]["enabled"] = True
 
-            # Enable unicode detection within prompt_injection
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            if "unicode_detection" not in config["prompt_injection"]:
-                config["prompt_injection"]["unicode_detection"] = {}
-            config["prompt_injection"]["unicode_detection"]["enabled"] = True
-
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
             self.load_dashboard()
-            self.app.notify("✓ All Hermes security features enabled", severity="success")
+            self.app.notify("✓ All security features enabled", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error enabling features: {e}", severity="error")
 
     def disable_all_features(self) -> None:
-        """Disable all Hermes security features."""
+        """Disable all security features."""
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
 
@@ -504,12 +529,17 @@ class SecurityDashboardContent(Container):
             else:
                 config = {}
 
-            # Disable all Hermes features
             features_to_disable = [
                 "ssrf_protection",
                 "prompt_injection",
                 "config_file_scanning",
-                "secret_redaction"
+                "secret_redaction",
+                "context_poisoning",
+                "supply_chain",
+                "scan_pii",
+                "image_scanning",
+                "secret_scanning",
+                "directory_rules",
             ]
 
             for feature in features_to_disable:
@@ -517,18 +547,11 @@ class SecurityDashboardContent(Container):
                     config[feature] = {}
                 config[feature]["enabled"] = False
 
-            # Disable unicode detection within prompt_injection
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            if "unicode_detection" not in config["prompt_injection"]:
-                config["prompt_injection"]["unicode_detection"] = {}
-            config["prompt_injection"]["unicode_detection"]["enabled"] = False
-
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
             self.load_dashboard()
-            self.app.notify("⚠ All Hermes security features disabled", severity="warning")
+            self.app.notify("⚠ All security features disabled", severity="warning")
 
         except Exception as e:
             self.app.notify(f"Error disabling features: {e}", severity="error")
@@ -546,16 +569,12 @@ class SecurityDashboardContent(Container):
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
 
-            # Extract only Hermes security features
-            security_config = {
-                "ssrf_protection": config.get("ssrf_protection", {}),
-                "prompt_injection": config.get("prompt_injection", {}),
-                "config_file_scanning": config.get("config_file_scanning", {}),
-                "secret_redaction": config.get("secret_redaction", {}),
-            }
+            security_config = {}
+            for _group_name, features in FEATURE_GROUPS:
+                for key, _label, _desc in features:
+                    security_config[key] = config.get(key, {})
 
-            # Export to file
-            export_path = config_dir / f"hermes-security-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+            export_path = config_dir / f"security-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
             with open(export_path, 'w', encoding='utf-8') as f:
                 json.dump(security_config, f, indent=2)
 

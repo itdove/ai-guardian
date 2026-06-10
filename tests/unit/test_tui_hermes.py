@@ -14,7 +14,7 @@ import pytest
 from ai_guardian.tui.ssrf import SSRFContent
 from ai_guardian.tui.config_scanner import ConfigScannerContent
 from ai_guardian.tui.secret_redaction import SecretRedactionContent
-from ai_guardian.tui.security_dashboard import SecurityDashboardContent
+from ai_guardian.tui.security_dashboard import SecurityDashboardContent, _parse_status
 
 
 class TestSSRFContent:
@@ -194,14 +194,14 @@ class TestSecurityDashboardContent:
         dashboard = SecurityDashboardContent()
 
         # Test simple boolean
-        assert dashboard._parse_status(True) is True
-        assert dashboard._parse_status(False) is False
+        assert _parse_status(True) is True
+        assert _parse_status(False) is False
 
         # Test time-based dict (enabled)
-        assert dashboard._parse_status({"value": True, "disabled_until": ""}) is True
+        assert _parse_status({"value": True, "disabled_until": ""}) is True
 
         # Test time-based dict (disabled)
-        assert dashboard._parse_status({"value": False, "disabled_until": "2026-12-31"}) is False
+        assert _parse_status({"value": False, "disabled_until": "2026-12-31"}) is False
 
     def test_security_dashboard_categorize_violation(self):
         """Test violation categorization."""
