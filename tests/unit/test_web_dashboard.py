@@ -32,10 +32,13 @@ class TestFeaturePageSlugs:
         "prompt_injection": "pi-detection",
         "ssrf_protection": "ssrf",
         "config_file_scanning": "config-scanner",
+        "context_poisoning": "context-poisoning",
         "secret_redaction": "secret-redaction",
         "annotations": "annotations",
         "permissions": "permission-rules",
+        "directory_rules": "directory-rules",
         "violation_logging": "violation-logging",
+        "latency_tracking": "performance",
     }
 
     def test_all_expected_slugs_present(self):
@@ -49,6 +52,7 @@ class TestFeaturePageSlugs:
         assert "image_scanning" not in FEATURE_PAGE_SLUGS
         assert "transcript_scanning" not in FEATURE_PAGE_SLUGS
         assert "security_instructions" not in FEATURE_PAGE_SLUGS
+        assert "supply_chain" not in FEATURE_PAGE_SLUGS
 
     def test_all_feature_keys_in_groups(self):
         from ai_guardian.web.pages.dashboard import (
@@ -74,11 +78,16 @@ class TestTuiCardPanelMap:
     def test_expected_mappings(self):
         from ai_guardian.tui.security_dashboard import CARD_PANEL_MAP
         expected = {
-            "ssrf-card": "panel-ssrf",
+            "secret-scanning-card": "panel-secrets",
+            "scan-pii-card": "panel-scan-pii",
             "prompt-injection-card": "panel-pi-detection",
-            "unicode-card": "panel-pi-unicode",
+            "ssrf-card": "panel-ssrf",
             "config-scanner-card": "panel-config-scanner",
             "secret-redaction-card": "panel-secret-redaction",
+            "annotations-card": "panel-annotations",
+            "permissions-card": "panel-skills",
+            "directory-rules-card": "panel-directory-rules",
+            "violation-logging-card": "panel-violation-logging",
         }
         for card_id, panel_id in expected.items():
             assert card_id in CARD_PANEL_MAP
@@ -87,7 +96,11 @@ class TestTuiCardPanelMap:
     def test_no_mapping_for_non_navigable_cards(self):
         from ai_guardian.tui.security_dashboard import CARD_PANEL_MAP
         assert "context-poisoning-card" not in CARD_PANEL_MAP
-        assert "summary-card" not in CARD_PANEL_MAP
+        assert "supply-chain-card" not in CARD_PANEL_MAP
+        assert "image-scanning-card" not in CARD_PANEL_MAP
+        assert "transcript-scanning-card" not in CARD_PANEL_MAP
+        assert "security-instructions-card" not in CARD_PANEL_MAP
+        assert "latency-tracking-card" not in CARD_PANEL_MAP
 
     def test_panel_ids_exist_in_nav_groups(self):
         from ai_guardian.tui.security_dashboard import CARD_PANEL_MAP

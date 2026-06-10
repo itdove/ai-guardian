@@ -18,6 +18,8 @@ FEATURE_GROUPS = [
         ("prompt_injection", "Prompt Injection", "Detect and block prompt injection attacks"),
         ("ssrf_protection", "SSRF Protection", "Block requests to private networks and metadata"),
         ("config_file_scanning", "Config File Scanner", "Detect credential exfiltration in config files"),
+        ("context_poisoning", "Context Poisoning", "Detect context poisoning attempts"),
+        ("supply_chain", "Supply Chain", "Detect malicious hooks, MCP servers, and plugins"),
     ]),
     ("Response Protection", [
         ("secret_redaction", "Secret Redaction", "Redact secrets from tool outputs"),
@@ -26,9 +28,11 @@ FEATURE_GROUPS = [
     ("Access Control", [
         ("permissions", "Permissions", "Tool permission enforcement"),
         ("security_instructions", "Security Instructions", "Security rule injection into AI context"),
+        ("directory_rules", "Directory Rules", "Block access to protected directories"),
     ]),
     ("Monitoring", [
         ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
+        ("latency_tracking", "Latency Tracking", "Record per-hook timing to latency.jsonl"),
     ]),
 ]
 
@@ -38,10 +42,13 @@ FEATURE_PAGE_SLUGS = {
     "prompt_injection": "pi-detection",
     "ssrf_protection": "ssrf",
     "config_file_scanning": "config-scanner",
+    "context_poisoning": "context-poisoning",
     "secret_redaction": "secret-redaction",
     "annotations": "annotations",
     "permissions": "permission-rules",
+    "directory_rules": "directory-rules",
     "violation_logging": "violation-logging",
+    "latency_tracking": "performance",
 }
 
 
@@ -83,11 +90,24 @@ def _parse_enabled(status):
     return bool(status), None
 
 
+_DEFAULT_ACTIONS = {
+    "secret_scanning": "block",
+    "transcript_scanning": "scan",
+    "annotations": "suppress",
+    "permissions": "enforce",
+    "security_instructions": "inject",
+    "violation_logging": "log",
+    "latency_tracking": "log",
+}
+
+
 def _get_action(config, key):
     section = config.get(key, {})
     if isinstance(section, dict):
-        return section.get("action")
-    return None
+        action = section.get("action")
+        if action:
+            return action
+    return _DEFAULT_ACTIONS.get(key)
 
 
 def _categorize_violation(reason):
