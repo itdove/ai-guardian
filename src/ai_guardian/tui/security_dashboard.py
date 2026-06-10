@@ -15,8 +15,18 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Grid
 from textual.widgets import Static, Button, Label
 
+from textual.widgets import ContentSwitcher
+
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
+
+CARD_PANEL_MAP = {
+    "ssrf-card": "panel-ssrf",
+    "prompt-injection-card": "panel-pi-detection",
+    "unicode-card": "panel-pi-unicode",
+    "config-scanner-card": "panel-config-scanner",
+    "secret-redaction-card": "panel-secret-redaction",
+}
 
 
 class SecurityDashboardContent(Container):
@@ -66,6 +76,14 @@ class SecurityDashboardContent(Container):
 
     .feature-disabled {
         border: solid red;
+    }
+
+    .feature-clickable:hover {
+        background: $primary-lighten-3;
+    }
+
+    .feature-clickable:focus {
+        border: heavy $accent;
     }
 
     .setting-row {
@@ -158,6 +176,13 @@ class SecurityDashboardContent(Container):
 
     def on_mount(self) -> None:
         """Load dashboard data when mounted."""
+        for card_id in CARD_PANEL_MAP:
+            try:
+                card = self.query_one(f"#{card_id}", Container)
+                card.add_class("feature-clickable")
+                card.can_focus = True
+            except Exception:
+                pass
         self.load_dashboard()
 
     def refresh_content(self) -> None:
@@ -395,6 +420,25 @@ class SecurityDashboardContent(Container):
 
         recommendations_text = "\n\n".join(recommendations)
         self.query_one("#recommendations", Static).update(recommendations_text)
+
+    def on_click(self, event) -> None:
+        """Handle clicks on feature cards to navigate to detail panels."""
+        widget = event.widget
+        while widget is not None and widget is not self:
+            if hasattr(widget, "id") and widget.id in CARD_PANEL_MAP:
+                panel_id = CARD_PANEL_MAP[widget.id]
+                try:
+                    switcher = self.app.query_one("#panels", ContentSwitcher)
+                    switcher.current = panel_id
+                    panel = self.app.query_one(f"#{panel_id}", Container)
+                    for child in panel.children:
+                        if hasattr(child, "refresh_content"):
+                            child.refresh_content()
+                            break
+                except Exception:
+                    pass
+                return
+            widget = widget.parent
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button clicks."""
