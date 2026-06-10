@@ -251,7 +251,7 @@ case "$INSTALL_MODE" in
             exit 1
         fi
         log "Installing ai-guardian via uv tool install..."
-        uv tool install "$PKG"
+        uv tool install --force "$PKG"
         INSTALL_DESC="uv tool install"
         ;;
     venv)
