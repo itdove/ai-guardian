@@ -25,6 +25,7 @@ from ai_guardian.daemon.protocol import (
     make_pause_dir,
     make_ping,
     make_resume_dir,
+    make_sdk_check,
     make_shutdown,
     make_status_request,
     make_reload_config,
@@ -100,6 +101,40 @@ def send_hook_request(hook_data, timeout=2.0):
         return None
     except Exception as e:
         logger.debug(f"Daemon request failed: {e}")
+        return None
+
+
+def send_sdk_check(check_type, data, timeout=5.0):
+    """Send an SDK security check to the daemon.
+
+    Args:
+        check_type: "content", "file", "command", or "sanitize"
+        data: Check-specific parameters
+        timeout: Connection + response timeout in seconds
+
+    Returns:
+        dict or None: Response with check results, or None on failure
+    """
+    try:
+        sock = _connect(timeout)
+        if sock is None:
+            return None
+
+        try:
+            request = make_sdk_check(check_type, data)
+            sock.sendall(encode_message(request))
+            response = decode_message(sock, timeout=timeout)
+
+            if response.get("type") == "response":
+                return response.get("data")
+            return None
+        finally:
+            sock.close()
+
+    except (socket.error, socket.timeout, ConnectionError, ValueError):
+        return None
+    except Exception as e:
+        logger.debug(f"SDK check request failed: {e}")
         return None
 
 

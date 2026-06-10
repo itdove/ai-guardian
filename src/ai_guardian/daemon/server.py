@@ -274,6 +274,10 @@ class DaemonServer:
                     else:
                         result = manager.detect(content)
                         response = make_response(result)
+            elif msg_type == "sdk_check":
+                data = request.get("data", {})
+                response_data = self._handle_sdk_check(data)
+                response = make_response(response_data)
             elif msg_type == "ml_status":
                 response = make_response(self.state.get_ml_status())
             else:
@@ -348,6 +352,56 @@ class DaemonServer:
         result.pop("_log_only", None)
         result.pop("_violation_type", None)
         return result
+
+    def _handle_sdk_check(self, data):
+        """Process an SDK security check request.
+
+        Calls the same detection functions as _DirectSession but within
+        the daemon process, benefiting from cached config and state.
+
+        Args:
+            data: Dict with check_type and check-specific parameters
+
+        Returns:
+            dict: Result with blocked, detected, violation_type, message, details
+        """
+        self.state.record_activity()
+        check_type = data.get("check_type", "")
+
+        try:
+            from ai_guardian.sdk import _DirectSession
+            session = _DirectSession(action="log", config=self.state.get_config())
+
+            if check_type == "content":
+                result = session.check_content(
+                    data.get("text", ""),
+                    filename=data.get("filename", "input"),
+                )
+            elif check_type == "file":
+                result = session.check_file(
+                    data.get("file_path", ""),
+                    content=data.get("content"),
+                )
+            elif check_type == "command":
+                result = session.check_command(data.get("command", ""))
+            elif check_type == "sanitize":
+                sanitized = session.sanitize(data.get("text", ""))
+                return {"data": sanitized}
+            else:
+                return {"error": f"Unknown check_type: {check_type}"}
+
+            return {
+                "data": {
+                    "blocked": result.blocked,
+                    "detected": result.detected,
+                    "violation_type": result.violation_type,
+                    "message": result.message,
+                    "details": result.details,
+                }
+            }
+        except Exception as e:
+            logger.error(f"SDK check failed: {e}")
+            return {"error": str(e)}
 
     def _idle_check_loop(self):
         """Background thread: check idle timeout and cleanup expired contexts."""
