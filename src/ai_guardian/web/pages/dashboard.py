@@ -32,6 +32,18 @@ FEATURE_GROUPS = [
     ]),
 ]
 
+FEATURE_PAGE_SLUGS = {
+    "secret_scanning": "secrets",
+    "scan_pii": "scan-pii",
+    "prompt_injection": "pi-detection",
+    "ssrf_protection": "ssrf",
+    "config_file_scanning": "config-scanner",
+    "secret_redaction": "secret-redaction",
+    "annotations": "annotations",
+    "permissions": "permission-rules",
+    "violation_logging": "violation-logging",
+}
+
 
 def _get_feature_status(config, key):
     if key == "permissions":
@@ -323,9 +335,23 @@ def create_dashboard_page(service, daemon_name: str):
                                         status_text = "Disabled"
                                         status_color = "text-red"
 
-                                    with ui.card().classes("w-52").style(
-                                        f"border-left: 4px solid {border}"
-                                    ):
+                                    slug = FEATURE_PAGE_SLUGS.get(key)
+                                    card_style = (
+                                        f"border-left: 4px solid {border}; "
+                                        "cursor: pointer"
+                                        if slug
+                                        else f"border-left: 4px solid {border}"
+                                    )
+                                    card = ui.card().classes("w-52").style(
+                                        card_style
+                                    )
+                                    if slug:
+                                        card.on(
+                                            "click",
+                                            lambda dn=daemon_name, s=slug:
+                                                ui.navigate.to(f"/{dn}/{s}"),
+                                        )
+                                    with card:
                                         with ui.row().classes(
                                             "items-center gap-1"
                                         ):
