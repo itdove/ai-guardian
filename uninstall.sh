@@ -219,17 +219,30 @@ path = sys.argv[1]
 with open(path) as f:
     config = json.load(f)
 
+def is_ag_command(item):
+    if not isinstance(item, dict):
+        return False
+    cmd = item.get('command', '')
+    return isinstance(cmd, str) and 'ai-guardian' in cmd
+
 def remove_ag_hooks(obj):
-    \"\"\"Recursively remove ai-guardian hook entries.\"\"\"
     if isinstance(obj, dict):
         for key in list(obj.keys()):
             val = obj[key]
             if isinstance(val, list):
-                obj[key] = [item for item in val
-                            if not (isinstance(item, dict)
-                                    and isinstance(item.get('command', ''), str)
-                                    and 'ai-guardian' in item.get('command', ''))]
-                if not obj[key] and key == 'hooks':
+                cleaned = []
+                for item in val:
+                    if is_ag_command(item):
+                        continue
+                    if isinstance(item, dict):
+                        had_hooks = 'hooks' in item
+                        remove_ag_hooks(item)
+                        if had_hooks and 'hooks' not in item:
+                            continue
+                    cleaned.append(item)
+                if cleaned:
+                    obj[key] = cleaned
+                else:
                     del obj[key]
             elif isinstance(val, dict):
                 remove_ag_hooks(val)
