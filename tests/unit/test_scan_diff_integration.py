@@ -1,0 +1,191 @@
+"""Integration tests for scan_command() with diff flags."""
+
+import sys
+from argparse import Namespace
+from pathlib import Path
+from unittest import mock
+
+import pytest
+
+from ai_guardian.scanner import scan_command
+
+
+def _make_args(**overrides):
+    """Build a minimal args Namespace for scan_command()."""
+    defaults = {
+        "path": ".",
+        "config": None,
+        "include": None,
+        "exclude": None,
+        "config_only": False,
+        "sarif_output": None,
+        "json_output": None,
+        "exit_code": False,
+        "verbose": False,
+        "diff": False,
+        "base": None,
+        "pr": None,
+        "mr": None,
+        "stdin_diff": False,
+        "changed_lines_only": False,
+    }
+    defaults.update(overrides)
+    return Namespace(**defaults)
+
+
+class TestScanCommandDiffValidation:
+
+    def test_mutual_exclusivity_diff_and_pr(self, capsys):
+        args = _make_args(diff=True, pr="42")
+        rc = scan_command(args)
+        assert rc == 1
+        assert "mutually exclusive" in capsys.readouterr().err
+
+    def test_mutual_exclusivity_pr_and_mr(self, capsys):
+        args = _make_args(pr="1", mr="2")
+        rc = scan_command(args)
+        assert rc == 1
+        assert "mutually exclusive" in capsys.readouterr().err
+
+    def test_base_requires_diff(self, capsys):
+        args = _make_args(base="main")
+        rc = scan_command(args)
+        assert rc == 1
+        assert "--base requires --diff" in capsys.readouterr().err
+
+    def test_changed_lines_only_requires_diff_mode(self, capsys):
+        args = _make_args(changed_lines_only=True)
+        rc = scan_command(args)
+        assert rc == 1
+        assert "--changed-lines-only requires" in capsys.readouterr().err
+
+
+SAMPLE_DIFF = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,3 +1,4 @@
+ line1
++ADDED_LINE
+ line2
+ line3
+"""
+
+
+class TestScanCommandDiffMode:
+
+    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_diff_flag_scans_changed_files(self, mock_scan, mock_diff):
+        mock_diff.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+
+        args = _make_args(diff=True)
+        rc = scan_command(args)
+
+        assert rc == 0
+        mock_diff.assert_called_once()
+        mock_scan.assert_called_once()
+        file_paths = mock_scan.call_args[1]["file_paths"]
+        names = [p.name for p in file_paths]
+        assert "foo.py" in names
+
+    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_diff_with_base(self, mock_scan, mock_diff):
+        mock_diff.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+
+        args = _make_args(diff=True, base="develop")
+        rc = scan_command(args)
+
+        assert rc == 0
+        mock_diff.assert_called_once_with(base_ref="develop", repo_path=".")
+
+    @mock.patch("ai_guardian.diff_provider.get_pr_diff")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_pr_flag(self, mock_scan, mock_pr):
+        mock_pr.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+
+        args = _make_args(pr="123")
+        rc = scan_command(args)
+
+        assert rc == 0
+        mock_pr.assert_called_once_with("123", repo_path=".")
+
+    @mock.patch("ai_guardian.diff_provider.get_mr_diff")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_mr_flag(self, mock_scan, mock_mr):
+        mock_mr.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+
+        args = _make_args(mr="42")
+        rc = scan_command(args)
+
+        assert rc == 0
+        mock_mr.assert_called_once_with("42", repo_path=".")
+
+    @mock.patch("ai_guardian.scanner.sys.stdin")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_stdin_diff(self, mock_scan, mock_stdin):
+        mock_stdin.read.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+
+        args = _make_args(stdin_diff=True)
+        rc = scan_command(args)
+
+        assert rc == 0
+        mock_stdin.read.assert_called_once()
+        mock_scan.assert_called_once()
+
+    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_no_changed_files(self, mock_scan, mock_diff, capsys):
+        mock_diff.return_value = ""
+
+        args = _make_args(diff=True)
+        rc = scan_command(args)
+
+        assert rc == 0
+        mock_scan.assert_not_called()
+        assert "No changed files" in capsys.readouterr().out
+
+    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_changed_lines_only_filters(self, mock_scan, mock_diff):
+        mock_diff.return_value = SAMPLE_DIFF
+        mock_scan.return_value = [
+            {"file_path": "src/foo.py", "line_number": 2, "rule_id": "X", "message": "hit"},
+            {"file_path": "src/foo.py", "line_number": 99, "rule_id": "Y", "message": "miss"},
+        ]
+
+        args = _make_args(diff=True, changed_lines_only=True)
+        rc = scan_command(args)
+
+        assert rc == 0
+
+    @mock.patch("ai_guardian.diff_provider.get_pr_diff")
+    def test_diff_provider_error(self, mock_pr, capsys):
+        from ai_guardian.diff_provider import DiffProviderError
+        mock_pr.side_effect = DiffProviderError("gh CLI not found")
+
+        args = _make_args(pr="123")
+        rc = scan_command(args)
+
+        assert rc == 1
+        assert "gh CLI not found" in capsys.readouterr().err
+
+    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_exit_code_with_findings(self, mock_scan, mock_diff):
+        mock_diff.return_value = SAMPLE_DIFF
+        mock_scan.return_value = [
+            {"file_path": "src/foo.py", "line_number": 2, "rule_id": "X",
+             "level": "error", "message": "bad"},
+        ]
+
+        args = _make_args(diff=True, exit_code=True)
+        rc = scan_command(args)
+
+        assert rc == 1

@@ -502,3 +502,50 @@ class TestFileScannerImageScanning:
         })
         scanner.scan_directory(str(tmp_path))
         mock_scan_image.assert_not_called()
+
+
+class TestFileScannerScanFiles:
+    """Tests for scan_files() explicit file list scanning."""
+
+    def test_scans_specified_files_only(self, tmp_path):
+        f1 = tmp_path / "a.py"
+        f2 = tmp_path / "b.py"
+        f3 = tmp_path / "c.py"
+        f1.write_text("x = 1")
+        f2.write_text("y = 2")
+        f3.write_text("z = 3")
+
+        scanner = FileScanner(config={})
+        with mock.patch.object(scanner, "_scan_file", wraps=scanner._scan_file) as spy:
+            scanner.scan_files([f1, f2], base_path=tmp_path)
+            scanned = [call[0][0].name for call in spy.call_args_list]
+            assert "a.py" in scanned
+            assert "b.py" in scanned
+            assert "c.py" not in scanned
+
+    def test_missing_file_skipped(self, tmp_path):
+        existing = tmp_path / "exists.py"
+        existing.write_text("x = 1")
+        missing = tmp_path / "gone.py"
+
+        scanner = FileScanner(config={})
+        findings = scanner.scan_files([existing, missing], base_path=tmp_path)
+        assert isinstance(findings, list)
+
+    def test_empty_file_list(self):
+        scanner = FileScanner(config={})
+        findings = scanner.scan_files([], base_path=Path.cwd())
+        assert findings == []
+
+    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    def test_returns_findings(self, mock_gitleaks, tmp_path):
+        mock_gitleaks.return_value = (True, "Secret found: key detected")
+
+        f = tmp_path / "secret.py"
+        f.write_text("KEY = 'supersecret123'")
+
+        scanner = FileScanner(config={"secret_scanning": {"enabled": True}})
+        findings = scanner.scan_files([f], base_path=tmp_path)
+
+        secret_findings = [f for f in findings if f["rule_id"] == "SECRET-001"]
+        assert len(secret_findings) >= 1
