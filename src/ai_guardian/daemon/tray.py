@@ -99,7 +99,7 @@ def _ensure_system_gi():
         return
     except ImportError:
         pass
-    for python in ("python3", "python"):
+    for python in ("/usr/bin/python3", "/usr/bin/python", "python3", "python"):
         try:
             result = subprocess.run(
                 [python, "-c",
