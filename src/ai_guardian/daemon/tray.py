@@ -84,6 +84,44 @@ def _remove_tray_lock():
     except (ValueError, OSError):
         pass
 
+def _ensure_system_gi():
+    """Make system GObject Introspection visible in isolated environments.
+
+    uv tool install creates an isolated Python env that can't see system
+    site-packages. Detect system gi location via the system Python and
+    add its parent directory to sys.path so pystray can use AppIndicator.
+    """
+    import platform
+    if platform.system() != "Linux":
+        return
+    try:
+        import gi  # noqa: F401
+        return
+    except ImportError:
+        pass
+    for python in ("python3", "python"):
+        try:
+            result = subprocess.run(
+                [python, "-c",
+                 "import gi; import os; print(os.path.dirname(gi.__path__[0]))"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                site_dir = result.stdout.strip()
+                if site_dir not in sys.path:
+                    sys.path.insert(0, site_dir)
+                    try:
+                        import gi  # noqa: F401
+                        logger.info("System gi found at %s", site_dir)
+                        return
+                    except ImportError:
+                        sys.path.remove(site_dir)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+
+
+_ensure_system_gi()
+
 try:
     import pystray
     from PIL import Image, ImageDraw
