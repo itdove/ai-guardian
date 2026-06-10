@@ -2,6 +2,90 @@
 
 from nicegui import ui
 
+NAV_GROUPS = [
+    ("Security Overview", [
+        ("Security Dashboard", ""),
+        ("Global Settings", "/settings"),
+        ("Health Check", "/health-check"),
+    ]),
+    ("Monitoring", [
+        ("Violations", "/violations"),
+        ("Violation Logging", "/violation-logging"),
+        ("Metrics & Audit", "/metrics"),
+        ("Performance", "/performance"),
+        ("Logs", "/logs"),
+    ]),
+    ("Permissions", [
+        ("Permission Rules", "/permission-rules"),
+        ("MCP Settings", "/mcp-servers"),
+        ("MCP Security", "/mcp-security"),
+        ("Permissions Discovery", "/permissions-discovery"),
+        ("Auto Directory Rules", "/auto-directory-rules"),
+        ("Directory Rules", "/directory-rules"),
+    ]),
+    ("Secrets", [
+        ("Secret Scanning", "/secrets"),
+        ("Engine Config", "/secret-engines"),
+        ("Secret Redaction", "/secret-redaction"),
+    ]),
+    ("Prompt Injection", [
+        ("Detection", "/pi-detection"),
+        ("ML Engines", "/pi-ml-engines"),
+        ("Patterns", "/pi-patterns"),
+        ("Jailbreak", "/pi-jailbreak"),
+        ("Unicode Detection", "/pi-unicode"),
+    ]),
+    ("Threat Detection", [
+        ("SSRF Protection", "/ssrf"),
+        ("Context Poisoning", "/context-poisoning"),
+        ("Config Scanner", "/config-scanner"),
+        ("PII Detection", "/scan-pii"),
+        ("Annotations", "/annotations"),
+    ]),
+    ("Configuration", [
+        ("Daemon", "/daemon"),
+        ("Remote Configs", "/remote-configs"),
+        ("Config File", "/config-file"),
+        ("Config Editor", "/config-editor"),
+        ("Console Settings", "/console-settings"),
+        ("Effective Config", "/config-effective"),
+    ]),
+    ("Tools", [
+        ("Regex Tester", "/regex-tester"),
+        ("Hook Simulator", "/hook-simulator"),
+        ("Engine Tester", "/engine-tester"),
+        ("Directory Scan", "/directory-scan"),
+    ]),
+]
+
+
+def _build_search_index(prefix):
+    """Build search index from nav groups and feature toggle metadata."""
+    entries = []
+    for group_name, items in NAV_GROUPS:
+        for label, suffix in items:
+            path = f"{prefix}{suffix}"
+            search_text = f"{group_name} {label}".lower()
+            entries.append((search_text, label, group_name, path))
+
+    try:
+        from ai_guardian.web.pages.global_settings import FEATURE_GROUPS
+        settings_path = f"{prefix}/settings"
+        for fg_group, features in FEATURE_GROUPS:
+            for config_key, feat_label, feat_desc in features:
+                search_text = (
+                    f"{fg_group} {feat_label} {feat_desc} {config_key}"
+                ).lower()
+                feat_path = f"{settings_path}#feature-{config_key}"
+                entries.append(
+                    (search_text, feat_label,
+                     f"Settings › {fg_group}", feat_path)
+                )
+    except ImportError:
+        pass
+
+    return entries
+
 
 def create_header(daemon_name: str = ""):
     """Create the shared header bar showing current daemon."""
@@ -33,72 +117,72 @@ def create_header(daemon_name: str = ""):
 
 
 def create_sidebar(daemon_name: str, current: str = ""):
-    """Create the navigation sidebar for a specific daemon."""
+    """Create the navigation sidebar with search for a specific daemon."""
     prefix = f"/{daemon_name}"
-    nav_groups = [
-        ("Security Overview", [
-            ("Security Dashboard", prefix),
-            ("Global Settings", f"{prefix}/settings"),
-            ("Health Check", f"{prefix}/health-check"),
-        ]),
-        ("Monitoring", [
-            ("Violations", f"{prefix}/violations"),
-            ("Violation Logging", f"{prefix}/violation-logging"),
-            ("Metrics & Audit", f"{prefix}/metrics"),
-            ("Performance", f"{prefix}/performance"),
-            ("Logs", f"{prefix}/logs"),
-        ]),
-        ("Permissions", [
-            ("Permission Rules", f"{prefix}/permission-rules"),
-            ("MCP Settings", f"{prefix}/mcp-servers"),
-            ("MCP Security", f"{prefix}/mcp-security"),
-            ("Permissions Discovery", f"{prefix}/permissions-discovery"),
-            ("Auto Directory Rules", f"{prefix}/auto-directory-rules"),
-            ("Directory Rules", f"{prefix}/directory-rules"),
-        ]),
-        ("Secrets", [
-            ("Secret Scanning", f"{prefix}/secrets"),
-            ("Engine Config", f"{prefix}/secret-engines"),
-            ("Secret Redaction", f"{prefix}/secret-redaction"),
-        ]),
-        ("Prompt Injection", [
-            ("Detection", f"{prefix}/pi-detection"),
-            ("ML Engines", f"{prefix}/pi-ml-engines"),
-            ("Patterns", f"{prefix}/pi-patterns"),
-            ("Jailbreak", f"{prefix}/pi-jailbreak"),
-            ("Unicode Detection", f"{prefix}/pi-unicode"),
-        ]),
-        ("Threat Detection", [
-            ("SSRF Protection", f"{prefix}/ssrf"),
-            ("Context Poisoning", f"{prefix}/context-poisoning"),
-            ("Config Scanner", f"{prefix}/config-scanner"),
-            ("PII Detection", f"{prefix}/scan-pii"),
-            ("Annotations", f"{prefix}/annotations"),
-        ]),
-        ("Configuration", [
-            ("Daemon", f"{prefix}/daemon"),
-            ("Remote Configs", f"{prefix}/remote-configs"),
-            ("Config File", f"{prefix}/config-file"),
-            ("Config Editor", f"{prefix}/config-editor"),
-            ("Console Settings", f"{prefix}/console-settings"),
-            ("Effective Config", f"{prefix}/config-effective"),
-        ]),
-        ("Tools", [
-            ("Regex Tester", f"{prefix}/regex-tester"),
-            ("Hook Simulator", f"{prefix}/hook-simulator"),
-            ("Engine Tester", f"{prefix}/engine-tester"),
-            ("Directory Scan", f"{prefix}/directory-scan"),
-        ]),
-    ]
+    search_index = _build_search_index(prefix)
+
     with ui.column().classes("w-56 bg-blue-grey-10 min-h-screen p-2 gap-0"):
-        for group_name, items in nav_groups:
-            ui.label(group_name).classes(
-                "text-xs text-grey-6 font-bold uppercase mt-4 mb-1 px-2"
+        search_input = ui.input(placeholder="Search settings...").props(
+            "dense outlined clearable"
+        ).classes("w-full mb-2").style(
+            "color: white; --q-color-primary: #78909c;"
+        )
+
+        nav_container = ui.column().classes("w-full gap-0")
+        with nav_container:
+            for group_name, items in NAV_GROUPS:
+                ui.label(group_name).classes(
+                    "text-xs text-grey-6 font-bold uppercase mt-4 mb-1 px-2"
+                )
+                for label, suffix in items:
+                    path = f"{prefix}{suffix}"
+                    classes = "w-full no-underline rounded px-2 py-1 text-sm "
+                    if current == path:
+                        classes += "bg-blue-grey-8 text-white font-bold"
+                    else:
+                        classes += "text-grey-4 hover:bg-blue-grey-9"
+                    ui.link(label, path).classes(classes)
+
+        results_container = ui.column().classes("w-full gap-0 mt-2")
+        results_container.set_visibility(False)
+
+        result_elements = []
+        with results_container:
+            no_results_label = ui.label("No matching settings").classes(
+                "text-xs text-grey-6 px-2 mt-4"
             )
-            for label, path in items:
-                classes = "w-full no-underline rounded px-2 py-1 text-sm "
-                if current == path:
-                    classes += "bg-blue-grey-8 text-white font-bold"
-                else:
-                    classes += "text-grey-4 hover:bg-blue-grey-9"
-                ui.link(label, path).classes(classes)
+            for search_text, label, group_name, path in search_index:
+                with ui.column().classes(
+                    "w-full gap-0 px-1 py-1 rounded hover:bg-blue-grey-9"
+                ) as row:
+                    ui.label(group_name).classes("text-xs text-grey-7")
+                    link_classes = (
+                        "w-full no-underline text-sm "
+                    )
+                    if current == path:
+                        link_classes += "text-white font-bold"
+                    else:
+                        link_classes += "text-grey-4"
+                    ui.link(label, path).classes(link_classes)
+                result_elements.append((search_text, row))
+
+        def on_search(e):
+            query = (e.value or "").strip().lower()
+            if not query:
+                nav_container.set_visibility(True)
+                results_container.set_visibility(False)
+                return
+
+            nav_container.set_visibility(False)
+            results_container.set_visibility(True)
+
+            any_visible = False
+            for search_text, row in result_elements:
+                match = query in search_text
+                row.set_visibility(match)
+                if match:
+                    any_visible = True
+
+            no_results_label.set_visibility(not any_visible)
+
+        search_input.on_value_change(on_search)

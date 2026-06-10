@@ -68,12 +68,13 @@ class TestRouteSidebarConsistency:
             assert route in source, f"Route {route} not found in app.py"
 
     def test_all_routes_in_sidebar(self):
-        import inspect
-        from ai_guardian.web.components.header import create_sidebar
+        from ai_guardian.web.components.header import NAV_GROUPS
 
-        source = inspect.getsource(create_sidebar)
+        all_suffixes = [
+            suffix for _, items in NAV_GROUPS for _, suffix in items
+        ]
         for route in self.PHASE3_ROUTES:
-            assert route in source, (
+            assert route in all_suffixes, (
                 f"Route {route} not found in sidebar navigation"
             )
 

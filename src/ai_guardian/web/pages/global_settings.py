@@ -201,6 +201,7 @@ def create_global_settings_page(service, daemon_name: str):
 
                             for section, label, desc in features:
                                 ui.separator().classes("my-1")
+                                ui.html(f'<div id="feature-{section}"></div>')
                                 raw = _get_enabled(config, section)
                                 if isinstance(raw, tuple) and len(raw) == 3:
                                     is_temp = raw[0] == "temp_disabled"
@@ -277,4 +278,13 @@ def create_global_settings_page(service, daemon_name: str):
 
                                         act_sel.on_value_change(on_action)
 
-            ui.timer(0.1, refresh, once=True)
+            async def _refresh_and_scroll():
+                await refresh()
+                await ui.run_javascript(
+                    'if (location.hash) {'
+                    '  const el = document.querySelector(location.hash);'
+                    '  if (el) el.scrollIntoView({behavior: "smooth", block: "center"});'
+                    '}'
+                )
+
+            ui.timer(0.1, _refresh_and_scroll, once=True)
