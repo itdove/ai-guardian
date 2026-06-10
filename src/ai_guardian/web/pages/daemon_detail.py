@@ -106,6 +106,8 @@ def create_daemon_detail_page(service, daemon_name: str):
             _info_built = {"done": False}
 
             async def refresh():
+                if ui.context.client.is_deleted:
+                    return
                 await run.io_bound(service.refresh_targets)
                 target = service.get_target_by_name(daemon_name)
                 if not target:
