@@ -109,6 +109,22 @@ class SARIFFormatter:
                 "tags": ["security", "prompt-injection", "ai"],
                 "precision": "medium"
             }
+        },
+        "SUPPLY-CHAIN-001": {
+            "id": "SUPPLY-CHAIN-001",
+            "name": "SupplyChainThreat",
+            "shortDescription": {"text": "Supply chain threat in agent config"},
+            "fullDescription": {
+                "text": "Detects malicious patterns in agent configuration files including "
+                       "download-and-execute chains, obfuscation, environment variable hijacking, "
+                       "and reverse shells."
+            },
+            "helpUri": "https://github.com/itdove/ai-guardian#supply-chain-scanning",
+            "defaultConfiguration": {"level": "error"},
+            "properties": {
+                "tags": ["security", "supply-chain", "agent-config"],
+                "precision": "high"
+            }
         }
     }
 
@@ -453,4 +469,22 @@ def create_prompt_injection_finding(
         "line_number": line_number,
         "snippet": snippet,
         "details": {"description": description}
+    }
+
+
+def create_supply_chain_finding(
+    category: str,
+    reason: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    snippet: Optional[str] = None
+) -> Dict[str, Any]:
+    return {
+        "rule_id": "SUPPLY-CHAIN-001",
+        "level": "error",
+        "message": f"Supply chain threat: {reason}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "snippet": snippet,
+        "details": {"category": category, "reason": reason}
     }

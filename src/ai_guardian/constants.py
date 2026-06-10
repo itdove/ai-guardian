@@ -31,6 +31,7 @@ class ViolationType(str, Enum):
     IMAGE_SECRET_DETECTED = "image_secret_detected"
     IMAGE_PII_DETECTED = "image_pii_detected"
     CONTEXT_POISONING = "context_poisoning"
+    SUPPLY_CHAIN = "supply_chain"
 
 
 class HookEvent(str, Enum):

@@ -48,6 +48,7 @@ try:
         create_secret_finding,
         create_pii_finding,
         create_prompt_injection_finding,
+        create_supply_chain_finding,
     )
     HAS_SARIF = True
 except ImportError:
@@ -76,6 +77,12 @@ try:
     HAS_IMAGE_SCANNER = True
 except ImportError:
     HAS_IMAGE_SCANNER = False
+
+try:
+    from ai_guardian.supply_chain import SupplyChainScanner, check_supply_chain_threats
+    HAS_SUPPLY_CHAIN = True
+except ImportError:
+    HAS_SUPPLY_CHAIN = False
 
 
 logger = logging.getLogger(__name__)
@@ -454,6 +461,10 @@ class FileScanner:
             if HAS_PROMPT_INJECTION:
                 self._check_prompt_injection(relative_path, content)
 
+            # Check for supply chain threats
+            if HAS_SUPPLY_CHAIN:
+                self._check_supply_chain(str(file_path), content)
+
         except Exception as e:
             if self.verbose:
                 logger.error(f"Error scanning {file_path}: {e}")
@@ -731,6 +742,62 @@ class FileScanner:
         except Exception as e:
             logger.debug(f"Error checking prompt injection: {e}")
 
+    def _check_supply_chain(self, file_path: str, content: str) -> None:
+        """Check agent config files for supply chain threats."""
+        try:
+            sc_config = self.config.get("supply_chain") if self.config else None
+            is_malicious, reason, details = check_supply_chain_threats(
+                file_path, content, sc_config
+            )
+            if is_malicious and details:
+                finding = create_supply_chain_finding(
+                    category=details.get("category", "unknown"),
+                    reason=reason or "Supply chain threat detected",
+                    file_path=file_path,
+                    line_number=details.get("line_number"),
+                    snippet=details.get("snippet"),
+                )
+                self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [SUPPLY-CHAIN] {reason}")
+        except Exception as e:
+            logger.debug(f"Error checking supply chain: {e}")
+
+    def scan_agent_configs(self) -> None:
+        """Scan known agent configuration files for supply chain threats."""
+        import glob as glob_mod
+        from ai_guardian.supply_chain import (
+            AGENT_CONFIG_PATHS_HOME,
+            PLUGIN_PATHS_HOME,
+        )
+
+        home = os.path.expanduser("~")
+        paths_to_scan = []
+
+        for rel_path in AGENT_CONFIG_PATHS_HOME:
+            full = os.path.join(home, rel_path)
+            if "*" in full:
+                paths_to_scan.extend(glob_mod.glob(full))
+            elif os.path.isfile(full):
+                paths_to_scan.append(full)
+
+        for rel_path in PLUGIN_PATHS_HOME:
+            full = os.path.join(home, rel_path)
+            if "*" in full:
+                paths_to_scan.extend(glob_mod.glob(full))
+            elif os.path.isfile(full):
+                paths_to_scan.append(full)
+
+        for fpath in paths_to_scan:
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if content.strip():
+                    self._check_supply_chain(fpath, content)
+            except Exception as e:
+                if self.verbose:
+                    logger.warning(f"Could not read {fpath}: {e}")
+
 
 def scan_command(args) -> int:
     """
@@ -782,7 +849,14 @@ def scan_command(args) -> int:
               file=sys.stderr)
         return 1
 
-    if any(diff_flags):
+    agent_configs = getattr(args, 'agent_configs', False)
+    if agent_configs:
+        if not HAS_SUPPLY_CHAIN:
+            print("Error: Supply chain scanner not available", file=sys.stderr)
+            return 1
+        scanner.scan_agent_configs()
+        findings = scanner.findings
+    if not agent_configs and any(diff_flags):
         # Diff-based scanning
         try:
             from ai_guardian.diff_provider import (
@@ -854,7 +928,7 @@ def scan_command(args) -> int:
         except DiffProviderError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
-    else:
+    elif not agent_configs:
         # Standard directory scanning
         findings = scanner.scan_directory(
             path=args.path,

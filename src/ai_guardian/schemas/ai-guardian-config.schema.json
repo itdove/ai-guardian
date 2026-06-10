@@ -1199,6 +1199,55 @@
         }
       }
     },
+    "supply_chain": {
+      "type": "object",
+      "description": "Supply chain scanning configuration (NEW in v1.11.0, Issue #1055). Detects malicious patterns in agent configuration files — hooks, MCP server configs, and plugin files. Catches download-and-execute chains, obfuscation, env var hijacking, network exfiltration, reverse shells, and plugin-specific threats.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": true,
+          "description": "Enable/disable supply chain scanning"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log-only"],
+          "default": "block",
+          "description": "Action to take when supply chain threats are detected. block = prevent operation, warn = allow with warning, log-only = silent logging."
+        },
+        "scan_hooks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan agent hook configuration files (hooks.json, settings.json)"
+        },
+        "scan_mcp_configs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan MCP server command configurations for suspicious patterns"
+        },
+        "scan_plugins": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan plugin files (OpenCode .ts, AiderDesk extensions) for dangerous APIs"
+        },
+        "allowlist_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "File paths to skip during supply chain scanning (supports ~ expansion and glob patterns). ai-guardian's own plugin files are always skipped."
+        }
+      }
+    },
     "config_file_scanning": {
       "type": "object",
       "description": "Config file scanning configuration (NEW in v1.5.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
@@ -1444,9 +1493,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain"]
         }
       },
       "additionalProperties": false

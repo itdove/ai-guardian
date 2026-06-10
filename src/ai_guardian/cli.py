@@ -468,6 +468,11 @@ def main():
             help="Only scan AI config files (CLAUDE.md, AGENTS.md, etc.)"
         )
         scan_parser.add_argument(
+            "--agent-configs",
+            action="store_true",
+            help="Scan agent configuration files for supply chain threats (~/.claude/settings.json, ~/.cursor/hooks.json, etc.)"
+        )
+        scan_parser.add_argument(
             "--sarif-output",
             metavar="FILE",
             help="Write SARIF format output to file (for CI/CD integration)"
