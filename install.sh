@@ -354,7 +354,7 @@ RESTARTED=""
 if [ "$DAEMON_WAS_RUNNING" = true ]; then
     log "Restarting daemon (was running before upgrade)..."
     $AG_CMD daemon stop 2>/dev/null || true
-    $AG_CMD daemon start 2>/dev/null && {
+    $AG_CMD daemon start --background 2>/dev/null && {
         ok "Daemon restarted"
         RESTARTED="${RESTARTED:+$RESTARTED, }daemon"
     } || echo "  Warning: daemon restart failed — start manually with: ai-guardian daemon start"
@@ -363,7 +363,7 @@ fi
 if [ "$TRAY_WAS_RUNNING" = true ]; then
     log "Restarting tray (was running before upgrade)..."
     $AG_CMD tray stop 2>/dev/null || true
-    $AG_CMD tray start 2>/dev/null && {
+    $AG_CMD tray start --background 2>/dev/null && {
         ok "Tray restarted"
         RESTARTED="${RESTARTED:+$RESTARTED, }tray"
     } || echo "  Warning: tray restart failed — start manually with: ai-guardian tray start"
