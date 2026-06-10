@@ -19,6 +19,7 @@ FEATURE_GROUPS = [
         ("prompt_injection", "Prompt Injection", "Detect and block prompt injection attacks"),
         ("ssrf_protection", "SSRF Protection", "Block requests to private networks and metadata"),
         ("config_file_scanning", "Config File Scanner", "Detect credential exfiltration in config files"),
+        ("context_poisoning", "Context Poisoning", "Detect context poisoning attempts"),
     ]),
     ("Response Protection", [
         ("secret_redaction", "Secret Redaction", "Redact secrets from tool outputs"),
@@ -40,6 +41,7 @@ FEATURE_ACTIONS = {
     "scan_pii": {"block": "Block", "redact": "Redact", "warn": "Warn", "log-only": "Log Only"},
     "secret_redaction": {"warn": "Warn", "log-only": "Log Only"},
     "image_scanning": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
+    "context_poisoning": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
 }
 
 ACTION_DEFAULTS = {
@@ -49,6 +51,7 @@ ACTION_DEFAULTS = {
     "scan_pii": "block",
     "secret_redaction": "warn",
     "image_scanning": "block",
+    "context_poisoning": "warn",
 }
 
 DURATION_RE = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re.IGNORECASE)
