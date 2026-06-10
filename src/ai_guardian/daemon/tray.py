@@ -286,6 +286,7 @@ class DaemonTray:
         self._refresh_event = threading.Event()
         self._web_proc = None
         self._last_autostart_attempt = 0.0
+        self._last_stats_snapshot = None
 
     def start(self):
         """Start tray icon in a background thread.
@@ -1159,6 +1160,40 @@ class DaemonTray:
             except Exception:
                 pass
 
+    def _refresh_menu_if_changed(self):
+        """Refresh the tray menu only if stats changed.
+
+        GNOME's AppIndicator rebuilds the entire DBus menu tree on
+        update_menu(), causing a visible blank flash.  Skip the call
+        when nothing has changed.
+        """
+        snapshot = self._build_stats_snapshot()
+        if snapshot == self._last_stats_snapshot:
+            return
+        self._last_stats_snapshot = snapshot
+        self._refresh_menu()
+
+    def _build_stats_snapshot(self):
+        """Build a hashable snapshot of menu-relevant state."""
+        try:
+            stats = self._get_stats()
+            return (
+                stats.get("request_count"),
+                stats.get("blocked_count"),
+                stats.get("warning_count"),
+                stats.get("violation_count"),
+                stats.get("paused"),
+                stats.get("pause_remaining_seconds", 0) // 5,
+                stats.get("config_error"),
+                self._status,
+                len(self._targets),
+                tuple(
+                    (t.name, t.status) for t in self._targets
+                ),
+            )
+        except Exception:
+            return None
+
     def _refresh_menu_and_clear_discovery_flag(self):
         """Refresh menu and clear the discovery refresh guard (main thread)."""
         self._refresh_menu()
@@ -1517,7 +1552,7 @@ class DaemonTray:
                     self._check_pypi_version()
                     self._poll_plugins()
                     self._request_discovery_refresh(wait=False)
-                    self._dispatch_to_main(self._refresh_menu)
+                    self._dispatch_to_main(self._refresh_menu_if_changed)
 
         thread = threading.Thread(
             target=_refresh, daemon=True, name="stats-refresh"
