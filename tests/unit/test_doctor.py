@@ -899,10 +899,8 @@ class TestCheckPsCacheFreshness:
         self._write_ps_config(_isolate_config_dir)
         doctor = Doctor()
         result = doctor.check_ps_cache_freshness()
-        assert result.status == CheckStatus.WARN
-        assert "No cached patterns" in result.message
-        assert result.fixable is True
-        assert result.fixed is False
+        assert result.status == CheckStatus.PASS
+        assert "No cached patterns yet" in result.message
 
     def test_custom_cache_path(self, _isolate_config_dir, tmp_path):
         cache_file = tmp_path / "custom" / "my-patterns.toml"

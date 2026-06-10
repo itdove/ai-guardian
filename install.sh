@@ -367,7 +367,7 @@ ok "Config at $CONFIG_PATH"
 
 if [ -n "$IDE" ]; then
     log "Setting up hooks for $IDE..."
-    SETUP_OUTPUT=$($AG_CMD setup --ide "$IDE" --install-scanner --yes \
+    SETUP_OUTPUT=$($AG_CMD setup --ide "$IDE" --install-scanner --force --yes \
         "${SETUP_ARGS[@]+"${SETUP_ARGS[@]}"}" 2>&1) || true
     echo "$SETUP_OUTPUT" | grep -v "^$" | tail -3
     if echo "$SETUP_OUTPUT" | grep -q "already configured"; then
@@ -424,14 +424,18 @@ echo "  Next steps:"
 if [ -z "$IDE" ] && { [ -z "${UPDATED+x}" ] || [ ${#UPDATED[@]} -eq 0 ]; }; then
     echo "    ai-guardian setup --ide <NAME>  # setup hooks for your IDE"
 fi
-echo "    ai-guardian doctor         # verify setup"
-if [ "$DAEMON_WAS_RUNNING" != true ]; then
-    echo "    ai-guardian daemon start   # start background daemon"
+echo "    ai-guardian doctor              # verify setup"
+echo "    ai-guardian --help              # see all commands"
+if [ "$DAEMON_WAS_RUNNING" != true ] || [ "$TRAY_WAS_RUNNING" != true ]; then
+    echo ""
+    echo "  Optional (auto-starts on first prompt):"
+    if [ "$DAEMON_WAS_RUNNING" != true ]; then
+        echo "    ai-guardian daemon start        # start background daemon now"
+    fi
+    if [ "$TRAY_WAS_RUNNING" != true ]; then
+        echo "    ai-guardian tray start          # start system tray now"
+    fi
 fi
-if [ "$TRAY_WAS_RUNNING" != true ]; then
-    echo "    ai-guardian tray start     # start system tray"
-fi
-echo "    ai-guardian --help         # see all commands"
 if [ "$INSTALL_MODE" = "venv" ]; then
     echo "    source $VENV_DIR/bin/activate  # activate venv"
 fi
