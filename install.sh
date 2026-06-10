@@ -259,11 +259,7 @@ case "$INSTALL_MODE" in
             exit 1
         fi
         log "Installing ai-guardian via uv tool install..."
-        if [ "$(uname -s)" = "Linux" ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
-            uv tool install --with PyGObject "$PKG"
-        else
-            uv tool install "$PKG"
-        fi
+        uv tool install "$PKG"
         INSTALL_DESC="uv tool install"
         ;;
     venv)
@@ -306,7 +302,7 @@ else
 fi
 ok "ai-guardian $AG_VERSION installed ($INSTALL_DESC)"
 
-# --- Step 3a: Install PyGObject for Linux tray support ---
+# --- Step 3a: Make GObject Introspection available for Linux tray ---
 
 if [ "$(uname -s)" = "Linux" ]; then
     # Skip on headless systems — tray needs a display
@@ -314,19 +310,46 @@ if [ "$(uname -s)" = "Linux" ]; then
     [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && LINUX_HAS_DISPLAY=true
 
     if [ "$LINUX_HAS_DISPLAY" = false ]; then
-        echo "  Skipping PyGObject — no display detected (headless environment)"
-    elif [ "$INSTALL_MODE" != "uv" ]; then
-        # uv mode already handled via --with PyGObject in Step 3
-        log "Installing PyGObject for Linux tray support..."
+        echo "  Skipping GObject setup — no display detected (headless environment)"
+    elif [ "$INSTALL_MODE" = "uv" ]; then
+        # uv tool creates an isolated env that can't see system gi.
+        # Symlink system gi into uv's site-packages (no compilation needed).
+        GI_PATH=$("$PYTHON" -c "import gi; print(gi.__path__[0])" 2>/dev/null)
+        if [ -n "$GI_PATH" ]; then
+            UV_TOOL_DIR="$HOME/.local/share/uv/tools/ai-guardian"
+            UV_SITE=$(find "$UV_TOOL_DIR" -path "*/site-packages" -type d 2>/dev/null | head -1)
+            if [ -n "$UV_SITE" ] && [ ! -e "$UV_SITE/gi" ]; then
+                GI_PARENT=$(dirname "$GI_PATH")
+                ln -sf "$GI_PATH" "$UV_SITE/gi"
+                # Also link the _gi C extension and package metadata
+                for pattern in "_gi*.so" "_gi*.cpython*.so" "PyGObject*.egg-info" "pygobject*.dist-info"; do
+                    for f in "$GI_PARENT"/$pattern; do
+                        [ -e "$f" ] && ln -sf "$f" "$UV_SITE/"
+                    done
+                done
+                ok "System gi symlinked into uv environment"
+            elif [ -e "$UV_SITE/gi" ]; then
+                ok "gi already available in uv environment"
+            else
+                echo "  Warning: could not find uv tool site-packages — tray may not work"
+            fi
+        else
+            echo "  Warning: system gi (python3-gobject) not found"
+            echo "  Install it:  sudo dnf install python3-gobject  (or: sudo apt install python3-gi)"
+        fi
+    else
+        # venv/pip: install PyGObject into the environment
         GI_INSTALLED=false
-        if has_uv; then
+        if "$PYTHON" -c "import gi" 2>/dev/null; then
+            GI_INSTALLED=true
+        elif has_uv; then
             uv pip install --python "$PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
         fi
         if [ "$GI_INSTALLED" = false ]; then
             "$PYTHON" -m pip install --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
         fi
         if [ "$GI_INSTALLED" = true ]; then
-            ok "PyGObject installed (tray will use AppIndicator backend)"
+            ok "GObject Introspection available (tray will use AppIndicator backend)"
         else
             echo "  Warning: PyGObject install failed — tray may not work on Linux"
             echo "  System headers may be needed:"
