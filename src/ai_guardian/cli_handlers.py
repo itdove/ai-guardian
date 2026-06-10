@@ -615,11 +615,19 @@ def _handle_tray_start(args):
     from ai_guardian.daemon.multi_client import MultiDaemonClient
 
     if not is_tray_available():
-        print(
-            "System tray not available. "
-            "Install pystray and Pillow, or run 'ai-guardian doctor' for details.",
-            file=sys.stderr,
-        )
+        import platform
+        msg = "System tray not available."
+        if platform.system() == "Linux":
+            try:
+                import gi  # noqa: F401
+            except ImportError:
+                msg += (
+                    "\nGObject Introspection (gi) is not available in this Python environment."
+                    "\nThis is common with 'uv tool install' which creates an isolated env."
+                    "\nFix: reinstall with --venv: curl -fsSL .../install.sh | bash -s -- --venv"
+                )
+        msg += "\nRun 'ai-guardian doctor' for details."
+        print(msg, file=sys.stderr)
         return 1
 
     try:

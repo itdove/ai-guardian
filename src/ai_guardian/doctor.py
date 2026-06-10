@@ -1185,6 +1185,28 @@ class Doctor:
                 message=f"Unsupported platform ({system})",
             )
 
+        # Linux: check GObject Introspection (gi) availability
+        try:
+            import gi  # noqa: F401
+        except ImportError:
+            return CheckResult(
+                name="tray_support",
+                status=CheckStatus.WARN,
+                message=(
+                    "GObject Introspection (gi) not available — "
+                    "tray requires it on Linux"
+                ),
+                fix_hint=(
+                    "Reinstall with --venv: install.sh --venv\n"
+                    "Or install PyGObject: pip install PyGObject\n"
+                    "System headers may be needed first:\n"
+                    "  Fedora/RHEL: sudo dnf install gobject-introspection-devel "
+                    "cairo-gobject-devel pkg-config python3-devel gcc\n"
+                    "  Debian/Ubuntu: sudo apt install libgirepository1.0-dev "
+                    "gcc libcairo2-dev pkg-config python3-dev"
+                ),
+            )
+
         # Linux: check GNOME AppIndicator
         desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
         if "GNOME" not in desktop.upper():

@@ -120,6 +120,19 @@ def _restore_stderr(saved_fd):
             pass
 
 
+def _check_gi_available():
+    """Check if GObject Introspection is available (required for tray on Linux).
+
+    Without gi, pystray falls back from AppIndicator3 to the Xorg backend
+    which crashes on Wayland sessions.
+    """
+    try:
+        import gi  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def is_tray_available():
     """Check if system tray can be displayed (dependencies + display)."""
     if not HAS_PYSTRAY:
@@ -129,8 +142,16 @@ def is_tray_available():
     if os.environ.get("DISPLAY") is None and os.environ.get("WAYLAND_DISPLAY") is None:
         if platform.system() == "Linux":
             return False
-    if platform.system() == "Linux" and not _check_gnome_appindicator():
-        return False
+    if platform.system() == "Linux":
+        if not _check_gi_available():
+            logger.warning(
+                "GObject Introspection (gi) not available — tray requires it on Linux. "
+                "This often happens with 'uv tool install' (isolated environment). "
+                "Fix: reinstall with --venv flag: install.sh --venv"
+            )
+            return False
+        if not _check_gnome_appindicator():
+            return False
     return True
 
 
