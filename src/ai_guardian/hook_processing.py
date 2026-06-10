@@ -73,6 +73,7 @@ from ai_guardian.config_loaders import (
     _load_image_scanning_config,
     _load_security_instructions_config,
     _load_context_poisoning_config,
+    _load_supply_chain_config,
     _get_on_scan_error_action,
 )
 
@@ -120,6 +121,12 @@ try:
     HAS_CONFIG_SCANNER = True
 except ImportError:
     HAS_CONFIG_SCANNER = False
+
+try:
+    from ai_guardian.supply_chain import SupplyChainScanner
+    HAS_SUPPLY_CHAIN = True
+except ImportError:
+    HAS_SUPPLY_CHAIN = False
 
 try:
     from ai_guardian.violation_logger import ViolationLogger
@@ -1995,6 +2002,45 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
         )
     except Exception as e:
         logger.debug(f"Failed to log context poisoning violation: {e}")
+
+
+def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
+                                hook_context: Optional[Dict] = None,
+                                matched_pattern: Optional[str] = None,
+                                matched_text: Optional[str] = None,
+                                category: Optional[str] = None,
+                                line_number: Optional[int] = None,
+                                violation_logger=None):
+    """Log a supply chain threat violation."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        ctx = context or {}
+        blocked_entry = {
+            "file_path": ctx.get("file_path"),
+            "line_number": line_number,
+            "source": "agent_config",
+            "pattern": matched_pattern or "Unknown",
+            "category": category or "unknown",
+            "reason": "Supply chain threat detected in agent configuration"
+        }
+        if matched_text:
+            blocked_entry["matched_text"] = matched_text[:100]
+        if violation_logger is None:
+            violation_logger = ViolationLogger()
+        violation_logger.log_violation(
+            violation_type=ViolationType.SUPPLY_CHAIN,
+            blocked=blocked_entry,
+            context=_build_violation_context(context, hook_context),
+            suggestion={
+                "action": "add_allowlist_path",
+                "note": "If this is a trusted config file, add to supply_chain.allowlist_paths in ai-guardian.json"
+            },
+            severity="high"
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log supply chain violation: {e}")
 
 
 def _count_gitleaks_patterns(config_path):
@@ -4290,6 +4336,58 @@ def process_hook_data(hook_data, daemon_state=None):
 
             except Exception as e:
                 logging.warning(f"Context poisoning check error (fail-open): {e}")
+
+        # Check for supply chain threats in agent configuration files
+        if HAS_SUPPLY_CHAIN and content_to_scan:
+            try:
+                sc_config, sc_error = _load_supply_chain_config()
+                if sc_error:
+                    warning_messages.append(sc_error)
+
+                if sc_config and is_feature_enabled(
+                    sc_config.get("enabled"),
+                    now,
+                    default=True
+                ):
+                    sc_scanner = SupplyChainScanner(sc_config)
+                    sc_file_path = file_path or filename or "user_prompt"
+
+                    with _latency_timer.check("supply_chain"):
+                        if hook_event == HookEvent.PROMPT:
+                            sc_should_block, sc_error_msg, sc_detected = sc_scanner.scan_content(
+                                content_to_scan, label="user_prompt"
+                            )
+                        else:
+                            sc_should_block, sc_error_msg, sc_detected = sc_scanner.scan(
+                                sc_file_path, content_to_scan
+                            )
+
+                    if sc_detected:
+                        sc_hook_ctx = {}
+                        if hook_tool_use_id:
+                            sc_hook_ctx["tool_use_id"] = hook_tool_use_id
+                        if hook_session_id:
+                            sc_hook_ctx["session_id"] = hook_session_id
+                        _log_supply_chain_violation(
+                            filename,
+                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": sc_file_path},
+                            hook_context=sc_hook_ctx if sc_hook_ctx else None,
+                            matched_pattern=sc_scanner.last_matched_pattern,
+                            matched_text=sc_scanner.last_matched_text,
+                            category=sc_scanner.last_category,
+                            line_number=sc_scanner.last_line_number
+                        )
+
+                    if sc_should_block:
+                        logging.info("Blocking operation due to supply chain threat detection")
+                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                        result = format_response(ide_type, has_secrets=True, error_message=sc_error_msg, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SUPPLY_CHAIN, security_message=security_message)
+                        return result
+                    elif sc_detected and sc_error_msg:
+                        warning_messages.append(sc_error_msg)
+
+            except Exception as e:
+                logging.warning(f"Supply chain check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
         # Only scan for PreToolUse/Read operations on actual files

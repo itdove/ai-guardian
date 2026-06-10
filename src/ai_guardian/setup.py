@@ -1850,6 +1850,16 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_patterns": []
         },
 
+        "_comment_supply_chain": "Detect malicious patterns in agent config files — hooks, MCP servers, and plugin files (NEW in v1.11.0, Issue #1055)",
+        "supply_chain": {
+            "enabled": True,
+            "action": "block",
+            "scan_hooks": True,
+            "scan_mcp_configs": True,
+            "scan_plugins": True,
+            "allowlist_paths": [],
+        },
+
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins.",
         "permissions": {
             "enabled": not permissive,
@@ -1961,7 +1971,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected"]
+            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "supply_chain"]
         },
         "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
         "daemon": {

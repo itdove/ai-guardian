@@ -459,6 +459,24 @@
     ]
   },
 
+  "supply_chain": {
+    "_comment": "Supply chain threat detection (NEW in v1.11.0, Issue #1055)",
+    "_comment2": "Scans agent configuration files for malicious patterns — hooks, MCP server configs, and plugin files",
+    "_comment3": "Catches: download-and-execute chains, obfuscation, env var hijacking, exfiltration, reverse shells",
+    "_comment4": "Default action is 'block' (low false positive risk — only scans known agent config paths)",
+    "enabled": true,
+    "action": "block",
+    "_action_options": ["block", "warn", "log-only"],
+    "scan_hooks": true,
+    "_scan_hooks_note": "Scan hooks.json and settings.json for Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment",
+    "scan_mcp_configs": true,
+    "_scan_mcp_configs_note": "Scan MCP server command configurations for suspicious patterns (npx with URLs, python -c, etc.)",
+    "scan_plugins": true,
+    "_scan_plugins_note": "Scan OpenCode plugins (.ts) and AiderDesk extensions for dangerous APIs (child_process, execSync, etc.)",
+    "allowlist_paths": [],
+    "_allowlist_note": "File paths to skip (supports ~ expansion and globs). ai-guardian's own plugin files are always skipped."
+  },
+
   "scan_pii": {
     "_comment": "PII detection for GDPR/CCPA compliance (v1.6.0+, Phase 2 in v1.8.0)",
     "_comment2": "Scans user prompts, file reads, and tool outputs for personally identifiable information",

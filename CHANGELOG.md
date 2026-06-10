@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Supply Chain Scanning** (Issue #1055)
+  - New violation type `SUPPLY-CHAIN-001` for detecting malicious patterns in agent configuration files
+  - Scans hooks (Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment), MCP server configs, and plugin files (OpenCode, AiderDesk)
+  - 8 detection categories: download-and-execute, obfuscation, env hijacking, network exfiltration, MCP suspicious commands, config key hijacking, reverse shells, plugin dangerous APIs
+  - Active in all 3 hooks: UserPromptSubmit (pasted config), PreToolUse (write to config), PostToolUse (read poisoned config)
+  - CLI: `ai-guardian scan --agent-configs` scans known agent config paths
+  - TUI and Web console toggles with block/warn/log-only action modes
+  - Self-allowlist: ai-guardian's own plugin files never flagged
+  - Default action: `block` (low false-positive risk due to path-specific + pattern-specific targeting)
+
 - **Hook Latency Metrics** (Issue #1057)
   - Per-hook (PreToolUse/PostToolUse/UserPromptSubmit) and per-violation-type timing instrumentation
   - New `latency_tracking` config section (disabled by default, opt-in for debugging)

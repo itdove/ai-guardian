@@ -159,6 +159,7 @@ class ConfigDisplay:
             ("prompt_injection", "Prompt Injection Detection"),
             ("ssrf_protection", "SSRF Protection"),
             ("config_file_scanning", "Config File Scanning"),
+            ("supply_chain", "Supply Chain Scanning"),
             ("security_instructions", "Security Instructions"),
             ("image_scanning", "Image Scanning (OCR)"),
         ]

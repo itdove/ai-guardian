@@ -1,0 +1,411 @@
+# Supply chain threat detection patterns for ai-guardian
+# Detects malicious patterns in agent configuration files — hooks, MCP servers, plugins
+# Source: Issue #1055, inspired by skillsaw hooks-dangerous/hooks-prohibited rules
+
+# === Download-and-execute chains ===
+
+[[rules]]
+id = "curl_pipe_shell"
+match_type = "regex"
+regex = '''curl\s+.*\|\s*(?:ba)?sh'''
+description = "curl piped to shell (download-and-execute)"
+group = "download_and_execute"
+tier = "immutable"
+
+[[rules]]
+id = "wget_pipe_shell"
+match_type = "regex"
+regex = '''wget\s+.*\|\s*(?:ba)?sh'''
+description = "wget piped to shell (download-and-execute)"
+group = "download_and_execute"
+tier = "immutable"
+
+[[rules]]
+id = "curl_pipe_python"
+match_type = "regex"
+regex = '''curl\s+.*\|\s*python'''
+description = "curl piped to python (download-and-execute)"
+group = "download_and_execute"
+tier = "immutable"
+
+[[rules]]
+id = "curl_pipe_node"
+match_type = "regex"
+regex = '''curl\s+.*\|\s*node\s*-'''
+description = "curl piped to node (download-and-execute)"
+group = "download_and_execute"
+tier = "immutable"
+
+[[rules]]
+id = "curl_pipe_perl"
+match_type = "regex"
+regex = '''curl\s+.*\|\s*perl'''
+description = "curl piped to perl (download-and-execute)"
+group = "download_and_execute"
+tier = "immutable"
+
+[[rules]]
+id = "fetch_pipe_shell"
+match_type = "regex"
+regex = '''fetch\s+.*\|\s*(?:ba)?sh'''
+description = "fetch piped to shell (download-and-execute)"
+group = "download_and_execute"
+tier = "immutable"
+
+# === Obfuscation / code injection ===
+
+[[rules]]
+id = "eval_call"
+match_type = "regex"
+regex = '''\beval\s*\('''
+description = "eval() call (code injection risk)"
+group = "obfuscation"
+tier = "immutable"
+
+[[rules]]
+id = "eval_string"
+match_type = "regex"
+regex = '''\beval\s+["']'''
+description = "eval with string argument (code injection)"
+group = "obfuscation"
+tier = "immutable"
+
+[[rules]]
+id = "base64_decode"
+match_type = "regex"
+regex = '''base64\s+(?:-d|--decode)'''
+description = "base64 decode (obfuscation)"
+group = "obfuscation"
+tier = "immutable"
+
+[[rules]]
+id = "base64_subshell"
+match_type = "regex"
+regex = '''\$\(.*base64'''
+description = "base64 in command substitution (obfuscation)"
+group = "obfuscation"
+tier = "immutable"
+
+[[rules]]
+id = "echo_base64_shell"
+match_type = "regex"
+regex = '''echo\s+.*\|\s*base64.*\|\s*(?:ba)?sh'''
+description = "echo base64 piped to shell (obfuscated execution)"
+group = "obfuscation"
+tier = "immutable"
+
+[[rules]]
+id = "printf_hex"
+match_type = "regex"
+regex = '''printf\s+.*\\x[0-9a-f]'''
+description = "printf with hex escapes (obfuscation)"
+group = "obfuscation"
+tier = "immutable"
+
+[[rules]]
+id = "python_base64_import"
+match_type = "regex"
+regex = '''python\s+-c\s+['"]import\s+base64'''
+description = "python one-liner with base64 (obfuscated execution)"
+group = "obfuscation"
+tier = "immutable"
+
+# === Environment variable hijacking ===
+
+[[rules]]
+id = "ld_preload"
+match_type = "regex"
+regex = '''\bLD_PRELOAD='''
+description = "LD_PRELOAD hijack (library injection)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "dyld_insert"
+match_type = "regex"
+regex = '''\bDYLD_INSERT_LIBRARIES='''
+description = "DYLD_INSERT_LIBRARIES hijack (macOS library injection)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "node_options_require"
+match_type = "regex"
+regex = '''\bNODE_OPTIONS=.*--require'''
+description = "NODE_OPTIONS --require hijack (Node.js code injection)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "pythonstartup"
+match_type = "regex"
+regex = '''\bPYTHONSTARTUP='''
+description = "PYTHONSTARTUP hijack (Python startup injection)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "pythonpath_tmp"
+match_type = "regex"
+regex = '''\bPYTHONPATH=.*:/tmp'''
+description = "PYTHONPATH pointing to /tmp (module hijacking)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "path_tmp"
+match_type = "regex"
+regex = '''\bPATH=.*:/tmp'''
+description = "PATH pointing to /tmp (binary hijacking)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "http_proxy"
+match_type = "regex"
+regex = '''\bhttp_proxy='''
+description = "http_proxy hijack (traffic interception)"
+group = "env_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "https_proxy"
+match_type = "regex"
+regex = '''\bHTTPS_PROXY='''
+description = "HTTPS_PROXY hijack (traffic interception)"
+group = "env_hijacking"
+tier = "immutable"
+
+# === Network exfiltration from hooks ===
+
+[[rules]]
+id = "curl_data_var"
+match_type = "regex"
+regex = '''curl\s+.*--data.*\$'''
+description = "curl POST with variable data (exfiltration)"
+group = "network_exfil"
+tier = "immutable"
+
+[[rules]]
+id = "curl_d_var"
+match_type = "regex"
+regex = '''curl\s+.*-d\s+.*\$'''
+description = "curl -d with variable data (exfiltration)"
+group = "network_exfil"
+tier = "immutable"
+
+[[rules]]
+id = "curl_post"
+match_type = "regex"
+regex = '''curl\s+.*POST'''
+description = "curl POST request from config (potential exfiltration)"
+group = "network_exfil"
+tier = "overridable"
+
+[[rules]]
+id = "wget_post"
+match_type = "regex"
+regex = '''wget\s+--post'''
+description = "wget POST request from config (potential exfiltration)"
+group = "network_exfil"
+tier = "immutable"
+
+[[rules]]
+id = "nc_exec"
+match_type = "regex"
+regex = '''nc\s+(?:-e|--exec)'''
+description = "netcat with exec (reverse shell / exfiltration)"
+group = "network_exfil"
+tier = "immutable"
+
+[[rules]]
+id = "ncat_exec"
+match_type = "regex"
+regex = '''ncat\s+(?:-e|--exec)'''
+description = "ncat with exec (reverse shell / exfiltration)"
+group = "network_exfil"
+tier = "immutable"
+
+[[rules]]
+id = "socat_exec"
+match_type = "regex"
+regex = '''socat\s+EXEC'''
+description = "socat EXEC (reverse shell / exfiltration)"
+group = "network_exfil"
+tier = "immutable"
+
+# === MCP server suspicious commands ===
+
+[[rules]]
+id = "npx_url"
+match_type = "regex"
+regex = '''npx\s+.*https?://'''
+description = "npx with URL (untrusted package execution)"
+group = "mcp_suspicious"
+tier = "immutable"
+
+[[rules]]
+id = "npx_scoped_pkg"
+match_type = "regex"
+regex = '''npx\s+-y\s+@[^/]+/'''
+description = "npx -y with scoped package (auto-install untrusted)"
+group = "mcp_suspicious"
+tier = "overridable"
+
+[[rules]]
+id = "node_eval"
+match_type = "regex"
+regex = '''node\s+-e\s+['"]'''
+description = "node -e with inline code (code injection)"
+group = "mcp_suspicious"
+tier = "immutable"
+
+[[rules]]
+id = "python_eval"
+match_type = "regex"
+regex = '''python\s+-c\s+['"]'''
+description = "python -c with inline code (code injection)"
+group = "mcp_suspicious"
+tier = "immutable"
+
+[[rules]]
+id = "uvx_url"
+match_type = "regex"
+regex = '''uvx\s+.*https?://'''
+description = "uvx with URL (untrusted package execution)"
+group = "mcp_suspicious"
+tier = "immutable"
+
+# === Config key hijacking ===
+
+[[rules]]
+id = "api_key_helper"
+match_type = "regex"
+regex = '''"apiKeyHelper"\s*:'''
+description = "apiKeyHelper config key (credential theft)"
+group = "config_key_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "aws_auth_refresh"
+match_type = "regex"
+regex = '''"awsAuthRefresh"\s*:'''
+description = "awsAuthRefresh config key (credential theft)"
+group = "config_key_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "precommand_curl"
+match_type = "regex"
+regex = '''"preCommand"\s*:\s*".*curl'''
+description = "preCommand with curl (credential theft)"
+group = "config_key_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "command_eval"
+match_type = "regex"
+regex = '''"command"\s*:\s*".*eval'''
+description = "command with eval (code injection)"
+group = "config_key_hijacking"
+tier = "immutable"
+
+[[rules]]
+id = "command_base64"
+match_type = "regex"
+regex = '''"command"\s*:\s*".*base64'''
+description = "command with base64 (obfuscated execution)"
+group = "config_key_hijacking"
+tier = "immutable"
+
+# === Reverse shell patterns ===
+
+[[rules]]
+id = "dev_tcp"
+match_type = "regex"
+regex = '''/dev/tcp/'''
+description = "/dev/tcp reverse shell"
+group = "reverse_shell"
+tier = "immutable"
+
+[[rules]]
+id = "bash_reverse"
+match_type = "regex"
+regex = '''bash\s+-i\s+>&'''
+description = "bash interactive reverse shell"
+group = "reverse_shell"
+tier = "immutable"
+
+[[rules]]
+id = "mkfifo_tmp"
+match_type = "regex"
+regex = '''mkfifo\s+/tmp'''
+description = "mkfifo in /tmp (named pipe for reverse shell)"
+group = "reverse_shell"
+tier = "immutable"
+
+[[rules]]
+id = "telnet_ip"
+match_type = "regex"
+regex = '''\btelnet\s+\d+\.\d+'''
+description = "telnet to IP address (reverse shell)"
+group = "reverse_shell"
+tier = "immutable"
+
+# === Plugin-specific (OpenCode/AiderDesk TypeScript) ===
+
+[[rules]]
+id = "child_process_require"
+match_type = "regex"
+regex = '''require\s*\(\s*['"]child_process['"]\)'''
+description = "require('child_process') in plugin (command execution)"
+group = "plugin_dangerous"
+tier = "overridable"
+
+[[rules]]
+id = "child_process_import"
+match_type = "regex"
+regex = '''import.*from\s+['"]child_process['"]'''
+description = "import from child_process in plugin (command execution)"
+group = "plugin_dangerous"
+tier = "overridable"
+
+[[rules]]
+id = "net_require"
+match_type = "regex"
+regex = '''require\s*\(\s*['"]net['"]\)'''
+description = "require('net') in plugin (network access)"
+group = "plugin_dangerous"
+tier = "overridable"
+
+[[rules]]
+id = "http_require"
+match_type = "regex"
+regex = '''require\s*\(\s*['"]http['"]'''
+description = "require('http') in plugin (network access)"
+group = "plugin_dangerous"
+tier = "overridable"
+
+[[rules]]
+id = "exec_call"
+match_type = "regex"
+regex = '''\.exec\s*\('''
+description = ".exec() call in plugin (command execution)"
+group = "plugin_dangerous"
+tier = "overridable"
+
+[[rules]]
+id = "exec_sync_call"
+match_type = "regex"
+regex = '''\.execSync\s*\('''
+description = ".execSync() call in plugin (synchronous command execution)"
+group = "plugin_dangerous"
+tier = "overridable"
+
+[[rules]]
+id = "process_env_access"
+match_type = "regex"
+regex = '''process\.env\['''
+description = "process.env[] access in plugin (environment variable read)"
+group = "plugin_dangerous"
+tier = "overridable"
