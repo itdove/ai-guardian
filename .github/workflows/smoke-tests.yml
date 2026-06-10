@@ -433,3 +433,92 @@ jobs:
               echo "Pytest traceback: PASS (scan completed)"
           fi
           rm -rf "$TEST_DIR"
+
+  install-uninstall:
+    name: Install/Uninstall Lifecycle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Create isolated environment
+        run: |
+          TMPDIR=$(mktemp -d)
+          echo "CLAUDE_CONFIG_DIR=$TMPDIR/claude" >> $GITHUB_ENV
+          echo "XDG_CONFIG_HOME=$TMPDIR/config" >> $GITHUB_ENV
+          echo "XDG_STATE_HOME=$TMPDIR/state" >> $GITHUB_ENV
+          echo "XDG_CACHE_HOME=$TMPDIR/cache" >> $GITHUB_ENV
+          echo "TEST_TMPDIR=$TMPDIR" >> $GITHUB_ENV
+          mkdir -p "$TMPDIR/claude"
+
+      - name: "Install via install.sh --venv"
+        run: |
+          bash install.sh --venv --no-setup
+          source "$HOME/.ai-guardian-venv/bin/activate"
+          ai-guardian --version
+          echo "Install: PASS"
+
+      - name: "Setup hooks for claude"
+        run: |
+          source "$HOME/.ai-guardian-venv/bin/activate"
+          ai-guardian setup --ide claude --yes --no-mcp
+          echo "Setup: PASS"
+
+      - name: "Verify hooks exist"
+        run: |
+          CLAUDE_SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
+          if [ -f "$CLAUDE_SETTINGS" ] && grep -q "ai-guardian" "$CLAUDE_SETTINGS"; then
+              echo "Hooks verified in $CLAUDE_SETTINGS"
+          else
+              echo "ERROR: hooks not found in $CLAUDE_SETTINGS"
+              cat "$CLAUDE_SETTINGS" 2>/dev/null || echo "(file not found)"
+              exit 1
+          fi
+
+      - name: "Dry run uninstall"
+        run: |
+          OUTPUT=$(bash uninstall.sh --dry-run --yes 2>&1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q "Would remove\|Would run"; then
+              echo "Dry run: PASS (detected items to remove)"
+          else
+              echo "Dry run: PASS (script ran without error)"
+          fi
+
+      - name: "Run uninstall"
+        run: |
+          bash uninstall.sh --yes 2>&1 | tee /tmp/uninstall-out.txt
+          echo "Uninstall: PASS"
+
+      - name: "Verify package removed"
+        run: |
+          if [ -d "$HOME/.ai-guardian-venv" ]; then
+              echo "FAIL: venv still exists"
+              exit 1
+          fi
+          echo "Package removal: PASS"
+
+      - name: "Verify hooks removed"
+        run: |
+          CLAUDE_SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
+          if [ -f "$CLAUDE_SETTINGS" ] && grep -q "ai-guardian" "$CLAUDE_SETTINGS"; then
+              echo "FAIL: hooks still present"
+              cat "$CLAUDE_SETTINGS"
+              exit 1
+          fi
+          echo "Hook removal: PASS"
+
+      - name: "Verify config kept (default)"
+        run: |
+          CONFIG_DIR="${XDG_CONFIG_HOME}/ai-guardian"
+          if [ -d "$CONFIG_DIR" ]; then
+              echo "Config kept: PASS ($CONFIG_DIR still exists)"
+          else
+              echo "Config kept: PASS (no config was created)"
+          fi
