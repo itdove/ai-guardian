@@ -340,6 +340,15 @@ IMMUTABLE_DENY_PATTERNS = {
         "*tee*/.config/ai-guardian/*",
         "*tee*ai-guardian.json*",
         "*curl*file://*ai-guardian*",
+
+        # Self-protection: agent must NEVER pause/stop/disable ai-guardian
+        "*ai-guardian*pause*",
+        "*ai-guardian*resume*",
+        "*ai-guardian*stop*",
+        "*ai-guardian*disable*",
+        "*ai-guardian*uninstall*",
+        "*ai-guardian*daemon*stop*",
+        "*ai-guardian*tray*stop*",
     ],
 
     "PowerShell": [

@@ -189,11 +189,9 @@ def test_user_experience_feature_name(self, mock_pattern_config, mock_scan_confi
 
 ### AI Guardian Blocking File Reads
 
-If ai-guardian hooks prevent you from reading project files (e.g., `Hook PreToolUse:Read denied this tool`), ask the user to pause ai-guardian temporarily:
-
-```bash
-ai-guardian pause 5   # Pause for 5 minutes
-```
+If ai-guardian hooks prevent you from reading project files (e.g., `Hook PreToolUse:Read denied this tool`), ask the user to pause ai-guardian temporarily.
+The user can run: `ai-guardian pause 5` (pauses for 5 minutes).
+DO NOT run this command yourself — ai-guardian will block it.
 
 The user can resume protection at any time with `ai-guardian resume`.
 
