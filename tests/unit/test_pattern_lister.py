@@ -12,6 +12,7 @@ from ai_guardian.pattern_lister import (
     CATEGORY_ALIASES,
     BuiltInGroup,
     ConfigurableKey,
+    DetectionRule,
     PatternCategory,
     PatternLister,
 )
@@ -30,8 +31,10 @@ class TestPatternLister:
         assert "ssrf_protection" in config_keys
         assert "config_file_scanning" in config_keys
         assert "secret_redaction" in config_keys
+        assert "context_poisoning" in config_keys
+        assert "supply_chain" in config_keys
         assert "violation_logging" in config_keys
-        assert len(categories) == 6
+        assert len(categories) == 8
 
     def test_get_categories_with_filter(self):
         lister = PatternLister()
@@ -276,7 +279,7 @@ class TestPatternListerJson:
         result = json.loads(lister.get_pattern_list_json())
 
         assert "categories" in result
-        assert len(result["categories"]) == 6
+        assert len(result["categories"]) == 8
 
     def test_get_pattern_list_json_filtered(self):
         lister = PatternLister(config={})
@@ -388,3 +391,62 @@ class TestCategoryAliases:
 
         for alias, target in CATEGORY_ALIASES.items():
             assert target in all_keys, f"Alias '{alias}' -> '{target}' not in available categories"
+
+
+class TestGetAllRules:
+    """Tests for get_all_rules() method."""
+
+    def test_returns_list_of_detection_rules(self):
+        lister = PatternLister()
+        rules = lister.get_all_rules()
+        assert isinstance(rules, list)
+        assert len(rules) > 0
+        assert all(isinstance(r, DetectionRule) for r in rules)
+
+    def test_includes_all_toml_categories(self):
+        lister = PatternLister()
+        rules = lister.get_all_rules()
+        categories = {r.category for r in rules}
+        for expected in [
+            "secrets", "pii", "prompt_injection", "unicode",
+            "config_exfil", "ssrf", "context_poisoning", "supply_chain",
+        ]:
+            assert expected in categories, f"Missing category: {expected}"
+
+    def test_includes_self_protection(self):
+        lister = PatternLister()
+        rules = lister.get_all_rules()
+        self_protect = [r for r in rules if r.category == "self_protection"]
+        assert len(self_protect) > 0
+        assert all(r.source == "hardcoded" for r in self_protect)
+        assert all(r.match_type == "fnmatch" for r in self_protect)
+        groups = {r.group for r in self_protect}
+        assert "Write" in groups
+        assert "Bash" in groups
+
+    def test_category_filter(self):
+        lister = PatternLister()
+        pii_rules = lister.get_all_rules(category_filter="pii")
+        assert len(pii_rules) > 0
+        assert all(r.category == "pii" for r in pii_rules)
+
+    def test_self_protection_filter(self):
+        lister = PatternLister()
+        rules = lister.get_all_rules(category_filter="self_protection")
+        assert len(rules) > 0
+        assert all(r.category == "self_protection" for r in rules)
+
+    def test_rule_fields_non_empty(self):
+        lister = PatternLister()
+        rules = lister.get_all_rules()
+        for r in rules:
+            assert r.id, f"Empty id in {r}"
+            assert r.pattern, f"Empty pattern in {r}"
+            assert r.category, f"Empty category in {r}"
+            assert r.match_type, f"Empty match_type in {r}"
+            assert r.source in ("toml", "hardcoded"), f"Bad source in {r}"
+
+    def test_total_count(self):
+        lister = PatternLister()
+        rules = lister.get_all_rules()
+        assert len(rules) >= 500

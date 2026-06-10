@@ -317,6 +317,13 @@ class WebConsole:
             )
             create_config_effective_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/detection-patterns")
+        def detection_patterns_page(daemon_name: str):
+            from ai_guardian.web.pages.detection_patterns import (
+                create_detection_patterns_page,
+            )
+            create_detection_patterns_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/regex-tester")
         def regex_tester_page(daemon_name: str):
             from ai_guardian.web.pages.regex_tester import (

@@ -48,9 +48,23 @@ CATEGORY_ALIASES = {
     "config_scan": "config_file_scanning",
     "secrets": "secret_redaction",
     "redaction": "secret_redaction",
+    "poisoning": "context_poisoning",
+    "supply": "supply_chain",
     "logging": "violation_logging",
     "violations": "violation_logging",
 }
+
+
+@dataclass
+class DetectionRule:
+    id: str
+    pattern: str
+    match_type: str
+    source: str
+    category: str
+    group: str
+    description: str
+    severity: str
 
 
 @dataclass
@@ -297,6 +311,30 @@ class PatternLister:
             configurable_keys=configurable,
         )
 
+    def _build_context_poisoning_category(self) -> PatternCategory:
+        groups = [
+            BuiltInGroup("Persistence patterns", _count_toml_rules("context_poisoning", group="persistence"), "permanent instruction injection"),
+            BuiltInGroup("Dangerous action patterns", _count_toml_rules("context_poisoning", group="dangerous_action"), "risky automated actions"),
+        ]
+
+        return PatternCategory(
+            name="Context Poisoning",
+            config_key="context_poisoning",
+            built_in_groups=groups,
+        )
+
+    def _build_supply_chain_category(self) -> PatternCategory:
+        groups = [
+            BuiltInGroup("Download & execute", _count_toml_rules("supply_chain", group="download_and_execute"), "curl|sh, wget|sh chains"),
+            BuiltInGroup("Malicious imports", _count_toml_rules("supply_chain", group="malicious_imports"), "suspicious pip/npm installs"),
+        ]
+
+        return PatternCategory(
+            name="Supply Chain",
+            config_key="supply_chain",
+            built_in_groups=groups,
+        )
+
     def _build_violation_logging_category(self) -> PatternCategory:
         schema = self._load_schema()
         schema_section = schema.get("properties", {}).get("violation_logging", {})
@@ -321,6 +359,8 @@ class PatternLister:
             self._build_ssrf_category,
             self._build_config_scanning_category,
             self._build_secret_redaction_category,
+            self._build_context_poisoning_category,
+            self._build_supply_chain_category,
             self._build_violation_logging_category,
         ]
 
@@ -338,6 +378,57 @@ class PatternLister:
                 categories.append(cat)
 
         return categories
+
+    def _extract_pattern_text(self, rule: Dict[str, Any]) -> str:
+        for key in ("regex", "cidr", "source", "glob"):
+            if key in rule:
+                return str(rule[key])
+        return rule.get("id", "")
+
+    def get_all_rules(self, category_filter: Optional[str] = None) -> List[DetectionRule]:
+        """Return all detection rules from TOML files and hardcoded patterns."""
+        rules: List[DetectionRule] = []
+
+        for cat_key, toml_path in BUNDLED_FILES.items():
+            if category_filter and cat_key != category_filter:
+                continue
+            if not toml_path.exists():
+                continue
+            try:
+                raw_rules = load_toml_file(toml_path)
+            except Exception:
+                continue
+            for raw in raw_rules:
+                rules.append(DetectionRule(
+                    id=raw.get("id", ""),
+                    pattern=self._extract_pattern_text(raw),
+                    match_type=raw.get("match_type", "regex"),
+                    source="toml",
+                    category=cat_key,
+                    group=raw.get("group", raw.get("category", "")),
+                    description=raw.get("description", ""),
+                    severity=raw.get("tier", raw.get("severity", "")),
+                ))
+
+        if not category_filter or category_filter == "self_protection":
+            try:
+                from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+                for tool_name, patterns in IMMUTABLE_DENY_PATTERNS.items():
+                    for i, pat in enumerate(patterns):
+                        rules.append(DetectionRule(
+                            id=f"self-protect-{tool_name.lower()}-{i+1:03d}",
+                            pattern=pat,
+                            match_type="fnmatch",
+                            source="hardcoded",
+                            category="self_protection",
+                            group=tool_name,
+                            description=f"Self-protection: blocks {tool_name} on matching paths",
+                            severity="immutable",
+                        ))
+            except ImportError:
+                pass
+
+        return rules
 
     def print_pattern_list(self, verbose: bool = False, category: Optional[str] = None):
         categories = self.get_categories(category_filter=category)

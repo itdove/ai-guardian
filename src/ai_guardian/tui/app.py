@@ -138,6 +138,7 @@ NAV_GROUPS = [
         ("Daemon", "panel-daemon"),
     ]),
     ("Tools", [
+        ("Detection Patterns", "panel-detection-patterns"),
         ("Regex Tester", "panel-regex-tester"),
         ("Hook Simulator", "panel-hook-simulator"),
         ("Engine Tester", "panel-engine-tester"),
@@ -689,6 +690,22 @@ HELP_DOCS = {
         "The daemon auto-starts on any CLI command and falls back\n"
         "to direct processing if it cannot start."
     ),
+    "panel-detection-patterns": (
+        "[bold]Detection Patterns[/bold]\n\n"
+        "Read-only view of ALL detection rules across TOML pattern files "
+        "and hardcoded self-protection patterns.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Browse ~360 TOML rules + self-protection globs\n"
+        "  - Filter by category (secrets, pii, prompt_injection, etc.)\n"
+        "  - Search by rule ID, description, or pattern text\n\n"
+        "[bold]Pattern sources:[/bold]\n"
+        "  - TOML: secrets, pii, prompt-injection, unicode, ssrf,\n"
+        "    config-exfil, context-poisoning, supply-chain\n"
+        "  - Hardcoded: self-protection patterns (Write, Edit, Read, Bash)\n\n"
+        "[bold]Controls:[/bold]\n"
+        "  Use the category buttons to filter by type.\n"
+        "  Use the search box to find specific rules."
+    ),
     "panel-regex-tester": (
         "[bold]Regex Tester[/bold]\n\n"
         "Interactively test regex patterns against sample text "
@@ -1186,6 +1203,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-daemon"):
                     from ai_guardian.tui.daemon_panel import DaemonPanelContent
                     yield DaemonPanelContent()
+
+                with Container(id="panel-detection-patterns"):
+                    from ai_guardian.tui.detection_patterns import DetectionPatternsContent
+                    yield DetectionPatternsContent()
 
                 with Container(id="panel-regex-tester"):
                     from ai_guardian.tui.regex_tester import RegexTesterContent
