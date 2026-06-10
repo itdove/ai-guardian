@@ -630,7 +630,10 @@ class TestCheckConsoleDeps:
                 doctor = Doctor()
                 result = doctor.check_console_deps()
                 assert result.status == CheckStatus.WARN
-                assert "tree-sitter-json" in result.message
+                if sys.version_info < (3, 10):
+                    assert "Python >= 3.10" in result.message
+                else:
+                    assert "tree-sitter-json" in result.message
 
 
 class TestCheckConfigConsistency:
