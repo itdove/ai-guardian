@@ -259,7 +259,11 @@ case "$INSTALL_MODE" in
             exit 1
         fi
         log "Installing ai-guardian via uv tool install..."
-        uv tool install "$PKG"
+        if [ "$(uname -s)" = "Linux" ] && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+            uv tool install --with PyGObject "$PKG"
+        else
+            uv tool install "$PKG"
+        fi
         INSTALL_DESC="uv tool install"
         ;;
     venv)
@@ -311,41 +315,25 @@ if [ "$(uname -s)" = "Linux" ]; then
 
     if [ "$LINUX_HAS_DISPLAY" = false ]; then
         echo "  Skipping PyGObject — no display detected (headless environment)"
-    else
-    log "Installing PyGObject for Linux tray support..."
-    GI_INSTALLED=false
-    case "$INSTALL_MODE" in
-        uv)
-            # Install into uv tool's isolated environment
-            UV_TOOL_ENV="$HOME/.local/share/uv/tools/ai-guardian"
-            if [ -d "$UV_TOOL_ENV" ]; then
-                UV_TOOL_PYTHON=$(find "$UV_TOOL_ENV" -path "*/bin/python3" -type f 2>/dev/null | head -1)
-                if [ -n "$UV_TOOL_PYTHON" ]; then
-                    uv pip install --python "$UV_TOOL_PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
-                fi
-            fi
-            ;;
-        venv)
-            if has_uv; then
-                uv pip install --python "$PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
-            fi
-            if [ "$GI_INSTALLED" = false ]; then
-                "$PYTHON" -m pip install --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
-            fi
-            ;;
-        pip)
+    elif [ "$INSTALL_MODE" != "uv" ]; then
+        # uv mode already handled via --with PyGObject in Step 3
+        log "Installing PyGObject for Linux tray support..."
+        GI_INSTALLED=false
+        if has_uv; then
+            uv pip install --python "$PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+        fi
+        if [ "$GI_INSTALLED" = false ]; then
             "$PYTHON" -m pip install --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
-            ;;
-    esac
-    if [ "$GI_INSTALLED" = true ]; then
-        ok "PyGObject installed (tray will use AppIndicator backend)"
-    else
-        echo "  Warning: PyGObject install failed — tray may not work on Linux"
-        echo "  System headers may be needed:"
-        echo "    Fedora/RHEL:   sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
-        echo "    Debian/Ubuntu: sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
+        fi
+        if [ "$GI_INSTALLED" = true ]; then
+            ok "PyGObject installed (tray will use AppIndicator backend)"
+        else
+            echo "  Warning: PyGObject install failed — tray may not work on Linux"
+            echo "  System headers may be needed:"
+            echo "    Fedora/RHEL:   sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
+            echo "    Debian/Ubuntu: sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
+        fi
     fi
-    fi  # LINUX_HAS_DISPLAY
 fi
 
 # --- Step 3b: Restart daemon/tray if they were running before upgrade ---
