@@ -476,7 +476,7 @@ Use this checklist for each release:
 - [ ] Verify GitHub Actions workflow completes successfully
 - [ ] Verify package published to PyPI
 - [ ] Verify GitHub Release created
-- [ ] Test installation from PyPI: `pip install ai-guardian`
+- [ ] Test installation from PyPI: `uv tool install ai-guardian` (or `pip install ai-guardian`)
 
 ### Post-Release
 - [ ] Merge release branch back to `main`

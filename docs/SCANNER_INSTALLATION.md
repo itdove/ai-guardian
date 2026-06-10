@@ -17,7 +17,8 @@ AI Guardian provides automated installation and management of secret scanner eng
 The easiest way to install a scanner is during initial setup:
 
 ```bash
-pip install ai-guardian
+uv tool install ai-guardian                # recommended
+# or: pip install ai-guardian
 ai-guardian setup --install-scanner --ide claude
 ```
 
@@ -326,7 +327,7 @@ For CI/CD pipelines:
 steps:
   - name: Setup AI Guardian
     run: |
-      pip install ai-guardian
+      uv tool install ai-guardian          # or: pip install ai-guardian
       ai-guardian setup --install-scanner --non-interactive
       
   - name: Scan repository

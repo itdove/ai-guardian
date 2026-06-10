@@ -1030,7 +1030,7 @@ tests/fixtures/secrets/
   - [ ] Different secrets = separate results
 - [ ] **Performance**: Dual-engine scanning ≤2x slower than single
 - [ ] **Performance**: Parallel execution faster than sequential (when enabled)
-- [ ] Optional dependencies work: `pip install ai-guardian[trufflehog]`
+- [ ] Optional dependencies work: `uv pip install ai-guardian[trufflehog]` (or `pip install ai-guardian[trufflehog]`)
 - [ ] Documentation includes:
   - [ ] Engine comparison table
   - [ ] Installation guide per engine

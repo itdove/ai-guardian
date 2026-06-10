@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Docs: prefer uv over pip in install instructions** (Issue #1051)
+  - Flipped uv/pip order across README.md, AGENTS.md, and docs/ files
+  - uv shown as recommended, pip as alternative — matches install.sh behavior
+
 ### Added
 
 - **Hook-pipeline smoke tests for SSRF, config exfil, and password** (Issue #1017)

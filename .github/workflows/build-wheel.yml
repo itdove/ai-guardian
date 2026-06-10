@@ -90,7 +90,7 @@ jobs:
           name: "RC: ${{ env.FULL_VERSION }}"
           body: |
             Development build — for testing only.
-            Stable versions: `pip install ai-guardian` ([PyPI](https://pypi.org/project/ai-guardian/))
+            Stable versions: `uv tool install ai-guardian` or `pip install ai-guardian` ([PyPI](https://pypi.org/project/ai-guardian/))
 
             ```bash
             pip install ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.RC_TAG }}/$(ls dist/*.whl | xargs basename)
