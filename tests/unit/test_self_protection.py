@@ -851,5 +851,179 @@ def test_read_error_message_for_cache_file(policy_checker):
     assert "detection logic" in error_msg
 
 
+# ============================================================================
+# Issue #1065: Additional agent config file protection
+# ============================================================================
+
+AGENT_HOOK_WRITE_BLOCKED_PATHS = [
+    pytest.param(
+        "/home/user/.github/hooks/hooks.json",
+        id="copilot-hooks",
+    ),
+    pytest.param(
+        "/home/user/.codex/hooks.json",
+        id="codex-hooks",
+    ),
+    pytest.param(
+        "/home/user/.codeium/windsurf/hooks.json",
+        id="windsurf-hooks",
+    ),
+    pytest.param(
+        "/home/user/project/.clinerules/hooks/PreToolUse",
+        id="cline-hooks-pretooluse",
+    ),
+    pytest.param(
+        "/home/user/project/.clinerules/hooks/PostToolUse",
+        id="cline-hooks-posttooluse",
+    ),
+    pytest.param(
+        "/home/user/project/.kiro/hooks/PreToolUse",
+        id="kiro-hooks-pretooluse",
+    ),
+    pytest.param(
+        "/home/user/.aider-desk/extensions/ai-guardian/config.json",
+        id="aiderdesk-extension",
+    ),
+    pytest.param(
+        "/home/user/.openclaw/plugins/ai-guardian/plugin.json",
+        id="openclaw-plugin",
+    ),
+]
+
+
+@pytest.mark.parametrize("file_path", AGENT_HOOK_WRITE_BLOCKED_PATHS)
+def test_write_blocks_agent_hook_files(policy_checker, file_path):
+    """AI cannot write to additional agent hook/config files (Issue #1065)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Write", "input": {"file_path": file_path}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Write to {file_path} should be blocked"
+    assert error_msg is not None
+
+
+@pytest.mark.parametrize("file_path", AGENT_HOOK_WRITE_BLOCKED_PATHS)
+def test_edit_blocks_agent_hook_files(policy_checker, file_path):
+    """AI cannot edit additional agent hook/config files (Issue #1065)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {
+            "name": "Edit",
+            "input": {
+                "file_path": file_path,
+                "old_string": "ai-guardian",
+                "new_string": "disabled",
+            },
+        },
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Edit of {file_path} should be blocked"
+
+
+AGENT_HOOK_BASH_BLOCKED_COMMANDS = [
+    # Copilot
+    pytest.param(
+        "sed -i 's/ai-guardian//' ~/.github/hooks/hooks.json",
+        id="sed-copilot-hooks",
+    ),
+    pytest.param(
+        "rm ~/.github/hooks/hooks.json",
+        id="rm-copilot-hooks",
+    ),
+    pytest.param(
+        "vim ~/.github/hooks/hooks.json",
+        id="vim-copilot-hooks",
+    ),
+    pytest.param(
+        "echo '{}' > ~/.github/hooks/hooks.json",
+        id="redirect-copilot-hooks",
+    ),
+    # Codex
+    pytest.param(
+        "sed -i 's/ai-guardian//' ~/.codex/hooks.json",
+        id="sed-codex-hooks",
+    ),
+    pytest.param(
+        "rm ~/.codex/hooks.json",
+        id="rm-codex-hooks",
+    ),
+    pytest.param(
+        "chmod 000 ~/.codex/hooks.json",
+        id="chmod-codex-hooks",
+    ),
+    # Windsurf
+    pytest.param(
+        "sed -i 's/ai-guardian//' ~/.codeium/windsurf/hooks.json",
+        id="sed-windsurf-hooks",
+    ),
+    pytest.param(
+        "mv ~/.codeium/windsurf/hooks.json /tmp/",
+        id="mv-windsurf-hooks",
+    ),
+    pytest.param(
+        "nano ~/.codeium/windsurf/hooks.json",
+        id="nano-windsurf-hooks",
+    ),
+    # Cline / ZooCode
+    pytest.param(
+        "rm -rf .clinerules/hooks/PreToolUse",
+        id="rm-cline-hooks",
+    ),
+    pytest.param(
+        "sed -i 's/ai-guardian//' .clinerules/hooks/PostToolUse",
+        id="sed-cline-hooks",
+    ),
+    pytest.param(
+        "echo '#!/bin/sh' > .clinerules/hooks/PreToolUse",
+        id="redirect-cline-hooks",
+    ),
+    # Kiro
+    pytest.param(
+        "rm .kiro/hooks/PreToolUse",
+        id="rm-kiro-hooks",
+    ),
+    pytest.param(
+        "chmod 000 .kiro/hooks/PromptSubmit",
+        id="chmod-kiro-hooks",
+    ),
+    # AiderDesk
+    pytest.param(
+        "rm -rf ~/.aider-desk/extensions/ai-guardian",
+        id="rm-aiderdesk-extension",
+    ),
+    pytest.param(
+        "sed -i 's/enabled/disabled/' ~/.aider-desk/extensions/ai-guardian/config.json",
+        id="sed-aiderdesk-extension",
+    ),
+    # OpenClaw
+    pytest.param(
+        "rm -rf ~/.openclaw/plugins/ai-guardian",
+        id="rm-openclaw-plugin",
+    ),
+    pytest.param(
+        "mv ~/.openclaw/plugins/ai-guardian /tmp/",
+        id="mv-openclaw-plugin",
+    ),
+]
+
+
+@pytest.mark.parametrize("command", AGENT_HOOK_BASH_BLOCKED_COMMANDS)
+def test_bash_blocks_agent_hook_commands(policy_checker, command):
+    """AI cannot use Bash to modify agent hook/config files (Issue #1065)"""
+    hook_data = {
+        "hook_event_name": "PreToolUse",
+        "tool_use": {"name": "Bash", "input": {"command": command}},
+    }
+
+    is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
+
+    assert not is_allowed, f"Bash command should be blocked: {command}"
+
+
 if __name__ == '__main__':
     pytest.main([__file__])

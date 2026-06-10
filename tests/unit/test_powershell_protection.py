@@ -562,6 +562,137 @@ class PowerShellProtectionTest(TestCase):
         self.assertTrue(is_allowed, "PowerShell Set-Content on normal files should be allowed")
 
 
+    # ========================================================================
+    # Issue #1065: Additional agent config file protection
+    # ========================================================================
+
+    def test_powershell_blocks_remove_copilot_hooks(self):
+        """PowerShell Remove-Item blocked for Copilot hooks.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item ~/.github/hooks/hooks.json -Force"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_set_content_codex_hooks(self):
+        """PowerShell Set-Content blocked for Codex hooks.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Set-Content ~/.codex/hooks.json -Value '{}'"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_remove_windsurf_hooks(self):
+        """PowerShell Remove-Item blocked for Windsurf hooks.json"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item ~/.codeium/windsurf/hooks.json"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_remove_cline_hooks(self):
+        """PowerShell Remove-Item blocked for Cline hook scripts"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item .clinerules/hooks/PreToolUse"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_set_content_kiro_hooks(self):
+        """PowerShell Set-Content blocked for Kiro hook scripts"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Set-Content .kiro/hooks/PreToolUse -Value '#!/bin/sh'"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_remove_aiderdesk_extension(self):
+        """PowerShell Remove-Item blocked for AiderDesk extension"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item ~/.aider-desk/extensions/ai-guardian -Recurse"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_remove_openclaw_plugin(self):
+        """PowerShell Remove-Item blocked for OpenClaw plugin"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "Remove-Item ~/.openclaw/plugins/ai-guardian -Recurse"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_redirect_copilot_hooks(self):
+        """PowerShell redirect blocked for Copilot hooks"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "'{}' > ~/.github/hooks/hooks.json"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+    def test_powershell_blocks_del_alias_codex_hooks(self):
+        """PowerShell del alias blocked for Codex hooks"""
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "PowerShell",
+                "input": {
+                    "command": "del ~/.codex/hooks.json"
+                }
+            }
+        }
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        self.assertFalse(is_allowed)
+
+
 if __name__ == '__main__':
     import unittest
     unittest.main()
