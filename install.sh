@@ -122,16 +122,8 @@ done
 
 if [ -z "$INSTALL_MODE" ]; then
     if has_uv; then
-        case "$(uname -s)" in
-            Linux)
-                INSTALL_MODE=venv
-                log "Auto-detected: Linux + uv — using venv (tray needs system gi access)"
-                ;;
-            *)
-                INSTALL_MODE=uv
-                log "Auto-detected: uv available, using uv tool install"
-                ;;
-        esac
+        INSTALL_MODE=uv
+        log "Auto-detected: uv available, using uv tool install"
     else
         INSTALL_MODE=venv
         log "Auto-detected: uv not found, using venv + pip"
