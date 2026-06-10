@@ -191,6 +191,8 @@ def create_dashboard_page(service, daemon_name: str):
             violations_box = None
 
             async def refresh_violations():
+                if ui.context.client.is_deleted:
+                    return
                 if violations_box is None:
                     return
 

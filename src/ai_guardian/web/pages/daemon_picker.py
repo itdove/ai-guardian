@@ -20,6 +20,8 @@ def create_daemon_picker_page(service):
         cards = ui.row().classes("gap-4 flex-wrap justify-center")
 
         async def refresh():
+            if ui.context.client.is_deleted:
+                return
             cards.clear()
             targets = await run.io_bound(service.refresh_targets)
             statuses = await run.io_bound(service.get_all_daemon_status)
