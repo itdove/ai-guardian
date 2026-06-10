@@ -741,6 +741,12 @@ def scan_command(args) -> int:
     Returns:
         Exit code (0 for success, 1 for issues found)
     """
+    # Suppress internal logging to stderr unless --verbose (file logging unaffected)
+    if not args.verbose:
+        for handler in logging.getLogger().handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                handler.setLevel(logging.CRITICAL + 1)
+
     # Load configuration
     config = {}
     if hasattr(args, 'config') and args.config:
