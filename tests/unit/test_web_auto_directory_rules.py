@@ -44,42 +44,31 @@ class TestRouteSidebarConsistency:
         assert "/auto-directory-rules" in source
 
     def test_route_in_sidebar(self):
-        """Check that header.py sidebar includes the route."""
-        from ai_guardian.web.components.header import create_sidebar
+        """Check that NAV_GROUPS includes the route."""
+        from ai_guardian.web.components.header import NAV_GROUPS
 
-        source = inspect.getsource(create_sidebar)
-        assert "/auto-directory-rules" in source
+        all_suffixes = [s for _, items in NAV_GROUPS for _, s in items]
+        assert "/auto-directory-rules" in all_suffixes
 
     def test_sidebar_label(self):
         """Check the sidebar uses the correct label."""
-        from ai_guardian.web.components.header import create_sidebar
+        from ai_guardian.web.components.header import NAV_GROUPS
 
-        source = inspect.getsource(create_sidebar)
-        assert "Auto Directory Rules" in source
+        all_labels = [lbl for _, items in NAV_GROUPS for lbl, _ in items]
+        assert "Auto Directory Rules" in all_labels
 
     def test_sidebar_position(self):
         """Auto Directory Rules appears between Permissions Discovery and Directory Rules."""
-        from ai_guardian.web.components.header import create_sidebar
+        from ai_guardian.web.components.header import NAV_GROUPS
 
-        source = inspect.getsource(create_sidebar)
-        lines = source.split("\n")
+        flat = [(lbl, suffix) for _, items in NAV_GROUPS for lbl, suffix in items]
+        suffixes = [s for _, s in flat]
 
-        auto_dir_line = None
-        perms_disc_line = None
-        dir_rules_line = None
+        auto_idx = suffixes.index("/auto-directory-rules")
+        perms_idx = suffixes.index("/permissions-discovery")
+        dir_idx = suffixes.index("/directory-rules")
 
-        for i, line in enumerate(lines):
-            if "auto-directory-rules" in line:
-                auto_dir_line = i
-            if "permissions-discovery" in line:
-                perms_disc_line = i
-            if "directory-rules" in line and "auto-directory-rules" not in line:
-                dir_rules_line = i
-
-        assert auto_dir_line is not None, "auto-directory-rules not found in sidebar"
-        assert perms_disc_line is not None, "permissions-discovery not found"
-        assert dir_rules_line is not None, "directory-rules not found"
-        assert perms_disc_line < auto_dir_line < dir_rules_line
+        assert perms_idx < auto_idx < dir_idx
 
 
 # ---------------------------------------------------------------------------

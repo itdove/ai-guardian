@@ -104,31 +104,29 @@ class TestRouteSidebarConsistency:
             assert route in source, f"Route {route} not found in app.py"
 
     def test_all_sidebar_routes_in_sidebar(self):
-        """Check that header.py sidebar includes all active paths."""
-        import inspect
-        from ai_guardian.web.components.header import create_sidebar
+        """Check that header.py NAV_GROUPS includes all active paths."""
+        from ai_guardian.web.components.header import NAV_GROUPS
 
-        source = inspect.getsource(create_sidebar)
+        all_suffixes = [
+            suffix
+            for _group, items in NAV_GROUPS
+            for _label, suffix in items
+        ]
         for route in self.SIDEBAR_ROUTES:
-            assert route in source, (
+            assert route in all_suffixes, (
                 f"Route {route} not found in sidebar navigation"
             )
 
     def test_skills_route_not_in_sidebar(self):
         """Skills route should NOT be in sidebar (consolidated)."""
-        import inspect
-        from ai_guardian.web.components.header import create_sidebar
+        from ai_guardian.web.components.header import NAV_GROUPS
 
-        source = inspect.getsource(create_sidebar)
-        # /skills should not appear, but /permission-rules should
-        # Note: we check the full path to avoid matching substrings
-        lines = source.split("\n")
-        skill_entries = [
-            line for line in lines
-            if '"/skills"' in line or "'/skills'" in line
-            or 'f"{prefix}/skills"' in line
+        all_suffixes = [
+            suffix
+            for _group, items in NAV_GROUPS
+            for _label, suffix in items
         ]
-        assert not skill_entries, (
+        assert "/skills" not in all_suffixes, (
             "Legacy /skills route should not appear in sidebar"
         )
 
