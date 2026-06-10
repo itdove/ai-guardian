@@ -108,9 +108,11 @@ Next steps:
 2. Package published to https://test.pypi.org/project/ai-guardian/
 3. Verify installation:
    ```bash
-   pip install --index-url https://test.pypi.org/simple/ \
+   uv pip install --index-url https://test.pypi.org/simple/ \
      --extra-index-url https://pypi.org/simple/ \
      ai-guardian==1.2.0-test1
+   # or: pip install --index-url https://test.pypi.org/simple/ \
+   #   --extra-index-url https://pypi.org/simple/ ai-guardian==1.2.0-test1
    ```
 4. Test functionality
 5. Clean up test branch and tag

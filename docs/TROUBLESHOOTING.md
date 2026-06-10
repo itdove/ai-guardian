@@ -171,10 +171,10 @@ uv tool upgrade ai-guardian
 
 **Verify tkinter works in your environment:**
 ```bash
-# For uv installs:
+# For uv tool installs:
 $(uv tool dir)/ai-guardian/bin/python -c "import tkinter; root = tkinter.Tk(); root.destroy(); print('OK')"
 
-# For venv/pip installs:
+# For pip/venv installs:
 python -c "import tkinter; root = tkinter.Tk(); root.destroy(); print('OK')"
 ```
 

@@ -51,7 +51,8 @@ irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
 Or install manually:
 
 ```bash
-pip install ai-guardian                    # or: uv tool install ai-guardian
+uv tool install ai-guardian                # recommended
+pip install ai-guardian                    # alternative
 ai-guardian setup --ide claude --create-config --install-scanner
 ```
 
@@ -285,30 +286,33 @@ python -m venv $env:USERPROFILE\.ai-guardian-venv
 irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
 ```
 
-> **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`pip install ai-guardian` or `uv tool install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
+> **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`uv tool install ai-guardian` or `pip install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
 
 For development and contributing:
 
 ```bash
 git clone https://github.com/itdove/ai-guardian.git
-cd ai-guardian && pip install -e .         # or: uv pip install -e .
+cd ai-guardian && uv pip install -e .      # recommended
+# or: pip install -e .
 ```
 
 > **Dev builds:** CI builds a wheel on every PR and merge. Download from the [Actions tab](https://github.com/itdove/ai-guardian/actions/workflows/build-wheel.yml) for testing only; use PyPI for stable releases.
 
 ## Testing
 
-```bash
-pip install ai-guardian[dev]                     # Install test dependencies
-pytest                                          # Run all tests
-pytest --cov=ai_guardian --cov-report=term      # With coverage
-```
-
-Or using [uv](https://docs.astral.sh/uv/):
+Using [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
 uv run --extra dev python -m pytest             # Run all tests
 uv run --extra dev python -m pytest --cov=ai_guardian --cov-report=term  # With coverage
+```
+
+Or using pip:
+
+```bash
+pip install ai-guardian[dev]                     # Install test dependencies
+pytest                                          # Run all tests
+pytest --cov=ai_guardian --cov-report=term      # With coverage
 ```
 
 See [AGENTS.md](https://github.com/itdove/ai-guardian/blob/main/AGENTS.md) for testing guidelines and CI/CD details.

@@ -36,9 +36,10 @@ AI Guardian integrates with GitHub Copilot through **native hooks** that interce
    scoop install gitleaks
    ```
 
-3. **AI Guardian** - Installed via pip
+3. **AI Guardian** - Installed via uv or pip
    ```bash
-   pip install ai-guardian
+   uv tool install ai-guardian        # recommended
+   # or: pip install ai-guardian
    ```
 
 ## Installation
