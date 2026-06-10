@@ -51,6 +51,7 @@ NAV_GROUPS = [
         ("Effective Config", "/config-effective"),
     ]),
     ("Tools", [
+        ("Detection Patterns", "/detection-patterns"),
         ("Regex Tester", "/regex-tester"),
         ("Hook Simulator", "/hook-simulator"),
         ("Engine Tester", "/engine-tester"),
