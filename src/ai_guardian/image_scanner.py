@@ -158,8 +158,8 @@ class OCREngine:
         if self._engine is None:
             if not HAS_RAPIDOCR:
                 raise ImportError(
-                    "rapidocr-onnxruntime is required for image scanning. "
-                    "Install with: pip install rapidocr-onnxruntime"
+                    "rapidocr-onnxruntime is required for image scanning "
+                    "(available on Python < 3.13)"
                 )
             self._engine = RapidOCR()
         return self._engine

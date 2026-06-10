@@ -30,9 +30,8 @@ else:
     try:
         import tomli as tomllib
     except ImportError:
-        # If tomli not available, provide helpful error
         logging.error(
-            "tomli package required for Python < 3.11. Install with: pip install tomli"
+            "tomli package required for Python < 3.11 but not available"
         )
         tomllib = None
 
@@ -509,8 +508,7 @@ class ScannerInstaller:
 
         if not HAS_REQUESTS:
             raise RuntimeError(
-                "requests library required for downloading scanners. "
-                "Install with: pip install requests"
+                "requests library required for downloading scanners but not available"
             )
 
         # Determine version to install

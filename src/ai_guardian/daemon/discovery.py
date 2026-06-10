@@ -246,8 +246,7 @@ class DaemonDiscovery:
         """
         if not HAS_DOCKER_SDK:
             logger.debug(
-                "docker SDK not installed; skipping container discovery "
-                "(install with: pip install ai-guardian[tray])"
+                "docker SDK not available; skipping container discovery"
             )
             return []
 

@@ -139,8 +139,7 @@ class PatternServerClient:
             return None
 
         if not HAS_REQUESTS:
-            logger.warning("Pattern server enabled but requests library not installed")
-            logger.info("Install with: pip install ai-guardian")
+            logger.warning("Pattern server enabled but requests library not available")
             return None
 
         if not self.base_url:
@@ -181,7 +180,6 @@ class PatternServerClient:
         # Parse TOML file
         if not HAS_TOML:
             logger.warning(f"TOML library not available, cannot parse {self.pattern_type} patterns")
-            logger.info("Install with: pip install tomli (Python <3.11)")
             return None
 
         try:

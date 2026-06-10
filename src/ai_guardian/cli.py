@@ -1204,7 +1204,6 @@ def main():
                     from ai_guardian.web import WebConsole, HAS_NICEGUI
                     if not HAS_NICEGUI:
                         print("Error: Web console requires NiceGUI (Python >= 3.10).", file=sys.stderr)
-                        print("Install with: pip install ai-guardian", file=sys.stderr)
                         return 1
                     console = WebConsole()
                     show = not getattr(args, "no_open", False)
@@ -1231,7 +1230,7 @@ def main():
                 app.run()
                 return 0
             except ImportError as e:
-                print(f"Error: Console dependencies not available. Install with: pip install ai-guardian", file=sys.stderr)
+                print("Error: Console dependencies not available.", file=sys.stderr)
                 print(f"Details: {e}", file=sys.stderr)
                 return 1
             except Exception as e:

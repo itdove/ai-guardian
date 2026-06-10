@@ -4,7 +4,7 @@ Web-based Console for AI Guardian (NiceGUI).
 Provides a browser-based dashboard as an alternative to the TUI console.
 Connects to daemons via their REST APIs using MultiDaemonClient.
 
-Requires NiceGUI (Python >= 3.10): pip install ai-guardian
+Requires NiceGUI (Python >= 3.10).
 """
 
 try:

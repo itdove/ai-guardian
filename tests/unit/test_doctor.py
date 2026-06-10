@@ -524,7 +524,7 @@ class TestCheckTraySupport:
             doctor = Doctor()
             result = doctor.check_tray_support()
         assert result.status == CheckStatus.WARN
-        assert "pystray not installed" in result.message
+        assert "pystray not available" in result.message
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Darwin")
     def test_macos_pystray_available(self, _mock_sys, _isolate_config_dir):
@@ -630,7 +630,10 @@ class TestCheckConsoleDeps:
                 doctor = Doctor()
                 result = doctor.check_console_deps()
                 assert result.status == CheckStatus.WARN
-                assert "tree-sitter-json" in result.message
+                if sys.version_info < (3, 10):
+                    assert "Python >= 3.10" in result.message
+                else:
+                    assert "tree-sitter-json" in result.message
 
 
 class TestCheckConfigConsistency:

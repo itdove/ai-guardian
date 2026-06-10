@@ -699,8 +699,7 @@ def run_mcp_server() -> int:
     """Start the MCP server via stdio transport. Called by CLI: ai-guardian mcp-server."""
     if not HAS_MCP:
         print(
-            "Error: MCP SDK not available. Install with: pip install 'ai-guardian[mcp]' "
-            "or pip install 'mcp>=1.8.0' (requires Python >=3.10)",
+            "Error: MCP SDK not available (requires Python >= 3.10).",
             file=sys.stderr,
         )
         return 1
