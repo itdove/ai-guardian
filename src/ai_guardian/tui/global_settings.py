@@ -31,6 +31,7 @@ FEATURES = [
     ("scan_pii", "gs_scan_pii", "👤 PII Detection"),
     ("ssrf_protection", "gs_ssrf_protection", "🌐 SSRF Protection"),
     ("config_file_scanning", "gs_config_file_scanning", "📄 Config File Scanning"),
+    ("context_poisoning", "gs_context_poisoning", "🧪 Context Poisoning Detection"),
     ("violation_logging", "gs_violation_logging", "📝 Violation Logging"),
 ]
 
@@ -79,6 +80,15 @@ FEATURE_ACTIONS = {
             ("Log Only", "log-only"),
         ],
         "default": "block",
+    },
+    "context_poisoning": {
+        "schema_path": "context_poisoning.action",
+        "options": [
+            ("Block", "block"),
+            ("Warn", "warn"),
+            ("Log Only", "log-only"),
+        ],
+        "default": "warn",
     },
 }
 
