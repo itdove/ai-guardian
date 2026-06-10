@@ -41,6 +41,13 @@ class MockDaemonState:
     def force_reload_config(self):
         self._config_reloaded = True
 
+    def get_config(self):
+        return {
+            "secret_scanning": {"enabled": True},
+            "prompt_injection": {"enabled": True},
+            "context_poisoning": {"enabled": True},
+        }
+
 
 @pytest.fixture
 def rest_api():
@@ -414,3 +421,150 @@ class TestRestAPILifecycle:
         state = MockDaemonState()
         api = DaemonRestAPI(state=state)
         assert api.port == 0
+
+
+class TestCheckEndpoint:
+    """Tests for POST /api/check."""
+
+    def test_post_check_clean_content(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        body = json.dumps({"content": "Hello world"}).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert data["clean"] is True
+        assert data["findings"] == []
+        assert data["redacted"] is None
+        assert isinstance(data["elapsed_ms"], (int, float))
+
+    def test_post_check_missing_content(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        body = json.dumps({}).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        from urllib.error import HTTPError
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req, timeout=5)
+        assert exc_info.value.code == 400
+
+    def test_post_check_invalid_checks(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        body = json.dumps({
+            "content": "test", "checks": ["invalid_check"],
+        }).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        from urllib.error import HTTPError
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req, timeout=5)
+        assert exc_info.value.code == 400
+
+    def test_post_check_invalid_action(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        body = json.dumps({
+            "content": "test", "action": "invalid",
+        }).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        from urllib.error import HTTPError
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req, timeout=5)
+        assert exc_info.value.code == 400
+
+    def test_post_check_elapsed_ms(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        body = json.dumps({"content": "safe text"}).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "elapsed_ms" in data
+        assert data["elapsed_ms"] >= 0
+
+    def test_post_check_specific_checks(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        body = json.dumps({
+            "content": "test", "checks": ["secrets"],
+        }).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert data["clean"] is True
+
+    def test_post_check_with_findings(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/check"
+        mock_result = mock.MagicMock()
+        mock_result.detected = True
+        mock_result.blocked = True
+        mock_result.violation_type = "secret_detected"
+        mock_result.message = "GitHub token detected"
+        mock_result.details = None
+        with mock.patch(
+            "ai_guardian.sdk._DirectSession.check_content",
+            return_value=mock_result,
+        ):
+            body = json.dumps({"content": "ghp_abc123"}).encode("utf-8")
+            req = Request(url, data=body, method="POST")
+            req.add_header("Content-Type", "application/json")
+            with urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["clean"] is False
+        assert len(data["findings"]) >= 1
+        assert data["findings"][0]["type"] == "secret_detected"
+        assert data["redacted"] is not None
+
+
+class TestRedactEndpoint:
+    """Tests for POST /api/redact."""
+
+    def test_post_redact_basic(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/redact"
+        with mock.patch(
+            "ai_guardian.sanitizer.sanitize_text",
+            return_value={
+                "sanitized_text": "my token is [REDACTED]",
+                "redactions": [{"type": "secret"}],
+                "stats": {"total": 1},
+            },
+        ):
+            body = json.dumps({
+                "content": "my token is ghp_abc123",
+            }).encode("utf-8")
+            req = Request(url, data=body, method="POST")
+            req.add_header("Content-Type", "application/json")
+            with urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+        assert data["redacted"] == "my token is [REDACTED]"
+        assert data["redaction_count"] == 1
+
+    def test_post_redact_no_findings(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/redact"
+        body = json.dumps({"content": "clean text"}).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        assert "redacted" in data
+        assert data["redaction_count"] == 0
+
+    def test_post_redact_missing_content(self, rest_api):
+        api, port, state = rest_api
+        url = f"http://127.0.0.1:{port}/api/redact"
+        body = json.dumps({}).encode("utf-8")
+        req = Request(url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        from urllib.error import HTTPError
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req, timeout=5)
+        assert exc_info.value.code == 400
