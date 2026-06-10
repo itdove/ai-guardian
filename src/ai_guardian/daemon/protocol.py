@@ -182,6 +182,23 @@ def make_resume_dir(directory):
     }
 
 
+def make_sdk_check(check_type, data):
+    """Create an SDK security check request message.
+
+    Args:
+        check_type: "content", "file", "command", or "sanitize"
+        data: Check-specific parameters
+
+    Returns:
+        dict: Request envelope with version, type, and data
+    """
+    return {
+        "version": PROTOCOL_VERSION,
+        "type": "sdk_check",
+        "data": {"check_type": check_type, **data},
+    }
+
+
 def make_ml_detect_request(content, source_type="user_prompt"):
     """Create an ML detection request message.
 
