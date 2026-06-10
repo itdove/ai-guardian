@@ -518,6 +518,16 @@
     "block_end": []
   },
 
+  "latency_tracking": {
+    "_comment": "Hook latency tracking — records per-hook and per-check timing to latency.jsonl (NEW in v1.11.0, Issue #1057)",
+    "_comment2": "Disabled by default. Enable for performance debugging or analysis.",
+    "_comment3": "View with: ai-guardian metrics --latency",
+    "_comment4": "Data stored in ~/.local/state/ai-guardian/latency.jsonl (alongside violations.jsonl)",
+    "enabled": false,
+    "max_entries": 5000,
+    "retention_days": 30
+  },
+
   "transcript_scanning": {
     "_comment": "Scan conversation transcript for secrets, PII, and prompt injection (NEW in v1.7.0, Issue #430)",
     "_comment2": "When users type '! command' in Claude Code, the output bypasses ai-guardian hooks",

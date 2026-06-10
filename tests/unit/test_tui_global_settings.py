@@ -18,8 +18,8 @@ from ai_guardian.tui.global_settings import GlobalSettingsContent, FEATURES, FEA
 class TestFeatureMap:
     """Test FEATURES defines correct mappings."""
 
-    def test_has_nine_features(self):
-        assert len(FEATURES) == 9
+    def test_has_ten_features(self):
+        assert len(FEATURES) == 10
 
     def test_expected_sections(self):
         sections = [s for s, _, _ in FEATURES]

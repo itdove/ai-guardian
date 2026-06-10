@@ -31,6 +31,7 @@ FEATURE_GROUPS = [
     ]),
     ("Monitoring", [
         ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
+        ("latency_tracking", "Latency Tracking", "Record per-hook timing to latency.jsonl"),
     ]),
 ]
 
@@ -82,9 +83,10 @@ def _get_enabled(config, section):
         return True
     if section == "annotations":
         return config.get("annotations", {}).get("enabled", True)
+    default_enabled = False if section == "latency_tracking" else True
     val = config.get(section, {})
     if isinstance(val, dict):
-        enabled = val.get("enabled", True)
+        enabled = val.get("enabled", default_enabled)
         if isinstance(enabled, dict):
             disabled_until = enabled.get("disabled_until")
             if disabled_until:
@@ -95,9 +97,9 @@ def _get_enabled(config, section):
                 except (ValueError, TypeError):
                     pass
                 return True, None, ""
-            return enabled.get("value", True), None, ""
+            return enabled.get("value", default_enabled), None, ""
         return enabled, None, ""
-    return True, None, ""
+    return default_enabled, None, ""
 
 
 def _get_action(config, section):
@@ -204,7 +206,7 @@ def create_global_settings_page(service, daemon_name: str):
                                     is_temp = raw[0] == "temp_disabled"
                                     until = raw[1]
                                     reason = raw[2]
-                                    is_enabled = not is_temp
+                                    is_enabled = bool(raw[0]) if not is_temp else False
                                 else:
                                     is_temp = False
                                     until = None

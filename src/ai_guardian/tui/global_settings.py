@@ -33,6 +33,7 @@ FEATURES = [
     ("config_file_scanning", "gs_config_file_scanning", "📄 Config File Scanning"),
     ("context_poisoning", "gs_context_poisoning", "🧪 Context Poisoning Detection"),
     ("violation_logging", "gs_violation_logging", "📝 Violation Logging"),
+    ("latency_tracking", "gs_latency_tracking", "⏱️ Latency Tracking"),
 ]
 
 FEATURE_ACTIONS = {

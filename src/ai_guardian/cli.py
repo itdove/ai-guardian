@@ -366,6 +366,11 @@ def main():
             help="Filter by severity level"
         )
         metrics_parser.add_argument(
+            "--latency",
+            action="store_true",
+            help="Show hook latency statistics (avg, stddev, P95, min, max)"
+        )
+        metrics_parser.add_argument(
             "--reset",
             action="store_true",
             help="Reset cumulative counters to current log file counts"

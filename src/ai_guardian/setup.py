@@ -1949,6 +1949,13 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "block_end": [],
         },
 
+        "_comment_latency_tracking": "Hook latency tracking — records per-hook timing to latency.jsonl for performance analysis. Disabled by default. (NEW in v1.11.0, Issue #1057)",
+        "latency_tracking": {
+            "enabled": False,
+            "max_entries": 5000,
+            "retention_days": 30
+        },
+
         "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
         "violation_logging": {
             "enabled": True,

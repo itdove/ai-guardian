@@ -1451,6 +1451,37 @@
       },
       "additionalProperties": false
     },
+    "latency_tracking": {
+      "type": "object",
+      "description": "Hook latency tracking — records per-hook and per-violation-type timing to latency.jsonl for performance analysis. Disabled by default; enable for debugging or performance testing. NEW in v1.11.0 (Issue #1057).",
+      "properties": {
+        "enabled": {
+          "oneOf": [
+            {
+              "type": "boolean",
+              "description": "Simple boolean format for permanent enable/disable"
+            },
+            {
+              "$ref": "#/definitions/time_based_feature"
+            }
+          ],
+          "default": false
+        },
+        "max_entries": {
+          "type": "number",
+          "description": "Maximum number of latency entries to retain",
+          "default": 5000,
+          "minimum": 1
+        },
+        "retention_days": {
+          "type": "number",
+          "description": "Number of days to retain latency entries",
+          "default": 30,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
     "transcript_scanning": {
       "type": "object",
       "description": "Scan conversation transcript for secrets, PII, and prompt injection that bypassed hooks (e.g., from ! shell commands). Incrementally scans new transcript content on each UserPromptSubmit event. Detection only — warns but does not block (the content is already in the AI context). Supports Claude Code, Cursor, and GitHub Copilot. NEW in v1.7.0 (Issue #430).",

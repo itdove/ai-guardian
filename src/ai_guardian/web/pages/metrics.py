@@ -1,5 +1,6 @@
 """Metrics & Audit page — statistics, trends, compliance, and export."""
 
+import json
 import tempfile
 
 from nicegui import run, ui
@@ -81,6 +82,13 @@ def _reset_counters():
     return ViolationCounter().reset_to_current_log()
 
 
+def _get_metrics_clipboard_text(since_days):
+    from ai_guardian.metrics import MetricsComputer, format_human
+    computer = MetricsComputer(since_days=since_days)
+    report = computer.compute()
+    return format_human(report)
+
+
 def create_metrics_page(service, daemon_name: str):
     """Build the metrics & audit page with full statistics and compliance."""
 
@@ -129,6 +137,10 @@ def create_metrics_page(service, daemon_name: str):
                     "Export CSV", icon="table_chart",
                     on_click=lambda: do_export("csv"),
                 ).props("flat")
+                ui.button(
+                    "Copy to Clipboard", icon="content_copy",
+                    on_click=lambda: do_copy_metrics(),
+                ).props("flat")
                 export_label = ui.label("").classes("text-sm")
 
             async def do_export(fmt):
@@ -141,6 +153,17 @@ def create_metrics_page(service, daemon_name: str):
                 except Exception as e:
                     export_label.set_text(f"Export failed: {e}")
                     export_label.classes(replace="text-sm text-red")
+
+            async def do_copy_metrics():
+                since = current_range["days"]
+                try:
+                    text = await run.io_bound(_get_metrics_clipboard_text, since)
+                    await ui.run_javascript(
+                        f"navigator.clipboard.writeText({json.dumps(text)})"
+                    )
+                    ui.notify("Copied to clipboard", type="positive")
+                except Exception as e:
+                    ui.notify(f"Copy failed: {e}", type="negative")
 
             current_range = {"days": 30}
             content = ui.column().classes("w-full gap-4")
