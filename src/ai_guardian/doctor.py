@@ -547,8 +547,7 @@ class Doctor:
             return CheckResult(
                 name="ps_url",
                 status=CheckStatus.FAIL,
-                message="requests library not installed",
-                fix_hint="pip install requests",
+                message="requests library not available",
             )
 
         headers = {"User-Agent": "ai-guardian/doctor"}
@@ -1094,11 +1093,15 @@ class Doctor:
             missing.append("tree-sitter-json")
 
         if missing:
+            ts_missing = [m for m in missing if m.startswith("tree-sitter")]
+            if ts_missing and sys.version_info < (3, 10):
+                hint = "AST scanning requires Python >= 3.10"
+            else:
+                hint = f"Not available: {', '.join(missing)}"
             return CheckResult(
                 name="console_deps",
                 status=CheckStatus.WARN,
-                message=f"Missing: {', '.join(missing)}",
-                fix_hint=f"pip install {' '.join(missing)}",
+                message=hint,
             )
 
         return CheckResult(
@@ -1172,8 +1175,7 @@ class Doctor:
                 return CheckResult(
                     name="tray_support",
                     status=CheckStatus.WARN,
-                    message="pystray not installed — tray icon unavailable",
-                    fix_hint="pip install pystray Pillow",
+                    message="pystray not available — tray icon unavailable",
                 )
 
         if system != "Linux":
@@ -1399,8 +1401,7 @@ class Doctor:
             return CheckResult(
                 name="image_scanning",
                 status=CheckStatus.FAIL,
-                message="rapidocr-onnxruntime not installed (required for image scanning)",
-                fix_hint="pip install rapidocr-onnxruntime",
+                message="rapidocr-onnxruntime not available (required for image scanning)",
             )
 
     def check_ml_detection(self) -> CheckResult:
@@ -1429,8 +1430,7 @@ class Doctor:
             return CheckResult(
                 name="ml_detection",
                 status=CheckStatus.FAIL,
-                message="ML dependencies not available (onnxruntime required, available on Python < 3.13 via rapidocr-onnxruntime)",
-                fix_hint="pip install onnxruntime",
+                message="ML dependencies not available (onnxruntime required)",
             )
 
         engines_config = pi_config.get("ml_engines", [])

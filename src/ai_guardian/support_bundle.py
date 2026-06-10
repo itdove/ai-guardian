@@ -658,7 +658,7 @@ def _send_to_s3(bundle_id: str, temp_path: Path, destination: str) -> Dict:
     except ImportError:
         return {
             "status": "error",
-            "message": "S3 upload requires boto3. Install with: pip install boto3. "
+            "message": f"S3 upload requires boto3 but it is not available. "
             f"Bundle files are available at: {temp_path}",
         }
 

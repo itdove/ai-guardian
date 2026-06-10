@@ -426,8 +426,7 @@ def _sanitize_image(input_path: str, args) -> int:
             ImageRedactor, OCREngine, scan_image, TextRegion,
         )
     except ImportError:
-        print("Error: Image scanning requires rapidocr-onnxruntime and Pillow.", file=sys.stderr)
-        print("Install with: pip install 'ai-guardian[dev]'", file=sys.stderr)
+        print("Error: Image scanning dependencies not available (rapidocr-onnxruntime, Pillow).", file=sys.stderr)
         return 1
 
     try:
