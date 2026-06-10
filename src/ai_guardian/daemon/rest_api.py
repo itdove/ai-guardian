@@ -15,6 +15,13 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 logger = logging.getLogger(__name__)
 
 
+_VALID_CHECKS = frozenset({
+    "secrets", "pii", "injection", "ssrf", "context_poisoning",
+})
+
+_ALL_CHECKS = list(_VALID_CHECKS)
+
+
 class _RestHandler(BaseHTTPRequestHandler):
     """HTTP request handler for daemon REST API."""
 
@@ -141,6 +148,16 @@ class _RestHandler(BaseHTTPRequestHandler):
             else:
                 result = manager.detect(content)
                 self._send_json(result)
+        elif self.path == "/api/check":
+            body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
+            if body is None:
+                return
+            self._handle_check(body)
+        elif self.path == "/api/redact":
+            body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
+            if body is None:
+                return
+            self._handle_redact(body)
         else:
             self._send_error(404, "Not found")
 
@@ -262,8 +279,144 @@ class _RestHandler(BaseHTTPRequestHandler):
             return "unknown"
 
     _MAX_BODY_SIZE = 64 * 1024
+    _MAX_CONTENT_SIZE = 1024 * 1024
 
-    def _read_body(self):
+    def _handle_check(self, body):
+        """Handle POST /api/check — content security scanning."""
+        import time as _time
+        content = body.get("content", "")
+        if not content:
+            self._send_error(400, "content is required")
+            return
+
+        checks = body.get("checks") or _ALL_CHECKS
+        if not isinstance(checks, list):
+            self._send_error(400, "checks must be an array")
+            return
+        invalid = set(checks) - _VALID_CHECKS
+        if invalid:
+            self._send_error(
+                400, f"Invalid checks: {', '.join(sorted(invalid))}. "
+                     f"Valid: {', '.join(sorted(_VALID_CHECKS))}"
+            )
+            return
+
+        action = body.get("action", "block")
+        if action not in ("block", "warn", "log"):
+            self._send_error(400, "action must be 'block', 'warn', or 'log'")
+            return
+
+        t0 = _time.monotonic()
+
+        try:
+            from ai_guardian.sdk import _DirectSession
+            cfg = self.server.daemon_state.get_config()
+            session = _DirectSession(action="log", config=cfg)
+
+            findings = []
+
+            if "secrets" in checks or "pii" in checks:
+                result = session.check_content(content, filename="input")
+                if result.detected:
+                    findings.append({
+                        "type": result.violation_type,
+                        "message": result.message,
+                        "action_taken": action,
+                    })
+
+            if "injection" in checks:
+                pi_cfg = cfg.get("prompt_injection", {})
+                if pi_cfg.get("enabled", True):
+                    try:
+                        from ai_guardian.prompt_injection import (
+                            check_prompt_injection,
+                        )
+                        should_block, msg, detected = check_prompt_injection(
+                            content, cfg,
+                        )
+                        if detected and not any(
+                            f["type"] == "prompt_injection" for f in findings
+                        ):
+                            findings.append({
+                                "type": "prompt_injection",
+                                "message": msg,
+                                "action_taken": action,
+                            })
+                    except Exception:
+                        pass
+
+            if "context_poisoning" in checks:
+                cp_cfg = cfg.get("context_poisoning", {})
+                if cp_cfg.get("enabled", True):
+                    try:
+                        from ai_guardian.context_poisoning import (
+                            check_context_poisoning,
+                        )
+                        should_block, msg, detected = check_context_poisoning(
+                            content, cfg,
+                        )
+                        if detected and not any(
+                            f["type"] == "context_poisoning" for f in findings
+                        ):
+                            findings.append({
+                                "type": "context_poisoning",
+                                "message": msg,
+                                "action_taken": action,
+                            })
+                    except Exception:
+                        pass
+
+            redacted = None
+            if findings:
+                try:
+                    from ai_guardian.sanitizer import sanitize_text
+                    san_result = sanitize_text(content)
+                    redacted = san_result.get(
+                        "sanitized_text", san_result.get("redacted", content)
+                    )
+                except Exception:
+                    redacted = content
+
+            elapsed = (_time.monotonic() - t0) * 1000
+
+            self._send_json({
+                "clean": len(findings) == 0,
+                "findings": findings,
+                "redacted": redacted,
+                "elapsed_ms": round(elapsed, 1),
+            })
+        except Exception as e:
+            logger.error("Check endpoint failed: %s", e)
+            self._send_error(500, f"Internal error: {e}")
+
+    def _handle_redact(self, body):
+        """Handle POST /api/redact — text sanitization."""
+        content = body.get("content", "")
+        if not content:
+            self._send_error(400, "content is required")
+            return
+        try:
+            from ai_guardian.sanitizer import sanitize_text
+            result = sanitize_text(content)
+            redacted = result.get(
+                "sanitized_text", result.get("redacted", content)
+            )
+            stats = result.get("stats", {})
+            count = stats.get("total", 0) if isinstance(stats, dict) else 0
+            if count == 0:
+                redactions = result.get("redactions", [])
+                if isinstance(redactions, list):
+                    count = len(redactions)
+            self._send_json({
+                "redacted": redacted,
+                "redaction_count": count,
+            })
+        except Exception as e:
+            logger.error("Redact endpoint failed: %s", e)
+            self._send_error(500, f"Internal error: {e}")
+
+    def _read_body(self, max_size=None):
+        limit = max_size or self._MAX_BODY_SIZE
         try:
             content_length = int(self.headers.get("Content-Length", 0))
         except (ValueError, TypeError):
@@ -271,7 +424,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             return None
         if content_length == 0:
             return {}
-        if content_length > self._MAX_BODY_SIZE:
+        if content_length > limit:
             self._send_error(413, "Request body too large")
             return None
         try:
@@ -279,7 +432,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             return json.loads(raw.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             self._send_error(400, "Invalid JSON")
-            return None  # callers must check for None before using result
+            return None
 
     def _send_json(self, data):
         body = json.dumps(data).encode("utf-8")

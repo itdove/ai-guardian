@@ -257,6 +257,167 @@ with monitor(config=custom_config) as session:
     session.check_content(text)
 ```
 
+## REST API (Multi-Language)
+
+For non-Python languages (TypeScript, Go, Java, Rust, etc.), ai-guardian exposes HTTP endpoints on the daemon's REST API. The daemon must be running:
+
+```bash
+ai-guardian daemon start
+```
+
+The REST API port is shown in `ai-guardian daemon status`. Default: `19200`.
+
+### POST /api/check
+
+Scan content for security threats.
+
+**Request:**
+
+```bash
+curl -X POST http://localhost:19200/api/check \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "text to scan",
+    "checks": ["secrets", "pii", "injection", "context_poisoning"],
+    "action": "block",
+    "source": "sdk"
+  }'
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `content` | string | **required** | Text to scan |
+| `checks` | array | all checks | Which checks to run: `secrets`, `pii`, `injection`, `ssrf`, `context_poisoning` |
+| `action` | string | `"block"` | Action mode: `block`, `warn`, or `log` (recorded in findings) |
+| `source` | string | `"sdk"` | Optional source identifier for audit trail |
+
+**Response:**
+
+```json
+{
+  "clean": false,
+  "findings": [
+    {
+      "type": "secret_detected",
+      "message": "GitHub token detected",
+      "action_taken": "block"
+    }
+  ],
+  "redacted": "text with [REDACTED] token",
+  "elapsed_ms": 12.3
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `clean` | bool | `true` if no threats detected |
+| `findings` | array | List of detected threats |
+| `redacted` | string or null | Auto-redacted text (only when findings exist) |
+| `elapsed_ms` | float | Processing time in milliseconds |
+
+### POST /api/redact
+
+Redact secrets and PII from text without checking for threats.
+
+**Request:**
+
+```bash
+curl -X POST http://localhost:19200/api/redact \
+  -H "Content-Type: application/json" \
+  -d '{"content": "my token is ghp_abc123..."}'
+```
+
+**Response:**
+
+```json
+{
+  "redacted": "my token is [REDACTED]",
+  "redaction_count": 1
+}
+```
+
+### Authentication
+
+If the daemon has `auth_token` configured in `ai-guardian.json`:
+
+```bash
+curl -X POST http://localhost:19200/api/check \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "text to scan"}'
+```
+
+### Language SDK Examples
+
+Each language SDK is a thin HTTP client wrapper around these endpoints.
+
+**TypeScript/Node:**
+
+```typescript
+const response = await fetch('http://localhost:19200/api/check', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ content: text }),
+});
+const result = await response.json();
+if (!result.clean) {
+  throw new Error(result.findings[0].message);
+}
+```
+
+**Go:**
+
+```go
+body, _ := json.Marshal(map[string]string{"content": text})
+resp, err := http.Post(
+    "http://localhost:19200/api/check",
+    "application/json",
+    bytes.NewReader(body),
+)
+var result struct {
+    Clean    bool `json:"clean"`
+    Findings []struct {
+        Type    string `json:"type"`
+        Message string `json:"message"`
+    } `json:"findings"`
+}
+json.NewDecoder(resp.Body).Decode(&result)
+```
+
+**Java:**
+
+```java
+HttpClient client = HttpClient.newHttpClient();
+String json = "{\"content\": \"" + text + "\"}";
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create("http://localhost:19200/api/check"))
+    .header("Content-Type", "application/json")
+    .POST(HttpRequest.BodyPublishers.ofString(json))
+    .build();
+HttpResponse<String> response = client.send(request,
+    HttpResponse.BodyHandlers.ofString());
+```
+
+**Rust:**
+
+```rust
+let client = reqwest::Client::new();
+let result: serde_json::Value = client
+    .post("http://localhost:19200/api/check")
+    .json(&serde_json::json!({"content": text}))
+    .send().await?
+    .json().await?;
+```
+
+**Shell (no SDK needed):**
+
+```bash
+result=$(curl -s -X POST http://localhost:19200/api/check \
+  -H "Content-Type: application/json" \
+  -d "{\"content\": \"$TEXT\"}")
+clean=$(echo "$result" | jq -r '.clean')
+```
+
 ## Security Model
 
 - **Additive only**: The SDK adds protection to programs that have none. It cannot disable or bypass hook-based enforcement.
