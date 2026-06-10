@@ -8,6 +8,7 @@ import pytest
 from ai_guardian.diff_provider import (
     DiffProviderError,
     detect_platform,
+    extract_file_contents_from_diff,
     filter_findings_by_changed_lines,
     get_changed_files_from_diff,
     get_merge_base,
@@ -457,3 +458,67 @@ class TestParseMRRef:
     def test_invalid_value(self):
         with pytest.raises(DiffProviderError, match="Cannot parse MR number"):
             parse_mr_ref("not-a-number-or-url")
+
+
+class TestExtractFileContentsFromDiff:
+
+    def test_simple_addition(self):
+        result = extract_file_contents_from_diff(SIMPLE_DIFF)
+        assert "src/foo.py" in result
+        assert "new_line_1()" in result["src/foo.py"]
+        assert "new_line_2()" in result["src/foo.py"]
+
+    def test_context_lines_included(self):
+        result = extract_file_contents_from_diff(SIMPLE_DIFF)
+        assert "pass" in result["src/foo.py"]
+
+    def test_multiple_files(self):
+        result = extract_file_contents_from_diff(MULTI_FILE_DIFF)
+        assert "a.py" in result
+        assert "b.py" in result
+        assert "added_in_a" in result["a.py"]
+        assert "added_in_b" in result["b.py"]
+
+    def test_new_file(self):
+        result = extract_file_contents_from_diff(NEW_FILE_DIFF)
+        assert "newfile.py" in result
+        assert "line1" in result["newfile.py"]
+
+    def test_deleted_file_excluded(self):
+        result = extract_file_contents_from_diff(DELETED_FILE_DIFF)
+        assert "old.py" not in result
+
+    def test_renamed_file(self):
+        result = extract_file_contents_from_diff(RENAME_DIFF)
+        assert "new_name.py" in result
+        assert "added" in result["new_name.py"]
+
+    def test_empty_diff(self):
+        result = extract_file_contents_from_diff("")
+        assert result == {}
+
+    def test_binary_diff(self):
+        result = extract_file_contents_from_diff(BINARY_DIFF)
+        assert result == {}
+
+    def test_multiple_hunks(self):
+        result = extract_file_contents_from_diff(MULTI_HUNK_DIFF)
+        assert "multi.py" in result
+        assert "add_at_3" in result["multi.py"]
+        assert "add_at_22" in result["multi.py"]
+
+    def test_deleted_lines_excluded(self):
+        diff = """\
+diff --git a/x.py b/x.py
+--- a/x.py
++++ b/x.py
+@@ -1,4 +1,4 @@
+ same
+-old_line
++new_line
+ same
+ same
+"""
+        result = extract_file_contents_from_diff(diff)
+        assert "new_line" in result["x.py"]
+        assert "old_line" not in result["x.py"]
