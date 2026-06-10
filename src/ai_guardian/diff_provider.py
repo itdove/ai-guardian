@@ -185,8 +185,62 @@ def get_mr_diff(mr_ref: str, repo_path: str = ".") -> str:
     return result.stdout
 
 
-_DIFF_FILE_HEADER = re.compile(r"^\+\+\+ b/(.+)$", re.MULTILINE)
+_DIFF_FILE_HEADER = re.compile(r"^\+\+\+ (?:b/)?(.+)$", re.MULTILINE)
 _HUNK_HEADER = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
+_DIFF_START = re.compile(r"^diff --git ", re.MULTILINE)
+
+
+def extract_file_contents_from_diff(diff_text: str) -> Dict[str, str]:
+    """Extract new-side file content from a unified diff.
+
+    For each modified/added file, concatenates context lines and
+    additions from every hunk.  Deleted files (target /dev/null) are
+    skipped.  The result is NOT the full file — only the sections
+    covered by diff hunks — but it is enough for security scanning.
+
+    Returns dict mapping relative file path to extracted content.
+    """
+    contents: Dict[str, List[str]] = {}
+    current_file: Optional[str] = None
+
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            current_file = None
+            continue
+
+        if line.startswith("+++ "):
+            match = _DIFF_FILE_HEADER.match(line)
+            if match:
+                path = match.group(1)
+                if path == "/dev/null":
+                    current_file = None
+                else:
+                    current_file = path
+                    if current_file not in contents:
+                        contents[current_file] = []
+            else:
+                current_file = None
+            continue
+
+        if line.startswith("--- "):
+            continue
+
+        if _HUNK_HEADER.match(line):
+            continue
+
+        if current_file is None:
+            continue
+
+        if line.startswith("+"):
+            contents[current_file].append(line[1:])
+        elif line.startswith("-"):
+            pass
+        elif line.startswith("\\"):
+            pass
+        else:
+            contents[current_file].append(line[1:] if line.startswith(" ") else line)
+
+    return {path: "\n".join(lines) for path, lines in contents.items() if lines}
 
 
 def parse_unified_diff(diff_text: str) -> Dict[str, Set[int]]:

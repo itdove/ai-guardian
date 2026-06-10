@@ -1,6 +1,7 @@
 """Integration tests for scan_command() with diff flags."""
 
 import sys
+import tempfile
 from argparse import Namespace
 from pathlib import Path
 from unittest import mock
@@ -113,6 +114,12 @@ class TestScanCommandDiffMode:
 
         assert rc == 0
         mock_pr.assert_called_once_with("123", repo_path=".")
+        call_kwargs = mock_scan.call_args[1]
+        file_paths = call_kwargs["file_paths"]
+        base_path = call_kwargs["base_path"]
+        assert len(file_paths) == 1
+        assert file_paths[0].name == "foo.py"
+        assert str(base_path).startswith(str(Path(tempfile.gettempdir())))
 
     @mock.patch("ai_guardian.diff_provider.get_mr_diff")
     @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
@@ -125,6 +132,12 @@ class TestScanCommandDiffMode:
 
         assert rc == 0
         mock_mr.assert_called_once_with("42", repo_path=".")
+        call_kwargs = mock_scan.call_args[1]
+        file_paths = call_kwargs["file_paths"]
+        base_path = call_kwargs["base_path"]
+        assert len(file_paths) == 1
+        assert file_paths[0].name == "foo.py"
+        assert str(base_path).startswith(str(Path(tempfile.gettempdir())))
 
     @mock.patch("ai_guardian.scanner.sys.stdin")
     @mock.patch("ai_guardian.scanner.FileScanner.scan_files")

@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 import fnmatch
@@ -786,6 +787,7 @@ def scan_command(args) -> int:
         try:
             from ai_guardian.diff_provider import (
                 DiffProviderError,
+                extract_file_contents_from_diff,
                 filter_findings_by_changed_lines,
                 get_changed_files_from_diff,
                 get_diff_unified,
@@ -816,13 +818,35 @@ def scan_command(args) -> int:
                     print("No changed files found in diff.")
                 return 0
 
-            base = Path(args.path).resolve()
-            file_paths = [base / f for f in changed_files]
+            is_remote = pr_number is not None or mr_number is not None
 
-            if args.verbose:
-                print(f"Diff scanning: {len(file_paths)} changed file(s)")
+            if is_remote:
+                file_contents = extract_file_contents_from_diff(diff_text)
+                tmpdir = tempfile.mkdtemp(prefix="ai-guardian-scan-")
+                try:
+                    tmp_base = Path(tmpdir)
+                    file_paths = []
+                    for rel_path, content in file_contents.items():
+                        tmp_file = tmp_base / rel_path
+                        tmp_file.parent.mkdir(parents=True, exist_ok=True)
+                        tmp_file.write_text(content, encoding="utf-8")
+                        file_paths.append(tmp_file)
 
-            findings = scanner.scan_files(file_paths=file_paths, base_path=base)
+                    if args.verbose:
+                        print(f"PR/MR scanning: {len(file_paths)} changed file(s) from remote diff")
+
+                    findings = scanner.scan_files(file_paths=file_paths, base_path=tmp_base)
+                finally:
+                    import shutil
+                    shutil.rmtree(tmpdir, ignore_errors=True)
+            else:
+                base = Path(args.path).resolve()
+                file_paths = [base / f for f in changed_files]
+
+                if args.verbose:
+                    print(f"Diff scanning: {len(file_paths)} changed file(s)")
+
+                findings = scanner.scan_files(file_paths=file_paths, base_path=base)
 
             if changed_lines_only and changed_lines:
                 findings = filter_findings_by_changed_lines(findings, changed_lines)
