@@ -28,14 +28,14 @@ class TestHealthCheckImport:
 
     def test_health_check_in_nav_groups(self):
         nav_dict = {name: [pid for _, pid in items] for name, items in NAV_GROUPS}
-        assert "panel-health-check" in nav_dict["Tools"]
+        assert "panel-health-check" in nav_dict["Security Overview"]
 
     def test_health_check_has_help_doc(self):
         assert "panel-health-check" in HELP_DOCS
         assert len(HELP_DOCS["panel-health-check"]) > 0
 
-    def test_tools_category_help_mentions_health_check(self):
-        assert "Health Check" in HELP_DOCS["Tools"]
+    def test_security_overview_help_mentions_health_check(self):
+        assert "Health Check" in HELP_DOCS["Security Overview"]
 
 
 class TestFormatCheckStatus:

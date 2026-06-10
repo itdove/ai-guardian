@@ -39,6 +39,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
         ("Security Overview", [
             ("Security Dashboard", prefix),
             ("Global Settings", f"{prefix}/settings"),
+            ("Health Check", f"{prefix}/health-check"),
         ]),
         ("Monitoring", [
             ("Violations", f"{prefix}/violations"),
@@ -86,7 +87,6 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ("Hook Simulator", f"{prefix}/hook-simulator"),
             ("Engine Tester", f"{prefix}/engine-tester"),
             ("Directory Scan", f"{prefix}/directory-scan"),
-            ("Health Check", f"{prefix}/health-check"),
         ]),
     ]
     with ui.column().classes("w-56 bg-blue-grey-10 min-h-screen p-2 gap-0"):

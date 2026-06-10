@@ -94,6 +94,7 @@ NAV_GROUPS = [
     ("Security Overview", [
         ("Security Dashboard", "panel-security-dashboard"),
         ("Global Settings", "panel-global-settings"),
+        ("Health Check", "panel-health-check"),
     ]),
     ("Monitoring", [
         ("Violations", "panel-violations"),
@@ -140,7 +141,6 @@ NAV_GROUPS = [
         ("Hook Simulator", "panel-hook-simulator"),
         ("Engine Tester", "panel-engine-tester"),
         ("Directory Scan", "panel-directory-scan"),
-        ("Health Check", "panel-health-check"),
     ]),
 ]
 
@@ -155,7 +155,9 @@ HELP_DOCS = {
         "  [bold]Security Dashboard[/bold] — At-a-glance status of all "
         "security features with violation analytics\n"
         "  [bold]Global Settings[/bold] — Master toggles for permissions "
-        "enforcement and secret scanning"
+        "enforcement and secret scanning\n"
+        "  [bold]Health Check[/bold] — System health checks "
+        "(ai-guardian doctor) with auto-fix support"
     ),
     "Permissions": (
         "[bold]Permissions[/bold]\n\n"
@@ -231,9 +233,7 @@ HELP_DOCS = {
         "  [bold]Engine Tester[/bold] — Test strings against individual "
         "scanner engines to compare detection results\n"
         "  [bold]Directory Scan[/bold] — Scan directories for security "
-        "issues with interactive results and export\n"
-        "  [bold]Health Check[/bold] — System health checks "
-        "(ai-guardian doctor) with auto-fix support"
+        "issues with interactive results and export"
     ),
     # Panel-level help
     "panel-security-dashboard": (
