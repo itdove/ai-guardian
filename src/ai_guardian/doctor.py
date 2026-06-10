@@ -664,10 +664,8 @@ class Doctor:
                 )
             return CheckResult(
                 name="ps_cache_freshness",
-                status=CheckStatus.WARN,
-                message="No cached patterns",
-                fix_hint="Run: ai-guardian doctor --fix",
-                fixable=True,
+                status=CheckStatus.PASS,
+                message="No cached patterns yet (fetched on first scan)",
             )
 
         age_seconds = time.time() - cache_file.stat().st_mtime
