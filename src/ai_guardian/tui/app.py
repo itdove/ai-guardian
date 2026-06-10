@@ -100,6 +100,7 @@ NAV_GROUPS = [
         ("Violations", "panel-violations"),
         ("Violation Logging", "panel-violation-logging"),
         ("Metrics & Audit", "panel-metrics"),
+        ("Performance", "panel-performance"),
         ("Logs", "panel-logs"),
     ]),
     ("Permissions", [
@@ -586,6 +587,17 @@ HELP_DOCS = {
         "[bold]Export:[/bold]\n"
         "  Use the Export HTML / JSON / CSV buttons, or CLI:\n"
         "  ai-guardian audit --html > report.html"
+    ),
+    "panel-performance": (
+        "[bold]Performance — Hook Latency[/bold]\n\n"
+        "Per-hook and per-violation-type timing statistics.\n\n"
+        "[bold]Tables:[/bold]\n"
+        "  [bold]Hook Latency Overview[/bold] — Avg, StdDev, P95 per hook event\n"
+        "  [bold]Per-Check Breakdown[/bold] — Timing per violation check type\n\n"
+        "[bold]Enable:[/bold]\n"
+        "  Set latency_tracking.enabled = true in ai-guardian.json\n\n"
+        "[bold]CLI:[/bold]\n"
+        "  ai-guardian metrics --latency"
     ),
     "panel-logs": (
         "[bold]Runtime Logs[/bold]\n\n"
@@ -1138,6 +1150,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-metrics"):
                     from ai_guardian.tui.metrics_panel import MetricsContent
                     yield MetricsContent()
+
+                with Container(id="panel-performance"):
+                    from ai_guardian.tui.performance import PerformanceContent
+                    yield PerformanceContent()
 
                 with Container(id="panel-logs"):
                     from ai_guardian.tui.logs import LogsContent

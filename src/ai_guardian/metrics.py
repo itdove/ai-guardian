@@ -416,6 +416,19 @@ def metrics_command(args) -> int:
     if getattr(args, "reset", False):
         return _reset_counters(args)
 
+    if getattr(args, "latency", False):
+        from ai_guardian.latency_logger import (
+            LatencyComputer, format_latency_human, format_latency_json,
+        )
+        since_value = getattr(args, "since", "30d") or "30d"
+        computer = LatencyComputer(since_date=since_value)
+        report = computer.compute()
+        if getattr(args, "json", False):
+            print(format_latency_json(report))
+        else:
+            print(format_latency_human(report))
+        return 0
+
     use_audit = (
         getattr(args, "html", False)
         or getattr(args, "until", None)

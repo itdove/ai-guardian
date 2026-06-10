@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Hook Latency Metrics** (Issue #1057)
+  - Per-hook (PreToolUse/PostToolUse/UserPromptSubmit) and per-violation-type timing instrumentation
+  - New `latency_tracking` config section (disabled by default, opt-in for debugging)
+  - CLI: `ai-guardian metrics --latency` with avg/stddev/P95/min/max statistics
+  - Web Console: new "Performance" page under Monitoring with sortable tables and latency threshold highlighting
+  - TUI Console: new "Performance" panel with hook latency and per-check breakdown tables
+  - Data stored in append-only `latency.jsonl` alongside violations.jsonl with configurable retention
+
 ### Changed
 
 - **Docs: prefer uv over pip in install instructions** (Issue #1051)

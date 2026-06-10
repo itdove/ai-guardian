@@ -45,6 +45,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ("Violations", f"{prefix}/violations"),
             ("Violation Logging", f"{prefix}/violation-logging"),
             ("Metrics & Audit", f"{prefix}/metrics"),
+            ("Performance", f"{prefix}/performance"),
             ("Logs", f"{prefix}/logs"),
         ]),
         ("Permissions", [

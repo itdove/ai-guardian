@@ -138,6 +138,11 @@ class WebConsole:
             from ai_guardian.web.pages.metrics import create_metrics_page
             create_metrics_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/performance")
+        def performance_page(daemon_name: str):
+            from ai_guardian.web.pages.performance import create_performance_page
+            create_performance_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/logs")
         def logs_page(daemon_name: str):
             from ai_guardian.web.pages.logs import create_logs_page

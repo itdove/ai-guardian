@@ -82,6 +82,7 @@ from ai_guardian.response_format import (
     format_response,
 )
 from ai_guardian.hook_adapters import detect_adapter
+from ai_guardian.latency_logger import _CheckTimer
 
 # Conditional imports for optional features
 try:
@@ -154,6 +155,31 @@ except ImportError:
     HAS_AST_SCANNER = False
 
 logger = logging.getLogger(__name__)
+
+
+def _is_latency_enabled():
+    try:
+        from ai_guardian.latency_logger import LatencyLogger
+        return LatencyLogger()._is_enabled()
+    except Exception:
+        return False
+
+
+def _finalize_latency(timer, hook_event, tool_name):
+    if timer is None or not timer._enabled:
+        return
+    try:
+        from ai_guardian.latency_logger import LatencyLogger
+        LatencyLogger().log_timing({
+            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "hook_event": hook_event.value if hasattr(hook_event, 'value') else str(hook_event or ""),
+            "tool": tool_name or "",
+            "total_ms": round(timer.total_ms(), 2),
+            "checks": {k: round(v, 2) for k, v in timer.to_dict().items()},
+        })
+    except Exception:
+        pass
+
 
 DEFAULT_ENGINES = ["toml-patterns", "gitleaks"]
 
@@ -3338,6 +3364,9 @@ def process_hook_data(hook_data, daemon_state=None):
               - For Claude Code: output=None, exit_code=0 (allow) or 2 (block)
               - For Cursor: output=JSON string, exit_code=0
     """
+    _latency_timer = None
+    _latency_event = None
+    _latency_tool = ""
     try:
         now = datetime.now(timezone.utc)
         violation_logger = ViolationLogger() if HAS_VIOLATION_LOGGER else None
@@ -3376,6 +3405,9 @@ def process_hook_data(hook_data, daemon_state=None):
 
         if hook_event == HookEvent.STOP:
             return {"output": None, "exit_code": 0}
+
+        _latency_timer = _CheckTimer(enabled=_is_latency_enabled())
+        _latency_event = hook_event
 
         # Resolve transcript path from adapter defaults (Issue #935)
         # When hook_data has no transcript_path, agents like Copilot CLI and Codex
@@ -3442,6 +3474,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
             # Extract tool output
             tool_output, tool_name = extract_tool_result(hook_data)
+            _latency_tool = tool_name or ""
             logging.info(f"PostToolUse: tool_name={tool_name}, has_output={tool_output is not None}")
 
             if tool_output is None:
@@ -3568,15 +3601,16 @@ def process_hook_data(hook_data, daemon_state=None):
             else:
                 # Use secret-suppressed content if annotations produced one
                 post_scan_content = post_secret_content if post_secret_content is not None else tool_output
-                has_secrets, error_message = check_secrets_with_gitleaks(
-                    post_scan_content, f"{tool_identifier}_output",
-                    context=post_secret_ctx,
-                    tool_name=tool_identifier,
-                    ignore_files=ignore_files,
-                    ignore_tools=ignore_tools,
-                    allowlist_patterns=secret_allowlist,
-                    secret_config=secret_config
-                )
+                with _latency_timer.check("secret_scanning"):
+                    has_secrets, error_message = check_secrets_with_gitleaks(
+                        post_scan_content, f"{tool_identifier}_output",
+                        context=post_secret_ctx,
+                        tool_name=tool_identifier,
+                        ignore_files=ignore_files,
+                        ignore_tools=ignore_tools,
+                        allowlist_patterns=secret_allowlist,
+                        secret_config=secret_config
+                    )
 
             if not has_secrets and error_message:
                 # Scanner not available - display warning but allow operation
@@ -3617,7 +3651,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         pii_config_for_redactor, _ = _load_pii_config()
                         pii_cfg = pii_config_for_redactor if pii_config_for_redactor and pii_config_for_redactor.get('enabled', True) else None
                         redactor = SecretRedactor(redaction_config, pii_config=pii_cfg)
-                        result = redactor.redact(tool_output)
+                        with _latency_timer.check("secret_redaction"):
+                            result = redactor.redact(tool_output)
 
                         redacted_text = result['redacted_text']
                         redactions = result['redactions']
@@ -3741,7 +3776,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                 if not pii_skip_scan:
                     logging.info("Scanning tool output for PII...")
-                    has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config, file_path=pii_file_path)
+                    with _latency_timer.check("pii_detection"):
+                        has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config, file_path=pii_file_path)
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
@@ -3819,6 +3855,7 @@ def process_hook_data(hook_data, daemon_state=None):
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             tool_name = normalized.tool_name
             tool_input = normalized.tool_input
+            _latency_tool = tool_name or ""
 
             # Normalize mcp: prefix to mcp__ format (agent-agnostic)
             if tool_name and tool_name.startswith("mcp:"):
@@ -3847,7 +3884,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     default=True
                 ):
                     policy_checker = ToolPolicyChecker()
-                    is_allowed, error_message, checked_tool_name = policy_checker.check_tool_allowed(hook_data)
+                    with _latency_timer.check("permissions"):
+                        is_allowed, error_message, checked_tool_name = policy_checker.check_tool_allowed(hook_data)
 
                     if not is_allowed:
                         # Extract reason summary for logging
@@ -3911,7 +3949,8 @@ def process_hook_data(hook_data, daemon_state=None):
             # Bug #174: Glob removed - uses 'pattern' parameter, not 'file_path', doesn't read content in PreToolUse
             if tool_name in FILE_READING_TOOLS or hook_event == HookEvent.BEFORE_READ_FILE:
                 # Extract file content for tools that read files
-                content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
+                with _latency_timer.check("directory_rules"):
+                    content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
 
                 # Check if directory access is denied
                 if is_denied:
@@ -3970,7 +4009,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 with open(file_path, 'rb') as f:
                                     image_data = f.read()
 
-                                image_scan_result = scan_image(image_data, img_config)
+                                with _latency_timer.check("image_scanning"):
+                                    image_scan_result = scan_image(image_data, img_config)
                                 logging.info(
                                     f"OCR extracted {len(image_scan_result.extracted_text)} chars "
                                     f"in {image_scan_result.elapsed_ms:.0f}ms"
@@ -4119,7 +4159,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     ):
                         try:
                             for img_bytes in image_bytes_list:
-                                img_result = scan_image(img_bytes, img_config)
+                                with _latency_timer.check("image_scanning"):
+                                    img_result = scan_image(img_bytes, img_config)
                                 if img_result.extracted_text:
                                     content_to_scan = f"{content_to_scan}\n{img_result.extracted_text}"
                                     logging.info(f"OCR extracted {len(img_result.extracted_text)} chars from prompt image")
@@ -4152,9 +4193,10 @@ def process_hook_data(hook_data, daemon_state=None):
                     source_type = "user_prompt" if hook_event == HookEvent.PROMPT else "file_content"
 
                     detector = PromptInjectionDetector(injection_config)
-                    should_block, injection_error, injection_detected = detector.detect(
-                        content_to_scan, file_path=file_path, tool_name=tool_identifier, source_type=source_type
-                    )
+                    with _latency_timer.check("prompt_injection"):
+                        should_block, injection_error, injection_detected = detector.detect(
+                            content_to_scan, file_path=file_path, tool_name=tool_identifier, source_type=source_type
+                        )
 
                     # Log violation if injection was detected (in both log and block modes)
                     if injection_detected:
@@ -4219,7 +4261,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     default=True
                 ):
                     cp_detector = ContextPoisoningDetector(cp_config)
-                    cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
+                    with _latency_timer.check("context_poisoning"):
+                        cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
 
                     if cp_detected:
                         cp_hook_ctx = {}
@@ -4267,9 +4310,10 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
 
                 if is_enabled:
-                    should_block, config_error, config_details = check_config_file_threats(
-                        file_path, content_to_scan, scanner_config
-                    )
+                    with _latency_timer.check("config_file_scanning"):
+                        should_block, config_error, config_details = check_config_file_threats(
+                            file_path, content_to_scan, scanner_config
+                        )
 
                     if should_block:
                         # Config file threat detected - block operation
@@ -4354,16 +4398,17 @@ def process_hook_data(hook_data, daemon_state=None):
                 pre_secret_ctx["session_id"] = hook_session_id
             # Use secret-suppressed content if annotation processing produced one
             secret_scan_content = secret_content_to_scan if secret_content_to_scan is not None else content_to_scan
-            has_secrets, error_message = check_secrets_with_gitleaks(
-                secret_scan_content, filename,
-                context=pre_secret_ctx,
-                file_path=file_path,
-                tool_name=tool_identifier,
-                ignore_files=ignore_files,
-                ignore_tools=ignore_tools,
-                allowlist_patterns=secret_allowlist,
-                secret_config=secret_config
-            )
+            with _latency_timer.check("secret_scanning"):
+                has_secrets, error_message = check_secrets_with_gitleaks(
+                    secret_scan_content, filename,
+                    context=pre_secret_ctx,
+                    file_path=file_path,
+                    tool_name=tool_identifier,
+                    ignore_files=ignore_files,
+                    ignore_tools=ignore_tools,
+                    allowlist_patterns=secret_allowlist,
+                    secret_config=secret_config
+                )
 
             if not has_secrets and error_message:
                 # Scanner not available - add warning to messages list
@@ -4403,7 +4448,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 if should_scan_pii:
                     logging.info(f"Scanning {'prompt' if hook_event == HookEvent.PROMPT else filename} for PII...")
                     pii_scan_content = pii_content_to_scan if pii_content_to_scan is not None else content_to_scan
-                    has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config, file_path=file_path)
+                    with _latency_timer.check("pii_detection"):
+                        has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config, file_path=file_path)
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
@@ -4476,12 +4522,13 @@ def process_hook_data(hook_data, daemon_state=None):
                         ts_pii_config, _ = _load_pii_config()
 
                     for ts_path in transcript_paths_to_scan:
-                        transcript_warnings = scan_transcript_incremental(
-                            ts_path,
-                            secret_config=ts_secret_config,
-                            pii_config=ts_pii_config,
-                            hook_context={"session_id": hook_session_id} if hook_session_id else None
-                        )
+                        with _latency_timer.check("transcript_scanning"):
+                            transcript_warnings = scan_transcript_incremental(
+                                ts_path,
+                                secret_config=ts_secret_config,
+                                pii_config=ts_pii_config,
+                                hook_context={"session_id": hook_session_id} if hook_session_id else None
+                            )
                         if transcript_warnings:
                             warning_messages.extend(transcript_warnings)
                             logging.warning(f"Transcript scanning found {len(transcript_warnings)} issue(s) in {ts_path}")
@@ -4613,6 +4660,8 @@ def process_hook_data(hook_data, daemon_state=None):
             pass
         # Fail-open: allow operation on errors
         return {"output": None, "exit_code": 0}
+    finally:
+        _finalize_latency(_latency_timer, _latency_event, _latency_tool)
 
 
 def process_hook_input():

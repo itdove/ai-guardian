@@ -39,10 +39,10 @@ class TestNavGroups:
         """Test that NAV_GROUPS defines exactly 8 category groups."""
         assert len(NAV_GROUPS) == 8
 
-    def test_nav_groups_has_thirty_five_panels(self):
-        """Test that NAV_GROUPS defines exactly 35 leaf panels."""
+    def test_nav_groups_has_thirty_six_panels(self):
+        """Test that NAV_GROUPS defines exactly 36 leaf panels."""
         total_leaves = sum(len(items) for _, items in NAV_GROUPS)
-        assert total_leaves == 35
+        assert total_leaves == 36
 
     def test_panel_ids_are_unique(self):
         """Test that all panel IDs are unique."""
