@@ -1376,7 +1376,7 @@ class Doctor:
         """Check OCR engine availability when image scanning is enabled."""
         self._ensure_config()
         img_config = (self._config or {}).get("image_scanning", {})
-        if not img_config or not img_config.get("enabled", True):
+        if not img_config.get("enabled", True):
             return CheckResult(
                 name="image_scanning",
                 status=CheckStatus.SKIP,

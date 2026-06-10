@@ -1182,3 +1182,50 @@ class TestCheckTrayPlugins:
             result = doctor.check_tray_plugins()
             assert result.status == CheckStatus.WARN
             assert "Circular import" in result.message
+
+
+class TestCheckImageScanning:
+    """Tests for check_image_scanning (Issue #1048)."""
+
+    def test_missing_image_scanning_key_defaults_enabled(self, _isolate_config_dir):
+        """When image_scanning key is absent, should NOT report SKIP."""
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
+        doctor = Doctor()
+        with mock.patch("ai_guardian.doctor.RapidOCR", create=True):
+            result = doctor.check_image_scanning()
+        assert result.status != CheckStatus.SKIP
+
+    def test_empty_image_scanning_dict_defaults_enabled(self, _isolate_config_dir):
+        """When image_scanning is empty dict, enabled defaults to True."""
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"image_scanning": {}}))
+        doctor = Doctor()
+        with mock.patch("ai_guardian.doctor.RapidOCR", create=True):
+            result = doctor.check_image_scanning()
+        assert result.status != CheckStatus.SKIP
+
+    def test_explicitly_disabled(self, _isolate_config_dir):
+        """When image_scanning.enabled is False, should SKIP."""
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"image_scanning": {"enabled": False}}))
+        doctor = Doctor()
+        result = doctor.check_image_scanning()
+        assert result.status == CheckStatus.SKIP
+        assert "not enabled" in result.message
+
+    def test_explicitly_enabled_with_rapidocr(self, _isolate_config_dir):
+        """When enabled and rapidocr available, should PASS."""
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"image_scanning": {"enabled": True}}))
+        doctor = Doctor()
+        with mock.patch.dict("sys.modules", {"rapidocr_onnxruntime": mock.MagicMock()}):
+            result = doctor.check_image_scanning()
+        assert result.status == CheckStatus.PASS
+
+    def test_no_config_file_defaults_enabled(self, _isolate_config_dir):
+        """With no config file at all, image scanning defaults enabled."""
+        doctor = Doctor()
+        with mock.patch.dict("sys.modules", {"rapidocr_onnxruntime": mock.MagicMock()}):
+            result = doctor.check_image_scanning()
+        assert result.status != CheckStatus.SKIP
