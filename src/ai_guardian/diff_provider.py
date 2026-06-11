@@ -141,6 +141,19 @@ def get_diff_unified(
     return result.stdout
 
 
+def get_staged_diff(repo_path: str = ".") -> str:
+    """Get unified diff of staged changes (git diff --cached)."""
+    result = subprocess.run(
+        ["git", "diff", "--cached"],
+        capture_output=True, text=True, timeout=60, cwd=repo_path,
+    )
+    if result.returncode != 0:
+        raise DiffProviderError(
+            f"git diff --cached failed: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
 def _run_cli_diff(
     cmd: List[str],
     tool_name: str,

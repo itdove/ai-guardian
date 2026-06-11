@@ -504,6 +504,11 @@ def main():
             help="Base ref for --diff (default: auto-detect default branch)"
         )
         scan_parser.add_argument(
+            "--staged",
+            action="store_true",
+            help="With --diff, scan only staged changes (git diff --cached)"
+        )
+        scan_parser.add_argument(
             "--pr",
             metavar="N_OR_URL",
             help="Scan files changed in GitHub PR (number or URL, requires gh CLI)"

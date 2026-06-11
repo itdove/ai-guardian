@@ -25,6 +25,7 @@ def _make_args(**overrides):
         "verbose": False,
         "diff": False,
         "base": None,
+        "staged": False,
         "pr": None,
         "mr": None,
         "stdin_diff": False,
@@ -244,3 +245,51 @@ class TestScanCommandLoggingSuppression:
 
         for h, orig in zip(stream_handlers, original_levels):
             assert h.level == orig
+
+
+class TestScanCommandStagedValidation:
+
+    def test_staged_requires_diff(self, capsys):
+        args = _make_args(staged=True)
+        rc = scan_command(args)
+        assert rc == 1
+        assert "--staged requires --diff" in capsys.readouterr().err
+
+    def test_staged_and_base_mutually_exclusive(self, capsys):
+        args = _make_args(diff=True, staged=True, base="main")
+        rc = scan_command(args)
+        assert rc == 1
+        assert "mutually exclusive" in capsys.readouterr().err
+
+
+class TestScanCommandStagedMode:
+
+    @mock.patch("ai_guardian.diff_provider.get_staged_diff")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_staged_scan_calls_get_staged_diff(self, mock_scan, mock_staged):
+        mock_staged.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+        args = _make_args(diff=True, staged=True)
+        rc = scan_command(args)
+        assert rc == 0
+        mock_staged.assert_called_once()
+        mock_scan.assert_called_once()
+
+    @mock.patch("ai_guardian.diff_provider.get_staged_diff")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_staged_with_changed_lines_only(self, mock_scan, mock_staged):
+        mock_staged.return_value = SAMPLE_DIFF
+        mock_scan.return_value = []
+        args = _make_args(diff=True, staged=True, changed_lines_only=True)
+        rc = scan_command(args)
+        assert rc == 0
+        mock_staged.assert_called_once()
+
+    @mock.patch("ai_guardian.diff_provider.get_staged_diff")
+    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    def test_staged_no_changes(self, mock_scan, mock_staged):
+        mock_staged.return_value = ""
+        args = _make_args(diff=True, staged=True)
+        rc = scan_command(args)
+        assert rc == 0
+        mock_scan.assert_not_called()
