@@ -117,7 +117,7 @@ except ImportError:
     HAS_CONTEXT_POISONING = False
 
 try:
-    from ai_guardian.config_scanner import check_config_file_threats
+    from ai_guardian.config_scanner import check_config_file_threats, check_bash_command_threats
     HAS_CONFIG_SCANNER = True
 except ImportError:
     HAS_CONFIG_SCANNER = False
@@ -3988,6 +3988,64 @@ def process_hook_data(hook_data, daemon_state=None):
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             # PreToolUse or beforeReadFile hook
             logging.info(f"Processing {hook_event} hook...")
+
+            # Bash command exfiltration detection (Issue #1100)
+            # Check Bash commands for credential exfiltration patterns before execution
+            if hook_event == HookEvent.PRE_TOOL_USE and tool_name == "Bash" and HAS_CONFIG_SCANNER:
+                bash_command = tool_input.get("command", "") if tool_input else ""
+                if bash_command:
+                    scanner_config, config_error = _load_config_scanner_config()
+                    if config_error:
+                        logging.warning(f"Config scanner config error: {config_error}")
+
+                    if scanner_config and is_feature_enabled(
+                        scanner_config.get("enabled"),
+                        now,
+                        default=True
+                    ):
+                        logging.info("Checking Bash command for exfiltration patterns...")
+                        with _latency_timer.check("bash_command_exfil_check"):
+                            should_block, exfil_error, exfil_details = check_bash_command_threats(
+                                bash_command, scanner_config
+                            )
+
+                        if should_block:
+                            # Credential exfiltration detected in Bash command - block operation
+                            logging.warning(f"🚨 BLOCKED: Credential exfiltration detected in Bash command")
+
+                            # Log config exfiltration violation
+                            if violation_logger:
+                                try:
+                                    exfil_ctx = {
+                                        "pattern_name": exfil_details.get("pattern_name", "unknown") if exfil_details else "unknown",
+                                        "pattern_description": exfil_details.get("pattern_description", "") if exfil_details else "",
+                                        "command": bash_command[:500],
+                                        "matched_text": exfil_details.get("matched_text", "") if exfil_details else "",
+                                    }
+                                    violation_logger.log_violation(
+                                        hook_name="PreToolUse",
+                                        tool_identifier=f"Bash: {bash_command[:100]}",
+                                        violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                                        pattern_name=exfil_ctx["pattern_name"],
+                                        action=ActionMode.BLOCK,
+                                        context=exfil_ctx,
+                                        hook_session_id=hook_session_id,
+                                        hook_tool_use_id=hook_tool_use_id,
+                                    )
+                                except Exception as e:
+                                    logging.warning(f"Failed to log bash exfil violation: {e}")
+
+                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            result = format_response(
+                                ide_type,
+                                has_secrets=True,
+                                error_message=exfil_error,
+                                hook_event=hook_event,
+                                warning_message=combined_warning,
+                                violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                                security_message=security_message
+                            )
+                            return result
 
             # Only extract file content for file-reading tools
             # Bash, Write, Edit, etc. don't read files in PreToolUse - they have command/content parameters
