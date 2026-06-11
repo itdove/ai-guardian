@@ -346,11 +346,29 @@ path = sys.argv[1]
 with open(path) as f:
     text = f.read()
 
-# Strip JSONC comments for opencode.jsonc
-text_clean = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
-text_clean = re.sub(r'/\*.*?\*/', '', text_clean, flags=re.DOTALL)
+# Strip JSONC comments (avoid stripping // inside strings like URLs)
+def strip_jsonc_comments(s):
+    result, i, in_str = [], 0, False
+    while i < len(s):
+        c = s[i]
+        if in_str:
+            result.append(c)
+            if c == '\\\\' and i + 1 < len(s):
+                result.append(s[i + 1]); i += 2; continue
+            if c == '\"': in_str = False
+            i += 1
+        elif c == '\"':
+            in_str = True; result.append(c); i += 1
+        elif s[i:i+2] == '//':
+            while i < len(s) and s[i] != '\n': i += 1
+        elif s[i:i+2] == '/*':
+            i = s.find('*/', i + 2)
+            i = i + 2 if i >= 0 else len(s)
+        else:
+            result.append(c); i += 1
+    return ''.join(result)
 
-config = json.loads(text_clean, strict=False)
+config = json.loads(strip_jsonc_comments(text), strict=False)
 
 for key in ('mcpServers', 'mcp'):
     if key in config and isinstance(config[key], dict) and 'ai-guardian' in config[key]:
