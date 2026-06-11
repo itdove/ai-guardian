@@ -372,6 +372,21 @@ if [ "$TRAY_WAS_RUNNING" = true ]; then
     } || echo "  Warning: tray restart failed — start manually with: ai-guardian tray start"
 fi
 
+# Auto-start daemon and tray on fresh install (if not already running)
+if [ "$DAEMON_WAS_RUNNING" = false ]; then
+    $AG_CMD daemon start --background 2>/dev/null && ok "Daemon started" || true
+fi
+if [ "$TRAY_WAS_RUNNING" = false ]; then
+    # Skip tray on headless Linux (no display)
+    START_TRAY=true
+    if [ "$(uname -s)" = "Linux" ]; then
+        [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && START_TRAY=false
+    fi
+    if [ "$START_TRAY" = true ]; then
+        $AG_CMD tray start --background 2>/dev/null && ok "Tray started" || true
+    fi
+fi
+
 # --- Step 3c: Install tkinter (optional) ---
 
 if [ "$INSTALL_TKINTER" = true ]; then
