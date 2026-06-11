@@ -8,6 +8,7 @@ Shows built-in pattern counts and configurable keys users can set in ai-guardian
 
 import json
 import logging
+import re as re_mod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -53,6 +54,23 @@ CATEGORY_ALIASES = {
     "logging": "violation_logging",
     "violations": "violation_logging",
 }
+
+
+TESTABLE_MATCH_TYPES = {"regex", "literal"}
+
+
+def test_rule_matches(rule: "DetectionRule", text: str) -> bool:
+    """Test whether a rule's pattern matches the given text."""
+    if rule.match_type not in TESTABLE_MATCH_TYPES:
+        return False
+    try:
+        if rule.match_type == "regex":
+            return bool(re_mod.search(rule.pattern, text, re_mod.IGNORECASE))
+        if rule.match_type == "literal":
+            return rule.pattern.lower() in text.lower()
+    except re_mod.error:
+        return False
+    return False
 
 
 @dataclass

@@ -237,8 +237,8 @@ class _DirectSession(GuardSession):
                     logger.debug("Supply chain check unavailable: %s", e)
 
             content_result = self.check_content(content, filename=file_path)
+            self._results.pop()
             if content_result.detected:
-                self._results.pop()
                 results.append(content_result)
 
         merged = self._merge_results(results)

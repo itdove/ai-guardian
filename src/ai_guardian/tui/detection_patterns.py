@@ -1,11 +1,12 @@
 """Detection Patterns panel — read-only view of all detection rules."""
 
-import re as re_mod
 from collections import Counter
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Input, Static
+
+from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
 
 
 CATEGORY_ORDER = [
@@ -13,22 +14,6 @@ CATEGORY_ORDER = [
     "ssrf", "config_exfil", "context_poisoning", "supply_chain",
     "self_protection",
 ]
-
-TESTABLE_MATCH_TYPES = {"regex", "literal"}
-
-
-def _test_rule_matches(rule, text):
-    """Test whether a rule's pattern matches the given text."""
-    if rule.match_type not in TESTABLE_MATCH_TYPES:
-        return False
-    try:
-        if rule.match_type == "regex":
-            return bool(re_mod.search(rule.pattern, text, re_mod.IGNORECASE))
-        if rule.match_type == "literal":
-            return rule.pattern.lower() in text.lower()
-    except re_mod.error:
-        return False
-    return False
 
 
 class DetectionPatternsContent(Container):
