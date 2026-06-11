@@ -84,6 +84,44 @@ def _remove_tray_lock():
     except (ValueError, OSError):
         pass
 
+def _ensure_system_gi():
+    """Make system GObject Introspection visible in isolated environments.
+
+    uv tool install creates an isolated Python env that can't see system
+    site-packages. Detect system gi location via the system Python and
+    add its parent directory to sys.path so pystray can use AppIndicator.
+    """
+    import platform
+    if platform.system() != "Linux":
+        return
+    try:
+        import gi  # noqa: F401
+        return
+    except ImportError:
+        pass
+    for python in ("/usr/bin/python3", "/usr/bin/python", "python3", "python"):
+        try:
+            result = subprocess.run(
+                [python, "-c",
+                 "import gi; import os; print(os.path.dirname(gi.__path__[0]))"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                site_dir = result.stdout.strip()
+                if site_dir not in sys.path:
+                    sys.path.insert(0, site_dir)
+                    try:
+                        import gi  # noqa: F401
+                        logger.info("System gi found at %s", site_dir)
+                        return
+                    except ImportError:
+                        sys.path.remove(site_dir)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+
+
+_ensure_system_gi()
+
 try:
     import pystray
     from PIL import Image, ImageDraw
@@ -120,6 +158,19 @@ def _restore_stderr(saved_fd):
             pass
 
 
+def _check_gi_available():
+    """Check if GObject Introspection is available (required for tray on Linux).
+
+    Without gi, pystray falls back from AppIndicator3 to the Xorg backend
+    which crashes on Wayland sessions.
+    """
+    try:
+        import gi  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def is_tray_available():
     """Check if system tray can be displayed (dependencies + display)."""
     if not HAS_PYSTRAY:
@@ -129,8 +180,16 @@ def is_tray_available():
     if os.environ.get("DISPLAY") is None and os.environ.get("WAYLAND_DISPLAY") is None:
         if platform.system() == "Linux":
             return False
-    if platform.system() == "Linux" and not _check_gnome_appindicator():
-        return False
+    if platform.system() == "Linux":
+        if not _check_gi_available():
+            logger.warning(
+                "GObject Introspection (gi) not available — tray requires it on Linux. "
+                "This often happens with 'uv tool install' (isolated environment). "
+                "Fix: reinstall with --venv flag: install.sh --venv"
+            )
+            return False
+        if not _check_gnome_appindicator():
+            return False
     return True
 
 
@@ -227,6 +286,7 @@ class DaemonTray:
         self._refresh_event = threading.Event()
         self._web_proc = None
         self._last_autostart_attempt = 0.0
+        self._last_stats_snapshot = None
 
     def start(self):
         """Start tray icon in a background thread.
@@ -1100,6 +1160,40 @@ class DaemonTray:
             except Exception:
                 pass
 
+    def _refresh_menu_if_changed(self):
+        """Refresh the tray menu only if stats changed.
+
+        GNOME's AppIndicator rebuilds the entire DBus menu tree on
+        update_menu(), causing a visible blank flash.  Skip the call
+        when nothing has changed.
+        """
+        snapshot = self._build_stats_snapshot()
+        if snapshot == self._last_stats_snapshot:
+            return
+        self._last_stats_snapshot = snapshot
+        self._refresh_menu()
+
+    def _build_stats_snapshot(self):
+        """Build a hashable snapshot of menu-relevant state."""
+        try:
+            stats = self._get_stats()
+            return (
+                stats.get("request_count"),
+                stats.get("blocked_count"),
+                stats.get("warning_count"),
+                stats.get("violation_count"),
+                stats.get("paused"),
+                stats.get("pause_remaining_seconds", 0) // 5,
+                stats.get("config_error"),
+                self._status,
+                len(self._targets),
+                tuple(
+                    (t.name, t.status) for t in self._targets
+                ),
+            )
+        except Exception:
+            return None
+
     def _refresh_menu_and_clear_discovery_flag(self):
         """Refresh menu and clear the discovery refresh guard (main thread)."""
         self._refresh_menu()
@@ -1458,7 +1552,7 @@ class DaemonTray:
                     self._check_pypi_version()
                     self._poll_plugins()
                     self._request_discovery_refresh(wait=False)
-                    self._dispatch_to_main(self._refresh_menu)
+                    self._dispatch_to_main(self._refresh_menu_if_changed)
 
         thread = threading.Thread(
             target=_refresh, daemon=True, name="stats-refresh"

@@ -194,6 +194,51 @@ if [ -f "$TRAY_LOCK" ]; then
     fi
 fi
 
+# --- Step 2c: Install Linux system headers for PyGObject (if needed) ---
+
+if [ "$(uname -s)" = "Linux" ]; then
+    # Skip on headless — tray (and PyGObject) only needed with a display
+    HEADERS_HAS_DISPLAY=false
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && HEADERS_HAS_DISPLAY=true
+
+    if [ "$HEADERS_HAS_DISPLAY" = false ]; then
+        echo "  Skipping GObject headers — no display detected (headless environment)"
+    else
+        NEED_GI_HEADERS=false
+        "$PYTHON" -c "import gi" 2>/dev/null || NEED_GI_HEADERS=true
+
+        if [ "$NEED_GI_HEADERS" = true ]; then
+            log "Installing GObject Introspection headers (required for tray on Linux)..."
+            if command -v dnf >/dev/null 2>&1; then
+                sudo dnf install -y gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc 2>/dev/null && \
+                    ok "GObject headers installed via dnf" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            elif command -v apt-get >/dev/null 2>&1; then
+                sudo apt-get install -y libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-ayatanaappindicator3-0.1 2>/dev/null && \
+                    ok "GObject headers installed via apt" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            elif command -v zypper >/dev/null 2>&1; then
+                sudo zypper install -y gobject-introspection-devel cairo-devel pkg-config python3-devel gcc 2>/dev/null && \
+                    ok "GObject headers installed via zypper" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            elif command -v pacman >/dev/null 2>&1; then
+                sudo pacman -S --noconfirm gobject-introspection cairo pkgconf python gcc 2>/dev/null && \
+                    ok "GObject headers installed via pacman" || \
+                    echo "  Warning: could not install GObject headers — tray may not work"
+            else
+                echo "  Warning: could not detect package manager for GObject headers."
+                echo "  Install manually:"
+                echo "    Fedora/RHEL:     sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
+                echo "    Debian/Ubuntu:   sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
+                echo "    openSUSE:        sudo zypper install gobject-introspection-devel cairo-devel pkg-config python3-devel gcc"
+                echo "    Arch:            sudo pacman -S gobject-introspection cairo pkgconf python gcc"
+            fi
+        else
+            ok "GObject Introspection already available"
+        fi
+    fi
+fi
+
 # --- Step 3: Install ai-guardian ---
 
 INSTALL_DESC=""
@@ -206,7 +251,7 @@ case "$INSTALL_MODE" in
             exit 1
         fi
         log "Installing ai-guardian via uv tool install..."
-        uv tool install "$PKG"
+        uv tool install --force "$PKG"
         INSTALL_DESC="uv tool install"
         ;;
     venv)
@@ -249,13 +294,70 @@ else
 fi
 ok "ai-guardian $AG_VERSION installed ($INSTALL_DESC)"
 
-# --- Step 3a: Restart daemon/tray if they were running before upgrade ---
+# --- Step 3a: Make GObject Introspection available for Linux tray ---
+
+if [ "$(uname -s)" = "Linux" ]; then
+    # Skip on headless systems — tray needs a display
+    LINUX_HAS_DISPLAY=false
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && LINUX_HAS_DISPLAY=true
+
+    if [ "$LINUX_HAS_DISPLAY" = false ]; then
+        echo "  Skipping GObject setup — no display detected (headless environment)"
+    elif [ "$INSTALL_MODE" = "uv" ]; then
+        # uv tool creates an isolated env that can't see system gi.
+        # Symlink system gi into uv's site-packages (no compilation needed).
+        GI_PATH=$("$PYTHON" -c "import gi; print(gi.__path__[0])" 2>/dev/null)
+        if [ -n "$GI_PATH" ]; then
+            UV_TOOL_DIR="$HOME/.local/share/uv/tools/ai-guardian"
+            UV_SITE=$(find "$UV_TOOL_DIR" -path "*/site-packages" -type d 2>/dev/null | head -1)
+            if [ -n "$UV_SITE" ] && [ ! -e "$UV_SITE/gi" ]; then
+                GI_PARENT=$(dirname "$GI_PATH")
+                ln -sf "$GI_PATH" "$UV_SITE/gi"
+                # Also link the _gi C extension and package metadata
+                for pattern in "_gi*.so" "_gi*.cpython*.so" "PyGObject*.egg-info" "pygobject*.dist-info"; do
+                    for f in "$GI_PARENT"/$pattern; do
+                        [ -e "$f" ] && ln -sf "$f" "$UV_SITE/"
+                    done
+                done
+                ok "System gi symlinked into uv environment"
+            elif [ -e "$UV_SITE/gi" ]; then
+                ok "gi already available in uv environment"
+            else
+                echo "  Warning: could not find uv tool site-packages — tray may not work"
+            fi
+        else
+            echo "  Warning: system gi (python3-gobject) not found"
+            echo "  Install it:  sudo dnf install python3-gobject  (or: sudo apt install python3-gi)"
+        fi
+    else
+        # venv/pip: install PyGObject into the environment
+        GI_INSTALLED=false
+        if "$PYTHON" -c "import gi" 2>/dev/null; then
+            GI_INSTALLED=true
+        elif has_uv; then
+            uv pip install --python "$PYTHON" --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+        fi
+        if [ "$GI_INSTALLED" = false ]; then
+            "$PYTHON" -m pip install --quiet PyGObject 2>/dev/null && GI_INSTALLED=true
+        fi
+        if [ "$GI_INSTALLED" = true ]; then
+            ok "GObject Introspection available (tray will use AppIndicator backend)"
+        else
+            echo "  Warning: PyGObject install failed — tray may not work on Linux"
+            echo "  System headers may be needed:"
+            echo "    Fedora/RHEL:   sudo dnf install gobject-introspection-devel cairo-gobject-devel pkg-config python3-devel gcc"
+            echo "    Debian/Ubuntu: sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev"
+        fi
+    fi
+fi
+
+# --- Step 3b: Restart daemon/tray if they were running before upgrade ---
 
 RESTARTED=""
 if [ "$DAEMON_WAS_RUNNING" = true ]; then
     log "Restarting daemon (was running before upgrade)..."
     $AG_CMD daemon stop 2>/dev/null || true
-    $AG_CMD daemon start 2>/dev/null && {
+    $AG_CMD daemon start --background 2>/dev/null && {
         ok "Daemon restarted"
         RESTARTED="${RESTARTED:+$RESTARTED, }daemon"
     } || echo "  Warning: daemon restart failed — start manually with: ai-guardian daemon start"
@@ -264,13 +366,28 @@ fi
 if [ "$TRAY_WAS_RUNNING" = true ]; then
     log "Restarting tray (was running before upgrade)..."
     $AG_CMD tray stop 2>/dev/null || true
-    $AG_CMD tray start 2>/dev/null && {
+    $AG_CMD tray start --background 2>/dev/null && {
         ok "Tray restarted"
         RESTARTED="${RESTARTED:+$RESTARTED, }tray"
     } || echo "  Warning: tray restart failed — start manually with: ai-guardian tray start"
 fi
 
-# --- Step 3b: Install tkinter (optional) ---
+# Auto-start daemon and tray on fresh install (if not already running)
+if [ "$DAEMON_WAS_RUNNING" = false ]; then
+    $AG_CMD daemon start --background 2>/dev/null && ok "Daemon started" || true
+fi
+if [ "$TRAY_WAS_RUNNING" = false ]; then
+    # Skip tray on headless Linux (no display)
+    START_TRAY=true
+    if [ "$(uname -s)" = "Linux" ]; then
+        [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && START_TRAY=false
+    fi
+    if [ "$START_TRAY" = true ]; then
+        $AG_CMD tray start --background 2>/dev/null && ok "Tray started" || true
+    fi
+fi
+
+# --- Step 3c: Install tkinter (optional) ---
 
 if [ "$INSTALL_TKINTER" = true ]; then
     # Skip on headless systems — tkinter needs a display
@@ -330,7 +447,7 @@ if [ "$INSTALL_TKINTER" = true ]; then
     fi
 fi
 
-# --- Step 3c: Auto-detect and update existing agent hooks ---
+# --- Step 3d: Auto-detect and update existing agent hooks ---
 
 if [ -z "$IDE" ] && [ "$NO_SETUP" = false ]; then
     DETECTED=$(detect_installed_agents)
@@ -426,15 +543,27 @@ if [ -z "$IDE" ] && { [ -z "${UPDATED+x}" ] || [ ${#UPDATED[@]} -eq 0 ]; }; then
 fi
 echo "    ai-guardian doctor              # verify setup"
 echo "    ai-guardian --help              # see all commands"
-if [ "$DAEMON_WAS_RUNNING" != true ] || [ "$TRAY_WAS_RUNNING" != true ]; then
+DAEMON_NOW_RUNNING=false
+TRAY_NOW_RUNNING=false
+if [ -f "$DAEMON_PID_FILE" ]; then
+    NOW_PID=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['pid'])" "$DAEMON_PID_FILE" 2>/dev/null)
+    [ -n "$NOW_PID" ] && kill -0 "$NOW_PID" 2>/dev/null && DAEMON_NOW_RUNNING=true
+fi
+if [ -f "$TRAY_LOCK" ]; then
+    NOW_PID=$(cat "$TRAY_LOCK" 2>/dev/null)
+    [ -n "$NOW_PID" ] && kill -0 "$NOW_PID" 2>/dev/null && TRAY_NOW_RUNNING=true
+fi
+if [ "$DAEMON_NOW_RUNNING" = true ] || [ "$TRAY_NOW_RUNNING" = true ]; then
+    echo ""
+    echo "  Running:"
+    [ "$DAEMON_NOW_RUNNING" = true ] && echo "    ● daemon"
+    [ "$TRAY_NOW_RUNNING" = true ] && echo "    ● tray"
+fi
+if [ "$DAEMON_NOW_RUNNING" = false ] || [ "$TRAY_NOW_RUNNING" = false ]; then
     echo ""
     echo "  Optional (auto-starts on first prompt):"
-    if [ "$DAEMON_WAS_RUNNING" != true ]; then
-        echo "    ai-guardian daemon start        # start background daemon now"
-    fi
-    if [ "$TRAY_WAS_RUNNING" != true ]; then
-        echo "    ai-guardian tray start          # start system tray now"
-    fi
+    [ "$DAEMON_NOW_RUNNING" = false ] && echo "    ai-guardian daemon start        # start background daemon now"
+    [ "$TRAY_NOW_RUNNING" = false ] && echo "    ai-guardian tray start          # start system tray now"
 fi
 if [ "$INSTALL_MODE" = "venv" ]; then
     echo "    source $VENV_DIR/bin/activate  # activate venv"

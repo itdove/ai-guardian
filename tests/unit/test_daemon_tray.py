@@ -11,15 +11,45 @@ from ai_guardian.daemon.tray import (
     DaemonTray,
     is_tray_available,
     _is_tray_running,
+    _check_gi_available,
     _suppress_gtk_stderr,
     _restore_stderr,
 )
+
+
+class TestCheckGiAvailable:
+    def test_returns_bool(self):
+        result = _check_gi_available()
+        assert isinstance(result, bool)
+
+    def test_returns_false_when_gi_missing(self):
+        import builtins
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "gi":
+                raise ImportError("no gi")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=fake_import):
+            assert _check_gi_available() is False
+
+    def test_returns_true_when_gi_available(self):
+        with mock.patch.dict("sys.modules", {"gi": mock.MagicMock()}):
+            assert _check_gi_available() is True
 
 
 class TestIsTrayAvailable:
     def test_returns_bool(self):
         result = is_tray_available()
         assert isinstance(result, bool)
+
+    @mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True)
+    def test_returns_false_on_linux_without_gi(self):
+        with mock.patch("ai_guardian.daemon.tray._check_gi_available", return_value=False):
+            with mock.patch("platform.system", return_value="Linux"):
+                with mock.patch.dict("os.environ", {"DISPLAY": ":0"}):
+                    assert is_tray_available() is False
 
 
 class TestDaemonTrayWithoutPystray:
@@ -192,12 +222,13 @@ class TestCrossPlatform:
     def test_dispatch_to_main_without_pyobjc(self):
         called = []
         with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
-            tray = DaemonTray(
-                get_stats_callback=lambda: {},
-                stop_callback=lambda: None,
-                pause_callback=lambda mins: None,
-            )
-            tray._dispatch_to_main(lambda: called.append(True))
+            with mock.patch("platform.system", return_value="Darwin"):
+                tray = DaemonTray(
+                    get_stats_callback=lambda: {},
+                    stop_callback=lambda: None,
+                    pause_callback=lambda mins: None,
+                )
+                tray._dispatch_to_main(lambda: called.append(True))
         assert called == [True]
 
     def test_console_launch_linux(self):

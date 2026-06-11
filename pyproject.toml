@@ -57,6 +57,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+tray-linux = [
+  "PyGObject>=3.42.0",
+]
 ml = []
 dev = [
   "pytest>=8.4.2",

@@ -481,13 +481,13 @@ jobs:
           ai-guardian --version
           echo "Install: PASS"
 
-      - name: "Setup hooks for claude"
+      - name: "Setup hooks and MCP for claude"
         run: |
           source "$HOME/.ai-guardian-venv/bin/activate"
-          ai-guardian setup --ide claude --yes --no-mcp
+          ai-guardian setup --ide claude --yes
           echo "Setup: PASS"
 
-      - name: "Verify hooks exist"
+      - name: "Verify hooks exist in settings.json"
         run: |
           CLAUDE_SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
           if [ -f "$CLAUDE_SETTINGS" ] && grep -q "ai-guardian" "$CLAUDE_SETTINGS"; then
@@ -495,6 +495,17 @@ jobs:
           else
               echo "ERROR: hooks not found in $CLAUDE_SETTINGS"
               cat "$CLAUDE_SETTINGS" 2>/dev/null || echo "(file not found)"
+              exit 1
+          fi
+
+      - name: "Verify MCP server in .claude.json"
+        run: |
+          CLAUDE_JSON="$HOME/.claude.json"
+          if [ -f "$CLAUDE_JSON" ] && grep -q "ai-guardian" "$CLAUDE_JSON"; then
+              echo "MCP server verified in $CLAUDE_JSON"
+          else
+              echo "ERROR: MCP server not found in $CLAUDE_JSON"
+              cat "$CLAUDE_JSON" 2>/dev/null || echo "(file not found)"
               exit 1
           fi
 
@@ -521,7 +532,7 @@ jobs:
           fi
           echo "Package removal: PASS"
 
-      - name: "Verify hooks removed"
+      - name: "Verify hooks removed from settings.json"
         run: |
           CLAUDE_SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
           if [ -f "$CLAUDE_SETTINGS" ] && grep -q "ai-guardian" "$CLAUDE_SETTINGS"; then
@@ -530,6 +541,16 @@ jobs:
               exit 1
           fi
           echo "Hook removal: PASS"
+
+      - name: "Verify MCP removed from .claude.json"
+        run: |
+          CLAUDE_JSON="$HOME/.claude.json"
+          if [ -f "$CLAUDE_JSON" ] && grep -q "ai-guardian" "$CLAUDE_JSON"; then
+              echo "FAIL: MCP server still present"
+              cat "$CLAUDE_JSON"
+              exit 1
+          fi
+          echo "MCP removal: PASS"
 
       - name: "Verify config kept (default)"
         run: |
