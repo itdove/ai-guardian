@@ -58,3 +58,17 @@ match_type = "regex"
 regex = '''\bgcloud\s+storage\s+cp\b'''
 description = "GCP Cloud Storage upload command"
 tier = "immutable"
+
+[[rules]]
+id = "curl_file_upload"
+match_type = "regex"
+regex = '''\bcurl\b.*(?:-d\s*@|-F\s+\S*@)'''
+description = "curl uploading file contents via @ syntax"
+tier = "overridable"
+
+[[rules]]
+id = "curl_data_binary_file"
+match_type = "regex"
+regex = '''\bcurl\b.*--data(?:-binary|-raw|-urlencode)?\s*@'''
+description = "curl uploading file via --data variants"
+tier = "overridable"
