@@ -798,11 +798,7 @@ pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://
 python -m twine upload dist/*
 ```
 
-**Note:** You'll need PyPI credentials configured in `~/.pypirc` or use environment variables:
-```bash
-export TWINE_USERNAME=__token__
-export TWINE_PASSWORD=pypi-YOUR_API_TOKEN
-```
+**Note:** You'll need PyPI credentials configured in `~/.pypirc` or via `TWINE_USERNAME` and `TWINE_PASSWORD` environment variables. See [PyPI publishing docs](https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/) for details.
 
 ## References
 

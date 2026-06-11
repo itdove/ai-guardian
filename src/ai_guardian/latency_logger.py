@@ -117,24 +117,24 @@ class LatencyLogger:
                 return
             max_entries = self.config.get("max_entries", 5000)
             retention_days = self.config.get("retention_days", 30)
-
-            entries = []
-            with open(self.log_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        entries.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        continue
-
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
-            entries = [
-                e for e in entries
-                if _parse_timestamp(e.get("timestamp")) > cutoff
-            ]
-            if len(entries) > max_entries:
-                entries = entries[-max_entries:]
 
             with self._lock:
+                entries = []
+                with open(self.log_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            entries.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+
+                entries = [
+                    e for e in entries
+                    if _parse_timestamp(e.get("timestamp")) > cutoff
+                ]
+                if len(entries) > max_entries:
+                    entries = entries[-max_entries:]
+
                 with open(self.log_path, "w", encoding="utf-8") as f:
                     for entry in entries:
                         f.write(json.dumps(entry) + "\n")

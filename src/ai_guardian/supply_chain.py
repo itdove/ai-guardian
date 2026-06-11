@@ -323,6 +323,7 @@ class SupplyChainScanner:
         patterns: Dict[str, List[Tuple[re.Pattern, str]]],
         categories: List[str],
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+        lines = content.split('\n')
         for category in categories:
             category_patterns = patterns.get(category, [])
             for compiled_re, description in category_patterns:
@@ -330,7 +331,7 @@ class SupplyChainScanner:
                 if match:
                     line_number = content[:match.start()].count('\n') + 1
                     matched_text = match.group(0)
-                    snippet = content.split('\n')[line_number - 1].strip()
+                    snippet = lines[line_number - 1].strip() if line_number <= len(lines) else ""
 
                     self.last_matched_pattern = description
                     self.last_matched_text = matched_text

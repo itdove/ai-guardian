@@ -342,8 +342,8 @@ class _RestHandler(BaseHTTPRequestHandler):
                                 "message": msg,
                                 "action_taken": action,
                             })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Prompt injection check failed: %s", e)
 
             if "context_poisoning" in checks:
                 cp_cfg = cfg.get("context_poisoning", {})
@@ -363,18 +363,19 @@ class _RestHandler(BaseHTTPRequestHandler):
                                 "message": msg,
                                 "action_taken": action,
                             })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Context poisoning check failed: %s", e)
 
             redacted = None
             if findings:
                 try:
                     from ai_guardian.sanitizer import sanitize_text
                     san_result = sanitize_text(content)
-                    redacted = san_result.get(
-                        "sanitized_text", san_result.get("redacted", content)
-                    )
-                except Exception:
+                    redacted = san_result.get("sanitized_text") or san_result.get("redacted")
+                    if redacted is None:
+                        redacted = content
+                except Exception as e:
+                    logger.debug("Sanitization failed: %s", e)
                     redacted = content
 
             elapsed = (_time.monotonic() - t0) * 1000
@@ -387,7 +388,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             logger.error("Check endpoint failed: %s", e)
-            self._send_error(500, f"Internal error: {e}")
+            self._send_error(500, "Internal error")
 
     def _handle_redact(self, body):
         """Handle POST /api/redact — text sanitization."""
@@ -398,9 +399,11 @@ class _RestHandler(BaseHTTPRequestHandler):
         try:
             from ai_guardian.sanitizer import sanitize_text
             result = sanitize_text(content)
-            redacted = result.get(
-                "sanitized_text", result.get("redacted", content)
-            )
+            redacted = result.get("sanitized_text") or result.get("redacted")
+            if redacted is None:
+                logger.error("Sanitizer returned unexpected structure: %s", list(result.keys()))
+                self._send_error(500, "Internal error")
+                return
             stats = result.get("stats", {})
             count = stats.get("total", 0) if isinstance(stats, dict) else 0
             if count == 0:
@@ -413,7 +416,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             logger.error("Redact endpoint failed: %s", e)
-            self._send_error(500, f"Internal error: {e}")
+            self._send_error(500, "Internal error")
 
     def _read_body(self, max_size=None):
         limit = max_size or self._MAX_BODY_SIZE

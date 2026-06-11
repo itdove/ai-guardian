@@ -1,13 +1,11 @@
 """Detection Patterns page — read-only view of all detection rules."""
 
-import re as re_mod
 from collections import Counter
 
 from nicegui import run, ui
 
+from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
 from ai_guardian.web.components.header import create_header, create_sidebar
-
-TESTABLE_MATCH_TYPES = {"regex", "literal"}
 
 
 def _load_rules():
@@ -19,20 +17,6 @@ def _truncate(text, maxlen=80):
     if len(text) <= maxlen:
         return text
     return text[:maxlen - 3] + "..."
-
-
-def _test_rule_matches(rule, text):
-    """Test whether a rule's pattern matches the given text."""
-    if rule.match_type not in TESTABLE_MATCH_TYPES:
-        return False
-    try:
-        if rule.match_type == "regex":
-            return bool(re_mod.search(rule.pattern, text, re_mod.IGNORECASE))
-        if rule.match_type == "literal":
-            return rule.pattern.lower() in text.lower()
-    except re_mod.error:
-        return False
-    return False
 
 
 def create_detection_patterns_page(service, daemon_name: str):

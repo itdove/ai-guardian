@@ -87,10 +87,15 @@ def get_merge_base(base_ref: Optional[str] = None, repo_path: str = ".") -> str:
     if base_ref is None:
         base_ref = _detect_default_branch(repo_path)
 
-    result = subprocess.run(
-        ["git", "merge-base", base_ref, "HEAD"],
-        capture_output=True, text=True, timeout=10, cwd=repo_path,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", base_ref, "HEAD"],
+            capture_output=True, text=True, timeout=10, cwd=repo_path,
+        )
+    except subprocess.TimeoutExpired:
+        raise DiffProviderError(
+            f"git merge-base timed out for '{base_ref}'"
+        )
     if result.returncode != 0:
         raise DiffProviderError(
             f"Failed to find merge base for '{base_ref}': {result.stderr.strip()}"
@@ -136,26 +141,42 @@ def get_diff_unified(
     return result.stdout
 
 
+def _run_cli_diff(
+    cmd: List[str],
+    tool_name: str,
+    install_url: str,
+    repo_path: str = ".",
+) -> str:
+    """Run a CLI tool to fetch a diff, with common error handling."""
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30, cwd=repo_path,
+        )
+    except FileNotFoundError:
+        raise DiffProviderError(
+            f"{tool_name} CLI not found. Install from {install_url}"
+        )
+    except subprocess.TimeoutExpired:
+        raise DiffProviderError(
+            f"{' '.join(cmd[:3])} timed out after 30 seconds"
+        )
+    if result.returncode != 0:
+        raise DiffProviderError(
+            f"{' '.join(cmd[:3])} failed: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
 def get_pr_diff(pr_ref: str, repo_path: str = ".") -> str:
     """Get unified diff for a GitHub PR using gh CLI.
 
     Args:
         pr_ref: PR number or full GitHub PR URL (gh accepts both)
     """
-    try:
-        result = subprocess.run(
-            ["gh", "pr", "diff", str(pr_ref)],
-            capture_output=True, text=True, timeout=30, cwd=repo_path,
-        )
-    except FileNotFoundError:
-        raise DiffProviderError(
-            "gh CLI not found. Install from https://cli.github.com/"
-        )
-    except subprocess.TimeoutExpired:
-        raise DiffProviderError("gh pr diff timed out after 30 seconds")
-    if result.returncode != 0:
-        raise DiffProviderError(f"gh pr diff failed: {result.stderr.strip()}")
-    return result.stdout
+    return _run_cli_diff(
+        ["gh", "pr", "diff", str(pr_ref)],
+        "gh", "https://cli.github.com/", repo_path,
+    )
 
 
 def get_mr_diff(mr_ref: str, repo_path: str = ".") -> str:
@@ -169,20 +190,9 @@ def get_mr_diff(mr_ref: str, repo_path: str = ".") -> str:
     cmd = ["glab", "mr", "diff", str(mr_number)]
     if repo_url:
         cmd.extend(["--repo", repo_url])
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True, text=True, timeout=30, cwd=repo_path,
-        )
-    except FileNotFoundError:
-        raise DiffProviderError(
-            "glab CLI not found. Install from https://gitlab.com/gitlab-org/cli"
-        )
-    except subprocess.TimeoutExpired:
-        raise DiffProviderError("glab mr diff timed out after 30 seconds")
-    if result.returncode != 0:
-        raise DiffProviderError(f"glab mr diff failed: {result.stderr.strip()}")
-    return result.stdout
+    return _run_cli_diff(
+        cmd, "glab", "https://gitlab.com/gitlab-org/cli", repo_path,
+    )
 
 
 _DIFF_FILE_HEADER = re.compile(r"^\+\+\+ (?:b/)?(.+)$", re.MULTILINE)

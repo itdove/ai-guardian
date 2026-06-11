@@ -213,13 +213,7 @@ When writing tests that include fake/test secrets (API keys, tokens, etc.), GitH
    - Use obviously fake prefixes where possible
    - Example: For testing general patterns, use `FAKE_sk_test_...` instead of `sk_test_...`
 
-3. **Add explanatory comments**:
-   ```python
-   text = "pk_test_{fake_key_value}"  # notsecret (fake test key)
-   ```
-   Note: Comments like `# notsecret` or `# gitleaks:allow` may not prevent GitHub push protection, but they document intent.
-
-4. **If GitHub still blocks**:
+3. **If GitHub still blocks**:
    - GitHub provides a URL in the error message to allow the specific secret
    - Click the URL and choose "It's used in tests" → "Allow secret"
    - This requires repository admin access
