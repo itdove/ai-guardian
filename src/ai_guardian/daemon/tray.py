@@ -2060,9 +2060,7 @@ class DaemonTray:
         return [
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Console", _open_panel(),
-                             visible=_single_vis, enabled=_single_running),
-            pystray.MenuItem("Web Console",
+            pystray.MenuItem("Console",
                              lambda _, __: self._open_web_console(
                                  self._targets[0].name if self._targets else ""
                              ),
@@ -2461,9 +2459,7 @@ class DaemonTray:
                 pystray.MenuItem(
                     make_label,
                     pystray.Menu(
-                        pystray.MenuItem("Console", _mk_open_panel(),
-                                         enabled=_is_slot_running),
-                        pystray.MenuItem("Web Console",
+                        pystray.MenuItem("Console",
                                          _mk_web_console_action(idx),
                                          visible=_mk_web_console_visible(idx),
                                          enabled=_is_slot_running),

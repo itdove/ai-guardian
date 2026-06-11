@@ -3450,10 +3450,10 @@ class TestMultiTargetExecution:
 
 
 class TestWebConsoleVersionGating:
-    """Web Console menu item visibility based on Python version."""
+    """Console menu item visibility based on Python version."""
 
-    def test_web_console_hidden_on_python_below_310(self):
-        """Web Console menu item visibility returns False when Python < 3.10."""
+    def test_console_hidden_on_python_below_310(self):
+        """Console menu item visibility returns False when Python < 3.10."""
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
@@ -3473,16 +3473,16 @@ class TestWebConsoleVersionGating:
 
                 for call in mock_pystray.MenuItem.call_args_list:
                     if (isinstance(call[0][0], str)
-                            and call[0][0] == "Web Console"):
+                            and call[0][0] == "Console"):
                         vis = call[1].get("visible") or call[0][2]
                         assert vis(None) is False
                         return
-                pytest.fail("Web Console menu item not found")
+                pytest.fail("Console menu item not found")
         finally:
             DaemonTray._has_web_console = saved
 
-    def test_web_console_shown_on_python_310_plus(self):
-        """Web Console visibility returns True on Python 3.10+ when ready."""
+    def test_console_shown_on_python_310_plus(self):
+        """Console visibility returns True on Python 3.10+ when ready."""
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
@@ -3504,16 +3504,16 @@ class TestWebConsoleVersionGating:
 
                 for call in mock_pystray.MenuItem.call_args_list:
                     if (isinstance(call[0][0], str)
-                            and call[0][0] == "Web Console"):
+                            and call[0][0] == "Console"):
                         vis = call[1].get("visible") or call[0][2]
                         assert vis(None) is True
                         return
-                pytest.fail("Web Console menu item not found")
+                pytest.fail("Console menu item not found")
         finally:
             DaemonTray._has_web_console = saved
 
-    def test_multi_daemon_web_console_hidden_below_310(self):
-        """Multi-daemon Web Console visibility returns False on Python < 3.10."""
+    def test_multi_daemon_console_hidden_below_310(self):
+        """Multi-daemon Console visibility returns False on Python < 3.10."""
         mc = mock.MagicMock()
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -3536,38 +3536,11 @@ class TestWebConsoleVersionGating:
 
                 for call in mock_pystray.MenuItem.call_args_list:
                     if (isinstance(call[0][0], str)
-                            and call[0][0] == "Web Console"):
+                            and call[0][0] == "Console"):
                         vis = call[1].get("visible") or call[0][2]
                         assert vis(None) is False
                         return
-                pytest.fail("Web Console menu item not found in multi-daemon menu")
-        finally:
-            DaemonTray._has_web_console = saved
-
-    def test_console_always_visible_regardless_of_python_version(self):
-        """TUI Console menu item is present regardless of _has_web_console."""
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._targets = [
-            DaemonTarget(name="local", runtime="local", status="running"),
-        ]
-        saved = DaemonTray._has_web_console
-        try:
-            DaemonTray._has_web_console = False
-            with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
-                mock_pystray.MenuItem = mock.MagicMock()
-                mock_pystray.Menu = mock.MagicMock()
-                mock_pystray.Menu.SEPARATOR = mock.MagicMock()
-                tray._build_single_daemon_menu_items()
-
-                labels = [
-                    call[0][0] for call in mock_pystray.MenuItem.call_args_list
-                    if isinstance(call[0][0], str)
-                ]
-                assert "Console" in labels
+                pytest.fail("Console menu item not found in multi-daemon menu")
         finally:
             DaemonTray._has_web_console = saved
 
@@ -4027,7 +4000,7 @@ class TestTrayAutoStartDaemon:
                         label_text = label(None)
                     else:
                         label_text = label
-                    if label_text == "Console":
+                    if label_text == "Violations":
                         args[1](None, None)
                         break
 
