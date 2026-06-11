@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ai_guardian.config_utils import get_cache_dir
 from ai_guardian.patterns import BUNDLED_FILES
 from ai_guardian.patterns.toml_parser import load_toml_file
 
@@ -113,6 +114,15 @@ class PatternCategory:
     @property
     def total_built_in(self) -> int:
         return sum(g.count for g in self.built_in_groups)
+
+
+_CACHE_FILE_INFO = {
+    "patterns.toml": ("secrets", "gitleaks"),
+    "ssrf-patterns.toml": ("ssrf", "ssrf"),
+    "unicode-patterns.toml": ("unicode", "unicode"),
+    "config-exfil-patterns.toml": ("config_exfil", "config-exfil"),
+    "secrets-patterns.toml": ("secrets", "secrets"),
+}
 
 
 class PatternLister:
@@ -403,8 +413,61 @@ class PatternLister:
                 return str(rule[key])
         return rule.get("id", "")
 
+    def _load_pattern_server_rules(
+        self, bundled_ids: set, category_filter: Optional[str] = None
+    ) -> List[DetectionRule]:
+        """Load rules from pattern server cache files (no network calls)."""
+        rules: List[DetectionRule] = []
+        try:
+            cache_dir = get_cache_dir()
+        except Exception:
+            return rules
+
+        if not cache_dir.exists():
+            return rules
+
+        for filename, (cat_key, engine_type) in _CACHE_FILE_INFO.items():
+            if category_filter and cat_key != category_filter:
+                continue
+            cache_path = cache_dir / filename
+            if not cache_path.exists():
+                continue
+            try:
+                raw_rules = load_toml_file(cache_path)
+            except Exception:
+                logger.debug("Failed to parse pattern server cache %s", cache_path)
+                continue
+            source_label = f"server:{engine_type}"
+            for raw in raw_rules:
+                rule_id = raw.get("id", "")
+                if rule_id in bundled_ids:
+                    continue
+                pattern = self._extract_pattern_text(raw)
+                match_type = raw.get("match_type", "")
+                if not match_type and "regex" in raw:
+                    match_type = "regex"
+                if not match_type:
+                    match_type = "regex"
+                group = raw.get("group", raw.get("category", ""))
+                if not group:
+                    tags = raw.get("tags", [])
+                    if tags:
+                        group = ", ".join(tags[:2])
+                rules.append(DetectionRule(
+                    id=rule_id,
+                    pattern=pattern,
+                    match_type=match_type,
+                    source=source_label,
+                    category=cat_key,
+                    group=group,
+                    description=raw.get("description", ""),
+                    severity=raw.get("tier", raw.get("severity", "")),
+                ))
+
+        return rules
+
     def get_all_rules(self, category_filter: Optional[str] = None) -> List[DetectionRule]:
-        """Return all detection rules from TOML files and hardcoded patterns."""
+        """Return all detection rules from TOML files, pattern server cache, and hardcoded patterns."""
         rules: List[DetectionRule] = []
 
         for cat_key, toml_path in BUNDLED_FILES.items():
@@ -427,6 +490,9 @@ class PatternLister:
                     description=raw.get("description", ""),
                     severity=raw.get("tier", raw.get("severity", "")),
                 ))
+
+        bundled_ids = {r.id for r in rules}
+        rules.extend(self._load_pattern_server_rules(bundled_ids, category_filter))
 
         if not category_filter or category_filter == "self_protection":
             try:

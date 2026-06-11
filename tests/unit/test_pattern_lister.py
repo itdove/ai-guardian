@@ -444,9 +444,119 @@ class TestGetAllRules:
             assert r.pattern, f"Empty pattern in {r}"
             assert r.category, f"Empty category in {r}"
             assert r.match_type, f"Empty match_type in {r}"
-            assert r.source in ("toml", "hardcoded"), f"Bad source in {r}"
+            valid = r.source in ("toml", "hardcoded") or r.source.startswith("server:")
+            assert valid, f"Bad source in {r}"
 
     def test_total_count(self):
         lister = PatternLister()
         rules = lister.get_all_rules()
         assert len(rules) >= 500
+
+
+class TestPatternServerCacheRules:
+    """Tests for pattern server cache loading in get_all_rules()."""
+
+    def _write_toml(self, path, content):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+    def test_includes_pattern_server_cache(self, tmp_path):
+        toml_content = """\
+[[rules]]
+id = "ps-test-001"
+match_type = "regex"
+regex = "secret_pattern"
+description = "Pattern server test rule"
+group = "test_group"
+"""
+        self._write_toml(tmp_path / "ssrf-patterns.toml", toml_content)
+
+        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+            lister = PatternLister()
+            rules = lister.get_all_rules()
+
+        ps_rules = [r for r in rules if r.source.startswith("server:")]
+        assert len(ps_rules) >= 1
+        rule = next(r for r in ps_rules if r.id == "ps-test-001")
+        assert rule.source == "server:ssrf"
+        assert rule.category == "ssrf"
+        assert rule.match_type == "regex"
+        assert rule.description == "Pattern server test rule"
+
+    def test_dedup_with_bundled(self, tmp_path):
+        """Bundled rules take precedence when IDs match."""
+        lister_pre = PatternLister()
+        bundled_rules = lister_pre.get_all_rules()
+        if not bundled_rules:
+            pytest.skip("No bundled rules available")
+        existing_id = bundled_rules[0].id
+
+        toml_content = f"""\
+[[rules]]
+id = "{existing_id}"
+match_type = "regex"
+regex = "duplicate_pattern"
+description = "Should be skipped"
+"""
+        self._write_toml(tmp_path / "secrets-patterns.toml", toml_content)
+
+        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+            lister = PatternLister()
+            rules = lister.get_all_rules()
+
+        matches = [r for r in rules if r.id == existing_id]
+        assert all(not r.source.startswith("server:") for r in matches)
+
+    def test_gitleaks_format_normalized(self, tmp_path):
+        """Gitleaks-format rules (no match_type, has regex field) are normalized."""
+        toml_content = """\
+[[rules]]
+id = "gitleaks-test-001"
+regex = "sk_live_[a-zA-Z0-9]{24}"
+description = "Stripe live key"
+tags = ["type:secret", "alert:repo-owner"]
+keywords = ["sk_live_"]
+"""
+        self._write_toml(tmp_path / "patterns.toml", toml_content)
+
+        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+            lister = PatternLister()
+            rules = lister.get_all_rules()
+
+        ps_rules = [r for r in rules if r.id == "gitleaks-test-001"]
+        assert len(ps_rules) == 1
+        rule = ps_rules[0]
+        assert rule.source == "server:gitleaks"
+        assert rule.match_type == "regex"
+        assert rule.pattern == "sk_live_[a-zA-Z0-9]{24}"
+        assert rule.category == "secrets"
+        assert "type:secret" in rule.group
+
+    def test_no_cache_dir_no_error(self, tmp_path):
+        """Empty or missing cache dir doesn't cause errors."""
+        missing = tmp_path / "nonexistent"
+        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=missing):
+            lister = PatternLister()
+            rules = lister.get_all_rules()
+
+        assert isinstance(rules, list)
+        ps_rules = [r for r in rules if r.source.startswith("server:")]
+        assert len(ps_rules) == 0
+
+    def test_category_filter_applies_to_cache(self, tmp_path):
+        """Category filter excludes non-matching pattern server rules."""
+        toml_content = """\
+[[rules]]
+id = "ps-ssrf-001"
+match_type = "regex"
+regex = "ssrf_pattern"
+description = "SSRF rule"
+"""
+        self._write_toml(tmp_path / "ssrf-patterns.toml", toml_content)
+
+        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+            lister = PatternLister()
+            rules = lister.get_all_rules(category_filter="pii")
+
+        ps_rules = [r for r in rules if r.source.startswith("server:")]
+        assert len(ps_rules) == 0
