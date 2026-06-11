@@ -122,14 +122,19 @@ def create_sidebar(daemon_name: str, current: str = ""):
     prefix = f"/{daemon_name}"
     search_index = _build_search_index(prefix)
 
-    with ui.column().classes("w-56 bg-blue-grey-10 min-h-screen p-2 gap-0") as sidebar:
+    with ui.column().classes("w-56 bg-blue-grey-10 p-2 gap-2").style(
+        "height: calc(100vh - 64px); position: sticky; top: 64px; display: flex; flex-direction: column;"
+    ) as sidebar:
         search_input = ui.input(placeholder="Search settings...").props(
             "dense outlined clearable"
-        ).classes("w-full mb-2").style(
+        ).classes("w-full").style(
             "color: white; --q-color-primary: #78909c;"
         )
 
-        nav_container = ui.column().classes("w-full gap-0")
+        # Scrollable container for navigation
+        nav_container = ui.column().classes("w-full gap-0 overflow-y-auto").style(
+            "flex: 1; min-height: 0;"
+        )
         active_link = None
         with nav_container:
             for group_name, items in NAV_GROUPS:
@@ -161,7 +166,9 @@ def create_sidebar(daemon_name: str, current: str = ""):
                 }}, 100);
             ''')
 
-        results_container = ui.column().classes("w-full gap-0 mt-2")
+        results_container = ui.column().classes("w-full gap-0 overflow-y-auto").style(
+            "flex: 1; min-height: 0;"
+        )
         results_container.set_visibility(False)
 
         result_elements = []
