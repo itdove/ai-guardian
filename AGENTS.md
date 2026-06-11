@@ -75,34 +75,29 @@ EOF
 
 #### Running Tests
 
-**Note**: Tests are only required when making code changes. Documentation-only changes (markdown files, comments) do not require running tests.
+**Note**: Tests are only required when making code changes. Documentation-only changes do not require running tests.
+
+**Run only tests related to your changes** — GitHub Actions runs the full suite on every PR across Python 3.9-3.14 and Windows.
 
 Using [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
+# Run tests related to your changes
+uv run --extra dev python -m pytest tests/test_<related>.py -v
+
+# Run tests matching a keyword
+uv run --extra dev python -m pytest -k "test_something" -v
+
+# Run full suite only if needed (CI does this automatically)
 uv run --extra dev python -m pytest
-uv run --extra dev python -m pytest --cov=ai_guardian --cov-report=term-missing
-uv run --extra dev python -m pytest tests/test_specific.py
-uv run --extra dev python -m pytest -v
 ```
 
 Or using pip:
 
 ```bash
-# Install test dependencies
 pip install ai-guardian[dev]
-
-# Run all tests (required before committing code changes)
-pytest
-
-# Run with coverage
-pytest --cov=ai_guardian --cov-report=term-missing
-
-# Run specific test file
-pytest tests/test_specific.py
-
-# Run with verbose output
-pytest -v
+pytest tests/test_<related>.py -v
+pytest -k "test_something" -v
 ```
 
 #### Test Structure
