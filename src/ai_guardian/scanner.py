@@ -840,8 +840,18 @@ def scan_command(args) -> int:
               file=sys.stderr)
         return 1
 
+    staged = getattr(args, 'staged', False)
+
     if getattr(args, 'base', None) and not diff_mode:
         print("Error: --base requires --diff", file=sys.stderr)
+        return 1
+
+    if staged and not diff_mode:
+        print("Error: --staged requires --diff", file=sys.stderr)
+        return 1
+
+    if staged and getattr(args, 'base', None):
+        print("Error: --staged and --base are mutually exclusive", file=sys.stderr)
         return 1
 
     if changed_lines_only and not any(diff_flags):
@@ -867,6 +877,7 @@ def scan_command(args) -> int:
                 get_diff_unified,
                 get_mr_diff,
                 get_pr_diff,
+                get_staged_diff,
                 parse_unified_diff,
             )
         except ImportError as e:
@@ -880,6 +891,8 @@ def scan_command(args) -> int:
                 diff_text = get_pr_diff(pr_number, repo_path=args.path)
             elif mr_number:
                 diff_text = get_mr_diff(mr_number, repo_path=args.path)
+            elif staged:
+                diff_text = get_staged_diff(repo_path=args.path)
             else:
                 base_ref = getattr(args, 'base', None)
                 diff_text = get_diff_unified(base_ref=base_ref, repo_path=args.path)

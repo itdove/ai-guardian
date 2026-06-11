@@ -14,6 +14,7 @@ from ai_guardian.diff_provider import (
     get_merge_base,
     get_mr_diff,
     get_pr_diff,
+    get_staged_diff,
     parse_mr_ref,
     parse_pr_ref,
     parse_unified_diff,
@@ -522,3 +523,32 @@ diff --git a/x.py b/x.py
         result = extract_file_contents_from_diff(diff)
         assert "new_line" in result["x.py"]
         assert "old_line" not in result["x.py"]
+
+
+class TestGetStagedDiff:
+
+    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    def test_success(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout="diff --cached output\n", stderr=""
+        )
+        result = get_staged_diff()
+        assert result == "diff --cached output\n"
+        cmd = mock_run.call_args[0][0]
+        assert cmd == ["git", "diff", "--cached"]
+
+    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    def test_custom_repo_path(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            returncode=0, stdout="staged diff\n", stderr=""
+        )
+        get_staged_diff(repo_path="/some/repo")
+        assert mock_run.call_args[1]["cwd"] == "/some/repo"
+
+    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    def test_error(self, mock_run):
+        mock_run.return_value = mock.Mock(
+            returncode=1, stdout="", stderr="fatal: not a git repo"
+        )
+        with pytest.raises(DiffProviderError, match="git diff --cached failed"):
+            get_staged_diff()

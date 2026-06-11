@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI Guardian pre-commit hook
-# Scans staged files before commit for security issues
+# Scans staged changes before commit for security issues
 #
 # Installation:
 #   cp templates/pre-commit.sh .git/hooks/pre-commit
@@ -10,15 +10,7 @@
 
 set -e
 
-echo "🛡️ AI Guardian: Scanning staged files..."
-
-# Get staged files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
-
-if [ -z "$STAGED_FILES" ]; then
-  echo "✅ No files to scan"
-  exit 0
-fi
+echo "🛡️ AI Guardian: Scanning staged changes..."
 
 # Check if ai-guardian is installed
 if ! command -v ai-guardian &> /dev/null; then
@@ -27,49 +19,14 @@ if ! command -v ai-guardian &> /dev/null; then
   exit 1
 fi
 
-# Find config file
-CONFIG_FILE=""
-if [ -f ".ai-guardian.json" ]; then
-  CONFIG_FILE=".ai-guardian.json"
-elif [ -f "ai-guardian.json" ]; then
-  CONFIG_FILE="ai-guardian.json"
-fi
-
-# Build scan command
-SCAN_CMD="ai-guardian scan --exit-code"
-if [ -n "$CONFIG_FILE" ]; then
-  SCAN_CMD="$SCAN_CMD --config $CONFIG_FILE"
-fi
-
-# Create temporary directory for staged files
-TEMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TEMP_DIR"' EXIT
-
-# Copy staged files to temp directory (preserving structure)
-echo "$STAGED_FILES" | while read -r file; do
-  if [ -f "$file" ]; then
-    mkdir -p "$TEMP_DIR/$(dirname "$file")"
-    cp "$file" "$TEMP_DIR/$file"
-  fi
-done
-
-# Run scan on temporary directory
-if $SCAN_CMD "$TEMP_DIR" 2>&1; then
+# Scan only staged changes — no temp dir needed
+if ai-guardian scan --diff --staged --exit-code 2>&1; then
   echo "✅ No security issues detected"
   exit 0
 else
   echo ""
-  echo "❌ COMMIT BLOCKED: Security issues detected in staged files"
-  echo ""
-  echo "To see details, run:"
-  echo "  ai-guardian scan ."
-  echo ""
-  echo "To fix issues:"
-  echo "  1. Review and fix the security issues above"
-  echo "  2. Stage your fixes: git add <files>"
-  echo "  3. Try committing again"
-  echo ""
-  echo "To skip this check (NOT recommended):"
-  echo "  git commit --no-verify"
+  echo "❌ COMMIT BLOCKED: Security issues in staged changes"
+  echo "  ai-guardian scan --diff --staged    # see details"
+  echo "  git commit --no-verify              # skip (NOT recommended)"
   exit 1
 fi
