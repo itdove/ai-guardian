@@ -217,7 +217,7 @@ import json, sys
 
 path = sys.argv[1]
 with open(path) as f:
-    config = json.load(f)
+    config = json.loads(f.read(), strict=False)
 
 def is_ag_command(item):
     if not isinstance(item, dict):
@@ -272,7 +272,7 @@ import json, sys
 
 path = sys.argv[1]
 with open(path) as f:
-    config = json.load(f)
+    config = json.loads(f.read(), strict=False)
 
 for key in ('mcpServers', 'mcp'):
     if key in config and 'ai-guardian' in config[key]:
@@ -302,7 +302,7 @@ import json, sys
 
 path = sys.argv[1]
 with open(path) as f:
-    config = json.load(f)
+    config = json.loads(f.read(), strict=False)
 
 for key in ('mcpServers', 'mcp'):
     if key in config and isinstance(config[key], dict) and 'ai-guardian' in config[key]:
@@ -350,7 +350,7 @@ with open(path) as f:
 text_clean = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
 text_clean = re.sub(r'/\*.*?\*/', '', text_clean, flags=re.DOTALL)
 
-config = json.loads(text_clean)
+config = json.loads(text_clean, strict=False)
 
 for key in ('mcpServers', 'mcp'):
     if key in config and isinstance(config[key], dict) and 'ai-guardian' in config[key]:
