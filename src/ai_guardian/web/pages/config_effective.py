@@ -66,15 +66,20 @@ def create_config_effective_page(service, daemon_name: str):
                             ui.label(error).classes("text-sm text-red")
                     elif output:
                         with ui.card().classes("w-full"):
-                            cm = ui.codemirror(
-                                output,
-                                language="JSON",
-                                theme="dracula",
-                                line_wrapping=True,
-                            ).classes("w-full").style(
-                                "min-height: 70vh"
-                            )
-                            cm.disable()
+                            # Defer codemirror to avoid duplicate ESM warnings
+                            # (issue #1102)
+                            async def create_editor():
+                                cm = ui.codemirror(
+                                    output,
+                                    language="JSON",
+                                    theme="dracula",
+                                    line_wrapping=True,
+                                ).classes("w-full").style(
+                                    "min-height: 70vh"
+                                )
+                                cm.disable()
+                            # Use a timer to defer initialization
+                            ui.timer(0.05, create_editor, once=True)
 
                     ui.button(
                         "Refresh", icon="refresh", on_click=refresh

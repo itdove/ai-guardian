@@ -92,13 +92,27 @@ def create_config_editor_page(service, daemon_name: str):
             with ui.card().classes("w-full"):
                 ui.label("Editor").classes("text-lg font-bold")
                 status_label = ui.label("").classes("text-sm")
-                editor = ui.codemirror(
-                    "", language="JSON", theme="dracula",
-                    line_wrapping=True,
-                ).classes("w-full").style("min-height: 500px")
+                # Defer codemirror initialization to avoid duplicate ESM module
+                # warnings when navigating between config pages (issue #1102)
+                editor_container = ui.column().classes("w-full")
+                editor = None
+
+                async def init_editor():
+                    nonlocal editor
+                    with editor_container:
+                        editor = ui.codemirror(
+                            "", language="JSON", theme="dracula",
+                            line_wrapping=True,
+                        ).classes("w-full").style("min-height: 500px")
+                        editor.on_value_change(on_editor_change)
+                    return editor
 
             with ui.row().classes("gap-2"):
                 async def do_save():
+                    nonlocal editor
+                    if editor is None:
+                        await init_editor()
+
                     with ui.dialog() as dlg, ui.card():
                         ui.label("Save Configuration?").classes("font-bold")
                         ui.label(
@@ -139,6 +153,10 @@ def create_config_editor_page(service, daemon_name: str):
                 )
 
                 async def do_reload():
+                    nonlocal editor
+                    if editor is None:
+                        await init_editor()
+
                     text, path_str = await run.io_bound(
                         _load_config_by_scope, state["scope"]
                     )
@@ -164,9 +182,11 @@ def create_config_editor_page(service, daemon_name: str):
             def on_editor_change(e):
                 _update_validation(e.value)
 
-            editor.on_value_change(on_editor_change)
-
             async def load_scope(scope_val=None):
+                nonlocal editor
+                if editor is None:
+                    await init_editor()
+
                 sc = scope_val if scope_val else scope_sel.value
                 state["scope"] = sc
                 text, path_str = await run.io_bound(
