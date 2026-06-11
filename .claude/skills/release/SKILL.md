@@ -358,11 +358,12 @@ Before creating the release branch, check for open Dependabot security alerts an
 5. [ ] Test installation from package registry
 6. [ ] Merge release branch back to main
 7. [ ] Bump version to next dev cycle (X.Y+1.0-dev)
-8. [ ] Push main branch
-9. [ ] (Hotfix only) Cherry-pick fix to main
-10. [ ] Generate combined docs export — run the shell one-liner from AGENTS.md "Generating Combined Documentation for LLM Upload" section to create `docs/notebooklm-export.md`
-11. [ ] Update NotebookLM sources — if the `notebooklm-mcp` MCP server is available, upload the generated `docs/notebooklm-export.md` and update other sources in the AI Guardian notebook using `source_add`
-12. [ ] Generate demo guide — create `X.Y-demo-guide.md` in the external docs directory (see AGENTS.md) documenting new features with step-by-step demonstrations for stakeholder walkthroughs
+8. [ ] Update curl install URLs — replace version tag in `README.md` and `docs/notebooklm-export.md` to point to the new release tag (e.g., `main` → `vX.Y.Z`)
+9. [ ] Push main branch
+10. [ ] (Hotfix only) Cherry-pick fix to main
+11. [ ] Generate combined docs export — run the shell one-liner from AGENTS.md "Generating Combined Documentation for LLM Upload" section to create `docs/notebooklm-export.md`
+12. [ ] Update NotebookLM sources — if the `notebooklm-mcp` MCP server is available, upload the generated `docs/notebooklm-export.md` and update other sources in the AI Guardian notebook using `source_add`
+13. [ ] Generate demo guide — create `X.Y-demo-guide.md` in the external docs directory (see AGENTS.md) documenting new features with step-by-step demonstrations for stakeholder walkthroughs
 
 **If you are NOT authorized:**
 - ❌ DO NOT push the tag
