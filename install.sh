@@ -528,15 +528,27 @@ if [ -z "$IDE" ] && { [ -z "${UPDATED+x}" ] || [ ${#UPDATED[@]} -eq 0 ]; }; then
 fi
 echo "    ai-guardian doctor              # verify setup"
 echo "    ai-guardian --help              # see all commands"
-if [ "$DAEMON_WAS_RUNNING" != true ] || [ "$TRAY_WAS_RUNNING" != true ]; then
+DAEMON_NOW_RUNNING=false
+TRAY_NOW_RUNNING=false
+if [ -f "$DAEMON_PID_FILE" ]; then
+    NOW_PID=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['pid'])" "$DAEMON_PID_FILE" 2>/dev/null)
+    [ -n "$NOW_PID" ] && kill -0 "$NOW_PID" 2>/dev/null && DAEMON_NOW_RUNNING=true
+fi
+if [ -f "$TRAY_LOCK" ]; then
+    NOW_PID=$(cat "$TRAY_LOCK" 2>/dev/null)
+    [ -n "$NOW_PID" ] && kill -0 "$NOW_PID" 2>/dev/null && TRAY_NOW_RUNNING=true
+fi
+if [ "$DAEMON_NOW_RUNNING" = true ] || [ "$TRAY_NOW_RUNNING" = true ]; then
+    echo ""
+    echo "  Running:"
+    [ "$DAEMON_NOW_RUNNING" = true ] && echo "    ● daemon"
+    [ "$TRAY_NOW_RUNNING" = true ] && echo "    ● tray"
+fi
+if [ "$DAEMON_NOW_RUNNING" = false ] || [ "$TRAY_NOW_RUNNING" = false ]; then
     echo ""
     echo "  Optional (auto-starts on first prompt):"
-    if [ "$DAEMON_WAS_RUNNING" != true ]; then
-        echo "    ai-guardian daemon start        # start background daemon now"
-    fi
-    if [ "$TRAY_WAS_RUNNING" != true ]; then
-        echo "    ai-guardian tray start          # start system tray now"
-    fi
+    [ "$DAEMON_NOW_RUNNING" = false ] && echo "    ai-guardian daemon start        # start background daemon now"
+    [ "$TRAY_NOW_RUNNING" = false ] && echo "    ai-guardian tray start          # start system tray now"
 fi
 if [ "$INSTALL_MODE" = "venv" ]; then
     echo "    source $VENV_DIR/bin/activate  # activate venv"
