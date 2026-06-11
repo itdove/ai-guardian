@@ -182,6 +182,11 @@ class DetectionPatternsContent(Container):
                 ]
         return rules
 
+    _SOURCE_COLORS = {
+        "hardcoded": ("[yellow]", "[/]"),
+        "toml": ("", ""),
+    }
+
     def _render_table(self):
         rules = self._get_filtered_rules()
         q = self._search_query.strip()
@@ -190,13 +195,14 @@ class DetectionPatternsContent(Container):
         cat_w = 18
         grp_w = 18
         typ_w = 8
-        pat_w = 50
+        src_w = 16
+        pat_w = 40
 
         header = (
             f"  {'ID':<{id_w}s} {'Category':<{cat_w}s} {'Group':<{grp_w}s} "
-            f"{'Type':<{typ_w}s} {'Pattern':<{pat_w}s} Description"
+            f"{'Type':<{typ_w}s} {'Source':<{src_w}s} {'Pattern':<{pat_w}s} Description"
         )
-        lines = [header, "  " + "-" * 140]
+        lines = [header, "  " + "-" * 150]
 
         for r in rules:
             pat = r.pattern
@@ -212,14 +218,21 @@ class DetectionPatternsContent(Container):
                 sev_color = "[yellow]"
                 end_color = "[/]"
 
+            if r.source.startswith("server:"):
+                src_c, src_e = "[green]", "[/]"
+            else:
+                src_c, src_e = self._SOURCE_COLORS.get(r.source, ("", ""))
+            src_label = r.source
+
             desc = r.description
-            if len(desc) > 60:
-                desc = desc[:57] + "..."
+            if len(desc) > 50:
+                desc = desc[:47] + "..."
 
             lines.append(
                 f"  {sev_color}{r.id:<{id_w}s}{end_color} "
                 f"{r.category:<{cat_w}s} {r.group:<{grp_w}s} "
-                f"{r.match_type:<{typ_w}s} {pat:<{pat_w}s} {desc}"
+                f"{r.match_type:<{typ_w}s} {src_c}{src_label:<{src_w}s}{src_e} "
+                f"{pat:<{pat_w}s} {desc}"
             )
 
         if not rules:

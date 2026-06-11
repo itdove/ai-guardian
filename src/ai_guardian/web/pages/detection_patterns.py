@@ -1,5 +1,6 @@
 """Detection Patterns page — read-only view of all detection rules."""
 
+import logging
 from collections import Counter
 
 from nicegui import run, ui
@@ -7,10 +8,34 @@ from nicegui import run, ui
 from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
 from ai_guardian.web.components.header import create_header, create_sidebar
 
+_logger = logging.getLogger(__name__)
+
 
 def _load_rules():
     from ai_guardian.pattern_lister import PatternLister
     return PatternLister().get_all_rules()
+
+
+def _refresh_pattern_server_cache():
+    """Trigger a pattern server cache refresh (network call)."""
+    from ai_guardian.config_loaders import _load_pattern_server_config
+    from ai_guardian.pattern_server import PatternServerClient
+
+    config = _load_pattern_server_config()
+    if not config:
+        return "No pattern server configured"
+
+    results = []
+    for ptype in PatternServerClient.DEFAULT_CACHE_FILES:
+        try:
+            client = PatternServerClient(config, pattern_type=ptype)
+            if client._fetch_patterns():
+                results.append(f"{ptype}: refreshed")
+            else:
+                results.append(f"{ptype}: failed")
+        except Exception as exc:
+            results.append(f"{ptype}: error ({exc})")
+    return "; ".join(results)
 
 
 def _truncate(text, maxlen=80):
@@ -46,14 +71,10 @@ def create_detection_patterns_page(service, daemon_name: str):
                 ).props("dense outlined").classes("w-48")
 
                 src_select = ui.select(
-                    options={
-                        "all": "All Sources",
-                        "toml": "TOML Rules",
-                        "hardcoded": "Hardcoded",
-                    },
+                    options={"all": "All Sources"},
                     value="all",
                     label="Source",
-                ).props("dense outlined").classes("w-40")
+                ).props("dense outlined").classes("w-48")
 
                 mode_toggle = ui.toggle(
                     {
@@ -66,6 +87,18 @@ def create_detection_patterns_page(service, daemon_name: str):
                 search_input = ui.input(
                     placeholder="Search by ID, description, or pattern..."
                 ).props("dense outlined clearable").classes("flex-grow")
+
+                refresh_status = ui.label("").classes("text-xs text-grey-6")
+
+                async def _on_refresh():
+                    refresh_status.text = "Refreshing..."
+                    result = await run.io_bound(_refresh_pattern_server_cache)
+                    refresh_status.text = result
+                    await refresh()
+
+                ui.button(
+                    "Refresh Patterns", on_click=_on_refresh, icon="refresh",
+                ).props("dense flat no-caps").classes("ml-2")
 
             mode_hint = ui.label("").classes("text-xs text-grey-6 -mt-2")
 
@@ -101,6 +134,13 @@ def create_detection_patterns_page(service, daemon_name: str):
                     cat_opts[c] = f"{c} ({counts[c]})"
                 cat_select.options = cat_opts
                 cat_select.update()
+
+                src_counts = Counter(r.source for r in all_rules)
+                src_opts = {"all": f"All Sources ({len(all_rules)})"}
+                for s in sorted(src_counts.keys()):
+                    src_opts[s] = f"{s} ({src_counts[s]})"
+                src_select.options = src_opts
+                src_select.update()
 
                 badge_row.clear()
                 with badge_row:
@@ -226,6 +266,9 @@ def create_detection_patterns_page(service, daemon_name: str):
                         <q-td :props="props">
                             <q-badge v-if="props.value === 'hardcoded'"
                                      color="amber" text-color="black"
+                                     :label="props.value" />
+                            <q-badge v-else-if="props.value.startsWith('server:')"
+                                     color="green"
                                      :label="props.value" />
                             <q-badge v-else color="teal"
                                      :label="props.value" />
