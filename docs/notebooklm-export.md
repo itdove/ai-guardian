@@ -129,6 +129,11 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Tray Plugins | Custom menu items with native tkinter popup forms (Textual terminal fallback), platform-aware commands | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#tray-plugins) |
 | TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
 | Multi-Agent Support | Hook adapters for 12 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| Supply Chain Scanning | Detect malicious patterns in agent hooks, MCP configs, and plugin files | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#supply-chain-scanning) |
+| Context Poisoning Detection | Detect persistent instruction injection in conversation context (OWASP LLM03) | [docs/security/CONTEXT_POISONING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CONTEXT_POISONING.md) |
+| Security SDK & REST API | Programmatic security checking for Python agents and multi-language support | [docs/SDK.md](https://github.com/itdove/ai-guardian/blob/main/docs/SDK.md) |
+| Secret Liveness Validation | Verify detected secrets are still active via provider APIs | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#secret-liveness-validation) |
+| Hook Latency Metrics | Per-hook timing with console dashboard for performance analysis | [docs/HOOKS.md](https://github.com/itdove/ai-guardian/blob/main/docs/HOOKS.md#hook-latency-tracking) |
 
 ## Default Behavior (No Configuration File)
 
@@ -1760,6 +1765,106 @@ The cascading priority system (Issue #255) prevents users from:
 
 This is a critical security feature.
 
+## Supply Chain Scanning
+
+**NEW in v1.11.0** — Detects malicious patterns in agent configuration files.
+
+```json
+{
+  "supply_chain": {
+    "enabled": true,
+    "action": "block",
+    "scan_hooks": true,
+    "scan_mcp_configs": true,
+    "scan_plugins": true,
+    "allowlist_paths": []
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable supply chain threat detection |
+| `action` | `"block"` | `block` / `warn` / `log-only` |
+| `scan_hooks` | `true` | Scan hooks.json and settings.json for Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment |
+| `scan_mcp_configs` | `true` | Scan MCP server command configs for suspicious patterns |
+| `scan_plugins` | `true` | Scan OpenCode plugins and AiderDesk extensions for dangerous APIs |
+| `allowlist_paths` | `[]` | File paths to skip (supports `~` expansion and globs). AI Guardian's own plugin files are always skipped. |
+
+**Detection categories**: download-and-execute, obfuscation, env hijacking, network exfiltration, MCP suspicious commands, config key hijacking, reverse shells, plugin dangerous APIs.
+
+## Context Poisoning Detection
+
+**NEW in v1.11.0** (OWASP LLM03) — Detects attempts to inject persistent malicious instructions into conversation context.
+
+```json
+{
+  "context_poisoning": {
+    "enabled": true,
+    "action": "warn",
+    "sensitivity": "medium",
+    "allowlist_patterns": [],
+    "custom_patterns": []
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable context poisoning detection |
+| `action` | `"warn"` | `block` / `warn` / `log-only`. Default is `warn` due to higher false positive risk. |
+| `sensitivity` | `"medium"` | `low` (dangerous combinations only) / `medium` (balanced) / `high` (any persistence keyword) |
+| `allowlist_patterns` | `[]` | Regex patterns to ignore false positives |
+| `custom_patterns` | `[]` | Additional persistence patterns beyond the 13 built-in defaults |
+
+## Secret Liveness Validation
+
+**NEW in v1.11.0** — After detecting a secret, optionally check if it is still active by calling provider APIs.
+
+Configure within the `secret_scanning` section:
+
+```json
+{
+  "secret_scanning": {
+    "validate_secrets": false,
+    "validation_timeout_ms": 3000,
+    "on_inactive": "warn"
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `validate_secrets` | `false` | Enable liveness validation. Must be explicitly opted in — sends detected secrets to provider APIs. |
+| `validation_timeout_ms` | `3000` | Timeout per validation request in milliseconds |
+| `on_inactive` | `"warn"` | Action for inactive (revoked/expired) secrets: `warn` (log warning, don't block) or `allow` (silently skip). Verified-active and unverified secrets always block. |
+
+**Built-in validators**: github-personal-token, openai-api-key, anthropic-api-key, slack-token, gitlab-personal-token, npm-token.
+
+## Latency Tracking
+
+**NEW in v1.11.0** — Records per-hook and per-check timing for performance analysis.
+
+```json
+{
+  "latency_tracking": {
+    "enabled": false,
+    "max_entries": 5000,
+    "retention_days": 30
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `false` | Enable hook latency tracking |
+| `max_entries` | `5000` | Maximum entries in `latency.jsonl` |
+| `retention_days` | `30` | Auto-prune entries older than this |
+
+View with: `ai-guardian metrics --latency`. Data stored in `~/.local/state/ai-guardian/latency.jsonl`.
+
+---
+
 ## Related Documentation
 
 - [MCP Security Advisor](MCP_SERVER.md)
@@ -1816,11 +1921,15 @@ The web console binds to `127.0.0.1` (localhost only) for security.
 
 ### Web Console Pages
 
-- **Security Dashboard** — Multi-daemon status overview with live auto-refresh
-- **Global Settings** — Feature enabled/disabled flags across all daemons
+- **Security Dashboard** — Multi-daemon status overview with live auto-refresh, clickable feature cards for quick navigation
+- **Global Settings** — Feature enabled/disabled flags across all daemons, with global search to find any setting
 - **Violations** — Filterable violations table with daemon and type filters
 - **Violation Logging** — Logging configuration status per daemon
 - **Metrics** — Violation statistics by type and severity with time range selector
+- **Detection Patterns** — Read-only view of all detection rules (built-in and pattern server) with category filtering *(NEW in v1.11.0)*
+- **Auto Directory Rules** — View and manage auto-discovered directory permission rules *(NEW in v1.11.0)*
+- **Permission Rules** — View and manage tool permission rules *(NEW in v1.11.0)*
+- **Context Poisoning** — Context poisoning detection settings with regex tester *(NEW in v1.11.0)*
 - **Logs** — Daemon log viewer
 - **Daemon Detail** — Single daemon stats, controls (pause/resume/reload), recent violations
 
@@ -5108,6 +5217,129 @@ Discovers ai-guardian daemons running in Kubernetes pods matching the label sele
 
 ---
 
+## CLI Scanning
+
+### How do I scan a PR or MR diff for secrets?
+
+*(NEW in v1.11.0)*
+
+```bash
+ai-guardian scan --diff origin/main...HEAD       # Local diff
+ai-guardian scan --diff owner/repo#123           # GitHub PR (fetches via gh)
+ai-guardian scan --diff owner/repo!45            # GitLab MR (fetches via glab)
+```
+
+### How do I scan only staged files?
+
+*(NEW in v1.11.0)*
+
+```bash
+ai-guardian scan --diff --staged                 # Scan git staged changes only
+```
+
+### How do I get line numbers in scan output?
+
+Line numbers and code snippets are included by default in v1.11.0 scan output. No extra flags needed.
+
+### How do I suppress verbose logging in scan output?
+
+Scan output is clean by default. Use `--verbose` to enable debug logging:
+
+```bash
+ai-guardian scan --verbose                       # Show debug output
+```
+
+## Supply Chain Scanning
+
+### How do I enable supply chain scanning?
+
+*(NEW in v1.11.0)* Supply chain scanning is enabled by default. It detects malicious patterns in agent hooks, MCP configs, and plugin files.
+
+```json
+{
+  "supply_chain": {
+    "enabled": true,
+    "action": "block"
+  }
+}
+```
+
+### How do I scan agent configs from the CLI?
+
+```bash
+ai-guardian scan --agent-configs                 # Scan known agent config paths
+```
+
+### How do I allowlist a specific agent config file?
+
+```json
+{
+  "supply_chain": {
+    "allowlist_paths": ["~/.cursor/mcp.json"]
+  }
+}
+```
+
+## Context Poisoning
+
+### How do I configure context poisoning detection?
+
+*(NEW in v1.11.0)* Enabled by default with `warn` action (not `block`) due to higher false positive risk.
+
+```json
+{
+  "context_poisoning": {
+    "enabled": true,
+    "action": "warn",
+    "sensitivity": "medium"
+  }
+}
+```
+
+### How do I add custom context poisoning patterns?
+
+```json
+{
+  "context_poisoning": {
+    "custom_patterns": [
+      "memorize\\s+this\\s+rule",
+      "in\\s+all\\s+future\\s+responses"
+    ]
+  }
+}
+```
+
+### How do I allowlist legitimate persistence instructions?
+
+```json
+{
+  "context_poisoning": {
+    "allowlist_patterns": [
+      "remember.*validate",
+      "from now on.*typescript"
+    ]
+  }
+}
+```
+
+## Secret Validation
+
+### How do I enable secret liveness checking?
+
+*(NEW in v1.11.0)* Disabled by default. Sends detected secrets to provider APIs to check if they are still active.
+
+```json
+{
+  "secret_scanning": {
+    "validate_secrets": true,
+    "validation_timeout_ms": 3000,
+    "on_inactive": "warn"
+  }
+}
+```
+
+**Built-in validators**: github-personal-token, openai-api-key, anthropic-api-key, slack-token, gitlab-personal-token, npm-token.
+
 ## Scanner Engines
 
 ### How do I install a scanner engine?
@@ -7324,6 +7556,39 @@ sys.exit(2)  # Block execution
 
 ---
 
+## Hook Latency Tracking
+
+**NEW in v1.11.0** — AI Guardian can record per-hook and per-violation-type timing for performance analysis.
+
+### Enabling Latency Tracking
+
+Add to your `ai-guardian.json`:
+
+```json
+{
+  "latency_tracking": {
+    "enabled": false,
+    "max_entries": 5000,
+    "retention_days": 30
+  }
+}
+```
+
+### Viewing Latency Data
+
+```bash
+ai-guardian metrics --latency          # Human-readable summary
+ai-guardian metrics --latency --json   # JSON output for automation
+```
+
+Data is stored in `~/.local/state/ai-guardian/latency.jsonl` alongside `violations.jsonl`.
+
+### Console Dashboard
+
+Both the TUI (`ai-guardian console`) and web console (`ai-guardian console --web`) display latency metrics on the Security Dashboard, showing average hook execution time and per-check breakdowns.
+
+---
+
 ## Related Documentation
 
 - [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
@@ -7333,8 +7598,8 @@ sys.exit(2)  # Block execution
 
 ---
 
-**Last Updated:** 2026-04-19  
-**Version:** 1.4.0-dev  
+**Last Updated:** 2026-06-11  
+**Version:** 1.11.0  
 **Cursor Testing:** Completed - confirmed same limitation as Claude Code
 
 # === docs/MCP_SERVER.md ===
@@ -11219,6 +11484,435 @@ The scanner is installed once and reused across all workflow runs.
 - See [README.md](../README.md) for general AI Guardian setup
 - See [CONFIGURATION.md](CONFIGURATION.md) for scanner configuration options
 - See [MCP_SERVER.md](MCP_SERVER.md) for programmatic scanner management
+
+# === docs/SDK.md ===
+
+# AI Guardian SDK
+
+Programmatic security checking for Python agent programs.
+
+## Overview
+
+AI Guardian's hook-based protection covers IDE sessions (Claude Code, Cursor, VS Code). The SDK extends this protection to **programmatic use cases** — custom agents, LangChain pipelines, direct LLM API calls, and any Python program that processes untrusted content.
+
+The SDK is **additive protection**. It cannot bypass or weaken existing hook-based enforcement. Hooks remain the enforcement layer for IDE sessions; the SDK serves programs where hooks don't apply.
+
+## Installation
+
+The SDK is included with ai-guardian. No additional installation required.
+
+```bash
+pip install ai-guardian
+```
+
+## Quick Start
+
+```python
+from ai_guardian.sdk import monitor
+
+# Check content for threats (secrets, prompt injection, context poisoning)
+with monitor(action="block") as session:
+    session.check_content(user_input)
+    session.check_file("/path/to/config.json")
+    session.check_command("curl http://example.com")
+```
+
+## API Reference
+
+### `monitor(action, mode, config)`
+
+Context manager that creates a guarded session.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `action` | str | `"block"` | `"block"` raises `SecurityViolation`, `"warn"` emits warning, `"log"` records silently |
+| `mode` | str | `"direct"` | `"direct"` runs checks in-process, `"rest"` delegates to daemon |
+| `config` | dict | `None` | Config override. If `None`, loads from `ai-guardian.json` |
+
+**Yields:** `GuardSession` with the methods below.
+
+### `session.check_content(text, *, filename="input")`
+
+Checks text for:
+- **Secrets** — API keys, passwords, tokens (via Gitleaks)
+- **Prompt injection** — attempts to override system instructions
+- **Context poisoning** — hidden instructions in seemingly benign content
+
+Returns `CheckResult`.
+
+### `session.check_file(file_path, content=None)`
+
+Checks a file path against directory access rules. If `content` is provided, also scans for:
+- **Config file exfiltration** — attempts to read sensitive config files
+- **Supply chain threats** — suspicious agent configuration patterns
+- All content checks (secrets, prompt injection, context poisoning)
+
+Returns `CheckResult`.
+
+### `session.check_command(command)`
+
+Checks a bash command for:
+- **Config exfiltration patterns** — commands that attempt to read/send sensitive files
+
+Returns `CheckResult`.
+
+### `session.sanitize(text)`
+
+Redacts secrets, PII, and sensitive patterns from text.
+
+Returns a dict:
+```python
+{
+    "sanitized_text": "...",
+    "redactions": [...],
+    "stats": {"secrets": 0, "pii": 0, "total": 0}
+}
+```
+
+### `session.results`
+
+Property that returns all `CheckResult` objects collected during the session.
+
+### `CheckResult`
+
+Dataclass returned by all check methods.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `blocked` | bool | Whether the check triggered a block |
+| `detected` | bool | Whether any issue was detected |
+| `violation_type` | str or None | Type: `secret_detected`, `prompt_injection`, `context_poisoning`, `directory_blocked`, `config_file_exfil`, `supply_chain_threat` |
+| `message` | str or None | Human-readable description |
+| `details` | dict or None | Additional context from the detector |
+
+### `SecurityViolation`
+
+Exception raised when `action="block"` and a threat is detected.
+
+```python
+try:
+    with monitor(action="block") as session:
+        session.check_content(untrusted_text)
+except SecurityViolation as e:
+    print(f"Blocked: {e.result.violation_type} — {e.result.message}")
+```
+
+## Modes
+
+### Direct Mode (default)
+
+Calls detection functions in-process. No daemon required. Best for single-program use.
+
+```python
+with monitor(mode="direct") as session:
+    session.check_content(text)
+```
+
+### REST Mode
+
+Delegates checks to the ai-guardian daemon via socket protocol. Auto-starts the daemon if not running. Best for shared daemon usage across multiple programs.
+
+```python
+with monitor(mode="rest") as session:
+    session.check_content(text)
+```
+
+**Auto-start behavior:**
+1. Checks if daemon is running (socket ping)
+2. If not, starts it in the background
+3. Waits for daemon to become responsive
+4. Proceeds with checks via daemon
+5. Does **not** stop daemon on session exit (other programs may use it)
+
+## Action Modes
+
+### `"block"` (default)
+
+Raises `SecurityViolation` immediately when a threat is detected. Use for strict enforcement.
+
+```python
+with monitor(action="block") as session:
+    session.check_content(text)  # raises SecurityViolation if threat found
+```
+
+### `"warn"`
+
+Emits a Python `UserWarning` when a threat is detected. Execution continues.
+
+```python
+import warnings
+warnings.filterwarnings("error", category=UserWarning)  # optional: treat as error
+
+with monitor(action="warn") as session:
+    session.check_content(text)  # warnings.warn() if threat found
+```
+
+### `"log"`
+
+Silently records results. No exceptions, no warnings. Access results via `session.results`.
+
+```python
+with monitor(action="log") as session:
+    session.check_content(text1)
+    session.check_content(text2)
+    
+for result in session.results:
+    if result.detected:
+        print(f"Found: {result.violation_type}")
+```
+
+## Examples
+
+### Protect a LangChain Agent
+
+```python
+from ai_guardian.sdk import monitor, SecurityViolation
+
+def safe_agent_call(prompt):
+    with monitor(action="block") as guard:
+        # Check user input before sending to LLM
+        guard.check_content(prompt)
+        
+        # Call your LLM
+        response = llm.invoke(prompt)
+        
+        # Check LLM output before returning to user
+        guard.check_content(response.content, filename="llm_output")
+        
+        return response.content
+```
+
+### Scan Files Before Processing
+
+```python
+from ai_guardian.sdk import monitor
+
+with monitor(action="warn") as guard:
+    for path in uploaded_files:
+        content = open(path).read()
+        result = guard.check_file(path, content=content)
+        if result.blocked:
+            print(f"Skipping {path}: {result.message}")
+```
+
+### Sanitize Output
+
+```python
+from ai_guardian.sdk import monitor
+
+with monitor() as guard:
+    sanitized = guard.sanitize(potentially_sensitive_text)
+    print(sanitized["sanitized_text"])  # secrets and PII redacted
+```
+
+### Batch Content Screening
+
+```python
+from ai_guardian.sdk import monitor
+
+with monitor(action="log") as guard:
+    for item in documents:
+        guard.check_content(item.text)
+    
+    threats = [r for r in guard.results if r.detected]
+    print(f"Found {len(threats)} issues in {len(documents)} documents")
+```
+
+## Configuration
+
+The SDK respects `ai-guardian.json` configuration. Features can be enabled/disabled:
+
+```json
+{
+    "secret_scanning": {"enabled": true},
+    "prompt_injection": {"enabled": true, "action": "block"},
+    "context_poisoning": {"enabled": true},
+    "config_scanner": {"enabled": true},
+    "supply_chain": {"enabled": true}
+}
+```
+
+Override configuration per-session:
+
+```python
+custom_config = {
+    "secret_scanning": {"enabled": True},
+    "prompt_injection": {"enabled": False},  # skip for this session
+}
+
+with monitor(config=custom_config) as session:
+    session.check_content(text)
+```
+
+## REST API (Multi-Language)
+
+For non-Python languages (TypeScript, Go, Java, Rust, etc.), ai-guardian exposes HTTP endpoints on the daemon's REST API. The daemon must be running:
+
+```bash
+ai-guardian daemon start
+```
+
+The REST API port is shown in `ai-guardian daemon status`. Default: `19200`.
+
+### POST /api/check
+
+Scan content for security threats.
+
+**Request:**
+
+```bash
+curl -X POST http://localhost:19200/api/check \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "text to scan",
+    "checks": ["secrets", "pii", "injection", "context_poisoning"],
+    "action": "block",
+    "source": "sdk"
+  }'
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `content` | string | **required** | Text to scan |
+| `checks` | array | all checks | Which checks to run: `secrets`, `pii`, `injection`, `ssrf`, `context_poisoning` |
+| `action` | string | `"block"` | Action mode: `block`, `warn`, or `log` (recorded in findings) |
+| `source` | string | `"sdk"` | Optional source identifier for audit trail |
+
+**Response:**
+
+```json
+{
+  "clean": false,
+  "findings": [
+    {
+      "type": "secret_detected",
+      "message": "GitHub token detected",
+      "action_taken": "block"
+    }
+  ],
+  "redacted": "text with [REDACTED] token",
+  "elapsed_ms": 12.3
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `clean` | bool | `true` if no threats detected |
+| `findings` | array | List of detected threats |
+| `redacted` | string or null | Auto-redacted text (only when findings exist) |
+| `elapsed_ms` | float | Processing time in milliseconds |
+
+### POST /api/redact
+
+Redact secrets and PII from text without checking for threats.
+
+**Request:**
+
+```bash
+curl -X POST http://localhost:19200/api/redact \
+  -H "Content-Type: application/json" \
+  -d '{"content": "my token is ghp_abc123..."}'
+```
+
+**Response:**
+
+```json
+{
+  "redacted": "my token is [REDACTED]",
+  "redaction_count": 1
+}
+```
+
+### Authentication
+
+If the daemon has `auth_token` configured in `ai-guardian.json`:
+
+```bash
+curl -X POST http://localhost:19200/api/check \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "text to scan"}'
+```
+
+### Language SDK Examples
+
+Each language SDK is a thin HTTP client wrapper around these endpoints.
+
+**TypeScript/Node:**
+
+```typescript
+const response = await fetch('http://localhost:19200/api/check', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ content: text }),
+});
+const result = await response.json();
+if (!result.clean) {
+  throw new Error(result.findings[0].message);
+}
+```
+
+**Go:**
+
+```go
+body, _ := json.Marshal(map[string]string{"content": text})
+resp, err := http.Post(
+    "http://localhost:19200/api/check",
+    "application/json",
+    bytes.NewReader(body),
+)
+var result struct {
+    Clean    bool `json:"clean"`
+    Findings []struct {
+        Type    string `json:"type"`
+        Message string `json:"message"`
+    } `json:"findings"`
+}
+json.NewDecoder(resp.Body).Decode(&result)
+```
+
+**Java:**
+
+```java
+HttpClient client = HttpClient.newHttpClient();
+String json = "{\"content\": \"" + text + "\"}";
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create("http://localhost:19200/api/check"))
+    .header("Content-Type", "application/json")
+    .POST(HttpRequest.BodyPublishers.ofString(json))
+    .build();
+HttpResponse<String> response = client.send(request,
+    HttpResponse.BodyHandlers.ofString());
+```
+
+**Rust:**
+
+```rust
+let client = reqwest::Client::new();
+let result: serde_json::Value = client
+    .post("http://localhost:19200/api/check")
+    .json(&serde_json::json!({"content": text}))
+    .send().await?
+    .json().await?;
+```
+
+**Shell (no SDK needed):**
+
+```bash
+result=$(curl -s -X POST http://localhost:19200/api/check \
+  -H "Content-Type: application/json" \
+  -d "{\"content\": \"$TEXT\"}")
+clean=$(echo "$result" | jq -r '.clean')
+```
+
+## Security Model
+
+- **Additive only**: The SDK adds protection to programs that have none. It cannot disable or bypass hook-based enforcement.
+- **No pattern exposure**: `CheckResult` returns blocked/detected status and a human-readable message, not internal detection patterns or regex rules.
+- **Same detection engine**: Both direct and REST modes use the same detection functions as the hook system.
+- **Config-gated**: Each detector respects its `enabled` flag in the configuration.
 
 # === docs/SECURITY_DESIGN.md ===
 
@@ -19374,6 +20068,24 @@ Violation logging is **extremely efficient**:
     ]
   },
 
+  "supply_chain": {
+    "_comment": "Supply chain threat detection (NEW in v1.11.0, Issue #1055)",
+    "_comment2": "Scans agent configuration files for malicious patterns — hooks, MCP server configs, and plugin files",
+    "_comment3": "Catches: download-and-execute chains, obfuscation, env var hijacking, exfiltration, reverse shells",
+    "_comment4": "Default action is 'block' (low false positive risk — only scans known agent config paths)",
+    "enabled": true,
+    "action": "block",
+    "_action_options": ["block", "warn", "log-only"],
+    "scan_hooks": true,
+    "_scan_hooks_note": "Scan hooks.json and settings.json for Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment",
+    "scan_mcp_configs": true,
+    "_scan_mcp_configs_note": "Scan MCP server command configurations for suspicious patterns (npx with URLs, python -c, etc.)",
+    "scan_plugins": true,
+    "_scan_plugins_note": "Scan OpenCode plugins (.ts) and AiderDesk extensions for dangerous APIs (child_process, execSync, etc.)",
+    "allowlist_paths": [],
+    "_allowlist_note": "File paths to skip (supports ~ expansion and globs). ai-guardian's own plugin files are always skipped."
+  },
+
   "scan_pii": {
     "_comment": "PII detection for GDPR/CCPA compliance (v1.6.0+, Phase 2 in v1.8.0)",
     "_comment2": "Scans user prompts, file reads, and tool outputs for personally identifiable information",
@@ -19431,6 +20143,16 @@ Violation logging is **extremely efficient**:
     "inline_allow_secrets": ["gitleaks:allow"],
     "block_begin": [],
     "block_end": []
+  },
+
+  "latency_tracking": {
+    "_comment": "Hook latency tracking — records per-hook and per-check timing to latency.jsonl (NEW in v1.11.0, Issue #1057)",
+    "_comment2": "Disabled by default. Enable for performance debugging or analysis.",
+    "_comment3": "View with: ai-guardian metrics --latency",
+    "_comment4": "Data stored in ~/.local/state/ai-guardian/latency.jsonl (alongside violations.jsonl)",
+    "enabled": false,
+    "max_entries": 5000,
+    "retention_days": 30
   },
 
   "transcript_scanning": {
@@ -19955,6 +20677,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-06-11
+
+### Added
+
+- **Supply Chain Scanning** (Issue #1055)
+  - New violation type `SUPPLY-CHAIN-001` for detecting malicious patterns in agent configuration files
+  - Scans hooks (Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment), MCP server configs, and plugin files (OpenCode, AiderDesk)
+  - 8 detection categories: download-and-execute, obfuscation, env hijacking, network exfiltration, MCP suspicious commands, config key hijacking, reverse shells, plugin dangerous APIs
+  - Active in all 3 hooks: UserPromptSubmit (pasted config), PreToolUse (write to config), PostToolUse (read poisoned config)
+  - CLI: `ai-guardian scan --agent-configs` scans known agent config paths
+  - TUI and Web console toggles with block/warn/log-only action modes
+  - Self-allowlist: ai-guardian's own plugin files never flagged
+  - Default action: `block` (low false-positive risk due to path-specific + pattern-specific targeting)
+
+- **Hook Latency Metrics** (Issue #1057)
+  - Per-hook (PreToolUse/PostToolUse/UserPromptSubmit) and per-violation-type timing instrumentation
+  - New `latency_tracking` config section (disabled by default, opt-in for debugging)
+  - CLI: `ai-guardian metrics --latency` with avg/stddev/P95/min/max statistics
+  - Web Console: new "Performance" page under Monitoring with sortable tables and latency threshold highlighting
+  - TUI Console: new "Performance" panel with hook latency and per-check breakdown tables
+  - Data stored in append-only `latency.jsonl` alongside violations.jsonl with configurable retention
+
 ### Changed
 
 - **Docs: prefer uv over pip in install instructions** (Issue #1051)
@@ -20387,14 +21131,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     even when explicitly excluded from `scan_pii.pii_types`
   - Scanner now reads `pii_types` from the PII config and filters findings accordingly
   - Secret findings (API keys, tokens, etc.) are never affected by this filter
-
-## [1.9.1] - 2026-05-27
-
-### Fixed
-
-- **Cursor adapter misdetection for Gemini beforeReadFile events** (Issue #847)
-  - Default `tool_name` to `Read` for `beforeReadFile` events
-  - Prevent Gemini adapter from claiming Cursor `beforeReadFile` events
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
