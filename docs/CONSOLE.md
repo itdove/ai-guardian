@@ -44,11 +44,15 @@ The web console binds to `127.0.0.1` (localhost only) for security.
 
 ### Web Console Pages
 
-- **Security Dashboard** — Multi-daemon status overview with live auto-refresh
-- **Global Settings** — Feature enabled/disabled flags across all daemons
+- **Security Dashboard** — Multi-daemon status overview with live auto-refresh, clickable feature cards for quick navigation
+- **Global Settings** — Feature enabled/disabled flags across all daemons, with global search to find any setting
 - **Violations** — Filterable violations table with daemon and type filters
 - **Violation Logging** — Logging configuration status per daemon
 - **Metrics** — Violation statistics by type and severity with time range selector
+- **Detection Patterns** — Read-only view of all detection rules (built-in and pattern server) with category filtering *(NEW in v1.11.0)*
+- **Auto Directory Rules** — View and manage auto-discovered directory permission rules *(NEW in v1.11.0)*
+- **Permission Rules** — View and manage tool permission rules *(NEW in v1.11.0)*
+- **Context Poisoning** — Context poisoning detection settings with regex tester *(NEW in v1.11.0)*
 - **Logs** — Daemon log viewer
 - **Daemon Detail** — Single daemon stats, controls (pause/resume/reload), recent violations
 

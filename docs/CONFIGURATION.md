@@ -364,6 +364,106 @@ The cascading priority system (Issue #255) prevents users from:
 
 This is a critical security feature.
 
+## Supply Chain Scanning
+
+**NEW in v1.11.0** — Detects malicious patterns in agent configuration files.
+
+```json
+{
+  "supply_chain": {
+    "enabled": true,
+    "action": "block",
+    "scan_hooks": true,
+    "scan_mcp_configs": true,
+    "scan_plugins": true,
+    "allowlist_paths": []
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable supply chain threat detection |
+| `action` | `"block"` | `block` / `warn` / `log-only` |
+| `scan_hooks` | `true` | Scan hooks.json and settings.json for Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment |
+| `scan_mcp_configs` | `true` | Scan MCP server command configs for suspicious patterns |
+| `scan_plugins` | `true` | Scan OpenCode plugins and AiderDesk extensions for dangerous APIs |
+| `allowlist_paths` | `[]` | File paths to skip (supports `~` expansion and globs). AI Guardian's own plugin files are always skipped. |
+
+**Detection categories**: download-and-execute, obfuscation, env hijacking, network exfiltration, MCP suspicious commands, config key hijacking, reverse shells, plugin dangerous APIs.
+
+## Context Poisoning Detection
+
+**NEW in v1.11.0** (OWASP LLM03) — Detects attempts to inject persistent malicious instructions into conversation context.
+
+```json
+{
+  "context_poisoning": {
+    "enabled": true,
+    "action": "warn",
+    "sensitivity": "medium",
+    "allowlist_patterns": [],
+    "custom_patterns": []
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable context poisoning detection |
+| `action` | `"warn"` | `block` / `warn` / `log-only`. Default is `warn` due to higher false positive risk. |
+| `sensitivity` | `"medium"` | `low` (dangerous combinations only) / `medium` (balanced) / `high` (any persistence keyword) |
+| `allowlist_patterns` | `[]` | Regex patterns to ignore false positives |
+| `custom_patterns` | `[]` | Additional persistence patterns beyond the 13 built-in defaults |
+
+## Secret Liveness Validation
+
+**NEW in v1.11.0** — After detecting a secret, optionally check if it is still active by calling provider APIs.
+
+Configure within the `secret_scanning` section:
+
+```json
+{
+  "secret_scanning": {
+    "validate_secrets": false,
+    "validation_timeout_ms": 3000,
+    "on_inactive": "warn"
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `validate_secrets` | `false` | Enable liveness validation. Must be explicitly opted in — sends detected secrets to provider APIs. |
+| `validation_timeout_ms` | `3000` | Timeout per validation request in milliseconds |
+| `on_inactive` | `"warn"` | Action for inactive (revoked/expired) secrets: `warn` (log warning, don't block) or `allow` (silently skip). Verified-active and unverified secrets always block. |
+
+**Built-in validators**: github-personal-token, openai-api-key, anthropic-api-key, slack-token, gitlab-personal-token, npm-token.
+
+## Latency Tracking
+
+**NEW in v1.11.0** — Records per-hook and per-check timing for performance analysis.
+
+```json
+{
+  "latency_tracking": {
+    "enabled": false,
+    "max_entries": 5000,
+    "retention_days": 30
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `false` | Enable hook latency tracking |
+| `max_entries` | `5000` | Maximum entries in `latency.jsonl` |
+| `retention_days` | `30` | Auto-prune entries older than this |
+
+View with: `ai-guardian metrics --latency`. Data stored in `~/.local/state/ai-guardian/latency.jsonl`.
+
+---
+
 ## Related Documentation
 
 - [MCP Security Advisor](MCP_SERVER.md)

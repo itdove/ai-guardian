@@ -456,6 +456,39 @@ sys.exit(2)  # Block execution
 
 ---
 
+## Hook Latency Tracking
+
+**NEW in v1.11.0** — AI Guardian can record per-hook and per-violation-type timing for performance analysis.
+
+### Enabling Latency Tracking
+
+Add to your `ai-guardian.json`:
+
+```json
+{
+  "latency_tracking": {
+    "enabled": false,
+    "max_entries": 5000,
+    "retention_days": 30
+  }
+}
+```
+
+### Viewing Latency Data
+
+```bash
+ai-guardian metrics --latency          # Human-readable summary
+ai-guardian metrics --latency --json   # JSON output for automation
+```
+
+Data is stored in `~/.local/state/ai-guardian/latency.jsonl` alongside `violations.jsonl`.
+
+### Console Dashboard
+
+Both the TUI (`ai-guardian console`) and web console (`ai-guardian console --web`) display latency metrics on the Security Dashboard, showing average hook execution time and per-check breakdowns.
+
+---
+
 ## Related Documentation
 
 - [CONSOLE.md](CONSOLE.md) - Using the Console to view violations
@@ -465,6 +498,6 @@ sys.exit(2)  # Block execution
 
 ---
 
-**Last Updated:** 2026-04-19  
-**Version:** 1.4.0-dev  
+**Last Updated:** 2026-06-11  
+**Version:** 1.11.0  
 **Cursor Testing:** Completed - confirmed same limitation as Claude Code
