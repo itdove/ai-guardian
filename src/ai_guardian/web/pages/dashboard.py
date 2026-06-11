@@ -92,10 +92,19 @@ def _parse_enabled(status):
 
 _DEFAULT_ACTIONS = {
     "secret_scanning": "block",
+    "image_scanning": "block",
+    "scan_pii": "block",
     "transcript_scanning": "scan",
+    "prompt_injection": "block",
+    "ssrf_protection": "block",
+    "config_file_scanning": "block",
+    "context_poisoning": "warn",
+    "supply_chain": "block",
+    "secret_redaction": "warn",
     "annotations": "suppress",
     "permissions": "enforce",
     "security_instructions": "inject",
+    "directory_rules": "block",
     "violation_logging": "log",
     "latency_tracking": "log",
 }
