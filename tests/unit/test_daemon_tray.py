@@ -222,12 +222,13 @@ class TestCrossPlatform:
     def test_dispatch_to_main_without_pyobjc(self):
         called = []
         with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
-            tray = DaemonTray(
-                get_stats_callback=lambda: {},
-                stop_callback=lambda: None,
-                pause_callback=lambda mins: None,
-            )
-            tray._dispatch_to_main(lambda: called.append(True))
+            with mock.patch("platform.system", return_value="Darwin"):
+                tray = DaemonTray(
+                    get_stats_callback=lambda: {},
+                    stop_callback=lambda: None,
+                    pause_callback=lambda mins: None,
+                )
+                tray._dispatch_to_main(lambda: called.append(True))
         assert called == [True]
 
     def test_console_launch_linux(self):
