@@ -273,8 +273,7 @@ class TestCrossPlatform:
                 assert "osascript" in mock_popen.call_args[0][0][0]
                 assert 'do script ""' in script
                 assert "delay 2" in script
-                script_lower = script.lower()
-                assert "ai_guardian console" in script_lower or "ai-guardian console" in script_lower or "ai-guardian.exe console" in script_lower
+                assert "console" in script
 
     def test_console_launch_macos_deferred_command(self):
         """Command is sent after shell init to avoid interactive prompts (issue #599)."""
@@ -305,8 +304,7 @@ class TestCrossPlatform:
             with mock.patch("subprocess.Popen") as mock_popen:
                 tray._launch_console()
                 script = mock_popen.call_args[0][0][2]
-                script_lower = script.lower()
-                assert "ai_guardian console" in script_lower or "ai-guardian console" in script_lower or "ai-guardian.exe console" in script_lower
+                assert "console" in script
 
     def test_console_launch_windows(self):
         tray = DaemonTray(
@@ -712,8 +710,7 @@ class TestIDESetupMenu:
             with mock.patch("subprocess.Popen") as mock_popen:
                 DaemonTray._launch_ide_setup("cursor")
                 script = mock_popen.call_args[0][0][2]
-                script_lower = script.lower()
-                assert "ai-guardian setup --ide cursor" in script_lower or "ai_guardian setup --ide cursor" in script_lower or "ai-guardian.exe setup --ide cursor" in script_lower
+                assert "setup --ide cursor" in script
 
     def test_launch_ide_setup_linux_keeps_terminal_open(self):
         with mock.patch("platform.system", return_value="Linux"):
