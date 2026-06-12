@@ -358,7 +358,9 @@ Before creating the release branch, check for open Dependabot security alerts an
 5. [ ] Test installation from package registry
 6. [ ] Merge release branch back to main
 7. [ ] Bump version to next dev cycle (X.Y+1.0-dev)
-8. [ ] Update curl install URLs — replace version tag in `README.md` and `docs/notebooklm-export.md` to point to the new release tag (e.g., `main` → `vX.Y.Z`)
+8. [ ] Update curl install URLs in `README.md`:
+      - **Release branch**: replace old version tag with new one (e.g., `v1.11.0` → `v1.11.1`)
+      - **Main branch**: ensure URLs point to `main` (not a version tag — there is no PyPI release for dev versions)
 9. [ ] Push main branch
 10. [ ] (Hotfix only) Cherry-pick fix to main
 11. [ ] Generate combined docs export — run the shell one-liner from AGENTS.md "Generating Combined Documentation for LLM Upload" section to create `docs/notebooklm-export.md`

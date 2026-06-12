@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-06-11
+
+### Added
+
+- **Curl file upload exfiltration detection** (Issue #1101)
+  - Detect `curl -F`, `curl --upload-file`, and `curl -T` patterns targeting external hosts
+  - New config-exfil patterns for file upload via HTTP
+
+- **Web console: auto-scroll active sidebar item into view** (Issue #1104)
+  - Active navigation item scrolls into view on page load
+
+- **Daemon Python resolution and version sync** (Issue #1103)
+  - Improved Python executable resolution using `shutil.which` for reliable path discovery
+  - Version sync between daemon and tray processes
+
+### Fixed
+
+- **Web console: defer codemirror editor initialization** (Issue #1102)
+  - Fix duplicate nicegui-codemirror ESM module assertion error
+
+- **Web console: make sidebar sticky with scrollable navigation** (Issue #1104)
+  - Sidebar stays fixed while content scrolls
+
+### Changed
+
+- **README: curl install.sh should reference release tag, not main branch**
+  - Install command URLs now point to versioned release tags
+
+- **CI: add release-* branch trigger to workflows** (Issue #1108)
+
 ## [1.11.0] - 2026-06-11
 
 ### Added
@@ -2435,6 +2465,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Interactive and non-interactive modes
 
 [Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.11.0...HEAD
+[1.11.1]: https://github.com/itdove/ai-guardian/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/itdove/ai-guardian/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/itdove/ai-guardian/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/itdove/ai-guardian/compare/v1.9.0...v1.9.1
