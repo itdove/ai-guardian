@@ -2,6 +2,8 @@
 
 from nicegui import ui
 
+from ai_guardian import __version__
+
 NAV_GROUPS = [
     ("Security Overview", [
         ("Security Dashboard", ""),
@@ -96,6 +98,7 @@ def create_header(daemon_name: str = ""):
             ui.link("AI Guardian", "/").classes(
                 "text-xl font-bold text-white no-underline"
             )
+            ui.label(f"v{__version__}").classes("text-grey-6 text-xs")
             if daemon_name:
                 ui.label("|").classes("text-grey-6")
                 ui.label(daemon_name).classes("text-white font-bold")

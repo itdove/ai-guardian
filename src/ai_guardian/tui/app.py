@@ -866,6 +866,8 @@ class AIGuardianTUI(App):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from ai_guardian import __version__
+        self.title = f"AI Guardian v{__version__}"
         self._input_original_values = {}
         self.initial_panel = None
         self.config_scope = "global"
@@ -1070,7 +1072,8 @@ class AIGuardianTUI(App):
         yield Header()
 
         with Horizontal(id="main-layout"):
-            tree: Tree[str] = Tree("AI Guardian", id="nav-tree")
+            from ai_guardian import __version__
+            tree: Tree[str] = Tree(f"AI Guardian v{__version__}", id="nav-tree")
             tree.root.expand()
             for group_label, items in NAV_GROUPS:
                 group_node = tree.root.add(group_label)
