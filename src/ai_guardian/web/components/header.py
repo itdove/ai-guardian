@@ -122,14 +122,20 @@ def create_sidebar(daemon_name: str, current: str = ""):
     prefix = f"/{daemon_name}"
     search_index = _build_search_index(prefix)
 
-    with ui.column().classes("w-56 bg-blue-grey-10 min-h-screen p-2 gap-0"):
+    with ui.column().classes("w-56 bg-blue-grey-10 p-2 gap-2").style(
+        "height: calc(100vh - 64px); position: sticky; top: 64px; display: flex; flex-direction: column;"
+    ) as sidebar:
         search_input = ui.input(placeholder="Search settings...").props(
             "dense outlined clearable"
-        ).classes("w-full mb-2").style(
+        ).classes("w-full").style(
             "color: white; --q-color-primary: #78909c;"
         )
 
-        nav_container = ui.column().classes("w-full gap-0")
+        # Scrollable container for navigation
+        nav_container = ui.column().classes("w-full gap-0 overflow-y-auto").style(
+            "flex: 1; min-height: 0;"
+        )
+        active_link = None
         with nav_container:
             for group_name, items in NAV_GROUPS:
                 ui.label(group_name).classes(
@@ -140,11 +146,29 @@ def create_sidebar(daemon_name: str, current: str = ""):
                     classes = "w-full no-underline rounded px-2 py-1 text-sm "
                     if current == path:
                         classes += "bg-blue-grey-8 text-white font-bold"
+                        link = ui.link(label, path).classes(classes)
+                        active_link = link
                     else:
                         classes += "text-grey-4 hover:bg-blue-grey-9"
-                    ui.link(label, path).classes(classes)
+                        ui.link(label, path).classes(classes)
 
-        results_container = ui.column().classes("w-full gap-0 mt-2")
+        # Scroll active item into view after page loads
+        if active_link:
+            ui.run_javascript(f'''
+                setTimeout(() => {{
+                    const activeLink = document.querySelector('.bg-blue-grey-8');
+                    if (activeLink) {{
+                        activeLink.scrollIntoView({{
+                            behavior: 'smooth',
+                            block: 'center'
+                        }});
+                    }}
+                }}, 100);
+            ''')
+
+        results_container = ui.column().classes("w-full gap-0 overflow-y-auto").style(
+            "flex: 1; min-height: 0;"
+        )
         results_container.set_visibility(False)
 
         result_elements = []
@@ -161,7 +185,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                         "w-full no-underline text-sm "
                     )
                     if current == path:
-                        link_classes += "text-white font-bold"
+                        link_classes += "text-white font-bold active-search-result"
                     else:
                         link_classes += "text-grey-4"
                     ui.link(label, path).classes(link_classes)
@@ -172,6 +196,19 @@ def create_sidebar(daemon_name: str, current: str = ""):
             if not query:
                 nav_container.set_visibility(True)
                 results_container.set_visibility(False)
+                # Re-scroll to active item in nav when clearing search
+                if active_link:
+                    ui.run_javascript('''
+                        setTimeout(() => {
+                            const activeLink = document.querySelector('.bg-blue-grey-8');
+                            if (activeLink) {
+                                activeLink.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'center'
+                                });
+                            }
+                        }, 100);
+                    ''')
                 return
 
             nav_container.set_visibility(False)
@@ -185,5 +222,18 @@ def create_sidebar(daemon_name: str, current: str = ""):
                     any_visible = True
 
             no_results_label.set_visibility(not any_visible)
+
+            # Scroll to active item in search results if present
+            ui.run_javascript('''
+                setTimeout(() => {
+                    const activeResult = document.querySelector('.active-search-result');
+                    if (activeResult && activeResult.closest('[style*="display: none"]') === null) {
+                        activeResult.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }
+                }, 100);
+            ''')
 
         search_input.on_value_change(on_search)
