@@ -2810,14 +2810,9 @@ class TestResolveBinaryPath:
         with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"):
             assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
 
-    def test_falls_back_to_sys_executable(self, tmp_path):
-        fake_bin = tmp_path / "ai-guardian"
-        fake_bin.touch()
-        fake_python = tmp_path / "python"
+    def test_falls_back_to_bare_ai_guardian(self, tmp_path):
         with mock.patch("ai_guardian.setup.shutil.which", return_value=None):
-            with mock.patch("ai_guardian.setup.sys") as mock_sys:
-                mock_sys.executable = str(fake_python)
-                assert _resolve_binary_path() == str(fake_bin)
+            assert _resolve_binary_path() == "ai-guardian"
 
     def test_falls_back_to_bare_command(self, tmp_path):
         fake_python = tmp_path / "nonexistent" / "python"
@@ -3061,26 +3056,31 @@ class TestWindowsSetup:
 
     def test_resolve_binary_path_uses_pythonw_on_windows(self, tmp_path):
         """On Windows, prefer pythonw.exe -m ai_guardian over bare binary."""
-        fake_pythonw = tmp_path / "pythonw.exe"
-        fake_pythonw.touch()
-        fake_python = tmp_path / "python.exe"
+        fake_pythonw = str(tmp_path / "pythonw.exe")
+
+        def mock_which(cmd):
+            if cmd == "pythonw":
+                return fake_pythonw
+            return None
 
         with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
-            with mock.patch("ai_guardian.setup.sys") as mock_sys:
-                mock_sys.executable = str(fake_python)
+            with mock.patch("ai_guardian.setup.shutil.which", side_effect=mock_which):
                 result = _resolve_binary_path()
 
         assert result == f"{fake_pythonw} -m ai_guardian"
 
     def test_resolve_binary_path_fallback_when_no_pythonw(self, tmp_path):
         """On Windows without pythonw.exe, fall back to standard resolution."""
-        fake_python = tmp_path / "python.exe"
+        def mock_which(cmd):
+            if cmd == "pythonw":
+                return None
+            if cmd == "ai-guardian":
+                return "C:\\bin\\ai-guardian.exe"
+            return None
 
         with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
-            with mock.patch("ai_guardian.setup.shutil.which", return_value="C:\\bin\\ai-guardian.exe"):
-                with mock.patch("ai_guardian.setup.sys") as mock_sys:
-                    mock_sys.executable = str(fake_python)
-                    result = _resolve_binary_path()
+            with mock.patch("ai_guardian.setup.shutil.which", side_effect=mock_which):
+                result = _resolve_binary_path()
 
         assert result == "C:\\bin\\ai-guardian.exe"
 

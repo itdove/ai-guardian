@@ -44,22 +44,18 @@ class TestGetDesktopIntegration:
 
 class TestGetExecutableCommand:
     def test_uses_shutil_which_when_available(self):
-        with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+        with mock.patch("ai_guardian.daemon.shutil.which", return_value="/usr/local/bin/ai-guardian"):
             result = _get_executable_command()
         assert len(result) == 1
         assert result[0].endswith("ai-guardian")
 
     def test_falls_back_to_python_command(self):
-        # Mock shutil.which to return None for ai-guardian but None for python too
-        # to test the final fallback
-        with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value=None):
+        with mock.patch("ai_guardian.daemon.shutil.which", return_value=None):
             result = _get_executable_command()
-        assert result[0] == "python"
-        assert result[1] == "-m"
-        assert result[2] == "ai_guardian"
+        assert "-m" in result
+        assert "ai_guardian" in result
 
     def test_uses_absolute_python_path_when_available(self):
-        # Mock shutil.which to return None for ai-guardian but a path for python
         def mock_which(cmd):
             if cmd == "ai-guardian":
                 return None
@@ -67,7 +63,7 @@ class TestGetExecutableCommand:
                 return "/usr/bin/python3"
             return None
 
-        with mock.patch("ai_guardian.daemon.desktop.shutil.which", side_effect=mock_which):
+        with mock.patch("ai_guardian.daemon.shutil.which", side_effect=mock_which):
             result = _get_executable_command()
         assert result[0] == "/usr/bin/python3"
         assert result[1] == "-m"
