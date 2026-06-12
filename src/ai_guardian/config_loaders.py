@@ -322,7 +322,13 @@ def _load_config_section(key, defaults=None, merge_ignore=False):
         return (defaults or None), error_msg
     if config is None:
         return (defaults or None), None
-    section = config.get(key, defaults) if defaults else config.get(key)
+    if defaults:
+        section = dict(defaults)
+        user_section = config.get(key)
+        if user_section and isinstance(user_section, dict):
+            section.update(user_section)
+    else:
+        section = config.get(key)
     if merge_ignore and section is not None:
         section = _merge_aiguardignore(section, key)
     return section, None
