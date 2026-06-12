@@ -2294,20 +2294,23 @@ class DaemonTray:
             ),
             pystray.MenuItem("Start daemon", _restart_action,
                              visible=_single_not_running),
-            pystray.MenuItem("Stop daemon", _stop_action,
-                             visible=_single_running),
-            pystray.MenuItem("Restart daemon", _restart_action,
-                             visible=lambda _: self._is_single_daemon()),
             pystray.MenuItem(
-                lambda _: self._upgrade_label(
-                    self._targets[0] if self._targets else None,
+                "Maintenance",
+                pystray.Menu(
+                    pystray.MenuItem("Stop daemon", _stop_action),
+                    pystray.MenuItem("Restart daemon", _restart_action),
+                    pystray.MenuItem(
+                        lambda _: self._upgrade_label(
+                            self._targets[0] if self._targets else None,
+                        ),
+                        self._on_upgrade_single,
+                        visible=lambda _: (
+                            self._targets
+                            and self._is_upgrade_available(self._targets[0])
+                        ),
+                    ),
                 ),
-                self._on_upgrade_single,
-                visible=lambda _: (
-                    self._is_single_daemon()
-                    and self._targets
-                    and self._is_upgrade_available(self._targets[0])
-                ),
+                visible=lambda _: self._is_single_daemon(),
             ),
         ]
 
@@ -2661,23 +2664,27 @@ class DaemonTray:
                             ),
                         ),
                         pystray.MenuItem(
-                            "Stop daemon", _mk_stop(),
-                            visible=_is_slot_running,
-                        ),
-                        pystray.MenuItem(
-                            "Restart daemon", _mk_restart(),
-                        ),
-                        pystray.MenuItem(
-                            lambda _i, s=idx: self._upgrade_label(
-                                self._targets[s]
-                                if s < len(self._targets) else None,
-                            ),
-                            self._mk_upgrade(idx),
-                            visible=lambda _i, s=idx: (
-                                s < len(self._targets)
-                                and self._is_upgrade_available(
-                                    self._targets[s]
-                                )
+                            "Maintenance",
+                            pystray.Menu(
+                                pystray.MenuItem(
+                                    "Stop daemon", _mk_stop(),
+                                ),
+                                pystray.MenuItem(
+                                    "Restart daemon", _mk_restart(),
+                                ),
+                                pystray.MenuItem(
+                                    lambda _i, s=idx: self._upgrade_label(
+                                        self._targets[s]
+                                        if s < len(self._targets) else None,
+                                    ),
+                                    self._mk_upgrade(idx),
+                                    visible=lambda _i, s=idx: (
+                                        s < len(self._targets)
+                                        and self._is_upgrade_available(
+                                            self._targets[s]
+                                        )
+                                    ),
+                                ),
                             ),
                         ),
                         pystray.Menu.SEPARATOR,

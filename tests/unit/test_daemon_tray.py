@@ -3653,8 +3653,8 @@ class TestGreyedOutMenuItems:
                 "Statistics should be visible when single daemon exists"
             )
 
-    def test_restart_daemon_visible_when_stopped(self):
-        """Restart daemon should be visible even when daemon is stopped."""
+    def test_maintenance_submenu_visible_when_stopped(self):
+        """Maintenance submenu (containing Restart daemon) should be visible even when daemon is stopped."""
         tray = self._make_tray([
             DaemonTarget(name="local", runtime="local", status="stopped"),
         ])
@@ -3677,14 +3677,14 @@ class TestGreyedOutMenuItems:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
             mock_pystray.Menu.SEPARATOR = mock.MagicMock()
-            items = tray._build_single_daemon_daemon_items()
+            tray._build_single_daemon_daemon_items()
 
-            kwargs = self._get_menu_item_kwargs(mock_pystray, "Restart daemon")
-            assert kwargs is not None, "Restart daemon not found"
+            kwargs = self._get_menu_item_kwargs(mock_pystray, "Maintenance")
+            assert kwargs is not None, "Maintenance submenu not found"
             vis_cb = kwargs.get("visible")
-            assert vis_cb is not None, "Restart daemon missing visible="
+            assert vis_cb is not None, "Maintenance missing visible="
             assert vis_cb(None) is True, (
-                "Restart daemon should be visible when daemon is stopped"
+                "Maintenance should be visible when daemon is stopped"
             )
 
     def test_daemon_status_label_starting(self):
