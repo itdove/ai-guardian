@@ -12,6 +12,7 @@ Usage in ai-guardian.json:
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Optional, Set
 
@@ -36,6 +37,8 @@ class TomlPatternsScanner(Scanner):
     def __init__(self):
         self._cache = PatternCache()
         self._allowed_pii_types: Optional[Set[str]] = None
+        self._compiled_allowlist: List[re.Pattern] = []
+        self._ignore_files: List[str] = []
         toml_paths = []
         for key in ("secrets", "pii"):
             path = BUNDLED_FILES.get(key)
@@ -67,6 +70,15 @@ class TomlPatternsScanner(Scanner):
         additional = config.get("additional_patterns", [])
         if additional:
             self._cache.load_rules(additional, category="secrets")
+
+        allowlist_raw = config.get("allowlist_patterns")
+        if allowlist_raw:
+            from ai_guardian.allowlist_utils import compile_allowlist
+            self._compiled_allowlist = compile_allowlist(allowlist_raw)
+        else:
+            self._compiled_allowlist = []
+
+        self._ignore_files = config.get("ignore_files") or []
 
     def _load_from_server(self, server_config: dict) -> None:
         """Load patterns from a single pattern server."""
@@ -100,6 +112,11 @@ class TomlPatternsScanner(Scanner):
         Returns:
             List of Finding objects
         """
+        if file_path and self._ignore_files:
+            from ai_guardian.utils.path_matching import matches_ignore_files
+            if matches_ignore_files(file_path, self._ignore_files):
+                return []
+
         raw_findings = self._cache.scan(content, categories=["secrets", "pii"])
         findings = []
         for f in raw_findings:
@@ -115,4 +132,17 @@ class TomlPatternsScanner(Scanner):
                 severity="warning",
                 category=f.category,
             ))
+
+        if findings and self._compiled_allowlist:
+            from ai_guardian.allowlist_utils import check_allowlist
+            content_lines = content.splitlines()
+            filtered = []
+            for f in findings:
+                line_idx = f.line_number - 1
+                if 0 <= line_idx < len(content_lines):
+                    if check_allowlist(content_lines[line_idx], self._compiled_allowlist):
+                        continue
+                filtered.append(f)
+            findings = filtered
+
         return findings

@@ -177,8 +177,20 @@ ENGINE_PRESETS = {
 _PYTHON_SCANNER_PRESETS = {"toml-patterns"}
 
 
-def _build_python_preset(preset_name: str, scanner_config: Optional[dict] = None) -> Optional[EngineConfig]:
-    """Build an EngineConfig for a built-in Python scanner preset."""
+def _build_python_preset(
+    preset_name: str,
+    scanner_config: Optional[dict] = None,
+    parent_config: Optional[dict] = None,
+) -> Optional[EngineConfig]:
+    """Build an EngineConfig for a built-in Python scanner preset.
+
+    Args:
+        preset_name: Name of the preset (e.g. "toml-patterns").
+        scanner_config: Per-engine scanner configuration overrides.
+        parent_config: Top-level secret_scanning config — used to pass
+            ``allowlist_patterns`` and ``ignore_files`` to the scanner
+            when not set in *scanner_config*.
+    """
     if preset_name == "toml-patterns":
         try:
             from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
@@ -192,6 +204,10 @@ def _build_python_preset(preset_name: str, scanner_config: Optional[dict] = None
                         effective_config["pii_types"] = pii_config.get("pii_types")
                 except Exception:
                     pass
+            if parent_config:
+                for key in ("allowlist_patterns", "ignore_files"):
+                    if key not in effective_config and key in parent_config:
+                        effective_config[key] = parent_config[key]
             if effective_config:
                 scanner.configure(effective_config)
             return EngineConfig(
@@ -207,20 +223,25 @@ def _build_python_preset(preset_name: str, scanner_config: Optional[dict] = None
     return None
 
 
-def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
+def _build_engine_config(
+    engine_spec: Any,
+    parent_config: Optional[dict] = None,
+) -> Optional[EngineConfig]:
     """
     Build an EngineConfig from a specification.
 
     Args:
         engine_spec: Engine specification — either a string (preset name)
             or a dict (preset with overrides or custom engine)
+        parent_config: Top-level secret_scanning config passed to Python
+            scanner presets for allowlist/ignore_files support.
 
     Returns:
         EngineConfig if spec is valid, None otherwise
     """
     if isinstance(engine_spec, str):
         if engine_spec in _PYTHON_SCANNER_PRESETS:
-            return _build_python_preset(engine_spec)
+            return _build_python_preset(engine_spec, parent_config=parent_config)
         if engine_spec not in ENGINE_PRESETS:
             logging.warning(f"Unknown engine preset: {engine_spec}")
             return None
@@ -229,7 +250,7 @@ def _build_engine_config(engine_spec: Any) -> Optional[EngineConfig]:
     # Dictionary: preset with overrides or custom engine
     engine_type = engine_spec.get("type")
     if engine_type in _PYTHON_SCANNER_PRESETS:
-        return _build_python_preset(engine_type, scanner_config=engine_spec.get("scanner_config"))
+        return _build_python_preset(engine_type, scanner_config=engine_spec.get("scanner_config"), parent_config=parent_config)
     if engine_type in ENGINE_PRESETS:
         engine_config = copy.deepcopy(ENGINE_PRESETS[engine_type])
         if "binary" in engine_spec:
@@ -315,7 +336,10 @@ def revoke_engine_consent(engine_type: str) -> bool:
     return False
 
 
-def select_engine(engines_config: List[Any]) -> EngineConfig:
+def select_engine(
+    engines_config: List[Any],
+    parent_config: Optional[dict] = None,
+) -> EngineConfig:
     """
     Select first available engine from configuration list.
 
@@ -326,6 +350,8 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
         engines_config: List of engine specifications. Each can be:
             - String: name of built-in preset (e.g., "betterleaks")
             - Dict: preset with overrides or custom engine definition
+        parent_config: Top-level secret_scanning config passed to Python
+            scanner presets for allowlist/ignore_files support.
 
     Returns:
         EngineConfig: First available engine configuration
@@ -339,7 +365,7 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
         'betterleaks'  # or 'gitleaks' if betterleaks not installed
     """
     for engine_spec in engines_config:
-        engine_config = _build_engine_config(engine_spec)
+        engine_config = _build_engine_config(engine_spec, parent_config=parent_config)
         if engine_config is None:
             continue
 
@@ -370,7 +396,10 @@ def select_engine(engines_config: List[Any]) -> EngineConfig:
     )
 
 
-def select_all_engines(engines_config: List[Any]) -> List[EngineConfig]:
+def select_all_engines(
+    engines_config: List[Any],
+    parent_config: Optional[dict] = None,
+) -> List[EngineConfig]:
     """
     Select all available engines from configuration list.
 
@@ -380,6 +409,8 @@ def select_all_engines(engines_config: List[Any]) -> List[EngineConfig]:
 
     Args:
         engines_config: List of engine specifications
+        parent_config: Top-level secret_scanning config passed to Python
+            scanner presets for allowlist/ignore_files support.
 
     Returns:
         List of available EngineConfig objects
@@ -389,7 +420,7 @@ def select_all_engines(engines_config: List[Any]) -> List[EngineConfig]:
     """
     available = []
     for engine_spec in engines_config:
-        engine_config = _build_engine_config(engine_spec)
+        engine_config = _build_engine_config(engine_spec, parent_config=parent_config)
         if engine_config is None:
             continue
 

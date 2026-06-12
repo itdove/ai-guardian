@@ -424,5 +424,64 @@ class TestResolveEngineConfigPath(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestParentConfigPassthrough(unittest.TestCase):
+    """Tests for parent_config flowing to Python scanners (Issue #1093)."""
+
+    def test_build_python_preset_with_parent_config(self):
+        from ai_guardian.scanners.engine_builder import _build_python_preset
+        parent = {
+            "allowlist_patterns": ["test-pattern"],
+            "ignore_files": ["**/fixtures/**"],
+        }
+        config = _build_python_preset("toml-patterns", parent_config=parent)
+        self.assertIsNotNone(config)
+        scanner = config.python_scanner
+        self.assertEqual(scanner._ignore_files, ["**/fixtures/**"])
+        self.assertEqual(len(scanner._compiled_allowlist), 1)
+
+    def test_build_engine_config_passes_parent_config(self):
+        parent = {
+            "allowlist_patterns": ["test-pattern"],
+            "ignore_files": ["*.test"],
+        }
+        config = _build_engine_config("toml-patterns", parent_config=parent)
+        self.assertIsNotNone(config)
+        self.assertEqual(config.python_scanner._ignore_files, ["*.test"])
+
+    def test_select_engine_passes_parent_config(self):
+        parent = {
+            "allowlist_patterns": ["test-pattern"],
+            "ignore_files": ["*.test"],
+        }
+        config = select_engine(["toml-patterns"], parent_config=parent)
+        self.assertIsNotNone(config)
+        self.assertEqual(config.python_scanner._ignore_files, ["*.test"])
+
+    def test_scanner_config_overrides_parent_config(self):
+        from ai_guardian.scanners.engine_builder import _build_python_preset
+        parent = {"ignore_files": ["parent-pattern"]}
+        scanner_cfg = {"ignore_files": ["engine-pattern"]}
+        config = _build_python_preset(
+            "toml-patterns",
+            scanner_config=scanner_cfg,
+            parent_config=parent,
+        )
+        self.assertIsNotNone(config)
+        self.assertEqual(config.python_scanner._ignore_files, ["engine-pattern"])
+
+    def test_parent_config_none_works(self):
+        config = _build_engine_config("toml-patterns", parent_config=None)
+        self.assertIsNotNone(config)
+        self.assertEqual(config.python_scanner._ignore_files, [])
+
+    def test_subprocess_engine_ignores_parent_config(self):
+        """Subprocess engines don't use parent_config (no Python scanner)."""
+        parent = {"allowlist_patterns": ["test"]}
+        with patch("shutil.which", return_value="/usr/bin/gitleaks"):
+            config = select_engine(["gitleaks"], parent_config=parent)
+        self.assertEqual(config.type, "gitleaks")
+        self.assertIsNone(config.python_scanner)
+
+
 if __name__ == '__main__':
     unittest.main()

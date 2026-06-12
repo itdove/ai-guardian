@@ -285,3 +285,113 @@ class TestTomlPatternsEngineBuilder:
         config = select_engine(["toml-patterns"])
         assert config is not None
         assert config.python_scanner.name == "toml-patterns"
+
+
+class TestTomlPatternsAllowlist:
+    """Tests for scanner-level allowlist filtering (Issue #1093)."""
+
+    def test_configure_allowlist_suppresses_matching_finding(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"allowlist_patterns": ["sk-abcdefghijklmnopqrstuvwxyz"]})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert not any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_allowlist_does_not_suppress_nonmatching(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"allowlist_patterns": ["some-other-pattern"]})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_allowlist_empty_list_no_effect(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"allowlist_patterns": []})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_allowlist_none_no_effect(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_allowlist_dangerous_pattern_blocked(self):
+        """compile_allowlist strips catch-all patterns like '.*'."""
+        scanner = TomlPatternsScanner()
+        scanner.configure({"allowlist_patterns": [".*"]})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+
+class TestTomlPatternsIgnoreFiles:
+    """Tests for scanner-level ignore_files filtering (Issue #1093)."""
+
+    def test_ignore_files_matching_path_returns_empty(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"ignore_files": ["**/tests/fixtures/**"]})
+        findings = scanner.scan(
+            "Config: sk-abcdefghijklmnopqrstuvwxyz",
+            file_path="/project/tests/fixtures/creds.json",
+        )
+        assert findings == []
+
+    def test_ignore_files_nonmatching_path_scans_normally(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"ignore_files": ["**/tests/fixtures/**"]})
+        findings = scanner.scan(
+            "Config: sk-abcdefghijklmnopqrstuvwxyz",
+            file_path="/project/src/main.py",
+        )
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_ignore_files_none_file_path_scans_normally(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"ignore_files": ["**/tests/**"]})
+        findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_ignore_files_empty_list_scans_normally(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"ignore_files": []})
+        findings = scanner.scan(
+            "Config: sk-abcdefghijklmnopqrstuvwxyz",
+            file_path="/project/src/main.py",
+        )
+        assert any(f.rule_id == "openai-api-key" for f in findings)
+
+    def test_ignore_files_basename_matching(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({"ignore_files": ["*.fixture"]})
+        findings = scanner.scan(
+            "Config: sk-abcdefghijklmnopqrstuvwxyz",
+            file_path="/project/data/creds.fixture",
+        )
+        assert findings == []
+
+
+class TestTomlPatternsAllowlistAndIgnoreInteraction:
+    """Test interaction between allowlist and ignore_files (Issue #1093)."""
+
+    def test_ignore_files_takes_precedence(self):
+        """Ignored file returns [] without even checking allowlist."""
+        scanner = TomlPatternsScanner()
+        scanner.configure({
+            "allowlist_patterns": ["some-pattern"],
+            "ignore_files": ["**/fixtures/**"],
+        })
+        findings = scanner.scan(
+            "Config: sk-abcdefghijklmnopqrstuvwxyz",
+            file_path="/project/fixtures/test.json",
+        )
+        assert findings == []
+
+    def test_allowlist_filters_when_not_ignored(self):
+        scanner = TomlPatternsScanner()
+        scanner.configure({
+            "allowlist_patterns": ["sk-abcdefghijklmnopqrstuvwxyz"],
+            "ignore_files": ["**/fixtures/**"],
+        })
+        findings = scanner.scan(
+            "Config: sk-abcdefghijklmnopqrstuvwxyz",
+            file_path="/project/src/main.py",
+        )
+        assert not any(f.rule_id == "openai-api-key" for f in findings)
