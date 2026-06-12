@@ -134,6 +134,11 @@ class ImageDetector:
         return bool(_BASE64_IMAGE_RE.search(text))
 
     @staticmethod
+    def strip_base64_images(text: str) -> str:
+        """Remove base64 image data URIs from text, leaving only non-image content."""
+        return _BASE64_IMAGE_RE.sub('', text)
+
+    @staticmethod
     def extract_base64_images(text: str) -> List[bytes]:
         results = []
         for match in _BASE64_IMAGE_RE.finditer(text):

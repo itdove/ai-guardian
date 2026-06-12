@@ -4273,6 +4273,9 @@ def process_hook_data(hook_data, daemon_state=None):
                         except Exception as e:
                             logging.warning(f"Prompt image scanning error (fail-open): {e}")
 
+                    # Strip base64 image data from content before unicode/injection scanning (Issue #1120)
+                    content_to_scan = ImageDetector.strip_base64_images(content_to_scan)
+
             logging.info("Scanning user prompt for secrets...")
             secret_content_to_scan = None  # No annotation processing for prompts
             pii_content_to_scan = None

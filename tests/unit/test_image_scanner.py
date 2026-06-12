@@ -130,6 +130,47 @@ class TestImageDetector(TestCase):
         images = ImageDetector.extract_base64_images(text)
         self.assertEqual(len(images), 2)
 
+    def test_strip_base64_images_removes_data_uri(self):
+        import base64
+        data = _create_test_image()
+        b64 = base64.b64encode(data).decode()
+        text = f"Hello world data:image/png;base64,{b64} some text after"
+        result = ImageDetector.strip_base64_images(text)
+        self.assertNotIn("base64", result)
+        self.assertIn("Hello world", result)
+        self.assertIn("some text after", result)
+
+    def test_strip_base64_images_no_images(self):
+        text = "Just plain text without images"
+        result = ImageDetector.strip_base64_images(text)
+        self.assertEqual(result, text)
+
+    def test_strip_base64_images_multiple(self):
+        import base64
+        data1 = _create_test_image(color="red")
+        data2 = _create_test_image(color="blue")
+        b64_1 = base64.b64encode(data1).decode()
+        b64_2 = base64.b64encode(data2).decode()
+        text = f"before data:image/png;base64,{b64_1} middle data:image/jpeg;base64,{b64_2} after"
+        result = ImageDetector.strip_base64_images(text)
+        self.assertNotIn("base64", result)
+        self.assertIn("before", result)
+        self.assertIn("middle", result)
+        self.assertIn("after", result)
+
+    def test_strip_base64_images_preserves_ocr_text(self):
+        """Verify that stripping happens on the original content, not on appended OCR text."""
+        import base64
+        data = _create_test_image()
+        b64 = base64.b64encode(data).decode()
+        content = f"User prompt data:image/png;base64,{b64}"
+        ocr_text = "OCR extracted: API_KEY=test123"
+        content_with_ocr = f"{content}\n{ocr_text}"
+        result = ImageDetector.strip_base64_images(content_with_ocr)
+        self.assertNotIn("base64", result)
+        self.assertIn("User prompt", result)
+        self.assertIn(ocr_text, result)
+
 
 class TestOCREngine(TestCase):
     """Test OCR engine with mocked rapidocr."""
