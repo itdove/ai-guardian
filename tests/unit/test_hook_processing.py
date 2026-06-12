@@ -91,6 +91,24 @@ class HookInputParsingTests(TestCase):
 
         assert result['exit_code'] == 0, "Clean output should be allowed"
 
+    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
+    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    def test_userpromptsubmit_allows_curl_pipe_bash(self, mock_pattern_config, mock_redaction_config):
+        """Supply chain scanning should not block UserPromptSubmit (issue #1114)"""
+        mock_pattern_config.return_value = None
+        mock_redaction_config.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "The script has AI_GUARDIAN_VERSION, I think we can reuse it for example here\n"
+                      "    curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s --"
+        }
+
+        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        assert result['exit_code'] == 0, "Prompt discussing curl install should not be blocked"
+
 
 class HookToolResponseExtractionTests(TestCase):
     """Test tool response extraction for different tools"""

@@ -4396,7 +4396,9 @@ def process_hook_data(hook_data, daemon_state=None):
                 logging.warning(f"Context poisoning check error (fail-open): {e}")
 
         # Check for supply chain threats in agent configuration files
-        if HAS_SUPPLY_CHAIN and content_to_scan:
+        # Skip on UserPromptSubmit — users legitimately discuss curl install
+        # commands, paste docs, and debug curl issues (see #1114)
+        if HAS_SUPPLY_CHAIN and content_to_scan and hook_event != HookEvent.PROMPT:
             try:
                 sc_config, sc_error = _load_supply_chain_config()
                 if sc_error:
