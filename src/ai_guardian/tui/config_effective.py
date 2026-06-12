@@ -54,7 +54,7 @@ class ConfigEffectiveContent(Container):
     def load_config(self) -> None:
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "ai_guardian", "config", "show", "--all", "--json"],
+                ["python", "-m", "ai_guardian", "config", "show", "--all", "--json"],
                 capture_output=True,
                 text=True,
                 timeout=10,

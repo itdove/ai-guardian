@@ -266,15 +266,14 @@ class TestCrossPlatform:
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("sys.executable", "/usr/bin/python3"):
-                with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._launch_console()
-                    mock_popen.assert_called_once()
-                    script = mock_popen.call_args[0][0][2]
-                    assert "osascript" in mock_popen.call_args[0][0][0]
-                    assert 'do script ""' in script
-                    assert "delay 2" in script
-                    assert '/usr/bin/python3 -m ai_guardian console' in script
+            with mock.patch("subprocess.Popen") as mock_popen:
+                tray._launch_console()
+                mock_popen.assert_called_once()
+                script = mock_popen.call_args[0][0][2]
+                assert "osascript" in mock_popen.call_args[0][0][0]
+                assert 'do script ""' in script
+                assert "delay 2" in script
+                assert 'python -m ai_guardian console' in script
 
     def test_console_launch_macos_deferred_command(self):
         """Command is sent after shell init to avoid interactive prompts (issue #599)."""
@@ -294,19 +293,18 @@ class TestCrossPlatform:
                     assert do_script_lines[0] == 'set currentTab to do script ""'
                     assert "in currentTab" in do_script_lines[1]
 
-    def test_console_launch_macos_uses_same_venv(self):
-        """_resolve_cli_cmd always uses sys.executable for venv consistency."""
+    def test_console_launch_macos_uses_python_command(self):
+        """_resolve_cli_cmd uses 'python' command for correct environment resolution."""
         tray = DaemonTray(
             get_stats_callback=lambda: {},
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("sys.executable", "/custom/venv/bin/python"):
-                with mock.patch("subprocess.Popen") as mock_popen:
-                    tray._launch_console()
-                    script = mock_popen.call_args[0][0][2]
-                    assert "/custom/venv/bin/python -m ai_guardian console" in script
+            with mock.patch("subprocess.Popen") as mock_popen:
+                tray._launch_console()
+                script = mock_popen.call_args[0][0][2]
+                assert "python -m ai_guardian console" in script
 
     def test_console_launch_windows(self):
         tray = DaemonTray(
@@ -707,13 +705,12 @@ class TestIDESetupMenu:
                     assert "close" not in script
                     assert "repeat" not in script
 
-    def test_launch_ide_setup_uses_same_venv(self):
+    def test_launch_ide_setup_uses_python_command(self):
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("sys.executable", "/custom/venv/bin/python"):
-                with mock.patch("subprocess.Popen") as mock_popen:
-                    DaemonTray._launch_ide_setup("cursor")
-                    script = mock_popen.call_args[0][0][2]
-                    assert "/custom/venv/bin/python -m ai_guardian setup --ide cursor" in script
+            with mock.patch("subprocess.Popen") as mock_popen:
+                DaemonTray._launch_ide_setup("cursor")
+                script = mock_popen.call_args[0][0][2]
+                assert "python -m ai_guardian setup --ide cursor" in script
 
     def test_launch_ide_setup_linux_keeps_terminal_open(self):
         with mock.patch("platform.system", return_value="Linux"):
@@ -2068,14 +2065,16 @@ class TestPluginMenuItems:
             )
             with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
-                    with mock.patch("sys.executable", "/venv/bin/python"):
-                        DaemonTray._execute_plugin_command(
-                            "ai-guardian --version", "modal", label="Version",
-                        )
-                        mock_run.assert_called_once()
-                        args = mock_run.call_args[0][0]
-                        assert args == ["/bin/zsh", "-lc", "/venv/bin/python -m ai_guardian --version"]
-                        mock_dialog.assert_called_once_with("Version", "ai-guardian 1.8.0")
+                    DaemonTray._execute_plugin_command(
+                        "ai-guardian --version", "modal", label="Version",
+                    )
+                    mock_run.assert_called_once()
+                    args = mock_run.call_args[0][0]
+                    assert args[0] == "/bin/zsh"
+                    assert args[1] == "-lc"
+                    assert "python" in args[2]  # May be absolute path
+                    assert "-m ai_guardian --version" in args[2]
+                    mock_dialog.assert_called_once_with("Version", "ai-guardian 1.8.0")
 
     def test_execute_plugin_command_modal_no_output(self):
         with mock.patch("subprocess.run") as mock_run:
@@ -2191,21 +2190,23 @@ class TestPluginMenuItems:
                 assert "exec" in args
 
     def test_resolve_plugin_ai_guardian_replaces_bare_command(self):
-        """ai-guardian in plugin commands resolves to tray's Python."""
-        with mock.patch("sys.executable", "/venv/bin/python"):
-            result = DaemonTray._resolve_plugin_ai_guardian(
-                "ai-guardian sanitize img.png --summary", False, None,
-            )
-            assert result == "/venv/bin/python -m ai_guardian sanitize img.png --summary"
+        """ai-guardian in plugin commands resolves to python -m ai_guardian."""
+        result = DaemonTray._resolve_plugin_ai_guardian(
+            "ai-guardian sanitize img.png --summary", False, None,
+        )
+        assert "python" in result  # May be absolute path
+        assert "-m ai_guardian sanitize img.png --summary" in result
 
     def test_resolve_plugin_ai_guardian_bare_no_args(self):
         """ai-guardian alone (no arguments) resolves correctly."""
-        with mock.patch("sys.executable", "/venv/bin/python"):
-            result = DaemonTray._resolve_plugin_ai_guardian(
-                "ai-guardian", False, None,
-            )
-            assert "-m ai_guardian" in result
-            assert "ai-guardian" not in result.split("-m")[0]
+        result = DaemonTray._resolve_plugin_ai_guardian(
+            "ai-guardian", False, None,
+        )
+        assert "python" in result  # May be absolute path
+        assert "-m ai_guardian" in result
+        # The command before "-m" should be a Python path, not ai-guardian executable
+        before_m = result.split("-m")[0]
+        assert before_m.strip().endswith("python") or "bin/python" in before_m
 
     def test_resolve_plugin_ai_guardian_non_matching_command(self):
         """Commands not starting with ai-guardian are left unchanged."""
@@ -2245,29 +2246,27 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_resolves_ai_guardian_terminal(self):
         """Terminal plugin commands with ai-guardian use tray's Python."""
         with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-            with mock.patch("sys.executable", "/venv/bin/python"):
-                DaemonTray._execute_plugin_command(
-                    "ai-guardian doctor", "terminal",
-                )
-                mock_launch.assert_called_once()
-                args = mock_launch.call_args[0][0]
-                assert args[0] == "/venv/bin/python"
-                assert args[1:3] == ["-m", "ai_guardian"]
-                assert "doctor" in args
+            DaemonTray._execute_plugin_command(
+                "ai-guardian doctor", "terminal",
+            )
+            mock_launch.assert_called_once()
+            args = mock_launch.call_args[0][0]
+            assert "python" in args[0]  # May be absolute path
+            assert args[1:3] == ["-m", "ai_guardian"]
+            assert "doctor" in args
 
     def test_execute_plugin_command_resolves_ai_guardian_notification(self):
-        """Notification plugin commands with ai-guardian use tray's Python."""
+        """Notification plugin commands with ai-guardian use python -m."""
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(stdout="ok\n")
             with mock.patch("ai_guardian.daemon.tray_plugins.send_notification"):
-                with mock.patch("sys.executable", "/venv/bin/python"):
-                    DaemonTray._execute_plugin_command(
-                        "ai-guardian version", "notification",
-                    )
-                    args = mock_run.call_args[0][0]
-                    cmd_line = " ".join(args)
-                    assert "/venv/bin/python" in cmd_line
-                    assert "-m ai_guardian" in cmd_line
+                DaemonTray._execute_plugin_command(
+                    "ai-guardian version", "notification",
+                )
+                args = mock_run.call_args[0][0]
+                cmd_line = " ".join(args)
+                assert "python" in cmd_line
+                assert "-m ai_guardian" in cmd_line
 
     def test_execute_plugin_command_with_params(self):
         tray = self._make_tray()
@@ -2437,15 +2436,14 @@ class TestPluginMenuItems:
             mock_run.return_value = mock.MagicMock(stdout="")
             with mock.patch("ai_guardian.daemon.tray_plugins.copy_to_clipboard"):
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
-                    with mock.patch("sys.executable", "/venv/bin/python"):
-                        DaemonTray._execute_plugin_command(
-                            "ai-guardian doctor > /tmp/report.txt", "clipboard",
-                        )
-                        args = mock_run.call_args[0][0]
-                        assert args == [
-                            "/bin/zsh", "-lc",
-                            "/venv/bin/python -m ai_guardian doctor > /tmp/report.txt",
-                        ]
+                    DaemonTray._execute_plugin_command(
+                        "ai-guardian doctor > /tmp/report.txt", "clipboard",
+                    )
+                    args = mock_run.call_args[0][0]
+                    assert args[0] == "/bin/zsh"
+                    assert args[1] == "-lc"
+                    assert "python" in args[2]  # May be absolute path
+                    assert "-m ai_guardian doctor > /tmp/report.txt" in args[2]
 
     def test_execute_plugin_command_shell_terminal(self):
         with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
@@ -2476,15 +2474,14 @@ class TestDoctorMenuItem:
                 assert "doctor" in cmd
                 assert mock_launch.call_args[1].get("keep_open", True) is True
 
-    def test_launch_doctor_uses_same_venv(self):
+    def test_launch_doctor_uses_python_command(self):
         with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
-            with mock.patch("sys.executable", "/custom/venv/bin/python"):
-                DaemonTray._launch_doctor()
-                cmd = mock_launch.call_args[0][0]
-                assert cmd[0] == "/custom/venv/bin/python"
-                assert cmd[1] == "-m"
-                assert cmd[2] == "ai_guardian"
-                assert cmd[3] == "doctor"
+            DaemonTray._launch_doctor()
+            cmd = mock_launch.call_args[0][0]
+            assert cmd[0] == "python"
+            assert cmd[1] == "-m"
+            assert cmd[2] == "ai_guardian"
+            assert cmd[3] == "doctor"
 
     def test_config_error_notification_shown_once(self):
         tray = DaemonTray(

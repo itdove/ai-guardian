@@ -482,7 +482,7 @@ class DaemonTray:
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("About", self._on_about,
+            pystray.MenuItem(self._about_label, self._on_about,
                              enabled=lambda _: (
                                  any(
                                      t.status in ("running", "paused")
@@ -841,25 +841,55 @@ class DaemonTray:
         return self._mcp_installed_per_daemon.get(key, self._mcp_installed_local)
 
     @staticmethod
+    def _get_python_executable():
+        """Get the best available Python executable path.
+
+        Returns:
+            str: Path to Python executable
+        """
+        import shutil
+        import sys
+
+        # Try to find python in PATH
+        python_exe = shutil.which("python")
+        if python_exe:
+            return python_exe
+
+        # Try python3 as fallback
+        python_exe = shutil.which("python3")
+        if python_exe:
+            return python_exe
+
+        # Use sys.executable as last resort
+        return sys.executable
+
+    @staticmethod
     def _resolve_cli_cmd(*args):
         """Build command list for running ai-guardian with given arguments.
 
-        Always uses the current process's Python interpreter to guarantee
-        the same virtualenv as the running tray.
+        Uses absolute path to python to ensure it works in subprocesses that
+        may not have the same PATH (e.g., Terminal.app on macOS).
         """
-        import sys
+        import shutil
 
-        return [sys.executable, "-m", "ai_guardian"] + list(args)
+        # Try multiple strategies to find a working Python
+        # 1. Check if ai-guardian executable exists (best option)
+        ag_path = shutil.which("ai-guardian")
+        if ag_path:
+            return [ag_path] + list(args)
+
+        # 2. Use resolved Python executable
+        python_exe = DaemonTray._get_python_executable()
+        return [python_exe, "-m", "ai_guardian"] + list(args)
 
     @staticmethod
     def _resolve_plugin_ai_guardian(command_str, run_on_target, target):
-        """Replace bare ``ai-guardian`` with the tray's Python interpreter.
+        """Replace bare ``ai-guardian`` with absolute python path.
 
         Skipped for remote targets (container / kubernetes) where the
         command must resolve via PATH on the remote host.
         """
         import shlex
-        import sys
 
         is_remote = (
             run_on_target and target
@@ -871,7 +901,8 @@ class DaemonTray:
 
         stripped = command_str.lstrip()
         if stripped == "ai-guardian" or stripped.startswith("ai-guardian "):
-            resolved = shlex.quote(sys.executable) + " -m ai_guardian"
+            python_exe = DaemonTray._get_python_executable()
+            resolved = shlex.quote(python_exe) + " -m ai_guardian"
             return resolved + stripped[len("ai-guardian"):]
         return command_str
 
@@ -899,20 +930,21 @@ class DaemonTray:
                 pass
         try:
             cmd = DaemonTray._resolve_cli_cmd("console") + ["--web", "--no-open"]
+            logger.debug("Starting web console with command: %s", cmd)
             self._web_proc = subprocess.Popen(
                 cmd,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            logger.info("Web console started (pid %d)", self._web_proc.pid)
+            logger.info("Web console started (pid %d, cmd: %s)", self._web_proc.pid, cmd[0])
             threading.Thread(
                 target=self._notify_web_console_ready,
                 daemon=True,
                 name="web-console-notify",
             ).start()
         except Exception as e:
-            logger.debug("Web console failed to start: %s", e)
+            logger.error("Web console failed to start: %s (cmd: %s)", e, cmd if 'cmd' in locals() else 'N/A')
 
     def _notify_web_console_ready(self):
         """Wait for web console to be ready, update menu, then notify."""
@@ -1028,6 +1060,15 @@ class DaemonTray:
         _launch_in_terminal(DaemonTray._resolve_cli_cmd("doctor"), keep_open=True)
 
     @staticmethod
+    def _about_label(_item=None):
+        """Build About menu label with tray version."""
+        try:
+            from ai_guardian import __version__
+            return f"About — v{__version__}"
+        except ImportError:
+            return "About"
+
+    @staticmethod
     def _build_about_text():
         """Build the About dialog text with tray process info."""
         from ai_guardian.daemon.about import get_about_info, format_about_text
@@ -1045,6 +1086,19 @@ class DaemonTray:
             except Exception:
                 pass
         threading.Thread(target=_show, daemon=True, name="about-dialog").start()
+
+    def _daemon_about_label(self, slot):
+        """Build About menu label with daemon version for a specific slot."""
+        def _label(_item=None):
+            if slot >= len(self._targets):
+                return "About"
+            target = self._targets[slot]
+            key = (target.name, target.runtime)
+            version = self._daemon_versions.get(key, "")
+            if version:
+                return f"About — v{version}"
+            return "About"
+        return _label
 
     def _on_daemon_about(self, slot):
         """Show About info for a specific daemon via OS dialog."""
@@ -1354,8 +1408,9 @@ class DaemonTray:
                 available = self._multi_client.check_pip_available(target)
             else:
                 import subprocess as _sp
+                python_exe = DaemonTray._get_python_executable()
                 result = _sp.run(
-                    [sys.executable, "-m", "pip", "--version"],
+                    [python_exe, "-m", "pip", "--version"],
                     capture_output=True, text=True, timeout=10,
                 )
                 available = result.returncode == 0
@@ -1364,10 +1419,20 @@ class DaemonTray:
             self._pip_available[key] = False
 
     def _is_upgrade_available(self, target):
-        """Return True if target has a version mismatch and pip is available."""
+        """Return True if target has a version mismatch and pip is available.
+
+        Only offers upgrade if tray version is installable (not a dev version).
+        """
         if not target:
             return False
         key = (target.name, target.runtime)
+        # Don't offer upgrade if tray is running a dev version (not on PyPI)
+        try:
+            from ai_guardian import __version__ as tray_version
+            if "-dev" in tray_version or "dev" in tray_version.lower():
+                return False
+        except ImportError:
+            return False
         return (
             key in self._version_mismatch_notified
             and self._pip_available.get(key, False)
@@ -1375,25 +1440,35 @@ class DaemonTray:
         )
 
     def _upgrade_label(self, target):
-        """Dynamic label for the Upgrade menu item."""
+        """Dynamic label for the sync-to-tray-version menu item."""
         if target:
             key = (target.name, target.runtime)
             if key in self._upgrade_in_progress:
-                return "Upgrading…"
-        if self._pypi_latest:
-            return f"Upgrade to v{self._pypi_latest}"
-        return "Upgrade daemon"
+                return "Syncing…"
+        try:
+            from ai_guardian import __version__ as tray_version
+            return f"Match Tray v{tray_version}"
+        except ImportError:
+            return "Match Tray Version"
 
     def _do_upgrade_daemon(self, target):
-        """Run pip upgrade on a target daemon (runs in background thread)."""
+        """Sync daemon version to match tray version (runs in background thread)."""
         key = (target.name, target.runtime)
         self._upgrade_in_progress.add(key)
         self._dispatch_to_main(self._refresh_menu)
+
+        # Get tray version to sync to
+        try:
+            from ai_guardian import __version__ as tray_version
+        except ImportError:
+            tray_version = None
+
         try:
             from ai_guardian.daemon.tray_plugins import send_notification
             send_notification(
                 "AI Guardian",
-                f"Upgrading ai-guardian on '{target.name}'…",
+                f"Syncing ai-guardian on '{target.name}' to v{tray_version}…" if tray_version
+                else f"Syncing ai-guardian on '{target.name}'…",
             )
         except Exception:
             pass
@@ -1402,14 +1477,16 @@ class DaemonTray:
         output = ""
         try:
             if self._multi_client:
-                success, output = self._multi_client.run_pip_upgrade(target)
+                success, output = self._multi_client.run_pip_upgrade(target, tray_version)
             else:
                 import subprocess as _sp
-                result = _sp.run(
-                    [sys.executable, "-m", "pip", "install",
-                     "--upgrade", "ai-guardian"],
-                    capture_output=True, text=True, timeout=120,
-                )
+                python_exe = DaemonTray._get_python_executable()
+                # Install specific version to match tray
+                if tray_version:
+                    cmd = [python_exe, "-m", "pip", "install", f"ai-guardian=={tray_version}"]
+                else:
+                    cmd = [python_exe, "-m", "pip", "install", "--upgrade", "ai-guardian"]
+                result = _sp.run(cmd, capture_output=True, text=True, timeout=120)
                 success = result.returncode == 0
                 output = result.stdout + result.stderr
         except Exception as exc:
@@ -1420,7 +1497,7 @@ class DaemonTray:
             if success:
                 send_notification(
                     "AI Guardian",
-                    f"Upgrade complete on '{target.name}'. Restarting daemon…",
+                    f"Version sync complete on '{target.name}'. Restarting daemon…",
                 )
                 if self._multi_client:
                     self._multi_client.send_restart(target)
@@ -1431,7 +1508,7 @@ class DaemonTray:
                 first_line = output.strip().split("\n")[-1][:120] if output else "unknown error"
                 send_notification(
                     "AI Guardian",
-                    f"Upgrade failed on '{target.name}': {first_line}",
+                    f"Version sync failed on '{target.name}': {first_line}",
                 )
         except Exception:
             pass
@@ -1906,11 +1983,13 @@ class DaemonTray:
         def _open_panel(panel=None):
             def action(_, __):
                 self._check_and_autostart_daemon()
-                if panel and self._has_web_console and self._is_web_console_ready():
-                    web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
+                # Try to open web console if available (for any panel including main console)
+                if self._has_web_console and self._is_web_console_ready():
+                    web_page = self._PANEL_TO_WEB_PATH.get(panel, "") if panel else ""
                     daemon_name = self._targets[0].name if self._targets else ""
                     self._open_web_console(daemon_name, web_page)
                     return
+                # Fall back to TUI console
                 if self._targets:
                     t = self._targets[0]
                     if self._multi_client:
@@ -2061,13 +2140,8 @@ class DaemonTray:
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Console",
-                             lambda _, __: self._open_web_console(
-                                 self._targets[0].name if self._targets else ""
-                             ),
-                             visible=lambda _: (self._has_web_console
-                                                and self._is_single_daemon()
-                                                and self._is_web_console_ready()),
-                             enabled=_single_running),
+                             _open_panel(None),  # None means main console page
+                             visible=_single_vis, enabled=_single_running),
             pystray.MenuItem("Violations", _open_panel("panel-violations"),
                              visible=_single_vis, enabled=_single_running),
             pystray.MenuItem("Metrics & Audit", _open_panel("panel-metrics"),
@@ -2607,7 +2681,7 @@ class DaemonTray:
                             ),
                         ),
                         pystray.Menu.SEPARATOR,
-                        pystray.MenuItem("About", self._on_daemon_about(idx),
+                        pystray.MenuItem(self._daemon_about_label(idx), self._on_daemon_about(idx),
                                          enabled=_is_slot_running),
                     ),
                     visible=make_visible,
@@ -3299,9 +3373,9 @@ class DaemonTray:
     def _on_restart_tray(self, icon, item):
         """Restart the tray process."""
         import subprocess
-        import sys
 
-        cmd = [sys.executable, "-m", "ai_guardian", "tray", "start"]
+        cmd = DaemonTray._resolve_cli_cmd("tray", "start")
+        logger.debug("Restarting tray with command: %s", cmd)
         self.stop()
         self._stop()
         try:
@@ -3313,7 +3387,7 @@ class DaemonTray:
                 start_new_session=True,
             )
         except OSError as e:
-            logger.debug("Failed to restart tray: %s", e)
+            logger.error("Failed to restart tray: %s (cmd: %s)", e, cmd)
 
     def _on_quit(self, icon, item):
         self.stop()
