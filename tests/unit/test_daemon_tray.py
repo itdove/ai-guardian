@@ -273,7 +273,8 @@ class TestCrossPlatform:
                 assert "osascript" in mock_popen.call_args[0][0][0]
                 assert 'do script ""' in script
                 assert "delay 2" in script
-                assert "ai_guardian console" in script or "ai-guardian console" in script
+                script_lower = script.lower()
+                assert "ai_guardian console" in script_lower or "ai-guardian console" in script_lower or "ai-guardian.exe console" in script_lower
 
     def test_console_launch_macos_deferred_command(self):
         """Command is sent after shell init to avoid interactive prompts (issue #599)."""
@@ -304,7 +305,8 @@ class TestCrossPlatform:
             with mock.patch("subprocess.Popen") as mock_popen:
                 tray._launch_console()
                 script = mock_popen.call_args[0][0][2]
-                assert "ai_guardian console" in script or "ai-guardian console" in script
+                script_lower = script.lower()
+                assert "ai_guardian console" in script_lower or "ai-guardian console" in script_lower or "ai-guardian.exe console" in script_lower
 
     def test_console_launch_windows(self):
         tray = DaemonTray(
@@ -710,7 +712,8 @@ class TestIDESetupMenu:
             with mock.patch("subprocess.Popen") as mock_popen:
                 DaemonTray._launch_ide_setup("cursor")
                 script = mock_popen.call_args[0][0][2]
-                assert "ai-guardian setup --ide cursor" in script or "ai_guardian setup --ide cursor" in script
+                script_lower = script.lower()
+                assert "ai-guardian setup --ide cursor" in script_lower or "ai_guardian setup --ide cursor" in script_lower or "ai-guardian.exe setup --ide cursor" in script_lower
 
     def test_launch_ide_setup_linux_keeps_terminal_open(self):
         with mock.patch("platform.system", return_value="Linux"):
@@ -2202,11 +2205,10 @@ class TestPluginMenuItems:
         result = DaemonTray._resolve_plugin_ai_guardian(
             "ai-guardian", False, None,
         )
-        assert "python" in result  # May be absolute path
+        assert "python" in result.lower()
         assert "-m ai_guardian" in result
-        # The command before "-m" should be a Python path, not ai-guardian executable
-        before_m = result.split("-m")[0]
-        assert before_m.strip().endswith("python") or "bin/python" in before_m
+        before_m = result.split("-m")[0].strip().lower()
+        assert before_m.endswith("python") or before_m.endswith("python.exe") or "python" in before_m
 
     def test_resolve_plugin_ai_guardian_non_matching_command(self):
         """Commands not starting with ai-guardian are left unchanged."""

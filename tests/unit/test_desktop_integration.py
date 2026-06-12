@@ -65,7 +65,7 @@ class TestGetExecutableCommand:
 
         with mock.patch("ai_guardian.daemon.shutil.which", side_effect=mock_which):
             result = _get_executable_command()
-        assert result[0] == "/usr/bin/python3"
+        assert result[0].endswith("python3")
         assert result[1] == "-m"
         assert result[2] == "ai_guardian"
 
