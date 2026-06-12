@@ -44,15 +44,15 @@ See [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECUR
 
 ```bash
 # Linux / macOS (auto-detects uv → venv → pip)
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.0/install.sh | bash -s -- --ide claude
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s -- --ide claude
 
 # Force a specific install method
-curl -fsSL .../install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
-curl -fsSL .../install.sh | bash -s -- --venv --ide claude  # venv + pip
-curl -fsSL .../install.sh | bash -s -- --pip --ide claude   # bare pip
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s -- --venv --ide claude  # venv + pip
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s -- --pip --ide claude   # bare pip
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.ps1 | iex
 ```
 
 Or install manually:
@@ -295,7 +295,7 @@ python -m venv $env:USERPROFILE\.ai-guardian-venv
 & "$env:USERPROFILE\.ai-guardian-venv\Scripts\pip" install ai-guardian
 
 # Or use the one-line installer:
-irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
 ```
 
 > **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`uv tool install ai-guardian` or `pip install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
@@ -377,6 +377,7 @@ Apache 2.0 - see [LICENSE](https://github.com/itdove/ai-guardian/blob/main/LICEN
 - [Cursor](https://cursor.sh) - AI code editor
 - [LeakTK](https://github.com/leaktk/patterns) - Community secret detection patterns
 - [Hermes Security Patterns](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) - Security research
+
 
 
 # === docs/AGENT_SUPPORT.md ===
@@ -647,6 +648,7 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 2. Add a row to the **Violation Type Coverage Matrix** with the required hooks and per-agent coverage
 3. If the violation has agent-specific limitations, add a subsection under **Known Limitations**
 4. Add tests covering the new violation type across adapters
+
 
 # === docs/AIDER.md ===
 
@@ -1099,6 +1101,7 @@ tags = ["token", "internal"]
 **Issues with Gitleaks**:
 - GitHub Issues: https://github.com/gitleaks/gitleaks/issues
 
+
 # === docs/AIDERDESK.md ===
 
 # AiderDesk Integration
@@ -1232,6 +1235,7 @@ To also remove MCP server config:
 ```bash
 ai-guardian setup --ide aiderdesk --no-mcp
 ```
+
 
 # === docs/ANNOTATIONS.md ===
 
@@ -1396,6 +1400,7 @@ and key is AKIA_EXAMPLE_KEY
 """
 # ai-guardian:end-allow
 ```
+
 
 # === docs/CONFIGURATION.md ===
 
@@ -1872,6 +1877,7 @@ View with: `ai-guardian metrics --latency`. Data stored in `~/.local/state/ai-gu
 - [Secret Scanning](security/SECRET_SCANNING.md)
 - [Permissions System](PERMISSIONS_COMPARISON.md)
 - [Hook Configuration](HOOKS.md)
+
 
 # === docs/CONSOLE.md ===
 
@@ -4067,6 +4073,7 @@ The AI Guardian Console provides a comprehensive, user-friendly interface for ma
 
 For questions, issues, or feature requests, see the main [AI Guardian repository](https://github.com/itdove/ai-guardian).
 
+
 # === docs/COOKBOOK.md ===
 
 # Configuration Cookbook
@@ -6095,6 +6102,7 @@ AI_GUARDIAN_NO_TKINTER=1 ai-guardian tray start
 AI_GUARDIAN_NO_TKINTER=1 AI_GUARDIAN_NO_NICEGUI=1 ai-guardian tray start
 ```
 
+
 # === docs/DEVELOPER_GUIDE.md ===
 
 # Developer Guide
@@ -6442,6 +6450,7 @@ ai-guardian/
 - [Annotations](ANNOTATIONS.md)
 - [Releasing](../RELEASING.md)
 - [Agent Instructions](../AGENTS.md) -- detailed coding guidelines and patterns
+
 
 # === docs/GITHUB_COPILOT.md ===
 
@@ -6964,6 +6973,7 @@ Track ai-guardian usage for compliance:
 **Security concerns**:
 - Open an issue with `[SECURITY]` prefix
 
+
 # === docs/hook-flow-diagram.md ===
 
 # AI Guardian Hook Flow Diagram (v1.11.0)
@@ -7095,6 +7105,7 @@ graph TD
     style ALLOW fill:#44aa44,color:#fff
     style ALLOW_PAUSED fill:#44aa44,color:#fff
 ```
+
 
 # === docs/HOOKS.md ===
 
@@ -7602,6 +7613,7 @@ Both the TUI (`ai-guardian console`) and web console (`ai-guardian console --web
 **Version:** 1.11.0  
 **Cursor Testing:** Completed - confirmed same limitation as Claude Code
 
+
 # === docs/MCP_SERVER.md ===
 
 # MCP Security Advisor Server
@@ -7850,6 +7862,7 @@ The instructions teach the AI:
 - How to handle annotation protection
 - The support bundle review workflow
 - That hooks are the enforcement layer — MCP is advisory
+
 
 # === docs/ML_ENGINE_SUPPORT.md ===
 
@@ -8112,6 +8125,7 @@ ai-guardian daemon start
 ```
 
 With `fallback_on_error: "heuristic"` (default), detection falls back to regex patterns when the daemon is unavailable.
+
 
 # === docs/MULTI_DAEMON_TRAY.md ===
 
@@ -8562,6 +8576,7 @@ ai-guardian tray start            # Separate tray process
 ```
 
 To restore the old behavior, add both commands to your startup/login items.
+
 
 # === docs/MULTI_ENGINE_SUPPORT.md ===
 
@@ -9628,6 +9643,7 @@ tests/fixtures/secrets/
 **Milestone**: v2.0.0  
 **Priority**: Medium (nice-to-have, not blocking)
 
+
 # === docs/PATTERN_SERVER.md ===
 
 # Pattern Server
@@ -10109,6 +10125,7 @@ All patterns from the server are validated before use:
 - **v1.5.0** - Initial pattern server support (secrets, SSRF, Unicode, config scanner, redaction)
 - **v1.5.1** - Added authentication and cache improvements
 - **v1.6.0** - Enhanced validation and audit logging
+
 
 # === docs/PERMISSIONS_COMPARISON.md ===
 
@@ -10865,6 +10882,7 @@ https://policies.company.com/
 **Last Updated:** 2026-04-24  
 **Version:** 1.4.0-dev
 
+
 # === docs/PRE_COMMIT.md ===
 
 # Pre-commit Hook
@@ -11055,6 +11073,7 @@ See [docs/AIDER.md](AIDER.md) for detailed Aider integration instructions.
 
 **False positives**: Add allowlist rules to `.gitleaks.toml` or use inline `# gitleaks:allow` comments.
 
+
 # === docs/README.md ===
 
 # AI Guardian Documentation
@@ -11126,6 +11145,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Agent Instructions](../AGENTS.md) | Development guidelines, testing, CI/CD |
 | [Releasing](../RELEASING.md) | Release process and version management |
 | [Changelog](../CHANGELOG.md) | Version history |
+
 
 
 # === docs/SCANNER_INSTALLATION.md ===
@@ -11484,6 +11504,7 @@ The scanner is installed once and reused across all workflow runs.
 - See [README.md](../README.md) for general AI Guardian setup
 - See [CONFIGURATION.md](CONFIGURATION.md) for scanner configuration options
 - See [MCP_SERVER.md](MCP_SERVER.md) for programmatic scanner management
+
 
 # === docs/SDK.md ===
 
@@ -11914,6 +11935,7 @@ clean=$(echo "$result" | jq -r '.clean')
 - **Same detection engine**: Both direct and REST modes use the same detection functions as the hook system.
 - **Config-gated**: Each detector respects its `enabled` flag in the configuration.
 
+
 # === docs/SECURITY_DESIGN.md ===
 
 # Security Design
@@ -12177,6 +12199,7 @@ Remote configurations can mark sections and permission rules as `immutable` to p
 - Section immutability
 - Enterprise policy enforcement examples
 
+
 # === docs/security/CONTEXT_POISONING.md ===
 
 # Context Poisoning Detection (LLM03)
@@ -12336,6 +12359,7 @@ The Context Poisoning Detection page in the web console (`/context-poisoning`) p
 - [OWASP LLM Top 10 - LLM03](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 - [Prompt Injection Detection](PROMPT_INJECTION.md) — related but distinct threat
 - Research: "Prompt Injection Attacks and Defenses" (OWASP)
+
 
 # === docs/security/CREDENTIAL_EXFILTRATION.md ===
 
@@ -13163,6 +13187,7 @@ Layer 5: Credential Rotation (Limit damage)
 - **v1.5.2** - Pattern server support for enterprise deployment
 - **v1.6.0** - Enhanced ignore patterns, performance improvements
 
+
 # === docs/security/DIRECTORY_RULES.md ===
 
 # Directory Rules
@@ -13661,6 +13686,7 @@ touch ~/sensitive/.ai-read-deny
 - **v1.3.0** - Last-match-wins rule ordering
 - **v1.5.0** - Enhanced violation logging integration
 
+
 # === docs/security/IMAGE_SCANNING.md ===
 
 # Image Scanning (OCR)
@@ -13827,6 +13853,7 @@ If the OCR engine is not installed:
 image_scanning .... FAIL  rapidocr-onnxruntime not installed
   Fix: pip install rapidocr-onnxruntime
 ```
+
 
 # === docs/security/PROMPT_INJECTION.md ===
 
@@ -14430,6 +14457,7 @@ Prompt injection detection is **lightweight**:
 - **v1.6.0** (Planned) - Enhanced jailbreak detection with ML-based analysis ([Issue #263](https://github.com/itdove/ai-guardian/issues/263))
 - **v1.10.0** - Language-aware AST scanning for source code files ([Issue #892](https://github.com/itdove/ai-guardian/issues/892))
 
+
 # === docs/security/README.md ===
 
 # Security Features Documentation
@@ -14628,6 +14656,7 @@ Security features introduced across versions:
 - **v1.5.0** - SSRF Protection, Unicode Attack Detection, Secret Redaction, Config File Scanning, Pattern Server Support
 - **v1.6.0** - Multi-engine scanner support, enhanced patterns
 - **v1.7.0** - Execution strategies, parallel engine execution, image scanning
+
 
 # === docs/security/SECRET_REDACTION.md ===
 
@@ -15317,6 +15346,7 @@ Once a region is redacted, it's marked and subsequent patterns skip it.
 - **v1.5.0** - Initial secret redaction (35+ types, 6 strategies)
 - **v1.5.1** - Pattern server support for enterprise deployment
 - **v1.6.0** - Enhanced performance, ReDoS protection, metadata improvements
+
 
 # === docs/security/SECRET_SCANNING.md ===
 
@@ -16548,6 +16578,7 @@ BLOCKED (secrets always block)
 **Last Updated:** 2026-04-19  
 **Version:** 1.4.0-dev
 
+
 # === docs/security/SSRF_PROTECTION.md ===
 
 # SSRF Protection
@@ -17333,6 +17364,7 @@ SSRF protection inspired by:
 
 **No Warranty**: This software is provided "AS IS" under the Apache 2.0 License.
 
+
 # === docs/security/UNICODE_ATTACKS.md ===
 
 # Unicode-Based Attack Detection
@@ -17904,6 +17936,7 @@ Unicode attack detection in AI Guardian is based on:
 - **v1.5.0** - Added tag character detection and strict mode
 - **v1.6.0** - Enhanced homoglyph database (80+ pairs), context-aware detection
 
+
 # === docs/TOML_PATTERNS.md ===
 
 # TOML Pattern Engine
@@ -18121,6 +18154,7 @@ The `toml-patterns` engine is **additive** — it does not replace gitleaks or b
 - **toml-patterns**: In-process Python, uses bundled TOML + optional pattern servers
 
 All engines can be used together via the `engines` list. The scanning strategy (`first-match`, `any-match`, `consensus`) determines how results are combined.
+
 
 # === docs/TOOL_POLICY.md ===
 
@@ -18716,6 +18750,7 @@ Tool Policy checking is **extremely fast**:
 - **v1.5.0** - Enhanced pattern matching and violation logging
 - **v1.6.0** - Permission prompts and policy inheritance
 
+
 # === docs/TROUBLESHOOTING.md ===
 
 # Troubleshooting Guide
@@ -19155,6 +19190,7 @@ Set to `0` to disable idle shutdown.
 Paths are governed by XDG conventions and can be overridden with environment variables:
 - `AI_GUARDIAN_CONFIG_DIR` or `XDG_CONFIG_HOME`
 - `AI_GUARDIAN_STATE_DIR` or `XDG_STATE_HOME`
+
 
 # === docs/VIOLATION_LOGGING.md ===
 
@@ -19604,9 +19640,9 @@ Violation logging is **extremely efficient**:
 - **v1.5.0** - Extended log types (SSRF, Unicode, config threats)
 - **v1.6.0** - Enhanced SIEM integration and export formats
 
+
 # === ai-guardian-example.json ===
 
-```json
 {
   "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/ai-guardian-config.schema.json",
   "_comment": "====================================================================",
@@ -20664,7 +20700,7 @@ Violation logging is **extremely efficient**:
     "bundle_ttl_minutes": 30
   }
 }
-```
+
 
 # === CHANGELOG.md (recent) ===
 
@@ -20676,6 +20712,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.11.1] - 2026-06-11
+
+### Added
+
+- **Curl file upload exfiltration detection** (Issue #1101)
+  - Detect `curl -F`, `curl --upload-file`, and `curl -T` patterns targeting external hosts
+  - New config-exfil patterns for file upload via HTTP
+
+- **Web console: auto-scroll active sidebar item into view** (Issue #1104)
+  - Active navigation item scrolls into view on page load
+
+- **Daemon Python resolution and version sync** (Issue #1103)
+  - Improved Python executable resolution using `shutil.which` for reliable path discovery
+  - Version sync between daemon and tray processes
+
+### Fixed
+
+- **Web console: defer codemirror editor initialization** (Issue #1102)
+  - Fix duplicate nicegui-codemirror ESM module assertion error
+
+- **Web console: make sidebar sticky with scrollable navigation** (Issue #1104)
+  - Sidebar stays fixed while content scrolls
+
+### Changed
+
+- **README: curl install.sh should reference release tag, not main branch**
+  - Install command URLs now point to versioned release tags
+
+- **CI: add release-* branch trigger to workflows** (Issue #1108)
 
 ## [1.11.0] - 2026-06-11
 
@@ -20838,299 +20904,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed `os.fchmod` guards in `session_state.py` and `hook_context.py` (not available on Windows)
   - Changed `os.rename` to `os.replace` across 8 call sites for cross-platform atomic writes
 
-- **OpenCode hook support via plugin adapter** (Issue #819)
-  - New `OpenCodeAdapter` in `hook_adapters/opencode.py` (extends ClaudeCodeAdapter)
-  - Plugin auto-discovered from `~/.config/opencode/plugins/ai-guardian.ts`
-  - Setup: `ai-guardian setup --ide opencode` (installs plugin + configures MCP server)
-  - Hook coverage: `tool.execute.before` (PreToolUse), `tool.execute.after` (PostToolUse), `chat.message` (UserPromptSubmit via parts mutation)
-  - MCP server configured in `~/.config/opencode/opencode.jsonc` with OpenCode's `type: "local"` format
-  - Same security coverage as Claude Code (secrets, PII, SSRF, prompt injection, directory blocking)
-  - Updated AGENT_SUPPORT.md with OpenCode in all tables
-
-## [1.10.0] - 2026-06-01
-
-### Changed
-
-- **Expanded default PII types** (Issue #905)
-  - Added `medical_id`, `passport`, and `uk_nin` to default `pii_types` list
-  - These types have low false-positive risk due to keyword-anchored regexes
-  - Updated in setup.py, config_loaders.py, schema, example config, and all profile templates
-  - Remaining opt-in types: `canada_sin`, `india_aadhaar`, `address`, `email`
-
-### Added
-
-- **Installer post-install improvements** (Issue #911)
-  - Run `ai-guardian doctor` as a non-fatal verification step at the end of install
-  - Add `ai-guardian daemon start` and `ai-guardian tray start` to "Next steps" output
-
-- **`--use-pinned` flag for `setup --install-scanner`** (Issue #907)
-  - Installs the pinned scanner version from `pyproject.toml` instead of latest
-  - Usage: `ai-guardian setup --install-scanner gitleaks --use-pinned`
-  - Ensures consistent scanner versions for support reproduction and tested configurations
-
-- **Combined documentation export for single-file upload** (Issue #900)
-  - Release checklist now includes generating a combined markdown file from all docs
-  - Shell one-liner documented in AGENTS.md for concatenating docs with section headers
-  - Suitable for upload to LLM tools that require single-file sources
-
-- **Language-aware prompt injection scanning** (Issue #892)
-  - Uses tree-sitter AST parsing to distinguish code from comments/strings
-  - Only comments and string literals are scanned for injection in source files
-  - Code syntax (function definitions, imports, assignments) never triggers detection
-  - Eliminates false positives from patterns like `__init__`, `skip_validation`
-  - Supports Python, JavaScript, TypeScript, Go, Rust, Java, Ruby, C/C++, Bash
-  - Language auto-detected from file extension
-  - Unknown file types fall back to full-text scanning (current behavior)
-  - tree-sitter grammar packages added as core dependencies (Python >= 3.10)
-
-- **Tray auto-starts daemon on user interaction** (Issue #889)
-  - When the user clicks Console, Violations, Terminal, or other tray menu
-    actions, the local daemon is automatically started if it has stopped
-    (idle timeout or crash)
-  - Paused daemons are NOT restarted — the user intentionally paused them
-  - Respects the stop-requested marker from `daemon stop`
-  - 5-second cooldown between auto-start attempts
-  - Works in both single-daemon and multi-daemon tray modes
-
-- **Compliance audit in metrics** (Issue #476)
-  - `ai-guardian metrics` extended with `--html`, `--until`, `--severity` flags
-  - `--html` outputs self-contained HTML audit report with inline CSS and SVG charts
-  - `--until` enables bounded date ranges (e.g. `--since 2026-04-01 --until 2026-05-01`)
-  - `--severity` filters by violation severity level
-  - Audit report sections: trend comparison with previous period,
-    resolution metrics (rate, avg time), compliance posture, security
-    posture assessment (GOOD/FAIR/NEEDS ATTENTION)
-  - REST API: `GET /api/audit` endpoint with query parameters
-  - TUI/Web: Metrics panel extended to "Metrics & Audit" with security
-    posture, trend comparison, resolution metrics, compliance summary,
-    and Export HTML/JSON/CSV buttons with Open Folder / browser download
-  - Tray menu: "Metrics" renamed to "Metrics & Audit"
-
-### Fixed
-
-- **`doctor --fix` now refreshes stale pattern cache** (Issue #916)
-  - `check_ps_cache_freshness` sets `fixable=True` for stale, expired, and missing cache
-  - When `--fix` is passed, attempts to fetch fresh patterns from pattern server
-  - Reports success/failure with specific error messages
-
-- **Connection string patterns false positive on placeholder passwords** (Issue #919)
-  - `mongodb-connection`, `mysql-connection`, `postgres-connection`, and `redis-connection`
-    no longer match placeholder passwords like `[HIDDEN]`, `[REDACTED]`, `<password>`, or
-    repeated characters (`xxxxxxxx`) in documentation examples
-  - New `connection_not_placeholder` validator added to the TOML patterns validation pipeline
-
-- **env-variable pattern false positives on Python code and documentation** (Issue #912)
-  - Tightened regex to require 2+ character uppercase env var names (rejects `_ = ...`)
-  - Validator now skips values starting with `_` (Python identifiers like `_load_config_file`)
-  - Validator now detects placeholder values (`your-...`, `example-...`, `test-...`, etc.)
-  - AST-aware scanning for secret detection: tree-sitter extracts only comments and strings
-    from code files, skipping code syntax that matches secret patterns
-
-- **Windows: setup uses pythonw.exe to minimize console window flash** (Issue #902)
-  - `ai-guardian setup` now uses `pythonw.exe -m ai_guardian` on Windows instead
-    of console-mode `ai-guardian.EXE`, avoiding visible window on every hook call
-  - Optional VBS wrapper generated during setup for fully hidden execution
-  - All agent adapters (Claude Code, Cursor, Copilot, Codex, Windsurf, Gemini, Augment) use pythonw on Windows
-  - `_is_ai_guardian_command()` extended to handle Windows backslash paths, `.exe` suffix, and pythonw invocations
-  - macOS and Linux behavior is unchanged
-
-- **Remove bypass hints from hook block messages** (Issue #897, #896)
-  - Hook responses no longer include annotation syntax, allowlist instructions,
-    config paths, or false-positive workaround tips
-  - Affected detectors: secret scanning, PII, prompt injection, unicode attack,
-    config file exfiltration
-  - Remediation tips moved to `suggestion` field in violation log entries
-    (violations.jsonl) where they are available to users but not to the AI agent
-  - New UX contract test enforces no-bypass-hints policy across all detectors
-
-- **Browser window stays minimized on KDE/GNOME** (Issue #888)
-  - On Linux, after opening a URL, attempt to raise the browser window via
-    `kdotool` (KDE Wayland), `xdotool` (X11), or `wmctrl` (X11)
-  - Graceful degradation: silently continues if none is installed
-  - Applies to: Web Console, Violations, Metrics & Audit, HTML export,
-    NiceGUI web console startup, and tray-plugin parameter capture
-  - macOS and Windows unaffected
-
-- **Aadhaar PII false positive on UUID all-zeros** (Issue #876)
-  - Added `aadhaar_check` post-match validator following the credit card validation pattern
-  - Rejects numbers starting with 0 or 1 (real Aadhaar starts with 2-9)
-  - Rejects all-same-digit patterns (e.g., 0000-0000-0000)
-  - PII block messages now include actionable fix guidance for false positives
-
-- **Image redaction too weak** (Issue #870)
-  - Pixelate strategy now uses max 2x2 intermediate size (was w/8 x h/8), making text unreadable at any zoom
-  - Blur strategy minimum radius increased from 10 to 20, divisor changed from /3 to /2 for stronger blur
-  - Default redaction strategy changed from `blur` to `blackout` (safest — fully opaque rectangles)
-  - Updated default in CLI, MCP server, and sanitizer to `blackout`
-
-- **Metrics total stuck at 1000** (Issue #853)
-  - Added running violation counter (`violation_counters.json`) independent of log rotation
-  - Counter increments on every violation and persists across daemon restarts
-  - `ai-guardian metrics` now shows cumulative totals alongside time-filtered data
-  - `ai-guardian metrics --reset` resets counters to current log file counts (not zero)
-  - REST API `/api/metrics` and MCP `get_metrics` include `cumulative_total`, `cumulative_by_type`, `cumulative_since`
-  - TUI console: metrics panel shows cumulative totals + reset button with confirmation
-  - Web console: metrics page shows cumulative totals + reset button with confirmation
-
-### Added
-
-- **NiceGUI fallback for tray plugin parameter popup** (Issue #862)
-  - When tkinter is unavailable, tray plugin forms now open as a browser-based NiceGUI form (Python 3.10+)
-  - Cascade order: tkinter (native popup) → NiceGUI (browser form) → Textual (terminal prompt)
-  - All parameter types supported: string, int, boolean, choice, combobox, path-file, path-dir
-  - NiceGUI runs a local server on a random port and auto-opens the default browser
-  - Environment overrides: `AI_GUARDIAN_NO_TKINTER=1` / `AI_GUARDIAN_NO_NICEGUI=1` to skip tiers
-  - install.sh updated to document the three-tier fallback
-
-- **Directory sanitization** (Issue #857)
-  - `ai-guardian sanitize /path/to/dir --output-dir /path/to/sanitized` recursively sanitizes all files
-  - Text files redacted (secrets, PII, threats); image files OCR-scanned and redacted; binary files copied as-is
-  - Preserves directory structure in output
-  - `--include` / `--exclude` glob patterns for filtering files (repeatable)
-  - `--no-images` flag to skip OCR processing (copy images as-is)
-  - `--force` flag to write to an existing output directory
-  - `--summary` shows per-file redaction counts and totals
-  - Skips `.git`, `node_modules`, `__pycache__`, `.venv` directories automatically
-  - New `sanitize_directory` MCP tool for AI agent integration
-  - Tray quick actions: "Sanitize File..." and "Sanitize Directory..." in global plugin menu
-
-- **`--redact-strategy` flag for image sanitization** (Issue #856)
-  - `ai-guardian sanitize image.png --redact-strategy blackout` — choose blur, blackout, or pixelate
-  - Default remains `blur` for backward compatibility
-  - Supported in CLI, MCP `sanitize_directory` tool, and tray quick-action plugins
-  - Tray plugins show a dropdown with the three strategies
-
-- **Image OCR scanning in `scan_directory` and `sanitize`** (Issue #855)
-  - `ai-guardian scan` and the `scan_directory` MCP tool now include image files (PNG, JPEG, etc.) via OCR
-  - Extracted text is scanned through all existing detectors (secrets, PII, SSRF, prompt injection, unicode)
-  - Image findings tagged with `source_type: image_ocr` in details for easy identification
-  - Enabled by default when `rapidocr-onnxruntime` is installed; silently skipped otherwise
-  - Respects `image_scanning` config section (enabled, max_image_size_mb, ignore_files)
-  - `ai-guardian sanitize` now handles image files — OCR detects text regions, redacts those containing secrets/PII
-  - Added `--output` / `-o` flag to `sanitize` for writing to a file (required for image output)
-
-- **Default bundled tray plugins** (Issue #831)
-  - Ships `default-global.json` and `default-daemon.json` with useful built-in commands
-  - Global: Quick Actions submenu (Scan Directory, Check for Updates) + Open Documentation
-  - Per-daemon: Maintenance submenu (Reload Config, Install Scanner, View Doctor)
-  - Nested submenus for logical grouping
-  - All commands work on macOS and Linux (platform maps)
-  - Installed automatically on first run, `ai-guardian setup`, or daemon start
-  - Users can customize or remove from `~/.config/ai-guardian/tray-plugins/`
-
-- **`--ide` CLI parameter for deterministic adapter selection** (Issue #849)
-  - `ai-guardian --ide <name>` explicitly declares which IDE adapter to use
-  - Eliminates adapter mis-detection bugs like #847 (field-matching heuristics)
-  - `ai-guardian setup` now writes `--ide <name>` into hook commands automatically
-  - Re-running `ai-guardian setup --ide <name>` upgrades existing hooks
-  - Auto-detection preserved as fallback for backward compatibility
-  - Works with both direct CLI and daemon-forwarded hook processing
-
-- **Directional immutable — tighten-only config fields** (Issue #829)
-  - New `immutable: "tighten-only"` mode for config sections
-  - Lower-level configs can make settings stricter but not more permissive
-  - Action severity ordering: block > redact > warn > log-only > allow
-  - Supports action, enabled, sensitivity fields and list fields (allowlist_patterns, ignore_files)
-  - Warning logged when override blocked; org value used (not a fatal error)
-  - Doctor check reports active tighten-only policies
-  - Config show indicates tighten-only sections
-  - Existing `immutable: true/false/[fields]` behavior unchanged
-
-- **Violation Type Coverage Matrix** in `docs/AGENT_SUPPORT.md` (Issue #833)
-  - Per-agent enforcement/advisory/partial/caution/no matrix for all 13 violation types
-  - Known limitations section: image scanning caveat, transcript scanning availability, MCP-only constraints
-  - Agent confidence level table with testing depth rationale
-  - Community testing feedback call for low-confidence agents
-
-- **Configuration Cookbook** (`docs/COOKBOOK.md`) (Issue #809)
-  - Practical Q&A pairs for common configuration tasks
-  - Covers SSRF, PII, secrets, prompt injection, permissions, directory rules, annotations, project-level config, daemon, scanners, pattern server, image scanning, profiles, and MCP server
-  - Designed as NotebookLM source and quick user reference
-
-- **One-line install script** (`install.sh`) for zero-manual-step installation (Issue #813)
-  - `curl -fsSL .../install.sh | bash` — checks Python, installs package, creates config, sets up IDE hooks
-  - Options: `--venv`, `--ide`, `--profile`, `--version`; extra flags passed through to `ai-guardian setup`
-  - Defaults to `@standard` security profile; `--version` accepts a `.whl` file path for local installs
-
-- **Multi-target plugin commands with interactive target selector** (Issue #760)
-  - New `target` field on plugin items: `"select"`, `"all"`, or `"containers"`
-  - `target: "select"` shows a Textual multi-select modal listing all discovered daemons
-  - `target: "all"` runs the command on all discovered targets without prompt
-  - `target: "containers"` runs on all container-runtime targets without prompt
-  - Omitting `target` preserves existing single-target behavior (backward compatible)
-  - Multi-target + params: parameter modal shows once, values applied to all targets
-  - New `container_name` field on `DaemonTarget` for disambiguation in the selector
-  - New `{container_name}` variable available in plugin command templates
-  - New `tray-target-select` CLI subcommand for the target picker TUI
-  - Updated JSON schema with `target` property on plugin items
-
-### Changed
-
-- **Removed hardcoded redaction patterns from `secret_redactor.py`** (Issue #841)
-  - `PATTERNS` (44 secret patterns) and `PII_PATTERNS` (13 PII patterns) class attributes removed
-  - All patterns now loaded exclusively from bundled TOML files (`secrets.toml`, `pii.toml`)
-  - `SecretPatternLoader.get_default_patterns()` updated to load from TOML (matching `PIIPatternLoader`)
-  - Graceful degradation: when TOML files are missing, redactor has 0 patterns with error logging
-
-- **MCP server installed by default with `ai-guardian setup`** (Issue #808)
-  - `ai-guardian setup --ide <any>` now installs hooks + MCP server (previously MCP was opt-in)
-  - `--no-mcp` flag skips MCP installation
-  - `--mcp` flag accepted for backward compatibility but redundant (MCP is now default)
-  - MCP server is read-only and advisory — no risk, better UX
-
-### Fixed
-
-- **GitHub token patterns miss new stateless JWT format** (Issue #839)
-  - Updated `ghp_`, `gho_`, `ghr_`, `ghs_` patterns to allow dots, hyphens, and underscores
-  - New character class `[A-Za-z0-9._-]{36,}` matches both old stateful and new stateless JWT tokens
-  - Updated both `secrets.toml` and legacy `secret_redactor.py` patterns
-  - Added 12 tests covering old/new formats, long JWT payloads, and false positive checks
-
-- **Immutable protection too broad — block only hooks section, not entire settings.json** (Issue #807)
-  - Claude Code, Gemini CLI, and Augment Code store hooks AND user preferences in `settings.json`
-  - Edit tool: content-aware check inspects `old_string`/`new_string` for hook-related keys
-  - Write tool: compares `hooks` JSON key between existing file and new content
-  - Non-hook settings (permissions, theme, model, MCP) can now be modified by AI agents
-  - Hook modifications are still blocked (immutable protection)
-  - Hooks-only files (Cursor, Copilot, Codex, etc.) remain fully blocked
-  - Bash/PowerShell commands on all settings files remain fully blocked
-  - Added Gemini and Augment to Bash/PowerShell immutable deny patterns
-  - Fail-closed on invalid JSON or unparseable content
-
-### Added
-
-- **Web-based Console via daemon REST API** (Issue #679)
-  - Browser-based dashboard as alternative to TUI console, powered by NiceGUI
-  - Launch with `ai-guardian console --web` (auto-assigns free port, opens browser)
-  - Multi-daemon overview dashboard with live status auto-refresh
-  - Security Dashboard, Global Settings, Violations, Metrics, Logs, and Daemon detail pages
-  - Sidebar navigation matching TUI panel groups
-  - Daemon control from browser: pause/resume/reload
-  - New daemon REST API endpoints: `/api/config`, `/api/violations`, `/api/metrics`
-  - `MultiDaemonClient` extended with `get_config()`, `get_violations()`, `get_metrics()`
-  - System tray "Web Console" menu item opens browser
-  - NiceGUI added as core dependency (Python >= 3.10)
-  - Configuration: `console.web.port` and `console.web.host` in schema
-
-- **Web Console Phase 2: Permissions and Secrets pages** (Issue #804)
-  - Skills page: manage Skill tool allow/deny patterns with enforcement toggle
-  - MCP Servers page: MCP permission rules, proactive level, support bundle config
-  - MCP Security page: read-only MCP security audit with findings display
-  - Permissions Discovery page: auto-discovery directory management
-  - Directory Rules page: file path access rules with JSON editor and validation
-  - Secret Scanning page: toggle, allowlist patterns, pattern server config
-  - Engine Configuration page: multi-engine strategy, JSON engines editor
-  - Secret Redaction page: toggle, action mode, options, custom patterns, stats
-  - Sidebar navigation expanded with Permissions and Secrets groups
-
-### Fixed
-
-- **Secret scanning no longer blocks PII types excluded from `pii_types` config** (Issue #903)
-  - The `toml-patterns` scanner was unconditionally loading ALL PII patterns from `pii.toml`
-  - Email addresses (and other excluded PII types) triggered "Secret Detected" blocks
-    even when explicitly excluded from `scan_pii.pii_types`
-  - Scanner now reads `pii_types` from the PII config and filters findings accordingly
-  - Secret findings (API keys, tokens, etc.) are never affected by this filter
-
-
-*(Earlier versions omitted — see CHANGELOG.md for full history)*
