@@ -162,6 +162,37 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     id="secret-allowlist-input",
                 )
 
+            # False Positive Filtering section (Issue #1091)
+            with Container(classes="section"):
+                yield Static("[bold]False Positive Filtering[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Entropy and stopword filters to reduce false positives. "
+                    "Higher entropy = more random = more likely a real secret.[/dim]",
+                    classes="section-title",
+                )
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Min Entropy:")
+                    yield Input(placeholder="disabled (null)", id="min-entropy-input")
+                    yield Static(
+                        "[dim]0.0-8.0, recommended 3.0 (Press Enter to save)[/dim]"
+                    )
+
+                yield Static("", id="entropy-info")
+
+                yield Static("[bold]Stopwords[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Matched secrets containing these words are suppressed (case-insensitive). "
+                    "User words are merged with bundled stopwords — bundled words cannot be removed.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="stopwords-display")
+                yield Input(
+                    placeholder="Enter stopword (min 3 chars)",
+                    id="stopwords-input",
+                )
+
             # Pattern server toggle section (standalone)
             yield TimeBasedToggle(
                 title="Pattern Server (Optional - Enhanced Patterns)",
@@ -438,6 +469,55 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass
 
+        # False positive filtering (Issue #1091)
+        min_entropy = secret_scanning.get("min_entropy")
+        user_stopwords = secret_scanning.get("stopwords", [])
+
+        try:
+            entropy_input = self.query_one("#min-entropy-input", Input)
+            if min_entropy is not None:
+                entropy_input.value = str(min_entropy)
+            else:
+                entropy_input.value = ""
+
+            entropy_info = self.query_one("#entropy-info", Static)
+            entropy_info.update(
+                "[dim]Entropy scale: 0.0 = identical chars (XXXX) │ "
+                "~1.0 = two chars (abab) │ ~3.3 = lowercase │ "
+                "~4.7 = alphanumeric │ Real API keys: 4.0+[/dim]"
+            )
+
+            from ai_guardian.patterns import BUNDLED_FILES
+            bundled_path = BUNDLED_FILES.get("stopwords")
+            bundled_count = 0
+            if bundled_path and bundled_path.exists():
+                try:
+                    import sys
+                    if sys.version_info >= (3, 11):
+                        import tomllib
+                    else:
+                        import tomli as tomllib
+                    with open(bundled_path, "rb") as f:
+                        data = tomllib.load(f)
+                    bundled_count = len(data.get("stopwords", {}).get("words", []))
+                except Exception:
+                    pass
+
+            if user_stopwords:
+                sw_lines = [f"  {w}" for w in user_stopwords]
+                sw_text = (
+                    f"[dim]Bundled: {bundled_count} words (always active)[/dim]\n"
+                    f"User-added ({len(user_stopwords)}):\n" + "\n".join(sw_lines)
+                )
+            else:
+                sw_text = (
+                    f"[dim]Bundled: {bundled_count} words (always active)\n"
+                    f"No user-added stopwords[/dim]"
+                )
+            self.query_one("#stopwords-display", Static).update(sw_text)
+        except Exception:
+            pass
+
         # Cache settings
         cache = ps.get("cache", {})
         cache_path = cache.get("path", str(get_cache_dir() / "patterns.toml"))
@@ -576,6 +656,24 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 self.app.notify("Timeout must be a number", severity="error")
         elif event.input.id == "secret-allowlist-input":
             self._add_allowlist_pattern()
+        elif event.input.id == "min-entropy-input":
+            raw = event.value.strip()
+            if not raw or raw.lower() in ("null", "none", "disabled"):
+                self._save_secret_scanning_field("min_entropy", None)
+            else:
+                try:
+                    val = float(raw)
+                    if val < 0 or val > 8:
+                        self.app.notify(
+                            "Entropy must be between 0.0 and 8.0",
+                            severity="error",
+                        )
+                        return
+                    self._save_secret_scanning_field("min_entropy", val)
+                except ValueError:
+                    self.app.notify("Entropy must be a number or empty to disable", severity="error")
+        elif event.input.id == "stopwords-input":
+            self._add_stopword()
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle select dropdown changes."""
@@ -838,6 +936,50 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")
+
+    def _add_stopword(self) -> None:
+        """Add a stopword to the secret scanning stopwords list."""
+        input_widget = self.query_one("#stopwords-input", Input)
+        word = input_widget.value.strip().lower()
+
+        if not word:
+            self.app.notify("Please enter a stopword", severity="error")
+            return
+
+        if len(word) < 3:
+            self.app.notify("Stopword must be at least 3 characters", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
+            if "stopwords" not in config["secret_scanning"]:
+                config["secret_scanning"]["stopwords"] = []
+
+            existing = [w.lower() for w in config["secret_scanning"]["stopwords"]]
+            if word in existing:
+                self.app.notify("Stopword already added", severity="warning")
+                return
+
+            config["secret_scanning"]["stopwords"].append(word)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added stopword: {word}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding stopword: {e}", severity="error")
 
     def test_pattern_server(self) -> None:
         """Test connection to pattern server."""

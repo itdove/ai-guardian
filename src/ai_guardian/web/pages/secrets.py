@@ -232,6 +232,168 @@ def create_secrets_page(service, daemon_name: str):
 
                             ui.button("Add", icon="add", on_click=add_allowlist).props("dense")
 
+                    # --- False Positive Filtering: Entropy (Issue #1091) ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Minimum Entropy Threshold").classes("text-lg font-bold")
+                        ui.label(
+                            "Shannon entropy filter for secret detection. Matches below "
+                            "this threshold are rejected as likely placeholders. "
+                            "Range: 0.0 (identical chars) to ~6.0 (fully random). "
+                            "Real API keys typically score 4.0+."
+                        ).classes("text-xs text-grey-6")
+
+                        current_entropy = ss.get("min_entropy")
+                        entropy_input = ui.number(
+                            label="Min Entropy (empty = disabled)",
+                            value=current_entropy,
+                            min=0.0,
+                            max=8.0,
+                            step=0.1,
+                        ).props("dense outlined clearable").classes("w-48")
+
+                        ui.label(
+                            "0.0 = identical (XXXX) · ~1.0 = two chars (abab) · "
+                            "~3.3 = lowercase · ~4.7 = alphanumeric · "
+                            "Recommended: 3.0"
+                        ).classes("text-xs text-grey-5 mt-1")
+
+                        async def save_entropy(e):
+                            val = e.value
+                            if val is None or val == "":
+                                val = None
+                            else:
+                                try:
+                                    val = float(val)
+                                    if val < 0 or val > 8:
+                                        ui.notify(
+                                            "Entropy must be between 0.0 and 8.0",
+                                            type="negative",
+                                        )
+                                        return
+                                except (ValueError, TypeError):
+                                    ui.notify("Must be a number", type="negative")
+                                    return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("secret_scanning", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            sect["min_entropy"] = val
+                            cfg["secret_scanning"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            status = f"{val}" if val is not None else "disabled"
+                            ui.notify(
+                                f"Min entropy: {status}", type="positive"
+                            )
+
+                        entropy_input.on("blur", save_entropy)
+
+                    # --- False Positive Filtering: Stopwords (Issue #1091) ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Stopwords").classes("text-lg font-bold")
+                        ui.label(
+                            "Matched secrets containing these words are suppressed "
+                            "(case-insensitive substring match). User words are merged "
+                            "with bundled stopwords — bundled words cannot be removed."
+                        ).classes("text-xs text-grey-6")
+
+                        # Show bundled stopwords count
+                        bundled_count = 0
+                        try:
+                            from ai_guardian.patterns import BUNDLED_FILES
+                            sw_path = BUNDLED_FILES.get("stopwords")
+                            if sw_path and sw_path.exists():
+                                import sys as _sys
+                                if _sys.version_info >= (3, 11):
+                                    import tomllib as _tomllib
+                                else:
+                                    import tomli as _tomllib
+                                with open(sw_path, "rb") as f:
+                                    sw_data = _tomllib.load(f)
+                                bundled_count = len(
+                                    sw_data.get("stopwords", {}).get("words", [])
+                                )
+                        except Exception:
+                            pass
+
+                        ui.label(
+                            f"Bundled: {bundled_count} words (always active)"
+                        ).classes("text-xs text-grey-5")
+
+                        user_sw = ss.get("stopwords", [])
+                        if user_sw:
+                            ui.label(
+                                f"User-added: {len(user_sw)} words"
+                            ).classes("text-xs text-grey-5")
+                            for idx, word in enumerate(user_sw):
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("block").classes("text-orange")
+                                    ui.label(word).classes("flex-grow text-sm").style(
+                                        "font-family: monospace"
+                                    )
+
+                                    async def remove_sw(i=idx):
+                                        cfg = await run.io_bound(load_web_config)
+                                        sect = cfg.get("secret_scanning", {})
+                                        if not isinstance(sect, dict):
+                                            return
+                                        words = sect.get("stopwords", [])
+                                        if i < len(words):
+                                            removed = words.pop(i)
+                                            sect["stopwords"] = words
+                                            cfg["secret_scanning"] = sect
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify(
+                                                f"Removed: {removed}",
+                                                type="positive",
+                                            )
+                                            await refresh()
+
+                                    ui.button(
+                                        icon="delete", on_click=remove_sw, color="red"
+                                    ).props("flat dense size=sm")
+                        else:
+                            ui.label(
+                                "No user-added stopwords."
+                            ).classes("text-grey-6 text-sm")
+
+                        with ui.row().classes("items-center gap-2 mt-2"):
+                            sw_input = ui.input(
+                                placeholder="Enter stopword (min 3 chars)"
+                            ).props("dense outlined").classes("flex-grow")
+
+                            async def add_stopword():
+                                word = sw_input.value.strip().lower()
+                                if not word:
+                                    ui.notify("Enter a word", type="negative")
+                                    return
+                                if len(word) < 3:
+                                    ui.notify(
+                                        "Stopword must be at least 3 characters",
+                                        type="negative",
+                                    )
+                                    return
+                                cfg = await run.io_bound(load_web_config)
+                                sect = cfg.get("secret_scanning", {})
+                                if not isinstance(sect, dict):
+                                    sect = {}
+                                words = sect.get("stopwords", [])
+                                if word in [w.lower() for w in words]:
+                                    ui.notify(
+                                        "Stopword already added", type="warning"
+                                    )
+                                    return
+                                words.append(word)
+                                sect["stopwords"] = words
+                                cfg["secret_scanning"] = sect
+                                await run.io_bound(save_web_config, cfg)
+                                sw_input.value = ""
+                                ui.notify(f"Added: {word}", type="positive")
+                                await refresh()
+
+                            ui.button(
+                                "Add", icon="add", on_click=add_stopword
+                            ).props("dense")
+
                     # --- Pattern server toggle ---
                     ps = ss.get("pattern_server", {})
                     if not isinstance(ps, dict):

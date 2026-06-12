@@ -47,6 +47,7 @@ class TomlPatternsScanner(Scanner):
         self._compiled_allowlist: List[re.Pattern] = []
         self._ignore_files: List[str] = []
         self._stopwords: List[str] = []
+        self._min_entropy: Optional[float] = 3.0
         toml_paths = []
         for key in ("secrets", "pii"):
             path = BUNDLED_FILES.get(key)
@@ -106,6 +107,10 @@ class TomlPatternsScanner(Scanner):
 
         self._ignore_files = config.get("ignore_files") or []
 
+        min_entropy = config.get("min_entropy")
+        if min_entropy is not None:
+            self._min_entropy = float(min_entropy)
+
         user_stopwords = config.get("stopwords", [])
         if user_stopwords:
             extra = [
@@ -162,6 +167,10 @@ class TomlPatternsScanner(Scanner):
             if self._stopwords and f.category == "secrets":
                 matched_lower = f.matched_text.lower()
                 if any(sw in matched_lower for sw in self._stopwords):
+                    continue
+            if self._min_entropy is not None and f.category == "secrets":
+                from ai_guardian.patterns.validators import shannon_entropy
+                if shannon_entropy(f.matched_text) < self._min_entropy:
                     continue
             findings.append(Finding(
                 rule_id=f.rule_id,

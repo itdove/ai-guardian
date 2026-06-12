@@ -81,6 +81,8 @@ keywords = ["sk-"]
 | `tier` | No | `immutable` or `overridable` (for pattern server merge) |
 | `redaction_strategy` | No | How to mask matched text (secrets/PII only) |
 | `validation` | No | Post-match validator: `luhn` or `iban` |
+| `keywords` | No | Keyword pre-filter — rule only runs if content contains a keyword |
+| `entropy` | No | Minimum Shannon entropy for matched text (rejects low-entropy matches) |
 | `pii_type` | No | PII category for `scan_pii.types` filtering |
 | `group` | No | Confidence group for prompt injection rules |
 
@@ -175,6 +177,84 @@ re2_compat = false
 | `gitleaks` | Gitleaks TOML format (Go RE2 regex, auto-converted) |
 
 The existing singular `pattern_server` key continues to work (treated as a single-entry array with `gitleaks` format).
+
+## False Positive Reduction
+
+Three built-in mechanisms reduce false positives in secret detection (v1.12.0+):
+
+### Keyword Pre-filter
+
+TOML rules can declare `keywords` — strings that must appear in the content for the rule to fire. If no keyword is found, the regex is skipped entirely. This improves performance and prevents spurious matches.
+
+```toml
+[[rules]]
+id = "openai-api-key"
+regex = '''(sk-[A-Za-z0-9]{20,})'''
+keywords = ["sk-"]  # Only run regex if "sk-" appears in content
+```
+
+Keyword matching is case-insensitive. Rules without `keywords` run against all content.
+
+### Entropy Filtering
+
+Shannon entropy measures the randomness of a string. Real API keys and tokens are generated with high entropy (cryptographically random), while placeholders and test values have low entropy.
+
+| Entropy | Meaning | Example |
+|---------|---------|---------|
+| 0.0 | All identical characters | `XXXXXXXXXXXXXXXXXXXX` |
+| ~1.0 | Two characters, equal frequency | `abababababababababab` |
+| ~3.3 | Lowercase alphabet, uniform | `abcdefghijklmnopqrst` |
+| ~4.7 | Full alphanumeric, uniform | `aB3kQ9xLm7Zy2pR4wE6t` |
+| ~5.2+ | Alphanumeric + special chars | `k#9Lm!xQ2@pR$w7&zN5` |
+
+**Per-rule threshold** — set `entropy` in the TOML rule to reject low-entropy matches:
+
+```toml
+[[rules]]
+id = "generic-api-key"
+regex = '''(?i)api[_-]?key\s*[:=]\s*['"]?([A-Za-z0-9]{20,})['"]?'''
+entropy = 3.0  # Reject matches below 3.0 bits/char
+```
+
+**Global threshold** — set `min_entropy` in `ai-guardian.json` to apply to all secret rules:
+
+```json
+{
+  "secret_scanning": {
+    "min_entropy": 3.0
+  }
+}
+```
+
+Default: `3.0`. Per-rule `entropy` fields in TOML rules are checked first (in the pattern cache). The global `min_entropy` is checked afterward (in the scanner). Both must pass for a finding to survive. Set to `null` to disable the global check.
+
+### Stopwords
+
+Stopwords are common placeholder words found in test values, documentation examples, and template code. When a matched secret contains a stopword (case-insensitive substring match), the finding is suppressed.
+
+**Bundled stopwords** are always active and include:
+`example`, `test`, `sample`, `placeholder`, `dummy`, `fake`, `mock`, `changeme`, `replace`, `insert`, `your`, `todo`, `fixme`, `temp`, `demo`, `default`, `undefined`, `REPLACE_ME`, `YOUR_API_KEY`, `YOUR_SECRET`, `YOUR_TOKEN`, and more.
+
+**User-configured stopwords** are merged with (never replacing) the bundled list:
+
+```json
+{
+  "secret_scanning": {
+    "stopwords": ["mycompany_test", "staging_key"]
+  }
+}
+```
+
+Minimum word length: 3 characters. Words shorter than 3 characters are silently ignored.
+
+Stopwords only filter **secret** findings — PII findings are never affected by stopwords.
+
+### Configuration via Console
+
+Both the TUI console (`ai-guardian console`) and the Web Console include a **False Positive Filtering** section where you can:
+- Set or disable the global minimum entropy threshold
+- View the bundled stopwords count
+- Add or remove user stopwords
 
 ## How It Works
 
