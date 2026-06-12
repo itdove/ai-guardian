@@ -5,7 +5,17 @@ on:
   schedule:
     # Run integration tests daily at 2 AM UTC
     - cron: '0 2 * * *'
+  push:
+    branches:
+      - 'release-*'
+    paths:
+      - 'src/ai_guardian/**'
+      - 'tests/**'
+      - '.github/workflows/integration-tests.yml'
   pull_request:
+    branches:
+      - main
+      - 'release-*'
     paths:
       - 'src/ai_guardian/**'
       - 'tests/**'
