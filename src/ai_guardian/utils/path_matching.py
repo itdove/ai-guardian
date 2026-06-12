@@ -6,7 +6,9 @@ leading **/ patterns (e.g., **/.claude/skills/**).
 """
 
 import fnmatch
+import os
 from pathlib import Path
+from typing import List
 
 
 def match_leading_doublestar_pattern(file_path, pattern):
@@ -111,3 +113,26 @@ def match_ignore_pattern(file_path, pattern):
     else:
         # Use Path.match() for other patterns
         return Path(file_path).match(pattern)
+
+
+def matches_ignore_files(file_path: str, ignore_files: List[str]) -> bool:
+    """Check if file_path matches any pattern in an ignore_files list.
+
+    Supports ``**/`` leading patterns, standard globs via ``Path.match()``,
+    and basename-only matching via ``fnmatch``.
+
+    Args:
+        file_path: Absolute or relative file path to check.
+        ignore_files: List of glob patterns (e.g. ``["**/tests/**", "*.fixture"]``).
+
+    Returns:
+        True if the file should be ignored.
+    """
+    if not ignore_files or not file_path:
+        return False
+    for pattern in ignore_files:
+        if match_ignore_pattern(file_path, pattern):
+            return True
+        if fnmatch.fnmatch(os.path.basename(file_path), pattern):
+            return True
+    return False

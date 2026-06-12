@@ -2596,13 +2596,13 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     consensus_threshold = scanner_config.get("consensus_threshold", 2) if scanner_config else 2
 
                     # Select first available engine (logs warnings for unavailable ones)
-                    engine_config = select_engine(engines_list)
+                    engine_config = select_engine(engines_list, parent_config=scanner_config)
 
                     # For first-match strategy, get all available engines for fallthrough
                     _all_available_engines = None
                     if execution_strategy_name == "first-match" and len(engines_list) > 1:
                         try:
-                            _all_available_engines = select_all_engines(engines_list)
+                            _all_available_engines = select_all_engines(engines_list, parent_config=scanner_config)
                         except RuntimeError:
                             pass  # Only primary engine available
 
@@ -2671,7 +2671,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if (execution_strategy_name in ("first-match", "any-match", "consensus")
                     and HAS_SCANNER_ENGINE and not gitleaks_config_path):
                 try:
-                    all_engines = select_all_engines(engines_list)
+                    all_engines = select_all_engines(engines_list, parent_config=scanner_config)
                     strategy_kwargs = {}
                     if execution_strategy_name == "consensus":
                         strategy_kwargs["threshold"] = consensus_threshold
@@ -2844,12 +2844,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
                     engines_list = scanner_config.get("engines", DEFAULT_ENGINES) if scanner_config else DEFAULT_ENGINES
                     execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
-                    engine_config = select_engine(engines_list)
+                    engine_config = select_engine(engines_list, parent_config=scanner_config)
 
                     # For first-match: get all engines for fallthrough (Issue #523)
                     if execution_strategy_name == "first-match" and len(engines_list) > 1:
                         try:
-                            _all_available_engines = select_all_engines(engines_list)
+                            _all_available_engines = select_all_engines(engines_list, parent_config=scanner_config)
                         except RuntimeError:
                             pass
                 except RuntimeError as e:

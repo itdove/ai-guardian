@@ -659,6 +659,7 @@ class FileScanner:
                 filename=os.path.basename(file_path),
                 file_path=absolute_path,
                 allowlist_patterns=secret_config.get("allowlist_patterns"),
+                ignore_files=secret_config.get("ignore_files"),
             )
 
             if has_secrets and error_message:
