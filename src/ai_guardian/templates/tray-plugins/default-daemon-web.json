@@ -4,6 +4,16 @@
   "scope": "daemon",
   "items": [
     {
+      "label": "Stop Daemon",
+      "command": "ai-guardian daemon stop",
+      "type": "notification"
+    },
+    {
+      "label": "Restart Daemon",
+      "command": "ai-guardian daemon restart",
+      "type": "notification"
+    },
+    {
       "label": "Reload Config",
       "command": "ai-guardian daemon reload",
       "type": "notification"
