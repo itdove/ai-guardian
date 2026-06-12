@@ -1,0 +1,36 @@
+# Secret detection stopwords — known placeholder/test values
+# Source: gitleaks defaults + ai-guardian additions
+# Refresh: check gitleaks upstream periodically
+
+[stopwords]
+words = [
+    "example",
+    "test",
+    "sample",
+    "placeholder",
+    "dummy",
+    "fake",
+    "mock",
+    "changeme",
+    "replace",
+    "insert",
+    "your",
+    "todo",
+    "fixme",
+    "temp",
+    "demo",
+    "default",
+    "undefined",
+    "null",
+    "false",
+    "true",
+    "EXAMPLE",
+    "REPLACE_ME",
+    "YOUR_API_KEY",
+    "YOUR_SECRET",
+    "YOUR_TOKEN",
+    "INSERT_HERE",
+    "CHANGE_ME",
+    "PUT_YOUR",
+    "ENTER_YOUR",
+]

@@ -26,6 +26,7 @@ BUNDLED_FILES = {
     "config_exfil": DATA_DIR / "config-exfil.toml",
     "ssrf": DATA_DIR / "ssrf.toml",
     "supply_chain": DATA_DIR / "supply-chain.toml",
+    "stopwords": DATA_DIR / "stopwords.toml",
 }
 
 import logging
