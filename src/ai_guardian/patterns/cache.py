@@ -315,10 +315,22 @@ class PatternCache:
         return result
 
     def _scan_regex(self, content: str, rule: CompiledRule) -> List[ScanFinding]:
+        keywords = rule.metadata.get("keywords")
+        if keywords:
+            content_lower = content.lower()
+            if not any(kw.lower() in content_lower for kw in keywords):
+                return []
+
+        min_entropy = rule.metadata.get("entropy")
+
         findings = []
         for match in rule.compiled.finditer(content):
             if not self._passes_validation(match.group(), rule):
                 continue
+            if min_entropy is not None:
+                from ai_guardian.patterns.validators import shannon_entropy
+                if shannon_entropy(match.group()) < min_entropy:
+                    continue
             line_num = content[:match.start()].count('\n') + 1
             findings.append(ScanFinding(
                 rule_id=rule.id,

@@ -13,11 +13,18 @@ Usage in ai-guardian.json:
 
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import List, Optional, Set
 
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
 from ai_guardian.patterns import BUNDLED_FILES
 from ai_guardian.patterns.cache import PatternCache
+from ai_guardian.patterns.validators import MIN_STOPWORD_LENGTH
 from ai_guardian.scanners.sdk import Finding, Scanner
 
 logger = logging.getLogger(__name__)
@@ -39,6 +46,8 @@ class TomlPatternsScanner(Scanner):
         self._allowed_pii_types: Optional[Set[str]] = None
         self._compiled_allowlist: List[re.Pattern] = []
         self._ignore_files: List[str] = []
+        self._stopwords: List[str] = []
+        self._min_entropy: Optional[float] = 3.0
         toml_paths = []
         for key in ("secrets", "pii"):
             path = BUNDLED_FILES.get(key)
@@ -46,7 +55,25 @@ class TomlPatternsScanner(Scanner):
                 toml_paths.append(path)
         if toml_paths:
             self._cache.load(*toml_paths)
-        logger.info(f"TomlPatternsScanner: loaded {self._cache.rule_count} rules")
+        self._load_bundled_stopwords()
+        logger.info(f"TomlPatternsScanner: loaded {self._cache.rule_count} rules, "
+                     f"{len(self._stopwords)} stopwords")
+
+    def _load_bundled_stopwords(self) -> None:
+        """Load stopwords from the bundled stopwords.toml file."""
+        path = BUNDLED_FILES.get("stopwords")
+        if not path or not path.exists():
+            return
+        try:
+            with open(path, "rb") as f:
+                data = tomllib.load(f)
+            words = data.get("stopwords", {}).get("words", [])
+            self._stopwords = [
+                w.lower() for w in words
+                if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH
+            ]
+        except Exception as e:
+            logger.warning(f"TomlPatternsScanner: failed to load stopwords: {e}")
 
     def configure(self, config: dict) -> None:
         """Accept scanner-specific configuration.
@@ -79,6 +106,19 @@ class TomlPatternsScanner(Scanner):
             self._compiled_allowlist = []
 
         self._ignore_files = config.get("ignore_files") or []
+
+        min_entropy = config.get("min_entropy")
+        if min_entropy is not None:
+            self._min_entropy = float(min_entropy)
+
+        user_stopwords = config.get("stopwords", [])
+        if user_stopwords:
+            extra = [
+                w.lower() for w in user_stopwords
+                if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH
+            ]
+            existing = set(self._stopwords)
+            self._stopwords.extend(w for w in extra if w not in existing)
 
     def _load_from_server(self, server_config: dict) -> None:
         """Load patterns from a single pattern server."""
@@ -123,6 +163,14 @@ class TomlPatternsScanner(Scanner):
             if self._allowed_pii_types is not None and f.category == "pii":
                 pii_type = f.metadata.get("pii_type")
                 if pii_type and pii_type not in self._allowed_pii_types:
+                    continue
+            if self._stopwords and f.category == "secrets":
+                matched_lower = f.matched_text.lower()
+                if any(sw in matched_lower for sw in self._stopwords):
+                    continue
+            if self._min_entropy is not None and f.category == "secrets":
+                from ai_guardian.patterns.validators import shannon_entropy
+                if shannon_entropy(f.matched_text) < self._min_entropy:
                     continue
             findings.append(Finding(
                 rule_id=f.rule_id,

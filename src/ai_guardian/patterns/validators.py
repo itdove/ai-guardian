@@ -9,10 +9,31 @@ Extracted from SecretRedactor for shared use by PatternCache.
 """
 
 import logging
+import math
 import re
+from collections import Counter
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
+
+
+MIN_STOPWORD_LENGTH = 3
+
+
+def shannon_entropy(text: str) -> float:
+    """Calculate Shannon entropy of a string in bits per character.
+
+    Returns 0.0 for empty strings or single-character strings.
+    Random alphanumeric strings score ~4.7; repeated characters score 0.0.
+    """
+    if not text:
+        return 0.0
+    length = len(text)
+    counts = Counter(text)
+    return -sum(
+        (count / length) * math.log2(count / length)
+        for count in counts.values()
+    )
 
 
 def luhn_check(number_str: str, min_digits: int = 13, max_digits: int = 19) -> bool:

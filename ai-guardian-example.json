@@ -342,7 +342,16 @@
     "validation_timeout_ms": 3000,
     "_validation_timeout_comment": "Timeout per validation request in milliseconds. Default: 3000ms.",
     "on_inactive": "warn",
-    "_on_inactive_comment": "Action for inactive (revoked/expired) secrets: 'warn' (log warning, don't block) or 'allow' (silently skip). Verified-active and unverified secrets always block."
+    "_on_inactive_comment": "Action for inactive (revoked/expired) secrets: 'warn' (log warning, don't block) or 'allow' (silently skip). Verified-active and unverified secrets always block.",
+
+    "_comment_entropy": "NEW in v1.12.0: Shannon entropy filtering for false positive reduction (Issue #1091)",
+    "_comment_entropy2": "Range: 0.0 (identical chars like 'XXXXXXXXXX') to ~6.0 (fully random). Real API keys typically score 4.0+.",
+    "_comment_entropy3": "Default: 3.0 (filters placeholders, keeps real secrets). Set to null to disable.",
+    "min_entropy": 3.0,
+    "_comment_stopwords": "NEW in v1.12.0: Additional stopwords to filter false positives (Issue #1091)",
+    "_comment_stopwords2": "MERGED with bundled stopwords (example, test, sample, placeholder, fake, mock, changeme, etc.). Bundled words cannot be removed.",
+    "_comment_stopwords3": "Case-insensitive substring match on matched text. Minimum word length: 3 characters.",
+    "stopwords": []
   },
 
   "prompt_injection": {

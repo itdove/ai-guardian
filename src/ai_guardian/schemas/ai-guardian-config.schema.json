@@ -517,6 +517,19 @@
           "description": "Action to take when a secret is validated as inactive (revoked/expired). 'warn' logs a warning but does not block. 'allow' silently skips without warning. Verified-active and unverified secrets always block regardless of this setting.",
           "enum": ["warn", "allow"],
           "default": "warn"
+        },
+        "min_entropy": {
+          "type": ["number", "null"],
+          "description": "Minimum Shannon entropy threshold for secret detection (v1.12.0+). Matches below this value are rejected as likely placeholders. Range: 0.0 (all identical chars) to ~6.0 (fully random). Default: 3.0 (filters placeholders while keeping real secrets which score 4.0+). Set to null to disable.",
+          "minimum": 0,
+          "maximum": 8,
+          "default": 3.0
+        },
+        "stopwords": {
+          "type": "array",
+          "description": "Additional stopwords for false positive filtering (v1.12.0+). MERGED with (not replacing) the bundled stopwords. Matched secrets containing any stopword (case-insensitive substring) are suppressed. Minimum word length: 3 characters.",
+          "items": {"type": "string"},
+          "default": []
         }
       },
       "additionalProperties": true
