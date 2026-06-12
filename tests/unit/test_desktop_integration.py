@@ -44,15 +44,28 @@ class TestGetDesktopIntegration:
 
 class TestGetExecutableCommand:
     def test_uses_shutil_which_when_available(self):
-        with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+        with mock.patch("ai_guardian.daemon.shutil.which", return_value="/usr/local/bin/ai-guardian"):
             result = _get_executable_command()
         assert len(result) == 1
         assert result[0].endswith("ai-guardian")
 
-    def test_falls_back_to_sys_executable(self):
-        with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value=None):
+    def test_falls_back_to_python_command(self):
+        with mock.patch("ai_guardian.daemon.shutil.which", return_value=None):
             result = _get_executable_command()
-        assert result[0] == str(Path(result[0]))
+        assert "-m" in result
+        assert "ai_guardian" in result
+
+    def test_uses_absolute_python_path_when_available(self):
+        def mock_which(cmd):
+            if cmd == "ai-guardian":
+                return None
+            if cmd == "python":
+                return "/usr/bin/python3"
+            return None
+
+        with mock.patch("ai_guardian.daemon.shutil.which", side_effect=mock_which):
+            result = _get_executable_command()
+        assert result[0].endswith("python3")
         assert result[1] == "-m"
         assert result[2] == "ai_guardian"
 

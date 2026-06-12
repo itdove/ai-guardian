@@ -16,7 +16,7 @@ def _run_config_show():
     """
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "ai_guardian", "config", "show",
+            ["python", "-m", "ai_guardian", "config", "show",
              "--all", "--json"],
             capture_output=True,
             text=True,

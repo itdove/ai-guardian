@@ -177,7 +177,7 @@ class MultiDaemonClient:
         try:
             if target.runtime == "local":
                 result = subprocess.run(
-                    [sys.executable, "-m", "pip", "--version"],
+                    ["python", "-m", "pip", "--version"],
                     capture_output=True, text=True, timeout=10,
                 )
                 return result.returncode == 0
@@ -203,19 +203,43 @@ class MultiDaemonClient:
             return None
 
     def run_pip_upgrade(
-        self, target: DaemonTarget, timeout: int = 120
+        self, target: DaemonTarget, version: Optional[str] = None, timeout: int = 120
     ) -> tuple:
-        """Run pip upgrade on the target. Returns (success, output)."""
+        """Sync daemon to a specific version or upgrade to latest.
+
+        Args:
+            target: The daemon target to upgrade
+            version: Specific version to install (e.g., "1.12.0"), or None for latest
+            timeout: Command timeout in seconds
+
+        Returns:
+            (success, output): Tuple of success boolean and command output
+        """
         try:
+            # Build pip install command
+            if version:
+                pkg_spec = f"ai-guardian=={version}"
+            else:
+                pkg_spec = "ai-guardian"
+
             if target.runtime == "local":
+                python_exe = shutil.which("python") or shutil.which("python3") or "python"
+                cmd = [python_exe, "-m", "pip", "install"]
+                if not version:
+                    cmd.append("--upgrade")
+                cmd.append(pkg_spec)
                 result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install",
-                     "--upgrade", "ai-guardian"],
+                    cmd,
                     capture_output=True, text=True, timeout=timeout,
                 )
                 output = result.stdout + result.stderr
                 return (result.returncode == 0, output)
-            cmd = ["pip", "install", "--upgrade", "ai-guardian"]
+
+            # Remote targets (container/kubernetes)
+            cmd = ["pip", "install"]
+            if not version:
+                cmd.append("--upgrade")
+            cmd.append(pkg_spec)
             if target.runtime == "container":
                 out = self._container_exec(target, cmd, timeout=timeout)
                 return (out is not None, out or "")
@@ -223,7 +247,7 @@ class MultiDaemonClient:
                 out = self._kubectl_exec(target, cmd, timeout=timeout)
                 return (out is not None, out or "")
         except subprocess.TimeoutExpired:
-            return (False, "Upgrade timed out")
+            return (False, "Version sync timed out")
         except OSError as e:
             return (False, str(e))
         return (False, "Unsupported runtime")

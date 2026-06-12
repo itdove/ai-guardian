@@ -271,7 +271,7 @@ class MacOSDesktop(DesktopIntegration):
 
             script_path = macos_dir / "ai-guardian-tray"
             script_path.write_text(
-                f"#!{sys.executable}\n"
+                "#!/usr/bin/env python\n"
                 "import os, sys\n"
                 "for d in ['/opt/homebrew/bin', '/opt/homebrew/sbin',\n"
                 "          '/usr/local/bin', '/usr/local/sbin',\n"

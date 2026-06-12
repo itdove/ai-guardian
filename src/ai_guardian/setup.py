@@ -29,15 +29,12 @@ def _resolve_binary_path() -> str:
     window flash on every hook invocation (see issue #902).
     """
     if platform.system() == "Windows":
-        pythonw = Path(sys.executable).parent / "pythonw.exe"
-        if pythonw.exists():
+        pythonw = shutil.which("pythonw")
+        if pythonw:
             return f"{pythonw} -m ai_guardian"
     path = shutil.which("ai-guardian")
     if path:
         return path
-    candidate = Path(sys.executable).parent / "ai-guardian"
-    if candidate.exists():
-        return str(candidate)
     return "ai-guardian"
 
 
