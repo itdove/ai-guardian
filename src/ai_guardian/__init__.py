@@ -74,7 +74,7 @@ _suppress_logging = (
     or ("setup" in sys.argv and "--json" in sys.argv)
 )
 _scan_quiet = ("scan" in sys.argv and "--verbose" not in sys.argv and "-v" not in sys.argv)
-_quiet_stderr = "tray-prompt" in sys.argv or "tray-target-select" in sys.argv or "ask-prompt" in sys.argv
+_quiet_stderr = "prompt" in sys.argv or "tray-target-select" in sys.argv
 if _quiet_stderr:
     _stderr_handler.setLevel(logging.CRITICAL)
     import platform

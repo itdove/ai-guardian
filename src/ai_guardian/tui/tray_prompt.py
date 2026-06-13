@@ -1,13 +1,9 @@
 """
 Popup for collecting tray plugin parameters.
 
-Launched by the tray via `ai-guardian tray-prompt --params '<json>' --command '<template>'`.
+Launched by the tray via `ai-guardian prompt --mode params --params '<json>' --template '<template>'`.
 
 Cascade: tkinter (native popup) → NiceGUI (browser form) → Textual (terminal).
-
-Environment overrides (useful for testing or user preference):
-  AI_GUARDIAN_NO_TKINTER=1   skip tkinter even when installed
-  AI_GUARDIAN_NO_NICEGUI=1   skip NiceGUI even when installed
 
 To enable the tkinter popup, install the optional tkinter package:
   - macOS (pyenv): brew install tcl-tk && pyenv install <version> --force
@@ -23,34 +19,9 @@ or the Textual fallback is used automatically.
 import logging
 import os
 
+from ai_guardian.tui.display import _tkinter_available, _nicegui_available
+
 logger = logging.getLogger(__name__)
-
-
-def _tkinter_available():
-    """Return True if tkinter can be imported.
-
-    Runtime failures (broken Tcl/Tk, no display, etc.) are caught by
-    the try/except cascade in ``TrayPromptApp.run()`` which falls
-    through to NiceGUI or Textual automatically.
-    """
-    if os.environ.get("AI_GUARDIAN_NO_TKINTER"):
-        return False
-    try:
-        import tkinter  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-def _nicegui_available():
-    """Return True if NiceGUI can be imported and is not suppressed."""
-    if os.environ.get("AI_GUARDIAN_NO_NICEGUI"):
-        return False
-    try:
-        import nicegui  # noqa: F401
-        return True
-    except ImportError:
-        return False
 
 
 # -- tkinter implementation --------------------------------------------------
