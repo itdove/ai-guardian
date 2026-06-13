@@ -1,0 +1,129 @@
+"""Pattern editor for the ask dialog's "Allow Always" flow.
+
+Provides pattern validation, conversion, and preview logic shared across
+tkinter, NiceGUI, and Textual editor implementations.
+
+Reuses find_matches() from tui/regex_tester.py and validate_regex_pattern()
+from config_utils for pattern safety checks.
+"""
+
+import fnmatch
+import json
+import re
+import logging
+from dataclasses import dataclass, field
+from typing import Optional, Tuple
+
+from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian.allowlist_utils import DANGEROUS_PATTERNS
+
+logger = logging.getLogger(__name__)
+
+PATTERN_TYPES = {
+    "string": "Plain string (exact match)",
+    "glob": "Glob pattern (*, ?)",
+    "regex": "Regex pattern",
+}
+
+SECTION_PATTERN_TYPE = {
+    "secret_scanning": "regex",
+    "prompt_injection": "regex",
+    "scan_pii": "regex",
+    "context_poisoning": "regex",
+    "ssrf_protection": "glob",
+    "directory_rules": "glob",
+    "supply_chain": "glob",
+    "config_file_scanning": "glob",
+}
+
+
+def get_pattern_type_for_section(config_section: str) -> str:
+    """Return the pattern type for a config section."""
+    return SECTION_PATTERN_TYPE.get(config_section, "regex")
+
+
+@dataclass
+class PatternEditorResult:
+    """Result from the pattern editor."""
+    pattern: str
+    pattern_type: str = "regex"
+    config_section: str = "secret_scanning"
+    valid_until: Optional[str] = None
+
+
+def convert_to_regex(pattern: str, pattern_type: str) -> str:
+    """Convert a pattern to regex format for storage.
+
+    Args:
+        pattern: The pattern string.
+        pattern_type: One of "string", "glob", "regex".
+
+    Returns:
+        A regex pattern string.
+    """
+    if pattern_type == "string":
+        return re.escape(pattern)
+    elif pattern_type == "glob":
+        return fnmatch.translate(pattern)
+    return pattern
+
+
+def validate_pattern(
+    pattern: str,
+    pattern_type: str,
+    test_text: str,
+) -> Tuple[bool, str]:
+    """Validate a pattern compiles correctly and matches the test text.
+
+    Args:
+        pattern: The pattern to validate.
+        pattern_type: One of "string", "glob", "regex".
+        test_text: The original matched text to test against.
+
+    Returns:
+        (is_valid, message) tuple.
+    """
+    if not pattern:
+        return False, "Pattern is empty"
+
+    regex_pattern = convert_to_regex(pattern, pattern_type)
+
+    if regex_pattern in DANGEROUS_PATTERNS:
+        return False, "Pattern is too broad — would disable all detection"
+
+    if not validate_regex_pattern(regex_pattern):
+        return False, "Pattern failed ReDoS safety check"
+
+    try:
+        compiled = re.compile(regex_pattern, re.IGNORECASE | re.MULTILINE)
+    except re.error as e:
+        return False, f"Invalid regex: {e}"
+
+    if test_text and not compiled.search(test_text):
+        return False, "Pattern does not match the original text"
+
+    return True, "Pattern is valid and matches"
+
+
+def generate_config_preview(pattern: str, config_section: str) -> str:
+    """Generate a JSON config snippet showing where the pattern will be added.
+
+    Args:
+        pattern: The regex pattern to add.
+        config_section: The config section (e.g., "secret_scanning").
+
+    Returns:
+        Formatted JSON string.
+    """
+    return json.dumps(
+        {config_section: {"allowlist_patterns": [pattern]}},
+        indent=2,
+    )
+
+
+def suggest_pattern(matched_text: str) -> str:
+    """Suggest an initial pattern based on the matched text.
+
+    Escapes the text for use as a regex that matches the literal string.
+    """
+    return re.escape(matched_text)

@@ -180,6 +180,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                             options={
                                 "warn": "Warn — allow with warning (recommended)",
                                 "block": "Block — reject the operation",
+                                "ask": "Ask — interactive prompt (block if headless)",
+                                "ask:warn": "Ask — interactive prompt (warn if headless)",
+                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
                                 "log-only": "Log Only — silent logging",
                             },
                             value=action,

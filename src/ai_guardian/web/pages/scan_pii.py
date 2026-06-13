@@ -215,6 +215,9 @@ def create_scan_pii_page(service, daemon_name: str):
                         act_sel = ui.select(
                             options={
                                 "block": "Block — reject operation",
+                                "ask": "Ask — interactive prompt (block if headless)",
+                                "ask:warn": "Ask — interactive prompt (warn if headless)",
+                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
                                 "redact": "Redact — mask PII values",
                                 "warn": "Warn — allow with warning",
                                 "log-only": "Log Only — silent logging",

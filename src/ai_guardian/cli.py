@@ -35,6 +35,7 @@ from ai_guardian.cli_handlers import (
     _get_client_timeout,
     _handle_daemon_command,
     _handle_tray_command,
+    _handle_ask_prompt,
     _handle_tray_prompt,
     _handle_tray_target_select,
 )
@@ -977,6 +978,32 @@ def main():
             help="Window title for the parameter form"
         )
 
+        # Ask prompt subcommand (Issue #1115)
+        ask_prompt_parser = subparsers.add_parser(
+            "ask-prompt",
+            help="Show ask dialog for violation decisions"
+        )
+        ask_prompt_parser.add_argument(
+            "--violation",
+            required=True,
+            help="JSON object with violation details"
+        )
+        ask_prompt_parser.add_argument(
+            "--output-file",
+            default=None,
+            help="Write result JSON to this file"
+        )
+        ask_prompt_parser.add_argument(
+            "--fallback",
+            default="block",
+            help="Fallback action when no dialog available (block/warn/log-only)"
+        )
+        ask_prompt_parser.add_argument(
+            "--timeout",
+            default="300",
+            help="Auto-dismiss timeout in seconds"
+        )
+
         # Tray target selector subcommand (Issue #760)
         tray_target_parser = subparsers.add_parser(
             "tray-target-select",
@@ -1521,6 +1548,10 @@ def main():
         if args.command == "tray":
             return _handle_tray_command(args)
 
+        # Handle ask-prompt command (Issue #1115)
+        if args.command == "ask-prompt":
+            return _handle_ask_prompt(args)
+
         # Handle tray-prompt command (Issue #590)
         if args.command == "tray-prompt":
             return _handle_tray_prompt(args)
@@ -1662,6 +1693,16 @@ def main():
         _hook_config, _ = _load_config_file()
     except Exception:
         pass
+    def _has_ask_action(config):
+        """Check if any feature uses the ask action mode."""
+        for section in ("secret_scanning", "prompt_injection", "scan_pii", "context_poisoning"):
+            sect = config.get(section, {})
+            if isinstance(sect, dict):
+                action = sect.get("action", "")
+                if isinstance(action, str) and action.startswith("ask"):
+                    return True
+        return False
+
     hook_data = None
     response = None
     stdin_consumed = False
@@ -1689,7 +1730,10 @@ def main():
 
         if running:
             logging.info("Daemon is running, forwarding hook request")
-            response = send_hook_request(hook_data, timeout=_get_client_timeout(config=_hook_config))
+            timeout = _get_client_timeout(config=_hook_config)
+            if _hook_config and _has_ask_action(_hook_config):
+                timeout = max(timeout, 310.0)
+            response = send_hook_request(hook_data, timeout=timeout)
             if response is not None:
                 logging.info("Daemon processed hook request")
             else:

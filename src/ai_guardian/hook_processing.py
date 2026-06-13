@@ -76,6 +76,7 @@ from ai_guardian.config_loaders import (
     _load_supply_chain_config,
     _get_on_scan_error_action,
 )
+from ai_guardian.constants import parse_ask_action
 
 from ai_guardian.response_format import (
     _SECURITY_SYSTEM_MESSAGE,
@@ -1907,6 +1908,89 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
         logger.debug(f"Failed to log finding violation: {e}")
 
 
+def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
+                     file_path=None, line_number=None, matched_pattern=""):
+    """Handle 'ask' action mode by showing an interactive dialog.
+
+    Returns an AskResult if action is 'ask', or None if action is not 'ask'.
+    When the dialog is shown, also writes allowlist patterns if the user
+    chooses "Allow Always".
+    """
+    primary_action, fallback_action = parse_ask_action(action_str)
+    if primary_action != ActionMode.ASK:
+        return None
+
+    try:
+        from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision
+        from ai_guardian.config_writer import add_allowlist_pattern
+
+        display_text = matched_text or ""
+        display_line = line_number
+
+        if error_msg and not matched_text:
+            display_text = ""
+
+        if not display_text and file_path and error_msg:
+            try:
+                import re as _re
+                loc_match = _re.search(r"Location:\s*[^:]+:(\d+)", error_msg)
+                if loc_match:
+                    display_line = int(loc_match.group(1))
+            except (ValueError, AttributeError):
+                pass
+
+        if not display_text and file_path and display_line:
+            try:
+                with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+                    for i, line in enumerate(fh, 1):
+                        if i == display_line:
+                            display_text = line.rstrip("\n\r")
+                            break
+            except (OSError, UnicodeDecodeError):
+                pass
+
+        if not display_text:
+            try:
+                import re as _re
+                type_match = _re.search(r"Secret Type:\s*(.+)", error_msg or "")
+                if type_match:
+                    display_text = type_match.group(1).strip()
+            except (AttributeError, IndexError):
+                pass
+
+        summary_lines = []
+        if error_msg:
+            for prefix in ("Secret Type:", "Location:", "Scanner:"):
+                import re as _re
+                m = _re.search(rf"{prefix}\s*(.+)", error_msg)
+                if m:
+                    summary_lines.append(f"{prefix} {m.group(1).strip()}")
+        summary = " | ".join(summary_lines) if summary_lines else (error_msg[:200] if error_msg else str(violation_type))
+
+        violation_info = AskViolationInfo(
+            violation_type=violation_type,
+            summary=summary,
+            matched_text=display_text,
+            config_section=config_section,
+            error_message=error_msg or "",
+            matched_pattern=matched_pattern,
+            file_path=file_path,
+            line_number=display_line,
+        )
+
+        result = show_ask_dialog(violation_info, fallback_action=fallback_action)
+
+        if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
+            add_allowlist_pattern(config_section, result.allowlist_pattern)
+
+        return result
+
+    except Exception as e:
+        logging.warning(f"Ask dialog error, falling back to {fallback_action}: {e}")
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision, _map_fallback_to_decision
+        return AskResult(decision=_map_fallback_to_decision(fallback_action))
+
+
 def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
                                     hook_context: Optional[Dict] = None,
                                     matched_pattern: Optional[str] = None,
@@ -3665,6 +3749,24 @@ def process_hook_data(hook_data, daemon_state=None):
                                      warning_message=error_message)
 
             if has_secrets:
+                # Check ask action mode before blocking
+                secret_action = secret_config.get("action", "block") if secret_config else "block"
+                ask_result = _handle_ask_mode(
+                    secret_action, ViolationType.SECRET_DETECTED,
+                    matched_text="",
+                    config_section="secret_scanning",
+                    error_msg=error_message,
+                    file_path=file_path if 'file_path' in dir() else None,
+                )
+                logging.debug(f"[ASK-DEBUG] ask_result={ask_result}")
+                if ask_result is not None:
+                    from ai_guardian.tui.ask_dialog import AskDecision
+                    if ask_result.decision != AskDecision.BLOCK:
+                        _advance_transcript_position(hook_data)
+                        warn_msg = f"⚠️  Secret detection allowed by user (ask mode): {error_message[:200] if error_message else 'secret detected'}"
+                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                             warning_message=warn_msg)
+
                 # Check if redaction is enabled
                 redaction_config, redaction_error = _load_secret_redaction_config()
 
@@ -3848,6 +3950,18 @@ def process_hook_data(hook_data, daemon_state=None):
                             pretool_ctx=pretool_ctx,
                         )
                         logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
+
+                        # Check ask action mode before standard routing
+                        pii_ask_result = _handle_ask_mode(
+                            pii_action, ViolationType.PII_DETECTED,
+                            matched_text=pii_warning or "",
+                            config_section="scan_pii",
+                            error_msg=pii_warning,
+                        )
+                        if pii_ask_result is not None:
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            if pii_ask_result.decision != AskDecision.BLOCK:
+                                pii_action = 'warn'
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -4324,6 +4438,26 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
 
                     if should_block:
+                        # Check ask action mode before blocking
+                        pi_action = injection_config.get("action", "block") if injection_config else "block"
+                        pi_ask_result = _handle_ask_mode(
+                            pi_action, ViolationType.PROMPT_INJECTION,
+                            matched_text=detector.last_matched_text or "",
+                            config_section="prompt_injection",
+                            error_msg=injection_error,
+                            file_path=file_path,
+                            line_number=detector.last_line_number,
+                            matched_pattern=detector.last_matched_pattern or "",
+                        )
+                        if pi_ask_result is not None:
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            if pi_ask_result.decision != AskDecision.BLOCK:
+                                warn_msg = f"⚠️  Prompt injection allowed by user (ask mode)"
+                                warning_messages.append(warn_msg)
+                                should_block = False
+                                injection_error = warn_msg
+
+                    if should_block:
                         # Prompt injection detected - block operation
                         # Note: detailed logging (confidence, pattern, text) already done in prompt_injection.py
                         if ide_type != IDEType.CURSOR:
@@ -4386,6 +4520,26 @@ def process_hook_data(hook_data, daemon_state=None):
                             confidence=cp_detector.last_confidence,
                             line_number=cp_detector.last_line_number
                         )
+
+                    if cp_should_block:
+                        # Check ask action mode before blocking
+                        cp_action = cp_config.get("action", "warn") if cp_config else "warn"
+                        cp_ask_result = _handle_ask_mode(
+                            cp_action, ViolationType.CONTEXT_POISONING,
+                            matched_text=cp_detector.last_matched_text or "",
+                            config_section="context_poisoning",
+                            error_msg=cp_error_msg,
+                            file_path=file_path if 'file_path' in dir() else None,
+                            line_number=cp_detector.last_line_number,
+                            matched_pattern=cp_detector.last_matched_pattern or "",
+                        )
+                        if cp_ask_result is not None:
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            if cp_ask_result.decision != AskDecision.BLOCK:
+                                warn_msg = f"⚠️  Context poisoning allowed by user (ask mode)"
+                                warning_messages.append(warn_msg)
+                                cp_should_block = False
+                                cp_error_msg = warn_msg
 
                     if cp_should_block:
                         logging.info("Blocking operation due to context poisoning detection")
@@ -4576,6 +4730,23 @@ def process_hook_data(hook_data, daemon_state=None):
                 warning_messages.append(error_message)
 
             if has_secrets:
+                # Check ask action mode before blocking
+                secret_action_pre = secret_config.get("action", "block") if secret_config else "block"
+                ask_result_pre = _handle_ask_mode(
+                    secret_action_pre, ViolationType.SECRET_DETECTED,
+                    matched_text="",
+                    config_section="secret_scanning",
+                    error_msg=error_message,
+                    file_path=file_path,
+                )
+                if ask_result_pre is not None:
+                    from ai_guardian.tui.ask_dialog import AskDecision
+                    if ask_result_pre.decision != AskDecision.BLOCK:
+                        warn_msg = f"⚠️  Secret detection allowed by user (ask mode)"
+                        warning_messages.append(warn_msg)
+                        has_secrets = False
+
+            if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
                 result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
                 return result
@@ -4629,6 +4800,18 @@ def process_hook_data(hook_data, daemon_state=None):
                             hook_session_id=hook_session_id,
                         )
                         logging.warning(f"PII detected: {pii_types}")
+
+                        # Check ask action mode before blocking
+                        pii_ask_result2 = _handle_ask_mode(
+                            pii_action, ViolationType.PII_DETECTED,
+                            matched_text=pii_warning or "",
+                            config_section="scan_pii",
+                            error_msg=pii_warning,
+                        )
+                        if pii_ask_result2 is not None:
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            if pii_ask_result2.decision != AskDecision.BLOCK:
+                                pii_action = 'warn'
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None

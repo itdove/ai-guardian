@@ -156,6 +156,9 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                         select_options_with_default(
                             [
                                 ("Block (reject operation)", "block"),
+                                ("Ask (block if headless)", "ask"),
+                                ("Ask (warn if headless)", "ask:warn"),
+                                ("Ask (log-only if headless)", "ask:log-only"),
                                 ("Redact (mask PII in output)", "redact"),
                                 ("Warn (allow with warning)", "warn"),
                                 ("Log Only (silent logging)", "log-only"),
@@ -168,6 +171,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
 
                 yield Static(
                     "[dim]  block: Reject the operation entirely\n"
+                    "  ask: Interactive prompt (Allow Once/Always/Block)\n"
                     "  redact: Mask PII in PostToolUse, block in PreToolUse/UserPromptSubmit\n"
                     "  warn: Log violation and show warning but allow\n"
                     "  log-only: Log violation silently[/dim]",

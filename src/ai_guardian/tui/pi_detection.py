@@ -106,6 +106,35 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             )
 
             with Container(classes="section"):
+                yield Static("[bold]Action on Detection[/bold]", classes="section-title")
+
+                with Horizontal(classes="setting-row"):
+                    yield Label("Action Mode:")
+                    yield Select(
+                        select_options_with_default(
+                            [
+                                ("Block (prevent execution)", "block"),
+                                ("Ask (block if headless)", "ask"),
+                                ("Ask (warn if headless)", "ask:warn"),
+                                ("Ask (log-only if headless)", "ask:log-only"),
+                                ("Warn (allow with warning)", "warn"),
+                                ("Log Only (silent logging)", "log-only"),
+                            ],
+                            "prompt_injection.action",
+                        ),
+                        value="block",
+                        id="pi-action-select",
+                    )
+
+                yield Static(
+                    "[dim]  block: Prevent execution entirely (default)\n"
+                    "  ask: Interactive prompt (Allow Once/Always/Block)\n"
+                    "  warn: Log violation and show warning but allow\n"
+                    "  log-only: Log violation silently[/dim]",
+                    classes="setting-row",
+                )
+
+            with Container(classes="section"):
                 yield Static("[bold]Detection Engine[/bold]", classes="section-title")
 
                 with Horizontal(classes="setting-row"):
@@ -144,31 +173,6 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                         f"[dim]0.0-1.0 (press Enter to save)[/dim] "
                         f"{default_indicator('prompt_injection.max_score_threshold')}"
                     )
-
-            with Container(classes="section"):
-                yield Static("[bold]Action on Detection[/bold]", classes="section-title")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Action Mode:")
-                    yield Select(
-                        select_options_with_default(
-                            [
-                                ("Block (prevent execution)", "block"),
-                                ("Warn (allow with warning)", "warn"),
-                                ("Log Only (silent logging)", "log-only"),
-                            ],
-                            "prompt_injection.action",
-                        ),
-                        value="block",
-                        id="pi-action-select",
-                    )
-
-                yield Static(
-                    "[dim]  block: Prevent execution entirely (default)\n"
-                    "  warn: Log violation and show warning but allow\n"
-                    "  log-only: Log violation silently[/dim]",
-                    classes="setting-row",
-                )
 
             with Container(classes="section"):
                 yield Static("[bold]Ignore Files[/bold]", classes="section-title")
