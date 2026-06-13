@@ -260,8 +260,8 @@ class TestAskDialogHeadlessFallback:
         from ai_guardian.tui.ask_dialog import _map_fallback_to_decision, AskDecision
         assert _map_fallback_to_decision("unknown") == AskDecision.BLOCK
 
-    @patch.dict(os.environ, {"AI_GUARDIAN_NO_TKINTER": "1", "AI_GUARDIAN_NO_NICEGUI": "1"})
-    def test_show_ask_dialog_headless_block(self):
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_show_ask_dialog_headless_block(self, _mock_sub):
         from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision
         violation = AskViolationInfo(
             violation_type="secret_detected",
@@ -272,8 +272,8 @@ class TestAskDialogHeadlessFallback:
         result = show_ask_dialog(violation, fallback_action="block")
         assert result.decision == AskDecision.BLOCK
 
-    @patch.dict(os.environ, {"AI_GUARDIAN_NO_TKINTER": "1", "AI_GUARDIAN_NO_NICEGUI": "1"})
-    def test_show_ask_dialog_headless_warn(self):
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_show_ask_dialog_headless_warn(self, _mock_sub):
         from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision
         violation = AskViolationInfo(
             violation_type="secret_detected",
@@ -281,9 +281,7 @@ class TestAskDialogHeadlessFallback:
             matched_text="FAKE_TOKEN=abc123",
             config_section="secret_scanning",
         )
-        # Mock _textual_available to return False (no TTY in tests)
-        with patch("ai_guardian.tui.ask_dialog._textual_available", return_value=False):
-            result = show_ask_dialog(violation, fallback_action="warn")
+        result = show_ask_dialog(violation, fallback_action="warn")
         assert result.decision == AskDecision.ALLOW_ONCE
 
 
@@ -304,23 +302,21 @@ class TestHandleAskMode:
         )
         assert result is None
 
-    @patch.dict(os.environ, {"AI_GUARDIAN_NO_TKINTER": "1", "AI_GUARDIAN_NO_NICEGUI": "1"})
-    def test_ask_headless_block_fallback(self):
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_ask_headless_block_fallback(self, _mock_sub):
         from ai_guardian.hook_processing import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
-        with patch("ai_guardian.tui.ask_dialog._textual_available", return_value=False):
-            result = _handle_ask_mode(
-                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
-            )
+        result = _handle_ask_mode(
+            "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
+        )
         assert result is not None
         assert result.decision == AskDecision.BLOCK
 
-    @patch.dict(os.environ, {"AI_GUARDIAN_NO_TKINTER": "1", "AI_GUARDIAN_NO_NICEGUI": "1"})
-    def test_ask_warn_headless_fallback(self):
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_ask_warn_headless_fallback(self, _mock_sub):
         from ai_guardian.hook_processing import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
-        with patch("ai_guardian.tui.ask_dialog._textual_available", return_value=False):
-            result = _handle_ask_mode(
+        result = _handle_ask_mode(
                 "ask:warn", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
             )
         assert result is not None
