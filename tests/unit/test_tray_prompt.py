@@ -1,4 +1,4 @@
-"""Tests for tray prompt tkinter/Textual app and CLI handler."""
+"""Tests for prompt --mode params (tray plugin parameter form) and CLI handler."""
 
 import json
 import os
@@ -10,39 +10,39 @@ import pytest
 
 
 class TestHandleTrayPrompt:
-    """Tests for _handle_tray_prompt CLI handler."""
+    """Tests for _handle_prompt_params CLI handler."""
 
     def test_rejects_invalid_json(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         args = mock.MagicMock()
         args.params = "not valid json"
         args.template = "echo"
         args.type = "terminal"
-        result = _handle_tray_prompt(args)
+        result = _handle_prompt_params(args)
         assert result == 1
 
     def test_rejects_non_array_params(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         args = mock.MagicMock()
         args.params = '{"name": "not-an-array"}'
         args.template = "echo"
         args.type = "terminal"
-        result = _handle_tray_prompt(args)
+        result = _handle_prompt_params(args)
         assert result == 1
 
     def test_handles_import_error(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
         args.template = "echo {tray.x}"
         args.type = "terminal"
         with mock.patch.dict("sys.modules", {"ai_guardian.tui.tray_prompt": None}):
-            result = _handle_tray_prompt(args)
+            result = _handle_prompt_params(args)
         assert result == 1
 
     def test_rejects_non_tty_when_textual_fallback(self):
         """When tkinter unavailable and no TTY, should reject."""
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
         args.template = "echo {tray.x}"
@@ -52,11 +52,11 @@ class TestHandleTrayPrompt:
         with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
             with mock.patch("sys.stdin") as mock_stdin:
                 mock_stdin.isatty.return_value = False
-                result = _handle_tray_prompt(args)
+                result = _handle_prompt_params(args)
         assert result == 1
 
     def test_cancel_returns_zero(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         args = mock.MagicMock()
         args.params = '[{"name": "x"}]'
         args.template = "echo {tray.x}"
@@ -66,11 +66,11 @@ class TestHandleTrayPrompt:
         mock_app.needs_terminal = False
         mock_app.run.return_value = None
         with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-            result = _handle_tray_prompt(args)
+            result = _handle_prompt_params(args)
         assert result == 0
 
     def test_cancel_creates_empty_output_file(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cmd") as tmp:
             tmp_path = tmp.name
         os.unlink(tmp_path)
@@ -84,7 +84,7 @@ class TestHandleTrayPrompt:
             mock_app.needs_terminal = False
             mock_app.run.return_value = None
             with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                result = _handle_tray_prompt(args)
+                result = _handle_prompt_params(args)
             assert result == 0
             assert os.path.exists(tmp_path)
             with open(tmp_path) as f:
@@ -94,7 +94,7 @@ class TestHandleTrayPrompt:
                 os.unlink(tmp_path)
 
     def test_submit_writes_command_to_output_file(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cmd") as tmp:
             tmp_path = tmp.name
         os.unlink(tmp_path)
@@ -108,7 +108,7 @@ class TestHandleTrayPrompt:
             mock_app.needs_terminal = False
             mock_app.run.return_value = "echo hello"
             with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                result = _handle_tray_prompt(args)
+                result = _handle_prompt_params(args)
             assert result == 0
             with open(tmp_path) as f:
                 assert f.read() == "echo hello"
@@ -117,7 +117,7 @@ class TestHandleTrayPrompt:
                 os.unlink(tmp_path)
 
     def test_submit_prints_to_stdout_without_output_file(self, capsys):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         args = mock.MagicMock()
         args.params = '[]'
         args.template = "echo hello"
@@ -127,12 +127,12 @@ class TestHandleTrayPrompt:
         mock_app.needs_terminal = False
         mock_app.run.return_value = "echo hello"
         with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-            result = _handle_tray_prompt(args)
+            result = _handle_prompt_params(args)
         assert result == 0
         assert capsys.readouterr().out.strip() == "echo hello"
 
     def test_shell_operators_written_to_output_file(self):
-        from ai_guardian.cli_handlers import _handle_tray_prompt
+        from ai_guardian.cli_handlers import _handle_prompt_params
         with tempfile.NamedTemporaryFile(delete=False, suffix=".cmd") as tmp:
             tmp_path = tmp.name
         os.unlink(tmp_path)
@@ -146,7 +146,7 @@ class TestHandleTrayPrompt:
             mock_app.needs_terminal = False
             mock_app.run.return_value = "echo a && echo b"
             with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp", return_value=mock_app):
-                result = _handle_tray_prompt(args)
+                result = _handle_prompt_params(args)
             assert result == 0
             with open(tmp_path) as f:
                 assert f.read() == "echo a && echo b"

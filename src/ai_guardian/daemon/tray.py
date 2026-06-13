@@ -2863,7 +2863,7 @@ class DaemonTray:
             pass
 
     def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
-        """Launch tray-prompt for parameter collection, then execute.
+        """Launch prompt --mode params for parameter collection, then execute.
 
         Uses tkinter popup (no terminal) when available, otherwise falls
         back to Textual TUI in a terminal window.
@@ -2890,7 +2890,7 @@ class DaemonTray:
 
         params_json = json_mod.dumps(plugin_item_dict.get("params", []))
         prompt_cmd = self._resolve_cli_cmd(
-            "tray-prompt",
+            "prompt", "--mode", "params",
             "--params", params_json,
             "--template", resolved_cmd,
             "--type", plugin_item_dict.get("type", "terminal"),
@@ -2902,7 +2902,7 @@ class DaemonTray:
         if label:
             prompt_cmd += ["--title", label]
 
-        from ai_guardian.tui.tray_prompt import (
+        from ai_guardian.tui.display import (
             _nicegui_available, _tkinter_available,
         )
         if _tkinter_available() or _nicegui_available():
@@ -2960,7 +2960,7 @@ class DaemonTray:
         ]
 
     def _execute_multi_target_with_params(self, plugin_item, targets):
-        """Collect params once via tray-prompt, then execute on all targets.
+        """Collect params once via prompt --mode params, then execute on all targets.
 
         Uses tkinter popup when available, Textual terminal fallback otherwise.
         """
@@ -2983,7 +2983,7 @@ class DaemonTray:
 
         params_json = json_mod.dumps(item_dict.get("params", []))
         prompt_cmd = self._resolve_cli_cmd(
-            "tray-prompt",
+            "prompt", "--mode", "params",
             "--params", params_json,
             "--template", resolved_cmd,
             "--type", plugin_item.type,
@@ -2993,7 +2993,7 @@ class DaemonTray:
         if label:
             prompt_cmd += ["--title", label]
 
-        from ai_guardian.tui.tray_prompt import (
+        from ai_guardian.tui.display import (
             _nicegui_available, _tkinter_available,
         )
         if _tkinter_available() or _nicegui_available():

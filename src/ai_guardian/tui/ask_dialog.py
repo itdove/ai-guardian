@@ -5,10 +5,6 @@ an interactive dialog letting the user choose: Allow Once, Allow Always
 (with pattern editor), or Block.
 
 Cascade: tkinter (native popup) -> NiceGUI (browser) -> Textual (terminal) -> headless fallback.
-
-Environment overrides:
-  AI_GUARDIAN_NO_TKINTER=1   skip tkinter even when installed
-  AI_GUARDIAN_NO_NICEGUI=1   skip NiceGUI even when installed
 """
 
 import logging
@@ -17,6 +13,14 @@ import platform
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+from ai_guardian.tui.display import (
+    _tkinter_available,
+    _nicegui_available,
+    _textual_available,
+    is_interactive_available,
+    _ensure_tcl_library,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,42 +52,6 @@ class AskResult:
     allowlist_pattern: Optional[str] = None
 
 
-def _tkinter_available():
-    """Check if tkinter is available (import only, no Tk() instantiation)."""
-    if os.environ.get("AI_GUARDIAN_NO_TKINTER"):
-        return False
-    try:
-        import tkinter  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-def _nicegui_available():
-    """Check if NiceGUI is available."""
-    if os.environ.get("AI_GUARDIAN_NO_NICEGUI"):
-        return False
-    try:
-        import nicegui  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-def _textual_available():
-    """Check if Textual is available and a TTY is present."""
-    try:
-        import textual  # noqa: F401
-        return os.isatty(0)
-    except ImportError:
-        return False
-
-
-def is_interactive_available() -> bool:
-    """Return True if any interactive dialog tier is available."""
-    return _tkinter_available() or _nicegui_available() or _textual_available()
-
-
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
     """Map a fallback action string to an AskDecision."""
     if fallback_action in ("warn", "log-only"):
@@ -96,10 +64,10 @@ def _show_via_subprocess(
     fallback_action: str = "block",
     timeout_seconds: int = 300,
 ) -> Optional[AskResult]:
-    """Launch ask-prompt as a separate subprocess with display access.
+    """Launch prompt --mode ask as a separate subprocess with display access.
 
     The hook subprocess can't show GUI directly — this delegates to a
-    fresh process via 'ai-guardian ask-prompt', same pattern as tray-prompt.
+    fresh process via 'ai-guardian prompt --mode ask'.
     """
     import json
     import shutil
@@ -124,10 +92,10 @@ def _show_via_subprocess(
 
     ag_path = shutil.which("ai-guardian")
     if ag_path:
-        cmd = [ag_path, "ask-prompt"]
+        cmd = [ag_path, "prompt", "--mode", "ask"]
     else:
-        cmd = [sys.executable, "-m", "ai_guardian", "ask-prompt"]
-    logger.debug(f"ask-prompt cmd: {cmd[0]}")
+        cmd = [sys.executable, "-m", "ai_guardian", "prompt", "--mode", "ask"]
+    logger.debug(f"prompt --mode ask cmd: {cmd[0]}")
     cmd += [
         "--violation", violation_json,
         "--output-file", output_path,
@@ -143,14 +111,14 @@ def _show_via_subprocess(
         )
         _, stderr_out = proc.communicate(timeout=timeout_seconds + 10)
         if proc.returncode != 0 and stderr_out:
-            logger.warning(f"ask-prompt stderr: {stderr_out.decode('utf-8', errors='replace')[:500]}")
+            logger.warning(f"prompt ask stderr: {stderr_out.decode('utf-8', errors='replace')[:500]}")
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.communicate()
-        logger.warning("ask-prompt subprocess timed out")
+        logger.warning("prompt ask subprocess timed out")
         return None
     except Exception as e:
-        logger.warning(f"ask-prompt subprocess failed: {e}")
+        logger.warning(f"prompt ask subprocess failed: {e}")
         return None
 
     try:
@@ -167,7 +135,7 @@ def _show_via_subprocess(
                 allowlist_pattern=data.get("allowlist_pattern"),
             )
     except Exception as e:
-        logger.warning(f"Failed to read ask-prompt result: {e}")
+        logger.warning(f"Failed to read prompt ask result: {e}")
     finally:
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -183,7 +151,7 @@ def show_ask_dialog(
     """Show interactive dialog for a violation, falling back if headless.
 
     When called from a hook subprocess (common case), delegates to a
-    separate 'ai-guardian ask-prompt' process that has display access.
+    separate 'ai-guardian prompt --mode ask' process that has display access.
     Falls back to headless action if no dialog tier is available.
 
     Args:
@@ -201,44 +169,6 @@ def show_ask_dialog(
     decision = _map_fallback_to_decision(fallback_action)
     logger.info(f"Ask dialog headless fallback: {fallback_action} -> {decision}")
     return AskResult(decision=decision)
-
-
-def _ensure_tcl_library():
-    """Set TCL_LIBRARY if not already set, searching common install locations.
-
-    uv/pyenv venvs often can't find the system Tcl/Tk — this resolves the
-    "Can't find a usable init.tcl" error at tk.Tk() time.
-    """
-    if os.environ.get("TCL_LIBRARY"):
-        return
-
-    import pathlib
-    import sys
-
-    candidates = []
-    real_exe = pathlib.Path(sys.executable).resolve()
-    candidates.append(real_exe.parent.parent / "lib" / "tcl8.6")
-
-    if platform.system() == "Darwin":
-        candidates += [
-            pathlib.Path("/opt/homebrew/Cellar/tcl-tk@8") / "8.6.18" / "lib" / "tcl8.6",
-            pathlib.Path("/opt/homebrew/opt/tcl-tk@8/lib/tcl8.6"),
-            pathlib.Path("/opt/homebrew/opt/tcl-tk/lib/tcl8.6"),
-            pathlib.Path("/usr/local/opt/tcl-tk/lib/tcl8.6"),
-        ]
-        import glob
-        for match in glob.glob("/opt/homebrew/Cellar/tcl-tk@8/*/lib/tcl8.6"):
-            candidates.append(pathlib.Path(match))
-    elif platform.system() == "Linux":
-        candidates += [
-            pathlib.Path("/usr/lib/tcl8.6"),
-            pathlib.Path("/usr/share/tcltk/tcl8.6"),
-        ]
-
-    for path in candidates:
-        if (path / "init.tcl").exists():
-            os.environ["TCL_LIBRARY"] = str(path)
-            return
 
 
 # ---------------------------------------------------------------------------

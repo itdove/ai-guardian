@@ -699,94 +699,32 @@ def _handle_tray_start(args):
     return 0
 
 
-def _handle_ask_prompt(args):
-    """Handle the ask-prompt subcommand: show ask dialog and write result to file."""
+def _handle_prompt(args):
+    """Handle the unified prompt subcommand (Issue #1143).
+
+    Dispatches to params mode (tray plugin parameter form) or ask mode
+    (violation decision dialog) based on --mode flag.
+    """
+    if args.mode == "params":
+        return _handle_prompt_params(args)
+    return _handle_prompt_ask(args)
+
+
+def _handle_prompt_params(args):
+    """Handle prompt --mode params: collect params and output resolved command."""
     import json
     import logging as log_mod
     import os
     import tempfile
 
-    prompt_logger = log_mod.getLogger("ai_guardian.ask_prompt")
+    prompt_logger = log_mod.getLogger("ai_guardian.prompt")
 
-    try:
-        violation_data = json.loads(args.violation)
-    except json.JSONDecodeError as e:
-        prompt_logger.error("Invalid violation JSON: %s", e)
+    if not args.params:
+        prompt_logger.error("--params is required for mode=params")
         return 1
-
-    try:
-        from ai_guardian.tui.ask_dialog import (
-            AskViolationInfo, AskDecision,
-            _TkinterAskDialog, _NiceGuiAskDialog, _TextualAskDialog,
-            _tkinter_available, _nicegui_available, _map_fallback_to_decision,
-            AskResult,
-        )
-    except ImportError as e:
-        prompt_logger.error("UI dependencies not available: %s", e)
+    if not args.template:
+        prompt_logger.error("--template is required for mode=params")
         return 1
-
-    violation = AskViolationInfo(
-        violation_type=violation_data.get("violation_type", ""),
-        summary=violation_data.get("summary", ""),
-        matched_text=violation_data.get("matched_text", ""),
-        config_section=violation_data.get("config_section", ""),
-        error_message=violation_data.get("error_message", ""),
-        matched_pattern=violation_data.get("matched_pattern", ""),
-        file_path=violation_data.get("file_path"),
-        line_number=violation_data.get("line_number"),
-    )
-
-    fallback = getattr(args, "fallback", "block")
-    timeout = int(getattr(args, "timeout", 300))
-
-    result = None
-    if _tkinter_available():
-        try:
-            result = _TkinterAskDialog(violation, timeout).run()
-        except Exception as e:
-            prompt_logger.warning("tkinter ask dialog failed: %s", e)
-
-    if result is None and _nicegui_available():
-        try:
-            result = _NiceGuiAskDialog(violation, timeout).run()
-        except Exception as e:
-            prompt_logger.warning("NiceGUI ask dialog failed: %s", e)
-
-    if result is None and sys.stdin.isatty():
-        try:
-            result = _TextualAskDialog(violation, timeout).run()
-        except Exception as e:
-            prompt_logger.warning("Textual ask dialog failed: %s", e)
-
-    if result is None:
-        decision = _map_fallback_to_decision(fallback)
-        result = AskResult(decision=decision)
-
-    output = json.dumps({
-        "decision": result.decision.value,
-        "allowlist_pattern": result.allowlist_pattern,
-    })
-
-    output_file = getattr(args, "output_file", None)
-    if output_file:
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
-        os.write(tmp_fd, output.encode("utf-8"))
-        os.close(tmp_fd)
-        os.replace(tmp_path, output_file)
-    else:
-        print(output)
-
-    return 0
-
-
-def _handle_tray_prompt(args):
-    """Handle the tray-prompt subcommand: collect params and output resolved command."""
-    import json
-    import logging as log_mod
-    import os
-    import tempfile
-
-    prompt_logger = log_mod.getLogger("ai_guardian.tray_prompt")
 
     try:
         params = json.loads(args.params)
@@ -846,6 +784,91 @@ def _handle_tray_prompt(args):
         os.replace(tmp_path, output_file)
     else:
         print(result)
+
+    return 0
+
+
+def _handle_prompt_ask(args):
+    """Handle prompt --mode ask: show ask dialog and write result to file."""
+    import json
+    import logging as log_mod
+    import os
+    import tempfile
+
+    prompt_logger = log_mod.getLogger("ai_guardian.prompt")
+
+    if not args.violation:
+        prompt_logger.error("--violation is required for mode=ask")
+        return 1
+
+    try:
+        violation_data = json.loads(args.violation)
+    except json.JSONDecodeError as e:
+        prompt_logger.error("Invalid violation JSON: %s", e)
+        return 1
+
+    try:
+        from ai_guardian.tui.ask_dialog import (
+            AskViolationInfo,
+            _TkinterAskDialog, _NiceGuiAskDialog, _TextualAskDialog,
+            _map_fallback_to_decision,
+            AskResult,
+        )
+        from ai_guardian.tui.display import _tkinter_available, _nicegui_available
+    except ImportError as e:
+        prompt_logger.error("UI dependencies not available: %s", e)
+        return 1
+
+    violation = AskViolationInfo(
+        violation_type=violation_data.get("violation_type", ""),
+        summary=violation_data.get("summary", ""),
+        matched_text=violation_data.get("matched_text", ""),
+        config_section=violation_data.get("config_section", ""),
+        error_message=violation_data.get("error_message", ""),
+        matched_pattern=violation_data.get("matched_pattern", ""),
+        file_path=violation_data.get("file_path"),
+        line_number=violation_data.get("line_number"),
+    )
+
+    fallback = getattr(args, "fallback", "block")
+    timeout = int(getattr(args, "timeout", 300))
+
+    result = None
+    if _tkinter_available():
+        try:
+            result = _TkinterAskDialog(violation, timeout).run()
+        except Exception as e:
+            prompt_logger.warning("tkinter ask dialog failed: %s", e)
+
+    if result is None and _nicegui_available():
+        try:
+            result = _NiceGuiAskDialog(violation, timeout).run()
+        except Exception as e:
+            prompt_logger.warning("NiceGUI ask dialog failed: %s", e)
+
+    if result is None and sys.stdin.isatty():
+        try:
+            result = _TextualAskDialog(violation, timeout).run()
+        except Exception as e:
+            prompt_logger.warning("Textual ask dialog failed: %s", e)
+
+    if result is None:
+        decision = _map_fallback_to_decision(fallback)
+        result = AskResult(decision=decision)
+
+    output = json.dumps({
+        "decision": result.decision.value,
+        "allowlist_pattern": result.allowlist_pattern,
+    })
+
+    output_file = getattr(args, "output_file", None)
+    if output_file:
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
+        os.write(tmp_fd, output.encode("utf-8"))
+        os.close(tmp_fd)
+        os.replace(tmp_path, output_file)
+    else:
+        print(output)
 
     return 0
 

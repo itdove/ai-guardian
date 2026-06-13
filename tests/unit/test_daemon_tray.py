@@ -2275,13 +2275,13 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
-        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
             with mock.patch("subprocess.Popen") as mock_popen:
                 with mock.patch("sys.executable", "/usr/bin/python3"):
                     tray._execute_plugin_command_with_params(item_dict)
                     mock_popen.assert_called_once()
                     cmd = mock_popen.call_args[0][0]
-                    assert "tray-prompt" in " ".join(cmd)
+                    assert "prompt" in cmd and "--mode" in cmd
                     assert "--output-file" in " ".join(cmd)
 
     def test_execute_plugin_command_with_params_textual_fallback(self):
@@ -2293,8 +2293,8 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
-        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
-            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=False):
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
                 with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
@@ -2309,14 +2309,14 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
-        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
-            with mock.patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=True):
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=True):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
                         mock_popen.assert_called_once()
                         cmd = mock_popen.call_args[0][0]
-                        assert "tray-prompt" in " ".join(cmd)
+                        assert "prompt" in cmd and "--mode" in cmd
 
     def test_execute_plugin_command_with_params_platform_map(self):
         tray = self._make_tray()
@@ -2326,7 +2326,7 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": []
         }
-        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
             with mock.patch("subprocess.Popen") as mock_popen:
                 with mock.patch("sys.executable", "/usr/bin/python3"):
                     tray._execute_plugin_command_with_params(item_dict)
@@ -2341,7 +2341,7 @@ class TestPluginMenuItems:
             "params": []
         }
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+            with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     tray._execute_plugin_command_with_params(item_dict)
                     mock_popen.assert_not_called()
@@ -2357,7 +2357,7 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [],
         }
-        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
             with mock.patch("subprocess.Popen") as mock_popen:
                 with mock.patch("sys.executable", "/usr/bin/python3"):
                     tray._execute_plugin_command_with_params(item_dict)
@@ -2389,7 +2389,7 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [],
         }
-        with mock.patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=True):
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
             with mock.patch("subprocess.Popen") as mock_popen:
                 with mock.patch("sys.executable", "/usr/bin/python3"):
                     tray._execute_plugin_command_with_params(item_dict)

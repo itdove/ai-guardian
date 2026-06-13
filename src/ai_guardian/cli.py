@@ -35,8 +35,7 @@ from ai_guardian.cli_handlers import (
     _get_client_timeout,
     _handle_daemon_command,
     _handle_tray_command,
-    _handle_ask_prompt,
-    _handle_tray_prompt,
+    _handle_prompt,
     _handle_tray_target_select,
 )
 
@@ -941,67 +940,64 @@ def main():
             help="Remove desktop shortcut and autostart"
         )
 
-        # Tray prompt subcommand (Issue #590)
-        tray_prompt_parser = subparsers.add_parser(
-            "tray-prompt",
-            help="Show parameter input form for tray plugin commands"
+        # Unified prompt subcommand (Issue #1143, replaces tray-prompt and ask-prompt)
+        prompt_parser = subparsers.add_parser(
+            "prompt",
+            help="Show interactive prompt dialog (parameter form or violation ask)"
         )
-        tray_prompt_parser.add_argument(
+        prompt_parser.add_argument(
+            "--mode",
+            required=True,
+            choices=["params", "ask"],
+            help="Dialog mode: 'params' for tray plugin parameter form, 'ask' for violation decision"
+        )
+        prompt_parser.add_argument(
+            "--output-file",
+            default=None,
+            help="Write result to this file instead of stdout"
+        )
+        # params mode arguments
+        prompt_parser.add_argument(
             "--params",
-            required=True,
-            help="JSON array of parameter definitions"
+            default=None,
+            help="JSON array of parameter definitions (mode=params)"
         )
-        tray_prompt_parser.add_argument(
+        prompt_parser.add_argument(
             "--template",
-            required=True,
-            help="Command template with {param} placeholders"
+            default=None,
+            help="Command template with {param} placeholders (mode=params)"
         )
-        tray_prompt_parser.add_argument(
+        prompt_parser.add_argument(
             "--type",
             default="terminal",
             choices=["terminal", "background", "notification", "clipboard", "modal"],
-            help="Command execution type"
+            help="Command execution type (mode=params)"
         )
-        tray_prompt_parser.add_argument(
-            "--output-file",
-            default=None,
-            help="Write resolved command to this file instead of executing"
-        )
-        tray_prompt_parser.add_argument(
+        prompt_parser.add_argument(
             "--extra-vars",
             default=None,
-            help="JSON dict of extra variables for resolving param defaults"
+            help="JSON dict of extra variables for resolving param defaults (mode=params)"
         )
-        tray_prompt_parser.add_argument(
+        prompt_parser.add_argument(
             "--title",
             default=None,
-            help="Window title for the parameter form"
+            help="Window title for the parameter form (mode=params)"
         )
-
-        # Ask prompt subcommand (Issue #1115)
-        ask_prompt_parser = subparsers.add_parser(
-            "ask-prompt",
-            help="Show ask dialog for violation decisions"
-        )
-        ask_prompt_parser.add_argument(
+        # ask mode arguments
+        prompt_parser.add_argument(
             "--violation",
-            required=True,
-            help="JSON object with violation details"
-        )
-        ask_prompt_parser.add_argument(
-            "--output-file",
             default=None,
-            help="Write result JSON to this file"
+            help="JSON object with violation details (mode=ask)"
         )
-        ask_prompt_parser.add_argument(
+        prompt_parser.add_argument(
             "--fallback",
             default="block",
-            help="Fallback action when no dialog available (block/warn/log-only)"
+            help="Fallback action when no dialog available (mode=ask, block/warn/log-only)"
         )
-        ask_prompt_parser.add_argument(
+        prompt_parser.add_argument(
             "--timeout",
             default="300",
-            help="Auto-dismiss timeout in seconds"
+            help="Auto-dismiss timeout in seconds (mode=ask)"
         )
 
         # Tray target selector subcommand (Issue #760)
@@ -1548,13 +1544,9 @@ def main():
         if args.command == "tray":
             return _handle_tray_command(args)
 
-        # Handle ask-prompt command (Issue #1115)
-        if args.command == "ask-prompt":
-            return _handle_ask_prompt(args)
-
-        # Handle tray-prompt command (Issue #590)
-        if args.command == "tray-prompt":
-            return _handle_tray_prompt(args)
+        # Handle unified prompt command (Issue #1143)
+        if args.command == "prompt":
+            return _handle_prompt(args)
 
         # Handle tray-target-select command (Issue #760)
         if args.command == "tray-target-select":
