@@ -59,6 +59,85 @@ def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
     return AskDecision.BLOCK
 
 
+def _show_via_daemon(
+    violation: AskViolationInfo,
+    fallback_action: str = "block",
+    timeout_seconds: int = 300,
+) -> Optional[AskResult]:
+    """Send prompt request to daemon REST API (direct call, no subprocess).
+
+    The daemon process has display access (via the tray), so the ask
+    dialog runs in-process there — avoiding Python interpreter startup
+    overhead from subprocess spawning.
+
+    Returns None if the daemon is not running or the request fails.
+    """
+    import json
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError
+
+    try:
+        from ai_guardian.daemon import get_pid_path, is_pid_alive
+    except ImportError:
+        return None
+
+    pid_path = get_pid_path()
+    if not pid_path.exists():
+        return None
+
+    try:
+        pid_info = json.loads(pid_path.read_text())
+        rest_port = pid_info.get("rest_port")
+        if not rest_port:
+            return None
+        pid = pid_info.get("pid", 0)
+        if not pid or not is_pid_alive(pid):
+            return None
+    except (json.JSONDecodeError, OSError, ValueError):
+        return None
+
+    body = json.dumps({
+        "mode": "ask",
+        "violation": {
+            "violation_type": violation.violation_type,
+            "summary": violation.summary,
+            "matched_text": violation.matched_text,
+            "config_section": violation.config_section,
+            "error_message": violation.error_message,
+            "matched_pattern": violation.matched_pattern,
+            "file_path": violation.file_path,
+            "line_number": violation.line_number,
+        },
+        "fallback": fallback_action,
+        "timeout": timeout_seconds,
+    }).encode("utf-8")
+
+    url = f"http://127.0.0.1:{rest_port}/api/prompt"
+    req = Request(url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+
+    auth_token = pid_info.get("auth_token")
+    if auth_token:
+        req.add_header("Authorization", f"Bearer {auth_token}")
+
+    try:
+        with urlopen(req, timeout=timeout_seconds + 10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        decision_str = data.get("decision", "block")
+        try:
+            decision = AskDecision(decision_str)
+        except ValueError:
+            decision = AskDecision.BLOCK
+        logger.debug("Ask dialog via daemon: %s", decision_str)
+        return AskResult(
+            decision=decision,
+            allowlist_pattern=data.get("allowlist_pattern"),
+        )
+    except (URLError, OSError, json.JSONDecodeError, ValueError) as e:
+        logger.debug("Daemon prompt request failed: %s", e)
+        return None
+
+
 def _show_via_subprocess(
     violation: AskViolationInfo,
     fallback_action: str = "block",
@@ -150,9 +229,8 @@ def show_ask_dialog(
 ) -> AskResult:
     """Show interactive dialog for a violation, falling back if headless.
 
-    When called from a hook subprocess (common case), delegates to a
-    separate 'ai-guardian prompt --mode ask' process that has display access.
-    Falls back to headless action if no dialog tier is available.
+    Tries the daemon REST API first (direct call, no subprocess overhead),
+    then falls back to subprocess spawn, then to headless action.
 
     Args:
         violation: Violation details to display.
@@ -162,6 +240,10 @@ def show_ask_dialog(
     Returns:
         AskResult with the user's decision and optional allowlist pattern.
     """
+    result = _show_via_daemon(violation, fallback_action, timeout_seconds)
+    if result is not None:
+        return result
+
     result = _show_via_subprocess(violation, fallback_action, timeout_seconds)
     if result is not None:
         return result
