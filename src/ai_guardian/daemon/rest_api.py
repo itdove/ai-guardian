@@ -396,10 +396,11 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_error(500, "Internal error")
 
     def _handle_prompt(self, body):
-        """Handle POST /api/prompt — show ask dialog directly (no subprocess).
+        """Handle POST /api/prompt — delegate ask dialog to subprocess.
 
-        The daemon process has display access (via the tray), so the ask
-        dialog can run in-process instead of spawning a separate subprocess.
+        Spawns 'ai-guardian prompt --mode ask' as a subprocess instead of
+        running tkinter in-process. On macOS, tk.Tk() MUST run on the main
+        thread — calling it in a background thread hangs/crashes the daemon.
         """
         mode = body.get("mode", "ask")
         if mode != "ask":
@@ -417,14 +418,10 @@ class _RestHandler(BaseHTTPRequestHandler):
         try:
             from ai_guardian.tui.ask_dialog import (
                 AskViolationInfo,
-                _TkinterAskDialog,
-                _NiceGuiAskDialog,
-                _TextualAskDialog,
+                _show_via_subprocess,
                 _map_fallback_to_decision,
-                AskResult,
                 AskDecision,
             )
-            from ai_guardian.tui.display import _tkinter_available, _nicegui_available
         except ImportError as e:
             logger.warning("Prompt UI dependencies not available: %s", e)
             self._send_error(503, "UI dependencies not available")
@@ -441,53 +438,21 @@ class _RestHandler(BaseHTTPRequestHandler):
             line_number=violation_data.get("line_number"),
         )
 
-        import threading
-        result_holder = [None]
-        done_event = threading.Event()
+        result = _show_via_subprocess(violation, fallback, timeout)
 
-        def _run_dialog():
-            result = None
-            if _tkinter_available():
-                try:
-                    result = _TkinterAskDialog(violation, timeout).run()
-                except Exception as e:
-                    logger.warning("tkinter ask dialog failed: %s", e)
-
-            if result is None and _nicegui_available():
-                try:
-                    result = _NiceGuiAskDialog(violation, timeout).run()
-                except Exception as e:
-                    logger.warning("NiceGUI ask dialog failed: %s", e)
-
-            if result is None:
-                decision = _map_fallback_to_decision(fallback)
-                result = AskResult(decision=decision)
-
-            result_holder[0] = result
-            done_event.set()
-
-        dialog_thread = threading.Thread(
-            target=_run_dialog, daemon=True, name="prompt-dialog",
-        )
-        dialog_thread.start()
-
-        if not done_event.wait(timeout=timeout + 10):
-            self._send_json({
-                "decision": AskDecision.BLOCK.value,
-                "allowlist_pattern": None,
-                "source": "timeout",
-            })
-            return
-
-        result = result_holder[0]
         if result is None:
-            result = AskResult(decision=_map_fallback_to_decision(fallback))
-
-        self._send_json({
-            "decision": result.decision.value,
-            "allowlist_pattern": result.allowlist_pattern,
-            "source": "daemon",
-        })
+            decision = _map_fallback_to_decision(fallback)
+            self._send_json({
+                "decision": decision.value,
+                "allowlist_pattern": None,
+                "source": "fallback",
+            })
+        else:
+            self._send_json({
+                "decision": result.decision.value,
+                "allowlist_pattern": result.allowlist_pattern,
+                "source": "daemon",
+            })
 
     def _handle_redact(self, body):
         """Handle POST /api/redact — text sanitization."""
