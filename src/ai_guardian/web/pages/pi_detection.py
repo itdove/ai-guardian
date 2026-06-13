@@ -186,6 +186,9 @@ def create_pi_detection_page(service, daemon_name: str):
                         act_sel = ui.select(
                             options={
                                 "block": "Block — reject the operation",
+                                "ask": "Ask — interactive prompt (block if headless)",
+                                "ask:warn": "Ask — interactive prompt (warn if headless)",
+                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
                                 "warn": "Warn — allow with warning",
                                 "log-only": "Log Only — silent logging",
                             },

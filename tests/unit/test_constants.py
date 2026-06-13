@@ -23,7 +23,7 @@ class TestActionMode:
         assert "block" == ActionMode.BLOCK
 
     def test_all_action_modes(self):
-        assert set(ALL_ACTION_MODES) == {"block", "warn", "log-only", "redact"}
+        assert set(ALL_ACTION_MODES) == {"block", "warn", "log-only", "redact", "ask"}
 
 
 class TestViolationType:

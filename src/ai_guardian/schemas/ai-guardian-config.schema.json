@@ -384,6 +384,21 @@
           "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
+        "action": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["block", "warn", "log-only"]
+            },
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode: prompts user on violation. Fallback if headless: ask (defaults to block), ask:warn, ask:log-only"
+            }
+          ],
+          "description": "Action when secrets are detected: 'block' prevents execution (default), 'warn' logs violation and shows warning but allows, 'log-only' logs silently, 'ask' prompts user interactively with Allow Once/Allow Always/Block choices",
+          "default": "block"
+        },
         "ignore_files": {
           "type": "array",
           "description": "Glob patterns for files to skip during secret scanning (NEW in v1.4.0). Useful for test fixtures, examples, and documentation with fake credentials. Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char), ~ (home directory). Examples: '**/tests/fixtures/**', '**/examples/**/*.example.*', '**/.gitleaks.toml'",
@@ -653,9 +668,18 @@
           "default": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone", "medical_id", "passport", "uk_nin"]
         },
         "action": {
-          "type": "string",
-          "enum": ["block", "redact", "warn", "log-only"],
-          "description": "Action when PII is detected: 'block' (block in all hooks), 'redact' (replace PII with masked text in PostToolUse, block in PreToolUse/UserPromptSubmit), 'warn' (log violation and show warning but allow), 'log-only' (log violation silently)",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["block", "redact", "warn", "log-only"]
+            },
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode: prompts user on violation with Allow Once/Allow Always/Block choices"
+            }
+          ],
+          "description": "Action when PII is detected: 'block' (block in all hooks), 'redact' (replace PII with masked text in PostToolUse, block in PreToolUse/UserPromptSubmit), 'warn' (log violation and show warning but allow), 'log-only' (log violation silently), 'ask' prompts user interactively",
           "default": "block"
         },
         "ignore_files": {
@@ -823,9 +847,18 @@
           "default": true
         },
         "action": {
-          "type": "string",
-          "enum": ["block", "warn", "log-only"],
-          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["block", "warn", "log-only"]
+            },
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode: prompts user on violation with Allow Once/Allow Always/Block choices"
+            }
+          ],
+          "description": "Action on violation (NEW in v1.7.0): 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning, 'ask' prompts user interactively",
           "default": "block"
         },
         "immutable": {
@@ -1042,9 +1075,18 @@
           "default": true
         },
         "action": {
-          "type": "string",
-          "enum": ["block", "warn", "log-only"],
-          "description": "Action on detection: 'warn' shows warning but allows (default, recommended due to false positives), 'block' prevents execution, 'log-only' logs silently",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["block", "warn", "log-only"]
+            },
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode: prompts user on violation with Allow Once/Allow Always/Block choices"
+            }
+          ],
+          "description": "Action on detection: 'warn' shows warning but allows (default, recommended due to false positives), 'block' prevents execution, 'log-only' logs silently, 'ask' prompts user interactively",
           "default": "warn"
         },
         "sensitivity": {

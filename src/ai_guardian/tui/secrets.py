@@ -146,6 +146,32 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     id="gitleaks-config"
                 )
 
+            # Action mode section
+            with Container(classes="section"):
+                yield Static("[bold]Action Mode[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]What happens when secrets are detected.[/dim]",
+                    classes="section-title",
+                )
+                with Horizontal(classes="setting-row"):
+                    yield Label("Action:")
+                    yield Select(
+                        [
+                            ("Block", "block"),
+                            ("Ask (block if headless)", "ask"),
+                            ("Ask (warn if headless)", "ask:warn"),
+                            ("Ask (log-only if headless)", "ask:log-only"),
+                            ("Warn", "warn"),
+                            ("Log Only", "log-only"),
+                        ],
+                        value="block",
+                        id="secret-action-select",
+                    )
+                    yield Static(
+                        f"[dim]Action when secrets detected[/dim] "
+                        f"{default_indicator('secret_scanning.action')}"
+                    )
+
             # Allowlist patterns section (Issue #357)
             with Container(classes="section"):
                 yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
@@ -535,10 +561,12 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         validate_on = secret_scanning.get("validate_secrets", False)
         timeout_ms = secret_scanning.get("validation_timeout_ms", 3000)
         on_inactive = secret_scanning.get("on_inactive", "warn")
+        secret_action = secret_scanning.get("action", "block")
 
         try:
             self.query_one("#validate-secrets-checkbox", Checkbox).value = bool(validate_on)
             self.query_one("#validation-timeout-ms", Input).value = str(timeout_ms)
+            self.query_one("#secret-action-select", Select).value = secret_action
             self.query_one("#on-inactive-select", Select).value = on_inactive
         except Exception:
             pass  # Widgets may not be mounted yet
@@ -679,7 +707,10 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         """Handle select dropdown changes."""
         if getattr(self, '_loading', False):
             return
-        if event.select.id == "on-inactive-select":
+        if event.select.id == "secret-action-select":
+            if event.value is not Select.BLANK:
+                self._save_secret_scanning_field("action", event.value)
+        elif event.select.id == "on-inactive-select":
             if event.value is not Select.BLANK:
                 self._save_secret_scanning_field("on_inactive", event.value)
 

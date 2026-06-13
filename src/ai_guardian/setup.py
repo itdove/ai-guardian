@@ -1730,6 +1730,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords). Supported engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian",
         "secret_scanning": {
             "enabled": True,
+            "_comment_action": "Action on detection: block (default), warn, log-only, ask (interactive prompt), ask:warn (ask with warn fallback), ask:log-only",
+            "action": "block",
             "ignore_files": [],
             "ignore_tools": [],
             "allowlist_patterns": [],

@@ -95,8 +95,8 @@ class TestSaveLogic:
 class TestFeatureActions:
     """Test FEATURE_ACTIONS defines correct mappings."""
 
-    def test_seven_features_have_actions(self):
-        assert len(FEATURE_ACTIONS) == 7
+    def test_eight_features_have_actions(self):
+        assert len(FEATURE_ACTIONS) == 8
 
     def test_expected_sections(self):
         assert "secret_redaction" in FEATURE_ACTIONS

@@ -13,6 +13,38 @@ class ActionMode(str, Enum):
     WARN = "warn"
     LOG_ONLY = "log-only"
     REDACT = "redact"
+    ASK = "ask"
+
+
+def parse_ask_action(action_str: str):
+    """Parse action string, handling 'ask:fallback' compound syntax.
+
+    Returns (primary_action, fallback_action) tuple.
+    For non-ask actions, both values are the action itself.
+
+    Examples:
+        "ask"          -> ("ask", "block")
+        "ask:warn"     -> ("ask", "warn")
+        "ask:log-only" -> ("ask", "log-only")
+        "block"        -> ("block", "block")
+        "warn"         -> ("warn", "warn")
+    """
+    if not action_str or not isinstance(action_str, str):
+        return (ActionMode.BLOCK, ActionMode.BLOCK)
+
+    action_str = action_str.strip()
+
+    if action_str == "ask":
+        return (ActionMode.ASK, ActionMode.BLOCK)
+
+    if action_str.startswith("ask:"):
+        fallback = action_str[4:]
+        valid_fallbacks = {ActionMode.BLOCK, ActionMode.WARN, ActionMode.LOG_ONLY}
+        if fallback in valid_fallbacks:
+            return (ActionMode.ASK, fallback)
+        return (ActionMode.ASK, ActionMode.BLOCK)
+
+    return (action_str, action_str)
 
 
 class ViolationType(str, Enum):

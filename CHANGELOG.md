@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Interactive "ask" action mode** (Issue #1115)
+  - New `action: "ask"` config option for secret_scanning, prompt_injection, scan_pii, and context_poisoning
+  - When a violation is detected, shows an interactive dialog with Allow Once / Allow Always / Block choices
+  - "Allow Always" opens a pattern editor to craft and validate allowlist patterns before adding to config
+  - Supports compound syntax `ask:warn` or `ask:log-only` to set headless fallback behavior
+  - Three-tier dialog cascade: tkinter (native popup) → NiceGUI (browser) → Textual (terminal) → headless fallback
+  - Pattern editor reuses regex tester logic with ReDoS validation and config preview
+  - Safe config writer with file locking for concurrent hook subprocess writes
+  - Added `action` property to `secret_scanning` config section (previously always blocked)
+
 ## [1.11.1] - 2026-06-11
 
 ### Added
