@@ -165,6 +165,111 @@ class TestDaemonStopCommand:
         mock_start.assert_not_called()
 
 
+class TestDaemonResetCommand:
+    """Issue #1155: daemon reset kills processes and cleans up state files."""
+
+    def test_reset_no_daemon_running(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        args = mock.MagicMock()
+        args.daemon_command = "reset"
+
+        result = _handle_daemon_command(args)
+
+        assert result == 0
+        assert "No daemon state to reset" in capsys.readouterr().out
+
+    def test_reset_stale_files_only(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        (tmp_path / "daemon.pid").write_text('{"pid": 99999}')
+        (tmp_path / "daemon.pid.lock").write_text("99999")
+        (tmp_path / "daemon.sock").touch()
+        (tmp_path / "daemon.stop-requested").touch()
+
+        args = mock.MagicMock()
+        args.daemon_command = "reset"
+
+        with mock.patch("ai_guardian.daemon.is_pid_alive", return_value=False):
+            result = _handle_daemon_command(args)
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "daemon.pid" in out
+        assert "daemon.pid.lock" in out
+        assert "daemon.sock" in out
+        assert "daemon.stop-requested" in out
+        assert "Daemon reset complete" in out
+        assert not (tmp_path / "daemon.pid").exists()
+        assert not (tmp_path / "daemon.pid.lock").exists()
+        assert not (tmp_path / "daemon.sock").exists()
+        assert not (tmp_path / "daemon.stop-requested").exists()
+
+    def test_reset_running_daemon_sigterm(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        (tmp_path / "daemon.pid").write_text('{"pid": 12345}')
+
+        args = mock.MagicMock()
+        args.daemon_command = "reset"
+
+        call_count = [0]
+        def fake_is_alive(pid):
+            call_count[0] += 1
+            # Alive on first check, dead after SIGTERM
+            return call_count[0] <= 1
+
+        with mock.patch("ai_guardian.daemon.is_pid_alive", side_effect=fake_is_alive), \
+             mock.patch("os.kill") as mock_kill:
+            result = _handle_daemon_command(args)
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "stopped" in out
+        assert "SIGKILL" not in out
+
+    def test_reset_running_daemon_sigkill(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        (tmp_path / "daemon.pid").write_text('{"pid": 12345}')
+
+        args = mock.MagicMock()
+        args.daemon_command = "reset"
+
+        with mock.patch("ai_guardian.daemon.is_pid_alive", return_value=True), \
+             mock.patch("os.kill") as mock_kill, \
+             mock.patch("time.sleep"):
+            result = _handle_daemon_command(args)
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "SIGKILL" in out
+
+    def test_reset_clears_stop_requested(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        (tmp_path / "daemon.stop-requested").touch()
+
+        args = mock.MagicMock()
+        args.daemon_command = "reset"
+
+        result = _handle_daemon_command(args)
+
+        assert result == 0
+        assert not (tmp_path / "daemon.stop-requested").exists()
+
+    def test_reset_does_not_touch_other_files(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        (tmp_path / "daemon.pid").write_text('{"pid": 99999}')
+        (tmp_path / "ai-guardian.log").write_text("log data")
+        (tmp_path / "tray.lock").write_text("11111")
+
+        args = mock.MagicMock()
+        args.daemon_command = "reset"
+
+        with mock.patch("ai_guardian.daemon.is_pid_alive", return_value=False):
+            result = _handle_daemon_command(args)
+
+        assert result == 0
+        assert (tmp_path / "ai-guardian.log").exists()
+        assert (tmp_path / "tray.lock").exists()
+
+
 class TestBackwardCompatImports:
     def test_import_from_package_level(self):
         from ai_guardian import _handle_violations_command as hvc

@@ -874,6 +874,7 @@ def main():
         daemon_sub.add_parser("status", help="Show daemon status")
         daemon_sub.add_parser("restart", help="Restart daemon")
         daemon_sub.add_parser("reload", help="Force config reload without restart")
+        daemon_sub.add_parser("reset", help="Kill daemon and clean up state files for recovery")
 
         # Per-directory pause/resume (#958)
         daemon_pause_parser = daemon_sub.add_parser(
