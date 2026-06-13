@@ -2304,6 +2304,7 @@ class TestPluginMenuItems:
 
     def test_execute_plugin_command_with_params_nicegui_direct_call(self):
         """Uses direct TrayPromptApp call when tkinter unavailable but NiceGUI available."""
+        import ai_guardian.tui.tray_prompt  # noqa: F401 — pre-import before mocking display
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
