@@ -153,8 +153,13 @@ def suggest_pattern(matched_text: str, config_section: str = "") -> str:
     """Suggest an initial pattern based on the matched text.
 
     For SSRF, extracts the domain from the URL.
+    For env-variable assignments (KEY=value), suggests KEY\\s*= to match
+    the key with any value.
     For other sections, escapes the text for use as a regex.
     """
     if config_section == "ssrf_protection":
         return suggest_domain(matched_text)
+    env_match = re.match(r'^([A-Z][A-Z0-9_]+)\s*=', matched_text)
+    if env_match:
+        return env_match.group(1) + r'\s*='
     return re.escape(matched_text)
