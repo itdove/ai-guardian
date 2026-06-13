@@ -2303,7 +2303,7 @@ class TestPluginMenuItems:
                         mock_launch.assert_called_once()
 
     def test_execute_plugin_command_with_params_nicegui_direct_call(self):
-        """Uses direct TrayPromptApp call when NiceGUI available (no subprocess)."""
+        """Uses direct TrayPromptApp call when tkinter unavailable but NiceGUI available."""
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
@@ -2311,13 +2311,14 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
         }
-        with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=True):
-            with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp") as mock_app:
-                mock_app.return_value.run.return_value = None
-                tray._execute_plugin_command_with_params(item_dict)
-                import time
-                time.sleep(0.1)
-                mock_app.assert_called_once()
+        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=False):
+            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=True):
+                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp") as mock_app:
+                    mock_app.return_value.run.return_value = None
+                    tray._execute_plugin_command_with_params(item_dict)
+                    import time
+                    time.sleep(0.1)
+                    mock_app.assert_called_once()
 
     def test_execute_plugin_command_with_params_platform_map(self):
         tray = self._make_tray()
