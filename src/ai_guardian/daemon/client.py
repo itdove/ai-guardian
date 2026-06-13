@@ -298,47 +298,6 @@ def send_ml_detect(content, source_type="user_prompt", timeout=2.0):
         return None
 
 
-def cleanup_stale_pid():
-    """Remove stale PID and socket files if daemon is not actually running.
-
-    Only cleans up when the process referenced by the PID file is truly
-    dead.  If the process is alive but the daemon socket is unresponsive,
-    the PID file is left intact so the daemon can recover.
-
-    Returns:
-        bool: True if a stale PID file was cleaned up
-    """
-    pid_path = get_pid_path()
-    if not pid_path.exists():
-        return False
-
-    if is_daemon_running():
-        return False
-
-    try:
-        pid_info = json.loads(pid_path.read_text())
-        pid = pid_info.get("pid", 0)
-        if pid and is_pid_alive(pid):
-            return False
-    except (json.JSONDecodeError, OSError):
-        pass
-
-    try:
-        pid_path.unlink()
-        logger.info("Cleaned up stale PID file")
-    except OSError:
-        pass
-
-    sock_path = get_socket_path()
-    if sock_path.exists():
-        try:
-            sock_path.unlink()
-        except OSError:
-            pass
-
-    return True
-
-
 def start_daemon_background():
     """Start daemon as a background process for lazy start in auto mode.
 
@@ -354,8 +313,6 @@ def start_daemon_background():
         if marker.exists():
             logger.debug("Skipping auto-start: stop-requested marker present")
             return False
-
-        cleanup_stale_pid()
 
         # Find the ai-guardian command
         cmd = _find_executable()

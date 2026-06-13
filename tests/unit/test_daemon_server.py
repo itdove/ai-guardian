@@ -149,6 +149,83 @@ class TestDaemonServerLifecycle:
         server._cleanup_stale()
         assert not sock_path.exists()
 
+    def test_stop_is_idempotent(self, short_state_dir, monkeypatch):
+        """Calling stop() twice must not raise."""
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        from pathlib import Path
+        sock_path = Path(short_state_dir) / "daemon.sock"
+        for _ in range(20):
+            if sock_path.exists():
+                break
+            time.sleep(0.1)
+
+        server.stop()
+        server.stop()  # second call must be a no-op
+        thread.join(timeout=3)
+
+    def test_stop_cleans_lock_file(self, short_state_dir, monkeypatch):
+        """Lock file is deleted when daemon stops."""
+        from pathlib import Path
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        sock_path = Path(short_state_dir) / "daemon.sock"
+        for _ in range(20):
+            if sock_path.exists():
+                break
+            time.sleep(0.1)
+
+        lock_path = Path(short_state_dir) / "daemon.pid.lock"
+        assert lock_path.exists(), "Lock file should exist while running"
+
+        server.stop()
+        thread.join(timeout=3)
+
+        assert not lock_path.exists()
+
+    def test_pid_file_not_written_before_socket(self, short_state_dir, monkeypatch):
+        """PID file must not exist before the socket is ready (#1154)."""
+        from pathlib import Path
+
+        pid_path = Path(short_state_dir) / "daemon.pid"
+        sock_path = Path(short_state_dir) / "daemon.sock"
+
+        # Track the order: which file appears first
+        first_file = []
+        original_write_text = Path.write_text
+
+        def tracking_write_text(self_path, *args, **kwargs):
+            if self_path.name in ("daemon.pid", "daemon.sock"):
+                first_file.append(self_path.name)
+            return original_write_text(self_path, *args, **kwargs)
+
+        # Simpler approach: just start the server and check that when
+        # socket appears, PID file has rest_port (or at least exists)
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        for _ in range(30):
+            if pid_path.exists():
+                break
+            time.sleep(0.1)
+
+        assert pid_path.exists()
+        pid_info = json.loads(pid_path.read_text())
+        assert pid_info["pid"] == os.getpid()
+        # Socket should already exist since PID is written after socket setup
+        assert sock_path.exists()
+
+        server.stop()
+        thread.join(timeout=3)
+
 
 class TestDaemonServerProtocol:
     @pytest.fixture

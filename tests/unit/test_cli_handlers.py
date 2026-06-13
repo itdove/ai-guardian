@@ -88,8 +88,7 @@ class TestDaemonStatusCommand:
         args = mock.MagicMock()
         args.daemon_command = "status"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.cleanup_stale_pid", return_value=False):
+        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
             result = _handle_daemon_command(args)
 
         assert result == 1
@@ -112,7 +111,8 @@ class TestDaemonStatusCommand:
         assert "not responsive" in output
         assert pid_path.exists()
 
-    def test_status_stale_pid_cleaned(self, tmp_path, monkeypatch, capsys):
+    def test_status_stale_pid_reports_not_running(self, tmp_path, monkeypatch, capsys):
+        """Stale PID files are left for 'daemon start' to clean up (#1154)."""
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
         pid_path = tmp_path / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": 99999999}))
@@ -125,7 +125,7 @@ class TestDaemonStatusCommand:
 
         output = capsys.readouterr().out
         assert result == 1
-        assert "cleaned up stale PID file" in output
+        assert "not running" in output
 
 
 class TestDaemonStopCommand:
@@ -159,7 +159,6 @@ class TestDaemonStopCommand:
         args.daemon_command = "status"
 
         with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.cleanup_stale_pid", return_value=False), \
              mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
             _handle_daemon_command(args)
 

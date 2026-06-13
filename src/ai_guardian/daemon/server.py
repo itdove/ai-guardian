@@ -50,6 +50,7 @@ class DaemonServer:
         self._server_socket = None
         self._running = False
         self._shutdown_event = threading.Event()
+        self._stop_lock = threading.Lock()
         self._rest_api = None
         self._rest_port = 0
         self._tcp_port = 0
@@ -67,13 +68,15 @@ class DaemonServer:
 
         self._cleanup_stale()
         self._acquire_pid_lock()
-        self._write_pid_file()
         self._setup_signals()
         self._server_socket = self._setup_socket()
         self._running = True
 
         if self._enable_rest_api:
             self._start_rest_api()
+
+        # Write PID file once with all info (pid, rest_port, name, tcp_port)
+        self._write_pid_file()
 
         idle_thread = threading.Thread(
             target=self._idle_check_loop, daemon=True, name="idle-checker"
@@ -94,10 +97,12 @@ class DaemonServer:
             self.stop()
 
     def stop(self):
-        """Graceful shutdown."""
-        if not self._running:
-            return
-        self._running = False
+        """Graceful shutdown (idempotent, thread-safe)."""
+        with self._stop_lock:
+            if not self._running:
+                return
+            self._running = False
+
         self._shutdown_event.set()
         logger.info("Daemon shutting down...")
 
@@ -115,34 +120,24 @@ class DaemonServer:
                 pass
             self._server_socket = None
 
-        # Cleanup files
-        sock_path = get_socket_path()
-        if sock_path.exists() and not self._use_tcp:
-            try:
-                sock_path.unlink()
-            except OSError:
-                pass
-
-        pid_path = get_pid_path()
-        if pid_path.exists():
-            try:
-                pid_path.unlink()
-            except OSError:
-                pass
-
-        # Clean up lock file
-        lock_path = getattr(self, '_lock_path', None)
-        if lock_path and os.path.exists(lock_path):
-            try:
-                os.unlink(lock_path)
-            except OSError:
-                pass
-
-        # Stop REST API
+        # Stop REST API before removing files
         if self._rest_api:
             try:
                 self._rest_api.stop()
             except Exception:
+                pass
+
+        # Delete state files: socket first, then PID, lock last.
+        # Order matters: other processes check socket/PID to detect
+        # a running daemon, so remove them before releasing the lock.
+        if not self._use_tcp:
+            get_socket_path().unlink(missing_ok=True)
+        get_pid_path().unlink(missing_ok=True)
+        lock_path = getattr(self, '_lock_path', None)
+        if lock_path:
+            try:
+                os.unlink(lock_path)
+            except OSError:
                 pass
 
         logger.info("Daemon stopped")
@@ -181,8 +176,6 @@ class DaemonServer:
         sock.settimeout(1.0)
 
         self._tcp_port = sock.getsockname()[1]
-        # Update PID file with port
-        self._write_pid_file()
         logger.info(f"TCP socket bound to 127.0.0.1:{self._tcp_port}")
         return sock
 
@@ -477,7 +470,6 @@ class DaemonServer:
                 name=self._name, auth_token=auth_token,
             )
             self._rest_port = self._rest_api.start()
-            self._write_pid_file()
             logger.info(f"REST API started on port {self._rest_port}")
         except Exception as e:
             logger.debug(f"REST API failed to start: {e}")

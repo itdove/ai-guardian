@@ -17,7 +17,6 @@ _skip_no_unix_socket = pytest.mark.skipif(
 )
 
 from ai_guardian.daemon.client import (
-    cleanup_stale_pid,
     get_pid_path,
     get_socket_path,
     is_daemon_running,
@@ -341,63 +340,15 @@ class TestIsPidAlive:
             assert not is_pid_alive(12345)
 
 
-class TestCleanupStalePid:
-    def test_no_pid_file_returns_false(self, tmp_path, monkeypatch):
+class TestStartDaemonBackgroundNoClientCleanup:
+    def test_start_background_does_not_call_cleanup(self, tmp_path, monkeypatch):
+        """start_daemon_background() delegates cleanup to the daemon process."""
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        assert not cleanup_stale_pid()
-
-    def test_removes_stale_pid_file(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": 99999999}))
-
-        assert cleanup_stale_pid()
-        assert not pid_path.exists()
-
-    def test_removes_stale_socket_file(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": 99999999}))
-        sock_path = tmp_path / "daemon.sock"
-        sock_path.write_text("")
-
-        assert cleanup_stale_pid()
-        assert not pid_path.exists()
-        assert not sock_path.exists()
-
-    def test_leaves_pid_file_when_daemon_running(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid()}))
-
         with mock.patch(
-            "ai_guardian.daemon.client.is_daemon_running", return_value=True
+            "ai_guardian.daemon.client._find_executable",
+            return_value=["/nonexistent/ai-guardian"],
         ):
-            assert not cleanup_stale_pid()
-            assert pid_path.exists()
-
-    def test_leaves_pid_file_when_process_alive_but_unresponsive(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid()}))
-
-        with mock.patch(
-            "ai_guardian.daemon.client.is_daemon_running", return_value=False
-        ):
-            assert not cleanup_stale_pid()
-            assert pid_path.exists()
-
-    def test_start_background_calls_cleanup(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        with mock.patch(
-            "ai_guardian.daemon.client.cleanup_stale_pid"
-        ) as mock_cleanup:
             with mock.patch(
-                "ai_guardian.daemon.client._find_executable",
-                return_value=["/nonexistent/ai-guardian"],
+                "subprocess.Popen", side_effect=OSError("not found")
             ):
-                with mock.patch(
-                    "subprocess.Popen", side_effect=OSError("not found")
-                ):
-                    start_daemon_background()
-                    mock_cleanup.assert_called_once()
+                start_daemon_background()
