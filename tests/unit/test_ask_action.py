@@ -260,8 +260,9 @@ class TestAskDialogHeadlessFallback:
         from ai_guardian.tui.ask_dialog import _map_fallback_to_decision, AskDecision
         assert _map_fallback_to_decision("unknown") == AskDecision.BLOCK
 
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
-    def test_show_ask_dialog_headless_block(self, _mock_sub):
+    def test_show_ask_dialog_headless_block(self, _mock_sub, _mock_daemon):
         from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision
         violation = AskViolationInfo(
             violation_type="secret_detected",
@@ -272,8 +273,9 @@ class TestAskDialogHeadlessFallback:
         result = show_ask_dialog(violation, fallback_action="block")
         assert result.decision == AskDecision.BLOCK
 
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
-    def test_show_ask_dialog_headless_warn(self, _mock_sub):
+    def test_show_ask_dialog_headless_warn(self, _mock_sub, _mock_daemon):
         from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision
         violation = AskViolationInfo(
             violation_type="secret_detected",
@@ -302,8 +304,9 @@ class TestHandleAskMode:
         )
         assert result is None
 
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
-    def test_ask_headless_block_fallback(self, _mock_sub):
+    def test_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
         from ai_guardian.hook_processing import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
         result = _handle_ask_mode(
@@ -312,8 +315,9 @@ class TestHandleAskMode:
         assert result is not None
         assert result.decision == AskDecision.BLOCK
 
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
-    def test_ask_warn_headless_fallback(self, _mock_sub):
+    def test_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
         from ai_guardian.hook_processing import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
         result = _handle_ask_mode(
@@ -363,9 +367,10 @@ class TestSSRFAskAction:
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate({"action": "ask:invalid"}, ssrf_schema)
 
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     @patch("subprocess.run")
-    def test_ssrf_ask_headless_block_fallback(self, mock_sub_run, _mock_sub):
+    def test_ssrf_ask_headless_block_fallback(self, mock_sub_run, _mock_sub, _mock_daemon):
         """Headless with 'ask' action should fall back to BLOCK."""
         mock_sub_run.side_effect = FileNotFoundError
         from ai_guardian.ssrf_protector import SSRFProtector
@@ -378,9 +383,10 @@ class TestSSRFAskAction:
         should_block, msg = protector.check("Bash", {"command": "curl http://evil.internal.corp"})
         assert should_block is True
 
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     @patch("subprocess.run")
-    def test_ssrf_ask_warn_headless_allows(self, mock_sub_run, _mock_sub):
+    def test_ssrf_ask_warn_headless_allows(self, mock_sub_run, _mock_sub, _mock_daemon):
         """Headless with 'ask:warn' should fall back to ALLOW_ONCE."""
         mock_sub_run.side_effect = FileNotFoundError
         from ai_guardian.ssrf_protector import SSRFProtector

@@ -148,6 +148,11 @@ class _RestHandler(BaseHTTPRequestHandler):
             else:
                 result = manager.detect(content)
                 self._send_json(result)
+        elif self.path == "/api/prompt":
+            body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
+            if body is None:
+                return
+            self._handle_prompt(body)
         elif self.path == "/api/check":
             body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
             if body is None:
@@ -389,6 +394,100 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.error("Check endpoint failed: %s", e)
             self._send_error(500, "Internal error")
+
+    def _handle_prompt(self, body):
+        """Handle POST /api/prompt — show ask dialog directly (no subprocess).
+
+        The daemon process has display access (via the tray), so the ask
+        dialog can run in-process instead of spawning a separate subprocess.
+        """
+        mode = body.get("mode", "ask")
+        if mode != "ask":
+            self._send_error(400, "Only mode=ask is supported via REST")
+            return
+
+        violation_data = body.get("violation")
+        if not violation_data or not isinstance(violation_data, dict):
+            self._send_error(400, "violation object is required")
+            return
+
+        fallback = body.get("fallback", "block")
+        timeout = int(body.get("timeout", 300))
+
+        try:
+            from ai_guardian.tui.ask_dialog import (
+                AskViolationInfo,
+                _TkinterAskDialog,
+                _NiceGuiAskDialog,
+                _TextualAskDialog,
+                _map_fallback_to_decision,
+                AskResult,
+                AskDecision,
+            )
+            from ai_guardian.tui.display import _tkinter_available, _nicegui_available
+        except ImportError as e:
+            logger.warning("Prompt UI dependencies not available: %s", e)
+            self._send_error(503, "UI dependencies not available")
+            return
+
+        violation = AskViolationInfo(
+            violation_type=violation_data.get("violation_type", ""),
+            summary=violation_data.get("summary", ""),
+            matched_text=violation_data.get("matched_text", ""),
+            config_section=violation_data.get("config_section", ""),
+            error_message=violation_data.get("error_message", ""),
+            matched_pattern=violation_data.get("matched_pattern", ""),
+            file_path=violation_data.get("file_path"),
+            line_number=violation_data.get("line_number"),
+        )
+
+        import threading
+        result_holder = [None]
+        done_event = threading.Event()
+
+        def _run_dialog():
+            result = None
+            if _tkinter_available():
+                try:
+                    result = _TkinterAskDialog(violation, timeout).run()
+                except Exception as e:
+                    logger.warning("tkinter ask dialog failed: %s", e)
+
+            if result is None and _nicegui_available():
+                try:
+                    result = _NiceGuiAskDialog(violation, timeout).run()
+                except Exception as e:
+                    logger.warning("NiceGUI ask dialog failed: %s", e)
+
+            if result is None:
+                decision = _map_fallback_to_decision(fallback)
+                result = AskResult(decision=decision)
+
+            result_holder[0] = result
+            done_event.set()
+
+        dialog_thread = threading.Thread(
+            target=_run_dialog, daemon=True, name="prompt-dialog",
+        )
+        dialog_thread.start()
+
+        if not done_event.wait(timeout=timeout + 10):
+            self._send_json({
+                "decision": AskDecision.BLOCK.value,
+                "allowlist_pattern": None,
+                "source": "timeout",
+            })
+            return
+
+        result = result_holder[0]
+        if result is None:
+            result = AskResult(decision=_map_fallback_to_decision(fallback))
+
+        self._send_json({
+            "decision": result.decision.value,
+            "allowlist_pattern": result.allowlist_pattern,
+            "source": "daemon",
+        })
 
     def _handle_redact(self, body):
         """Handle POST /api/redact — text sanitization."""

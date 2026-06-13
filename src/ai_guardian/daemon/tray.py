@@ -2863,14 +2863,14 @@ class DaemonTray:
             pass
 
     def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
-        """Launch prompt --mode params for parameter collection, then execute.
+        """Collect parameters via direct call, then execute the plugin command.
 
-        Uses tkinter popup (no terminal) when available, otherwise falls
-        back to Textual TUI in a terminal window.
+        Uses direct in-process TrayPromptApp call when tkinter or NiceGUI
+        is available (no subprocess overhead). Falls back to Textual TUI
+        in a terminal window when neither GUI toolkit is available.
         """
         import json as json_mod
         import os
-        import subprocess
         import tempfile
         import threading
         from ai_guardian.daemon.tray_plugins import resolve_command, substitute_target_vars
@@ -2881,49 +2881,75 @@ class DaemonTray:
 
         resolved_cmd = substitute_target_vars(resolved_cmd, target)
 
-        tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
-        output_path = os.path.join(tmpdir, "command")
-
         extra_vars = {}
         if target and getattr(target, "working_dir", None):
             extra_vars["working_dir"] = target.working_dir
 
-        params_json = json_mod.dumps(plugin_item_dict.get("params", []))
-        prompt_cmd = self._resolve_cli_cmd(
-            "prompt", "--mode", "params",
-            "--params", params_json,
-            "--template", resolved_cmd,
-            "--type", plugin_item_dict.get("type", "terminal"),
-            "--output-file", output_path,
-        )
         label = plugin_item_dict.get("label")
-        if extra_vars:
-            prompt_cmd += ["--extra-vars", json_mod.dumps(extra_vars)]
-        if label:
-            prompt_cmd += ["--title", label]
+        item_type = plugin_item_dict.get("type", "terminal")
+        run_on_target = plugin_item_dict.get("run_on_target", False)
+        params = plugin_item_dict.get("params", [])
 
         from ai_guardian.tui.display import (
             _nicegui_available, _tkinter_available,
         )
         if _tkinter_available() or _nicegui_available():
-            subprocess.Popen(prompt_cmd)
+            def _run_prompt_and_dispatch():
+                try:
+                    from ai_guardian.tui.tray_prompt import TrayPromptApp
+                    app = TrayPromptApp(
+                        params=params,
+                        command_template=resolved_cmd,
+                        command_type=item_type,
+                        extra_vars=extra_vars,
+                        title=label,
+                    )
+                    command = app.run()
+                except Exception as e:
+                    logger.warning("Direct prompt call failed: %s", e)
+                    command = None
+                if command:
+                    DaemonTray._execute_plugin_command(
+                        command, item_type, target=target,
+                        run_on_target=run_on_target, label=label,
+                    )
+
+            threading.Thread(
+                target=_run_prompt_and_dispatch, daemon=True,
+                name="plugin-prompt",
+            ).start()
         else:
+            tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
+            output_path = os.path.join(tmpdir, "command")
+
+            params_json = json_mod.dumps(params)
+            prompt_cmd = self._resolve_cli_cmd(
+                "prompt", "--mode", "params",
+                "--params", params_json,
+                "--template", resolved_cmd,
+                "--type", item_type,
+                "--output-file", output_path,
+            )
+            if extra_vars:
+                prompt_cmd += ["--extra-vars", json_mod.dumps(extra_vars)]
+            if label:
+                prompt_cmd += ["--title", label]
+
             from ai_guardian.daemon.multi_client import _launch_in_terminal
             _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
-        item_type = plugin_item_dict.get("type", "terminal")
-        run_on_target = plugin_item_dict.get("run_on_target", False)
+            def _watch_and_dispatch():
+                command = DaemonTray._poll_output_file(output_path, tmpdir)
+                if command:
+                    DaemonTray._execute_plugin_command(
+                        command, item_type, target=target,
+                        run_on_target=run_on_target, label=label,
+                    )
 
-        def _watch_and_dispatch():
-            command = DaemonTray._poll_output_file(output_path, tmpdir)
-            if command:
-                DaemonTray._execute_plugin_command(
-                    command, item_type, target=target,
-                    run_on_target=run_on_target, label=label,
-                )
-
-        watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
-        watcher.start()
+            threading.Thread(
+                target=_watch_and_dispatch, daemon=True,
+                name="plugin-prompt-watch",
+            ).start()
 
     def _resolve_target_list(self, target_mode):
         """Resolve a target mode to a list of DaemonTarget instances."""
@@ -2960,17 +2986,17 @@ class DaemonTray:
         ]
 
     def _execute_multi_target_with_params(self, plugin_item, targets):
-        """Collect params once via prompt --mode params, then execute on all targets.
+        """Collect params once via direct call, then execute on all targets.
 
-        Uses tkinter popup when available, Textual terminal fallback otherwise.
+        Uses direct in-process TrayPromptApp call when tkinter or NiceGUI
+        is available. Falls back to Textual TUI in a terminal window.
         """
         import json as json_mod
         import os
-        import subprocess
         import tempfile
         import threading
         from ai_guardian.daemon.tray_plugins import (
-            _item_to_dict, resolve_command, substitute_target_vars,
+            _item_to_dict, resolve_command,
         )
 
         item_dict = _item_to_dict(plugin_item)
@@ -2978,43 +3004,68 @@ class DaemonTray:
         if resolved_cmd is None:
             return
 
-        tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
-        output_path = os.path.join(tmpdir, "command")
-
-        params_json = json_mod.dumps(item_dict.get("params", []))
-        prompt_cmd = self._resolve_cli_cmd(
-            "prompt", "--mode", "params",
-            "--params", params_json,
-            "--template", resolved_cmd,
-            "--type", plugin_item.type,
-            "--output-file", output_path,
-        )
         label = plugin_item.label
-        if label:
-            prompt_cmd += ["--title", label]
+        item_type = plugin_item.type
+        run_on_target = plugin_item.run_on_target
+        params = item_dict.get("params", [])
 
         from ai_guardian.tui.display import (
             _nicegui_available, _tkinter_available,
         )
         if _tkinter_available() or _nicegui_available():
-            subprocess.Popen(prompt_cmd)
+            def _run_prompt_and_dispatch():
+                try:
+                    from ai_guardian.tui.tray_prompt import TrayPromptApp
+                    app = TrayPromptApp(
+                        params=params,
+                        command_template=resolved_cmd,
+                        command_type=item_type,
+                        title=label,
+                    )
+                    command = app.run()
+                except Exception as e:
+                    logger.warning("Direct prompt call failed: %s", e)
+                    command = None
+                if command:
+                    self._execute_multi_target_command(
+                        targets, command, item_type,
+                        run_on_target=run_on_target, label=label,
+                    )
+
+            threading.Thread(
+                target=_run_prompt_and_dispatch, daemon=True,
+                name="multi-plugin-prompt",
+            ).start()
         else:
+            tmpdir = tempfile.mkdtemp(prefix="ai-guardian-prompt-")
+            output_path = os.path.join(tmpdir, "command")
+
+            params_json = json_mod.dumps(params)
+            prompt_cmd = self._resolve_cli_cmd(
+                "prompt", "--mode", "params",
+                "--params", params_json,
+                "--template", resolved_cmd,
+                "--type", item_type,
+                "--output-file", output_path,
+            )
+            if label:
+                prompt_cmd += ["--title", label]
+
             from ai_guardian.daemon.multi_client import _launch_in_terminal
             _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
-        item_type = plugin_item.type
-        run_on_target = plugin_item.run_on_target
+            def _watch_and_dispatch():
+                command = DaemonTray._poll_output_file(output_path, tmpdir)
+                if command:
+                    self._execute_multi_target_command(
+                        targets, command, item_type,
+                        run_on_target=run_on_target, label=label,
+                    )
 
-        def _watch_and_dispatch():
-            command = DaemonTray._poll_output_file(output_path, tmpdir)
-            if command:
-                self._execute_multi_target_command(
-                    targets, command, item_type,
-                    run_on_target=run_on_target, label=label,
-                )
-
-        watcher = threading.Thread(target=_watch_and_dispatch, daemon=True)
-        watcher.start()
+            threading.Thread(
+                target=_watch_and_dispatch, daemon=True,
+                name="multi-plugin-prompt-watch",
+            ).start()
 
     def _execute_plugin_with_target_select(self, plugin_item):
         """Launch target selector, then execute on selected targets."""
