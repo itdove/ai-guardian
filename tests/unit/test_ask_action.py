@@ -337,3 +337,187 @@ class TestHandleAskMode:
             )
         assert result.decision == AskDecision.ALLOW_ALWAYS
         mock_write.assert_called_once_with("secret_scanning", r"FAKE\w+")
+
+
+class TestSSRFAskAction:
+    """Tests for ask action mode with SSRF protection (Issue #1129)."""
+
+    def test_ssrf_ask_action_schema_accepts_ask(self):
+        """Verify JSON schema accepts ask values for ssrf_protection.action."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        ssrf_schema = schema["properties"]["ssrf_protection"]
+        for action_val in ["ask", "ask:block", "ask:warn", "ask:log-only"]:
+            config = {"action": action_val}
+            jsonschema.validate(config, ssrf_schema)
+
+    def test_ssrf_ask_action_schema_rejects_invalid(self):
+        """Verify JSON schema rejects invalid ask values."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        ssrf_schema = schema["properties"]["ssrf_protection"]
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({"action": "ask:invalid"}, ssrf_schema)
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    @patch("subprocess.run")
+    def test_ssrf_ask_headless_block_fallback(self, mock_sub_run, _mock_sub):
+        """Headless with 'ask' action should fall back to BLOCK."""
+        mock_sub_run.side_effect = FileNotFoundError
+        from ai_guardian.ssrf_protector import SSRFProtector
+        config = {
+            "action": "ask",
+            "enabled": True,
+            "additional_blocked_domains": ["evil.internal.corp"],
+        }
+        protector = SSRFProtector(config)
+        should_block, msg = protector.check("Bash", {"command": "curl http://evil.internal.corp"})
+        assert should_block is True
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    @patch("subprocess.run")
+    def test_ssrf_ask_warn_headless_allows(self, mock_sub_run, _mock_sub):
+        """Headless with 'ask:warn' should fall back to ALLOW_ONCE."""
+        mock_sub_run.side_effect = FileNotFoundError
+        from ai_guardian.ssrf_protector import SSRFProtector
+        config = {
+            "action": "ask:warn",
+            "enabled": True,
+            "additional_blocked_domains": ["evil.internal.corp"],
+        }
+        protector = SSRFProtector(config)
+        should_block, msg = protector.check("Bash", {"command": "curl http://evil.internal.corp"})
+        assert should_block is False
+
+    def test_ssrf_immutable_skips_ask(self):
+        """Private IP with 'ask' action should always block without showing dialog."""
+        from ai_guardian.ssrf_protector import SSRFProtector
+        config = {"action": "ask", "enabled": True}
+        protector = SSRFProtector(config)
+        should_block, msg = protector.check("Bash", {"command": "curl http://169.254.169.254/latest/meta-data/"})
+        assert should_block is True
+        assert "immutable" in msg.lower() or "BLOCKED" in msg
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_ssrf_ask_allow_always_writes_domain(self, mock_dialog):
+        """SSRF Allow Always should call add_allowed_domain, not add_allowlist_pattern."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern="evil.internal.corp"
+        )
+        with patch("ai_guardian.config_writer.add_allowed_domain") as mock_domain_write, \
+             patch("ai_guardian.config_writer.add_allowlist_pattern") as mock_pattern_write:
+            mock_domain_write.return_value = True
+            result = _handle_ask_mode(
+                "ask", "ssrf_blocked", "http://evil.internal.corp/api",
+                "ssrf_protection", "SSRF blocked"
+            )
+        assert result.decision == AskDecision.ALLOW_ALWAYS
+        mock_domain_write.assert_called_once_with("evil.internal.corp")
+        mock_pattern_write.assert_not_called()
+
+
+class TestSuggestDomain:
+    """Tests for suggest_domain() in pattern_editor."""
+
+    def test_extract_domain_from_https_url(self):
+        from ai_guardian.tui.pattern_editor import suggest_domain
+        assert suggest_domain("https://api.example.com/v1/data") == "api.example.com"
+
+    def test_extract_domain_from_http_url(self):
+        from ai_guardian.tui.pattern_editor import suggest_domain
+        assert suggest_domain("http://evil.internal.corp:8080/admin") == "evil.internal.corp"
+
+    def test_extract_domain_lowercase(self):
+        from ai_guardian.tui.pattern_editor import suggest_domain
+        assert suggest_domain("https://API.Example.COM/path") == "api.example.com"
+
+    def test_plain_domain_passthrough(self):
+        from ai_guardian.tui.pattern_editor import suggest_domain
+        assert suggest_domain("example.com") == "example.com"
+
+    def test_suggest_pattern_ssrf_section(self):
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("https://evil.corp/api", "ssrf_protection")
+        assert result == "evil.corp"
+
+    def test_suggest_pattern_non_ssrf_section(self):
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        import re
+        result = suggest_pattern("FAKE_TOKEN=abc", "secret_scanning")
+        assert result == re.escape("FAKE_TOKEN=abc")
+
+    def test_generate_config_preview_ssrf(self):
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview("evil.corp", "ssrf_protection")
+        parsed = json.loads(result)
+        assert "ssrf_protection" in parsed
+        assert "evil.corp" in parsed["ssrf_protection"]["allowed_domains"]
+
+    def test_generate_config_preview_non_ssrf(self):
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview(r"FAKE\w+", "secret_scanning")
+        parsed = json.loads(result)
+        assert r"FAKE\w+" in parsed["secret_scanning"]["allowlist_patterns"]
+
+
+class TestAddAllowedDomain:
+    """Tests for add_allowed_domain() in config_writer."""
+
+    def test_add_domain_to_empty_config(self):
+        from ai_guardian.config_writer import add_allowed_domain
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            result = add_allowed_domain("api.example.com", config_path=config_path)
+            assert result is True
+            with open(config_path) as f:
+                config = json.load(f)
+            assert "api.example.com" in config["ssrf_protection"]["allowed_domains"]
+
+    def test_add_domain_to_existing_config(self):
+        from ai_guardian.config_writer import add_allowed_domain
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "ssrf_protection": {"enabled": True, "allowed_domains": ["existing.com"]}
+            }))
+            result = add_allowed_domain("new.example.com", config_path=config_path)
+            assert result is True
+            with open(config_path) as f:
+                config = json.load(f)
+            assert "existing.com" in config["ssrf_protection"]["allowed_domains"]
+            assert "new.example.com" in config["ssrf_protection"]["allowed_domains"]
+
+    def test_add_duplicate_domain(self):
+        from ai_guardian.config_writer import add_allowed_domain
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "ssrf_protection": {"allowed_domains": ["existing.com"]}
+            }))
+            result = add_allowed_domain("existing.com", config_path=config_path)
+            assert result is True
+            with open(config_path) as f:
+                config = json.load(f)
+            assert config["ssrf_protection"]["allowed_domains"].count("existing.com") == 1
+
+    def test_add_domain_normalizes_case(self):
+        from ai_guardian.config_writer import add_allowed_domain
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            result = add_allowed_domain("API.Example.COM", config_path=config_path)
+            assert result is True
+            with open(config_path) as f:
+                config = json.load(f)
+            assert "api.example.com" in config["ssrf_protection"]["allowed_domains"]
+
+    def test_reject_empty_domain(self):
+        from ai_guardian.config_writer import add_allowed_domain
+        assert add_allowed_domain("") is False
+        assert add_allowed_domain("   ") is False

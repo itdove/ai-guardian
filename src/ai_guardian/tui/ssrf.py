@@ -169,6 +169,9 @@ class SSRFContent(SchemaDefaultsMixin, Container):
                         select_options_with_default(
                             [
                                 ("Block", "block"),
+                                ("Ask (block if headless)", "ask"),
+                                ("Ask (warn if headless)", "ask:warn"),
+                                ("Ask (log-only if headless)", "ask:log-only"),
                                 ("Warn (allow but notify)", "warn"),
                                 ("Log Only (silent)", "log-only"),
                             ],
@@ -181,8 +184,10 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
                 yield Static(
                     "[dim]  • Block: Prevents execution (recommended)\n"
+                    "  • Ask: Prompts user to Allow Once, Allow Always, or Block\n"
                     "  • Warn: Logs violation and shows warning, but allows execution\n"
-                    "  • Log Only: Logs violation silently without user warning[/dim]",
+                    "  • Log Only: Logs violation silently without user warning\n"
+                    "  Note: Immutable protections (private IPs, dangerous schemes) always block[/dim]",
                     classes="setting-row"
                 )
 

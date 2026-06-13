@@ -373,7 +373,7 @@ class _TkinterAskDialog:
         matched_display.pack(fill="x", pady=(0, 10))
 
         ttk.Label(frame, text=f"Pattern ({ptype_label}):", font=("", 0, "bold")).pack(anchor="w")
-        pattern_var = tk.StringVar(value=suggest_pattern(v.matched_text) if v.matched_text else "")
+        pattern_var = tk.StringVar(value=suggest_pattern(v.matched_text, v.config_section) if v.matched_text else "")
         pattern_entry = ttk.Entry(frame, textvariable=pattern_var, width=60)
         pattern_entry.pack(fill="x", pady=(0, 5))
 
@@ -497,7 +497,7 @@ class _NiceGuiAskDialog:
 
                             ui.label(f"Pattern ({ptype_label}):").classes("font-bold text-sm mt-2")
                             pattern_input = ui.input(
-                                value=suggest_pattern(v.matched_text) if v.matched_text else "",
+                                value=suggest_pattern(v.matched_text, v.config_section) if v.matched_text else "",
                             ).props("dense outlined").classes("w-full").style("font-family: monospace")
 
                             status_label = ui.label("").classes("text-sm")
@@ -693,7 +693,7 @@ class _TextualAskDialog:
             def on_mount(self):
                 from ai_guardian.tui.pattern_editor import suggest_pattern
                 try:
-                    self.query_one("#pattern-input", Input).value = suggest_pattern(violation.matched_text)
+                    self.query_one("#pattern-input", Input).value = suggest_pattern(violation.matched_text, violation.config_section)
                 except Exception:
                     pass
 

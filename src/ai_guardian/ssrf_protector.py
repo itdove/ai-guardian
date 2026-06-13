@@ -715,6 +715,26 @@ class SSRFProtector:
                     # ALWAYS block regardless of action mode — cannot be downgraded
                     effective_action = "block" if is_immutable else self.action
 
+                    # Handle ask action mode (non-immutable violations only)
+                    if effective_action.startswith("ask"):
+                        try:
+                            from ai_guardian.hook_processing import _handle_ask_mode
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            ask_result = _handle_ask_mode(
+                                effective_action,
+                                "ssrf_blocked",
+                                matched_text=url,
+                                config_section="ssrf_protection",
+                                error_msg=f"SSRF pattern detected: {reason}\nURL: {url}\nCommand: {command[:100]}",
+                            )
+                            if ask_result is not None:
+                                if ask_result.decision != AskDecision.BLOCK:
+                                    return False, None
+                                # User chose Block — fall through to block handling
+                        except Exception as e:
+                            logger.warning(f"Ask dialog failed for SSRF: {e}")
+                            # Fall through to standard action handling
+
                     if effective_action == "warn":
                         warn_msg = (
                             f"⚠️  SSRF Protection Warning: {reason}\n"
