@@ -552,8 +552,13 @@ class DaemonServer:
         Handles PID recycling in containers: when the PID is alive but
         belongs to a different process (not our daemon), we verify via
         socket connectivity before concluding the daemon is running.
+
+        NEVER deletes PID/socket files when the daemon process is alive
+        and the socket exists — doing so orphans a hung but recoverable daemon.
         """
         pid_path = get_pid_path()
+        sock_path = get_socket_path()
+
         if pid_path.exists():
             try:
                 pid_info = json.loads(pid_path.read_text())
@@ -564,6 +569,15 @@ class DaemonServer:
                             f"Daemon already running (pid {old_pid}). "
                             f"Stop it first with: ai-guardian daemon stop"
                         )
+                    # Process is alive but not responsive. Check if socket exists.
+                    # If socket exists: daemon is hung, DO NOT delete files (orphans process)
+                    # If socket missing: PID recycled (not our daemon), safe to clean up
+                    if sock_path.exists():
+                        raise RuntimeError(
+                            f"Daemon process {old_pid} is alive but unresponsive "
+                            f"(socket exists but ping failed). Kill it manually: kill {old_pid}"
+                        )
+                    # Socket doesn't exist — PID belongs to a different process (recycled)
                     logger.info(
                         f"Cleaned up stale PID file (pid {old_pid}, "
                         f"process exists but is not ai-guardian daemon)"
@@ -589,8 +603,9 @@ class DaemonServer:
                 except OSError:
                     pass
 
+        # Only clean socket if PID file was successfully removed (daemon is dead)
         sock_path = get_socket_path()
-        if sock_path.exists() and not self._use_tcp:
+        if sock_path.exists() and not self._use_tcp and not pid_path.exists():
             sock_path.unlink()
             logger.info("Cleaned up stale socket file")
 
