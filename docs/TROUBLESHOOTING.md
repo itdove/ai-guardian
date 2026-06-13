@@ -97,6 +97,30 @@ ai-guardian daemon start
 podman run --init your-image
 ```
 
+### Quick Recovery with `daemon reset`
+
+**Symptom:** The daemon is in a broken state — orphaned process, stale PID file, hung socket — and normal `daemon stop` doesn't help.
+
+**Fix:** Use the `reset` command for clean recovery:
+```bash
+ai-guardian daemon reset
+```
+
+This will:
+1. Find the daemon process from the PID file
+2. Send SIGTERM, wait up to 3 seconds, then SIGKILL if needed
+3. Remove all daemon state files (`daemon.pid`, `daemon.pid.lock`, `daemon.sock`)
+4. Clear the `daemon.stop-requested` marker so auto-start works again
+
+The reset command does **not** touch: tray process, console, MCP server, configuration, or log files.
+
+**Safe to run at any time** — if no daemon is running and no state files exist, it reports "No daemon state to reset" and exits cleanly.
+
+**After reset:**
+```bash
+ai-guardian daemon start -b
+```
+
 ---
 
 ## Tray Display Issues

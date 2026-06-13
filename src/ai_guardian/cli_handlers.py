@@ -476,8 +476,77 @@ def _handle_daemon_command(args):
             print("Failed to resume daemon", file=sys.stderr)
             return 1
 
+    elif cmd == "reset":
+        import signal
+        import time
+
+        from ai_guardian.daemon import get_pid_path, get_socket_path, get_state_dir, is_pid_alive
+
+        state_dir = get_state_dir()
+        pid_path = get_pid_path()
+        sock_path = get_socket_path()
+        lock_path = str(pid_path) + ".lock"
+        marker_path = state_dir / "daemon.stop-requested"
+
+        actions = []
+
+        # Kill daemon process if running
+        pid = None
+        if pid_path.exists():
+            try:
+                pid_info = json.loads(pid_path.read_text())
+                pid = pid_info.get("pid", 0)
+            except (json.JSONDecodeError, OSError):
+                pid = None
+
+        if pid and is_pid_alive(pid):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline and is_pid_alive(pid):
+                time.sleep(0.2)
+
+            if is_pid_alive(pid):
+                try:
+                    if sys.platform == "win32":
+                        os.kill(pid, signal.SIGTERM)
+                    else:
+                        os.kill(pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+                time.sleep(0.5)
+                actions.append(f"Stopping daemon process (pid {pid})... killed (SIGKILL)")
+            else:
+                actions.append(f"Stopping daemon process (pid {pid})... stopped")
+
+        # Clean up state files
+        for path, label in [
+            (pid_path, "daemon.pid"),
+            (lock_path, "daemon.pid.lock"),
+            (sock_path, "daemon.sock"),
+            (marker_path, "daemon.stop-requested"),
+        ]:
+            p = Path(path) if isinstance(path, str) else path
+            if p.exists():
+                try:
+                    p.unlink()
+                    actions.append(f"Removed {label}")
+                except OSError:
+                    pass
+
+        if not actions:
+            print("No daemon state to reset")
+        else:
+            for a in actions:
+                print(a)
+            print("Daemon reset complete. Start again with: ai-guardian daemon start -b")
+        return 0
+
     else:
-        print("Usage: ai-guardian daemon {start|stop|status|restart|reload|pause|resume}")
+        print("Usage: ai-guardian daemon {start|stop|status|restart|reload|pause|resume|reset}")
         return 1
 
 
