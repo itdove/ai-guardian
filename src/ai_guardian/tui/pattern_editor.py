@@ -13,6 +13,7 @@ import re
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
+from urllib.parse import urlparse
 
 from ai_guardian.config_utils import validate_regex_pattern
 from ai_guardian.allowlist_utils import DANGEROUS_PATTERNS
@@ -109,21 +110,51 @@ def generate_config_preview(pattern: str, config_section: str) -> str:
     """Generate a JSON config snippet showing where the pattern will be added.
 
     Args:
-        pattern: The regex pattern to add.
+        pattern: The regex pattern or domain string to add.
         config_section: The config section (e.g., "secret_scanning").
 
     Returns:
         Formatted JSON string.
     """
+    if config_section == "ssrf_protection":
+        return json.dumps(
+            {config_section: {"allowed_domains": [pattern]}},
+            indent=2,
+        )
     return json.dumps(
         {config_section: {"allowlist_patterns": [pattern]}},
         indent=2,
     )
 
 
-def suggest_pattern(matched_text: str) -> str:
+def suggest_domain(url_or_text: str) -> str:
+    """Extract a domain from a URL string for SSRF allowlisting.
+
+    Args:
+        url_or_text: A URL or text containing a URL.
+
+    Returns:
+        The domain string, or the original text if no URL could be parsed.
+    """
+    text = url_or_text.strip()
+    try:
+        parsed = urlparse(text)
+        if parsed.hostname:
+            return parsed.hostname.lower()
+    except Exception:
+        pass
+    url_match = re.search(r'https?://([^/:\s]+)', text)
+    if url_match:
+        return url_match.group(1).lower()
+    return text
+
+
+def suggest_pattern(matched_text: str, config_section: str = "") -> str:
     """Suggest an initial pattern based on the matched text.
 
-    Escapes the text for use as a regex that matches the literal string.
+    For SSRF, extracts the domain from the URL.
+    For other sections, escapes the text for use as a regex.
     """
+    if config_section == "ssrf_protection":
+        return suggest_domain(matched_text)
     return re.escape(matched_text)

@@ -212,6 +212,9 @@ def create_ssrf_page(service, daemon_name: str):
                         act_sel = ui.select(
                             options={
                                 "block": "Block — reject request",
+                                "ask": "Ask — prompt user (block if headless)",
+                                "ask:warn": "Ask — prompt user (warn if headless)",
+                                "ask:log-only": "Ask — prompt user (log-only if headless)",
                                 "warn": "Warn — allow with warning",
                                 "log-only": "Log Only — silent logging",
                             },

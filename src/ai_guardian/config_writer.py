@@ -129,3 +129,102 @@ def add_allowlist_pattern(
     except OSError as e:
         logger.error(f"Failed to write config: {e}")
         return False
+
+
+def add_allowed_domain(
+    domain: str,
+    config_path: Optional[Path] = None,
+) -> bool:
+    """Add a domain to ssrf_protection.allowed_domains in ai-guardian.json.
+
+    Used by the ask dialog's "Allow Always" flow for SSRF violations.
+    SSRF uses domain strings (not regex patterns), so this writes to
+    allowed_domains instead of allowlist_patterns.
+
+    Args:
+        domain: Domain string to add (e.g. "api.example.com").
+        config_path: Override config file path (defaults to global config).
+
+    Returns:
+        True if domain was added successfully, False on failure.
+    """
+    if not domain:
+        return False
+
+    domain = domain.lower().strip()
+    if not domain:
+        return False
+
+    if config_path is None:
+        config_path = get_config_dir() / "ai-guardian.json"
+
+    lock_path = str(config_path) + ".lock"
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            config = {}
+            if config_path.exists():
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning(f"Could not read config, starting fresh: {e}")
+                    config = {}
+
+            if "ssrf_protection" not in config:
+                config["ssrf_protection"] = {}
+            section = config["ssrf_protection"]
+            if not isinstance(section, dict):
+                section = {}
+                config["ssrf_protection"] = section
+
+            domains = section.get("allowed_domains", [])
+            if not isinstance(domains, list):
+                domains = []
+
+            if domain in domains:
+                logger.info(f"Domain already in ssrf_protection.allowed_domains: {domain}")
+                return True
+
+            domains.append(domain)
+            section["allowed_domains"] = domains
+
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(config_path.parent),
+                prefix=".ai-guardian-",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2)
+                    f.write("\n")
+                os.replace(tmp_path, str(config_path))
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+
+            try:
+                from ai_guardian.config_loaders import _clear_config_cache
+                _clear_config_cache()
+            except ImportError:
+                pass
+
+            logger.info(f"Added domain to ssrf_protection.allowed_domains: {domain}")
+            return True
+
+        finally:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    except OSError as e:
+        logger.error(f"Failed to write config: {e}")
+        return False
