@@ -251,6 +251,7 @@ def run_python_scanner(
                 commit=finding.commit,
                 engine=scanner_name,
                 category=finding.category,
+                secret=finding.matched_text,
             ))
 
         logging.info(
@@ -351,6 +352,7 @@ def _parse_secrets_result(
                 commit=finding.get("commit"),
                 engine=engine_config.type,
                 verified=finding.get("verified", False),
+                secret=finding.get("matched_text"),
             ))
 
         logging.info(

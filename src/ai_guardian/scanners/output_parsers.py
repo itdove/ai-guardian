@@ -96,7 +96,8 @@ class GitleaksOutputParser(ScannerOutputParser):
                     "line_number": finding.get("StartLine", 0),
                     "end_line": finding.get("EndLine", 0),
                     "description": finding.get("Description", "Secret detected"),
-                    "commit": finding.get("Commit", "N/A")
+                    "commit": finding.get("Commit", "N/A"),
+                    "matched_text": finding.get("Match", ""),
                 })
 
             return {
@@ -176,7 +177,8 @@ class LeakTKOutputParser(ScannerOutputParser):
                     "line_number": finding.get("StartLine", 0),
                     "end_line": finding.get("EndLine", 0),
                     "description": finding.get("Description", "Secret detected"),
-                    "commit": finding.get("Commit", "N/A")
+                    "commit": finding.get("Commit", "N/A"),
+                    "matched_text": finding.get("Match", ""),
                 })
 
             return {

@@ -455,9 +455,8 @@ class TestSuggestDomain:
 
     def test_suggest_pattern_non_ssrf_section(self):
         from ai_guardian.tui.pattern_editor import suggest_pattern
-        import re
         result = suggest_pattern("FAKE_TOKEN=abc", "secret_scanning")
-        assert result == re.escape("FAKE_TOKEN=abc")
+        assert result == r"FAKE_TOKEN\s*="
 
     def test_generate_config_preview_ssrf(self):
         from ai_guardian.tui.pattern_editor import generate_config_preview
@@ -527,3 +526,77 @@ class TestAddAllowedDomain:
         from ai_guardian.config_writer import add_allowed_domain
         assert add_allowed_domain("") is False
         assert add_allowed_domain("   ") is False
+
+
+class TestSuggestPatternEnvVariable:
+    """Tests for smart env-variable pattern suggestions (Issue #1140)."""
+
+    def test_suggest_pattern_env_variable(self):
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("DAF_SESSION_NAME=some-value", "secret_scanning")
+        assert result == r"DAF_SESSION_NAME\s*="
+
+    def test_suggest_pattern_env_variable_with_spaces(self):
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("MY_SECRET = hunter2", "secret_scanning")
+        assert result == r"MY_SECRET\s*="
+
+    def test_suggest_pattern_non_env_unchanged(self):
+        import re
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("ghp_abc123def456", "secret_scanning")
+        assert result == re.escape("ghp_abc123def456")
+
+    def test_suggest_pattern_lowercase_not_env(self):
+        import re
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("some_key=value", "secret_scanning")
+        assert result == re.escape("some_key=value")
+
+
+class TestExtractMatchedTextForAsk:
+    """Tests for _extract_matched_text_for_ask helper (Issue #1140)."""
+
+    def test_prefers_explicit_matched_text(self):
+        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        details = {"matched_text": "API_KEY=secret123", "line_number": 5}
+        result = _extract_matched_text_for_ask(details, "line1\nline2\nline3\nline4\nAPI_KEY=secret123")
+        assert result == "API_KEY=secret123"
+
+    def test_fallback_to_line_number(self):
+        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        details = {"line_number": 3}
+        result = _extract_matched_text_for_ask(details, "line1\nline2\nTHE_SECRET_LINE\nline4")
+        assert result == "THE_SECRET_LINE"
+
+    def test_empty_details(self):
+        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        result = _extract_matched_text_for_ask(None, "content")
+        assert result == ""
+
+    def test_no_matched_text_no_line_number(self):
+        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        result = _extract_matched_text_for_ask({"rule_id": "test"}, "content")
+        assert result == ""
+
+    def test_line_number_out_of_range(self):
+        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        result = _extract_matched_text_for_ask({"line_number": 99}, "line1\nline2")
+        assert result == ""
+
+
+class TestHandleAskModeMatchedText:
+    """Tests for matched_text flowing through _handle_ask_mode (Issue #1140)."""
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_matched_text_flows_to_violation_info(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(decision=AskDecision.BLOCK)
+        _handle_ask_mode(
+            "ask", "secret_detected", "MY_SECRET=value123",
+            "secret_scanning", "Secret Type: Environment Variable"
+        )
+        call_args = mock_dialog.call_args
+        violation_info = call_args[0][0]
+        assert violation_info.matched_text == "MY_SECRET=value123"

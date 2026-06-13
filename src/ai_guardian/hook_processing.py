@@ -2522,6 +2522,24 @@ def _run_secret_validation(secret_config, secrets_list, content, context):
     return validation_info, should_skip
 
 
+_last_secret_matched_text = ""
+
+
+def _extract_matched_text_for_ask(secret_details, content):
+    """Extract matched text from secret_details or content for ask-mode display."""
+    if not secret_details:
+        return ""
+    mt = secret_details.get("matched_text")
+    if mt:
+        return mt.strip()
+    line_num = secret_details.get("line_number", 0)
+    if line_num > 0 and content:
+        lines = (content if isinstance(content, str) else str(content)).splitlines()
+        if 0 < line_num <= len(lines):
+            return lines[line_num - 1].strip()
+    return ""
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
                                 ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
@@ -2558,6 +2576,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         Secret scanning ALWAYS blocks when secrets are detected (no "log" mode).
         This prevents secrets from reaching Claude's API or being exposed in sessions.
     """
+    global _last_secret_matched_text
+    _last_secret_matched_text = ""
     try:
         # Check if tool should be ignored
         if ignore_tools and tool_name:
@@ -2830,6 +2850,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             "total_findings": len(strategy_result.secrets),
                             "engine": strategy_result.engine,
                             "category": first_secret.category,
+                            "matched_text": first_secret.secret,
                         }
                         if validation_info:
                             secret_details["validation"] = validation_info
@@ -2850,6 +2871,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         _log_finding_violation(file_path or filename, context, secret_details,
                                                hook_context=context)
                         logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
+                        _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                         return True, error_msg
 
                     # No secrets found — check for engine errors that need user attention
@@ -3036,7 +3058,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "line_number": first_finding.get("line_number", 0),
                                 "end_line": first_finding.get("end_line", 0),
                                 "commit": first_finding.get("commit", "N/A"),
-                                "total_findings": scan_result.get("total_findings", 0)
+                                "total_findings": scan_result.get("total_findings", 0),
+                                "matched_text": first_finding.get("matched_text", ""),
                             }
                     except Exception as e:
                         logging.error(f"Failed to parse scanner output with {engine_config.output_parser} parser: {e}")
@@ -3055,7 +3078,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "line_number": first_finding.get("StartLine", 0),
                                     "end_line": first_finding.get("EndLine", 0),
                                     "commit": first_finding.get("Commit", "N/A"),
-                                    "total_findings": len(findings)
+                                    "total_findings": len(findings),
+                                    "matched_text": first_finding.get("Match", ""),
                                 }
                     except Exception as e:
                         logging.debug(f"Failed to parse scanner JSON report: {e}")
@@ -3106,6 +3130,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "total_findings": len(fallback_result.secrets),
                                     "engine": fallback_result.engine,
                                     "category": first_secret.category,
+                                    "matched_text": first_secret.secret,
                                 }
                                 if fb_validation_info:
                                     secret_details["validation"] = fb_validation_info
@@ -3125,6 +3150,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 _log_finding_violation(file_path or filename, context, secret_details,
                                                        hook_context=context)
                                 logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
+                                _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                                 return True, error_msg
                     return False, None
 
@@ -3223,6 +3249,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 #   - UserPromptSubmit: secrets reach Claude's API
                 #   - PostToolUse: secrets in tool outputs go to Claude's session
                 logging.error(f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}")
+                _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                 return True, error_msg
 
             elif result.returncode in expected_success_codes:
@@ -3267,6 +3294,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "total_findings": len(fallback_result.secrets),
                                 "engine": fallback_result.engine,
                                 "category": first_secret.category,
+                                "matched_text": first_secret.secret,
                             }
                             if fb2_validation_info:
                                 secret_details["validation"] = fb2_validation_info
@@ -3296,6 +3324,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             _log_finding_violation(file_path or filename, context, secret_details,
                                                     hook_context=context)
                             logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
+                            _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                             return True, error_msg
 
                 return False, None
@@ -3757,7 +3786,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 secret_action = secret_config.get("action", "block") if secret_config else "block"
                 ask_result = _handle_ask_mode(
                     secret_action, ViolationType.SECRET_DETECTED,
-                    matched_text="",
+                    matched_text=_last_secret_matched_text,
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path if 'file_path' in dir() else None,
@@ -4738,7 +4767,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 secret_action_pre = secret_config.get("action", "block") if secret_config else "block"
                 ask_result_pre = _handle_ask_mode(
                     secret_action_pre, ViolationType.SECRET_DETECTED,
-                    matched_text="",
+                    matched_text=_last_secret_matched_text,
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path,
