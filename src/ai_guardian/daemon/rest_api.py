@@ -445,12 +445,14 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "decision": decision.value,
                 "allowlist_pattern": None,
+                "config_saved": False,
                 "source": "fallback",
             })
         else:
             self._send_json({
                 "decision": result.decision.value,
                 "allowlist_pattern": result.allowlist_pattern,
+                "config_saved": getattr(result, 'config_saved', False),
                 "source": "daemon",
             })
 

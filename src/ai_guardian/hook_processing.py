@@ -1981,11 +1981,12 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         result = show_ask_dialog(violation_info, fallback_action=fallback_action)
 
         if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
-            if config_section == "ssrf_protection":
-                from ai_guardian.config_writer import add_allowed_domain
-                add_allowed_domain(result.allowlist_pattern)
-            else:
-                add_allowlist_pattern(config_section, result.allowlist_pattern)
+            if not getattr(result, 'config_saved', False):
+                if config_section == "ssrf_protection":
+                    from ai_guardian.config_writer import add_allowed_domain
+                    add_allowed_domain(result.allowlist_pattern)
+                else:
+                    add_allowlist_pattern(config_section, result.allowlist_pattern)
 
         return result
 

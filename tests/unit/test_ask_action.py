@@ -686,3 +686,116 @@ class TestPatternEditorAutoUpdate:
         assert "api.example.com" in config1["ssrf_protection"]["allowed_domains"]
         assert "api.other.com" in config2["ssrf_protection"]["allowed_domains"]
         assert preview1 != preview2
+
+
+class TestPostSaveConfirmation:
+    """Tests for post-save confirmation in ask dialog (Issue #1141)."""
+
+    def test_ask_result_has_config_saved_field(self):
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        result = AskResult(decision=AskDecision.ALLOW_ALWAYS, allowlist_pattern="test")
+        assert result.config_saved is False
+
+    def test_ask_result_config_saved_true(self):
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        result = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern="test",
+            config_saved=True,
+        )
+        assert result.config_saved is True
+
+    def test_save_pattern_to_config_calls_add_allowlist_pattern(self):
+        from ai_guardian.tui.ask_dialog import _save_pattern_to_config
+        with patch("ai_guardian.config_writer.add_allowlist_pattern") as mock_add:
+            mock_add.return_value = True
+            result = _save_pattern_to_config(r"test\w+", "secret_scanning")
+        assert result is True
+        mock_add.assert_called_once_with("secret_scanning", r"test\w+")
+
+    def test_save_pattern_to_config_ssrf_calls_add_allowed_domain(self):
+        from ai_guardian.tui.ask_dialog import _save_pattern_to_config
+        with patch("ai_guardian.config_writer.add_allowed_domain") as mock_add:
+            mock_add.return_value = True
+            result = _save_pattern_to_config("api.example.com", "ssrf_protection")
+        assert result is True
+        mock_add.assert_called_once_with("api.example.com")
+
+    def test_save_pattern_to_config_handles_failure(self):
+        from ai_guardian.tui.ask_dialog import _save_pattern_to_config
+        with patch("ai_guardian.config_writer.add_allowlist_pattern") as mock_add:
+            mock_add.return_value = False
+            result = _save_pattern_to_config(r"test\w+", "secret_scanning")
+        assert result is False
+
+    def test_save_pattern_to_config_handles_exception(self):
+        from ai_guardian.tui.ask_dialog import _save_pattern_to_config
+        with patch("ai_guardian.config_writer.add_allowlist_pattern") as mock_add:
+            mock_add.side_effect = RuntimeError("disk full")
+            result = _save_pattern_to_config(r"test\w+", "secret_scanning")
+        assert result is False
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_hook_processing_skips_save_when_config_saved(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern=r"FAKE\w+",
+            config_saved=True,
+        )
+        with patch("ai_guardian.config_writer.add_allowlist_pattern") as mock_write:
+            result = _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
+            )
+        assert result.decision == AskDecision.ALLOW_ALWAYS
+        mock_write.assert_not_called()
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_hook_processing_saves_when_config_not_saved(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern=r"FAKE\w+",
+            config_saved=False,
+        )
+        with patch("ai_guardian.config_writer.add_allowlist_pattern") as mock_write:
+            mock_write.return_value = True
+            result = _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
+            )
+        assert result.decision == AskDecision.ALLOW_ALWAYS
+        mock_write.assert_called_once_with("secret_scanning", r"FAKE\w+")
+
+    @patch("subprocess.Popen")
+    def test_open_config_in_editor_macos(self, mock_popen):
+        from ai_guardian.tui.ask_dialog import _open_config_in_editor
+        with patch("platform.system", return_value="Darwin"), \
+             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
+            _open_config_in_editor()
+        mock_popen.assert_called_once_with(["open", "/fake/config/ai-guardian.json"])
+
+    @patch("subprocess.Popen")
+    def test_open_config_in_editor_linux(self, mock_popen):
+        from ai_guardian.tui.ask_dialog import _open_config_in_editor
+        with patch("platform.system", return_value="Linux"), \
+             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
+            _open_config_in_editor()
+        mock_popen.assert_called_once_with(["xdg-open", "/fake/config/ai-guardian.json"])
+
+    @patch("subprocess.Popen")
+    def test_open_config_in_editor_windows(self, mock_popen):
+        from ai_guardian.tui.ask_dialog import _open_config_in_editor
+        with patch("platform.system", return_value="Windows"), \
+             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
+            _open_config_in_editor()
+        mock_popen.assert_called_once_with(["notepad", "/fake/config/ai-guardian.json"])
+
+    @patch("subprocess.Popen")
+    def test_open_config_in_editor_handles_error(self, mock_popen):
+        from ai_guardian.tui.ask_dialog import _open_config_in_editor
+        mock_popen.side_effect = FileNotFoundError("not found")
+        with patch("platform.system", return_value="Linux"), \
+             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
+            _open_config_in_editor()  # should not raise
