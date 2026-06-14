@@ -50,6 +50,7 @@ class AskResult:
     """Result from the ask dialog."""
     decision: AskDecision
     allowlist_pattern: Optional[str] = None
+    config_saved: bool = False
 
 
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
@@ -57,6 +58,42 @@ def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
     if fallback_action in ("warn", "log-only"):
         return AskDecision.ALLOW_ONCE
     return AskDecision.BLOCK
+
+
+def _save_pattern_to_config(pattern: str, config_section: str) -> bool:
+    """Save a pattern to the config file. Returns True on success."""
+    try:
+        if config_section == "ssrf_protection":
+            from ai_guardian.config_writer import add_allowed_domain
+            return add_allowed_domain(pattern)
+        else:
+            from ai_guardian.config_writer import add_allowlist_pattern
+            return add_allowlist_pattern(config_section, pattern)
+    except Exception as e:
+        logger.warning("Failed to save pattern to config: %s", e)
+        return False
+
+
+def _open_config_in_editor() -> None:
+    """Open ai-guardian.json in the system default editor (fire-and-forget)."""
+    import subprocess
+
+    try:
+        from ai_guardian.config_utils import get_config_dir
+        config_path = str(get_config_dir() / "ai-guardian.json")
+    except Exception:
+        return
+
+    try:
+        system = platform.system()
+        if system == "Darwin":
+            subprocess.Popen(["open", config_path])
+        elif system == "Windows":
+            subprocess.Popen(["notepad", config_path])
+        else:
+            subprocess.Popen(["xdg-open", config_path])
+    except Exception as e:
+        logger.debug("Could not open config in editor: %s", e)
 
 
 def _show_via_daemon(
@@ -132,6 +169,7 @@ def _show_via_daemon(
         return AskResult(
             decision=decision,
             allowlist_pattern=data.get("allowlist_pattern"),
+            config_saved=data.get("config_saved", False),
         )
     except (URLError, OSError, json.JSONDecodeError, ValueError) as e:
         logger.debug("Daemon prompt request failed: %s", e)
@@ -212,6 +250,7 @@ def _show_via_subprocess(
             return AskResult(
                 decision=decision,
                 allowlist_pattern=data.get("allowlist_pattern"),
+                config_saved=data.get("config_saved", False),
             )
     except Exception as e:
         logger.warning(f"Failed to read prompt ask result: {e}")
@@ -348,6 +387,38 @@ class _TkinterAskDialog:
         self._result = AskResult(decision=decision)
         root.destroy()
 
+    def _show_save_confirmation(self, root):
+        """Show a confirmation dialog after saving the pattern."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        root.deiconify()
+        for w in root.winfo_children():
+            w.destroy()
+
+        root.title("ai-guardian: Pattern Saved")
+
+        frame = ttk.Frame(root, padding=15)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="Pattern Saved", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(5, 10))
+        ttk.Label(
+            frame,
+            text="The pattern has been added to ai-guardian.json.\nYou can review the config to verify the change.",
+            wraplength=400,
+        ).pack(anchor="w", pady=(0, 15))
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x")
+
+        def on_open_config():
+            _open_config_in_editor()
+            root.destroy()
+
+        ttk.Button(btn_frame, text="OK", command=root.destroy).pack(side="left", padx=(0, 5))
+        ttk.Button(btn_frame, text="Open Config", command=on_open_config).pack(side="left")
+
     def _on_allow_always(self, root):
         """Open the pattern editor and process the result."""
         import tkinter as tk
@@ -437,12 +508,20 @@ class _TkinterAskDialog:
                 status_label.config(fg="#ff4444")
                 return
             regex_pat = convert_to_regex(pat, ptype)
+
+            saved = _save_pattern_to_config(regex_pat, v.config_section)
+            if not saved:
+                status_var.set("❌ FAIL: Could not save to config file")
+                status_label.config(fg="#ff4444")
+                return
+
             self._result = AskResult(
                 decision=AskDecision.ALLOW_ALWAYS,
                 allowlist_pattern=regex_pat,
+                config_saved=True,
             )
             editor.destroy()
-            root.destroy()
+            self._show_save_confirmation(root)
 
         def on_cancel():
             editor.destroy()
@@ -455,6 +534,34 @@ class _TkinterAskDialog:
 # ---------------------------------------------------------------------------
 # NiceGUI implementation
 # ---------------------------------------------------------------------------
+
+def _show_nicegui_save_confirmation(app):
+    """Show NiceGUI confirmation dialog after saving the pattern."""
+    from nicegui import ui
+
+    with ui.dialog() as confirm_dlg, ui.card().classes("w-full max-w-md"):
+        ui.label("Pattern Saved").classes("text-lg font-bold")
+        ui.separator()
+        ui.label(
+            "The pattern has been added to ai-guardian.json. "
+            "You can review the config to verify the change."
+        ).classes("text-sm")
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            def on_ok():
+                ui.run_javascript("window.close()")
+                app.shutdown()
+
+            def on_open_config():
+                _open_config_in_editor()
+                ui.run_javascript("window.close()")
+                app.shutdown()
+
+            ui.button("OK", on_click=on_ok).props("flat")
+            ui.button("Open Config", on_click=on_open_config).props("color=primary")
+
+    confirm_dlg.open()
+
 
 class _NiceGuiAskDialog:
     """Browser-based ask dialog using NiceGUI."""
@@ -549,12 +656,20 @@ class _NiceGuiAskDialog:
                                         status_label.classes(replace="text-sm text-red")
                                         return
                                     regex_pat = convert_to_regex(pat, ptype)
+
+                                    saved = _save_pattern_to_config(regex_pat, v.config_section)
+                                    if not saved:
+                                        status_label.text = "❌ FAIL: Could not save to config file"
+                                        status_label.classes(replace="text-sm text-red")
+                                        return
+
                                     dialog_self._result = AskResult(
                                         decision=AskDecision.ALLOW_ALWAYS,
                                         allowlist_pattern=regex_pat,
+                                        config_saved=True,
                                     )
-                                    ui.run_javascript("window.close()")
-                                    app.shutdown()
+                                    dlg.close()
+                                    _show_nicegui_save_confirmation(app)
 
                                 ui.button("Add to Allowlist", on_click=on_confirm).props("color=positive")
 
@@ -733,6 +848,11 @@ class _TextualAskDialog:
                     self._confirm_pattern()
                 elif bid == "btn-cancel-editor":
                     self._hide_editor()
+                elif bid == "btn-ok":
+                    self.exit()
+                elif bid == "btn-open-config":
+                    _open_config_in_editor()
+                    self.exit()
 
             def on_input_changed(self, event: Input.Changed):
                 if event.input.id == "pattern-input":
@@ -788,13 +908,41 @@ class _TextualAskDialog:
                         )
                         return
                     regex_pat = convert_to_regex(pat, ptype)
+
+                    saved = _save_pattern_to_config(regex_pat, violation.config_section)
+                    if not saved:
+                        self.query_one("#editor-status", Static).update(
+                            "[red]FAIL: Could not save to config file[/red]"
+                        )
+                        return
+
                     dialog_self._result = AskResult(
                         decision=AskDecision.ALLOW_ALWAYS,
                         allowlist_pattern=regex_pat,
+                        config_saved=True,
                     )
-                    self.exit()
+                    self._show_save_confirmation()
                 except Exception:
                     pass
+
+            def _show_save_confirmation(self):
+                try:
+                    section = self.query_one("#editor-section")
+                    section.remove_class("visible")
+                    container = self.query_one("#ask-container")
+                    for child in list(container.children):
+                        child.remove()
+                    container.mount(Static("[bold green]Pattern Saved[/bold green]", id="title"))
+                    container.mount(Static(
+                        "The pattern has been added to ai-guardian.json.\n"
+                        "You can review the config to verify the change."
+                    ))
+                    confirm_bar = Horizontal(id="button-bar")
+                    container.mount(confirm_bar)
+                    confirm_bar.mount(Button("OK", id="btn-ok", variant="primary"))
+                    confirm_bar.mount(Button("Open Config", id="btn-open-config", variant="default"))
+                except Exception:
+                    self.exit()
 
             def action_quit(self):
                 dialog_self._result = AskResult(decision=AskDecision.BLOCK)

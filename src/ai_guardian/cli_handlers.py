@@ -925,6 +925,7 @@ def _handle_prompt_ask(args):
     output = json.dumps({
         "decision": result.decision.value,
         "allowlist_pattern": result.allowlist_pattern,
+        "config_saved": getattr(result, 'config_saved', False),
     })
 
     output_file = getattr(args, "output_file", None)
