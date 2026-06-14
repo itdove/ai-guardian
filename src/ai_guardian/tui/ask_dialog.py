@@ -419,6 +419,13 @@ class _TkinterAskDialog:
 
         do_test()
 
+        _debounce_id = [None]
+        def _on_pattern_change(*_args):
+            if _debounce_id[0] is not None:
+                editor.after_cancel(_debounce_id[0])
+            _debounce_id[0] = editor.after(300, do_test)
+        pattern_var.trace_add("write", _on_pattern_change)
+
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(fill="x")
 
@@ -529,6 +536,7 @@ class _NiceGuiAskDialog:
 
                             ui.button("Test Pattern", on_click=do_test, icon="play_arrow").props("dense")
                             do_test()
+                            pattern_input.on_value_change(lambda _: do_test())
 
                             with ui.row().classes("w-full justify-end mt-4"):
                                 ui.button("Cancel", on_click=dlg.close).props("flat")
@@ -725,6 +733,12 @@ class _TextualAskDialog:
                     self._confirm_pattern()
                 elif bid == "btn-cancel-editor":
                     self._hide_editor()
+
+            def on_input_changed(self, event: Input.Changed):
+                if event.input.id == "pattern-input":
+                    if hasattr(self, '_debounce_timer') and self._debounce_timer is not None:
+                        self._debounce_timer.stop()
+                    self._debounce_timer = self.set_timer(0.3, self._test_pattern)
 
             def _show_editor(self):
                 try:

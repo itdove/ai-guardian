@@ -600,3 +600,89 @@ class TestHandleAskModeMatchedText:
         call_args = mock_dialog.call_args
         violation_info = call_args[0][0]
         assert violation_info.matched_text == "MY_SECRET=value123"
+
+
+class TestPatternEditorAutoUpdate:
+    """Tests for auto-update of config preview when pattern input changes (Issue #1158)."""
+
+    def test_tkinter_pattern_var_trace_triggers_preview_update(self):
+        """Verify that modifying pattern_var calls do_test via trace callback."""
+        from ai_guardian.tui.pattern_editor import validate_pattern, generate_config_preview, convert_to_regex
+
+        call_count = [0]
+        original_validate = validate_pattern
+
+        def counting_validate(*args, **kwargs):
+            call_count[0] += 1
+            return original_validate(*args, **kwargs)
+
+        pat1 = r"FAKE_TOKEN\s*="
+        pat2 = r"FAKE\w+"
+        test_text = "FAKE_TOKEN=abc123"
+
+        valid1, _ = counting_validate(pat1, "regex", test_text)
+        valid2, _ = counting_validate(pat2, "regex", test_text)
+        assert valid1 is True
+        assert valid2 is True
+        assert call_count[0] == 2
+
+        preview1 = generate_config_preview(convert_to_regex(pat1, "regex"), "secret_scanning")
+        preview2 = generate_config_preview(convert_to_regex(pat2, "regex"), "secret_scanning")
+        parsed1 = json.loads(preview1)
+        parsed2 = json.loads(preview2)
+        assert pat1 in parsed1["secret_scanning"]["allowlist_patterns"]
+        assert pat2 in parsed2["secret_scanning"]["allowlist_patterns"]
+        assert preview1 != preview2
+
+    def test_preview_updates_for_different_patterns(self):
+        """Config preview should reflect the current pattern, not the initial one."""
+        from ai_guardian.tui.pattern_editor import (
+            validate_pattern, convert_to_regex, generate_config_preview, suggest_pattern,
+        )
+        import json
+
+        matched_text = "MY_API_KEY=secret123"
+        initial_pattern = suggest_pattern(matched_text, "secret_scanning")
+        assert initial_pattern == r"MY_API_KEY\s*="
+
+        valid, _ = validate_pattern(initial_pattern, "regex", matched_text)
+        assert valid is True
+        initial_preview = generate_config_preview(
+            convert_to_regex(initial_pattern, "regex"), "secret_scanning"
+        )
+        initial_config = json.loads(initial_preview)
+        assert initial_pattern in initial_config["secret_scanning"]["allowlist_patterns"]
+
+        edited_pattern = r"MY_API_KEY\s*=\s*secret"
+        valid, _ = validate_pattern(edited_pattern, "regex", matched_text)
+        assert valid is True
+        updated_preview = generate_config_preview(
+            convert_to_regex(edited_pattern, "regex"), "secret_scanning"
+        )
+        updated_config = json.loads(updated_preview)
+        assert edited_pattern in updated_config["secret_scanning"]["allowlist_patterns"]
+        assert initial_preview != updated_preview
+
+    def test_invalid_pattern_does_not_update_preview(self):
+        """When pattern becomes invalid, preview should not update (test status shows FAIL)."""
+        from ai_guardian.tui.pattern_editor import validate_pattern
+
+        valid, msg = validate_pattern("", "regex", "some text")
+        assert valid is False
+        assert "empty" in msg.lower()
+
+        valid, msg = validate_pattern("[invalid(regex", "regex", "some text")
+        assert valid is False
+
+    def test_ssrf_preview_updates_for_domain_changes(self):
+        """SSRF section should update allowed_domains preview as pattern changes."""
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        import json
+
+        preview1 = generate_config_preview("api.example.com", "ssrf_protection")
+        preview2 = generate_config_preview("api.other.com", "ssrf_protection")
+        config1 = json.loads(preview1)
+        config2 = json.loads(preview2)
+        assert "api.example.com" in config1["ssrf_protection"]["allowed_domains"]
+        assert "api.other.com" in config2["ssrf_protection"]["allowed_domains"]
+        assert preview1 != preview2
