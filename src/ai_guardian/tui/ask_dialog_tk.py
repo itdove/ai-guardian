@@ -1,0 +1,290 @@
+"""Tkinter implementation of the ask dialog.
+
+Native popup dialog for ask mode decisions with pattern editor
+and inline config editor.
+"""
+
+import platform
+from typing import Optional
+
+from ai_guardian.tui.ask_dialog import (
+    AskDecision,
+    AskViolationInfo,
+    AskResult,
+    _write_config_text,
+)
+from ai_guardian.tui.display import _ensure_tcl_library
+
+
+class _TkinterAskDialog:
+    """Native tkinter dialog for ask mode decisions."""
+
+    def __init__(self, violation: AskViolationInfo, timeout_seconds: int = 300):
+        self._violation = violation
+        self._timeout = timeout_seconds
+        self._result = AskResult(decision=AskDecision.BLOCK)
+
+    def run(self) -> AskResult:
+        import tkinter as tk
+        from tkinter import ttk
+
+        _ensure_tcl_library()
+
+        root = tk.Tk()
+
+        if platform.system() == "Darwin":
+            try:
+                from AppKit import NSApplication
+                NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
+
+        root.title("ai-guardian: Violation Detected")
+        root.resizable(False, False)
+        root.protocol("WM_DELETE_WINDOW", lambda: self._on_decision(root, AskDecision.BLOCK))
+        root.bind("<Escape>", lambda e: self._on_decision(root, AskDecision.BLOCK))
+
+        root.attributes("-topmost", True)
+
+        main = ttk.Frame(root, padding=15)
+        main.pack(fill="both", expand=True)
+
+        ttk.Label(main, text="Violation Detected", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Separator(main, orient="horizontal").pack(fill="x", pady=(5, 10))
+
+        info_frame = ttk.LabelFrame(main, text="Details", padding=10)
+        info_frame.pack(fill="x", pady=(0, 10))
+
+        v = self._violation
+        details = [
+            ("Type", v.violation_type),
+            ("Summary", v.summary),
+        ]
+        if v.file_path:
+            loc = v.file_path
+            if v.line_number:
+                loc += f":{v.line_number}"
+            details.append(("Location", loc))
+
+        for label, value in details:
+            row = ttk.Frame(info_frame)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=f"{label}:", font=("", 0, "bold"), width=12, anchor="w").pack(side="left")
+            ttk.Label(row, text=value, wraplength=400).pack(side="left", fill="x", expand=True)
+
+        text_frame = ttk.LabelFrame(main, text="Matched Text", padding=5)
+        text_frame.pack(fill="x", pady=(0, 10))
+        matched_display = tk.Text(text_frame, height=3, width=60, wrap="word", state="normal")
+        matched_display.insert("1.0", v.matched_text[:500])
+        matched_display.config(state="disabled")
+        matched_display.pack(fill="x")
+
+        btn_frame = ttk.Frame(main)
+        btn_frame.pack(fill="x", pady=(5, 0))
+
+        ttk.Button(
+            btn_frame, text="Allow Once",
+            command=lambda: self._on_decision(root, AskDecision.ALLOW_ONCE),
+        ).pack(side="left", padx=(0, 5))
+
+        ttk.Button(
+            btn_frame, text="Allow Always...",
+            command=lambda: self._on_allow_always(root),
+        ).pack(side="left", padx=5)
+
+        ttk.Button(
+            btn_frame, text="Block",
+            command=lambda: self._on_decision(root, AskDecision.BLOCK),
+        ).pack(side="right")
+
+        if self._timeout > 0:
+            root.after(self._timeout * 1000, lambda: self._on_decision(root, AskDecision.BLOCK))
+
+        root.mainloop()
+        return self._result
+
+    def _on_decision(self, root, decision: AskDecision):
+        self._result = AskResult(decision=decision)
+        root.destroy()
+
+    def _show_config_editor(self, root, regex_pat):
+        """Show a full config editor with the pattern inserted in memory."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+
+        v = self._violation
+        json_text, line_number = prepare_config_with_pattern(regex_pat, v.config_section)
+
+        root.deiconify()
+        for w in root.winfo_children():
+            w.destroy()
+
+        root.title("Config Editor — ai-guardian.json")
+        root.resizable(True, True)
+        root.geometry("700x500")
+
+        frame = ttk.Frame(root, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Label(
+            frame,
+            text="The pattern has been inserted below. Review the full config, then Save or Cancel.",
+            wraplength=650,
+        ).pack(anchor="w", pady=(0, 5))
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
+
+        text_frame = ttk.Frame(frame)
+        text_frame.pack(fill="both", expand=True, pady=(0, 5))
+
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        config_text = tk.Text(
+            text_frame, wrap="none", undo=True,
+            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
+            yscrollcommand=scrollbar.set,
+        )
+        config_text.pack(fill="both", expand=True)
+        scrollbar.config(command=config_text.yview)
+
+        config_text.insert("1.0", json_text)
+        config_text.mark_set("insert", f"{line_number}.0")
+        config_text.see(f"{line_number}.0")
+        config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
+        config_text.tag_config("highlight", background="#3a3a00")
+
+        status_var = tk.StringVar(value="Valid JSON")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", fg="#00cc00")
+        status_label.pack(fill="x")
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x", pady=(5, 0))
+
+        def on_save():
+            import json as json_mod
+            text = config_text.get("1.0", "end-1c")
+            try:
+                json_mod.loads(text)
+            except json_mod.JSONDecodeError as e:
+                status_var.set(f"Invalid JSON: {e}")
+                status_label.config(fg="#ff4444")
+                return
+            if _write_config_text(text):
+                self._result = AskResult(
+                    decision=AskDecision.ALLOW_ALWAYS,
+                    allowlist_pattern=regex_pat,
+                    config_saved=True,
+                )
+                root.destroy()
+            else:
+                status_var.set("Failed to write config file")
+                status_label.config(fg="#ff4444")
+
+        def on_cancel():
+            root.destroy()
+            root.quit()
+
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+        ttk.Button(btn_frame, text="Save", command=on_save).pack(side="right", padx=(0, 5))
+
+    def _on_allow_always(self, root):
+        """Open the pattern editor and process the result."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        from ai_guardian.tui.pattern_editor import (
+            validate_pattern, convert_to_regex, generate_config_preview, suggest_pattern,
+            get_pattern_type_for_section, PATTERN_TYPES,
+        )
+
+        v = self._violation
+        ptype = get_pattern_type_for_section(v.config_section)
+        ptype_label = PATTERN_TYPES.get(ptype, ptype)
+
+        root.withdraw()
+        editor = tk.Toplevel(root)
+        editor.title("Allow Always — Edit Pattern")
+        editor.resizable(False, False)
+        editor.attributes("-topmost", True)
+        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
+        editor.focus_force()
+        editor.grab_set()
+
+        frame = ttk.Frame(editor, padding=15)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="Allow Always — Edit Pattern", font=("", 12, "bold")).pack(anchor="w")
+        ttk.Label(frame, text=f"Edit the {ptype_label.lower()} below to match this text. The pattern will be added to the allowlist.", wraplength=500).pack(anchor="w", pady=(0, 5))
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
+
+        ttk.Label(frame, text="Matched text (reference):", font=("", 0, "bold")).pack(anchor="w")
+        matched_display = tk.Text(frame, height=2, width=60, wrap="word", state="normal")
+        matched_display.insert("1.0", v.matched_text[:500])
+        matched_display.config(state="disabled", background="#2a2a2a", foreground="#aaaaaa")
+        matched_display.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(frame, text=f"Pattern ({ptype_label}):", font=("", 0, "bold")).pack(anchor="w")
+        pattern_var = tk.StringVar(value=suggest_pattern(v.matched_text, v.config_section) if v.matched_text else "")
+        pattern_entry = ttk.Entry(frame, textvariable=pattern_var, width=60)
+        pattern_entry.pack(fill="x", pady=(0, 5))
+
+        test_frame = ttk.Frame(frame)
+        test_frame.pack(fill="x", pady=(0, 10))
+
+        status_var = tk.StringVar(value="")
+        status_label = tk.Label(test_frame, textvariable=status_var, font=("", 11, "bold"), anchor="w")
+        status_label.pack(side="right", fill="x", expand=True, padx=(10, 0))
+
+        def do_test():
+            pat = pattern_var.get().strip()
+            valid, msg = validate_pattern(pat, ptype, v.matched_text)
+            if valid:
+                status_var.set(f"✅ PASS: {msg}")
+                status_label.config(fg="#00cc00")
+                regex_pat = convert_to_regex(pat, ptype)
+                preview_text.config(state="normal")
+                preview_text.delete("1.0", "end")
+                preview_text.insert("1.0", generate_config_preview(regex_pat, v.config_section))
+                preview_text.config(state="disabled")
+            else:
+                status_var.set(f"❌ FAIL: {msg}")
+                status_label.config(fg="#ff4444")
+
+        ttk.Button(test_frame, text="Test Pattern", command=do_test).pack(side="left")
+
+        ttk.Label(frame, text="Config preview:", font=("", 0, "bold")).pack(anchor="w")
+        preview_text = tk.Text(frame, height=6, width=60, wrap="word", state="disabled")
+        preview_text.pack(fill="x", pady=(0, 10))
+
+        do_test()
+
+        _debounce_id = [None]
+        def _on_pattern_change(*_args):
+            if _debounce_id[0] is not None:
+                editor.after_cancel(_debounce_id[0])
+            _debounce_id[0] = editor.after(300, do_test)
+        pattern_var.trace_add("write", _on_pattern_change)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x")
+
+        def on_confirm():
+            pat = pattern_var.get().strip()
+            valid, _ = validate_pattern(pat, ptype, v.matched_text)
+            if not valid:
+                status_var.set("❌ FAIL: Fix the pattern before confirming")
+                status_label.config(fg="#ff4444")
+                return
+            regex_pat = convert_to_regex(pat, ptype)
+            editor.destroy()
+            self._show_config_editor(root, regex_pat)
+
+        def on_cancel():
+            editor.destroy()
+            root.deiconify()
+
+        ttk.Button(btn_frame, text="Add to Allowlist", command=on_confirm).pack(side="right", padx=(5, 0))
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
