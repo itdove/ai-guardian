@@ -74,26 +74,25 @@ def _save_pattern_to_config(pattern: str, config_section: str) -> bool:
         return False
 
 
-def _open_config_in_editor() -> None:
-    """Open ai-guardian.json in the system default editor (fire-and-forget)."""
-    import subprocess
-
+def _write_config_text(json_text: str) -> bool:
+    """Write JSON text directly to ai-guardian.json with backup. Returns True on success."""
+    import shutil
     try:
         from ai_guardian.config_utils import get_config_dir
-        config_path = str(get_config_dir() / "ai-guardian.json")
-    except Exception:
-        return
-
-    try:
-        system = platform.system()
-        if system == "Darwin":
-            subprocess.Popen(["open", config_path])
-        elif system == "Windows":
-            subprocess.Popen(["notepad", config_path])
-        else:
-            subprocess.Popen(["xdg-open", config_path])
+        config_path = get_config_dir() / "ai-guardian.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        if config_path.exists():
+            shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
+        config_path.write_text(json_text, encoding="utf-8")
+        try:
+            from ai_guardian.config_loaders import _clear_config_cache
+            _clear_config_cache()
+        except ImportError:
+            pass
+        return True
     except Exception as e:
-        logger.debug("Could not open config in editor: %s", e)
+        logger.warning("Failed to write config: %s", e)
+        return False
 
 
 def _show_via_daemon(
@@ -395,37 +394,88 @@ class _TkinterAskDialog:
         self._result = AskResult(decision=decision)
         root.destroy()
 
-    def _show_save_confirmation(self, root):
-        """Show a confirmation dialog after saving the pattern."""
+    def _show_config_editor(self, root, regex_pat):
+        """Show a full config editor with the pattern inserted in memory."""
         import tkinter as tk
         from tkinter import ttk
+
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+
+        v = self._violation
+        json_text, line_number = prepare_config_with_pattern(regex_pat, v.config_section)
 
         root.deiconify()
         for w in root.winfo_children():
             w.destroy()
 
-        root.title("ai-guardian: Pattern Saved")
+        root.title("Config Editor — ai-guardian.json")
+        root.resizable(True, True)
+        root.geometry("700x500")
 
-        frame = ttk.Frame(root, padding=15)
+        frame = ttk.Frame(root, padding=10)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Pattern Saved", font=("", 14, "bold")).pack(anchor="w")
-        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(5, 10))
+        ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
         ttk.Label(
             frame,
-            text="The pattern has been added to ai-guardian.json.\nYou can review the config to verify the change.",
-            wraplength=400,
-        ).pack(anchor="w", pady=(0, 15))
+            text="The pattern has been inserted below. Review the full config, then Save or Cancel.",
+            wraplength=650,
+        ).pack(anchor="w", pady=(0, 5))
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
+
+        text_frame = ttk.Frame(frame)
+        text_frame.pack(fill="both", expand=True, pady=(0, 5))
+
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        config_text = tk.Text(
+            text_frame, wrap="none", undo=True,
+            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
+            yscrollcommand=scrollbar.set,
+        )
+        config_text.pack(fill="both", expand=True)
+        scrollbar.config(command=config_text.yview)
+
+        config_text.insert("1.0", json_text)
+        config_text.mark_set("insert", f"{line_number}.0")
+        config_text.see(f"{line_number}.0")
+        config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
+        config_text.tag_config("highlight", background="#3a3a00")
+
+        status_var = tk.StringVar(value="Valid JSON")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", fg="#00cc00")
+        status_label.pack(fill="x")
 
         btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill="x")
+        btn_frame.pack(fill="x", pady=(5, 0))
 
-        def on_open_config():
-            _open_config_in_editor()
+        def on_save():
+            import json as json_mod
+            text = config_text.get("1.0", "end-1c")
+            try:
+                json_mod.loads(text)
+            except json_mod.JSONDecodeError as e:
+                status_var.set(f"Invalid JSON: {e}")
+                status_label.config(fg="#ff4444")
+                return
+            if _write_config_text(text):
+                self._result = AskResult(
+                    decision=AskDecision.ALLOW_ALWAYS,
+                    allowlist_pattern=regex_pat,
+                    config_saved=True,
+                )
+                root.destroy()
+            else:
+                status_var.set("Failed to write config file")
+                status_label.config(fg="#ff4444")
+
+        def on_cancel():
             root.destroy()
+            root.quit()
 
-        ttk.Button(btn_frame, text="OK", command=root.destroy).pack(side="left", padx=(0, 5))
-        ttk.Button(btn_frame, text="Open Config", command=on_open_config).pack(side="left")
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+        ttk.Button(btn_frame, text="Save", command=on_save).pack(side="right", padx=(0, 5))
 
     def _on_allow_always(self, root):
         """Open the pattern editor and process the result."""
@@ -516,20 +566,8 @@ class _TkinterAskDialog:
                 status_label.config(fg="#ff4444")
                 return
             regex_pat = convert_to_regex(pat, ptype)
-
-            saved = _save_pattern_to_config(regex_pat, v.config_section)
-            if not saved:
-                status_var.set("❌ FAIL: Could not save to config file")
-                status_label.config(fg="#ff4444")
-                return
-
-            self._result = AskResult(
-                decision=AskDecision.ALLOW_ALWAYS,
-                allowlist_pattern=regex_pat,
-                config_saved=True,
-            )
             editor.destroy()
-            self._show_save_confirmation(root)
+            self._show_config_editor(root, regex_pat)
 
         def on_cancel():
             editor.destroy()
@@ -543,32 +581,66 @@ class _TkinterAskDialog:
 # NiceGUI implementation
 # ---------------------------------------------------------------------------
 
-def _show_nicegui_save_confirmation(app):
-    """Show NiceGUI confirmation dialog after saving the pattern."""
+def _show_nicegui_config_editor(dialog_self, app, regex_pat, config_section):
+    """Show a NiceGUI config editor dialog with the pattern inserted in memory."""
+    import json as json_mod
     from nicegui import ui
+    from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
 
-    with ui.dialog() as confirm_dlg, ui.card().classes("w-full max-w-md"):
-        ui.label("Pattern Saved").classes("text-lg font-bold")
-        ui.separator()
+    json_text, _line_number = prepare_config_with_pattern(regex_pat, config_section)
+
+    with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
+        ui.label("Config Editor — ai-guardian.json").classes("text-lg font-bold")
         ui.label(
-            "The pattern has been added to ai-guardian.json. "
-            "You can review the config to verify the change."
-        ).classes("text-sm")
+            "Review the full config with the inserted pattern. Save to persist or Cancel to discard."
+        ).classes("text-sm text-grey-6")
+        ui.separator()
 
-        with ui.row().classes("w-full justify-end mt-4"):
-            def on_ok():
-                ui.run_javascript("window.close()")
-                app.shutdown()
+        editor = ui.codemirror(
+            json_text, language="JSON", theme="dracula", line_wrapping=True,
+        ).classes("w-full flex-grow").style("min-height: 400px")
 
-            def on_open_config():
-                _open_config_in_editor()
-                ui.run_javascript("window.close()")
-                app.shutdown()
+        editor_status = ui.label("Valid JSON").classes("text-sm text-green")
 
-            ui.button("OK", on_click=on_ok).props("flat")
-            ui.button("Open Config", on_click=on_open_config).props("color=primary")
+        def on_editor_change(e):
+            try:
+                json_mod.loads(e.value)
+                editor_status.text = "Valid JSON"
+                editor_status.classes(replace="text-sm text-green")
+            except json_mod.JSONDecodeError as exc:
+                editor_status.text = f"Invalid JSON: {exc}"
+                editor_status.classes(replace="text-sm text-red")
 
-    confirm_dlg.open()
+        editor.on_value_change(on_editor_change)
+
+        with ui.row().classes("w-full justify-end mt-2"):
+            def on_cancel():
+                editor_dlg.close()
+
+            def on_save():
+                text = editor.value
+                try:
+                    json_mod.loads(text)
+                except json_mod.JSONDecodeError as exc:
+                    editor_status.text = f"Invalid JSON: {exc}"
+                    editor_status.classes(replace="text-sm text-red")
+                    return
+                if _write_config_text(text):
+                    dialog_self._result = AskResult(
+                        decision=AskDecision.ALLOW_ALWAYS,
+                        allowlist_pattern=regex_pat,
+                        config_saved=True,
+                    )
+                    ui.run_javascript("window.close()")
+                    app.shutdown()
+                else:
+                    editor_status.text = "Failed to write config file"
+                    editor_status.classes(replace="text-sm text-red")
+
+            ui.button("Cancel", on_click=on_cancel).props("flat")
+            ui.button("Save", on_click=on_save).props("color=positive")
+
+    editor_dlg.open()
 
 
 class _NiceGuiAskDialog:
@@ -664,20 +736,8 @@ class _NiceGuiAskDialog:
                                         status_label.classes(replace="text-sm text-red")
                                         return
                                     regex_pat = convert_to_regex(pat, ptype)
-
-                                    saved = _save_pattern_to_config(regex_pat, v.config_section)
-                                    if not saved:
-                                        status_label.text = "❌ FAIL: Could not save to config file"
-                                        status_label.classes(replace="text-sm text-red")
-                                        return
-
-                                    dialog_self._result = AskResult(
-                                        decision=AskDecision.ALLOW_ALWAYS,
-                                        allowlist_pattern=regex_pat,
-                                        config_saved=True,
-                                    )
                                     dlg.close()
-                                    _show_nicegui_save_confirmation(app)
+                                    _show_nicegui_config_editor(dialog_self, app, regex_pat, v.config_section)
 
                                 ui.button("Add to Allowlist", on_click=on_confirm).props("color=positive")
 
@@ -737,7 +797,7 @@ class _TextualAskDialog:
     def run(self) -> AskResult:
         from textual.app import App, ComposeResult
         from textual.containers import Container, Horizontal, Vertical
-        from textual.widgets import Static, Button, Input, Select, Header, Footer
+        from textual.widgets import Static, Button, Input, Select, Header, Footer, TextArea
         from textual.binding import Binding
 
         violation = self._violation
@@ -856,11 +916,10 @@ class _TextualAskDialog:
                     self._confirm_pattern()
                 elif bid == "btn-cancel-editor":
                     self._hide_editor()
-                elif bid == "btn-ok":
-                    self.exit()
-                elif bid == "btn-open-config":
-                    _open_config_in_editor()
-                    self.exit()
+                elif bid == "btn-save-config":
+                    self._save_config_editor()
+                elif bid == "btn-cancel-config":
+                    self._hide_config_editor()
 
             def on_input_changed(self, event: Input.Changed):
                 if event.input.id == "pattern-input":
@@ -916,41 +975,66 @@ class _TextualAskDialog:
                         )
                         return
                     regex_pat = convert_to_regex(pat, ptype)
-
-                    saved = _save_pattern_to_config(regex_pat, violation.config_section)
-                    if not saved:
-                        self.query_one("#editor-status", Static).update(
-                            "[red]FAIL: Could not save to config file[/red]"
-                        )
-                        return
-
-                    dialog_self._result = AskResult(
-                        decision=AskDecision.ALLOW_ALWAYS,
-                        allowlist_pattern=regex_pat,
-                        config_saved=True,
-                    )
-                    self._show_save_confirmation()
+                    self._pending_regex_pat = regex_pat
+                    self._show_config_editor(regex_pat)
                 except Exception:
                     pass
 
-            def _show_save_confirmation(self):
+            def _show_config_editor(self, regex_pat):
+                from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
                 try:
+                    json_text, line_number = prepare_config_with_pattern(regex_pat, violation.config_section)
                     section = self.query_one("#editor-section")
                     section.remove_class("visible")
                     container = self.query_one("#ask-container")
                     for child in list(container.children):
                         child.remove()
-                    container.mount(Static("[bold green]Pattern Saved[/bold green]", id="title"))
-                    container.mount(Static(
-                        "The pattern has been added to ai-guardian.json.\n"
-                        "You can review the config to verify the change."
-                    ))
-                    confirm_bar = Horizontal(id="button-bar")
-                    container.mount(confirm_bar)
-                    confirm_bar.mount(Button("OK", id="btn-ok", variant="primary"))
-                    confirm_bar.mount(Button("Open Config", id="btn-open-config", variant="default"))
+                    container.mount(Static("[bold]Config Editor — ai-guardian.json[/bold]", id="title"))
+                    container.mount(Static("[dim]Review the config, then Save or Cancel.[/dim]"))
+                    config_area = TextArea(
+                        json_text, language="json",
+                        show_line_numbers=True, tab_behavior="indent",
+                        id="config-text-editor",
+                    )
+                    container.mount(config_area)
+                    container.mount(Static("Valid JSON", id="config-editor-status"))
+                    with Horizontal(id="button-bar") as bar:
+                        pass
+                    container.mount(bar)
+                    bar.mount(Button("Save", id="btn-save-config", variant="success"))
+                    bar.mount(Button("Cancel", id="btn-cancel-config", variant="default"))
+                    config_area.cursor_location = (line_number - 1, 0)
+                    config_area.scroll_cursor_visible(center=True)
                 except Exception:
                     self.exit()
+
+            def _save_config_editor(self):
+                import json as json_mod
+                try:
+                    text = self.query_one("#config-text-editor", TextArea).text
+                    try:
+                        json_mod.loads(text)
+                    except json_mod.JSONDecodeError as e:
+                        self.query_one("#config-editor-status", Static).update(
+                            f"[red]Invalid JSON: {e}[/red]"
+                        )
+                        return
+                    if _write_config_text(text):
+                        dialog_self._result = AskResult(
+                            decision=AskDecision.ALLOW_ALWAYS,
+                            allowlist_pattern=self._pending_regex_pat,
+                            config_saved=True,
+                        )
+                        self.exit()
+                    else:
+                        self.query_one("#config-editor-status", Static).update(
+                            "[red]Failed to write config file[/red]"
+                        )
+                except Exception:
+                    pass
+
+            def _hide_config_editor(self):
+                self.exit()
 
             def action_quit(self):
                 dialog_self._result = AskResult(decision=AskDecision.BLOCK)

@@ -149,6 +149,54 @@ def suggest_domain(url_or_text: str) -> str:
     return text
 
 
+def prepare_config_with_pattern(
+    pattern: str, config_section: str
+) -> tuple:
+    """Insert a pattern into config JSON in memory, return (json_text, line_number).
+
+    Loads the current ai-guardian.json, inserts the pattern into the appropriate
+    allowlist section, serializes to formatted JSON, and finds the line number
+    of the newly inserted pattern.
+
+    Returns:
+        (formatted_json_string, 1-based_line_number_of_inserted_pattern)
+    """
+    from ai_guardian.config_utils import get_config_dir
+
+    config_path = get_config_dir() / "ai-guardian.json"
+    config = {}
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            config = {}
+
+    if config_section == "ssrf_protection":
+        if config_section not in config:
+            config[config_section] = {}
+        domains = config[config_section].get("allowed_domains", [])
+        if pattern not in domains:
+            domains.append(pattern)
+        config[config_section]["allowed_domains"] = domains
+    else:
+        if config_section not in config:
+            config[config_section] = {}
+        patterns = config[config_section].get("allowlist_patterns", [])
+        if pattern not in patterns:
+            patterns.append(pattern)
+        config[config_section]["allowlist_patterns"] = patterns
+
+    json_text = json.dumps(config, indent=2) + "\n"
+
+    escaped = json.dumps(pattern)
+    line_number = 1
+    for i, line in enumerate(json_text.splitlines(), 1):
+        if escaped in line:
+            line_number = i
+    return json_text, line_number
+
+
 def suggest_pattern(matched_text: str, config_section: str = "") -> str:
     """Suggest an initial pattern based on the matched text.
 

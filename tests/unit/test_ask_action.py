@@ -768,43 +768,54 @@ class TestPostSaveConfirmation:
         assert result.decision == AskDecision.ALLOW_ALWAYS
         mock_write.assert_called_once_with("secret_scanning", r"FAKE\w+")
 
-    @patch("subprocess.Popen")
-    def test_open_config_in_editor_macos(self, mock_popen):
-        from ai_guardian.tui.ask_dialog import _open_config_in_editor
-        with patch("platform.system", return_value="Darwin"), \
-             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
-            _open_config_in_editor()
-        mock_popen.assert_called_once()
-        cmd = mock_popen.call_args[0][0]
-        assert cmd[0] == "open"
-        assert cmd[1].replace("\\", "/") == "/fake/config/ai-guardian.json"
+    def test_prepare_config_with_pattern_inserts_pattern(self):
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text('{"secret_scanning": {}}')
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern(r"TEST\w+", "secret_scanning")
+        parsed = json.loads(json_text)
+        assert r"TEST\w+" in parsed["secret_scanning"]["allowlist_patterns"]
+        assert line_num > 0
+        lines = json_text.splitlines()
+        assert json.dumps(r"TEST\w+") in lines[line_num - 1]
 
-    @patch("subprocess.Popen")
-    def test_open_config_in_editor_linux(self, mock_popen):
-        from ai_guardian.tui.ask_dialog import _open_config_in_editor
-        with patch("platform.system", return_value="Linux"), \
-             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
-            _open_config_in_editor()
-        mock_popen.assert_called_once()
-        cmd = mock_popen.call_args[0][0]
-        assert cmd[0] == "xdg-open"
-        assert cmd[1].replace("\\", "/") == "/fake/config/ai-guardian.json"
+    def test_prepare_config_with_pattern_ssrf(self):
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text("{}")
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern("api.example.com", "ssrf_protection")
+        parsed = json.loads(json_text)
+        assert "api.example.com" in parsed["ssrf_protection"]["allowed_domains"]
 
-    @patch("subprocess.Popen")
-    def test_open_config_in_editor_windows(self, mock_popen):
-        from ai_guardian.tui.ask_dialog import _open_config_in_editor
-        with patch("platform.system", return_value="Windows"), \
-             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
-            _open_config_in_editor()
-        mock_popen.assert_called_once()
-        cmd = mock_popen.call_args[0][0]
-        assert cmd[0] == "notepad"
-        assert cmd[1].replace("\\", "/") == "/fake/config/ai-guardian.json"
+    def test_prepare_config_with_pattern_empty_config(self):
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern(r"pat", "prompt_injection")
+        parsed = json.loads(json_text)
+        assert "pat" in parsed["prompt_injection"]["allowlist_patterns"]
 
-    @patch("subprocess.Popen")
-    def test_open_config_in_editor_handles_error(self, mock_popen):
-        from ai_guardian.tui.ask_dialog import _open_config_in_editor
-        mock_popen.side_effect = FileNotFoundError("not found")
-        with patch("platform.system", return_value="Linux"), \
-             patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
-            _open_config_in_editor()  # should not raise
+    def test_write_config_text_writes_file(self):
+        from ai_guardian.tui.ask_dialog import _write_config_text
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text("{}")
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                result = _write_config_text('{"test": true}\n')
+            assert result is True
+            assert json.loads(config_path.read_text()) == {"test": True}
+            assert (Path(tmpdir) / "ai-guardian.json.bak").exists()
+
+    def test_write_config_text_creates_backup(self):
+        from ai_guardian.tui.ask_dialog import _write_config_text
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text('{"original": true}')
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                _write_config_text('{"updated": true}\n')
+            backup = Path(tmpdir) / "ai-guardian.json.bak"
+            assert json.loads(backup.read_text()) == {"original": True}
