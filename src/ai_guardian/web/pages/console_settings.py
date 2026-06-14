@@ -19,6 +19,22 @@ THEME_DESCRIPTIONS = {
     "github_light": "Light theme matching GitHub's code viewing style — good for bright environments.",
 }
 
+UI_TOOLKITS = {
+    "auto": "Auto (cascade)",
+    "tkinter": "Tkinter (native)",
+    "nicegui": "NiceGUI (browser)",
+    "textual": "Textual (terminal)",
+    "headless": "Headless (no UI)",
+}
+
+UI_TOOLKIT_DESCRIPTIONS = {
+    "auto": "Cascade: tkinter → NiceGUI → Textual → headless. Backward compatible default.",
+    "tkinter": "Native OS popup dialog. Requires Tcl/Tk system library.",
+    "nicegui": "Browser-based dialog on a local port.",
+    "textual": "Terminal TUI dialog. Requires a TTY.",
+    "headless": "No interactive dialogs. Ask actions use their configured fallback (block/warn/log-only).",
+}
+
 
 
 def create_console_settings_page(service, daemon_name: str):
@@ -79,5 +95,46 @@ def create_console_settings_page(service, daemon_name: str):
                             )
 
                         theme_sel.on_value_change(save_theme)
+
+                    with ui.card().classes("w-full"):
+                        ui.label("Preferred UI Toolkit").classes(
+                            "text-lg font-bold"
+                        )
+                        ui.label(
+                            "UI toolkit for interactive dialogs (tray-prompt, "
+                            "ask-prompt). Override with env var "
+                            "AI_GUARDIAN_PREFERRED_UI."
+                        ).classes("text-xs text-grey-6")
+
+                        ui_current = (
+                            config.get("console", {})
+                            .get("preferred_ui", "auto")
+                        )
+                        ui_sel = ui.select(
+                            options=UI_TOOLKITS,
+                            value=ui_current,
+                        ).classes("w-64")
+
+                        ui_desc_label = ui.label(
+                            UI_TOOLKIT_DESCRIPTIONS.get(ui_current, "")
+                        ).classes("text-sm text-grey-4 mt-1")
+
+                        async def save_ui_pref(e):
+                            ui_desc_label.text = UI_TOOLKIT_DESCRIPTIONS.get(
+                                e.value, ""
+                            )
+                            cfg = await run.io_bound(load_web_config)
+                            console = cfg.get("console", {})
+                            if not isinstance(console, dict):
+                                console = {}
+                            console["preferred_ui"] = e.value
+                            cfg["console"] = console
+                            await run.io_bound(save_web_config, cfg)
+                            ui.notify(
+                                f"UI: {UI_TOOLKITS.get(e.value, e.value)}",
+                                type="positive",
+                            )
+
+                        ui_sel.on_value_change(save_ui_pref)
 
             ui.timer(0.1, refresh, once=True)

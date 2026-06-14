@@ -19,7 +19,9 @@ or the Textual fallback is used automatically.
 import logging
 import os
 
-from ai_guardian.tui.display import _tkinter_available, _nicegui_available
+from ai_guardian.tui.display import (
+    _tkinter_available, _nicegui_available, get_preferred_ui,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -752,15 +754,35 @@ class TrayPromptApp:
         self._extra_vars = extra_vars or {}
         self._title = title
         self._result = None
-        self.needs_terminal = (
-            not _tkinter_available() and not _nicegui_available()
-        )
+        preferred = get_preferred_ui()
+        if preferred == "headless":
+            self.needs_terminal = False
+        elif preferred == "textual":
+            self.needs_terminal = True
+        elif preferred in ("tkinter", "nicegui"):
+            self.needs_terminal = False
+        else:
+            self.needs_terminal = (
+                not _tkinter_available() and not _nicegui_available()
+            )
 
     def run(self):
         args = (
             self._params, self._command_template,
             self._command_type, self._extra_vars, self._title,
         )
+        preferred = get_preferred_ui()
+
+        if preferred == "headless":
+            raise RuntimeError("preferred_ui is headless — no interactive UI available")
+
+        if preferred == "tkinter":
+            return _TkinterPromptApp(*args).run()
+        if preferred == "nicegui":
+            return _NiceGuiPromptApp(*args).run()
+        if preferred == "textual":
+            return _TextualPromptApp(*args).run()
+
         if _tkinter_available():
             try:
                 return _TkinterPromptApp(*args).run()

@@ -23,6 +23,16 @@ THEME_OPTIONS = [
 
 DEFAULT_THEME = "monokai"
 
+UI_TOOLKIT_OPTIONS = [
+    ("Auto (cascade)", "auto"),
+    ("Tkinter (native)", "tkinter"),
+    ("NiceGUI (browser)", "nicegui"),
+    ("Textual (terminal)", "textual"),
+    ("Headless (no UI)", "headless"),
+]
+
+DEFAULT_UI_TOOLKIT = "auto"
+
 
 def load_editor_theme() -> str:
     """Load the editor theme from config. Returns default if not set."""
@@ -39,6 +49,45 @@ def load_editor_theme() -> str:
         except Exception:
             pass
     return DEFAULT_THEME
+
+
+def load_preferred_ui() -> str:
+    """Load the preferred UI toolkit from config. Returns default if not set."""
+    config_dir = get_config_dir()
+    config_path = config_dir / "ai-guardian.json"
+    if config_path.exists():
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            val = config.get("console", {}).get("preferred_ui", DEFAULT_UI_TOOLKIT)
+            valid = [t[1] for t in UI_TOOLKIT_OPTIONS]
+            if val in valid:
+                return val
+        except Exception:
+            pass
+    return DEFAULT_UI_TOOLKIT
+
+
+def save_preferred_ui(value: str) -> tuple:
+    """Save the preferred UI toolkit to config. Returns (success, error_message)."""
+    config_dir = get_config_dir()
+    config_path = config_dir / "ai-guardian.json"
+    try:
+        config = {}
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+        if "console" not in config or not isinstance(config["console"], dict):
+            config["console"] = {}
+        config["console"]["preferred_ui"] = value
+
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 
 def save_editor_theme(theme: str) -> tuple:
@@ -67,7 +116,7 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
     """Content widget for Console Settings panel."""
 
     SCHEMA_SECTION = "console"
-    SCHEMA_FIELDS = ["editor_theme"]
+    SCHEMA_FIELDS = ["editor_theme", "preferred_ui"]
 
     CSS = """
     ConsoleSettingsContent {
@@ -121,6 +170,15 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
                     allow_blank=False,
                 )
 
+            with Horizontal(classes="setting-row"):
+                yield Label("Preferred UI:")
+                yield Select(
+                    UI_TOOLKIT_OPTIONS,
+                    value=DEFAULT_UI_TOOLKIT,
+                    id="preferred-ui-select",
+                    allow_blank=False,
+                )
+
             yield Static("", id="console-status")
 
             yield Static(
@@ -129,8 +187,14 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
                 "  [bold]VS Code Dark[/bold] — Dark theme matching VS Code defaults\n"
                 "  [bold]Dracula[/bold] — Dark purple-accented theme\n"
                 "  [bold]GitHub Light[/bold] — Light theme matching GitHub style\n\n"
-                "[dim]The selected theme applies to the Config Editor panel's\n"
-                "JSON syntax highlighting. Changes are saved immediately.[/dim]",
+                "[bold]UI Toolkit Options[/bold]\n\n"
+                "  [bold]Auto[/bold] — Cascade: tkinter → NiceGUI → Textual → headless (default)\n"
+                "  [bold]Tkinter[/bold] — Native OS popup (requires Tcl/Tk)\n"
+                "  [bold]NiceGUI[/bold] — Browser-based dialog\n"
+                "  [bold]Textual[/bold] — Terminal TUI (requires TTY)\n"
+                "  [bold]Headless[/bold] — No interactive dialogs; ask actions use fallback\n\n"
+                "[dim]Override with env var AI_GUARDIAN_PREFERRED_UI.\n"
+                "Changes are saved immediately.[/dim]",
                 id="console-info",
             )
 
@@ -148,19 +212,33 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
             select.value = theme
         except Exception:
             pass
-        self._set_status(f"Current theme: {theme}", "success")
+        ui_pref = load_preferred_ui()
+        try:
+            select = self.query_one("#preferred-ui-select", Select)
+            select.value = ui_pref
+        except Exception:
+            pass
+        self._set_status(f"Theme: {theme}, UI: {ui_pref}", "success")
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        if event.select.id != "editor-theme-select":
-            return
-        theme = str(event.value)
-        success, error = save_editor_theme(theme)
-        if success:
-            self._set_status(f"Theme saved: {theme}", "success")
-            self.app.notify(f"Editor theme set to {theme}", severity="information")
-        else:
-            self._set_status(f"Save failed: {error}", "error")
-            self.app.notify(f"Failed to save theme: {error}", severity="error")
+        if event.select.id == "editor-theme-select":
+            theme = str(event.value)
+            success, error = save_editor_theme(theme)
+            if success:
+                self._set_status(f"Theme saved: {theme}", "success")
+                self.app.notify(f"Editor theme set to {theme}", severity="information")
+            else:
+                self._set_status(f"Save failed: {error}", "error")
+                self.app.notify(f"Failed to save theme: {error}", severity="error")
+        elif event.select.id == "preferred-ui-select":
+            value = str(event.value)
+            success, error = save_preferred_ui(value)
+            if success:
+                self._set_status(f"Preferred UI saved: {value}", "success")
+                self.app.notify(f"Preferred UI set to {value}", severity="information")
+            else:
+                self._set_status(f"Save failed: {error}", "error")
+                self.app.notify(f"Failed to save UI preference: {error}", severity="error")
 
     def _set_status(self, message: str, level: str) -> None:
         try:
