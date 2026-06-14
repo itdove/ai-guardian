@@ -926,6 +926,8 @@
 
   "_comment_console": "Console settings",
   "console": {
+    "preferred_ui": "auto",
+    "_comment_preferred_ui": "Preferred UI toolkit for dialogs. Options: auto, tkinter, nicegui, textual, headless. Env var override: AI_GUARDIAN_PREFERRED_UI",
     "editor_theme": "monokai",
     "_comment_editor_theme": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light",
     "web": {

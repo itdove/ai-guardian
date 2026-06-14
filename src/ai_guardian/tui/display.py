@@ -7,11 +7,38 @@ Environment overrides (useful for testing or user preference):
   AI_GUARDIAN_NO_NICEGUI=1   skip NiceGUI even when installed
 """
 
+import json
 import logging
 import os
 import platform
 
 logger = logging.getLogger(__name__)
+
+VALID_PREFERRED_UI = {"auto", "tkinter", "nicegui", "textual", "headless"}
+
+
+def get_preferred_ui() -> str:
+    """Return the preferred UI toolkit from env var or config.
+
+    Priority: AI_GUARDIAN_PREFERRED_UI env var > console.preferred_ui config > "auto".
+    """
+    env_val = os.environ.get("AI_GUARDIAN_PREFERRED_UI", "").strip().lower()
+    if env_val in VALID_PREFERRED_UI:
+        return env_val
+
+    try:
+        from ai_guardian.config_utils import get_config_dir
+        config_path = get_config_dir() / "ai-guardian.json"
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            val = config.get("console", {}).get("preferred_ui", "auto")
+            if val in VALID_PREFERRED_UI:
+                return val
+    except Exception:
+        pass
+
+    return "auto"
 
 
 def _tkinter_available():

@@ -1794,6 +1794,12 @@
       "type": "object",
       "description": "Console settings (editor theme, display preferences, web console)",
       "properties": {
+        "preferred_ui": {
+          "type": "string",
+          "enum": ["auto", "tkinter", "nicegui", "textual", "headless"],
+          "default": "auto",
+          "description": "Preferred UI toolkit for interactive dialogs (tray-prompt, ask-prompt). auto = cascade tkinter → NiceGUI → Textual → headless. tkinter/nicegui/textual = use only that toolkit (fall to headless if unavailable). headless = no UI dialogs, ask actions use configured fallback. Env var override: AI_GUARDIAN_PREFERRED_UI"
+        },
         "editor_theme": {
           "type": "string",
           "enum": ["monokai", "vscode_dark", "dracula", "github_light"],

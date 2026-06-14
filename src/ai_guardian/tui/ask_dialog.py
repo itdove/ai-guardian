@@ -279,6 +279,14 @@ def show_ask_dialog(
     Returns:
         AskResult with the user's decision and optional allowlist pattern.
     """
+    from ai_guardian.tui.display import get_preferred_ui
+
+    if get_preferred_ui() == "headless":
+        decision = _map_fallback_to_decision(fallback_action)
+        logger.info("preferred_ui=headless, using fallback: %s -> %s",
+                     fallback_action, decision)
+        return AskResult(decision=decision)
+
     result = _show_via_daemon(violation, fallback_action, timeout_seconds)
     if result is not None:
         return result
