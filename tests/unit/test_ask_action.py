@@ -774,7 +774,10 @@ class TestPostSaveConfirmation:
         with patch("platform.system", return_value="Darwin"), \
              patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
             _open_config_in_editor()
-        mock_popen.assert_called_once_with(["open", "/fake/config/ai-guardian.json"])
+        mock_popen.assert_called_once()
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[0] == "open"
+        assert cmd[1].replace("\\", "/") == "/fake/config/ai-guardian.json"
 
     @patch("subprocess.Popen")
     def test_open_config_in_editor_linux(self, mock_popen):
@@ -782,7 +785,10 @@ class TestPostSaveConfirmation:
         with patch("platform.system", return_value="Linux"), \
              patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
             _open_config_in_editor()
-        mock_popen.assert_called_once_with(["xdg-open", "/fake/config/ai-guardian.json"])
+        mock_popen.assert_called_once()
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[0] == "xdg-open"
+        assert cmd[1].replace("\\", "/") == "/fake/config/ai-guardian.json"
 
     @patch("subprocess.Popen")
     def test_open_config_in_editor_windows(self, mock_popen):
@@ -790,7 +796,10 @@ class TestPostSaveConfirmation:
         with patch("platform.system", return_value="Windows"), \
              patch("ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")):
             _open_config_in_editor()
-        mock_popen.assert_called_once_with(["notepad", "/fake/config/ai-guardian.json"])
+        mock_popen.assert_called_once()
+        cmd = mock_popen.call_args[0][0]
+        assert cmd[0] == "notepad"
+        assert cmd[1].replace("\\", "/") == "/fake/config/ai-guardian.json"
 
     @patch("subprocess.Popen")
     def test_open_config_in_editor_handles_error(self, mock_popen):
