@@ -418,3 +418,98 @@ def add_allowed_domain(
     except OSError as e:
         logger.error(f"Failed to write config: {e}")
         return False
+
+
+def add_config_ignore_file(
+    pattern: str,
+    config_path: Optional[Path] = None,
+) -> bool:
+    """Add a glob pattern to config_file_scanning.ignore_files in ai-guardian.json.
+
+    Used by the ask dialog's "Allow Always" flow for config file exfil violations.
+    Config file scanning uses glob file paths (not regex), so this writes to
+    ignore_files instead of allowlist_patterns.
+
+    Args:
+        pattern: Glob pattern string to add (e.g. "**/docs/security-examples.md").
+        config_path: Override config file path (defaults to global config).
+
+    Returns:
+        True if pattern was added successfully, False on failure.
+    """
+    if not pattern:
+        return False
+
+    if config_path is None:
+        config_path = get_config_dir() / "ai-guardian.json"
+
+    lock_path = str(config_path) + ".lock"
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            config = {}
+            if config_path.exists():
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning(f"Could not read config, starting fresh: {e}")
+                    config = {}
+
+            if "config_file_scanning" not in config:
+                config["config_file_scanning"] = {}
+            section = config["config_file_scanning"]
+            if not isinstance(section, dict):
+                section = {}
+                config["config_file_scanning"] = section
+
+            ignore_files = section.get("ignore_files", [])
+            if not isinstance(ignore_files, list):
+                ignore_files = []
+
+            if pattern in ignore_files:
+                logger.info(f"Pattern already in config_file_scanning.ignore_files: {pattern}")
+                return True
+
+            ignore_files.append(pattern)
+            section["ignore_files"] = ignore_files
+
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(config_path.parent),
+                prefix=".ai-guardian-",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2)
+                    f.write("\n")
+                os.replace(tmp_path, str(config_path))
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+
+            try:
+                from ai_guardian.config_loaders import _clear_config_cache
+                _clear_config_cache()
+            except ImportError:
+                pass
+
+            logger.info(f"Added pattern to config_file_scanning.ignore_files: {pattern}")
+            return True
+
+        finally:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    except OSError as e:
+        logger.error(f"Failed to write config: {e}")
+        return False

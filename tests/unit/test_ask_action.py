@@ -1154,3 +1154,145 @@ class TestSupplyChainAskAction:
         """Verify supply_chain uses glob pattern type."""
         from ai_guardian.tui.pattern_editor import get_pattern_type_for_section
         assert get_pattern_type_for_section("supply_chain") == "glob"
+
+
+class TestConfigFileExfilAskAction:
+    """Tests for ask action mode with config file scanning (Issue #1132)."""
+
+    def test_config_file_scanning_ask_schema_accepts_ask(self):
+        """Verify JSON schema accepts ask values for config_file_scanning.action."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        cfs_schema = schema["properties"]["config_file_scanning"]
+        for action_val in ["ask", "ask:warn", "ask:log-only"]:
+            config = {"action": action_val}
+            jsonschema.validate(config, cfs_schema)
+
+    def test_config_file_scanning_ask_schema_rejects_invalid(self):
+        """Verify JSON schema rejects invalid ask values."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        cfs_schema = schema["properties"]["config_file_scanning"]
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({"action": "ask:invalid"}, cfs_schema)
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_handle_ask_mode_config_file_scanning_allow_always_writes_ignore(self, mock_dialog):
+        """Verify Allow Always routes to add_config_ignore_file."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern="**/docs/security-examples.md",
+        )
+        with patch("ai_guardian.config_writer.add_config_ignore_file") as mock_write:
+            mock_write.return_value = True
+            result = _handle_ask_mode(
+                "ask", "config_file_exfil", "**/docs/security-examples.md",
+                "config_file_scanning", "Config file threat detected",
+            )
+        assert result.decision == AskDecision.ALLOW_ALWAYS
+        mock_write.assert_called_once_with("**/docs/security-examples.md")
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_config_file_scanning_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
+        """Verify headless fallback defaults to block for ask mode."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask", "config_file_exfil", "CLAUDE.md",
+            "config_file_scanning", "Config file threat detected",
+        )
+        assert result is not None
+        assert result.decision == AskDecision.BLOCK
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_config_file_scanning_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
+        """Verify ask:warn headless fallback allows with ALLOW_ONCE."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask:warn", "config_file_exfil", "CLAUDE.md",
+            "config_file_scanning", "Config file threat detected",
+        )
+        assert result is not None
+        assert result.decision == AskDecision.ALLOW_ONCE
+
+    def test_add_config_ignore_file_writes_config(self):
+        """Verify add_config_ignore_file writes to config_file_scanning.ignore_files."""
+        from ai_guardian.config_writer import add_config_ignore_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text('{"config_file_scanning": {"action": "ask"}}')
+            result = add_config_ignore_file("**/docs/security-examples.md", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert "**/docs/security-examples.md" in config["config_file_scanning"]["ignore_files"]
+
+    def test_add_config_ignore_file_dedup(self):
+        """Verify add_config_ignore_file doesn't add duplicates."""
+        from ai_guardian.config_writer import add_config_ignore_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "config_file_scanning": {
+                    "action": "ask",
+                    "ignore_files": ["**/docs/security-examples.md"],
+                }
+            }))
+            result = add_config_ignore_file("**/docs/security-examples.md", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert config["config_file_scanning"]["ignore_files"].count("**/docs/security-examples.md") == 1
+
+    def test_add_config_ignore_file_empty_rejected(self):
+        """Verify empty pattern is rejected."""
+        from ai_guardian.config_writer import add_config_ignore_file
+        assert add_config_ignore_file("") is False
+
+    def test_add_config_ignore_file_creates_section(self):
+        """Verify add_config_ignore_file creates config_file_scanning section if missing."""
+        from ai_guardian.config_writer import add_config_ignore_file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text("{}")
+            result = add_config_ignore_file("CLAUDE.md", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert "CLAUDE.md" in config["config_file_scanning"]["ignore_files"]
+
+    def test_pattern_editor_suggest_pattern_config_file_scanning(self):
+        """Verify suggest_pattern returns file path as-is for config_file_scanning."""
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("CLAUDE.md", "config_file_scanning")
+        assert result == "CLAUDE.md"
+
+    def test_pattern_editor_generate_config_preview_config_file_scanning(self):
+        """Verify generate_config_preview shows ignore_files for config_file_scanning."""
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview("CLAUDE.md", "config_file_scanning")
+        parsed = json.loads(result)
+        assert "ignore_files" in parsed["config_file_scanning"]
+        assert "CLAUDE.md" in parsed["config_file_scanning"]["ignore_files"]
+
+    def test_pattern_editor_prepare_config_config_file_scanning(self):
+        """Verify prepare_config_with_pattern writes to ignore_files for config_file_scanning."""
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text("{}")
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern("CLAUDE.md", "config_file_scanning")
+            parsed = json.loads(json_text)
+            assert "CLAUDE.md" in parsed["config_file_scanning"]["ignore_files"]
+
+    def test_pattern_type_for_config_file_scanning_is_glob(self):
+        """Verify config_file_scanning uses glob pattern type."""
+        from ai_guardian.tui.pattern_editor import get_pattern_type_for_section
+        assert get_pattern_type_for_section("config_file_scanning") == "glob"

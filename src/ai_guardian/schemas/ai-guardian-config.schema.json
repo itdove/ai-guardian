@@ -1331,8 +1331,15 @@
         },
         "action": {
           "type": "string",
-          "enum": ["block", "warn", "log-only"],
-          "description": "Action on violation: 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning",
+          "oneOf": [
+            {"enum": ["block", "warn", "log-only"]},
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode: prompts user on violation with Allow Once/Allow Always/Block choices"
+            }
+          ],
+          "description": "Action on violation: 'block' prevents execution (default), 'warn' logs violation and shows warning to user but allows execution, 'log-only' logs violation silently without user warning, 'ask' prompts user interactively",
           "default": "block"
         },
         "immutable": {

@@ -40,7 +40,7 @@ FEATURE_ACTIONS = {
     "secret_scanning": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
     "prompt_injection": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
     "ssrf_protection": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
-    "config_file_scanning": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
+    "config_file_scanning": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
     "scan_pii": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "redact": "Redact", "warn": "Warn", "log-only": "Log Only"},
     "secret_redaction": {"warn": "Warn", "log-only": "Log Only"},
     "image_scanning": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
