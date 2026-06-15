@@ -1694,6 +1694,13 @@ def main():
                 action = sect.get("action", "")
                 if isinstance(action, str) and action.startswith("ask"):
                     return True
+        rules = config.get("permissions", {}).get("rules", [])
+        if isinstance(rules, list):
+            for rule in rules:
+                if isinstance(rule, dict):
+                    action = rule.get("action", "")
+                    if isinstance(action, str) and action.startswith("ask"):
+                        return True
         return False
 
     hook_data = None

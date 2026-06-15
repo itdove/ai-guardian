@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional, Tuple
 
 try:
     import fcntl
@@ -23,6 +23,111 @@ from ai_guardian.config_utils import get_config_dir
 logger = logging.getLogger(__name__)
 
 
+def _atomic_config_update(
+    config_path: Path,
+    updater_fn: Callable[[dict], Tuple[bool, str]],
+) -> bool:
+    """Read config, apply updater_fn, write atomically with file locking.
+
+    Args:
+        config_path: Path to ai-guardian.json.
+        updater_fn: Called with the config dict. Must mutate it in place and
+                    return (already_exists, log_message). If already_exists is
+                    True, the file is not rewritten.
+
+    Returns:
+        True on success, False on failure.
+    """
+    lock_path = str(config_path) + ".lock"
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            config = {}
+            if config_path.exists():
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning(f"Could not read config, starting fresh: {e}")
+                    config = {}
+
+            already_exists, log_msg = updater_fn(config)
+
+            if already_exists:
+                logger.info(log_msg)
+                return True
+
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(config_path.parent),
+                prefix=".ai-guardian-",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2)
+                    f.write("\n")
+                os.replace(tmp_path, str(config_path))
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+
+            try:
+                from ai_guardian.config_loaders import _clear_config_cache
+                _clear_config_cache()
+            except ImportError:
+                pass
+
+            logger.info(log_msg)
+            return True
+
+        finally:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    except OSError as e:
+        logger.error(f"Failed to write config: {e}")
+        return False
+
+
+def _ensure_section(config: dict, section_name: str) -> dict:
+    """Ensure config[section_name] exists as a dict. Returns the section."""
+    if section_name not in config:
+        config[section_name] = {}
+    section = config[section_name]
+    if not isinstance(section, dict):
+        config[section_name] = section = {}
+    return section
+
+
+def _ensure_list(section: dict, key: str) -> list:
+    """Ensure section[key] exists as a list. Returns the list."""
+    items = section.get(key, [])
+    if not isinstance(items, list):
+        items = []
+    return items
+
+
+def _parse_permission_pattern(pattern: str) -> Tuple[str, list]:
+    """Parse a permission pattern string into (matcher, patterns_list).
+
+    Format: "matcher:value" → ("matcher", ["value"])
+    No colon: "matcher" → ("matcher", ["*"])
+    """
+    if ":" in pattern:
+        parts = pattern.split(":", 1)
+        return parts[0], [parts[1]]
+    return pattern, ["*"]
+
+
 def add_allowlist_pattern(
     config_section: str,
     pattern: str,
@@ -30,9 +135,6 @@ def add_allowlist_pattern(
     config_path: Optional[Path] = None,
 ) -> bool:
     """Add a pattern to a section's allowlist_patterns array in ai-guardian.json.
-
-    Uses file locking for concurrent write safety and atomic writes to prevent
-    partial file corruption.
 
     Args:
         config_section: Config section key (e.g. "secret_scanning", "prompt_injection").
@@ -57,78 +159,18 @@ def add_allowlist_pattern(
         logger.error(f"Pattern rejected by safety validation: {pattern}")
         return False
 
-    lock_path = str(config_path) + ".lock"
+    def updater(config):
+        section = _ensure_section(config, config_section)
+        patterns = _ensure_list(section, "allowlist_patterns")
+        for existing in patterns:
+            existing_str = existing if isinstance(existing, str) else existing.get("pattern", "")
+            if existing_str == pattern:
+                return True, f"Pattern already exists in {config_section}.allowlist_patterns"
+        patterns.append(pattern_entry)
+        section["allowlist_patterns"] = patterns
+        return False, f"Added pattern to {config_section}.allowlist_patterns: {pattern}"
 
-    try:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
-        try:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
-            config = {}
-            if config_path.exists():
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        config = json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    logger.warning(f"Could not read config, starting fresh: {e}")
-                    config = {}
-
-            if config_section not in config:
-                config[config_section] = {}
-            section = config[config_section]
-            if not isinstance(section, dict):
-                section = {}
-                config[config_section] = section
-
-            patterns = section.get("allowlist_patterns", [])
-            if not isinstance(patterns, list):
-                patterns = []
-
-            for existing in patterns:
-                existing_str = existing if isinstance(existing, str) else existing.get("pattern", "")
-                if existing_str == pattern:
-                    logger.info(f"Pattern already exists in {config_section}.allowlist_patterns")
-                    return True
-
-            patterns.append(pattern_entry)
-            section["allowlist_patterns"] = patterns
-
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(config_path.parent),
-                prefix=".ai-guardian-",
-                suffix=".tmp",
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(config, f, indent=2)
-                    f.write("\n")
-                os.replace(tmp_path, str(config_path))
-            except Exception:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-                raise
-
-            try:
-                from ai_guardian.config_loaders import _clear_config_cache
-                _clear_config_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Added pattern to {config_section}.allowlist_patterns: {pattern}")
-            return True
-
-        finally:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-
-    except OSError as e:
-        logger.error(f"Failed to write config: {e}")
-        return False
+    return _atomic_config_update(config_path, updater)
 
 
 def add_directory_exclusion(
@@ -136,10 +178,6 @@ def add_directory_exclusion(
     config_path: Optional[Path] = None,
 ) -> bool:
     """Add a glob pattern to directory_rules.exclusions in ai-guardian.json.
-
-    Used by the ask dialog's "Allow Always" flow for directory blocking violations.
-    Directory rules use glob patterns (not regex), so this writes to
-    exclusions instead of allowlist_patterns.
 
     Args:
         pattern: Glob pattern string to add (e.g. "/home/user/project/**").
@@ -154,76 +192,16 @@ def add_directory_exclusion(
     if config_path is None:
         config_path = get_config_dir() / "ai-guardian.json"
 
-    lock_path = str(config_path) + ".lock"
+    def updater(config):
+        section = _ensure_section(config, "directory_rules")
+        exclusions = _ensure_list(section, "exclusions")
+        if pattern in exclusions:
+            return True, f"Pattern already in directory_rules.exclusions: {pattern}"
+        exclusions.append(pattern)
+        section["exclusions"] = exclusions
+        return False, f"Added pattern to directory_rules.exclusions: {pattern}"
 
-    try:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
-        try:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
-            config = {}
-            if config_path.exists():
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        config = json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    logger.warning(f"Could not read config, starting fresh: {e}")
-                    config = {}
-
-            if "directory_rules" not in config:
-                config["directory_rules"] = {}
-            section = config["directory_rules"]
-            if not isinstance(section, dict):
-                section = {"action": "block", "rules": section if isinstance(section, list) else []}
-                config["directory_rules"] = section
-
-            exclusions = section.get("exclusions", [])
-            if not isinstance(exclusions, list):
-                exclusions = []
-
-            if pattern in exclusions:
-                logger.info(f"Pattern already in directory_rules.exclusions: {pattern}")
-                return True
-
-            exclusions.append(pattern)
-            section["exclusions"] = exclusions
-
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(config_path.parent),
-                prefix=".ai-guardian-",
-                suffix=".tmp",
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(config, f, indent=2)
-                    f.write("\n")
-                os.replace(tmp_path, str(config_path))
-            except Exception:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-                raise
-
-            try:
-                from ai_guardian.config_loaders import _clear_config_cache
-                _clear_config_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Added pattern to directory_rules.exclusions: {pattern}")
-            return True
-
-        finally:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-
-    except OSError as e:
-        logger.error(f"Failed to write config: {e}")
-        return False
+    return _atomic_config_update(config_path, updater)
 
 
 def add_supply_chain_path(
@@ -231,10 +209,6 @@ def add_supply_chain_path(
     config_path: Optional[Path] = None,
 ) -> bool:
     """Add a glob pattern to supply_chain.allowlist_paths in ai-guardian.json.
-
-    Used by the ask dialog's "Allow Always" flow for supply chain violations.
-    Supply chain uses glob file paths (not regex), so this writes to
-    allowlist_paths instead of allowlist_patterns.
 
     Args:
         pattern: Glob pattern string to add (e.g. "~/.claude/settings.json").
@@ -249,76 +223,16 @@ def add_supply_chain_path(
     if config_path is None:
         config_path = get_config_dir() / "ai-guardian.json"
 
-    lock_path = str(config_path) + ".lock"
+    def updater(config):
+        section = _ensure_section(config, "supply_chain")
+        paths = _ensure_list(section, "allowlist_paths")
+        if pattern in paths:
+            return True, f"Path already in supply_chain.allowlist_paths: {pattern}"
+        paths.append(pattern)
+        section["allowlist_paths"] = paths
+        return False, f"Added path to supply_chain.allowlist_paths: {pattern}"
 
-    try:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
-        try:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
-            config = {}
-            if config_path.exists():
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        config = json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    logger.warning(f"Could not read config, starting fresh: {e}")
-                    config = {}
-
-            if "supply_chain" not in config:
-                config["supply_chain"] = {}
-            section = config["supply_chain"]
-            if not isinstance(section, dict):
-                section = {}
-                config["supply_chain"] = section
-
-            paths = section.get("allowlist_paths", [])
-            if not isinstance(paths, list):
-                paths = []
-
-            if pattern in paths:
-                logger.info(f"Path already in supply_chain.allowlist_paths: {pattern}")
-                return True
-
-            paths.append(pattern)
-            section["allowlist_paths"] = paths
-
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(config_path.parent),
-                prefix=".ai-guardian-",
-                suffix=".tmp",
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(config, f, indent=2)
-                    f.write("\n")
-                os.replace(tmp_path, str(config_path))
-            except Exception:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-                raise
-
-            try:
-                from ai_guardian.config_loaders import _clear_config_cache
-                _clear_config_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Added path to supply_chain.allowlist_paths: {pattern}")
-            return True
-
-        finally:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-
-    except OSError as e:
-        logger.error(f"Failed to write config: {e}")
-        return False
+    return _atomic_config_update(config_path, updater)
 
 
 def add_allowed_domain(
@@ -326,10 +240,6 @@ def add_allowed_domain(
     config_path: Optional[Path] = None,
 ) -> bool:
     """Add a domain to ssrf_protection.allowed_domains in ai-guardian.json.
-
-    Used by the ask dialog's "Allow Always" flow for SSRF violations.
-    SSRF uses domain strings (not regex patterns), so this writes to
-    allowed_domains instead of allowlist_patterns.
 
     Args:
         domain: Domain string to add (e.g. "api.example.com").
@@ -348,76 +258,16 @@ def add_allowed_domain(
     if config_path is None:
         config_path = get_config_dir() / "ai-guardian.json"
 
-    lock_path = str(config_path) + ".lock"
+    def updater(config):
+        section = _ensure_section(config, "ssrf_protection")
+        domains = _ensure_list(section, "allowed_domains")
+        if domain in domains:
+            return True, f"Domain already in ssrf_protection.allowed_domains: {domain}"
+        domains.append(domain)
+        section["allowed_domains"] = domains
+        return False, f"Added domain to ssrf_protection.allowed_domains: {domain}"
 
-    try:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
-        try:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
-            config = {}
-            if config_path.exists():
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        config = json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    logger.warning(f"Could not read config, starting fresh: {e}")
-                    config = {}
-
-            if "ssrf_protection" not in config:
-                config["ssrf_protection"] = {}
-            section = config["ssrf_protection"]
-            if not isinstance(section, dict):
-                section = {}
-                config["ssrf_protection"] = section
-
-            domains = section.get("allowed_domains", [])
-            if not isinstance(domains, list):
-                domains = []
-
-            if domain in domains:
-                logger.info(f"Domain already in ssrf_protection.allowed_domains: {domain}")
-                return True
-
-            domains.append(domain)
-            section["allowed_domains"] = domains
-
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(config_path.parent),
-                prefix=".ai-guardian-",
-                suffix=".tmp",
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(config, f, indent=2)
-                    f.write("\n")
-                os.replace(tmp_path, str(config_path))
-            except Exception:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-                raise
-
-            try:
-                from ai_guardian.config_loaders import _clear_config_cache
-                _clear_config_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Added domain to ssrf_protection.allowed_domains: {domain}")
-            return True
-
-        finally:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-
-    except OSError as e:
-        logger.error(f"Failed to write config: {e}")
-        return False
+    return _atomic_config_update(config_path, updater)
 
 
 def add_config_ignore_file(
@@ -425,10 +275,6 @@ def add_config_ignore_file(
     config_path: Optional[Path] = None,
 ) -> bool:
     """Add a glob pattern to config_file_scanning.ignore_files in ai-guardian.json.
-
-    Used by the ask dialog's "Allow Always" flow for config file exfil violations.
-    Config file scanning uses glob file paths (not regex), so this writes to
-    ignore_files instead of allowlist_patterns.
 
     Args:
         pattern: Glob pattern string to add (e.g. "**/docs/security-examples.md").
@@ -443,73 +289,86 @@ def add_config_ignore_file(
     if config_path is None:
         config_path = get_config_dir() / "ai-guardian.json"
 
-    lock_path = str(config_path) + ".lock"
+    def updater(config):
+        section = _ensure_section(config, "config_file_scanning")
+        ignore_files = _ensure_list(section, "ignore_files")
+        if pattern in ignore_files:
+            return True, f"Pattern already in config_file_scanning.ignore_files: {pattern}"
+        ignore_files.append(pattern)
+        section["ignore_files"] = ignore_files
+        return False, f"Added pattern to config_file_scanning.ignore_files: {pattern}"
 
-    try:
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
-        try:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    return _atomic_config_update(config_path, updater)
 
-            config = {}
-            if config_path.exists():
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        config = json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    logger.warning(f"Could not read config, starting fresh: {e}")
-                    config = {}
 
-            if "config_file_scanning" not in config:
-                config["config_file_scanning"] = {}
-            section = config["config_file_scanning"]
-            if not isinstance(section, dict):
-                section = {}
-                config["config_file_scanning"] = section
+def add_permission_rule(
+    matcher: str,
+    patterns: list,
+    config_path: Optional[Path] = None,
+) -> bool:
+    """Add an allow rule to permissions.rules in ai-guardian.json.
 
-            ignore_files = section.get("ignore_files", [])
-            if not isinstance(ignore_files, list):
-                ignore_files = []
+    Args:
+        matcher: Tool matcher string (e.g. "Bash", "Skill", "mcp__server__tool").
+        patterns: List of pattern strings to allow (e.g. ["npm test"]).
+        config_path: Override config file path (defaults to global config).
 
-            if pattern in ignore_files:
-                logger.info(f"Pattern already in config_file_scanning.ignore_files: {pattern}")
-                return True
-
-            ignore_files.append(pattern)
-            section["ignore_files"] = ignore_files
-
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(config_path.parent),
-                prefix=".ai-guardian-",
-                suffix=".tmp",
-            )
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(config, f, indent=2)
-                    f.write("\n")
-                os.replace(tmp_path, str(config_path))
-            except Exception:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
-                raise
-
-            try:
-                from ai_guardian.config_loaders import _clear_config_cache
-                _clear_config_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Added pattern to config_file_scanning.ignore_files: {pattern}")
-            return True
-
-        finally:
-            if HAS_FCNTL:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-
-    except OSError as e:
-        logger.error(f"Failed to write config: {e}")
+    Returns:
+        True if rule was added successfully, False on failure.
+    """
+    if not matcher:
         return False
+    if not patterns:
+        return False
+
+    if config_path is None:
+        config_path = get_config_dir() / "ai-guardian.json"
+
+    new_rule = {"mode": "allow", "matcher": matcher, "patterns": patterns}
+
+    def updater(config):
+        section = _ensure_section(config, "permissions")
+        rules = _ensure_list(section, "rules")
+        for existing in rules:
+            if (existing.get("mode") == "allow"
+                    and existing.get("matcher") == matcher
+                    and existing.get("patterns") == patterns):
+                return True, f"Permission rule already exists: {new_rule}"
+        rules.append(new_rule)
+        section["rules"] = rules
+        return False, f"Added permission rule: {new_rule}"
+
+    return _atomic_config_update(config_path, updater)
+
+
+def save_ask_pattern(
+    config_section: str,
+    pattern: str,
+    config_path: Optional[Path] = None,
+) -> bool:
+    """Save an ask dialog 'Allow Always' pattern to the correct config location.
+
+    Unified dispatcher — routes to the appropriate writer based on config_section.
+    Handles permission pattern parsing ("matcher:value" format).
+
+    Args:
+        config_section: The config section that triggered the violation.
+        pattern: The allowlist pattern from the ask dialog.
+        config_path: Override config file path (defaults to global config).
+
+    Returns:
+        True on success, False on failure.
+    """
+    if config_section == "ssrf_protection":
+        return add_allowed_domain(pattern, config_path=config_path)
+    elif config_section == "directory_rules":
+        return add_directory_exclusion(pattern, config_path=config_path)
+    elif config_section == "supply_chain":
+        return add_supply_chain_path(pattern, config_path=config_path)
+    elif config_section == "config_file_scanning":
+        return add_config_ignore_file(pattern, config_path=config_path)
+    elif config_section == "permissions":
+        matcher, rule_patterns = _parse_permission_pattern(pattern)
+        return add_permission_rule(matcher, rule_patterns, config_path=config_path)
+    else:
+        return add_allowlist_pattern(config_section, pattern, config_path=config_path)

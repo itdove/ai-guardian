@@ -1667,8 +1667,8 @@
         },
         "action": {
           "type": "string",
-          "enum": ["block", "warn", "log-only"],
-          "description": "Action when deny rule matches (v1.7.0+): 'block' prevents execution (default), 'warn' logs violation and shows warning but allows execution, 'log-only' logs silently. Only meaningful on mode=deny rules.",
+          "enum": ["block", "warn", "log-only", "ask", "ask:warn", "ask:log-only"],
+          "description": "Action when deny rule matches (v1.7.0+): 'block' prevents execution (default), 'warn' logs violation and shows warning but allows execution, 'log-only' logs silently, 'ask' shows interactive dialog (Allow Once / Allow Always / Block), 'ask:warn' or 'ask:log-only' use warn/log-only as fallback when dialog unavailable. Only meaningful on mode=deny rules.",
           "default": "block"
         },
         "immutable": {

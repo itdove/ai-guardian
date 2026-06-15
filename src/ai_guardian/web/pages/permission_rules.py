@@ -480,6 +480,9 @@ def create_permission_rules_page(service, daemon_name: str):
                                                     "block": "red",
                                                     "warn": "amber",
                                                     "log-only": "blue-grey",
+                                                    "ask": "purple",
+                                                    "ask:warn": "purple",
+                                                    "ask:log-only": "purple",
                                                 }.get(action, "grey"),
                                             ).classes("text-xs")
                                         if immutable:
@@ -624,6 +627,9 @@ def create_permission_rules_page(service, daemon_name: str):
                                                             "block": "Block",
                                                             "warn": "Warn",
                                                             "log-only": "Log only",
+                                                            "ask": "Ask (default: block)",
+                                                            "ask:warn": "Ask (default: warn)",
+                                                            "ask:log-only": "Ask (default: log-only)",
                                                         },
                                                         value=ra or "",
                                                     ).classes("w-48")
@@ -1113,6 +1119,9 @@ def create_permission_rules_page(service, daemon_name: str):
                                         "block": "Block",
                                         "warn": "Warn",
                                         "log-only": "Log only",
+                                        "ask": "Ask (default: block)",
+                                        "ask:warn": "Ask (default: warn)",
+                                        "ask:log-only": "Ask (default: log-only)",
                                     },
                                     value="",
                                 ).classes("w-48")

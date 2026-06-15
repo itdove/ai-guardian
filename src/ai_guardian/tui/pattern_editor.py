@@ -35,7 +35,17 @@ SECTION_PATTERN_TYPE = {
     "directory_rules": "glob",
     "supply_chain": "glob",
     "config_file_scanning": "glob",
+    "permissions": "string",
 }
+
+SECTION_ARRAY_KEY = {
+    "ssrf_protection": "allowed_domains",
+    "directory_rules": "exclusions",
+    "supply_chain": "allowlist_paths",
+    "config_file_scanning": "ignore_files",
+}
+
+_STRIP_SECTIONS = {"permissions", "supply_chain", "config_file_scanning"}
 
 
 def get_pattern_type_for_section(config_section: str) -> str:
@@ -106,6 +116,13 @@ def validate_pattern(
     return True, "Pattern is valid and matches"
 
 
+def _permission_rule_from_pattern(pattern: str) -> dict:
+    """Build a permission allow rule dict from a pattern string."""
+    from ai_guardian.config_writer import _parse_permission_pattern
+    matcher, rule_patterns = _parse_permission_pattern(pattern)
+    return {"mode": "allow", "matcher": matcher, "patterns": rule_patterns}
+
+
 def generate_config_preview(pattern: str, config_section: str) -> str:
     """Generate a JSON config snippet showing where the pattern will be added.
 
@@ -116,30 +133,12 @@ def generate_config_preview(pattern: str, config_section: str) -> str:
     Returns:
         Formatted JSON string.
     """
-    if config_section == "ssrf_protection":
-        return json.dumps(
-            {config_section: {"allowed_domains": [pattern]}},
-            indent=2,
-        )
-    if config_section == "directory_rules":
-        return json.dumps(
-            {config_section: {"exclusions": [pattern]}},
-            indent=2,
-        )
-    if config_section == "supply_chain":
-        return json.dumps(
-            {config_section: {"allowlist_paths": [pattern]}},
-            indent=2,
-        )
-    if config_section == "config_file_scanning":
-        return json.dumps(
-            {config_section: {"ignore_files": [pattern]}},
-            indent=2,
-        )
-    return json.dumps(
-        {config_section: {"allowlist_patterns": [pattern]}},
-        indent=2,
-    )
+    if config_section == "permissions":
+        rule = _permission_rule_from_pattern(pattern)
+        return json.dumps({"permissions": {"rules": [rule]}}, indent=2)
+
+    array_key = SECTION_ARRAY_KEY.get(config_section, "allowlist_patterns")
+    return json.dumps({config_section: {array_key: [pattern]}}, indent=2)
 
 
 def suggest_domain(url_or_text: str) -> str:
@@ -187,41 +186,18 @@ def prepare_config_with_pattern(
         except (json.JSONDecodeError, OSError):
             config = {}
 
-    if config_section == "ssrf_protection":
-        if config_section not in config:
-            config[config_section] = {}
-        domains = config[config_section].get("allowed_domains", [])
-        if pattern not in domains:
-            domains.append(pattern)
-        config[config_section]["allowed_domains"] = domains
-    elif config_section == "directory_rules":
-        if config_section not in config:
-            config[config_section] = {}
-        exclusions = config[config_section].get("exclusions", [])
-        if pattern not in exclusions:
-            exclusions.append(pattern)
-        config[config_section]["exclusions"] = exclusions
-    elif config_section == "supply_chain":
-        if config_section not in config:
-            config[config_section] = {}
-        paths = config[config_section].get("allowlist_paths", [])
-        if pattern not in paths:
-            paths.append(pattern)
-        config[config_section]["allowlist_paths"] = paths
-    elif config_section == "config_file_scanning":
-        if config_section not in config:
-            config[config_section] = {}
-        ignore_files = config[config_section].get("ignore_files", [])
-        if pattern not in ignore_files:
-            ignore_files.append(pattern)
-        config[config_section]["ignore_files"] = ignore_files
+    if config_section == "permissions":
+        section = config.setdefault("permissions", {})
+        rules = section.get("rules", [])
+        rules.append(_permission_rule_from_pattern(pattern))
+        section["rules"] = rules
     else:
-        if config_section not in config:
-            config[config_section] = {}
-        patterns = config[config_section].get("allowlist_patterns", [])
-        if pattern not in patterns:
-            patterns.append(pattern)
-        config[config_section]["allowlist_patterns"] = patterns
+        array_key = SECTION_ARRAY_KEY.get(config_section, "allowlist_patterns")
+        section = config.setdefault(config_section, {})
+        items = section.get(array_key, [])
+        if pattern not in items:
+            items.append(pattern)
+        section[array_key] = items
 
     json_text = json.dumps(config, indent=2) + "\n"
 
@@ -244,9 +220,7 @@ def suggest_pattern(matched_text: str, config_section: str = "") -> str:
     """
     if config_section == "ssrf_protection":
         return suggest_domain(matched_text)
-    if config_section == "supply_chain":
-        return matched_text.strip()
-    if config_section == "config_file_scanning":
+    if config_section in _STRIP_SECTIONS:
         return matched_text.strip()
     if config_section == "directory_rules":
         import os
