@@ -289,6 +289,25 @@ class DaemonServer:
             except OSError:
                 pass
 
+    @staticmethod
+    def _compute_hook_dedup_key(hook_data):
+        """Compute a dedup key from hook data for duplicate detection.
+
+        Uses event name and a hash of tool input content, ignoring
+        IDE-specific fields (cursor_version, session_id, etc.) so that
+        the same logical hook fired by different IDEs produces the same key.
+        """
+        import hashlib
+        event = hook_data.get("hook_event_name", hook_data.get("event", ""))
+        tool = hook_data.get("tool_name", hook_data.get("toolName", ""))
+        content = hook_data.get("tool_input", hook_data.get("input", ""))
+        if isinstance(content, dict):
+            content = json.dumps(content, sort_keys=True)
+        prompt = hook_data.get("prompt", "")
+        raw = f"{event}:{tool}:{content}:{prompt}"
+        h = hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()[:16]
+        return f"{event}:{h}"
+
     def _handle_hook_request(self, hook_data):
         """Process a hook request through existing ai-guardian logic.
 
@@ -317,6 +336,13 @@ class DaemonServer:
         try:
             self.state.get_config()
             self.state.check_project_config(cwd)
+
+            # Dedup safety net (#1181): skip processing if we've seen
+            # identical hook input within the TTL window. Prevents
+            # duplicate dialogs when Cursor + Claude Code both fire.
+            dedup_key = self._compute_hook_dedup_key(hook_data)
+            if self.state.check_and_record_dedup("hook_input", dedup_key):
+                return {"output": "{}", "exit_code": 0}
 
             from ai_guardian import process_hook_data
             result = process_hook_data(hook_data, daemon_state=self.state)

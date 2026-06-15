@@ -519,7 +519,11 @@ class TestIDESetupParametrized:
             }
         },
         "cursor": {
-            "hooks": {"beforeSubmitPrompt": [{"command": "ai-guardian"}]}
+            "hooks": {
+                "UserPromptSubmit": [
+                    {"matcher": "*", "hooks": [{"command": "ai-guardian"}]}
+                ]
+            }
         },
         "windsurf": {
             "hooks": {"pre_user_prompt": [{"command": "ai-guardian"}]}
@@ -554,9 +558,7 @@ class TestIDESetupParametrized:
     # Config data where ai-guardian is NOT present (uses other-tool)
     _NOT_CONFIGURED_CONFIGS = {
         "claude": {"hooks": {}},
-        "cursor": {
-            "hooks": {"beforeSubmitPrompt": [{"command": "other-tool"}]}
-        },
+        "cursor": {"hooks": {}},
         "windsurf": {
             "hooks": {"pre_user_prompt": [{"command": "other-tool"}]}
         },
@@ -2983,8 +2985,9 @@ class TestAbsolutePathWritten:
         assert cmd == "/mock/bin/ai-guardian --ide claude"
 
     def test_cursor_hooks_use_absolute_path(self, tmp_path):
+        """Cursor hooks installed in .claude/settings.json with --ide claude (#1181)."""
         setup = IDESetup()
-        config_file = tmp_path / "hooks.json"
+        config_file = tmp_path / "settings.json"
 
         with mock.patch.object(
             setup, "IDE_CONFIGS",
@@ -2995,7 +2998,9 @@ class TestAbsolutePathWritten:
 
         assert success
         config = json.loads(config_file.read_text())
-        assert config["hooks"]["beforeSubmitPrompt"][0]["command"] == "/mock/bin/ai-guardian --ide cursor"
+        # Cursor hooks now use Claude Code format with --ide claude
+        hooks = config["hooks"]["UserPromptSubmit"][0]["hooks"]
+        assert hooks[0]["command"] == "/mock/bin/ai-guardian --ide claude"
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix shebang test")
     def test_script_based_hooks_use_absolute_path(self, tmp_path):
@@ -3047,6 +3052,90 @@ class TestAbsolutePathWritten:
 
         config = json.loads(mcp_file.read_text())
         assert config["mcpServers"]["ai-guardian"]["command"] == "/mock/bin/ai-guardian"
+
+
+class TestCleanRemoveAiGuardian:
+    """Tests for _clean_remove_ai_guardian (#1181)."""
+
+    def test_removes_ai_guardian_hooks(self, tmp_path):
+        from ai_guardian.setup import _clean_remove_ai_guardian
+        config_file = tmp_path / "hooks.json"
+        config_file.write_text(json.dumps({
+            "version": 1,
+            "hooks": {
+                "beforeSubmitPrompt": [
+                    {"command": "/usr/bin/ai-guardian --ide cursor"}
+                ]
+            }
+        }))
+        result = _clean_remove_ai_guardian(str(config_file))
+        assert result is not None
+        assert not config_file.exists()
+
+    def test_preserves_other_hooks(self, tmp_path):
+        from ai_guardian.setup import _clean_remove_ai_guardian
+        config_file = tmp_path / "hooks.json"
+        config_file.write_text(json.dumps({
+            "version": 1,
+            "hooks": {
+                "beforeSubmitPrompt": [
+                    {"command": "/usr/bin/ai-guardian --ide cursor"},
+                    {"command": "/usr/bin/other-tool"}
+                ]
+            }
+        }))
+        result = _clean_remove_ai_guardian(str(config_file))
+        assert result is not None
+        assert config_file.exists()
+        config = json.loads(config_file.read_text())
+        hooks = config["hooks"]["beforeSubmitPrompt"]
+        assert len(hooks) == 1
+        assert hooks[0]["command"] == "/usr/bin/other-tool"
+
+    def test_noop_if_no_ai_guardian(self, tmp_path):
+        from ai_guardian.setup import _clean_remove_ai_guardian
+        config_file = tmp_path / "hooks.json"
+        config_file.write_text(json.dumps({
+            "version": 1,
+            "hooks": {
+                "beforeSubmitPrompt": [{"command": "/usr/bin/other-tool"}]
+            }
+        }))
+        result = _clean_remove_ai_guardian(str(config_file))
+        assert result is None
+
+    def test_noop_if_file_missing(self, tmp_path):
+        from ai_guardian.setup import _clean_remove_ai_guardian
+        result = _clean_remove_ai_guardian(str(tmp_path / "nonexistent.json"))
+        assert result is None
+
+    def test_cursor_setup_cleans_legacy_hooks(self, tmp_path):
+        """--ide cursor installs in settings.json and cleans .cursor/hooks.json."""
+        from ai_guardian.setup import _clean_remove_ai_guardian
+        setup = IDESetup()
+        settings_file = tmp_path / "settings.json"
+        legacy_file = tmp_path / "cursor-hooks.json"
+        legacy_file.write_text(json.dumps({
+            "version": 1,
+            "hooks": {
+                "beforeSubmitPrompt": [{"command": "ai-guardian --ide cursor"}]
+            }
+        }))
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"cursor": {
+                **IDESetup.IDE_CONFIGS["cursor"],
+                "config_path": str(settings_file),
+                "_legacy_config_path": str(legacy_file),
+            }},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                success, message = setup.setup_ide_hooks("cursor", dry_run=False, force=False)
+
+        assert success
+        assert settings_file.exists()
+        assert not legacy_file.exists()
 
 
 class TestWindowsSetup:
