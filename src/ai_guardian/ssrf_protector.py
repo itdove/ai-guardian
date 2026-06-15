@@ -729,7 +729,11 @@ class SSRFProtector:
                             )
                             if ask_result is not None:
                                 if ask_result.decision != AskDecision.BLOCK:
-                                    return False, None
+                                    from ai_guardian.hook_processing import _format_ask_info_message, _log_ask_decision
+                                    info_msg = _format_ask_info_message("ssrf_blocked", ask_result.decision, detail=url)
+                                    _log_ask_decision("ssrf_blocked", ask_result.decision,
+                                                      matched_text=url, error_msg=reason)
+                                    return False, info_msg
                                 # User chose Block — fall through to block handling
                         except Exception as e:
                             logger.warning(f"Ask dialog failed for SSRF: {e}")
