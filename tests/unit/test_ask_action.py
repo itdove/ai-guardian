@@ -1637,3 +1637,128 @@ class TestToolPermissionAskAction:
                     if isinstance(action, str) and action.startswith("ask"):
                         has_ask = True
         assert has_ask is True
+
+
+class TestFormatAskInfoMessage:
+    """Tests for _format_ask_info_message helper (#1161)."""
+
+    def test_allow_once_message(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("secret_detected", AskDecision.ALLOW_ONCE)
+        assert msg.startswith("ℹ️")
+        assert "allowed by user (this time only)" in msg
+        assert "Secret detection" in msg
+
+    def test_allow_always_message(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("secret_detected", AskDecision.ALLOW_ALWAYS)
+        assert msg.startswith("ℹ️")
+        assert "pattern added to allowlist (always allowed)" in msg
+
+    def test_message_with_detail(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("directory_blocking", AskDecision.ALLOW_ONCE, detail="/etc/passwd")
+        assert "/etc/passwd" in msg
+        assert "Directory access" in msg
+
+    def test_all_violation_types_have_labels(self):
+        from ai_guardian.hook_processing import _format_ask_info_message, _ASK_VIOLATION_LABELS
+        from ai_guardian.tui.ask_dialog import AskDecision
+        for vtype in _ASK_VIOLATION_LABELS:
+            msg = _format_ask_info_message(vtype, AskDecision.ALLOW_ONCE)
+            assert "ℹ️" in msg
+            assert "allowed by user" in msg
+
+    def test_unknown_violation_type_fallback(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("unknown_type", AskDecision.ALLOW_ONCE)
+        assert "ℹ️" in msg
+        assert "unknown_type" in msg
+
+    def test_pii_detection_label(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("pii_detected", AskDecision.ALLOW_ALWAYS)
+        assert "PII detection" in msg
+
+    def test_tool_permission_label(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("tool_permission", AskDecision.ALLOW_ONCE, detail="Bash")
+        assert "Permission rule" in msg
+        assert "Bash" in msg
+
+    def test_ssrf_label(self):
+        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.tui.ask_dialog import AskDecision
+        msg = _format_ask_info_message("ssrf_blocked", AskDecision.ALLOW_ONCE)
+        assert "SSRF protection" in msg
+
+
+class TestLogAskDecision:
+    """Tests for _log_ask_decision helper (#1161)."""
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_allow_once(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE,
+                          matched_text="AWS_KEY", error_msg="Secret found")
+        mock_vl.log_violation.assert_called_once()
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["violation_type"] == "secret_detected"
+        assert call_kwargs["severity"] == "info"
+        assert call_kwargs["context"]["ask_decision"] == "allow_once"
+        assert call_kwargs["context"]["action_taken"] == "allowed"
+        assert call_kwargs["blocked"]["matched_text"] == "AWS_KEY"
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_allow_always(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("pii_detected", AskDecision.ALLOW_ALWAYS,
+                          matched_text="email@test.com", error_msg="PII found")
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["context"]["ask_decision"] == "allow_always"
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_with_file_path(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("directory_blocking", AskDecision.ALLOW_ONCE,
+                          file_path="/etc/passwd")
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["blocked"]["file_path"] == "/etc/passwd"
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_no_file_path_omits_key(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert "file_path" not in call_kwargs["blocked"]
+
+    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", False)
+    def test_noop_when_logger_unavailable(self):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_exception_does_not_propagate(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl_cls.side_effect = RuntimeError("boom")
+        _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)

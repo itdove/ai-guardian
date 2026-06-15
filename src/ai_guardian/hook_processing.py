@@ -2011,6 +2011,56 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         return AskResult(decision=_map_fallback_to_decision(fallback_action))
 
 
+_ASK_VIOLATION_LABELS = {
+    ViolationType.SECRET_DETECTED: "Secret detection",
+    ViolationType.PII_DETECTED: "PII detection",
+    ViolationType.TOOL_PERMISSION: "Permission rule",
+    ViolationType.DIRECTORY_BLOCKING: "Directory access",
+    ViolationType.PROMPT_INJECTION: "Prompt injection",
+    ViolationType.CONTEXT_POISONING: "Context poisoning",
+    ViolationType.SUPPLY_CHAIN: "Supply chain",
+    ViolationType.CONFIG_FILE_EXFIL: "Config file scanning",
+    ViolationType.SSRF_BLOCKED: "SSRF protection",
+}
+
+
+def _format_ask_info_message(violation_type, decision, detail=""):
+    """Format an informational message for an ask-mode allow decision."""
+    from ai_guardian.tui.ask_dialog import AskDecision
+    label = _ASK_VIOLATION_LABELS.get(violation_type, str(violation_type))
+    if decision == AskDecision.ALLOW_ALWAYS:
+        msg = f"ℹ️  {label}: pattern added to allowlist (always allowed)"
+    else:
+        msg = f"ℹ️  {label}: allowed by user (this time only)"
+    if detail:
+        msg += f": {detail}"
+    return msg
+
+
+def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", file_path=None):
+    """Log an ask-mode allow decision to violations.jsonl."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+    try:
+        from ai_guardian.tui.ask_dialog import AskDecision
+        vlogger = ViolationLogger()
+        blocked_info = {
+            "description": (error_msg[:200] if error_msg else str(violation_type)),
+            "matched_text": matched_text or "",
+        }
+        if file_path:
+            blocked_info["file_path"] = file_path
+        decision_str = "allow_always" if decision == AskDecision.ALLOW_ALWAYS else "allow_once"
+        vlogger.log_violation(
+            violation_type=violation_type,
+            blocked=blocked_info,
+            context={"ask_decision": decision_str, "action_taken": "allowed"},
+            severity="info",
+        )
+    except Exception as e:
+        logging.debug(f"Failed to log ask decision: {e}")
+
+
 def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
                                     hook_context: Optional[Dict] = None,
                                     matched_pattern: Optional[str] = None,
@@ -3812,9 +3862,13 @@ def process_hook_data(hook_data, daemon_state=None):
                     from ai_guardian.tui.ask_dialog import AskDecision
                     if ask_result.decision != AskDecision.BLOCK:
                         _advance_transcript_position(hook_data)
-                        warn_msg = f"⚠️  Secret detection allowed by user (ask mode): {error_message[:200] if error_message else 'secret detected'}"
+                        info_msg = _format_ask_info_message(ViolationType.SECRET_DETECTED, ask_result.decision)
+                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result.decision,
+                                          matched_text=_last_secret_matched_text or "",
+                                          error_msg=error_message or "",
+                                          file_path=file_path if 'file_path' in dir() else None)
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=warn_msg)
+                                             warning_message=info_msg)
 
                 # Check if redaction is enabled
                 redaction_config, redaction_error = _load_secret_redaction_config()
@@ -4011,6 +4065,10 @@ def process_hook_data(hook_data, daemon_state=None):
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if pii_ask_result.decision != AskDecision.BLOCK:
                                 pii_action = 'warn'
+                                pii_info_msg = _format_ask_info_message(ViolationType.PII_DETECTED, pii_ask_result.decision)
+                                warning_messages.append(pii_info_msg)
+                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
+                                                  matched_text=pii_warning or "", error_msg=pii_warning or "")
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -4116,8 +4174,12 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if perm_ask_result.decision != AskDecision.BLOCK:
                                     perm_ask_allowed = True
                                     warning_messages.append(
-                                        f"⚠️  Tool '{checked_tool_name}' allowed by user (ask mode)"
+                                        _format_ask_info_message(ViolationType.TOOL_PERMISSION, perm_ask_result.decision,
+                                                                 detail=checked_tool_name)
                                     )
+                                    _log_ask_decision(ViolationType.TOOL_PERMISSION, perm_ask_result.decision,
+                                                      matched_text=perm_matched_text or "",
+                                                      error_msg=error_message or "")
 
                         if not perm_ask_allowed:
                             # Extract reason summary for logging
@@ -4253,7 +4315,13 @@ def process_hook_data(hook_data, daemon_state=None):
                         from ai_guardian.tui.ask_dialog import AskDecision
                         if dir_ask_result.decision != AskDecision.BLOCK:
                             is_denied = False
-                            warning_messages.append(f"⚠️  Directory access allowed by user (ask mode): {file_path}")
+                            warning_messages.append(
+                                _format_ask_info_message(ViolationType.DIRECTORY_BLOCKING, dir_ask_result.decision,
+                                                         detail=file_path)
+                            )
+                            _log_ask_decision(ViolationType.DIRECTORY_BLOCKING, dir_ask_result.decision,
+                                              matched_text=file_path or "", error_msg=deny_reason or "",
+                                              file_path=file_path)
 
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
@@ -4536,10 +4604,14 @@ def process_hook_data(hook_data, daemon_state=None):
                         if pi_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if pi_ask_result.decision != AskDecision.BLOCK:
-                                warn_msg = f"⚠️  Prompt injection allowed by user (ask mode)"
-                                warning_messages.append(warn_msg)
+                                pi_info_msg = _format_ask_info_message(ViolationType.PROMPT_INJECTION, pi_ask_result.decision)
+                                warning_messages.append(pi_info_msg)
                                 should_block = False
-                                injection_error = warn_msg
+                                injection_error = pi_info_msg
+                                _log_ask_decision(ViolationType.PROMPT_INJECTION, pi_ask_result.decision,
+                                                  matched_text=detector.last_matched_text or "",
+                                                  error_msg=injection_error,
+                                                  file_path=file_path)
 
                     if should_block:
                         # Prompt injection detected - block operation
@@ -4620,10 +4692,14 @@ def process_hook_data(hook_data, daemon_state=None):
                         if cp_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if cp_ask_result.decision != AskDecision.BLOCK:
-                                warn_msg = f"⚠️  Context poisoning allowed by user (ask mode)"
-                                warning_messages.append(warn_msg)
+                                cp_info_msg = _format_ask_info_message(ViolationType.CONTEXT_POISONING, cp_ask_result.decision)
+                                warning_messages.append(cp_info_msg)
                                 cp_should_block = False
-                                cp_error_msg = warn_msg
+                                cp_error_msg = cp_info_msg
+                                _log_ask_decision(ViolationType.CONTEXT_POISONING, cp_ask_result.decision,
+                                                  matched_text=cp_detector.last_matched_text or "",
+                                                  error_msg=cp_error_msg,
+                                                  file_path=file_path if 'file_path' in dir() else None)
 
                     if cp_should_block:
                         logging.info("Blocking operation due to context poisoning detection")
@@ -4693,7 +4769,14 @@ def process_hook_data(hook_data, daemon_state=None):
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if sc_ask_result.decision != AskDecision.BLOCK:
                                 sc_should_block = False
-                                warning_messages.append(f"⚠️  Supply chain threat allowed by user (ask mode): {sc_file_path}")
+                                warning_messages.append(
+                                    _format_ask_info_message(ViolationType.SUPPLY_CHAIN, sc_ask_result.decision,
+                                                             detail=sc_file_path)
+                                )
+                                _log_ask_decision(ViolationType.SUPPLY_CHAIN, sc_ask_result.decision,
+                                                  matched_text=sc_scanner.last_matched_text or "",
+                                                  error_msg=sc_error_msg or "",
+                                                  file_path=sc_file_path)
 
                     if sc_should_block:
                         logging.info("Blocking operation due to supply chain threat detection")
@@ -4746,7 +4829,14 @@ def process_hook_data(hook_data, daemon_state=None):
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if cfs_ask_result.decision != AskDecision.BLOCK:
                                 should_block = False
-                                warning_messages.append(f"⚠️  Config file threat allowed by user (ask mode): {file_path}")
+                                warning_messages.append(
+                                    _format_ask_info_message(ViolationType.CONFIG_FILE_EXFIL, cfs_ask_result.decision,
+                                                             detail=file_path)
+                                )
+                                _log_ask_decision(ViolationType.CONFIG_FILE_EXFIL, cfs_ask_result.decision,
+                                                  matched_text=file_path or "",
+                                                  error_msg=config_error or "",
+                                                  file_path=file_path)
 
                     if should_block:
                         # Config file threat detected - block operation
@@ -4860,9 +4950,13 @@ def process_hook_data(hook_data, daemon_state=None):
                 if ask_result_pre is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
                     if ask_result_pre.decision != AskDecision.BLOCK:
-                        warn_msg = f"⚠️  Secret detection allowed by user (ask mode)"
-                        warning_messages.append(warn_msg)
+                        info_msg = _format_ask_info_message(ViolationType.SECRET_DETECTED, ask_result_pre.decision)
+                        warning_messages.append(info_msg)
                         has_secrets = False
+                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result_pre.decision,
+                                          matched_text=_last_secret_matched_text or "",
+                                          error_msg=error_message or "",
+                                          file_path=file_path)
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
