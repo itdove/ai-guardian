@@ -196,14 +196,6 @@ def _build_python_preset(
             from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
             scanner = TomlPatternsScanner()
             effective_config = dict(scanner_config) if scanner_config else {}
-            if "pii_types" not in effective_config:
-                try:
-                    from ai_guardian.config_loaders import _load_pii_config
-                    pii_config, _ = _load_pii_config()
-                    if pii_config:
-                        effective_config["pii_types"] = pii_config.get("pii_types")
-                except Exception:
-                    pass
             if parent_config:
                 for key in ("allowlist_patterns", "ignore_files"):
                     if key not in effective_config and key in parent_config:
