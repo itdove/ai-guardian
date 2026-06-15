@@ -15,7 +15,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -33,9 +33,10 @@ logger = logging.getLogger(__name__)
 class TomlPatternsScanner(Scanner):
     """Internal Python scanner using pre-compiled TOML patterns.
 
-    Scans content for secrets and PII using patterns loaded from
-    bundled TOML files. Optionally loads additional patterns from
-    pattern servers (multi-format).
+    Scans content for secrets using patterns loaded from bundled TOML
+    files. PII detection is handled separately by the PII scanner
+    (SecretRedactor with pii_only=True). Optionally loads additional
+    patterns from pattern servers (multi-format).
     """
 
     name = "toml-patterns"
@@ -43,13 +44,12 @@ class TomlPatternsScanner(Scanner):
 
     def __init__(self):
         self._cache = PatternCache()
-        self._allowed_pii_types: Optional[Set[str]] = None
         self._compiled_allowlist: List[re.Pattern] = []
         self._ignore_files: List[str] = []
         self._stopwords: List[str] = []
         self._min_entropy: Optional[float] = 3.0
         toml_paths = []
-        for key in ("secrets", "pii"):
+        for key in ("secrets",):
             path = BUNDLED_FILES.get(key)
             if path and path.exists():
                 toml_paths.append(path)
@@ -81,12 +81,7 @@ class TomlPatternsScanner(Scanner):
         Supports:
             pattern_servers: list of server configs with 'url' and 'format'
             additional_patterns: list of extra rule dicts
-            pii_types: list of PII types to detect (from scan_pii config)
         """
-        pii_types = config.get("pii_types")
-        if pii_types is not None:
-            self._allowed_pii_types = set(pii_types)
-
         servers = config.get("pattern_servers", [])
         if not servers and "pattern_server" in config:
             servers = [config["pattern_server"]]
@@ -143,7 +138,7 @@ class TomlPatternsScanner(Scanner):
             logger.warning(f"TomlPatternsScanner: failed to load from server: {e}")
 
     def scan(self, content: str, file_path: str = None) -> List[Finding]:
-        """Scan content for secrets and PII using compiled TOML patterns.
+        """Scan content for secrets using compiled TOML patterns.
 
         Args:
             content: Text content to scan
@@ -157,13 +152,9 @@ class TomlPatternsScanner(Scanner):
             if matches_ignore_files(file_path, self._ignore_files):
                 return []
 
-        raw_findings = self._cache.scan(content, categories=["secrets", "pii"])
+        raw_findings = self._cache.scan(content, categories=["secrets"])
         findings = []
         for f in raw_findings:
-            if self._allowed_pii_types is not None and f.category == "pii":
-                pii_type = f.metadata.get("pii_type")
-                if pii_type and pii_type not in self._allowed_pii_types:
-                    continue
             if self._stopwords and f.category == "secrets":
                 matched_lower = f.matched_text.lower()
                 if any(sw in matched_lower for sw in self._stopwords):

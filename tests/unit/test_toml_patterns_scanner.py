@@ -60,41 +60,31 @@ class TestTomlPatternsScanner:
 
 
 class TestTomlPatternsPiiFiltering:
+    """Secret scanner must NOT detect PII — PII is handled by the PII scanner (#1178)."""
 
-    def test_scan_filters_pii_by_configured_types(self):
-        """Email excluded from pii_types should not appear in findings."""
-        scanner = TomlPatternsScanner()
-        scanner.configure({"pii_types": ["ssn"]})
-        findings = scanner.scan("Contact: user@example.com")
-        assert not any(f.rule_id == "pii-email" for f in findings)
-
-    def test_scan_includes_pii_when_in_configured_types(self):
-        """Email included in pii_types should appear in findings."""
-        scanner = TomlPatternsScanner()
-        scanner.configure({"pii_types": ["email"]})
-        findings = scanner.scan("Contact: user@example.com")
-        assert any(f.rule_id == "pii-email" for f in findings)
-
-    def test_scan_without_pii_types_config_includes_all(self):
-        """Without configure(), all PII types should be returned."""
+    def test_scan_does_not_return_pii_findings(self):
+        """Secret scanner must not return PII findings like email."""
         scanner = TomlPatternsScanner()
         findings = scanner.scan("Contact: user@example.com")
-        assert any(f.rule_id == "pii-email" for f in findings)
+        assert not any(f.rule_id.startswith("pii-") for f in findings)
 
-    def test_scan_secrets_not_filtered_by_pii_types(self):
-        """Secret findings must never be filtered by pii_types."""
+    def test_scan_does_not_return_ssn(self):
+        """Secret scanner must not detect SSN (PII scanner's job)."""
         scanner = TomlPatternsScanner()
-        scanner.configure({"pii_types": []})
+        findings = scanner.scan("SSN: 123-45-6789")
+        assert not any(f.rule_id.startswith("pii-") for f in findings)
+
+    def test_scan_does_not_return_credit_card(self):
+        """Secret scanner must not detect credit cards (PII scanner's job)."""
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan("Card: 4111111111111111")
+        assert not any(f.rule_id.startswith("pii-") for f in findings)
+
+    def test_secrets_still_detected(self):
+        """Secret detection must not regress after PII removal."""
+        scanner = TomlPatternsScanner()
         findings = scanner.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
         assert any(f.rule_id == "openai-api-key" for f in findings)
-
-    def test_default_pii_types_exclude_email(self):
-        """Default pii_types from config_loaders excludes email."""
-        from ai_guardian.config_loaders import _PII_DEFAULTS
-        scanner = TomlPatternsScanner()
-        scanner.configure({"pii_types": _PII_DEFAULTS["pii_types"]})
-        findings = scanner.scan("Contact: user@example.com")
-        assert not any(f.rule_id == "pii-email" for f in findings)
 
 
 class TestTomlPatternsFindingCategory:
@@ -107,20 +97,12 @@ class TestTomlPatternsFindingCategory:
         assert len(secret_findings) >= 1
         assert secret_findings[0].category == "secrets"
 
-    def test_pii_finding_has_pii_category(self):
+    def test_no_pii_findings_from_secret_scanner(self):
+        """Secret scanner must not produce PII-category findings (#1178)."""
         scanner = TomlPatternsScanner()
         findings = scanner.scan("SSN: 123-45-6789")
-        pii_findings = [f for f in findings if f.rule_id == "pii-ssn"]
-        assert len(pii_findings) >= 1
-        assert pii_findings[0].category == "pii"
-
-    def test_email_finding_has_pii_category(self):
-        scanner = TomlPatternsScanner()
-        scanner.configure({"pii_types": ["email"]})
-        findings = scanner.scan("Contact: user@example.com")
-        email_findings = [f for f in findings if f.rule_id == "pii-email"]
-        assert len(email_findings) >= 1
-        assert email_findings[0].category == "pii"
+        pii_findings = [f for f in findings if f.category == "pii"]
+        assert len(pii_findings) == 0
 
     def test_finding_category_field_exists(self):
         """Finding dataclass has category attribute."""
@@ -579,9 +561,8 @@ class TestTomlPatternsStopwords:
         scanner.configure({"stopwords": ["example"]})
         assert len(scanner._stopwords) == initial_count
 
-    def test_stopwords_only_filter_secrets_not_pii(self):
-        """Stopwords should NOT filter PII findings."""
+    def test_secret_scanner_does_not_produce_pii(self):
+        """Secret scanner does not produce PII findings (#1178)."""
         scanner = TomlPatternsScanner()
-        scanner.configure({"pii_types": ["email"]})
         findings = scanner.scan("Contact: test@example.com")
-        assert any(f.rule_id == "pii-email" for f in findings)
+        assert not any(f.rule_id.startswith("pii-") for f in findings)
