@@ -65,6 +65,10 @@ class DaemonState:
         self._critical_count = 0
         self._warning_severity_count = 0
 
+        # Ask dialog tracking (#1159)
+        self._ask_dialog_count = 0
+        self._ask_dialog_total_ms = 0.0
+
         # Last block tracking
         self._last_block_type = None
         self._last_block_time = None  # monotonic timestamp
@@ -492,6 +496,12 @@ class DaemonState:
         with self._lock:
             self._log_only_count += 1
 
+    def record_ask_dialog(self, wait_ms):
+        """Record an ask dialog interaction with its wait time in milliseconds."""
+        with self._lock:
+            self._ask_dialog_count += 1
+            self._ask_dialog_total_ms += wait_ms
+
     def is_idle_timeout_expired(self):
         """Check if daemon has been idle longer than the timeout.
 
@@ -682,6 +692,8 @@ class DaemonState:
                 "active_project_dirs": list(self._project_dir_last_seen.keys()),
                 "ml_model_loaded": self._ml_engine_manager is not None,
                 "ml_load_error": self._ml_load_error,
+                "ask_dialog_count": self._ask_dialog_count,
+                "ask_dialog_total_ms": round(self._ask_dialog_total_ms, 1),
             }
 
     @staticmethod

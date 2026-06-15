@@ -73,6 +73,49 @@ class TestCheckTimer:
         assert timer.to_dict()["fail"] >= 0.0
 
 
+class TestCheckTimerAskWait:
+    """Tests for ask dialog wait time tracking in _CheckTimer (#1159)."""
+
+    def test_add_ask_wait_accumulates(self):
+        timer = _CheckTimer(enabled=True)
+        timer.add_ask_wait(100.0)
+        timer.add_ask_wait(200.0)
+        assert timer.ask_wait_total_ms == 300.0
+
+    def test_processing_ms_excludes_ask_wait(self):
+        timer = _CheckTimer(enabled=True)
+        time.sleep(0.05)
+        total_before = timer.total_ms()
+        timer.add_ask_wait(total_before * 0.5)
+        processing = timer.processing_ms()
+        total = timer.total_ms()
+        assert total > 0
+        assert processing < total
+        assert processing == pytest.approx(total - total_before * 0.5, abs=5.0)
+
+    def test_processing_ms_clamped_to_zero(self):
+        """When ask_wait exceeds total (e.g. injected large value), clamp to 0."""
+        timer = _CheckTimer(enabled=True)
+        timer.add_ask_wait(999999.0)
+        assert timer.processing_ms() == 0.0
+
+    def test_ask_wait_zero_by_default(self):
+        timer = _CheckTimer(enabled=True)
+        assert timer.ask_wait_total_ms == 0.0
+        assert timer.processing_ms() == pytest.approx(timer.total_ms(), abs=1.0)
+
+    def test_disabled_timer_ignores_ask_wait(self):
+        timer = _CheckTimer(enabled=False)
+        timer.add_ask_wait(100.0)
+        assert timer.ask_wait_total_ms == 0.0
+        assert timer.processing_ms() == 0.0
+
+    def test_negative_ask_wait_ignored(self):
+        timer = _CheckTimer(enabled=True)
+        timer.add_ask_wait(-50.0)
+        assert timer.ask_wait_total_ms == 0.0
+
+
 class TestLatencyLogger:
     def test_log_timing_creates_file(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
@@ -236,6 +279,52 @@ class TestLatencyComputer:
             assert "secret_scanning" in check_names
             assert "prompt_injection" not in check_names
 
+    def test_uses_processing_ms_over_total_ms(self):
+        """Hook stats should use processing_ms (excludes ask wait) when available."""
+        entries = [
+            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse",
+             "total_ms": 45050.0, "processing_ms": 50.0, "ask_dialog_ms": 45000.0,
+             "checks": {"secret_scanning": 30.0}},
+        ]
+        with patch.object(LatencyLogger, "read_entries", return_value=entries):
+            computer = LatencyComputer(since_days=1)
+            report = computer.compute()
+            hook_stat = report.hook_stats[0]
+            assert hook_stat["avg"] == 50.0
+            assert report.ask_dialog_count == 1
+            assert report.ask_dialog_stats["avg"] == 45000.0
+
+    def test_backward_compat_no_processing_ms(self):
+        """Old entries without processing_ms fall back to total_ms."""
+        entries = [
+            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse",
+             "total_ms": 25.0, "checks": {}},
+        ]
+        with patch.object(LatencyLogger, "read_entries", return_value=entries):
+            computer = LatencyComputer(since_days=1)
+            report = computer.compute()
+            assert report.hook_stats[0]["avg"] == 25.0
+            assert report.ask_dialog_count == 0
+            assert report.ask_dialog_stats is None
+
+    def test_ask_dialog_stats_aggregation(self):
+        """Multiple ask dialog entries should produce valid aggregate stats."""
+        entries = [
+            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse",
+             "total_ms": 3050.0, "processing_ms": 50.0, "ask_dialog_ms": 3000.0, "checks": {}},
+            {"timestamp": "2026-06-10T12:00:01Z", "hook_event": "PreToolUse",
+             "total_ms": 5040.0, "processing_ms": 40.0, "ask_dialog_ms": 5000.0, "checks": {}},
+            {"timestamp": "2026-06-10T12:00:02Z", "hook_event": "PreToolUse",
+             "total_ms": 30.0, "processing_ms": 30.0, "checks": {}},
+        ]
+        with patch.object(LatencyLogger, "read_entries", return_value=entries):
+            computer = LatencyComputer(since_days=1)
+            report = computer.compute()
+            assert report.ask_dialog_count == 2
+            assert report.ask_dialog_stats["avg"] == 4000.0
+            assert report.ask_dialog_stats["min"] == 3000.0
+            assert report.ask_dialog_stats["max"] == 5000.0
+
 
 class TestFormatLatencyHuman:
     def test_empty_report(self):
@@ -253,10 +342,34 @@ class TestFormatLatencyHuman:
             invocation_count=100,
         )
         output = format_latency_human(report)
-        assert "Hook Latency Overview" in output
+        assert "Hook Processing Time" in output
         assert "PreToolUse" in output
         assert "secret_scanning" in output
         assert "100" in output
+
+    def test_with_ask_dialog_data(self):
+        report = LatencyReport(
+            hook_stats=[{"hook_event": "PreToolUse", "avg": 50.0, "stddev": 5.0,
+                         "p95": 60.0, "min": 40.0, "max": 70.0, "count": 10}],
+            check_stats=[],
+            invocation_count=10,
+            ask_dialog_count=3,
+            ask_dialog_stats={"avg": 5000.0, "stddev": 1000.0, "p95": 6500.0,
+                              "min": 3000.0, "max": 7000.0, "count": 3},
+        )
+        output = format_latency_human(report)
+        assert "Ask Dialog Wait Time" in output
+        assert "excluded from processing stats" in output
+        assert "Dialogs: 3" in output
+
+    def test_no_ask_dialog_section_when_zero(self):
+        report = LatencyReport(
+            hook_stats=[{"hook_event": "PreToolUse", "avg": 50.0, "stddev": 5.0,
+                         "p95": 60.0, "min": 40.0, "max": 70.0, "count": 10}],
+            invocation_count=10,
+        )
+        output = format_latency_human(report)
+        assert "Ask Dialog" not in output
 
 
 class TestFormatLatencyJson:

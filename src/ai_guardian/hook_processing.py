@@ -50,6 +50,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
@@ -178,13 +179,17 @@ def _finalize_latency(timer, hook_event, tool_name):
         return
     try:
         from ai_guardian.latency_logger import LatencyLogger
-        LatencyLogger().log_timing({
+        entry = {
             "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             "hook_event": hook_event.value if hasattr(hook_event, 'value') else str(hook_event or ""),
             "tool": tool_name or "",
             "total_ms": round(timer.total_ms(), 2),
+            "processing_ms": round(timer.processing_ms(), 2),
             "checks": {k: round(v, 2) for k, v in timer.to_dict().items()},
-        })
+        }
+        if timer.ask_wait_total_ms > 0:
+            entry["ask_dialog_ms"] = round(timer.ask_wait_total_ms, 2)
+        LatencyLogger().log_timing(entry)
     except Exception:
         pass
 
@@ -1928,7 +1933,8 @@ def _build_permission_matched_text(tool_name, tool_input, tool_identifier):
 
 
 def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
-                     file_path=None, line_number=None, matched_pattern=""):
+                     file_path=None, line_number=None, matched_pattern="",
+                     latency_timer=None):
     """Handle 'ask' action mode by showing an interactive dialog.
 
     Returns an AskResult if action is 'ask', or None if action is not 'ask'.
@@ -1996,7 +2002,12 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
             line_number=display_line,
         )
 
+        _dialog_t0 = time.perf_counter()
         result = show_ask_dialog(violation_info, fallback_action=fallback_action)
+        _dialog_elapsed_ms = (time.perf_counter() - _dialog_t0) * 1000
+        result.dialog_wait_ms = _dialog_elapsed_ms
+        if latency_timer is not None:
+            latency_timer.add_ask_wait(_dialog_elapsed_ms)
 
         if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
             if not getattr(result, 'config_saved', False):
@@ -2037,7 +2048,8 @@ def _format_ask_info_message(violation_type, decision, detail=""):
     return msg
 
 
-def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", file_path=None):
+def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", file_path=None,
+                      dialog_wait_ms=0.0):
     """Log an ask-mode allow decision to violations.jsonl."""
     if not HAS_VIOLATION_LOGGER:
         return
@@ -2051,10 +2063,13 @@ def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", f
         if file_path:
             blocked_info["file_path"] = file_path
         decision_str = "allow_always" if decision == AskDecision.ALLOW_ALWAYS else "allow_once"
+        ctx = {"ask_decision": decision_str, "action_taken": "allowed"}
+        if dialog_wait_ms > 0:
+            ctx["dialog_wait_ms"] = round(dialog_wait_ms, 1)
         vlogger.log_violation(
             violation_type=violation_type,
             blocked=blocked_info,
-            context={"ask_decision": decision_str, "action_taken": "allowed"},
+            context=ctx,
             severity="info",
         )
     except Exception as e:
@@ -3856,6 +3871,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path if 'file_path' in dir() else None,
+                    latency_timer=_latency_timer,
                 )
                 logging.debug(f"[ASK-DEBUG] ask_result={ask_result}")
                 if ask_result is not None:
@@ -3866,7 +3882,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result.decision,
                                           matched_text=_last_secret_matched_text or "",
                                           error_msg=error_message or "",
-                                          file_path=file_path if 'file_path' in dir() else None)
+                                          file_path=file_path if 'file_path' in dir() else None,
+                                          dialog_wait_ms=ask_result.dialog_wait_ms)
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=info_msg)
 
@@ -4060,6 +4077,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_text=pii_warning or "",
                             config_section="scan_pii",
                             error_msg=pii_warning,
+                            latency_timer=_latency_timer,
                         )
                         if pii_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4068,7 +4086,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 pii_info_msg = _format_ask_info_message(ViolationType.PII_DETECTED, pii_ask_result.decision)
                                 warning_messages.append(pii_info_msg)
                                 _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
-                                                  matched_text=pii_warning or "", error_msg=pii_warning or "")
+                                                  matched_text=pii_warning or "", error_msg=pii_warning or "",
+                                                  dialog_wait_ms=pii_ask_result.dialog_wait_ms)
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -4168,6 +4187,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 config_section="permissions",
                                 error_msg=error_message,
                                 matched_pattern=getattr(policy_checker, 'last_deny_matched_pattern', '') or '',
+                                latency_timer=_latency_timer,
                             )
                             if perm_ask_result is not None:
                                 from ai_guardian.tui.ask_dialog import AskDecision
@@ -4179,7 +4199,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                     )
                                     _log_ask_decision(ViolationType.TOOL_PERMISSION, perm_ask_result.decision,
                                                       matched_text=perm_matched_text or "",
-                                                      error_msg=error_message or "")
+                                                      error_msg=error_message or "",
+                                                      dialog_wait_ms=perm_ask_result.dialog_wait_ms)
 
                         if not perm_ask_allowed:
                             # Extract reason summary for logging
@@ -4310,6 +4331,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         config_section="directory_rules",
                         error_msg=deny_reason,
                         file_path=file_path,
+                        latency_timer=_latency_timer,
                     )
                     if dir_ask_result is not None:
                         from ai_guardian.tui.ask_dialog import AskDecision
@@ -4321,7 +4343,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             )
                             _log_ask_decision(ViolationType.DIRECTORY_BLOCKING, dir_ask_result.decision,
                                               matched_text=file_path or "", error_msg=deny_reason or "",
-                                              file_path=file_path)
+                                              file_path=file_path,
+                                              dialog_wait_ms=dir_ask_result.dialog_wait_ms)
 
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
@@ -4600,6 +4623,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=file_path,
                             line_number=detector.last_line_number,
                             matched_pattern=detector.last_matched_pattern or "",
+                            latency_timer=_latency_timer,
                         )
                         if pi_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4611,7 +4635,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 _log_ask_decision(ViolationType.PROMPT_INJECTION, pi_ask_result.decision,
                                                   matched_text=detector.last_matched_text or "",
                                                   error_msg=injection_error,
-                                                  file_path=file_path)
+                                                  file_path=file_path,
+                                                  dialog_wait_ms=pi_ask_result.dialog_wait_ms)
 
                     if should_block:
                         # Prompt injection detected - block operation
@@ -4688,6 +4713,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=file_path if 'file_path' in dir() else None,
                             line_number=cp_detector.last_line_number,
                             matched_pattern=cp_detector.last_matched_pattern or "",
+                            latency_timer=_latency_timer,
                         )
                         if cp_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4699,7 +4725,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 _log_ask_decision(ViolationType.CONTEXT_POISONING, cp_ask_result.decision,
                                                   matched_text=cp_detector.last_matched_text or "",
                                                   error_msg=cp_error_msg,
-                                                  file_path=file_path if 'file_path' in dir() else None)
+                                                  file_path=file_path if 'file_path' in dir() else None,
+                                                  dialog_wait_ms=cp_ask_result.dialog_wait_ms)
 
                     if cp_should_block:
                         logging.info("Blocking operation due to context poisoning detection")
@@ -4764,6 +4791,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=sc_file_path,
                             line_number=sc_scanner.last_line_number,
                             matched_pattern=sc_scanner.last_matched_pattern or "",
+                            latency_timer=_latency_timer,
                         )
                         if sc_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4776,7 +4804,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 _log_ask_decision(ViolationType.SUPPLY_CHAIN, sc_ask_result.decision,
                                                   matched_text=sc_scanner.last_matched_text or "",
                                                   error_msg=sc_error_msg or "",
-                                                  file_path=sc_file_path)
+                                                  file_path=sc_file_path,
+                                                  dialog_wait_ms=sc_ask_result.dialog_wait_ms)
 
                     if sc_should_block:
                         logging.info("Blocking operation due to supply chain threat detection")
@@ -4824,6 +4853,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             error_msg=config_error or "",
                             file_path=file_path,
                             matched_pattern=cfs_matched_pattern,
+                            latency_timer=_latency_timer,
                         )
                         if cfs_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4836,7 +4866,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 _log_ask_decision(ViolationType.CONFIG_FILE_EXFIL, cfs_ask_result.decision,
                                                   matched_text=file_path or "",
                                                   error_msg=config_error or "",
-                                                  file_path=file_path)
+                                                  file_path=file_path,
+                                                  dialog_wait_ms=cfs_ask_result.dialog_wait_ms)
 
                     if should_block:
                         # Config file threat detected - block operation
@@ -4946,6 +4977,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path,
+                    latency_timer=_latency_timer,
                 )
                 if ask_result_pre is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
@@ -4956,7 +4988,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result_pre.decision,
                                           matched_text=_last_secret_matched_text or "",
                                           error_msg=error_message or "",
-                                          file_path=file_path)
+                                          file_path=file_path,
+                                          dialog_wait_ms=ask_result_pre.dialog_wait_ms)
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
@@ -5019,6 +5052,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_text=pii_warning or "",
                             config_section="scan_pii",
                             error_msg=pii_warning,
+                            latency_timer=_latency_timer,
                         )
                         if pii_ask_result2 is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -5218,6 +5252,12 @@ def process_hook_data(hook_data, daemon_state=None):
         return {"output": None, "exit_code": 0}
     finally:
         _finalize_latency(_latency_timer, _latency_event, _latency_tool)
+        if (_latency_timer is not None and _latency_timer.ask_wait_total_ms > 0
+                and daemon_state is not None):
+            try:
+                daemon_state.record_ask_dialog(_latency_timer.ask_wait_total_ms)
+            except Exception:
+                pass
 
 
 def process_hook_input():

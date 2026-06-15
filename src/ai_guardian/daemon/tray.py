@@ -1657,9 +1657,9 @@ class DaemonTray:
 
     def _multi_global_pause_label(self, stats_fns, _item):
         """Format global pause label with status circle for multi-daemon."""
-        is_paused = stats_fns[9](_item)
+        is_paused = stats_fns[11](_item)
         if is_paused:
-            stats = stats_fns[11](_item)
+            stats = stats_fns[13](_item)
             remaining = stats.get("pause_remaining_seconds", 0)
             if remaining > 0:
                 mins = int(remaining // 60)
@@ -2119,6 +2119,18 @@ class DaemonTray:
                 return "Last block: none"
             return f"Last block: {bt} {self._format_time_ago(ba)}"
 
+        def _s_ask_dialogs(_item):
+            s = _get_stats(_item)
+            count = s.get('ask_dialog_count', 0)
+            total_ms = s.get('ask_dialog_total_ms', 0)
+            if total_ms >= 1000:
+                return f"Ask dialogs: {count:,} (wait: {total_ms / 1000:.1f}s)"
+            return f"Ask dialogs: {count:,} (wait: {total_ms:.0f}ms)"
+
+        def _s_ask_dialogs_visible(_item):
+            s = _get_stats(_item)
+            return s.get('ask_dialog_count', 0) > 0
+
         def _s_config_reload(_item):
             s = _get_stats(_item)
             ago = s.get('last_config_reload_seconds_ago')
@@ -2159,6 +2171,9 @@ class DaemonTray:
                     pystray.MenuItem(_s_warning_sev, None),
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem(_s_last_block, None),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem(_s_ask_dialogs, None,
+                                     visible=_s_ask_dialogs_visible),
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem(_s_config_reload, None),
                 ),
@@ -2490,6 +2505,20 @@ class DaemonTray:
                         return "Last block: none"
                     return f"Last block: {bt} {self._format_time_ago(ba)}"
 
+                def ask_dialogs(_item):
+                    s = _get(_item)
+                    count = s.get('ask_dialog_count', 0)
+                    total_ms = s.get('ask_dialog_total_ms', 0)
+                    if total_ms >= 1000:
+                        return f"Ask dialogs: {count:,} (wait: {total_ms / 1000:.1f}s)"
+                    return f"Ask dialogs: {count:,} (wait: {total_ms:.0f}ms)"
+
+                def ask_dialogs_visible(_item):
+                    try:
+                        return int(_get(_item).get('ask_dialog_count', 0)) > 0
+                    except (TypeError, ValueError):
+                        return False
+
                 def config_reload(_item):
                     s = _get(_item)
                     ago = s.get('last_config_reload_seconds_ago')
@@ -2511,7 +2540,8 @@ class DaemonTray:
 
                 return (requests, blocked, warned, logged,
                         violations, critical, warning_sev,
-                        last_block, config_reload,
+                        last_block, ask_dialogs, ask_dialogs_visible,
+                        config_reload,
                         is_paused, resume_label, _get)
 
             stats_fns = _mk_stats()
@@ -2553,7 +2583,10 @@ class DaemonTray:
                                 pystray.Menu.SEPARATOR,
                                 pystray.MenuItem(stats_fns[7], None),
                                 pystray.Menu.SEPARATOR,
-                                pystray.MenuItem(stats_fns[8], None),
+                                pystray.MenuItem(stats_fns[8], None,
+                                                 visible=stats_fns[9]),
+                                pystray.Menu.SEPARATOR,
+                                pystray.MenuItem(stats_fns[10], None),
                             ),
                             enabled=_is_slot_running,
                         ),
@@ -2603,44 +2636,44 @@ class DaemonTray:
                                         pystray.MenuItem(
                                             "5 minutes", _mk_pause(5),
                                             visible=lambda _i, _sf=stats_fns: (
-                                                not _sf[9](_i)
+                                                not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
                                             "15 minutes", _mk_pause(15),
                                             visible=lambda _i, _sf=stats_fns: (
-                                                not _sf[9](_i)
+                                                not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
                                             "30 minutes", _mk_pause(30),
                                             visible=lambda _i, _sf=stats_fns: (
-                                                not _sf[9](_i)
+                                                not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
                                             "1 hour", _mk_pause(60),
                                             visible=lambda _i, _sf=stats_fns: (
-                                                not _sf[9](_i)
+                                                not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
                                             "Until resume", _mk_pause(0),
                                             visible=lambda _i, _sf=stats_fns: (
-                                                not _sf[9](_i)
+                                                not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
                                             "Resume", _mk_resume(),
                                             visible=lambda _i, _sf=stats_fns: (
-                                                _sf[9](_i)
+                                                _sf[11](_i)
                                             ),
                                         ),
                                     ),
                                 ),
                                 pystray.Menu.SEPARATOR,
                                 *self._build_dir_pause_items(
-                                    stats_fns[11],
+                                    stats_fns[13],
                                     self._mk_multi_pause_dir(idx),
                                     self._mk_multi_resume_dir(idx),
                                 ),

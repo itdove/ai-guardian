@@ -26,6 +26,7 @@ from ai_guardian.daemon.protocol import (
 )
 from ai_guardian.daemon import get_pid_path, get_socket_path
 from ai_guardian.daemon.server import DaemonServer
+from ai_guardian.daemon.state import DaemonState
 
 
 @pytest.fixture
@@ -717,6 +718,30 @@ class TestDaemonServerPerDirPauseProtocol:
             assert len(stats["paused_dirs"]) == 1
         finally:
             sock.close()
+
+
+class TestDaemonStateAskDialog:
+    """Tests for DaemonState ask dialog tracking (#1159)."""
+
+    def test_record_ask_dialog_increments_count(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        state.record_ask_dialog(3000.0)
+        state.record_ask_dialog(5000.0)
+        stats = state.get_stats()
+        assert stats["ask_dialog_count"] == 2
+        assert stats["ask_dialog_total_ms"] == 8000.0
+
+    def test_ask_dialog_stats_zero_by_default(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        stats = state.get_stats()
+        assert stats["ask_dialog_count"] == 0
+        assert stats["ask_dialog_total_ms"] == 0.0
+
+    def test_ask_dialog_total_ms_rounded(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        state.record_ask_dialog(1234.5678)
+        stats = state.get_stats()
+        assert stats["ask_dialog_total_ms"] == 1234.6
 
 
 class TestDaemonServerIdleTimeout:

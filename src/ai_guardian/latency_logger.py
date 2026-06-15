@@ -24,12 +24,13 @@ class _CheckTimer:
     When enabled=False, check() is a no-op pass-through with zero overhead.
     """
 
-    __slots__ = ("_timings", "_start_total", "_enabled")
+    __slots__ = ("_timings", "_start_total", "_enabled", "_ask_wait_ms")
 
     def __init__(self, enabled: bool = True):
         self._enabled = enabled
         self._timings: Dict[str, float] = {}
         self._start_total = time.perf_counter() if enabled else 0.0
+        self._ask_wait_ms = 0.0
 
     @contextmanager
     def check(self, name: str):
@@ -43,10 +44,21 @@ class _CheckTimer:
             elapsed_ms = (time.perf_counter() - t0) * 1000
             self._timings[name] = self._timings.get(name, 0.0) + elapsed_ms
 
+    def add_ask_wait(self, ms: float) -> None:
+        if self._enabled and ms > 0:
+            self._ask_wait_ms += ms
+
     def total_ms(self) -> float:
         if not self._enabled:
             return 0.0
         return (time.perf_counter() - self._start_total) * 1000
+
+    def processing_ms(self) -> float:
+        return max(0.0, self.total_ms() - self._ask_wait_ms)
+
+    @property
+    def ask_wait_total_ms(self) -> float:
+        return self._ask_wait_ms
 
     def to_dict(self) -> Dict[str, float]:
         return dict(self._timings)
@@ -228,6 +240,8 @@ class LatencyReport:
     invocation_count: int = 0
     time_range_start: str = ""
     time_range_end: str = ""
+    ask_dialog_count: int = 0
+    ask_dialog_stats: Optional[Dict] = None
 
 
 def _compute_stats(values: List[float]) -> Dict:
@@ -275,16 +289,21 @@ class LatencyComputer:
         hook_totals: Dict[str, List[float]] = {}
         check_totals: Dict[str, List[float]] = {}
         check_hooks: Dict[str, set] = {}
+        ask_dialog_values: List[float] = []
 
         for entry in entries:
             hook_event = entry.get("hook_event", "unknown")
-            total_ms = entry.get("total_ms", 0.0)
-            hook_totals.setdefault(hook_event, []).append(total_ms)
+            processing_ms = entry.get("processing_ms", entry.get("total_ms", 0.0))
+            hook_totals.setdefault(hook_event, []).append(processing_ms)
 
             for check_name, ms in (entry.get("checks") or {}).items():
                 if ms > 0:
                     check_totals.setdefault(check_name, []).append(ms)
                     check_hooks.setdefault(check_name, set()).add(hook_event)
+
+            ask_ms = entry.get("ask_dialog_ms", 0.0)
+            if ask_ms > 0:
+                ask_dialog_values.append(ask_ms)
 
         hook_stats = []
         for hook_event in sorted(hook_totals.keys()):
@@ -302,12 +321,16 @@ class LatencyComputer:
 
         check_stats.sort(key=lambda s: s["avg"], reverse=True)
 
+        ask_stats = _compute_stats(ask_dialog_values) if ask_dialog_values else None
+
         return LatencyReport(
             hook_stats=hook_stats,
             check_stats=check_stats,
             invocation_count=len(entries),
             time_range_start=self._cutoff.isoformat(),
             time_range_end=datetime.now(timezone.utc).isoformat(),
+            ask_dialog_count=len(ask_dialog_values),
+            ask_dialog_stats=ask_stats,
         )
 
 
@@ -326,7 +349,7 @@ def format_latency_human(report: LatencyReport) -> str:
     lines.append(f"  Invocations: {report.invocation_count:,}")
     lines.append("")
 
-    lines.append("Hook Latency Overview")
+    lines.append("Hook Processing Time (excludes ask dialog wait)")
     lines.append("-" * 78)
     lines.append(
         f"  {'Hook Event':<22s} {'Avg(ms)':>8s} {'StdDev':>8s} "
@@ -353,6 +376,17 @@ def format_latency_human(report: LatencyReport) -> str:
                 f"{s['count']:>7,} {s.get('hooks', '')}"
             )
 
+    if report.ask_dialog_count > 0 and report.ask_dialog_stats:
+        lines.append("")
+        lines.append("Ask Dialog Wait Time (excluded from processing stats)")
+        lines.append("-" * 78)
+        s = report.ask_dialog_stats
+        lines.append(
+            f"  Dialogs: {report.ask_dialog_count:,}  "
+            f"Avg: {s['avg']:.0f}ms  P95: {s['p95']:.0f}ms  "
+            f"Min: {s['min']:.0f}ms  Max: {s['max']:.0f}ms"
+        )
+
     return "\n".join(lines)
 
 
@@ -365,5 +399,7 @@ def format_latency_json(report: LatencyReport) -> str:
         "invocation_count": report.invocation_count,
         "hook_stats": report.hook_stats,
         "check_stats": report.check_stats,
+        "ask_dialog_count": report.ask_dialog_count,
+        "ask_dialog_stats": report.ask_dialog_stats,
     }
     return json.dumps(data, indent=2)

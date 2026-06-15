@@ -424,6 +424,45 @@ class TestHandleAskMode:
         mock_write.assert_called_once_with("secret_scanning", r"FAKE\w+")
 
 
+class TestAskDialogTiming:
+    """Tests for ask dialog wait time tracking (#1159)."""
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_dialog_wait_ms_recorded_in_result(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
+        result = _handle_ask_mode(
+            "ask", "secret_detected", "test", "secret_scanning", "error"
+        )
+        assert result.dialog_wait_ms >= 0.0
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_latency_timer_receives_ask_wait(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        from ai_guardian.latency_logger import _CheckTimer
+        mock_dialog.return_value = AskResult(decision=AskDecision.BLOCK)
+        timer = _CheckTimer(enabled=True)
+        result = _handle_ask_mode(
+            "ask", "secret_detected", "test", "secret_scanning", "error",
+            latency_timer=timer,
+        )
+        assert timer.ask_wait_total_ms > 0
+        assert timer.ask_wait_total_ms == pytest.approx(result.dialog_wait_ms, abs=0.1)
+
+    def test_non_ask_action_returns_none_no_timing(self):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.latency_logger import _CheckTimer
+        timer = _CheckTimer(enabled=True)
+        result = _handle_ask_mode(
+            "block", "secret_detected", "test", "secret_scanning", "error",
+            latency_timer=timer,
+        )
+        assert result is None
+        assert timer.ask_wait_total_ms == 0.0
+
+
 class TestSSRFAskAction:
     """Tests for ask action mode with SSRF protection (Issue #1129)."""
 
