@@ -1043,7 +1043,7 @@ def _save_seen_findings(seen: Dict[str, Dict[str, str]]) -> None:
 
 
 def _finding_fingerprint(finding_type: str, detail: str) -> str:
-    # ai-guardian:allow-begin
+    # ai-guardian:begin-allow
     """Compute a short hash fingerprint for a transcript finding.
 
     Args:
@@ -1053,7 +1053,7 @@ def _finding_fingerprint(finding_type: str, detail: str) -> str:
     Returns:
         First 16 hex chars of SHA-256 digest.
     """
-    # ai-guardian:allow-end
+    # ai-guardian:end-allow
     return hashlib.sha256(f"{finding_type}:{detail}".encode()).hexdigest()[:16]
 
 
