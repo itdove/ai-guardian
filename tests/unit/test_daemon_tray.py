@@ -4292,9 +4292,9 @@ class TestMultiGlobalPauseLabel:
             stop_callback=lambda: None,
             pause_callback=lambda _: None,
         )
-        stats_fns = [None] * 12
-        stats_fns[9] = lambda _: False
-        stats_fns[11] = lambda _: {}
+        stats_fns = [None] * 14
+        stats_fns[11] = lambda _: False
+        stats_fns[13] = lambda _: {}
         label = tray._multi_global_pause_label(stats_fns, None)
         assert label == "● Daemon (global)"
 
@@ -4304,9 +4304,9 @@ class TestMultiGlobalPauseLabel:
             stop_callback=lambda: None,
             pause_callback=lambda _: None,
         )
-        stats_fns = [None] * 12
-        stats_fns[9] = lambda _: True
-        stats_fns[11] = lambda _: {"pause_remaining_seconds": 0}
+        stats_fns = [None] * 14
+        stats_fns[11] = lambda _: True
+        stats_fns[13] = lambda _: {"pause_remaining_seconds": 0}
         label = tray._multi_global_pause_label(stats_fns, None)
         assert label == "☾ Daemon (global)"
 
@@ -4316,9 +4316,9 @@ class TestMultiGlobalPauseLabel:
             stop_callback=lambda: None,
             pause_callback=lambda _: None,
         )
-        stats_fns = [None] * 12
-        stats_fns[9] = lambda _: True
-        stats_fns[11] = lambda _: {"pause_remaining_seconds": 305}
+        stats_fns = [None] * 14
+        stats_fns[11] = lambda _: True
+        stats_fns[13] = lambda _: {"pause_remaining_seconds": 305}
         label = tray._multi_global_pause_label(stats_fns, None)
         assert "☾ Daemon (global)" in label
         assert "5m" in label

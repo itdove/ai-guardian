@@ -56,6 +56,7 @@ class AskResult:
     decision: AskDecision
     allowlist_pattern: Optional[str] = None
     config_saved: bool = False
+    dialog_wait_ms: float = 0.0
 
 
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
