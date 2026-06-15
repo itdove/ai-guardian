@@ -634,6 +634,9 @@ class ToolPolicyChecker:
             config: Optional configuration dict. If None, loads from disk.
         """
         self.config = config or self._load_config()
+        self.last_deny_action = None
+        self.last_deny_matched_pattern = None
+        self.last_deny_check_value = None
 
     def _should_skip_immutable_protection(self, file_path: str, tool_name: str) -> bool:
         """
@@ -1104,6 +1107,9 @@ class ToolPolicyChecker:
                     logger.warning(f"Policy violation (log-only mode): {tool_name} - {matched_pattern} - execution allowed (silent)")
                     return True, None, tool_name
                 else:
+                    self.last_deny_action = final_action
+                    self.last_deny_matched_pattern = matched_pattern
+                    self.last_deny_check_value = check_value if check_value else tool_name
                     logger.error(f"Tool '{tool_name}' blocked by deny rule: {matched_pattern}")
                     error_msg = self._format_deny_message(
                         tool_name,
@@ -1115,6 +1121,9 @@ class ToolPolicyChecker:
 
             # No rule matched any pattern — check tool type
             if self._is_restricted_tool(tool_name):
+                self.last_deny_action = "block"
+                self.last_deny_matched_pattern = None
+                self.last_deny_check_value = check_value if check_value else tool_name
                 logger.warning(f"Tool '{tool_name}' has no matching pattern in rules — blocked")
                 error_msg = self._format_deny_message(
                     tool_name,

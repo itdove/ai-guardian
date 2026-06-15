@@ -122,6 +122,15 @@ class AddPermissionModal(ModalScreen):
                 )
 
             with Container(classes="modal-field"):
+                yield Label("Action (deny only):")
+                yield Select(
+                    [("block", "block"), ("warn", "warn"), ("log-only", "log-only"),
+                     ("ask", "ask"), ("ask:warn", "ask:warn"), ("ask:log-only", "ask:log-only")],
+                    value=self.rule.get("action", "block"),
+                    id="select-action"
+                )
+
+            with Container(classes="modal-field"):
                 yield Label("Patterns (comma-separated):")
                 patterns = self.rule.get("patterns", [])
                 patterns_str = ", ".join(patterns) if patterns else ""
@@ -141,6 +150,7 @@ class AddPermissionModal(ModalScreen):
             # Get values
             matcher = self.query_one("#input-matcher", Input).value.strip()
             mode = self.query_one("#select-mode", Select).value
+            action = self.query_one("#select-action", Select).value
             patterns_str = self.query_one("#input-patterns", Input).value.strip()
 
             # Validate
@@ -161,6 +171,8 @@ class AddPermissionModal(ModalScreen):
                 "mode": mode,
                 "patterns": patterns
             }
+            if mode == "deny" and action and action != "block":
+                rule["action"] = action
 
             self.dismiss(rule)
 

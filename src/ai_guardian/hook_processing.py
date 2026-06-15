@@ -1905,6 +1905,28 @@ def _get_directory_action_from_config():
     return ActionMode.BLOCK
 
 
+def _build_permission_matched_text(tool_name, tool_input, tool_identifier):
+    """Build a display string for a permission violation's matched text.
+
+    Returns "matcher:value" format for the pattern editor pre-fill.
+    """
+    if not tool_input:
+        return tool_identifier or tool_name or ""
+    if tool_name == "Skill":
+        skill_name = tool_input.get("skill", "")
+        if skill_name:
+            return f"Skill:{skill_name}"
+    elif tool_name == "Bash":
+        command = tool_input.get("command", "")
+        if command:
+            return f"Bash:{command[:200]}"
+    elif tool_name in ("Read", "Write", "Edit"):
+        fp = tool_input.get("file_path") or tool_input.get("path", "")
+        if fp:
+            return f"{tool_name}:{fp}"
+    return tool_identifier or tool_name or ""
+
+
 def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
                      file_path=None, line_number=None, matched_pattern=""):
     """Handle 'ask' action mode by showing an interactive dialog.
@@ -1919,7 +1941,6 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
 
     try:
         from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision
-        from ai_guardian.config_writer import add_allowlist_pattern
 
         display_text = matched_text or ""
         display_line = line_number
@@ -1979,20 +2000,8 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
 
         if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
             if not getattr(result, 'config_saved', False):
-                if config_section == "ssrf_protection":
-                    from ai_guardian.config_writer import add_allowed_domain
-                    add_allowed_domain(result.allowlist_pattern)
-                elif config_section == "directory_rules":
-                    from ai_guardian.config_writer import add_directory_exclusion
-                    add_directory_exclusion(result.allowlist_pattern)
-                elif config_section == "supply_chain":
-                    from ai_guardian.config_writer import add_supply_chain_path
-                    add_supply_chain_path(result.allowlist_pattern)
-                elif config_section == "config_file_scanning":
-                    from ai_guardian.config_writer import add_config_ignore_file
-                    add_config_ignore_file(result.allowlist_pattern)
-                else:
-                    add_allowlist_pattern(config_section, result.allowlist_pattern)
+                from ai_guardian.config_writer import save_ask_pattern
+                save_ask_pattern(config_section, result.allowlist_pattern)
 
         return result
 
@@ -4088,33 +4097,53 @@ def process_hook_data(hook_data, daemon_state=None):
                         is_allowed, error_message, checked_tool_name = policy_checker.check_tool_allowed(hook_data)
 
                     if not is_allowed:
-                        # Extract reason summary for logging
-                        reason_summary = _extract_block_reason(error_message) if error_message else "policy violation"
+                        deny_action = getattr(policy_checker, 'last_deny_action', 'block') or 'block'
+                        perm_ask_allowed = False
 
-                        # Extract tool-specific parameters for better logging
-                        tool_details = ""
-                        if tool_input:
-                            if checked_tool_name == "Skill" or (tool_name == "Skill" and checked_tool_name.startswith("Skill:")):
-                                # For Skill tool: show skill name and args
-                                skill_name = tool_input.get("skill", "unknown")
-                                skill_args = tool_input.get("args", "")
-                                args_preview = skill_args[:50] + "..." if len(skill_args) > 50 else skill_args
-                                tool_details = f" (skill='{skill_name}', args='{args_preview}')"
-                            elif tool_name == "Bash":
-                                # For Bash tool: show command preview
-                                command = tool_input.get("command", "")
-                                cmd_preview = command[:100] + "..." if len(command) > 100 else command
-                                tool_details = f" (command='{cmd_preview}')"
-                            elif tool_name in ["Read", "Write", "Edit"]:
-                                # For file tools: show full file path
-                                file_path = tool_input.get("file_path") or tool_input.get("path", "")
-                                if file_path:
-                                    tool_details = f" (file_path='{file_path}')"
+                        if isinstance(deny_action, str) and deny_action.startswith('ask'):
+                            perm_matched_text = _build_permission_matched_text(
+                                tool_name, tool_input, tool_identifier
+                            )
+                            perm_ask_result = _handle_ask_mode(
+                                deny_action, ViolationType.TOOL_PERMISSION,
+                                matched_text=perm_matched_text,
+                                config_section="permissions",
+                                error_msg=error_message,
+                                matched_pattern=getattr(policy_checker, 'last_deny_matched_pattern', '') or '',
+                            )
+                            if perm_ask_result is not None:
+                                from ai_guardian.tui.ask_dialog import AskDecision
+                                if perm_ask_result.decision != AskDecision.BLOCK:
+                                    perm_ask_allowed = True
+                                    warning_messages.append(
+                                        f"⚠️  Tool '{checked_tool_name}' allowed by user (ask mode)"
+                                    )
 
-                        logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
-                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.TOOL_PERMISSION, security_message=security_message)
-                        return result
+                        if not perm_ask_allowed:
+                            # Extract reason summary for logging
+                            reason_summary = _extract_block_reason(error_message) if error_message else "policy violation"
+
+                            # Extract tool-specific parameters for better logging
+                            tool_details = ""
+                            if tool_input:
+                                if checked_tool_name == "Skill" or (tool_name == "Skill" and checked_tool_name.startswith("Skill:")):
+                                    skill_name = tool_input.get("skill", "unknown")
+                                    skill_args = tool_input.get("args", "")
+                                    args_preview = skill_args[:50] + "..." if len(skill_args) > 50 else skill_args
+                                    tool_details = f" (skill='{skill_name}', args='{args_preview}')"
+                                elif tool_name == "Bash":
+                                    command = tool_input.get("command", "")
+                                    cmd_preview = command[:100] + "..." if len(command) > 100 else command
+                                    tool_details = f" (command='{cmd_preview}')"
+                                elif tool_name in ["Read", "Write", "Edit"]:
+                                    file_path = tool_input.get("file_path") or tool_input.get("path", "")
+                                    if file_path:
+                                        tool_details = f" (file_path='{file_path}')"
+
+                            logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
+                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.TOOL_PERMISSION, security_message=security_message)
+                            return result
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
                         logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
