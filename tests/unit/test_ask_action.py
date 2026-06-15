@@ -819,3 +819,207 @@ class TestPostSaveConfirmation:
                 _write_config_text('{"updated": true}\n')
             backup = Path(tmpdir) / "ai-guardian.json.bak"
             assert json.loads(backup.read_text()) == {"original": True}
+
+    def test_save_pattern_to_config_directory_rules_calls_add_directory_exclusion(self):
+        from ai_guardian.tui.ask_dialog import _save_pattern_to_config
+        with patch("ai_guardian.config_writer.add_directory_exclusion") as mock_add:
+            mock_add.return_value = True
+            result = _save_pattern_to_config("/home/user/project/**", "directory_rules")
+        assert result is True
+        mock_add.assert_called_once_with("/home/user/project/**")
+
+
+class TestDirectoryBlockingAskAction:
+    """Tests for ask action mode with directory blocking (Issue #1130)."""
+
+    def test_directory_ask_schema_accepts_ask(self):
+        """Verify JSON schema accepts ask values for directory_rules.action."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        dr_schema = schema["properties"]["directory_rules"]["oneOf"][1]
+        for action_val in ["ask", "ask:block", "ask:warn", "ask:log-only"]:
+            config = {"action": action_val}
+            jsonschema.validate(config, dr_schema)
+
+    def test_directory_ask_schema_rejects_invalid(self):
+        """Verify JSON schema rejects invalid ask values."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        dr_schema = schema["properties"]["directory_rules"]["oneOf"][1]
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({"action": "ask:invalid"}, dr_schema)
+
+    def test_directory_ask_schema_exclusions_field(self):
+        """Verify JSON schema accepts exclusions array."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        dr_schema = schema["properties"]["directory_rules"]["oneOf"][1]
+        config = {
+            "action": "ask",
+            "exclusions": ["/home/user/project/**"],
+            "rules": [],
+        }
+        jsonschema.validate(config, dr_schema)
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_handle_ask_mode_directory_allow_always_writes_exclusion(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern="/home/user/project/**",
+        )
+        with patch("ai_guardian.config_writer.add_directory_exclusion") as mock_write:
+            mock_write.return_value = True
+            result = _handle_ask_mode(
+                "ask", "directory_blocking", "/home/user/project/file.py",
+                "directory_rules", "Access denied",
+            )
+        assert result.decision == AskDecision.ALLOW_ALWAYS
+        mock_write.assert_called_once_with("/home/user/project/**")
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_directory_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask", "directory_blocking", "/secret/file.txt",
+            "directory_rules", "Access denied",
+        )
+        assert result is not None
+        assert result.decision == AskDecision.BLOCK
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_directory_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask:warn", "directory_blocking", "/secret/file.txt",
+            "directory_rules", "Access denied",
+        )
+        assert result is not None
+        assert result.decision == AskDecision.ALLOW_ONCE
+
+    def test_exclusions_allow_denied_path(self):
+        """Verify exclusions in config override deny rules."""
+        from ai_guardian.hook_processing import _check_directory_rules
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = os.path.join(tmpdir, "secret.txt")
+            with open(test_file, "w") as f:
+                f.write("test")
+            config = {
+                "directory_rules": {
+                    "action": "block",
+                    "rules": [{"mode": "deny", "paths": [tmpdir + "/**"]}],
+                    "exclusions": [tmpdir + "/**"],
+                }
+            }
+            decision, action, pattern = _check_directory_rules(test_file, config)
+            assert decision == "allow"
+
+    def test_exclusions_no_match_still_denied(self):
+        """Verify non-matching exclusion doesn't override deny rules."""
+        from ai_guardian.hook_processing import _check_directory_rules
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = os.path.join(tmpdir, "secret.txt")
+            with open(test_file, "w") as f:
+                f.write("test")
+            config = {
+                "directory_rules": {
+                    "action": "block",
+                    "rules": [{"mode": "deny", "paths": [tmpdir + "/**"]}],
+                    "exclusions": ["/other/path/**"],
+                }
+            }
+            decision, action, pattern = _check_directory_rules(test_file, config)
+            assert decision == "deny"
+
+    def test_add_directory_exclusion_writes_config(self):
+        """Verify add_directory_exclusion writes to directory_rules.exclusions."""
+        from ai_guardian.config_writer import add_directory_exclusion
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text('{"directory_rules": {"action": "ask", "rules": []}}')
+            result = add_directory_exclusion("/home/user/project/**", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert "/home/user/project/**" in config["directory_rules"]["exclusions"]
+
+    def test_add_directory_exclusion_dedup(self):
+        """Verify add_directory_exclusion doesn't add duplicates."""
+        from ai_guardian.config_writer import add_directory_exclusion
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "directory_rules": {
+                    "action": "ask",
+                    "rules": [],
+                    "exclusions": ["/home/user/project/**"],
+                }
+            }))
+            result = add_directory_exclusion("/home/user/project/**", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert config["directory_rules"]["exclusions"].count("/home/user/project/**") == 1
+
+    def test_get_directory_action_from_config_default(self):
+        """Verify helper returns 'block' when no config available."""
+        from ai_guardian.hook_processing import _get_directory_action_from_config
+        with patch("ai_guardian.hook_processing.HAS_TOOL_POLICY", False):
+            result = _get_directory_action_from_config()
+        assert result == "block"
+
+    def test_pattern_editor_suggest_pattern_directory_rules(self):
+        """Verify suggest_pattern returns glob for directory_rules."""
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("/home/user/project/file.txt", "directory_rules")
+        assert result.endswith("/**")
+        assert "/home/user/project" in result
+
+    def test_pattern_editor_generate_config_preview_directory_rules(self):
+        """Verify generate_config_preview shows exclusions for directory_rules."""
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview("/home/user/**", "directory_rules")
+        parsed = json.loads(result)
+        assert "exclusions" in parsed["directory_rules"]
+        assert "/home/user/**" in parsed["directory_rules"]["exclusions"]
+
+    def test_pattern_editor_prepare_config_directory_rules(self):
+        """Verify prepare_config_with_pattern writes to exclusions for directory_rules."""
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text("{}")
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern("/home/user/**", "directory_rules")
+            parsed = json.loads(json_text)
+            assert "/home/user/**" in parsed["directory_rules"]["exclusions"]
+
+    def test_matches_directory_pattern_exact(self):
+        """Verify _matches_directory_pattern with exact path."""
+        from ai_guardian.hook_processing import _matches_directory_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_tmpdir = os.path.realpath(tmpdir)
+            test_file = os.path.join(real_tmpdir, "file.txt")
+            assert _matches_directory_pattern(test_file, real_tmpdir) is True
+            assert _matches_directory_pattern(test_file, "/nonexistent/path") is False
+
+    def test_matches_directory_pattern_recursive_glob(self):
+        """Verify _matches_directory_pattern with ** glob."""
+        from ai_guardian.hook_processing import _matches_directory_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_tmpdir = os.path.realpath(tmpdir)
+            test_file = os.path.join(real_tmpdir, "sub", "file.txt")
+            os.makedirs(os.path.dirname(test_file), exist_ok=True)
+            with open(test_file, "w") as f:
+                f.write("test")
+            assert _matches_directory_pattern(test_file, real_tmpdir + "/**") is True
+            assert _matches_directory_pattern(test_file, "/nonexistent/**") is False

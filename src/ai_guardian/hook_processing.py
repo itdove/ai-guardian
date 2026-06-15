@@ -304,6 +304,37 @@ def _is_path_excluded(file_path, config):
         return False
 
 
+def _matches_directory_pattern(abs_file_path, pattern):
+    """Check if an absolute file path matches a single directory glob pattern.
+
+    Returns True if the path matches.
+    """
+    if not isinstance(pattern, str):
+        return False
+
+    if pattern.startswith("**/"):
+        return match_leading_doublestar_pattern(abs_file_path, pattern)
+
+    expanded_pattern = _resolve_pattern_path(pattern)
+
+    if "**" in expanded_pattern:
+        base_path = expanded_pattern.replace("\\**", "").replace("/**", "").replace("**", "")
+        if "*" in base_path:
+            current_path = abs_file_path
+            while current_path and current_path != os.path.dirname(current_path):
+                if _fnmatch_path(current_path, base_path):
+                    return True
+                current_path = os.path.dirname(current_path)
+            return False
+        else:
+            return _startswith_path(abs_file_path, base_path)
+    elif "*" in expanded_pattern:
+        file_parent = os.path.dirname(abs_file_path)
+        return _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(file_parent, expanded_pattern.replace("\\*", "").replace("/*", ""))
+    else:
+        return abs_file_path.startswith(expanded_pattern + os.sep) or abs_file_path == expanded_pattern
+
+
 def _check_directory_rules(file_path, config):
     """
     Check directory rules (allow/deny) in order.
@@ -356,12 +387,29 @@ def _check_directory_rules(file_path, config):
             }
             directory_rules = [backward_compat_rule] + directory_rules
 
-        if not directory_rules:
-            # No rules, but global_action still applies to .ai-read-deny markers
+        # Load exclusions (glob patterns that are always allowed)
+        exclusions = []
+        if isinstance(directory_rules_config, dict):
+            exclusions = directory_rules_config.get("exclusions", [])
+            if not isinstance(exclusions, list):
+                exclusions = []
+
+        if not directory_rules and not exclusions:
+            # No rules or exclusions, but global_action still applies to .ai-read-deny markers
             return None, global_action, None
 
         # Convert file path to absolute path and resolve symlinks
         abs_file_path = os.path.realpath(os.path.expanduser(file_path))
+
+        # Check exclusions first — these always allow access
+        for excl_pattern in exclusions:
+            try:
+                if _matches_directory_pattern(abs_file_path, excl_pattern):
+                    logging.debug(f"Path {abs_file_path} matched exclusion: {excl_pattern}")
+                    return "allow", global_action, excl_pattern
+            except Exception as e:
+                logging.warning(f"Error processing exclusion pattern '{excl_pattern}': {e}")
+                continue
 
         # Evaluate rules in order, last match wins
         final_decision = None
@@ -384,78 +432,12 @@ def _check_directory_rules(file_path, config):
 
             # Check if file matches any pattern in this rule
             for pattern in paths:
-                if not isinstance(pattern, str):
-                    continue
-
                 try:
-                    # Handle leading ** patterns (e.g., **/.claude/skills/**)
-                    # These should match anywhere in the filesystem
-                    if pattern.startswith("**/"):
-                        # Use custom matching function for leading ** patterns
-                        # This provides consistent glob support with ignore_files
-                        if match_leading_doublestar_pattern(abs_file_path, pattern):
-                            final_decision = mode
-                            matched_pattern = pattern
-                            logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
-                            break
-                    else:
-                        # For non-leading-** patterns, use the original implementation
-                        # This handles absolute paths, tilde expansion, and wildcards correctly
-                        expanded_pattern = _resolve_pattern_path(pattern)
-
-                        # Check for wildcards
-                        if "**" in expanded_pattern:
-                            # Recursive wildcard: match directory and all subdirectories
-                            base_path = expanded_pattern.replace("\\**", "").replace("/**", "").replace("**", "")
-
-                            # Check if base_path still contains wildcards (e.g., daf-*/**, ~/projects/*/src/**)
-                            if "*" in base_path:
-                                # Use fnmatch to match the directory structure
-                                # For pattern like /home/user/.claude/skills/daf-*/**
-                                # base_path is /home/user/.claude/skills/daf-*
-                                # We need to check if abs_file_path is under a directory matching base_path
-
-                                # Check all parent directories from abs_file_path upwards
-                                current_path = abs_file_path
-                                matched = False
-
-                                while current_path and current_path != os.path.dirname(current_path):
-                                    # Check if this directory matches the base pattern
-                                    if _fnmatch_path(current_path, base_path):
-                                        # Found a matching directory - the file is under it
-                                        matched = True
-                                        break
-                                    # Move to parent directory
-                                    current_path = os.path.dirname(current_path)
-
-                                if matched:
-                                    final_decision = mode
-                                    matched_pattern = pattern
-                                    logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
-                                    break
-                            else:
-                                # No wildcards in base_path, use simple startswith
-                                if _startswith_path(abs_file_path, base_path):
-                                    final_decision = mode
-                                    matched_pattern = pattern
-                                    logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
-                                    break
-                        elif "*" in expanded_pattern:
-                            # Single-level wildcard: use fnmatch
-                            file_parent = os.path.dirname(abs_file_path)
-                            if _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(file_parent, expanded_pattern.replace("\\*", "").replace("/*", "")):
-                                final_decision = mode
-                                matched_pattern = pattern
-                                logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
-                                break
-                        else:
-                            # Exact path match
-                            if abs_file_path.startswith(expanded_pattern + os.sep) or abs_file_path == expanded_pattern:
-                                final_decision = mode
-                                matched_pattern = pattern
-                                logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
-                                break
-
+                    if _matches_directory_pattern(abs_file_path, pattern):
+                        final_decision = mode
+                        matched_pattern = pattern
+                        logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
+                        break
                 except Exception as e:
                     logging.warning(f"Error processing rule pattern '{pattern}': {e}")
                     continue
@@ -1061,6 +1043,7 @@ def _save_seen_findings(seen: Dict[str, Dict[str, str]]) -> None:
 
 
 def _finding_fingerprint(finding_type: str, detail: str) -> str:
+    # ai-guardian:allow-begin
     """Compute a short hash fingerprint for a transcript finding.
 
     Args:
@@ -1070,6 +1053,7 @@ def _finding_fingerprint(finding_type: str, detail: str) -> str:
     Returns:
         First 16 hex chars of SHA-256 digest.
     """
+    # ai-guardian:allow-end
     return hashlib.sha256(f"{finding_type}:{detail}".encode()).hexdigest()[:16]
 
 
@@ -1908,6 +1892,19 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
         logger.debug(f"Failed to log finding violation: {e}")
 
 
+def _get_directory_action_from_config():
+    """Return the directory_rules.action string from config (defaults to 'block')."""
+    try:
+        if HAS_TOOL_POLICY:
+            policy_checker = ToolPolicyChecker()
+            dr = policy_checker.config.get("directory_rules", {})
+            if isinstance(dr, dict):
+                return dr.get("action", ActionMode.BLOCK)
+    except Exception:
+        pass
+    return ActionMode.BLOCK
+
+
 def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
                      file_path=None, line_number=None, matched_pattern=""):
     """Handle 'ask' action mode by showing an interactive dialog.
@@ -1985,6 +1982,9 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 if config_section == "ssrf_protection":
                     from ai_guardian.config_writer import add_allowed_domain
                     add_allowed_domain(result.allowlist_pattern)
+                elif config_section == "directory_rules":
+                    from ai_guardian.config_writer import add_directory_exclusion
+                    add_directory_exclusion(result.allowlist_pattern)
                 else:
                     add_allowlist_pattern(config_section, result.allowlist_pattern)
 
@@ -4205,6 +4205,21 @@ def process_hook_data(hook_data, daemon_state=None):
                     content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
 
                 # Check if directory access is denied
+                if is_denied:
+                    dir_action = _get_directory_action_from_config()
+                    dir_ask_result = _handle_ask_mode(
+                        dir_action, ViolationType.DIRECTORY_BLOCKING,
+                        matched_text=file_path or "",
+                        config_section="directory_rules",
+                        error_msg=deny_reason,
+                        file_path=file_path,
+                    )
+                    if dir_ask_result is not None:
+                        from ai_guardian.tui.ask_dialog import AskDecision
+                        if dir_ask_result.decision != AskDecision.BLOCK:
+                            is_denied = False
+                            warning_messages.append(f"⚠️  Directory access allowed by user (ask mode): {file_path}")
+
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
                     combined_warning = "\n\n".join(warning_messages) if warning_messages else None

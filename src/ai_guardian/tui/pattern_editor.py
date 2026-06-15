@@ -121,6 +121,11 @@ def generate_config_preview(pattern: str, config_section: str) -> str:
             {config_section: {"allowed_domains": [pattern]}},
             indent=2,
         )
+    if config_section == "directory_rules":
+        return json.dumps(
+            {config_section: {"exclusions": [pattern]}},
+            indent=2,
+        )
     return json.dumps(
         {config_section: {"allowlist_patterns": [pattern]}},
         indent=2,
@@ -179,6 +184,13 @@ def prepare_config_with_pattern(
         if pattern not in domains:
             domains.append(pattern)
         config[config_section]["allowed_domains"] = domains
+    elif config_section == "directory_rules":
+        if config_section not in config:
+            config[config_section] = {}
+        exclusions = config[config_section].get("exclusions", [])
+        if pattern not in exclusions:
+            exclusions.append(pattern)
+        config[config_section]["exclusions"] = exclusions
     else:
         if config_section not in config:
             config[config_section] = {}
@@ -201,12 +213,19 @@ def suggest_pattern(matched_text: str, config_section: str = "") -> str:
     """Suggest an initial pattern based on the matched text.
 
     For SSRF, extracts the domain from the URL.
+    For directory_rules, suggests the directory as a glob pattern.
     For env-variable assignments (KEY=value), suggests KEY\\s*= to match
     the key with any value.
     For other sections, escapes the text for use as a regex.
     """
     if config_section == "ssrf_protection":
         return suggest_domain(matched_text)
+    if config_section == "directory_rules":
+        import os
+        path = matched_text.strip()
+        if os.path.isfile(path):
+            return os.path.dirname(path) + "/**"
+        return path + "/**" if not path.endswith("/**") else path
     env_match = re.match(r'^([A-Z][A-Z0-9_]+)\s*=', matched_text)
     if env_match:
         return env_match.group(1) + r'\s*='
