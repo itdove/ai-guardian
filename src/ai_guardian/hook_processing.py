@@ -1985,6 +1985,9 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 elif config_section == "directory_rules":
                     from ai_guardian.config_writer import add_directory_exclusion
                     add_directory_exclusion(result.allowlist_pattern)
+                elif config_section == "supply_chain":
+                    from ai_guardian.config_writer import add_supply_chain_path
+                    add_supply_chain_path(result.allowlist_pattern)
                 else:
                     add_allowlist_pattern(config_section, result.allowlist_pattern)
 
@@ -4643,6 +4646,22 @@ def process_hook_data(hook_data, daemon_state=None):
                             category=sc_scanner.last_category,
                             line_number=sc_scanner.last_line_number
                         )
+
+                        sc_action = sc_config.get("action", "block")
+                        sc_ask_result = _handle_ask_mode(
+                            sc_action, ViolationType.SUPPLY_CHAIN,
+                            matched_text=sc_scanner.last_matched_text or "",
+                            config_section="supply_chain",
+                            error_msg=sc_error_msg,
+                            file_path=sc_file_path,
+                            line_number=sc_scanner.last_line_number,
+                            matched_pattern=sc_scanner.last_matched_pattern or "",
+                        )
+                        if sc_ask_result is not None:
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            if sc_ask_result.decision != AskDecision.BLOCK:
+                                sc_should_block = False
+                                warning_messages.append(f"⚠️  Supply chain threat allowed by user (ask mode): {sc_file_path}")
 
                     if sc_should_block:
                         logging.info("Blocking operation due to supply chain threat detection")

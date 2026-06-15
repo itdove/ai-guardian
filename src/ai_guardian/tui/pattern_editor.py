@@ -126,6 +126,11 @@ def generate_config_preview(pattern: str, config_section: str) -> str:
             {config_section: {"exclusions": [pattern]}},
             indent=2,
         )
+    if config_section == "supply_chain":
+        return json.dumps(
+            {config_section: {"allowlist_paths": [pattern]}},
+            indent=2,
+        )
     return json.dumps(
         {config_section: {"allowlist_patterns": [pattern]}},
         indent=2,
@@ -191,6 +196,13 @@ def prepare_config_with_pattern(
         if pattern not in exclusions:
             exclusions.append(pattern)
         config[config_section]["exclusions"] = exclusions
+    elif config_section == "supply_chain":
+        if config_section not in config:
+            config[config_section] = {}
+        paths = config[config_section].get("allowlist_paths", [])
+        if pattern not in paths:
+            paths.append(pattern)
+        config[config_section]["allowlist_paths"] = paths
     else:
         if config_section not in config:
             config[config_section] = {}
@@ -220,6 +232,8 @@ def suggest_pattern(matched_text: str, config_section: str = "") -> str:
     """
     if config_section == "ssrf_protection":
         return suggest_domain(matched_text)
+    if config_section == "supply_chain":
+        return matched_text.strip()
     if config_section == "directory_rules":
         import os
         path = matched_text.strip()
