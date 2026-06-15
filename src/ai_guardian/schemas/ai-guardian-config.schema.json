@@ -1283,9 +1283,9 @@
         },
         "action": {
           "type": "string",
-          "enum": ["block", "warn", "log-only"],
+          "enum": ["block", "warn", "log-only", "ask", "ask:warn", "ask:log-only"],
           "default": "block",
-          "description": "Action to take when supply chain threats are detected. block = prevent operation, warn = allow with warning, log-only = silent logging."
+          "description": "Action to take when supply chain threats are detected. block = prevent operation, warn = allow with warning, log-only = silent logging, ask = interactive prompt (with fallback: block, warn, or log-only if headless)."
         },
         "scan_hooks": {
           "type": "boolean",

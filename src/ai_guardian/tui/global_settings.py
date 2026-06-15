@@ -117,6 +117,9 @@ FEATURE_ACTIONS = {
         "schema_path": "supply_chain.action",
         "options": [
             ("Block", "block"),
+            ("Ask (block if headless)", "ask"),
+            ("Ask (warn if headless)", "ask:warn"),
+            ("Ask (log-only if headless)", "ask:log-only"),
             ("Warn", "warn"),
             ("Log Only", "log-only"),
         ],

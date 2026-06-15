@@ -1023,3 +1023,134 @@ class TestDirectoryBlockingAskAction:
                 f.write("test")
             assert _matches_directory_pattern(test_file, real_tmpdir + "/**") is True
             assert _matches_directory_pattern(test_file, "/nonexistent/**") is False
+
+
+class TestSupplyChainAskAction:
+    """Tests for ask action mode with supply chain scanning (Issue #1131)."""
+
+    def test_supply_chain_ask_schema_accepts_ask(self):
+        """Verify JSON schema accepts ask values for supply_chain.action."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        sc_schema = schema["properties"]["supply_chain"]
+        for action_val in ["ask", "ask:warn", "ask:log-only"]:
+            config = {"action": action_val}
+            jsonschema.validate(config, sc_schema)
+
+    def test_supply_chain_ask_schema_rejects_invalid(self):
+        """Verify JSON schema rejects invalid ask values."""
+        import jsonschema
+        schema_path = Path(__file__).parent.parent.parent / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+        with open(schema_path) as f:
+            schema = json.load(f)
+        sc_schema = schema["properties"]["supply_chain"]
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate({"action": "ask:invalid"}, sc_schema)
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_handle_ask_mode_supply_chain_allow_always_writes_path(self, mock_dialog):
+        """Verify Allow Always routes to add_supply_chain_path."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern="~/.claude/settings.json",
+        )
+        with patch("ai_guardian.config_writer.add_supply_chain_path") as mock_write:
+            mock_write.return_value = True
+            result = _handle_ask_mode(
+                "ask", "supply_chain", "~/.claude/settings.json",
+                "supply_chain", "Supply chain threat detected",
+            )
+        assert result.decision == AskDecision.ALLOW_ALWAYS
+        mock_write.assert_called_once_with("~/.claude/settings.json")
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_supply_chain_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
+        """Verify headless fallback defaults to block for ask mode."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask", "supply_chain", "~/.claude/settings.json",
+            "supply_chain", "Supply chain threat detected",
+        )
+        assert result is not None
+        assert result.decision == AskDecision.BLOCK
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_supply_chain_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
+        """Verify ask:warn headless fallback allows with ALLOW_ONCE."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask:warn", "supply_chain", "~/.claude/settings.json",
+            "supply_chain", "Supply chain threat detected",
+        )
+        assert result is not None
+        assert result.decision == AskDecision.ALLOW_ONCE
+
+    def test_add_supply_chain_path_writes_config(self):
+        """Verify add_supply_chain_path writes to supply_chain.allowlist_paths."""
+        from ai_guardian.config_writer import add_supply_chain_path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text('{"supply_chain": {"action": "ask"}}')
+            result = add_supply_chain_path("~/.claude/settings.json", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert "~/.claude/settings.json" in config["supply_chain"]["allowlist_paths"]
+
+    def test_add_supply_chain_path_dedup(self):
+        """Verify add_supply_chain_path doesn't add duplicates."""
+        from ai_guardian.config_writer import add_supply_chain_path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "supply_chain": {
+                    "action": "ask",
+                    "allowlist_paths": ["~/.claude/settings.json"],
+                }
+            }))
+            result = add_supply_chain_path("~/.claude/settings.json", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert config["supply_chain"]["allowlist_paths"].count("~/.claude/settings.json") == 1
+
+    def test_add_supply_chain_path_empty_rejected(self):
+        """Verify empty pattern is rejected."""
+        from ai_guardian.config_writer import add_supply_chain_path
+        assert add_supply_chain_path("") is False
+
+    def test_pattern_editor_suggest_pattern_supply_chain(self):
+        """Verify suggest_pattern returns file path as-is for supply_chain."""
+        from ai_guardian.tui.pattern_editor import suggest_pattern
+        result = suggest_pattern("~/.claude/settings.json", "supply_chain")
+        assert result == "~/.claude/settings.json"
+
+    def test_pattern_editor_generate_config_preview_supply_chain(self):
+        """Verify generate_config_preview shows allowlist_paths for supply_chain."""
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview("~/.claude/settings.json", "supply_chain")
+        parsed = json.loads(result)
+        assert "allowlist_paths" in parsed["supply_chain"]
+        assert "~/.claude/settings.json" in parsed["supply_chain"]["allowlist_paths"]
+
+    def test_pattern_editor_prepare_config_supply_chain(self):
+        """Verify prepare_config_with_pattern writes to allowlist_paths for supply_chain."""
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text("{}")
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern("~/.claude/settings.json", "supply_chain")
+            parsed = json.loads(json_text)
+            assert "~/.claude/settings.json" in parsed["supply_chain"]["allowlist_paths"]
+
+    def test_pattern_type_for_supply_chain_is_glob(self):
+        """Verify supply_chain uses glob pattern type."""
+        from ai_guardian.tui.pattern_editor import get_pattern_type_for_section
+        assert get_pattern_type_for_section("supply_chain") == "glob"

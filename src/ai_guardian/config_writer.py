@@ -226,6 +226,101 @@ def add_directory_exclusion(
         return False
 
 
+def add_supply_chain_path(
+    pattern: str,
+    config_path: Optional[Path] = None,
+) -> bool:
+    """Add a glob pattern to supply_chain.allowlist_paths in ai-guardian.json.
+
+    Used by the ask dialog's "Allow Always" flow for supply chain violations.
+    Supply chain uses glob file paths (not regex), so this writes to
+    allowlist_paths instead of allowlist_patterns.
+
+    Args:
+        pattern: Glob pattern string to add (e.g. "~/.claude/settings.json").
+        config_path: Override config file path (defaults to global config).
+
+    Returns:
+        True if pattern was added successfully, False on failure.
+    """
+    if not pattern:
+        return False
+
+    if config_path is None:
+        config_path = get_config_dir() / "ai-guardian.json"
+
+    lock_path = str(config_path) + ".lock"
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            config = {}
+            if config_path.exists():
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning(f"Could not read config, starting fresh: {e}")
+                    config = {}
+
+            if "supply_chain" not in config:
+                config["supply_chain"] = {}
+            section = config["supply_chain"]
+            if not isinstance(section, dict):
+                section = {}
+                config["supply_chain"] = section
+
+            paths = section.get("allowlist_paths", [])
+            if not isinstance(paths, list):
+                paths = []
+
+            if pattern in paths:
+                logger.info(f"Path already in supply_chain.allowlist_paths: {pattern}")
+                return True
+
+            paths.append(pattern)
+            section["allowlist_paths"] = paths
+
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(config_path.parent),
+                prefix=".ai-guardian-",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2)
+                    f.write("\n")
+                os.replace(tmp_path, str(config_path))
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+
+            try:
+                from ai_guardian.config_loaders import _clear_config_cache
+                _clear_config_cache()
+            except ImportError:
+                pass
+
+            logger.info(f"Added path to supply_chain.allowlist_paths: {pattern}")
+            return True
+
+        finally:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    except OSError as e:
+        logger.error(f"Failed to write config: {e}")
+        return False
+
+
 def add_allowed_domain(
     domain: str,
     config_path: Optional[Path] = None,

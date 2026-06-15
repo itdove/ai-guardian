@@ -45,7 +45,7 @@ FEATURE_ACTIONS = {
     "secret_redaction": {"warn": "Warn", "log-only": "Log Only"},
     "image_scanning": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
     "context_poisoning": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
-    "supply_chain": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
+    "supply_chain": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
 }
 
 ACTION_DEFAULTS = {
