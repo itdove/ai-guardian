@@ -1988,6 +1988,9 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 elif config_section == "supply_chain":
                     from ai_guardian.config_writer import add_supply_chain_path
                     add_supply_chain_path(result.allowlist_pattern)
+                elif config_section == "config_file_scanning":
+                    from ai_guardian.config_writer import add_config_ignore_file
+                    add_config_ignore_file(result.allowlist_pattern)
                 else:
                     add_allowlist_pattern(config_section, result.allowlist_pattern)
 
@@ -4697,6 +4700,24 @@ def process_hook_data(hook_data, daemon_state=None):
                         should_block, config_error, config_details = check_config_file_threats(
                             file_path, content_to_scan, scanner_config
                         )
+
+                    if should_block:
+                        cfs_action = scanner_config.get("action", "block") if scanner_config else "block"
+                        cfs_matched_pattern = config_details.get("pattern_name", "") if config_details else ""
+                        cfs_ask_result = _handle_ask_mode(
+                            cfs_action,
+                            ViolationType.CONFIG_FILE_EXFIL,
+                            matched_text=file_path,
+                            config_section="config_file_scanning",
+                            error_msg=config_error or "",
+                            file_path=file_path,
+                            matched_pattern=cfs_matched_pattern,
+                        )
+                        if cfs_ask_result is not None:
+                            from ai_guardian.tui.ask_dialog import AskDecision
+                            if cfs_ask_result.decision != AskDecision.BLOCK:
+                                should_block = False
+                                warning_messages.append(f"⚠️  Config file threat allowed by user (ask mode): {file_path}")
 
                     if should_block:
                         # Config file threat detected - block operation
