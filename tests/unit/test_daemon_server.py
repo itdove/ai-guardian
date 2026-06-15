@@ -744,6 +744,39 @@ class TestDaemonStateAskDialog:
         assert stats["ask_dialog_total_ms"] == 1234.6
 
 
+class TestDaemonStateDedup:
+    """Tests for DaemonState violation dedup cache (#1181)."""
+
+    def test_first_call_returns_false(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        assert state.check_and_record_dedup("secret_detected", "abc123") is False
+
+    def test_duplicate_within_ttl_returns_true(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        assert state.check_and_record_dedup("secret_detected", "abc123") is False
+        assert state.check_and_record_dedup("secret_detected", "abc123") is True
+
+    def test_different_types_not_deduped(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        assert state.check_and_record_dedup("secret_detected", "abc123") is False
+        assert state.check_and_record_dedup("pii_detected", "abc123") is False
+
+    def test_different_hashes_not_deduped(self, short_state_dir):
+        state = DaemonState(idle_timeout=0)
+        assert state.check_and_record_dedup("secret_detected", "abc123") is False
+        assert state.check_and_record_dedup("secret_detected", "def456") is False
+
+    def test_expired_entries_pruned(self, short_state_dir):
+        import ai_guardian.daemon.state as state_mod
+        state = DaemonState(idle_timeout=0)
+        assert state.check_and_record_dedup("test", "key1") is False
+        # Manually expire the entry
+        with state._lock:
+            for k in state._violation_dedup:
+                state._violation_dedup[k] -= state_mod.VIOLATION_DEDUP_TTL + 1
+        assert state.check_and_record_dedup("test", "key1") is False
+
+
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
         from pathlib import Path

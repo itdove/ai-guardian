@@ -49,6 +49,7 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
     """Detect and return the appropriate adapter for the given hook input.
 
     Priority:
+    0. Reliable IDE-specific fields in hook data (overrides --ide flag)
     1. Explicit _ide_type field in hook_data (from --ide CLI parameter)
     2. AI_GUARDIAN_IDE_TYPE environment variable override
     3. Auto-detection via each adapter's can_handle() method
@@ -60,6 +61,14 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
     Returns:
         An instantiated HookAdapter subclass
     """
+    # 0. Check hook data for reliable IDE-specific fields FIRST.
+    #    Cursor reads .claude/settings.json hooks (which carry --ide claude),
+    #    but always sends cursor_version — use it to select the right adapter.
+    if "cursor_version" in hook_data:
+        adapter = CursorAdapter()
+        logger.debug("Adapter override: cursor_version detected, using %s", adapter.name)
+        return adapter
+
     # 1. Check explicit _ide_type field (set by --ide CLI flag, survives daemon forwarding)
     explicit_ide = hook_data.get("_ide_type", "")
     if isinstance(explicit_ide, str):

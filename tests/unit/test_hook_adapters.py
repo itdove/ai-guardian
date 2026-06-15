@@ -218,6 +218,23 @@ class TestAdapterRegistry:
         adapter = detect_adapter({"_ide_type": "unknown_ide"})
         assert isinstance(adapter, ClaudeCodeAdapter)
 
+    # ── cursor_version overrides --ide flag (#1181) ──
+
+    def test_cursor_version_overrides_ide_claude(self):
+        """cursor_version in hook data takes priority over --ide claude."""
+        adapter = detect_adapter({
+            "_ide_type": "claude",
+            "cursor_version": "3.7.36",
+            "hook_event_name": "beforeSubmitPrompt",
+        })
+        assert isinstance(adapter, CursorAdapter)
+
+    def test_cursor_version_overrides_env_var(self):
+        """cursor_version in hook data takes priority over AI_GUARDIAN_IDE_TYPE."""
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "claude"}):
+            adapter = detect_adapter({"cursor_version": "3.7.36"})
+            assert isinstance(adapter, CursorAdapter)
+
     def test_get_adapter_by_ide_type(self):
         assert isinstance(get_adapter_by_ide_type(IDEType.CLAUDE_CODE), ClaudeCodeAdapter)
         assert isinstance(get_adapter_by_ide_type(IDEType.CURSOR), CursorAdapter)

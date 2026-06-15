@@ -27,6 +27,7 @@ SESSION_TTL = 86400  # 24 hours
 PROJECT_CONFIG_TTL = 86400  # 24 hours — prune stale project entries
 PERSIST_DEBOUNCE = 2.0  # seconds before writing to disk
 DAEMON_SESSIONS_FILENAME = "daemon_sessions.json"
+VIOLATION_DEDUP_TTL = 5.0  # seconds — suppress duplicate violations within this window
 
 
 class DaemonState:
@@ -105,6 +106,10 @@ class DaemonState:
 
         # MCP installed detection (#756)
         self._mcp_installed = self._check_mcp_installed()
+
+        # Violation dedup cache (#1181) — prevents duplicate dialogs/blocks
+        # when multiple IDEs fire the same hook (e.g. Cursor + Claude Code)
+        self._violation_dedup = {}  # dedup_key -> monotonic timestamp
 
         # ML engine manager (#185) — lazy-loaded on first ml_detect request
         self._ml_engine_manager = None
@@ -501,6 +506,29 @@ class DaemonState:
         with self._lock:
             self._ask_dialog_count += 1
             self._ask_dialog_total_ms += wait_ms
+
+    def check_and_record_dedup(self, violation_type, matched_text_hash):
+        """Check if a violation is a duplicate within the dedup TTL window.
+
+        Returns True if this is a duplicate (caller should skip).
+        Returns False and records the violation if it's new.
+
+        Args:
+            violation_type: Type of violation (e.g. "secret_detected")
+            matched_text_hash: Short hash of the matched content
+        """
+        key = f"{violation_type}:{matched_text_hash}"
+        now = time.monotonic()
+        with self._lock:
+            self._violation_dedup = {
+                k: t for k, t in self._violation_dedup.items()
+                if now - t < VIOLATION_DEDUP_TTL
+            }
+            if key in self._violation_dedup:
+                logger.debug("Dedup hit: %s (%.1fs ago)", key, now - self._violation_dedup[key])
+                return True
+            self._violation_dedup[key] = now
+            return False
 
     def is_idle_timeout_expired(self):
         """Check if daemon has been idle longer than the timeout.

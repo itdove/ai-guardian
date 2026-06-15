@@ -177,9 +177,12 @@ hook_adapters/
 
 ### How Detection Works
 
-1. Check `AI_GUARDIAN_IDE_TYPE` environment variable (explicit override)
-2. Try each adapter's `can_handle(hook_data)` method in priority order
-3. Fall back to Claude Code adapter (handles PascalCase and all unknown formats)
+0. Check for reliable IDE-specific fields in hook data (overrides `--ide` flag)
+   - `cursor_version` → Cursor (handles Cursor firing `.claude/settings.json` hooks)
+1. Check `--ide` flag (`_ide_type` field) from CLI parameter
+2. Check `AI_GUARDIAN_IDE_TYPE` environment variable (explicit override)
+3. Try each adapter's `can_handle(hook_data)` method in priority order
+4. Fall back to Claude Code adapter (handles PascalCase and all unknown formats)
 
 Detection priority checks unique fields:
 - `clineVersion` → Cline
@@ -190,6 +193,16 @@ Detection priority checks unique fields:
 - `kiro_hook_type` → Kiro
 - `is_mcp_tool` → Augment Code
 - `opencode_version` → OpenCode
+
+### Cursor + Claude Code Hook Interaction
+
+Cursor reads and executes Claude Code hooks from `~/.claude/settings.json` by
+design. To avoid double-firing, ai-guardian installs a single set of hooks in
+`~/.claude/settings.json` (shared by both IDEs). When Cursor fires these hooks,
+it includes `cursor_version` in the hook data — ai-guardian detects this and
+uses the Cursor adapter for the correct response format, regardless of the
+`--ide claude` flag on the hook command. The daemon also maintains a 5-second
+dedup cache to suppress duplicate violations from any source.
 
 ### NormalizedHookInput
 
@@ -224,7 +237,7 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 | Agent | Config Path |
 |-------|------------|
 | Claude Code | `~/.claude/settings.json` |
-| Cursor | `~/.cursor/hooks.json` |
+| Cursor | `~/.claude/settings.json` (shared with Claude Code) |
 | GitHub Copilot | `~/.github/hooks/hooks.json` |
 | OpenAI Codex | `~/.codex/hooks.json` |
 | Windsurf | `~/.codeium/windsurf/hooks.json` |
