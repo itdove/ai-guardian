@@ -82,6 +82,9 @@ def create_directory_rules_page(service, daemon_name: str):
                                 "block": "Block",
                                 "warn": "Warn",
                                 "log-only": "Log Only",
+                                "ask": "Ask (default: block)",
+                                "ask:warn": "Ask (default: warn)",
+                                "ask:log-only": "Ask (default: log-only)",
                             },
                             value=action,
                         ).classes("w-48")

@@ -131,6 +131,101 @@ def add_allowlist_pattern(
         return False
 
 
+def add_directory_exclusion(
+    pattern: str,
+    config_path: Optional[Path] = None,
+) -> bool:
+    """Add a glob pattern to directory_rules.exclusions in ai-guardian.json.
+
+    Used by the ask dialog's "Allow Always" flow for directory blocking violations.
+    Directory rules use glob patterns (not regex), so this writes to
+    exclusions instead of allowlist_patterns.
+
+    Args:
+        pattern: Glob pattern string to add (e.g. "/home/user/project/**").
+        config_path: Override config file path (defaults to global config).
+
+    Returns:
+        True if pattern was added successfully, False on failure.
+    """
+    if not pattern:
+        return False
+
+    if config_path is None:
+        config_path = get_config_dir() / "ai-guardian.json"
+
+    lock_path = str(config_path) + ".lock"
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+            config = {}
+            if config_path.exists():
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning(f"Could not read config, starting fresh: {e}")
+                    config = {}
+
+            if "directory_rules" not in config:
+                config["directory_rules"] = {}
+            section = config["directory_rules"]
+            if not isinstance(section, dict):
+                section = {"action": "block", "rules": section if isinstance(section, list) else []}
+                config["directory_rules"] = section
+
+            exclusions = section.get("exclusions", [])
+            if not isinstance(exclusions, list):
+                exclusions = []
+
+            if pattern in exclusions:
+                logger.info(f"Pattern already in directory_rules.exclusions: {pattern}")
+                return True
+
+            exclusions.append(pattern)
+            section["exclusions"] = exclusions
+
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(config_path.parent),
+                prefix=".ai-guardian-",
+                suffix=".tmp",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2)
+                    f.write("\n")
+                os.replace(tmp_path, str(config_path))
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+
+            try:
+                from ai_guardian.config_loaders import _clear_config_cache
+                _clear_config_cache()
+            except ImportError:
+                pass
+
+            logger.info(f"Added pattern to directory_rules.exclusions: {pattern}")
+            return True
+
+        finally:
+            if HAS_FCNTL:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    except OSError as e:
+        logger.error(f"Failed to write config: {e}")
+        return False
+
+
 def add_allowed_domain(
     domain: str,
     config_path: Optional[Path] = None,

@@ -106,7 +106,8 @@ class DirectoryRulesContent(Container):
             with Horizontal(classes="setting-row"):
                 yield Label("Action on deny:")
                 yield Select(
-                    [("block", "block"), ("warn", "warn"), ("log-only", "log-only")],
+                    [("block", "block"), ("warn", "warn"), ("log-only", "log-only"),
+                     ("ask", "ask"), ("ask:warn", "ask:warn"), ("ask:log-only", "ask:log-only")],
                     value="block",
                     id="action-select",
                     allow_blank=False,

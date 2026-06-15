@@ -71,6 +71,9 @@ def _save_pattern_to_config(pattern: str, config_section: str) -> bool:
         if config_section == "ssrf_protection":
             from ai_guardian.config_writer import add_allowed_domain
             return add_allowed_domain(pattern)
+        elif config_section == "directory_rules":
+            from ai_guardian.config_writer import add_directory_exclusion
+            return add_directory_exclusion(pattern)
         else:
             from ai_guardian.config_writer import add_allowlist_pattern
             return add_allowlist_pattern(config_section, pattern)

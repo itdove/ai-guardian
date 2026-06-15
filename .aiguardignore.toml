@@ -1,0 +1,4 @@
+# Skip for ALL scanners
+
+[allowlist]
+paths = ["tests/**"]

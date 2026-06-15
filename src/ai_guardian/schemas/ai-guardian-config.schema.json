@@ -1418,9 +1418,22 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["block", "warn", "log-only"],
-              "description": "Action on violation: 'block' prevents access (default), 'warn' logs violation and shows warning to user but allows access, 'log-only' logs violation silently without user warning. Applies to ALL rules.",
+              "oneOf": [
+                {"enum": ["block", "warn", "log-only"]},
+                {
+                  "type": "string",
+                  "pattern": "^ask(:(block|warn|log-only))?$",
+                  "description": "Interactive ask mode: prompts user on violation with Allow Once/Allow Always/Block choices"
+                }
+              ],
+              "description": "Action on violation: 'block' prevents access (default), 'warn' logs violation and shows warning to user but allows access, 'log-only' logs violation silently without user warning, 'ask' prompts user interactively. Applies to ALL rules.",
               "default": "block"
+            },
+            "exclusions": {
+              "type": "array",
+              "description": "Glob patterns that are always allowed, even when matched by deny rules. Used by ask mode's Allow Always flow to persist user decisions.",
+              "items": {"type": "string"},
+              "default": []
             },
             "rules": {
               "type": "array",
