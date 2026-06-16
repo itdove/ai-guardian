@@ -202,7 +202,20 @@ def prepare_config_with_pattern(
     if config_section == "permissions":
         section = config.setdefault("permissions", {})
         rules = section.get("rules", [])
-        rules.append(_permission_rule_from_pattern(pattern))
+        new_rule = _permission_rule_from_pattern(pattern)
+        merged = False
+        for existing in rules:
+            if (existing.get("mode") == "allow"
+                    and existing.get("matcher") == new_rule["matcher"]):
+                existing_patterns = existing.get("patterns", [])
+                for p in new_rule["patterns"]:
+                    if p not in existing_patterns:
+                        existing_patterns.append(p)
+                existing["patterns"] = existing_patterns
+                merged = True
+                break
+        if not merged:
+            rules.append(new_rule)
         section["rules"] = rules
     else:
         array_key = SECTION_ARRAY_KEY.get(config_section, "allowlist_patterns")

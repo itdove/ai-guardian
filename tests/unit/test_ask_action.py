@@ -353,6 +353,107 @@ class TestParsePermissionPattern:
         assert patterns == ["echo foo:bar"]
 
 
+class TestPermissionRuleMerging:
+    """Tests for permission rule merging into existing matcher (#1192)."""
+
+    def test_merge_pattern_into_existing_matcher(self):
+        from ai_guardian.config_writer import add_permission_rule
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "permissions": {"rules": [
+                    {"mode": "allow", "matcher": "Skill", "patterns": ["code-review", "bugfix-workflow"]}
+                ]}
+            }))
+            result = add_permission_rule("Skill", ["daf-workflow"], config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            rules = config["permissions"]["rules"]
+            assert len(rules) == 1
+            assert rules[0]["patterns"] == ["code-review", "bugfix-workflow", "daf-workflow"]
+
+    def test_merge_mcp_tool_pattern_into_existing_matcher(self):
+        from ai_guardian.config_writer import add_permission_rule
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "permissions": {"rules": [
+                    {"mode": "allow", "matcher": "mcp__server__tool_a", "patterns": ["*"]}
+                ]}
+            }))
+            result = add_permission_rule("mcp__server__tool_a", ["specific-arg"], config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            rules = config["permissions"]["rules"]
+            assert len(rules) == 1
+            assert "specific-arg" in rules[0]["patterns"]
+            assert "*" in rules[0]["patterns"]
+
+    def test_no_duplicate_pattern_in_merge(self):
+        from ai_guardian.config_writer import add_permission_rule
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "permissions": {"rules": [
+                    {"mode": "allow", "matcher": "Skill", "patterns": ["code-review"]}
+                ]}
+            }))
+            result = add_permission_rule("Skill", ["code-review"], config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            assert config["permissions"]["rules"][0]["patterns"].count("code-review") == 1
+
+    def test_new_rule_when_no_matching_matcher(self):
+        from ai_guardian.config_writer import add_permission_rule
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "permissions": {"rules": [
+                    {"mode": "allow", "matcher": "Bash", "patterns": ["npm test"]}
+                ]}
+            }))
+            result = add_permission_rule("Skill", ["daf-workflow"], config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            rules = config["permissions"]["rules"]
+            assert len(rules) == 2
+            assert rules[1] == {"mode": "allow", "matcher": "Skill", "patterns": ["daf-workflow"]}
+
+    def test_merge_via_save_ask_pattern(self):
+        from ai_guardian.config_writer import save_ask_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "permissions": {"rules": [
+                    {"mode": "allow", "matcher": "Skill", "patterns": ["code-review"]}
+                ]}
+            }))
+            result = save_ask_pattern("permissions", "Skill:daf-workflow", config_path=config_path)
+            assert result is True
+            config = json.loads(config_path.read_text())
+            rules = config["permissions"]["rules"]
+            assert len(rules) == 1
+            assert "daf-workflow" in rules[0]["patterns"]
+            assert "code-review" in rules[0]["patterns"]
+
+    def test_prepare_config_preview_merges_into_existing(self):
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "ai-guardian.json"
+            config_path.write_text(json.dumps({
+                "permissions": {"rules": [
+                    {"mode": "allow", "matcher": "Skill", "patterns": ["code-review"]}
+                ]}
+            }))
+            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+                json_text, line_num = prepare_config_with_pattern("Skill:daf-workflow", "permissions")
+            parsed = json.loads(json_text)
+            rules = parsed["permissions"]["rules"]
+            assert len(rules) == 1
+            assert "daf-workflow" in rules[0]["patterns"]
+            assert "code-review" in rules[0]["patterns"]
+
+
 class TestAskDialogHeadlessFallback:
     """Tests for headless fallback behavior."""
 
