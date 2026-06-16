@@ -117,15 +117,16 @@ class _TkinterAskDialog:
         v = self._violation
         json_text, line_number = prepare_config_with_pattern(save_pat, v.config_section)
 
-        root.deiconify()
-        for w in root.winfo_children():
-            w.destroy()
+        editor = tk.Toplevel(root)
+        editor.title("Config Editor — ai-guardian.json")
+        editor.resizable(True, True)
+        editor.geometry("700x500")
+        editor.attributes("-topmost", True)
+        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
+        editor.focus_force()
+        editor.grab_set()
 
-        root.title("Config Editor — ai-guardian.json")
-        root.resizable(True, True)
-        root.geometry("700x500")
-
-        frame = ttk.Frame(root, padding=10)
+        frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
@@ -179,14 +180,15 @@ class _TkinterAskDialog:
                     allowlist_pattern=save_pat,
                     config_saved=True,
                 )
+                editor.destroy()
                 root.destroy()
             else:
                 status_var.set("Failed to write config file")
                 status_label.config(fg="#ff4444")
 
         def on_cancel():
-            root.destroy()
-            root.quit()
+            editor.destroy()
+            root.deiconify()
 
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
         ttk.Button(btn_frame, text="Save", command=on_save).pack(side="right", padx=(0, 5))
