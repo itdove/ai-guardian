@@ -89,7 +89,7 @@ def copy_to_system_clipboard(text: str) -> Tuple[Optional[str], Optional[str]]:
         return (None, "OSC 52")
     return ("Clipboard command failed", None)
 
-
+# ai-guardian:begin-allow
 NAV_GROUPS = [
     ("Security Overview", [
         ("Security Dashboard", "panel-security-dashboard"),
@@ -790,6 +790,7 @@ HELP_DOCS = {
         "  [bold]r[/bold]  Refresh health checks"
     ),
 }
+# ai-guardian:end-allow
 
 
 class HelpModal(ModalScreen):

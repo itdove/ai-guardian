@@ -427,6 +427,51 @@ class MultiDaemonClient:
         }
         return self._rest_request(target, "POST", "/api/violation-context", body)
 
+    def scan_path(
+        self,
+        target: DaemonTarget,
+        path: str,
+    ) -> Optional[dict]:
+        """Run a file/directory scan on the target daemon."""
+        if target.runtime == "local":
+            return self._local_scan(path)
+        return self._rest_request(
+            target, "POST", "/api/scan",
+            body={"path": path}, timeout=120.0,
+        )
+
+    @staticmethod
+    def _local_scan(path: str) -> dict:
+        """Run scan locally via FileScanner."""
+        import time
+        from pathlib import Path as _Path
+        from ai_guardian.scanner import FileScanner
+        from ai_guardian.tui.pattern_editor import config_section_for_rule_id
+        from ai_guardian.web.config_helpers import load_web_config
+
+        config = load_web_config()
+        scanner = FileScanner(config=config)
+        resolved = _Path(path).resolve()
+
+        t0 = time.monotonic()
+        findings = scanner.scan_directory(path=str(resolved))
+        elapsed_ms = round((time.monotonic() - t0) * 1000)
+
+        base = resolved if resolved.is_dir() else resolved.parent
+        for f in findings:
+            f["config_section"] = config_section_for_rule_id(
+                f.get("rule_id", "")
+            )
+            fp = f.get("file_path", "")
+            if fp and not _Path(fp).is_absolute():
+                f["file_path"] = str(base / fp)
+
+        return {
+            "findings": findings,
+            "scanned_files": len(findings),
+            "scan_time_ms": elapsed_ms,
+        }
+
     def get_metrics(
         self,
         target: DaemonTarget,
@@ -598,6 +643,7 @@ class MultiDaemonClient:
         method: str,
         path: str,
         body: Optional[dict] = None,
+        timeout: float = REQUEST_TIMEOUT,
     ) -> Optional[dict]:
         """Send HTTP request to daemon REST API."""
         if target.url:
@@ -629,7 +675,7 @@ class MultiDaemonClient:
             req.add_header("Authorization", f"Bearer {target.auth_token}")
 
         try:
-            with urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+            with urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except (URLError, OSError, json.JSONDecodeError, ValueError) as e:
             logger.debug("REST request failed (%s %s): %s", method, url, e)

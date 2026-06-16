@@ -66,6 +66,22 @@ def config_section_for_violation(violation_type: str) -> str:
     return VIOLATION_TYPE_TO_CONFIG.get(violation_type, "")
 
 
+RULE_ID_TO_CONFIG_SECTION = {
+    "SECRET-001": "secret_scanning",
+    "PII-001": "scan_pii",
+    "PROMPT-INJECTION-001": "prompt_injection",
+    "SSRF-001": "ssrf_protection",
+    "CONFIG-001": "config_file_scanning",
+    "SUPPLY-CHAIN-001": "supply_chain",
+    "UNICODE-001": None,
+}
+
+
+def config_section_for_rule_id(rule_id: str) -> Optional[str]:
+    """Return the config section for a scanner rule_id (e.g. SECRET-001)."""
+    return RULE_ID_TO_CONFIG_SECTION.get(rule_id)
+
+
 def get_pattern_type_for_section(config_section: str) -> str:
     """Return the pattern type for a config section."""
     return SECTION_PATTERN_TYPE.get(config_section, "regex")

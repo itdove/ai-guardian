@@ -2,7 +2,8 @@
 Directory Scan Panel
 
 Scan directories for security issues (secrets, SSRF, Unicode attacks,
-config file threats) with an interactive results view and export.
+config file threats) with Allow Always per finding and bulk Allow All
+of Type.
 """
 
 import json
@@ -11,7 +12,7 @@ import os
 import threading
 import time
 
-
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -19,13 +20,23 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, ScrollableContainer, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Static, Button, Input, Checkbox, Label, Select
+from textual.widgets import Static, Button, Input, Checkbox, Label, Select, TextArea
 
 
 FORMAT_OPTIONS = [
     ("JSON", "json"),
     ("SARIF", "sarif"),
 ]
+
+RULE_ID_LABELS = {
+    "SECRET-001": "Secrets",
+    "PII-001": "PII",
+    "PROMPT-INJECTION-001": "Prompt Injection",
+    "SSRF-001": "SSRF",
+    "CONFIG-001": "Config Exfiltration",
+    "SUPPLY-CHAIN-001": "Supply Chain",
+    "UNICODE-001": "Unicode Attacks",
+}
 
 
 class ExportModal(ModalScreen):
@@ -135,8 +146,214 @@ class ExportModal(ModalScreen):
         self.dismiss(None)
 
 
+class ScanPatternEditorModal(ModalScreen):
+    """Modal for editing and saving an allowlist pattern from a scan finding."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close", show=False),
+    ]
+
+    CSS = """
+    ScanPatternEditorModal {
+        align: center middle;
+    }
+
+    #scan-pe-container {
+        width: 80;
+        height: 80%;
+        background: $panel;
+        border: thick $primary;
+        padding: 1 2;
+    }
+
+    #scan-pe-content {
+        height: 1fr;
+        background: $surface;
+    }
+    """
+
+    def __init__(self, matched_text: str, config_section: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.matched_text = matched_text
+        self.config_section = config_section
+
+        from ai_guardian.tui.pattern_editor import (
+            get_pattern_type_for_section,
+        )
+        self.ptype = get_pattern_type_for_section(config_section)
+
+    def compose(self) -> ComposeResult:
+        from ai_guardian.tui.pattern_editor import (
+            suggest_pattern,
+            generate_config_preview,
+            PATTERN_TYPES,
+        )
+
+        ptype_label = PATTERN_TYPES.get(self.ptype, self.ptype)
+        suggested = suggest_pattern(
+            self.matched_text, self.config_section
+        ) if self.matched_text else ""
+
+        with Container(id="scan-pe-container"):
+            yield Static(
+                "[bold]Allow Always — Edit Pattern[/bold]",
+                id="modal-header",
+            )
+            yield Static(
+                f"\n[bold]Matched text:[/bold]\n{self.matched_text[:200]}\n"
+            )
+            yield Static(f"[bold]Pattern ({ptype_label}):[/bold]")
+
+            yield Input(value=suggested, id="pattern-input")
+            yield Static("", id="pattern-status")
+            yield Static("[bold]Config preview:[/bold]")
+
+            preview = generate_config_preview(
+                suggested, self.config_section
+            ) if suggested else ""
+            yield TextArea(preview, id="pattern-preview", read_only=True)
+
+            with Horizontal(id="modal-actions"):
+                yield Button(
+                    "Test Pattern", id="test-pattern", variant="default"
+                )
+                yield Button(
+                    "Add to Allowlist", id="confirm-pattern",
+                    variant="success",
+                )
+                yield Button(
+                    "Cancel", id="cancel-pattern", variant="primary"
+                )
+
+    def on_mount(self) -> None:
+        self._do_test()
+
+    def _do_test(self):
+        from ai_guardian.tui.pattern_editor import (
+            validate_pattern,
+            generate_config_preview,
+        )
+
+        pattern_input = self.query_one("#pattern-input", Input)
+        pat = pattern_input.value.strip()
+        valid, msg = validate_pattern(pat, self.ptype, self.matched_text)
+
+        status = self.query_one("#pattern-status", Static)
+        if valid:
+            status.update(f"[green]PASS: {msg}[/green]")
+            preview = generate_config_preview(pat, self.config_section)
+            self.query_one("#pattern-preview", TextArea).load_text(preview)
+        else:
+            status.update(f"[red]FAIL: {msg}[/red]")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "test-pattern":
+            self._do_test()
+        elif event.button.id == "confirm-pattern":
+            self._confirm()
+        elif event.button.id == "cancel-pattern":
+            self.dismiss()
+
+    def _confirm(self):
+        from ai_guardian.tui.pattern_editor import validate_pattern
+
+        pattern_input = self.query_one("#pattern-input", Input)
+        pat = pattern_input.value.strip()
+        valid, msg = validate_pattern(pat, self.ptype, self.matched_text)
+        if not valid:
+            status = self.query_one("#pattern-status", Static)
+            status.update("[red]FAIL: Fix the pattern first[/red]")
+            return
+
+        self.app.push_screen(
+            ScanConfigEditorModal(pat, self.config_section)
+        )
+
+
+class ScanConfigEditorModal(ModalScreen):
+    """Modal for reviewing and saving the full config with inserted pattern."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close", show=False),
+    ]
+
+    CSS = """
+    ScanConfigEditorModal {
+        align: center middle;
+    }
+
+    #config-editor-container {
+        width: 90;
+        height: 90%;
+        background: $panel;
+        border: thick $primary;
+        padding: 1 2;
+    }
+
+    #config-editor-area {
+        height: 1fr;
+    }
+    """
+
+    def __init__(self, pattern: str, config_section: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pattern = pattern
+        self.config_section = config_section
+
+    def compose(self) -> ComposeResult:
+        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+
+        json_text, line_number = prepare_config_with_pattern(
+            self.pattern, self.config_section
+        )
+
+        with Container(id="config-editor-container"):
+            yield Static(
+                "[bold]Config Editor — ai-guardian.json[/bold]\n"
+                "[dim]Review and save the config with the new pattern.[/dim]"
+            )
+            yield TextArea(
+                json_text, id="config-editor-area",
+                language="json", show_line_numbers=True,
+            )
+            yield Static(
+                "[green]Valid JSON[/green]", id="config-editor-status"
+            )
+            with Horizontal():
+                yield Button("Save", id="save-config", variant="success")
+                yield Button("Cancel", id="cancel-config", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-config":
+            self._save()
+        elif event.button.id == "cancel-config":
+            self.dismiss()
+
+    def _save(self):
+        text = self.query_one("#config-editor-area", TextArea).text
+        try:
+            json.loads(text)
+        except json.JSONDecodeError as exc:
+            status = self.query_one("#config-editor-status", Static)
+            status.update(f"[red]Invalid JSON: {exc}[/red]")
+            return
+
+        from ai_guardian.tui.ask_dialog import _write_config_text
+
+        if _write_config_text(text):
+            self.app.notify("Pattern saved to ai-guardian.json", severity="information")
+            self.dismiss()
+            for screen in list(self.app.screen_stack):
+                if isinstance(screen, ScanPatternEditorModal):
+                    screen.dismiss()
+                    break
+        else:
+            status = self.query_one("#config-editor-status", Static)
+            status.update("[red]Failed to write config file[/red]")
+
+
 class DirectoryScanContent(ScrollableContainer):
-    """Interactive directory scanner for finding security issues."""
+    """Interactive directory scanner with Allow Always support."""
 
     CSS = """
     DirectoryScanContent {
@@ -180,7 +397,7 @@ class DirectoryScanContent(ScrollableContainer):
     }
 
     #ds-details-scroll {
-        max-height: 24;
+        max-height: 30;
         margin: 0 0 1 0;
     }
 
@@ -192,12 +409,28 @@ class DirectoryScanContent(ScrollableContainer):
         margin: 1 0 0 0;
         height: auto;
     }
+
+    .ds-group-header {
+        margin: 1 0 0 0;
+        padding: 0 1;
+        background: $primary-darken-2;
+    }
+
+    .ds-finding-row {
+        margin: 0;
+        padding: 0 1;
+        height: auto;
+    }
+
+    .ds-finding-row Button {
+        margin: 0 0 0 1;
+    }
     """
 
     def compose(self) -> ComposeResult:
         yield Static(
             "[bold]Directory Scan[/bold]  "
-            "[dim]Scan directories for security issues[/dim]",
+            "[dim]Scan for security issues with Allow Always[/dim]",
             id="ds-header",
         )
 
@@ -205,12 +438,12 @@ class DirectoryScanContent(ScrollableContainer):
             yield Static("Scan Settings", classes="ds-section-title")
 
             yield Static(
-                "[dim]Path — directory to scan for security issues[/dim]",
+                "[dim]Path — file or directory to scan[/dim]",
                 classes="ds-row",
             )
             yield Input(
                 value=".",
-                placeholder="Directory path to scan",
+                placeholder="File or directory path to scan",
                 id="ds-path-input",
             )
 
@@ -228,6 +461,7 @@ class DirectoryScanContent(ScrollableContainer):
 
             with Horizontal(classes="ds-row"):
                 yield Button("Scan", variant="primary", id="ds-scan-btn")
+                yield Button("Stop", variant="error", id="ds-stop-btn")
 
         with Container(id="ds-results-section", classes="ds-section"):
             yield Static("Results", classes="ds-section-title")
@@ -243,25 +477,32 @@ class DirectoryScanContent(ScrollableContainer):
 
     def on_mount(self) -> None:
         self.query_one("#ds-results-section").display = False
+        self.query_one("#ds-stop-btn").display = False
         self._findings: List[Dict[str, Any]] = []
+        self._cancel_event = threading.Event()
         self._scan_path: str = "."
         self._file_count: int = 0
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "ds-scan-btn":
+        bid = event.button.id or ""
+        if bid == "ds-scan-btn":
             self._run_scan()
-        elif event.button.id == "ds-export-btn":
+        elif bid == "ds-stop-btn":
+            self._cancel_event.set()
+        elif bid == "ds-export-btn":
             self._open_export_modal()
+        elif bid.startswith("allow-finding-"):
+            idx = int(bid.split("-")[-1])
+            self._allow_finding(idx)
+        elif bid.startswith("allow-all-type-"):
+            rule_id = bid[len("allow-all-type-"):]
+            self._allow_all_of_type(rule_id)
 
     def refresh_content(self) -> None:
         self._clear_results()
 
     def action_refresh(self) -> None:
         self.refresh_content()
-
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
 
     def _clear_results(self):
         self.query_one("#ds-results-section").display = False
@@ -276,6 +517,18 @@ class DirectoryScanContent(ScrollableContainer):
             "[yellow]Scanning...[/yellow]"
         )
         self.query_one("#ds-details", Static).update("")
+
+    def _update_progress(self, file_path: str, index: int, total: int):
+        try:
+            short = file_path
+            if len(short) > 60:
+                short = "..." + short[-57:]
+            self.query_one("#ds-summary", Static).update(
+                f"[yellow]Scanning {index}/{total}[/yellow]  "
+                f"[dim]{short}[/dim]"
+            )
+        except Exception:
+            pass
 
     @staticmethod
     def _suppress_logging():
@@ -314,12 +567,21 @@ class DirectoryScanContent(ScrollableContainer):
 
         self._scan_path = str(resolved)
         config_only = self.query_one("#ds-config-only", Checkbox).value
+        self._cancel_event.clear()
         self._show_running()
+        self.query_one("#ds-scan-btn").disabled = True
+        self.query_one("#ds-stop-btn").display = True
 
         def worker():
             prev = self._suppress_logging()
             try:
                 from ai_guardian.scanner import FileScanner
+                from ai_guardian.tui.pattern_editor import config_section_for_rule_id
+
+                def on_progress(file_path, index, total):
+                    self.app.call_from_thread(
+                        self._update_progress, file_path, index, total
+                    )
 
                 config = self._load_config()
                 scanner = FileScanner(config=config)
@@ -328,28 +590,46 @@ class DirectoryScanContent(ScrollableContainer):
                 findings = scanner.scan_directory(
                     path=self._scan_path,
                     config_only=config_only,
+                    progress_callback=on_progress,
+                    cancel_event=self._cancel_event,
                 )
                 elapsed_ms = (time.monotonic_ns() // 1_000_000) - start_ms
+                cancelled = self._cancel_event.is_set()
+
+                for f in findings:
+                    f["config_section"] = config_section_for_rule_id(
+                        f.get("rule_id", "")
+                    )
 
                 file_count = len(scanner._discover_files(
                     resolved, None, None, False
                 )) if resolved.is_dir() else 1
 
                 self.app.call_from_thread(
-                    self._display_results, findings, file_count, elapsed_ms
+                    self._display_results, findings, file_count,
+                    elapsed_ms, cancelled,
                 )
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
             finally:
                 self._restore_logging(prev)
+                self.app.call_from_thread(self._scan_finished)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _scan_finished(self):
+        try:
+            self.query_one("#ds-scan-btn").disabled = False
+            self.query_one("#ds-stop-btn").display = False
+        except Exception:
+            pass
 
     def _display_results(
         self,
         findings: List[Dict[str, Any]],
         file_count: int,
         elapsed_ms: int,
+        cancelled: bool = False,
     ):
         self._findings = findings
         self._file_count = file_count
@@ -358,10 +638,13 @@ class DirectoryScanContent(ScrollableContainer):
         section.display = True
 
         violation_count = len(findings)
+        incomplete = "  [yellow]SCAN INCOMPLETE — stopped by user[/yellow]" if cancelled else ""
+
         if violation_count == 0:
             self.query_one("#ds-summary", Static).update(
                 f"[green]No issues found[/green]  "
                 f"[dim]{file_count} files scanned ({elapsed_ms}ms)[/dim]"
+                f"{incomplete}"
             )
             self.query_one("#ds-details", Static).update("")
             return
@@ -371,32 +654,139 @@ class DirectoryScanContent(ScrollableContainer):
             f"[red]{violation_count} violation"
             f"{'s' if violation_count != 1 else ''}[/red]  "
             f"[dim]({elapsed_ms}ms)[/dim]"
+            f"{incomplete}"
         )
 
+        groups = defaultdict(list)
+        for i, f in enumerate(findings):
+            f["_index"] = i
+            groups[f.get("rule_id", "unknown")].append(f)
+
         lines = []
-        for f in findings:
-            rule = f.get("rule_id", "unknown")
-            msg = f.get("message", "")
-            fpath = f.get("file_path", "")
-            line_num = f.get("line_number")
-            severity = f.get("severity", "warning")
-            snippet = f.get("snippet", "")
+        for rule_id, group_findings in sorted(groups.items()):
+            label = RULE_ID_LABELS.get(rule_id, rule_id)
+            config_section = group_findings[0].get("config_section")
 
-            severity_color = "red" if severity == "error" else "yellow"
-            icon = "[red]![/red]" if severity == "error" else "[yellow]![/yellow]"
+            lines.append(
+                f"\n[bold]{label}[/bold] "
+                f"({len(group_findings)} finding"
+                f"{'s' if len(group_findings) != 1 else ''})"
+            )
 
-            location = fpath
-            if line_num:
-                location += f":{line_num}"
+            for f in group_findings:
+                severity = f.get("severity", "warning")
+                severity_color = "red" if severity == "error" else "yellow"
+                icon = "[red]![/red]" if severity == "error" else "[yellow]![/yellow]"
 
-            parts = [f"  {icon} [{severity_color}]{location}[/{severity_color}]"]
-            parts.append(f"    [bold]{rule}[/bold] — {msg}")
-            if snippet:
-                parts.append(f"    [dim]{snippet}[/dim]")
+                fpath = f.get("file_path", "")
+                line_num = f.get("line_number")
+                location = fpath
+                if line_num:
+                    location += f":{line_num}"
 
-            lines.append("\n".join(parts))
+                msg = f.get("message", "")
+                snippet = f.get("snippet", "")
 
-        self.query_one("#ds-details", Static).update("\n".join(lines))
+                parts = [
+                    f"  {icon} [{severity_color}]{location}[/{severity_color}]"
+                ]
+                parts.append(f"    [bold]{rule_id}[/bold] — {msg}")
+                if snippet:
+                    parts.append(f"    [dim]{snippet[:200]}[/dim]")
+
+                lines.append("\n".join(parts))
+
+        details_static = self.query_one("#ds-details", Static)
+        details_static.update("\n".join(lines))
+
+        scroll = self.query_one("#ds-details-scroll", VerticalScroll)
+        try:
+            for child in list(scroll.children):
+                if isinstance(child, (Horizontal, Button)) and child.id != "ds-details":
+                    child.remove()
+        except Exception:
+            pass
+
+        for rule_id, group_findings in sorted(groups.items()):
+            config_section = group_findings[0].get("config_section")
+            if config_section:
+                scroll.mount(
+                    Horizontal(
+                        Button(
+                            f"Allow All {RULE_ID_LABELS.get(rule_id, rule_id)}",
+                            id=f"allow-all-type-{rule_id}",
+                            variant="success",
+                        ),
+                        classes="ds-finding-row",
+                    )
+                )
+                for f in group_findings:
+                    idx = f["_index"]
+                    if f.get("snippet"):
+                        scroll.mount(
+                            Horizontal(
+                                Button(
+                                    f"Allow #{idx + 1}",
+                                    id=f"allow-finding-{idx}",
+                                    variant="default",
+                                ),
+                                classes="ds-finding-row",
+                            )
+                        )
+
+    def _allow_finding(self, index: int):
+        """Open pattern editor for a single finding."""
+        if index >= len(self._findings):
+            return
+        finding = self._findings[index]
+        config_section = finding.get("config_section")
+        snippet = finding.get("snippet", "")
+
+        if not config_section:
+            self.app.notify(
+                "No allowlist section for this finding type",
+                severity="warning",
+            )
+            return
+        if not snippet:
+            self.app.notify(
+                "No matched text available",
+                severity="warning",
+            )
+            return
+
+        self.app.push_screen(
+            ScanPatternEditorModal(snippet, config_section)
+        )
+
+    def _allow_all_of_type(self, rule_id: str):
+        """Open pattern editor for all findings of a type."""
+        matching = [
+            f for f in self._findings
+            if f.get("rule_id") == rule_id
+        ]
+        if not matching:
+            return
+
+        config_section = matching[0].get("config_section")
+        if not config_section:
+            self.app.notify(
+                "No allowlist section for this finding type",
+                severity="warning",
+            )
+            return
+
+        snippets = [
+            f.get("snippet", "") for f in matching if f.get("snippet")
+        ]
+        first_snippet = snippets[0] if snippets else ""
+        if not first_snippet:
+            self.app.notify("No matched text available", severity="warning")
+            return
+
+        self.app.push_screen(
+            ScanPatternEditorModal(first_snippet, config_section)
+        )
 
     def _open_export_modal(self):
         if not self._findings:
