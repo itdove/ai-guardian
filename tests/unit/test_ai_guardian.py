@@ -1172,8 +1172,8 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             self.assertIsNotNone(response["output"])
 
             output_data = json.loads(response["output"])
-            # For preToolUse, Cursor expects "decision" field, not "continue"
-            self.assertEqual(output_data["decision"], "deny")
+            # For preToolUse, Cursor expects "permission" field
+            self.assertEqual(output_data["permission"], "deny")
         finally:
             os.unlink(temp_path)
 
