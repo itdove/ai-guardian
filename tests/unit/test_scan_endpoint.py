@@ -88,6 +88,10 @@ class TestScanEndpointHandler:
         handler._send_error.assert_called_once()
         assert handler._send_error.call_args[0][0] == 404
 
+    @pytest.mark.skipif(
+        not Path("/usr").exists(),
+        reason="/usr does not exist on this platform",
+    )
     def test_system_dir_returns_403(self):
         from ai_guardian.daemon.rest_api import _RestHandler
 
