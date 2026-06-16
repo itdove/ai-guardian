@@ -650,7 +650,8 @@ def _handle_tray_stop():
             time.sleep(0.1)
         else:
             try:
-                os.kill(pid, signal.SIGKILL)
+                force = getattr(signal, "SIGKILL", signal.SIGTERM)
+                os.kill(pid, force)
             except ProcessLookupError:
                 pass
 

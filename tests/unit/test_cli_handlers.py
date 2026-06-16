@@ -324,7 +324,8 @@ class TestTrayStopCommand:
         assert not lock_path.exists()
         kill_calls = mock_kill.call_args_list
         assert kill_calls[0] == mock.call(12345, signal.SIGTERM)
-        assert kill_calls[1] == mock.call(12345, signal.SIGKILL)
+        force_sig = getattr(signal, "SIGKILL", signal.SIGTERM)
+        assert kill_calls[1] == mock.call(12345, force_sig)
 
     def test_stop_stale_lock(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
