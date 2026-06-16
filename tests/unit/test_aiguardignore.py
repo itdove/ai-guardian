@@ -54,6 +54,24 @@ SAMPLE_TOML = textwrap.dedent("""\
             paths = [
                 "examples/*.json",
             ]
+
+    [context_poisoning]
+        [context_poisoning.allowlist]
+            paths = [
+                "docs/instructions.md",
+            ]
+
+    [supply_chain]
+        [supply_chain.allowlist]
+            paths = [
+                "scripts/hooks/**",
+            ]
+
+    [image_scanning]
+        [image_scanning.allowlist]
+            paths = [
+                "tests/fixtures/images/**",
+            ]
 """)
 
 GLOBAL_ONLY_TOML = textwrap.dedent("""\
@@ -102,6 +120,9 @@ class TestLoadAiguardignore:
         assert config.scanner_paths["scan_pii"] == ["tests/unit/test_pii_detection.py"]
         assert config.scanner_paths["prompt_injection"] == ["docs/security-patterns.md"]
         assert config.scanner_paths["config_file_scanning"] == ["examples/*.json"]
+        assert config.scanner_paths["context_poisoning"] == ["docs/instructions.md"]
+        assert config.scanner_paths["supply_chain"] == ["scripts/hooks/**"]
+        assert config.scanner_paths["image_scanning"] == ["tests/fixtures/images/**"]
 
     def test_global_only(self, tmp_path):
         toml_file = tmp_path / ".aiguardignore.toml"
@@ -245,9 +266,12 @@ class TestGetIgnorePaths:
             pii = get_ignore_paths("scan_pii")
             pi = get_ignore_paths("prompt_injection")
             config = get_ignore_paths("config_file_scanning")
+            cp = get_ignore_paths("context_poisoning")
+            sc = get_ignore_paths("supply_chain")
+            img = get_ignore_paths("image_scanning")
 
         # All should include global paths
-        for paths in [secret, pii, pi, config]:
+        for paths in [secret, pii, pi, config, cp, sc, img]:
             assert "tests/fixtures/**" in paths
             assert "tests/unit/test_ai_guardian.py" in paths
 
@@ -256,10 +280,15 @@ class TestGetIgnorePaths:
         assert "tests/unit/test_pii_detection.py" in pii
         assert "docs/security-patterns.md" in pi
         assert "examples/*.json" in config
+        assert "docs/instructions.md" in cp
+        assert "scripts/hooks/**" in sc
+        assert "tests/fixtures/images/**" in img
 
         # No cross-contamination
         assert "tests/unit/test_pii_detection.py" not in secret
         assert "tests/integration/test_scanner.py" not in pii
+        assert "docs/instructions.md" not in secret
+        assert "scripts/hooks/**" not in pii
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,15 @@ File format (consistent with .gitleaks.toml allowlist style):
 
     [config_file_scanning.allowlist]
         paths = ["examples/*.json"]            # config scanning only
+
+    [context_poisoning.allowlist]
+        paths = ["docs/instructions.md"]       # context poisoning only
+
+    [supply_chain.allowlist]
+        paths = ["scripts/hooks/**"]           # supply chain only
+
+    [image_scanning.allowlist]
+        paths = ["tests/fixtures/images/**"]   # image scanning only
 """
 
 import logging
@@ -48,6 +57,9 @@ SCANNER_TYPES = frozenset({
     "scan_pii",
     "prompt_injection",
     "config_file_scanning",
+    "context_poisoning",
+    "supply_chain",
+    "image_scanning",
 })
 
 _cached_config: Optional[tuple] = None  # (path, mtime, AiguardignoreConfig)

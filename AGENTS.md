@@ -1064,6 +1064,7 @@ When adding any new feature, check:
 - [ ] **Multi-agent compatibility** — Does it affect hook responses? → Test with all supported IDEs. Verify adapter's `format_response()` returns correct format. See [docs/AGENT_SUPPORT.md](docs/AGENT_SUPPORT.md) for the full agent capability matrix and adapter architecture.
 - [ ] **Agent documentation** — Adding a new IDE/agent? → Update ALL tables in `docs/AGENT_SUPPORT.md`: Supported Agents, Hook Capability Matrix, Violation Type Coverage Matrix, Agent Confidence Levels, Hook Event Name Mapping, Response Format Differences, Config File Locations.
 - [ ] **Violation type documentation** — Adding a new violation type? → Add a row to the Violation Type Coverage Matrix in `docs/AGENT_SUPPORT.md` and document any agent-specific limitations.
+- [ ] **`.aiguardignore.toml` scanner type** — Adding a new violation/scanner type that scans file content (not URL-based or tool-based)? → Add it to `SCANNER_TYPES` in `src/ai_guardian/aiguardignore.py` so `.aiguardignore.toml` can filter it.
 
 ### TUI and Web Console Coexistence
 

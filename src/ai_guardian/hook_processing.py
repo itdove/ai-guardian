@@ -2621,6 +2621,18 @@ def _extract_matched_text_for_ask(secret_details, content):
     return ""
 
 
+def _extract_pii_matched_text(pii_redactions, content):
+    """Extract actual PII text from content using redaction position data."""
+    if not pii_redactions or not content:
+        return ""
+    r = pii_redactions[0]
+    pos = r.get('position', -1)
+    length = r.get('original_length', 0)
+    if pos >= 0 and length > 0 and pos + length <= len(content):
+        return content[pos:pos + length]
+    return ""
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
                                 ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
@@ -4071,10 +4083,13 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
 
+                        # Extract actual PII text from content for ask dialog
+                        pii_matched_text = _extract_pii_matched_text(pii_redactions, tool_output)
+
                         # Check ask action mode before standard routing
                         pii_ask_result = _handle_ask_mode(
                             pii_action, ViolationType.PII_DETECTED,
-                            matched_text=pii_warning or "",
+                            matched_text=pii_matched_text,
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             latency_timer=_latency_timer,
@@ -4086,7 +4101,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 pii_info_msg = _format_ask_info_message(ViolationType.PII_DETECTED, pii_ask_result.decision)
                                 warning_messages.append(pii_info_msg)
                                 _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
-                                                  matched_text=pii_warning or "", error_msg=pii_warning or "",
+                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
                                                   dialog_wait_ms=pii_ask_result.dialog_wait_ms)
 
                         if pii_action == 'block':
@@ -5046,10 +5061,13 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         logging.warning(f"PII detected: {pii_types}")
 
+                        # Extract actual PII text from content for ask dialog
+                        pii_matched_text = _extract_pii_matched_text(pii_redactions, pii_scan_content)
+
                         # Check ask action mode before blocking
                         pii_ask_result2 = _handle_ask_mode(
                             pii_action, ViolationType.PII_DETECTED,
-                            matched_text=pii_warning or "",
+                            matched_text=pii_matched_text,
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             latency_timer=_latency_timer,
