@@ -221,14 +221,21 @@ def create_violations_page(service, daemon_name: str):
                         f"{len(all_violations)} violations"
                     ).classes("text-xs text-grey-6")
                     for v in all_violations:
-                        _render_violation_card(v)
+                        _render_violation_card(v, service, daemon_name)
 
                 inject_local_time_js()
 
             ui.timer(0.1, load_violations, once=True)
 
 
-def _render_violation_card(v: dict):
+_ALLOWLIST_TYPES = frozenset({
+    "secret_detected", "pii_detected", "prompt_injection", "jailbreak_detected",
+    "directory_blocking", "ssrf_blocked", "config_file_exfil",
+    "context_poisoning", "supply_chain", "tool_permission",
+})
+
+
+def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
     vtype = v.get("violation_type", v.get("type", "unknown"))
     severity = v.get("severity", "warning")
     timestamp = v.get("timestamp", "")
@@ -346,7 +353,21 @@ def _render_violation_card(v: dict):
                             ),
                         ).props("flat dense size=sm")
 
-                    ui.button("Close", on_click=dialog.close).classes("mt-2")
+                    with ui.row().classes("w-full justify-between mt-2"):
+                        if vtype in _ALLOWLIST_TYPES and service is not None:
+                            async def on_always_allow(
+                                dlg=dialog, viol=violation,
+                                svc=service, dname=daemon_name,
+                            ):
+                                await _show_allow_always_flow(
+                                    dlg, viol, svc, dname,
+                                )
+
+                            ui.button(
+                                "Always Allow...", icon="check_circle",
+                                on_click=on_always_allow,
+                            ).props("color=positive dense size=sm")
+                        ui.button("Close", on_click=dialog.close)
                 dialog.open()
 
             ui.button(
@@ -375,3 +396,185 @@ def _render_violation_card(v: dict):
                 ui.button(
                     "Correlated", icon="link", on_click=show_correlated,
                 ).props("flat dense size=sm")
+
+
+async def _show_allow_always_flow(parent_dialog, violation, service, daemon_name):
+    """Rescan the file and open pattern editor if the violation is still present."""
+    blocked = violation.get("blocked", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+
+    vtype = violation.get("violation_type", violation.get("type", ""))
+    file_path = blocked.get("file_path", "")
+    line_number = blocked.get("line_number", 0)
+    sub_type = blocked.get("secret_type", "")
+
+    target = service.get_target_by_name(daemon_name)
+    if not target:
+        ui.notify("Daemon not available", type="negative")
+        return
+
+    result = await run.io_bound(
+        service.get_violation_context,
+        target, file_path, line_number, vtype, sub_type,
+    )
+
+    if result is None:
+        ui.notify("Failed to contact daemon", type="negative")
+        return
+
+    status = result.get("status", "")
+    if status == "file_not_found":
+        ui.notify(
+            result.get("message", "File no longer exists"),
+            type="warning",
+        )
+        return
+    if status == "not_found":
+        ui.notify(
+            result.get("message", "Violation no longer present"),
+            type="warning",
+        )
+        return
+    if status != "found":
+        ui.notify(f"Unexpected status: {status}", type="negative")
+        return
+
+    matched_text = result.get("matched_text", "")
+    from ai_guardian.tui.pattern_editor import config_section_for_violation
+    config_section = config_section_for_violation(vtype)
+
+    if not config_section:
+        ui.notify(f"No config section for type: {vtype}", type="warning")
+        return
+
+    _show_pattern_editor_dialog(matched_text, config_section)
+
+
+def _show_pattern_editor_dialog(matched_text: str, config_section: str):
+    """Open inline pattern editor dialog for allowlisting."""
+    from ai_guardian.tui.pattern_editor import (
+        validate_pattern,
+        generate_config_preview,
+        suggest_pattern,
+        get_pattern_type_for_section,
+        prepare_config_with_pattern,
+        PATTERN_TYPES,
+    )
+    from ai_guardian.tui.ask_dialog import _write_config_text
+
+    ptype = get_pattern_type_for_section(config_section)
+    ptype_label = PATTERN_TYPES.get(ptype, ptype)
+
+    with ui.dialog() as dlg, ui.card().classes("w-full max-w-xl"):
+        ui.label("Allow Always — Edit Pattern").classes("text-lg font-bold")
+        ui.separator()
+
+        ui.label("Matched text (reference):").classes("font-bold text-sm")
+        ui.code(matched_text[:500]).classes("w-full")
+
+        ui.label(f"Pattern ({ptype_label}):").classes("font-bold text-sm mt-2")
+        pattern_input = ui.input(
+            value=suggest_pattern(matched_text, config_section) if matched_text else "",
+        ).props("dense outlined").classes("w-full").style("font-family: monospace")
+
+        status_label = ui.label("").classes("text-sm")
+        preview_code = ui.code("").classes("w-full")
+
+        def do_test():
+            pat = pattern_input.value.strip()
+            valid, msg = validate_pattern(pat, ptype, matched_text)
+            if valid:
+                status_label.text = f"PASS: {msg}"
+                status_label.classes(replace="text-sm text-green")
+                preview_code.set_content(
+                    generate_config_preview(pat, config_section)
+                )
+            else:
+                status_label.text = f"FAIL: {msg}"
+                status_label.classes(replace="text-sm text-red")
+
+        ui.button(
+            "Test Pattern", on_click=do_test, icon="play_arrow",
+        ).props("dense")
+        do_test()
+        pattern_input.on_value_change(lambda _: do_test())
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def on_confirm():
+                pat = pattern_input.value.strip()
+                valid, _ = validate_pattern(pat, ptype, matched_text)
+                if not valid:
+                    status_label.text = "FAIL: Fix the pattern before confirming"
+                    status_label.classes(replace="text-sm text-red")
+                    return
+                dlg.close()
+                _show_config_editor_dialog(pat, config_section)
+
+            ui.button(
+                "Add to Allowlist", on_click=on_confirm,
+            ).props("color=positive")
+
+    dlg.open()
+
+
+def _show_config_editor_dialog(save_pat: str, config_section: str):
+    """Show config editor with pattern inserted for review and save."""
+    import json as json_mod
+    from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+    from ai_guardian.tui.ask_dialog import _write_config_text
+
+    json_text, _line_number = prepare_config_with_pattern(save_pat, config_section)
+
+    with ui.dialog().props("persistent maximized") as editor_dlg, \
+            ui.card().classes("w-full h-full"):
+        ui.label("Config Editor — ai-guardian.json").classes("text-lg font-bold")
+        ui.label(
+            "Review the config with the inserted pattern. "
+            "Save to persist or Cancel to discard."
+        ).classes("text-sm text-grey-6")
+        ui.separator()
+
+        editor = ui.codemirror(
+            json_text, language="JSON", theme="dracula", line_wrapping=True,
+        ).classes("w-full flex-grow").style("min-height: 400px")
+
+        editor_status = ui.label("Valid JSON").classes("text-sm text-green")
+
+        def on_editor_change(e):
+            try:
+                json_mod.loads(e.value)
+                editor_status.text = "Valid JSON"
+                editor_status.classes(replace="text-sm text-green")
+            except json_mod.JSONDecodeError as exc:
+                editor_status.text = f"Invalid JSON: {exc}"
+                editor_status.classes(replace="text-sm text-red")
+
+        editor.on_value_change(on_editor_change)
+
+        with ui.row().classes("w-full justify-end mt-2"):
+            ui.button("Cancel", on_click=editor_dlg.close).props("flat")
+
+            def on_save():
+                text = editor.value
+                try:
+                    json_mod.loads(text)
+                except json_mod.JSONDecodeError as exc:
+                    editor_status.text = f"Invalid JSON: {exc}"
+                    editor_status.classes(replace="text-sm text-red")
+                    return
+                if _write_config_text(text):
+                    editor_dlg.close()
+                    ui.notify(
+                        "Pattern saved to ai-guardian.json",
+                        type="positive",
+                    )
+                else:
+                    editor_status.text = "Failed to write config file"
+                    editor_status.classes(replace="text-sm text-red")
+
+            ui.button("Save", on_click=on_save).props("color=positive")
+
+    editor_dlg.open()

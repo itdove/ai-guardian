@@ -148,6 +148,11 @@ class _RestHandler(BaseHTTPRequestHandler):
             else:
                 result = manager.detect(content)
                 self._send_json(result)
+        elif self.path == "/api/violation-context":
+            body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
+            if body is None:
+                return
+            self._handle_violation_context(body)
         elif self.path == "/api/prompt":
             body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
             if body is None:
@@ -394,6 +399,34 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.error("Check endpoint failed: %s", e)
             self._send_error(500, "Internal error")
+
+    def _handle_violation_context(self, body):
+        """Handle POST /api/violation-context — rescan file for matched text."""
+        file_path = body.get("file_path", "")
+        violation_type = body.get("violation_type", "")
+        if not violation_type:
+            self._send_error(400, "violation_type is required")
+            return
+
+        line_number = int(body.get("line_number", 0))
+        sub_type = body.get("secret_type", "")
+
+        try:
+            from ai_guardian.daemon.violation_rescan import rescan_violation
+        except ImportError as e:
+            logger.warning("Rescan module not available: %s", e)
+            self._send_error(503, "Rescan module not available")
+            return
+
+        cfg = self.server.daemon_state.get_config()
+        result = rescan_violation(
+            file_path=file_path,
+            line_number=line_number,
+            violation_type=violation_type,
+            sub_type=sub_type,
+            config=cfg,
+        )
+        self._send_json(result)
 
     def _handle_prompt(self, body):
         """Handle POST /api/prompt — delegate ask dialog to subprocess.

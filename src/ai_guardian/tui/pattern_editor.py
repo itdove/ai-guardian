@@ -47,6 +47,24 @@ SECTION_ARRAY_KEY = {
 
 _STRIP_SECTIONS = {"permissions", "supply_chain", "config_file_scanning"}
 
+VIOLATION_TYPE_TO_CONFIG = {
+    "secret_detected": "secret_scanning",
+    "pii_detected": "scan_pii",
+    "prompt_injection": "prompt_injection",
+    "jailbreak_detected": "prompt_injection",
+    "directory_blocking": "directory_rules",
+    "ssrf_blocked": "ssrf_protection",
+    "config_file_exfil": "config_file_scanning",
+    "context_poisoning": "context_poisoning",
+    "supply_chain": "supply_chain",
+    "tool_permission": "permissions",
+}
+
+
+def config_section_for_violation(violation_type: str) -> str:
+    """Return the config section name for a violation type."""
+    return VIOLATION_TYPE_TO_CONFIG.get(violation_type, "")
+
 
 def get_pattern_type_for_section(config_section: str) -> str:
     """Return the pattern type for a config section."""

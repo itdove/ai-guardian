@@ -18,6 +18,21 @@ from textual import events
 from ai_guardian.violation_logger import ViolationLogger
 from ai_guardian.violation_guidance import get_resolution_instructions
 from ai_guardian.tui.widgets import format_local_time
+from ai_guardian.tui.pattern_editor import (
+    config_section_for_violation,
+    validate_pattern,
+    generate_config_preview,
+    suggest_pattern,
+    get_pattern_type_for_section,
+    prepare_config_with_pattern,
+    PATTERN_TYPES,
+)
+
+_ALLOWLIST_TYPES = frozenset({
+    "secret_detected", "pii_detected", "prompt_injection", "jailbreak_detected",
+    "directory_blocking", "ssrf_blocked", "config_file_exfil",
+    "context_poisoning", "supply_chain", "tool_permission",
+})
 
 
 class ViolationDetailsModal(ModalScreen):
@@ -122,6 +137,9 @@ class ViolationDetailsModal(ModalScreen):
                 yield Button("Copy Details", id="copy-details", variant="default")
                 if snippet:
                     yield Button("Copy Snippet", id="copy-snippet", variant="success")
+                vtype = self.violation.get("violation_type", "")
+                if vtype in _ALLOWLIST_TYPES:
+                    yield Button("Always Allow...", id="always-allow", variant="warning")
                 yield Button("Close (ESC)", id="close-details", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -135,8 +153,234 @@ class ViolationDetailsModal(ModalScreen):
             if snippet:
                 if self.app.copy_to_clipboard(snippet):
                     self.app.notify("Config snippet copied to clipboard", severity="information")
+        elif event.button.id == "always-allow":
+            self._on_always_allow()
         elif event.button.id == "close-details":
             self.dismiss()
+
+    def _on_always_allow(self):
+        """Rescan the file and open pattern editor."""
+        blocked = self.violation.get("blocked", {})
+        if not isinstance(blocked, dict):
+            blocked = {}
+
+        vtype = self.violation.get("violation_type", "")
+        file_path = blocked.get("file_path", "")
+        line_number = blocked.get("line_number", 0)
+        sub_type = blocked.get("secret_type", "")
+
+        from ai_guardian.daemon.violation_rescan import rescan_violation
+        result = rescan_violation(
+            file_path=file_path,
+            line_number=line_number,
+            violation_type=vtype,
+            sub_type=sub_type,
+        )
+
+        status = result.get("status", "")
+        if status == "file_not_found":
+            self.app.notify(
+                result.get("message", "File no longer exists"),
+                severity="warning",
+            )
+            return
+        if status == "not_found":
+            self.app.notify(
+                result.get("message", "Violation no longer present"),
+                severity="warning",
+            )
+            return
+        if status != "found":
+            self.app.notify(f"Unexpected status: {status}", severity="error")
+            return
+
+        matched_text = result.get("matched_text", "")
+        config_section = config_section_for_violation(vtype)
+        if not config_section:
+            self.app.notify(f"No config section for: {vtype}", severity="warning")
+            return
+
+        self.app.push_screen(
+            ViolationPatternEditorModal(matched_text, config_section)
+        )
+
+
+class ViolationPatternEditorModal(ModalScreen):
+    """Modal for editing and saving an allowlist pattern."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close", show=False),
+    ]
+
+    CSS = """
+    ViolationPatternEditorModal {
+        align: center middle;
+    }
+
+    #pattern-editor-container {
+        width: 80;
+        height: 80%;
+        background: $panel;
+        border: thick $primary;
+        padding: 1 2;
+    }
+
+    #pattern-editor-content {
+        height: 1fr;
+        background: $surface;
+    }
+    """
+
+    def __init__(self, matched_text: str, config_section: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.matched_text = matched_text
+        self.config_section = config_section
+        self.ptype = get_pattern_type_for_section(config_section)
+
+    def compose(self) -> ComposeResult:
+        ptype_label = PATTERN_TYPES.get(self.ptype, self.ptype)
+        suggested = suggest_pattern(self.matched_text, self.config_section) if self.matched_text else ""
+
+        with Container(id="pattern-editor-container"):
+            yield Static("[bold]Allow Always — Edit Pattern[/bold]", id="modal-header")
+            yield Static(f"\n[bold]Matched text:[/bold]\n{self.matched_text[:200]}\n")
+            yield Static(f"[bold]Pattern ({ptype_label}):[/bold]")
+
+            from textual.widgets import Input, TextArea
+            yield Input(value=suggested, id="pattern-input")
+            yield Static("", id="pattern-status")
+            yield Static("[bold]Config preview:[/bold]")
+
+            preview = generate_config_preview(suggested, self.config_section) if suggested else ""
+            yield TextArea(preview, id="pattern-preview", read_only=True)
+
+            with Horizontal(id="modal-actions"):
+                yield Button("Test Pattern", id="test-pattern", variant="default")
+                yield Button("Add to Allowlist", id="confirm-pattern", variant="success")
+                yield Button("Cancel", id="cancel-pattern", variant="primary")
+
+    def on_mount(self) -> None:
+        self._do_test()
+
+    def _do_test(self):
+        from textual.widgets import Input
+        pattern_input = self.query_one("#pattern-input", Input)
+        pat = pattern_input.value.strip()
+        valid, msg = validate_pattern(pat, self.ptype, self.matched_text)
+
+        status = self.query_one("#pattern-status", Static)
+        if valid:
+            status.update(f"[green]PASS: {msg}[/green]")
+            preview = generate_config_preview(pat, self.config_section)
+            from textual.widgets import TextArea
+            self.query_one("#pattern-preview", TextArea).load_text(preview)
+        else:
+            status.update(f"[red]FAIL: {msg}[/red]")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "test-pattern":
+            self._do_test()
+        elif event.button.id == "confirm-pattern":
+            self._confirm()
+        elif event.button.id == "cancel-pattern":
+            self.dismiss()
+
+    def _confirm(self):
+        from textual.widgets import Input
+        pattern_input = self.query_one("#pattern-input", Input)
+        pat = pattern_input.value.strip()
+        valid, msg = validate_pattern(pat, self.ptype, self.matched_text)
+        if not valid:
+            status = self.query_one("#pattern-status", Static)
+            status.update(f"[red]FAIL: Fix the pattern first[/red]")
+            return
+
+        self.app.push_screen(
+            ViolationConfigEditorModal(pat, self.config_section)
+        )
+
+
+class ViolationConfigEditorModal(ModalScreen):
+    """Modal for reviewing and saving the full config with inserted pattern."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close", show=False),
+    ]
+
+    CSS = """
+    ViolationConfigEditorModal {
+        align: center middle;
+    }
+
+    #config-editor-container {
+        width: 90;
+        height: 90%;
+        background: $panel;
+        border: thick $primary;
+        padding: 1 2;
+    }
+
+    #config-editor-area {
+        height: 1fr;
+    }
+    """
+
+    def __init__(self, pattern: str, config_section: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pattern = pattern
+        self.config_section = config_section
+
+    def compose(self) -> ComposeResult:
+        json_text, line_number = prepare_config_with_pattern(
+            self.pattern, self.config_section,
+        )
+
+        with Container(id="config-editor-container"):
+            yield Static(
+                "[bold]Config Editor — ai-guardian.json[/bold]\n"
+                "Review the config with the inserted pattern. Save to persist.",
+                id="modal-header",
+            )
+
+            from textual.widgets import TextArea
+            editor = TextArea(json_text, id="config-editor-area", language="json")
+            editor.cursor_location = (max(0, line_number - 1), 0)
+            yield editor
+
+            yield Static("", id="config-status")
+
+            with Horizontal(id="modal-actions"):
+                yield Button("Save", id="save-config", variant="success")
+                yield Button("Cancel", id="cancel-config", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-config":
+            self._save()
+        elif event.button.id == "cancel-config":
+            self.dismiss()
+
+    def _save(self):
+        from textual.widgets import TextArea
+        editor = self.query_one("#config-editor-area", TextArea)
+        text = editor.text
+
+        try:
+            json.loads(text)
+        except json.JSONDecodeError as exc:
+            status = self.query_one("#config-status", Static)
+            status.update(f"[red]Invalid JSON: {exc}[/red]")
+            return
+
+        from ai_guardian.tui.ask_dialog import _write_config_text
+        if _write_config_text(text):
+            self.app.notify("Pattern saved to ai-guardian.json", severity="information")
+            self.dismiss()
+            parent = self.app.screen
+            if isinstance(parent, ViolationPatternEditorModal):
+                parent.dismiss()
+        else:
+            status = self.query_one("#config-status", Static)
+            status.update("[red]Failed to write config file[/red]")
 
 
 class ViolationCard(Vertical):
