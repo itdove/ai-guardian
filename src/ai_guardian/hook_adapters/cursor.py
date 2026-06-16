@@ -83,9 +83,10 @@ class CursorAdapter(HookAdapter):
         final_error = self._combine_error_messages(error_message, warning_message) if has_secrets else None
 
         if hook_event == HookEvent.PRE_TOOL_USE:
-            response = {"decision": "deny" if has_secrets else "allow"}
+            response = {"permission": "deny" if has_secrets else "allow"}
             if has_secrets and final_error:
-                response["reason"] = final_error
+                response["user_message"] = final_error
+                response["agent_message"] = "Operation blocked by ai-guardian security policy"
         elif hook_event == HookEvent.BEFORE_READ_FILE:
             response = {"permission": "deny" if has_secrets else "allow"}
             if has_secrets and final_error:

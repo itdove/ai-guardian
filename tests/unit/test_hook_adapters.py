@@ -560,8 +560,9 @@ class TestResponseFormatting:
             hook_event=HookEvent.PRE_TOOL_USE,
         )
         data = json.loads(result["output"])
-        assert data["decision"] == "deny"
-        assert "Secret found" in data["reason"]
+        assert data["permission"] == "deny"
+        assert "Secret found" in data["user_message"]
+        assert data["agent_message"] == "Operation blocked by ai-guardian security policy"
 
     def test_cursor_pretooluse_allow(self):
         result = CursorAdapter().format_response(
@@ -569,7 +570,8 @@ class TestResponseFormatting:
             hook_event=HookEvent.PRE_TOOL_USE,
         )
         data = json.loads(result["output"])
-        assert data["decision"] == "allow"
+        assert data["permission"] == "allow"
+        assert "agent_message" not in data
 
     def test_cursor_beforereadfile_block(self):
         result = CursorAdapter().format_response(
