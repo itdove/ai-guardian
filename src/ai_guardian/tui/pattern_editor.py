@@ -203,6 +203,7 @@ def prepare_config_with_pattern(
         section = config.setdefault("permissions", {})
         rules = section.get("rules", [])
         new_rule = _permission_rule_from_pattern(pattern)
+        search_value = new_rule["patterns"][-1] if new_rule["patterns"] else pattern
         merged = False
         for existing in rules:
             if (existing.get("mode") == "allow"
@@ -218,6 +219,7 @@ def prepare_config_with_pattern(
             rules.append(new_rule)
         section["rules"] = rules
     else:
+        search_value = pattern
         array_key = SECTION_ARRAY_KEY.get(config_section, "allowlist_patterns")
         section = config.setdefault(config_section, {})
         items = section.get(array_key, [])
@@ -227,7 +229,7 @@ def prepare_config_with_pattern(
 
     json_text = json.dumps(config, indent=2) + "\n"
 
-    escaped = json.dumps(pattern)
+    escaped = json.dumps(search_value)
     line_number = 1
     for i, line in enumerate(json_text.splitlines(), 1):
         if escaped in line:
