@@ -84,7 +84,10 @@ def validate_pattern(
     pattern_type: str,
     test_text: str,
 ) -> Tuple[bool, str]:
-    """Validate a pattern compiles correctly and matches the test text.
+    """Validate a pattern and check it matches the test text.
+
+    Uses native matching for each type: regex uses re, glob uses fnmatch,
+    string uses substring containment.
 
     Args:
         pattern: The pattern to validate.
@@ -97,16 +100,26 @@ def validate_pattern(
     if not pattern:
         return False, "Pattern is empty"
 
-    regex_pattern = convert_to_regex(pattern, pattern_type)
+    if pattern_type == "glob":
+        if pattern == "*":
+            return False, "Pattern is too broad — would disable all detection"
+        if test_text and not fnmatch.fnmatch(test_text, pattern):
+            return False, "Pattern does not match the original text"
+        return True, "Pattern is valid and matches"
 
-    if regex_pattern in DANGEROUS_PATTERNS:
+    if pattern_type == "string":
+        if test_text and pattern not in test_text:
+            return False, "Pattern does not match the original text"
+        return True, "Pattern is valid and matches"
+
+    if pattern in DANGEROUS_PATTERNS:
         return False, "Pattern is too broad — would disable all detection"
 
-    if not validate_regex_pattern(regex_pattern):
+    if not validate_regex_pattern(pattern):
         return False, "Pattern failed ReDoS safety check"
 
     try:
-        compiled = re.compile(regex_pattern, re.IGNORECASE | re.MULTILINE)
+        compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
     except re.error as e:
         return False, f"Invalid regex: {e}"
 

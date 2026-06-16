@@ -120,6 +120,37 @@ class TestPatternEditor:
         valid, msg = validate_pattern("CARBONITE_IMAGE*", "glob", "CARBONITE_IMAGE=quay.io/foo")
         assert valid is True
 
+    def test_validate_glob_no_match(self):
+        from ai_guardian.tui.pattern_editor import validate_pattern
+        valid, msg = validate_pattern("DOES_NOT_EXIST*", "glob", "CARBONITE_IMAGE=quay.io/foo")
+        assert valid is False
+        assert "does not match" in msg.lower()
+
+    def test_validate_glob_dangerous_star(self):
+        from ai_guardian.tui.pattern_editor import validate_pattern
+        valid, msg = validate_pattern("*", "glob", "anything")
+        assert valid is False
+        assert "too broad" in msg.lower()
+
+    def test_validate_string_no_match(self):
+        from ai_guardian.tui.pattern_editor import validate_pattern
+        valid, msg = validate_pattern("DOES_NOT_EXIST", "string", "CARBONITE_IMAGE=quay.io/foo")
+        assert valid is False
+        assert "does not match" in msg.lower()
+
+    def test_config_preview_saves_native_glob(self):
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview("*.example.com", "ssrf_protection")
+        parsed = json.loads(result)
+        assert "*.example.com" in parsed["ssrf_protection"]["allowed_domains"]
+
+    def test_config_preview_saves_native_string(self):
+        from ai_guardian.tui.pattern_editor import generate_config_preview
+        result = generate_config_preview("daf-workflow", "permissions")
+        parsed = json.loads(result)
+        assert parsed["permissions"]["rules"][0]["matcher"] == "daf-workflow"
+        assert "daf\\-workflow" not in json.dumps(parsed)
+
     def test_convert_to_regex_string(self):
         from ai_guardian.tui.pattern_editor import convert_to_regex
         result = convert_to_regex("hello.world", "string")

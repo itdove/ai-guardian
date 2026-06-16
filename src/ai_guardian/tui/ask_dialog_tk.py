@@ -107,7 +107,7 @@ class _TkinterAskDialog:
         self._result = AskResult(decision=decision)
         root.destroy()
 
-    def _show_config_editor(self, root, regex_pat):
+    def _show_config_editor(self, root, save_pat):
         """Show a full config editor with the pattern inserted in memory."""
         import tkinter as tk
         from tkinter import ttk
@@ -115,7 +115,7 @@ class _TkinterAskDialog:
         from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
 
         v = self._violation
-        json_text, line_number = prepare_config_with_pattern(regex_pat, v.config_section)
+        json_text, line_number = prepare_config_with_pattern(save_pat, v.config_section)
 
         root.deiconify()
         for w in root.winfo_children():
@@ -175,7 +175,7 @@ class _TkinterAskDialog:
             if _write_config_text(text):
                 self._result = AskResult(
                     decision=AskDecision.ALLOW_ALWAYS,
-                    allowlist_pattern=regex_pat,
+                    allowlist_pattern=save_pat,
                     config_saved=True,
                 )
                 root.destroy()
@@ -196,7 +196,7 @@ class _TkinterAskDialog:
         from tkinter import ttk
 
         from ai_guardian.tui.pattern_editor import (
-            validate_pattern, convert_to_regex, generate_config_preview, suggest_pattern,
+            validate_pattern, generate_config_preview, suggest_pattern,
             get_pattern_type_for_section, PATTERN_TYPES,
         )
 
@@ -244,10 +244,9 @@ class _TkinterAskDialog:
             if valid:
                 status_var.set(f"✅ PASS: {msg}")
                 status_label.config(fg="#00cc00")
-                regex_pat = convert_to_regex(pat, ptype)
                 preview_text.config(state="normal")
                 preview_text.delete("1.0", "end")
-                preview_text.insert("1.0", generate_config_preview(regex_pat, v.config_section))
+                preview_text.insert("1.0", generate_config_preview(pat, v.config_section))
                 preview_text.config(state="disabled")
             else:
                 status_var.set(f"❌ FAIL: {msg}")
@@ -278,9 +277,8 @@ class _TkinterAskDialog:
                 status_var.set("❌ FAIL: Fix the pattern before confirming")
                 status_label.config(fg="#ff4444")
                 return
-            regex_pat = convert_to_regex(pat, ptype)
             editor.destroy()
-            self._show_config_editor(root, regex_pat)
+            self._show_config_editor(root, pat)
 
         def on_cancel():
             editor.destroy()

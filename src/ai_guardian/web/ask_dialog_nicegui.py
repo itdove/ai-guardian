@@ -14,13 +14,13 @@ from ai_guardian.tui.ask_dialog import (
 )
 
 
-def _show_nicegui_config_editor(dialog_self, app, regex_pat, config_section):
+def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
     """Show a NiceGUI config editor dialog with the pattern inserted in memory."""
     import json as json_mod
     from nicegui import ui
     from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
 
-    json_text, _line_number = prepare_config_with_pattern(regex_pat, config_section)
+    json_text, _line_number = prepare_config_with_pattern(save_pat, config_section)
 
     with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
         ui.label("Config Editor — ai-guardian.json").classes("text-lg font-bold")
@@ -61,7 +61,7 @@ def _show_nicegui_config_editor(dialog_self, app, regex_pat, config_section):
                 if _write_config_text(text):
                     dialog_self._result = AskResult(
                         decision=AskDecision.ALLOW_ALWAYS,
-                        allowlist_pattern=regex_pat,
+                        allowlist_pattern=save_pat,
                         config_saved=True,
                     )
                     ui.run_javascript("window.close()")
@@ -94,7 +94,7 @@ class _NiceGuiAskDialog:
         @ui.page("/")
         def main_page():
             from ai_guardian.tui.pattern_editor import (
-                validate_pattern, convert_to_regex, generate_config_preview,
+                validate_pattern, generate_config_preview,
                 suggest_pattern, get_pattern_type_for_section, PATTERN_TYPES,
             )
 
@@ -148,8 +148,7 @@ class _NiceGuiAskDialog:
                                 if valid:
                                     status_label.text = f"✅ PASS: {msg}"
                                     status_label.classes(replace="text-sm text-green")
-                                    regex_pat = convert_to_regex(pat, ptype)
-                                    preview_code.set_content(generate_config_preview(regex_pat, v.config_section))
+                                    preview_code.set_content(generate_config_preview(pat, v.config_section))
                                 else:
                                     status_label.text = f"❌ FAIL: {msg}"
                                     status_label.classes(replace="text-sm text-red")
@@ -168,9 +167,8 @@ class _NiceGuiAskDialog:
                                         status_label.text = "❌ FAIL: Fix the pattern before confirming"
                                         status_label.classes(replace="text-sm text-red")
                                         return
-                                    regex_pat = convert_to_regex(pat, ptype)
                                     dlg.close()
-                                    _show_nicegui_config_editor(dialog_self, app, regex_pat, v.config_section)
+                                    _show_nicegui_config_editor(dialog_self, app, pat, v.config_section)
 
                                 ui.button("Add to Allowlist", on_click=on_confirm).props("color=positive")
 
