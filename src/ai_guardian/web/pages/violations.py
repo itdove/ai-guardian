@@ -399,56 +399,111 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
 
 
 async def _show_allow_always_flow(parent_dialog, violation, service, daemon_name):
-    """Rescan the file and open pattern editor if the violation is still present."""
+    """Open pattern editor for allowlisting, rescanning file if needed."""
     blocked = violation.get("blocked", {})
     if not isinstance(blocked, dict):
         blocked = {}
 
     vtype = violation.get("violation_type", violation.get("type", ""))
-    file_path = blocked.get("file_path", "")
+    file_path = blocked.get("file_path") or ""
     line_number = blocked.get("line_number", 0)
     sub_type = blocked.get("secret_type", "")
 
-    target = service.get_target_by_name(daemon_name)
-    if not target:
-        ui.notify("Daemon not available", type="negative")
-        return
-
-    result = await run.io_bound(
-        service.get_violation_context,
-        target, file_path, line_number, vtype, sub_type,
-    )
-
-    if result is None:
-        ui.notify("Failed to contact daemon", type="negative")
-        return
-
-    status = result.get("status", "")
-    if status == "file_not_found":
-        ui.notify(
-            result.get("message", "File no longer exists"),
-            type="warning",
-        )
-        return
-    if status == "not_found":
-        ui.notify(
-            result.get("message", "Violation no longer present"),
-            type="warning",
-        )
-        return
-    if status != "found":
-        ui.notify(f"Unexpected status: {status}", type="negative")
-        return
-
-    matched_text = result.get("matched_text", "")
     from ai_guardian.tui.pattern_editor import config_section_for_violation
     config_section = config_section_for_violation(vtype)
-
     if not config_section:
         ui.notify(f"No config section for type: {vtype}", type="warning")
         return
 
+    matched_text = _extract_matched_from_violation(violation)
+
+    if not matched_text and file_path:
+        target = service.get_target_by_name(daemon_name)
+        if not target:
+            ui.notify("Daemon not available", type="negative")
+            return
+
+        result = await run.io_bound(
+            service.get_violation_context,
+            target, file_path, line_number, vtype, sub_type,
+        )
+
+        if result is None:
+            ui.notify("Failed to contact daemon", type="negative")
+            return
+
+        status = result.get("status", "")
+        if status == "file_not_found":
+            ui.notify(
+                result.get("message", "File no longer exists"),
+                type="warning",
+            )
+            return
+        if status == "not_found":
+            ui.notify(
+                result.get("message", "Violation no longer present"),
+                type="warning",
+            )
+            return
+        if status == "found":
+            matched_text = result.get("matched_text", "")
+
+    if not matched_text:
+        ui.notify("No matched text available for this violation", type="warning")
+        return
+
     _show_pattern_editor_dialog(matched_text, config_section)
+
+
+def _extract_matched_from_violation(violation: dict) -> str:
+    """Extract matched text directly from violation data without rescanning.
+
+    Returns the best available text for pattern editor pre-population.
+    For file-based violations where no text is stored (e.g. secret_detected),
+    returns "" so the caller falls through to a file rescan.
+    """
+    blocked = violation.get("blocked", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+    vtype = violation.get("violation_type", "")
+
+    if blocked.get("matched_text"):
+        return str(blocked["matched_text"])
+
+    if blocked.get("context_snippet"):
+        return str(blocked["context_snippet"])
+
+    if vtype == "tool_permission":
+        tool = blocked.get("tool_name", "")
+        value = blocked.get("tool_value", "")
+        if tool and value:
+            return f"{tool}:{value}"
+        return tool or value or ""
+
+    if vtype == "ssrf_blocked":
+        url = blocked.get("tool_value", "") or blocked.get("url", "")
+        if not url:
+            reason = blocked.get("reason", "")
+            import re
+            m = re.search(r'https?://\S+', reason)
+            if m:
+                url = m.group(0)
+        return url
+
+    if vtype == "directory_blocking":
+        return blocked.get("denied_directory", "") or blocked.get("file_path", "")
+
+    if vtype in ("prompt_injection", "jailbreak_detected",
+                 "context_poisoning", "supply_chain"):
+        return blocked.get("pattern", "")
+
+    if vtype == "pii_detected":
+        pii_types = blocked.get("pii_types", [])
+        if isinstance(pii_types, list) and pii_types:
+            return ", ".join(str(t) for t in pii_types)
+        return ""
+
+    return ""
 
 
 def _show_pattern_editor_dialog(matched_text: str, config_section: str):

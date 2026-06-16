@@ -35,6 +35,57 @@ _ALLOWLIST_TYPES = frozenset({
 })
 
 
+def _extract_matched_from_violation(violation: dict) -> str:
+    """Extract matched text directly from violation data without rescanning.
+
+    Returns the best available text for pattern editor pre-population.
+    For file-based violations where no text is stored (e.g. secret_detected),
+    returns "" so the caller falls through to a file rescan.
+    """
+    blocked = violation.get("blocked", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+    vtype = violation.get("violation_type", "")
+
+    if blocked.get("matched_text"):
+        return str(blocked["matched_text"])
+
+    if blocked.get("context_snippet"):
+        return str(blocked["context_snippet"])
+
+    if vtype == "tool_permission":
+        tool = blocked.get("tool_name", "")
+        value = blocked.get("tool_value", "")
+        if tool and value:
+            return f"{tool}:{value}"
+        return tool or value or ""
+
+    if vtype == "ssrf_blocked":
+        url = blocked.get("tool_value", "") or blocked.get("url", "")
+        if not url:
+            reason = blocked.get("reason", "")
+            import re
+            m = re.search(r'https?://\S+', reason)
+            if m:
+                url = m.group(0)
+        return url
+
+    if vtype == "directory_blocking":
+        return blocked.get("denied_directory", "") or blocked.get("file_path", "")
+
+    if vtype in ("prompt_injection", "jailbreak_detected",
+                 "context_poisoning", "supply_chain"):
+        return blocked.get("pattern", "")
+
+    if vtype == "pii_detected":
+        pii_types = blocked.get("pii_types", [])
+        if isinstance(pii_types, list) and pii_types:
+            return ", ".join(str(t) for t in pii_types)
+        return ""
+
+    return ""
+
+
 class ViolationDetailsModal(ModalScreen):
     """Modal for displaying full violation details."""
 
@@ -159,45 +210,50 @@ class ViolationDetailsModal(ModalScreen):
             self.dismiss()
 
     def _on_always_allow(self):
-        """Rescan the file and open pattern editor."""
+        """Extract matched text and open pattern editor."""
         blocked = self.violation.get("blocked", {})
         if not isinstance(blocked, dict):
             blocked = {}
 
         vtype = self.violation.get("violation_type", "")
-        file_path = blocked.get("file_path", "")
+        file_path = blocked.get("file_path") or ""
         line_number = blocked.get("line_number", 0)
         sub_type = blocked.get("secret_type", "")
 
-        from ai_guardian.daemon.violation_rescan import rescan_violation
-        result = rescan_violation(
-            file_path=file_path,
-            line_number=line_number,
-            violation_type=vtype,
-            sub_type=sub_type,
-        )
-
-        status = result.get("status", "")
-        if status == "file_not_found":
-            self.app.notify(
-                result.get("message", "File no longer exists"),
-                severity="warning",
-            )
-            return
-        if status == "not_found":
-            self.app.notify(
-                result.get("message", "Violation no longer present"),
-                severity="warning",
-            )
-            return
-        if status != "found":
-            self.app.notify(f"Unexpected status: {status}", severity="error")
-            return
-
-        matched_text = result.get("matched_text", "")
         config_section = config_section_for_violation(vtype)
         if not config_section:
             self.app.notify(f"No config section for: {vtype}", severity="warning")
+            return
+
+        matched_text = _extract_matched_from_violation(self.violation)
+
+        if not matched_text and file_path:
+            from ai_guardian.daemon.violation_rescan import rescan_violation
+            result = rescan_violation(
+                file_path=file_path,
+                line_number=line_number,
+                violation_type=vtype,
+                sub_type=sub_type,
+            )
+
+            status = result.get("status", "")
+            if status == "file_not_found":
+                self.app.notify(
+                    result.get("message", "File no longer exists"),
+                    severity="warning",
+                )
+                return
+            if status == "not_found":
+                self.app.notify(
+                    result.get("message", "Violation no longer present"),
+                    severity="warning",
+                )
+                return
+            if status == "found":
+                matched_text = result.get("matched_text", "")
+
+        if not matched_text:
+            self.app.notify("No matched text available for this violation", severity="warning")
             return
 
         self.app.push_screen(

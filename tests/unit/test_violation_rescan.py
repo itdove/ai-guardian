@@ -233,6 +233,71 @@ class TestRescanViolation:
                 os.unlink(f.name)
 
 
+class TestExtractMatchedFromViolation:
+    """Test matched text extraction from violation data."""
+
+    def _extract(self, violation):
+        from ai_guardian.tui.violations import _extract_matched_from_violation
+        return _extract_matched_from_violation(violation)
+
+    def test_matched_text_field(self):
+        v = {"blocked": {"matched_text": "injected payload"}, "violation_type": "prompt_injection"}
+        assert self._extract(v) == "injected payload"
+
+    def test_context_snippet(self):
+        v = {"blocked": {"context_snippet": "+32 56 37 04 17"}, "violation_type": "pii_detected"}
+        assert self._extract(v) == "+32 56 37 04 17"
+
+    def test_tool_permission_both_fields(self):
+        v = {"blocked": {"tool_name": "Bash", "tool_value": "rm -rf"}, "violation_type": "tool_permission"}
+        assert self._extract(v) == "Bash:rm -rf"
+
+    def test_tool_permission_only_tool(self):
+        v = {"blocked": {"tool_name": "mcp__server__tool"}, "violation_type": "tool_permission"}
+        assert self._extract(v) == "mcp__server__tool"
+
+    def test_ssrf_tool_value(self):
+        v = {"blocked": {"tool_value": "http://169.254.169.254"}, "violation_type": "ssrf_blocked"}
+        assert self._extract(v) == "http://169.254.169.254"
+
+    def test_ssrf_from_reason(self):
+        v = {"blocked": {"reason": "SSRF blocked: http://internal.corp/admin"}, "violation_type": "ssrf_blocked"}
+        assert "http://internal.corp/admin" in self._extract(v)
+
+    def test_directory_blocking(self):
+        v = {"blocked": {"denied_directory": "/etc/secrets", "file_path": "/etc/secrets/key.pem"}, "violation_type": "directory_blocking"}
+        assert self._extract(v) == "/etc/secrets"
+
+    def test_prompt_injection_pattern(self):
+        v = {"blocked": {"pattern": r"ignore.*instructions"}, "violation_type": "prompt_injection"}
+        assert self._extract(v) == r"ignore.*instructions"
+
+    def test_context_poisoning_pattern(self):
+        v = {"blocked": {"pattern": r"system_prompt"}, "violation_type": "context_poisoning"}
+        assert self._extract(v) == "system_prompt"
+
+    def test_supply_chain_pattern(self):
+        v = {"blocked": {"pattern": "malicious-package"}, "violation_type": "supply_chain"}
+        assert self._extract(v) == "malicious-package"
+
+    def test_pii_types_fallback(self):
+        v = {"blocked": {"pii_types": ["SSN", "Phone Number"]}, "violation_type": "pii_detected"}
+        assert self._extract(v) == "SSN, Phone Number"
+
+    def test_secret_detected_returns_empty(self):
+        """Secrets not stored in violation data — requires file rescan."""
+        v = {"blocked": {"secret_type": "aws-access-token", "file_path": "/app/config.py"}, "violation_type": "secret_detected"}
+        assert self._extract(v) == ""
+
+    def test_empty_blocked(self):
+        v = {"blocked": {}, "violation_type": "unknown"}
+        assert self._extract(v) == ""
+
+    def test_non_dict_blocked(self):
+        v = {"blocked": "not a dict", "violation_type": "secret_detected"}
+        assert self._extract(v) == ""
+
+
 class TestRestEndpoint:
     """Test the REST API endpoint for violation-context."""
 

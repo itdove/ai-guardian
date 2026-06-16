@@ -411,15 +411,20 @@ class MultiDaemonClient:
         secret_type: str = "",
     ) -> Optional[dict]:
         """Rescan a file on the daemon to get matched text for allowlisting."""
+        if target.runtime == "local":
+            from ai_guardian.daemon.violation_rescan import rescan_violation
+            return rescan_violation(
+                file_path=file_path,
+                line_number=line_number,
+                violation_type=violation_type,
+                sub_type=secret_type,
+            )
         body = {
             "file_path": file_path,
             "line_number": line_number,
             "violation_type": violation_type,
             "secret_type": secret_type,
         }
-        if target.runtime == "local":
-            from ai_guardian.daemon.violation_rescan import rescan_violation
-            return rescan_violation(**body)
         return self._rest_request(target, "POST", "/api/violation-context", body)
 
     def get_metrics(
