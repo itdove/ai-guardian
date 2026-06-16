@@ -151,6 +151,7 @@ class _TkinterAskDialog:
         scrollbar.config(command=config_text.yview)
 
         config_text.insert("1.0", json_text)
+        config_text.update_idletasks()
         config_text.mark_set("insert", f"{line_number}.0")
         config_text.see(f"{line_number}.0")
         config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
