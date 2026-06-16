@@ -1801,3 +1801,115 @@ class TestLogAskDecision:
         from ai_guardian.tui.ask_dialog import AskDecision
         mock_vl_cls.side_effect = RuntimeError("boom")
         _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)
+
+
+class TestDenyByDefaultAskAction:
+    """Tests for ask action inherited by deny-by-default path (Issue #1185)."""
+
+    def test_skill_not_in_allow_list_inherits_ask_from_allow_rule(self):
+        """Unmatched Skill inherits ask action from allow rule with action."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["code-review"], "action": "ask:warn"}
+                ]
+            }
+        }
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "daf-workflow"}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is False
+        assert checker.last_deny_action == "ask:warn"
+        assert checker.last_deny_matched_pattern == "not in allow list"
+
+    def test_mcp_not_in_allow_list_inherits_ask_action(self):
+        """Unmatched MCP tool inherits ask action from allow rule."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "mcp__*", "mode": "allow", "patterns": ["mcp__notebooklm*"], "action": "ask"}
+                ]
+            }
+        }
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "mcp__unknown__tool", "input": {}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is False
+        assert checker.last_deny_action == "ask"
+
+    def test_no_action_field_remains_block(self):
+        """Allow rule without action → deny-by-default stays block."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["code-review"]}
+                ]
+            }
+        }
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "daf-workflow"}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is False
+        assert checker.last_deny_action == "block"
+
+    def test_no_rules_at_all_hard_blocks(self):
+        """No rules for matcher → hard block, last_deny_action not set (AC #3)."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {"permissions": {"rules": []}}
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "daf-workflow"}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is False
+        assert checker.last_deny_action is None
+
+    def test_last_explicit_action_wins(self):
+        """Multiple rules with actions — last explicit action wins."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "Skill", "mode": "deny", "patterns": ["bad-*"], "action": "ask"},
+                    {"matcher": "Skill", "mode": "deny", "patterns": ["worse-*"], "action": "ask:warn"},
+                ]
+            }
+        }
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "daf-workflow"}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is False
+        assert checker.last_deny_action == "ask:warn"
+
+    def test_rule_without_action_does_not_override(self):
+        """Rule without action field does not override earlier explicit action."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "Skill", "mode": "deny", "patterns": ["bad-*"], "action": "ask:warn"},
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["safe-skill"]},
+                ]
+            }
+        }
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "daf-workflow"}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is False
+        assert checker.last_deny_action == "ask:warn"
+
+    def test_builtin_tool_not_affected(self):
+        """Built-in tools are not restricted — deny-by-default doesn't apply."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        config = {
+            "permissions": {
+                "rules": [
+                    {"matcher": "Bash", "mode": "allow", "patterns": ["ls*"]}
+                ]
+            }
+        }
+        checker = ToolPolicyChecker(config=config)
+        hook_data = {"tool_use": {"name": "Bash", "input": {"command": "echo hello"}}}
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert is_allowed is True

@@ -1121,10 +1121,17 @@ class ToolPolicyChecker:
 
             # No rule matched any pattern — check tool type
             if self._is_restricted_tool(tool_name):
-                self.last_deny_action = "block"
-                self.last_deny_matched_pattern = None
+                # Determine action from matching rules (last explicit action wins)
+                deny_default_action = "block"
+                for rule in expanded_rules:
+                    rule_action = rule.get("action") or rule.get("_legacy_fallback_action")
+                    if rule_action:
+                        deny_default_action = rule_action
+
+                self.last_deny_action = deny_default_action
+                self.last_deny_matched_pattern = "not in allow list"
                 self.last_deny_check_value = check_value if check_value else tool_name
-                logger.warning(f"Tool '{tool_name}' has no matching pattern in rules — blocked")
+                logger.warning(f"Tool '{tool_name}' has no matching pattern in rules — {deny_default_action}")
                 error_msg = self._format_deny_message(
                     tool_name,
                     "not in allow list",
