@@ -835,6 +835,51 @@ class TestExtractMatchedTextForAsk:
         assert result == ""
 
 
+class TestExtractPiiMatchedText:
+    """Tests for _extract_pii_matched_text helper (Issue #1164)."""
+
+    def test_extracts_text_from_position(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        content = "Hello my passport is AB1234567 thanks"
+        redactions = [{'type': 'Passport numbers', 'position': 21, 'original_length': 9}]
+        result = _extract_pii_matched_text(redactions, content)
+        assert result == "AB1234567"
+
+    def test_uses_first_redaction(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        content = "SSN 123-45-6789 and passport AB1234567"
+        redactions = [
+            {'type': 'SSN', 'position': 4, 'original_length': 11},
+            {'type': 'Passport numbers', 'position': 29, 'original_length': 9},
+        ]
+        result = _extract_pii_matched_text(redactions, content)
+        assert result == "123-45-6789"
+
+    def test_empty_redactions(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        assert _extract_pii_matched_text([], "content") == ""
+
+    def test_empty_content(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        redactions = [{'type': 'SSN', 'position': 0, 'original_length': 11}]
+        assert _extract_pii_matched_text(redactions, "") == ""
+
+    def test_none_inputs(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        assert _extract_pii_matched_text(None, "content") == ""
+        assert _extract_pii_matched_text([], None) == ""
+
+    def test_position_out_of_bounds(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        redactions = [{'type': 'SSN', 'position': 100, 'original_length': 11}]
+        assert _extract_pii_matched_text(redactions, "short") == ""
+
+    def test_missing_position_field(self):
+        from ai_guardian.hook_processing import _extract_pii_matched_text
+        redactions = [{'type': 'SSN', 'original_length': 11}]
+        assert _extract_pii_matched_text(redactions, "content here") == ""
+
+
 class TestHandleAskModeMatchedText:
     """Tests for matched_text flowing through _handle_ask_mode (Issue #1140)."""
 
