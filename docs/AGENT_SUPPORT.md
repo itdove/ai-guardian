@@ -204,6 +204,13 @@ uses the Cursor adapter for the correct response format, regardless of the
 `--ide claude` flag on the hook command. The daemon also maintains a 5-second
 dedup cache to suppress duplicate violations from any source.
 
+**Migration from legacy Cursor hooks:** Both `--ide cursor` and `--ide claude`
+clean-remove ai-guardian entries from `~/.cursor/hooks.json` during setup. Other
+tools' hooks in that file are preserved. If no hooks remain after cleanup, the
+file is deleted. Users who previously ran `--ide cursor` (which installed to
+`~/.cursor/hooks.json`) are automatically migrated on their next `setup` run
+with either IDE flag.
+
 ### NormalizedHookInput
 
 All adapters produce a `NormalizedHookInput` dataclass with consistent fields:
