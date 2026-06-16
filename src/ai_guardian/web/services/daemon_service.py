@@ -66,6 +66,21 @@ class DaemonService:
         except Exception:
             return None
 
+    def get_violation_context(
+        self,
+        target: DaemonTarget,
+        file_path: str,
+        line_number: int,
+        violation_type: str,
+        secret_type: str = "",
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_violation_context(
+                target, file_path, line_number, violation_type, secret_type,
+            )
+        except Exception:
+            return None
+
     def get_daemon_metrics(
         self,
         target: DaemonTarget,

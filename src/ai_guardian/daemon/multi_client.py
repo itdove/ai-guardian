@@ -402,6 +402,31 @@ class MultiDaemonClient:
             violations.append(v)
         return {"violations": violations, "count": len(violations)}
 
+    def get_violation_context(
+        self,
+        target: DaemonTarget,
+        file_path: str,
+        line_number: int,
+        violation_type: str,
+        secret_type: str = "",
+    ) -> Optional[dict]:
+        """Rescan a file on the daemon to get matched text for allowlisting."""
+        if target.runtime == "local":
+            from ai_guardian.daemon.violation_rescan import rescan_violation
+            return rescan_violation(
+                file_path=file_path,
+                line_number=line_number,
+                violation_type=violation_type,
+                sub_type=secret_type,
+            )
+        body = {
+            "file_path": file_path,
+            "line_number": line_number,
+            "violation_type": violation_type,
+            "secret_type": secret_type,
+        }
+        return self._rest_request(target, "POST", "/api/violation-context", body)
+
     def get_metrics(
         self,
         target: DaemonTarget,
