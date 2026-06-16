@@ -564,8 +564,6 @@ def _handle_tray_command(args):
 
     if tray_command == "restart":
         _handle_tray_stop()
-        import time
-        time.sleep(1)
         args.tray_command = "start"
         if not getattr(args, "background", False):
             args.background = True
@@ -624,8 +622,13 @@ def _handle_tray_uninstall():
 
 
 def _handle_tray_stop():
-    """Stop the running standalone tray."""
+    """Stop the running standalone tray.
+
+    Waits for the process to exit after sending SIGTERM so that a
+    subsequent ``tray start`` does not race against a dying process.
+    """
     from ai_guardian.daemon.tray import _get_tray_lock_path
+    from ai_guardian.daemon import is_pid_alive
 
     lock_path = _get_tray_lock_path()
     if not lock_path.exists():
@@ -634,12 +637,26 @@ def _handle_tray_stop():
 
     import os
     import signal
+    import time
 
     try:
         pid = int(lock_path.read_text().strip())
         os.kill(pid, signal.SIGTERM)
-        print(f"ai-guardian tray stopped (pid {pid})")
+
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if not is_pid_alive(pid):
+                break
+            time.sleep(0.1)
+        else:
+            try:
+                force = getattr(signal, "SIGKILL", signal.SIGTERM)
+                os.kill(pid, force)
+            except ProcessLookupError:
+                pass
+
         lock_path.unlink(missing_ok=True)
+        print(f"ai-guardian tray stopped (pid {pid})")
         return 0
     except ProcessLookupError:
         print("ai-guardian tray is not running (stale lock file removed)")
