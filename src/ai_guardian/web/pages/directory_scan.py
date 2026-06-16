@@ -91,6 +91,19 @@ def _open_browse_dialog(path_input):
     dlg.open()
 
 
+SEVERITY_COLORS = {
+    "critical": "red",
+    "high": "red",
+    "medium": "amber",
+    "low": "blue",
+    "info": "grey",
+}
+
+
+def _format_severity(severity):
+    return SEVERITY_COLORS.get((severity or "").lower(), "grey")
+
+
 RULE_ID_TO_VIOLATION_TYPE = {
     "SECRET-001": "secret_detected",
     "PII-001": "pii_detected",
