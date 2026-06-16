@@ -170,7 +170,7 @@ class _TextualAskDialog:
 
             def _test_pattern(self):
                 from ai_guardian.tui.pattern_editor import (
-                    validate_pattern, convert_to_regex, generate_config_preview,
+                    validate_pattern, generate_config_preview,
                     get_pattern_type_for_section,
                 )
                 try:
@@ -181,8 +181,7 @@ class _TextualAskDialog:
                     preview = self.query_one("#editor-preview", Static)
                     if valid:
                         status.update(f"[green]PASS: {msg}[/green]")
-                        regex_pat = convert_to_regex(pat, ptype)
-                        preview.update(generate_config_preview(regex_pat, violation.config_section))
+                        preview.update(generate_config_preview(pat, violation.config_section))
                     else:
                         status.update(f"[red]FAIL: {msg}[/red]")
                         preview.update("")
@@ -190,7 +189,7 @@ class _TextualAskDialog:
                     pass
 
             def _confirm_pattern(self):
-                from ai_guardian.tui.pattern_editor import validate_pattern, convert_to_regex, get_pattern_type_for_section
+                from ai_guardian.tui.pattern_editor import validate_pattern, get_pattern_type_for_section
                 try:
                     pat = self.query_one("#pattern-input", Input).value.strip()
                     ptype = get_pattern_type_for_section(violation.config_section)
@@ -200,16 +199,15 @@ class _TextualAskDialog:
                             "[red]FAIL: Fix the pattern before confirming[/red]"
                         )
                         return
-                    regex_pat = convert_to_regex(pat, ptype)
-                    self._pending_regex_pat = regex_pat
-                    self._show_config_editor(regex_pat)
+                    self._pending_save_pat = pat
+                    self._show_config_editor(pat)
                 except Exception:
                     pass
 
-            def _show_config_editor(self, regex_pat):
+            def _show_config_editor(self, save_pat):
                 from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
                 try:
-                    json_text, line_number = prepare_config_with_pattern(regex_pat, violation.config_section)
+                    json_text, line_number = prepare_config_with_pattern(save_pat, violation.config_section)
                     section = self.query_one("#editor-section")
                     section.remove_class("visible")
                     container = self.query_one("#ask-container")
@@ -248,7 +246,7 @@ class _TextualAskDialog:
                     if _write_config_text(text):
                         dialog_self._result = AskResult(
                             decision=AskDecision.ALLOW_ALWAYS,
-                            allowlist_pattern=self._pending_regex_pat,
+                            allowlist_pattern=self._pending_save_pat,
                             config_saved=True,
                         )
                         self.exit()
