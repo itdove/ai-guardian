@@ -270,6 +270,100 @@ class TestDaemonResetCommand:
         assert (tmp_path / "tray.lock").exists()
 
 
+class TestTrayStopCommand:
+    """Issue #1149: tray stop must wait for process exit before returning."""
+
+    def test_stop_not_running(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+
+        from ai_guardian.cli_handlers import _handle_tray_stop
+        result = _handle_tray_stop()
+
+        assert result == 1
+        assert "not running" in capsys.readouterr().out
+
+    def test_stop_waits_for_exit(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        lock_path = tmp_path / "tray.lock"
+        lock_path.write_text("12345")
+
+        call_count = [0]
+        def fake_is_alive(pid):
+            call_count[0] += 1
+            return call_count[0] <= 3
+
+        from ai_guardian.cli_handlers import _handle_tray_stop
+
+        with mock.patch("ai_guardian.daemon.is_pid_alive", side_effect=fake_is_alive), \
+             mock.patch("os.kill") as mock_kill, \
+             mock.patch("time.sleep"):
+            result = _handle_tray_stop()
+
+        assert result == 0
+        assert "stopped" in capsys.readouterr().out
+        assert not lock_path.exists()
+        mock_kill.assert_called_once_with(12345, mock.ANY)
+
+    def test_stop_force_kills_on_timeout(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        lock_path = tmp_path / "tray.lock"
+        lock_path.write_text("12345")
+
+        import signal
+        from ai_guardian.cli_handlers import _handle_tray_stop
+
+        monotonic_values = iter([0.0, 5.0, 11.0])
+
+        with mock.patch("ai_guardian.daemon.is_pid_alive", return_value=True), \
+             mock.patch("os.kill") as mock_kill, \
+             mock.patch("time.sleep"), \
+             mock.patch("time.monotonic", side_effect=monotonic_values):
+            result = _handle_tray_stop()
+
+        assert result == 0
+        assert not lock_path.exists()
+        kill_calls = mock_kill.call_args_list
+        assert kill_calls[0] == mock.call(12345, signal.SIGTERM)
+        assert kill_calls[1] == mock.call(12345, signal.SIGKILL)
+
+    def test_stop_stale_lock(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        lock_path = tmp_path / "tray.lock"
+        lock_path.write_text("12345")
+
+        from ai_guardian.cli_handlers import _handle_tray_stop
+
+        with mock.patch("os.kill", side_effect=ProcessLookupError):
+            result = _handle_tray_stop()
+
+        assert result == 1
+        assert "stale lock" in capsys.readouterr().out
+        assert not lock_path.exists()
+
+
+class TestTrayRestartCommand:
+    """Issue #1149: restart should not use fixed sleep."""
+
+    def test_restart_calls_stop_then_start(self, tmp_path, monkeypatch):
+        from ai_guardian.cli_handlers import _handle_tray_command
+
+        args = mock.MagicMock()
+        args.tray_command = "restart"
+        args.uninstall = False
+        args.install = False
+        args.background = False
+
+        with mock.patch("ai_guardian.cli_handlers._handle_tray_stop", return_value=0) as mock_stop, \
+             mock.patch("ai_guardian.cli_handlers._handle_tray_start", return_value=0) as mock_start, \
+             mock.patch("time.sleep") as mock_sleep:
+            result = _handle_tray_command(args)
+
+        mock_stop.assert_called_once()
+        mock_start.assert_called_once()
+        mock_sleep.assert_not_called()
+        assert result == 0
+
+
 class TestBackwardCompatImports:
     def test_import_from_package_level(self):
         from ai_guardian import _handle_violations_command as hvc
