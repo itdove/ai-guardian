@@ -3137,6 +3137,66 @@ class TestCleanRemoveAiGuardian:
         assert settings_file.exists()
         assert not legacy_file.exists()
 
+    def test_claude_setup_cleans_cursor_legacy_hooks(self, tmp_path):
+        """--ide claude also cleans ai-guardian from ~/.cursor/hooks.json (#1186)."""
+        setup = IDESetup()
+        settings_file = tmp_path / "settings.json"
+        legacy_file = tmp_path / "cursor-hooks.json"
+        legacy_file.write_text(json.dumps({
+            "version": 1,
+            "hooks": {
+                "beforeSubmitPrompt": [{"command": "ai-guardian --ide cursor"}]
+            }
+        }))
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"claude": {
+                **IDESetup.IDE_CONFIGS["claude"],
+                "config_path": str(settings_file),
+                "_legacy_config_path": str(legacy_file),
+            }},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                success, message = setup.setup_ide_hooks("claude", dry_run=False, force=False)
+
+        assert success
+        assert settings_file.exists()
+        assert not legacy_file.exists()
+
+    def test_claude_setup_preserves_other_cursor_hooks(self, tmp_path):
+        """--ide claude cleans ai-guardian but preserves other tools in cursor hooks (#1186)."""
+        setup = IDESetup()
+        settings_file = tmp_path / "settings.json"
+        legacy_file = tmp_path / "cursor-hooks.json"
+        legacy_file.write_text(json.dumps({
+            "version": 1,
+            "hooks": {
+                "beforeSubmitPrompt": [
+                    {"command": "ai-guardian --ide cursor"},
+                    {"command": "/usr/bin/other-tool"}
+                ]
+            }
+        }))
+
+        with mock.patch.object(
+            setup, "IDE_CONFIGS",
+            {"claude": {
+                **IDESetup.IDE_CONFIGS["claude"],
+                "config_path": str(settings_file),
+                "_legacy_config_path": str(legacy_file),
+            }},
+        ):
+            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+                success, message = setup.setup_ide_hooks("claude", dry_run=False, force=False)
+
+        assert success
+        assert legacy_file.exists()
+        config = json.loads(legacy_file.read_text())
+        hooks = config["hooks"]["beforeSubmitPrompt"]
+        assert len(hooks) == 1
+        assert hooks[0]["command"] == "/usr/bin/other-tool"
+
 
 class TestWindowsSetup:
     """Tests for Windows-specific setup behavior (issue #902)."""

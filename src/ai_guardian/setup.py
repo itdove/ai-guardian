@@ -223,6 +223,7 @@ class IDESetup:
             "config_path": "~/.claude/settings.json",
             "config_dir_env_var": "CLAUDE_CONFIG_DIR",  # Respects this env var
             "config_filename": "settings.json",
+            "_legacy_config_path": "~/.cursor/hooks.json",
             # CRITICAL: ai-guardian MUST be the FIRST PostToolUse hook.
             # Claude Code only displays the first hook's systemMessage field.
             # Log mode warnings are displayed in PostToolUse - if ai-guardian is not first, warnings are suppressed.
