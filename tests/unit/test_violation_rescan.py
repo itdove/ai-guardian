@@ -1,8 +1,6 @@
 """Tests for violation_rescan module (Issue #1146)."""
 
 import json
-import os
-import tempfile
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -132,82 +130,68 @@ class TestRescanViolation:
         )
         assert result["status"] == "not_found"
 
-    def test_unsupported_violation_type(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("content")
-            f.flush()
-            try:
-                result = rescan_violation(
-                    file_path=f.name,
-                    line_number=1,
-                    violation_type="unknown_type_xyz",
-                )
-                assert result["status"] == "not_found"
-                assert "Unsupported" in result.get("message", "")
-            finally:
-                os.unlink(f.name)
+    def test_unsupported_violation_type(self, tmp_path):
+        f = tmp_path / "test.py"
+        f.write_text("content")
+        result = rescan_violation(
+            file_path=str(f),
+            line_number=1,
+            violation_type="unknown_type_xyz",
+        )
+        assert result["status"] == "not_found"
+        assert "Unsupported" in result.get("message", "")
 
-    def test_passthrough_types_return_line_content(self):
+    def test_passthrough_types_return_line_content(self, tmp_path):
         """directory_blocking, ssrf_blocked etc. return line content directly."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("line1\nblocked_path\nline3\n")
-            f.flush()
-            try:
-                result = rescan_violation(
-                    file_path=f.name,
-                    line_number=2,
-                    violation_type="directory_blocking",
-                )
-                assert result["status"] == "found"
-                assert result["matched_text"] == "blocked_path"
-            finally:
-                os.unlink(f.name)
+        f = tmp_path / "test.py"
+        f.write_text("line1\nblocked_path\nline3\n")
+        result = rescan_violation(
+            file_path=str(f),
+            line_number=2,
+            violation_type="directory_blocking",
+        )
+        assert result["status"] == "found"
+        assert result["matched_text"] == "blocked_path"
 
     @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    def test_secret_scan_found(self, mock_scan):
+    def test_secret_scan_found(self, mock_scan, tmp_path):
         """Secret rescan returns matched text when scanner finds secrets."""
         mock_scan.return_value = (True, "Secret detected")
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("normal\nAPI_KEY=secret123\nnormal\n")
-            f.flush()
-            try:
-                import ai_guardian.hook_processing as hp
-                hp._last_secret_matched_text = "API_KEY=secret123"
+        f = tmp_path / "test.py"
+        f.write_text("normal\nAPI_KEY=secret123\nnormal\n")
 
-                result = rescan_violation(
-                    file_path=f.name,
-                    line_number=2,
-                    violation_type="secret_detected",
-                    sub_type="env-variable",
-                    config={"secret_scanning": {"enabled": True}},
-                )
-                assert result["status"] == "found"
-                assert "API_KEY" in result["matched_text"]
-            finally:
-                os.unlink(f.name)
+        import ai_guardian.hook_processing as hp
+        hp._last_secret_matched_text = "API_KEY=secret123"
+
+        result = rescan_violation(
+            file_path=str(f),
+            line_number=2,
+            violation_type="secret_detected",
+            sub_type="env-variable",
+            config={"secret_scanning": {"enabled": True}},
+        )
+        assert result["status"] == "found"
+        assert "API_KEY" in result["matched_text"]
 
     @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    def test_secret_scan_not_found(self, mock_scan):
+    def test_secret_scan_not_found(self, mock_scan, tmp_path):
         """Secret rescan returns not_found when scanner finds nothing."""
         mock_scan.return_value = (False, None)
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("clean content\n")
-            f.flush()
-            try:
-                result = rescan_violation(
-                    file_path=f.name,
-                    line_number=1,
-                    violation_type="secret_detected",
-                    config={"secret_scanning": {"enabled": True}},
-                )
-                assert result["status"] == "not_found"
-            finally:
-                os.unlink(f.name)
+        f = tmp_path / "test.py"
+        f.write_text("clean content\n")
+
+        result = rescan_violation(
+            file_path=str(f),
+            line_number=1,
+            violation_type="secret_detected",
+            config={"secret_scanning": {"enabled": True}},
+        )
+        assert result["status"] == "not_found"
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    def test_pii_scan_found(self, mock_pii):
+    def test_pii_scan_found(self, mock_pii, tmp_path):
         """PII rescan returns matched text."""
         mock_pii.return_value = (
             True,
@@ -216,21 +200,18 @@ class TestRescanViolation:
             "PII found",
         )
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("name\nssn=078-05-1120\naddr\n")
-            f.flush()
-            try:
-                result = rescan_violation(
-                    file_path=f.name,
-                    line_number=2,
-                    violation_type="pii_detected",
-                    sub_type="pii-ssn",
-                    config={"scan_pii": {"enabled": True}},
-                )
-                assert result["status"] == "found"
-                assert result["violation_type"] == "pii_detected"
-            finally:
-                os.unlink(f.name)
+        f = tmp_path / "test.py"
+        f.write_text("name\nssn=078-05-1120\naddr\n")
+
+        result = rescan_violation(
+            file_path=str(f),
+            line_number=2,
+            violation_type="pii_detected",
+            sub_type="pii-ssn",
+            config={"scan_pii": {"enabled": True}},
+        )
+        assert result["status"] == "found"
+        assert result["violation_type"] == "pii_detected"
 
 
 class TestExtractMatchedFromViolation:
