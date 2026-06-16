@@ -183,6 +183,13 @@ def create_violations_page(service, daemon_name: str):
                     ).tooltip(tooltip)
                     buttons[label] = btn
 
+            ui.button(
+                "Scan File/Directory", icon="search",
+                on_click=lambda: ui.navigate.to(
+                    f"/{daemon_name}/directory-scan"
+                ),
+            ).props("dense outline color=positive")
+
             cards_container = ui.column().classes("w-full gap-1")
 
             async def load_violations():

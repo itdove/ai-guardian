@@ -1,11 +1,95 @@
-"""Directory Scan page — scan directories for security issues."""
+"""Directory Scan page — scan with Allow Always and bulk allowlisting."""
 
-import time
+import os
+import threading
+from collections import defaultdict
+from pathlib import Path
 
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.config_helpers import load_web_config
+
+def _open_browse_dialog(path_input):
+    """Open a server-side directory browser dialog."""
+    current = path_input.value.strip() or "."
+    try:
+        browse_path = Path(current).resolve()
+        if not browse_path.is_dir():
+            browse_path = browse_path.parent
+    except Exception:
+        browse_path = Path.cwd()
+
+    state = {"current": browse_path}
+
+    with ui.dialog() as dlg, ui.card().classes("w-full max-w-lg"):
+        ui.label("Browse Directory").classes("text-lg font-bold")
+        current_label = ui.label(str(state["current"])).classes(
+            "text-xs text-grey-4"
+        ).style("font-family: monospace; word-break: break-all")
+
+        file_list = ui.column().classes("w-full")
+
+        def refresh_listing():
+            file_list.clear()
+            p = state["current"]
+            current_label.text = str(p)
+
+            with file_list:
+                if p.parent != p:
+                    ui.button(
+                        ".. (parent)", icon="arrow_upward",
+                        on_click=lambda: go_to(p.parent),
+                    ).props("dense flat no-caps align=left").classes("w-full")
+
+                try:
+                    entries = sorted(
+                        p.iterdir(),
+                        key=lambda e: (not e.is_dir(), e.name.lower()),
+                    )
+                except PermissionError:
+                    ui.label("Permission denied").classes("text-red text-sm")
+                    return
+
+                dirs_shown = 0
+                for entry in entries:
+                    if entry.name.startswith("."):
+                        continue
+                    if entry.is_dir():
+                        dirs_shown += 1
+                        if dirs_shown > 50:
+                            ui.label(
+                                f"... and more directories"
+                            ).classes("text-xs text-grey-6")
+                            break
+                        ui.button(
+                            entry.name, icon="folder",
+                            on_click=lambda e=entry: go_to(e),
+                        ).props(
+                            "dense flat no-caps align=left"
+                        ).classes("w-full")
+
+        def go_to(new_path):
+            state["current"] = new_path.resolve()
+            refresh_listing()
+
+        with ui.scroll_area().classes("w-full").style(
+            "height: 350px"
+        ):
+            refresh_listing()
+
+        with ui.row().classes("w-full justify-end mt-2"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def on_select():
+                path_input.value = str(state["current"])
+                dlg.close()
+
+            ui.button(
+                "Select", on_click=on_select,
+            ).props("color=positive")
+
+    dlg.open()
+
 
 SEVERITY_COLORS = {
     "critical": "red",
@@ -15,40 +99,76 @@ SEVERITY_COLORS = {
     "info": "grey",
 }
 
+
+def _format_severity(severity):
+    return SEVERITY_COLORS.get((severity or "").lower(), "grey")
+
+
+RULE_ID_TO_VIOLATION_TYPE = {
+    "SECRET-001": "secret_detected",
+    "PII-001": "pii_detected",
+    "PROMPT-INJECTION-001": "prompt_injection",
+    "SSRF-001": "ssrf_blocked",
+    "CONFIG-001": "config_file_exfil",
+    "SUPPLY-CHAIN-001": "supply_chain",
+    "UNICODE-001": "unicode_attack",
+}
+
+RULE_ID_LABELS = {
+    "SECRET-001": "Secrets",
+    "PII-001": "PII",
+    "PROMPT-INJECTION-001": "Prompt Injection",
+    "SSRF-001": "SSRF",
+    "CONFIG-001": "Config Exfiltration",
+    "SUPPLY-CHAIN-001": "Supply Chain",
+    "UNICODE-001": "Unicode Attacks",
+}
+
 MAX_FINDINGS_DISPLAY = 200
 
 
-def _format_severity(severity):
-    """Return a NiceGUI badge color for the given severity level."""
-    return SEVERITY_COLORS.get(
-        (severity or "").lower(), "grey"
-    )
+def _finding_to_violation(finding):
+    """Convert a scanner finding dict to a violation-like dict for rendering."""
+    rule_id = finding.get("rule_id", "")
+    vtype = RULE_ID_TO_VIOLATION_TYPE.get(rule_id, "unknown")
+    details = finding.get("details", {})
+    if not isinstance(details, dict):
+        details = {}
+
+    blocked = dict(details)
+    blocked["file_path"] = finding.get("file_path", "")
+    blocked["line_number"] = finding.get("line_number")
+    if finding.get("snippet"):
+        blocked["matched_text"] = finding["snippet"]
+        blocked.setdefault("tool_value", finding["snippet"])
+    if vtype in ("prompt_injection", "context_poisoning", "supply_chain"):
+        blocked.setdefault("pattern", blocked.get("description", ""))
+    if vtype == "ssrf_blocked":
+        blocked.setdefault("tool_value", blocked.get("url", ""))
+
+    return {
+        "violation_type": vtype,
+        "severity": finding.get("severity", "warning"),
+        "timestamp": "",
+        "blocked": blocked,
+        "suggestion": {},
+        "context": {},
+        "message": finding.get("message", ""),
+        "_config_section": finding.get("config_section"),
+        "_snippet": finding.get("snippet", ""),
+    }
 
 
-def _run_scan(path, recursive, config_only, config):
-    """Run a directory scan. Returns (findings, elapsed_seconds)."""
-    from pathlib import Path as P
-    from ai_guardian.scanner import FileScanner
-
-    scanner = FileScanner(config)
-    start = time.monotonic()
-    if not recursive and P(path).is_dir():
-        findings = []
-        for f in sorted(P(path).resolve().iterdir()):
-            if f.is_file():
-                findings.extend(
-                    scanner.scan_directory(
-                        str(f), config_only=config_only
-                    )
-                )
-    else:
-        findings = scanner.scan_directory(path, config_only=config_only)
-    elapsed = time.monotonic() - start
-    return findings, elapsed
+def _group_findings(findings):
+    """Group findings by rule_id, returning {rule_id: [findings]}."""
+    groups = defaultdict(list)
+    for f in findings:
+        groups[f.get("rule_id", "unknown")].append(f)
+    return dict(groups)
 
 
 def create_directory_scan_page(service, daemon_name: str):
-    """Create the Directory Scan page."""
+    """Create the Directory Scan page with Allow Always support."""
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
@@ -59,17 +179,23 @@ def create_directory_scan_page(service, daemon_name: str):
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Directory Scan").classes("text-2xl font-bold")
             ui.label(
-                "Scan directories for secrets, PII, and security issues."
+                "Scan directories for security issues. "
+                "Use Allow Always to add allowlist patterns."
             ).classes("text-xs text-grey-6")
 
             with ui.card().classes("w-full"):
                 ui.label("Scan Configuration").classes("text-lg font-bold")
-                path_input = ui.input(
-                    label="Directory Path",
-                    value=".",
-                ).props("dense outlined").classes("w-full").style(
-                    "font-family: monospace"
-                )
+                with ui.row().classes("items-center gap-2 w-full"):
+                    path_input = ui.input(
+                        label="File or Directory Path",
+                        value=".",
+                    ).props("dense outlined").classes("flex-grow").style(
+                        "font-family: monospace"
+                    )
+                    ui.button(
+                        icon="folder_open",
+                        on_click=lambda: _open_browse_dialog(path_input),
+                    ).props("dense flat")
 
                 with ui.row().classes("items-center gap-4"):
                     recursive_check = ui.checkbox(
@@ -81,77 +207,332 @@ def create_directory_scan_page(service, daemon_name: str):
 
             results_container = ui.column().classes("w-full gap-4")
 
+            all_findings = []
+            cancel_event = threading.Event()
+
+            with ui.row().classes("items-center gap-2"):
+                scan_btn = ui.button(
+                    "Scan", icon="search",
+                ).props("dense")
+                stop_btn = ui.button(
+                    "Stop", icon="stop",
+                ).props("dense color=negative")
+                stop_btn.set_visibility(False)
+
+            progress_state = {"file": "", "index": 0, "total": 0}
+
             async def do_scan():
                 path = path_input.value.strip()
                 if not path:
-                    ui.notify("Enter a directory path", type="negative")
+                    ui.notify("Enter a path to scan", type="negative")
                     return
 
-                ui.notify("Scanning...", type="info")
-                config = await run.io_bound(load_web_config)
-                findings, elapsed = await run.io_bound(
-                    _run_scan, path,
-                    recursive_check.value,
-                    config_only_check.value, config,
-                )
-
+                cancel_event.clear()
+                scan_btn.disable()
+                stop_btn.set_visibility(True)
                 results_container.clear()
                 with results_container:
-                    with ui.card().classes("w-full"):
-                        ui.label("Results").classes("text-lg font-bold")
+                    with ui.row().classes(
+                        "items-center gap-4 py-8"
+                    ):
+                        ui.spinner("dots", size="lg")
+                        progress_label = ui.label(
+                            f"Scanning {path}..."
+                        ).classes("text-grey-4")
+                        progress_file = ui.label("").classes(
+                            "text-xs text-grey-6"
+                        ).style(
+                            "font-family: monospace; "
+                            "max-width: 500px; "
+                            "overflow: hidden; "
+                            "text-overflow: ellipsis; "
+                            "white-space: nowrap"
+                        )
 
-                        count = len(findings) if findings else 0
-                        with ui.row().classes("items-center gap-4"):
+                def update_progress():
+                    if progress_state["total"] > 0:
+                        progress_label.text = (
+                            f"Scanning... "
+                            f"{progress_state['index']}"
+                            f"/{progress_state['total']} files"
+                        )
+                        progress_file.text = progress_state["file"]
+
+                progress_timer = ui.timer(
+                    0.2, update_progress,
+                )
+
+                try:
+                    await run.io_bound(service.refresh_targets)
+                    target = service.get_target_by_name(daemon_name)
+
+                    if target and target.runtime != "local":
+                        result = await run.io_bound(
+                            service.scan_path, target, path
+                        )
+                    else:
+                        result = await run.io_bound(
+                            _local_scan_with_progress, path,
+                            recursive_check.value,
+                            config_only_check.value,
+                            progress_state,
+                            cancel_event,
+                        )
+
+                    progress_timer.deactivate()
+
+                    if result is None:
+                        results_container.clear()
+                        with results_container:
                             ui.label(
-                                f"Findings: {count}"
-                            ).classes("text-sm font-bold")
-                            ui.label(
-                                f"Elapsed: {elapsed:.1f}s"
-                            ).classes("text-xs text-grey-6")
+                                "Scan failed — check the path and "
+                                "daemon status."
+                            ).classes("text-red")
+                        return
 
-                        if findings:
-                            truncated = count > MAX_FINDINGS_DISPLAY
-                            display = findings[:MAX_FINDINGS_DISPLAY]
+                    findings = result.get("findings", [])
+                    elapsed_ms = result.get("scan_time_ms", 0)
+                    cancelled = result.get("cancelled", False)
+                    all_findings.clear()
+                    all_findings.extend(findings)
 
-                            with ui.scroll_area().classes(
-                                "w-full"
-                            ).style("max-height: 500px"):
-                                for f in display:
-                                    sev = f.get("severity", "info")
-                                    with ui.row().classes(
-                                        "items-center gap-2 w-full"
-                                    ):
-                                        ui.badge(
-                                            sev.upper(),
-                                            color=_format_severity(sev),
-                                        ).classes("text-xs")
-                                        rule = f.get("rule_id", "")
-                                        ui.label(rule).classes(
-                                            "text-xs font-bold"
-                                        ).style("font-family: monospace")
-                                        fp = f.get("file_path", "")
-                                        ln = f.get("line_number", "")
-                                        ui.label(
-                                            f"{fp}:{ln}"
-                                        ).classes(
-                                            "text-xs text-grey-4"
-                                        ).style("font-family: monospace")
-                                    msg = f.get("message", "")
-                                    if msg:
-                                        ui.label(msg).classes(
-                                            "text-xs text-grey-6 ml-8"
-                                        )
+                    _render_results(
+                        results_container, findings, elapsed_ms,
+                        daemon_name, incomplete=cancelled,
+                        service=service,
+                    )
+                except Exception as exc:
+                    progress_timer.deactivate()
+                    results_container.clear()
+                    with results_container:
+                        ui.label(f"Scan error: {exc}").classes("text-red")
+                finally:
+                    scan_btn.enable()
+                    stop_btn.set_visibility(False)
 
-                            if truncated:
-                                ui.label(
-                                    f"Showing {MAX_FINDINGS_DISPLAY} "
-                                    f"of {count} findings."
-                                ).classes("text-xs text-amber mt-2")
-                        else:
-                            ui.label(
-                                "No issues found."
-                            ).classes("text-grey-6 text-sm")
+            def do_stop():
+                cancel_event.set()
+
+            scan_btn.on_click(do_scan)
+            stop_btn.on_click(do_stop)
+
+
+def _local_scan_with_progress(
+    path, recursive, config_only, progress_state, cancel_event=None,
+):
+    """Local scan with progress updates and cancellation support."""
+    import time
+    from pathlib import Path as P
+    from ai_guardian.scanner import FileScanner
+    from ai_guardian.tui.pattern_editor import config_section_for_rule_id
+    from ai_guardian.web.config_helpers import load_web_config
+
+    def on_progress(file_path, index, total):
+        progress_state["file"] = file_path
+        progress_state["index"] = index
+        progress_state["total"] = total
+
+    config = load_web_config()
+    scanner = FileScanner(config)
+    start = time.monotonic()
+
+    if not recursive and P(path).is_dir():
+        findings = []
+        for f in sorted(P(path).resolve().iterdir()):
+            if cancel_event and cancel_event.is_set():
+                break
+            if f.is_file():
+                findings.extend(
+                    scanner.scan_directory(
+                        str(f), config_only=config_only,
+                        progress_callback=on_progress,
+                        cancel_event=cancel_event,
+                    )
+                )
+    else:
+        findings = scanner.scan_directory(
+            path, config_only=config_only,
+            progress_callback=on_progress,
+            cancel_event=cancel_event,
+        )
+
+    elapsed_ms = round((time.monotonic() - start) * 1000)
+    cancelled = cancel_event.is_set() if cancel_event else False
+
+    base = P(path).resolve()
+    if base.is_file():
+        base = base.parent
+    for f in findings:
+        f["config_section"] = config_section_for_rule_id(
+            f.get("rule_id", "")
+        )
+        fp = f.get("file_path", "")
+        if fp and not P(fp).is_absolute():
+            f["file_path"] = str(base / fp)
+
+    return {
+        "findings": findings,
+        "scanned_files": progress_state.get("total", len(findings)),
+        "scan_time_ms": elapsed_ms,
+        "cancelled": cancelled,
+    }
+
+
+def _render_results(
+    container, findings, elapsed_ms, daemon_name, incomplete=False,
+    service=None,
+):
+    """Render scan results using the same cards as the violations page."""
+    from ai_guardian.web.pages.violations import _render_violation_card
+
+    container.clear()
+
+    with container:
+        count = len(findings)
+
+        with ui.card().classes("w-full"):
+            with ui.row().classes("items-center gap-4"):
+                ui.label("Results").classes("text-lg font-bold")
+                ui.label(f"Findings: {count}").classes(
+                    "text-sm font-bold"
+                )
+                ui.label(f"Elapsed: {elapsed_ms}ms").classes(
+                    "text-xs text-grey-6"
+                )
+                if incomplete:
+                    ui.badge(
+                        "SCAN INCOMPLETE — stopped by user",
+                        color="amber",
+                    ).classes("text-xs")
+
+        if not findings:
+            ui.label("No issues found.").classes("text-grey-6 text-sm")
+            return
+
+        truncated = count > MAX_FINDINGS_DISPLAY
+        display = findings[:MAX_FINDINGS_DISPLAY]
+        groups = _group_findings(display)
+
+        for rule_id, group_findings in sorted(groups.items()):
+            label = RULE_ID_LABELS.get(rule_id, rule_id)
+            config_section = group_findings[0].get("config_section")
+
+            with ui.card().classes("w-full"):
+                with ui.row().classes("items-center gap-2 w-full"):
+                    ui.label(
+                        f"{label} ({len(group_findings)})"
+                    ).classes("text-base font-bold")
+
+                    if config_section:
+                        ui.button(
+                            "Allow All of Type",
+                            icon="playlist_add_check",
+                            on_click=lambda cs=config_section, gf=group_findings:
+                                _show_allow_all_dialog(cs, gf),
+                        ).props("dense flat color=positive size=sm")
+
+                ui.separator()
+
+                for f in group_findings:
+                    v = _finding_to_violation(f)
+                    _render_violation_card(
+                        v, service=service, daemon_name=daemon_name,
+                    )
+
+        if truncated:
+            ui.label(
+                f"Showing {MAX_FINDINGS_DISPLAY} of {count} findings."
+            ).classes("text-xs text-amber mt-2")
+
+def _show_allow_all_dialog(config_section, findings):
+    """Bulk Allow All of Type — show matched texts and suggest pattern."""
+    from ai_guardian.tui.pattern_editor import (
+        validate_pattern,
+        generate_config_preview,
+        suggest_pattern,
+        get_pattern_type_for_section,
+        PATTERN_TYPES,
+    )
+
+    ptype = get_pattern_type_for_section(config_section)
+    ptype_label = PATTERN_TYPES.get(ptype, ptype)
+    snippets = [
+        f.get("snippet", "") for f in findings if f.get("snippet")
+    ]
+
+    first_snippet = snippets[0] if snippets else ""
+    suggested = suggest_pattern(first_snippet, config_section) if first_snippet else ""
+
+    with ui.dialog() as dlg, ui.card().classes("w-full max-w-xl"):
+        ui.label(
+            f"Allow All of Type — {len(findings)} findings"
+        ).classes("text-lg font-bold")
+        ui.separator()
+
+        ui.label(
+            f"Matched texts ({len(snippets)} unique):"
+        ).classes("font-bold text-sm")
+        with ui.scroll_area().classes("w-full").style(
+            "max-height: 150px"
+        ):
+            for s in snippets[:20]:
+                ui.label(s[:200]).classes("text-xs").style(
+                    "font-family: monospace"
+                )
+            if len(snippets) > 20:
+                ui.label(
+                    f"... and {len(snippets) - 20} more"
+                ).classes("text-xs text-grey-6")
+
+        ui.label(f"Pattern ({ptype_label}):").classes(
+            "font-bold text-sm mt-2"
+        )
+        pattern_input = ui.input(
+            value=suggested,
+        ).props("dense outlined").classes("w-full").style(
+            "font-family: monospace"
+        )
+
+        status_label = ui.label("").classes("text-sm")
+        preview_code = ui.code("").classes("w-full")
+
+        def do_test():
+            pat = pattern_input.value.strip()
+            valid, msg = validate_pattern(pat, ptype, first_snippet)
+            if valid:
+                status_label.text = f"PASS: {msg}"
+                status_label.classes(replace="text-sm text-green")
+                preview_code.set_content(
+                    generate_config_preview(pat, config_section)
+                )
+            else:
+                status_label.text = f"FAIL: {msg}"
+                status_label.classes(replace="text-sm text-red")
+
+        ui.button(
+            "Test Pattern", on_click=do_test, icon="play_arrow",
+        ).props("dense")
+        do_test()
+        pattern_input.on_value_change(lambda _: do_test())
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def on_confirm():
+                pat = pattern_input.value.strip()
+                valid, _ = validate_pattern(pat, ptype, first_snippet)
+                if not valid:
+                    status_label.text = "FAIL: Fix the pattern before confirming"
+                    status_label.classes(replace="text-sm text-red")
+                    return
+                dlg.close()
+                from ai_guardian.web.pages.violations import (
+                    _show_config_editor_dialog,
+                )
+                _show_config_editor_dialog(pat, config_section)
 
             ui.button(
-                "Scan", icon="search", on_click=do_scan
-            ).props("dense")
+                "Add to Allowlist", on_click=on_confirm,
+            ).props("color=positive")
+
+    dlg.open()

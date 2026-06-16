@@ -836,6 +836,12 @@ class ViolationsContent(Container):
             classes="violation-detail"
         )
 
+        with Horizontal(classes="violation-actions"):
+            yield Button(
+                "Scan File/Directory", id="scan-file-dir",
+                variant="primary",
+            )
+
         # Sub-tabs for filtering
         with TabbedContent(id="filter-tabs"):
             with TabPane("All", id="filter-all"):
@@ -999,6 +1005,17 @@ class ViolationsContent(Container):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses (details and correlated on violation cards)."""
         button_id = event.button.id
+
+        if button_id == "scan-file-dir":
+            try:
+                from textual.widgets import ContentSwitcher
+                switcher = self.app.query_one("#panels", ContentSwitcher)
+                switcher.current = "panel-directory-scan"
+            except Exception:
+                self.app.notify(
+                    "Directory Scan panel not found", severity="warning"
+                )
+            return
 
         if button_id and button_id.startswith("details-"):
             timestamp_id = button_id.replace("details-", "")

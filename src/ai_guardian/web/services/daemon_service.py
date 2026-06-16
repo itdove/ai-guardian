@@ -119,6 +119,16 @@ class DaemonService:
         except Exception:
             return False
 
+    def scan_path(
+        self,
+        target: DaemonTarget,
+        path: str,
+    ) -> Optional[dict]:
+        try:
+            return self._client.scan_path(target, path)
+        except Exception:
+            return None
+
     def reload_daemon(self, target: DaemonTarget) -> bool:
         try:
             if target.runtime == "local":

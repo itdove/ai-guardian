@@ -155,8 +155,13 @@ class FileScanner:
         self.verbose = verbose
         self.findings: List[Dict[str, Any]] = []
 
-        # Initialize scanners with feature-specific sub-configs
-        self.ssrf_protector = SSRFProtector(config.get("ssrf_protection", {})) if HAS_SSRF else None
+        # Initialize scanners with feature-specific sub-configs.
+        # Force action to "block" — scanner must never trigger interactive
+        # ask dialogs (SSRFProtector.check() shows tkinter popups when
+        # action is "ask").
+        ssrf_cfg = dict(config.get("ssrf_protection", {}))
+        ssrf_cfg["action"] = "block"
+        self.ssrf_protector = SSRFProtector(ssrf_cfg) if HAS_SSRF else None
         self.unicode_detector = UnicodeAttackDetector(config.get("prompt_injection", {})) if HAS_UNICODE else None
 
         self._image_config: Optional[Dict[str, Any]] = None
@@ -201,7 +206,9 @@ class FileScanner:
         path: str,
         include_patterns: Optional[List[str]] = None,
         exclude_patterns: Optional[List[str]] = None,
-        config_only: bool = False
+        config_only: bool = False,
+        progress_callback=None,
+        cancel_event=None,
     ) -> List[Dict[str, Any]]:
         """
         Scan directory for security issues.
@@ -211,9 +218,11 @@ class FileScanner:
             include_patterns: File patterns to include (glob style)
             exclude_patterns: File patterns to exclude (glob style)
             config_only: Only scan AI config files
+            progress_callback: Optional callable(file_path, index, total)
+            cancel_event: Optional threading.Event — set to stop scan early
 
         Returns:
-            List of findings
+            List of findings (partial if cancelled)
         """
         self.findings = []
         scan_path = Path(path).resolve()
@@ -223,13 +232,13 @@ class FileScanner:
             return self.findings
 
         if scan_path.is_file():
-            # Scan single file
+            if progress_callback:
+                progress_callback(str(scan_path), 1, 1)
             if self._is_scannable_image(scan_path):
                 self._scan_image_file(scan_path, scan_path.parent)
             else:
                 self._scan_file(scan_path, scan_path.parent)
         else:
-            # Scan directory
             files_to_scan = self._discover_files(
                 scan_path,
                 include_patterns,
@@ -240,7 +249,12 @@ class FileScanner:
             if self.verbose:
                 print(f"Scanning {len(files_to_scan)} files...")
 
-            for file_path in files_to_scan:
+            total = len(files_to_scan)
+            for i, file_path in enumerate(files_to_scan):
+                if cancel_event and cancel_event.is_set():
+                    break
+                if progress_callback:
+                    progress_callback(str(file_path), i + 1, total)
                 if self._is_scannable_image(file_path):
                     self._scan_image_file(file_path, scan_path)
                 else:

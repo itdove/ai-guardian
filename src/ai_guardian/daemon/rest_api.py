@@ -168,6 +168,11 @@ class _RestHandler(BaseHTTPRequestHandler):
             if body is None:
                 return
             self._handle_redact(body)
+        elif self.path == "/api/scan":
+            body = self._read_body()
+            if body is None:
+                return
+            self._handle_scan(body)
         else:
             self._send_error(404, "Not found")
 
@@ -427,6 +432,61 @@ class _RestHandler(BaseHTTPRequestHandler):
             config=cfg,
         )
         self._send_json(result)
+
+    _BLOCKED_SCAN_DIRS = frozenset([
+        "/etc", "/usr", "/bin", "/sbin", "/var", "/sys", "/proc", "/dev",
+        "/boot", "/lib", "/lib64",
+    ])
+
+    def _handle_scan(self, body):
+        """Handle POST /api/scan — file/directory security scanning."""
+        import time as _time
+        from pathlib import Path as _Path
+
+        path = body.get("path", "")
+        if not path:
+            self._send_error(400, "path is required")
+            return
+
+        resolved = _Path(path).resolve()
+        if not resolved.exists():
+            self._send_error(404, f"Path does not exist: {path}")
+            return
+
+        resolved_str = str(resolved)
+        for blocked in self._BLOCKED_SCAN_DIRS:
+            if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
+                self._send_error(403, "Scanning system directories is not allowed")
+                return
+
+        try:
+            from ai_guardian.scanner import FileScanner
+            from ai_guardian.tui.pattern_editor import config_section_for_rule_id
+
+            cfg = self.server.daemon_state.get_config()
+            scanner = FileScanner(config=cfg)
+
+            t0 = _time.monotonic()
+            findings = scanner.scan_directory(path=resolved_str)
+            elapsed_ms = round((_time.monotonic() - t0) * 1000)
+
+            base = resolved if resolved.is_dir() else resolved.parent
+            for f in findings:
+                f["config_section"] = config_section_for_rule_id(
+                    f.get("rule_id", "")
+                )
+                fp = f.get("file_path", "")
+                if fp and not _Path(fp).is_absolute():
+                    f["file_path"] = str(base / fp)
+
+            self._send_json({
+                "findings": findings,
+                "scanned_files": len(findings),
+                "scan_time_ms": elapsed_ms,
+            })
+        except Exception as e:
+            logger.error("Scan endpoint failed: %s", e)
+            self._send_error(500, "Internal error during scan")
 
     def _handle_prompt(self, body):
         """Handle POST /api/prompt — delegate ask dialog to subprocess.
