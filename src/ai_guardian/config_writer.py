@@ -324,16 +324,21 @@ def add_permission_rule(
     if config_path is None:
         config_path = get_config_dir() / "ai-guardian.json"
 
-    new_rule = {"mode": "allow", "matcher": matcher, "patterns": patterns}
-
     def updater(config):
         section = _ensure_section(config, "permissions")
         rules = _ensure_list(section, "rules")
         for existing in rules:
             if (existing.get("mode") == "allow"
-                    and existing.get("matcher") == matcher
-                    and existing.get("patterns") == patterns):
-                return True, f"Permission rule already exists: {new_rule}"
+                    and existing.get("matcher") == matcher):
+                existing_patterns = existing.get("patterns", [])
+                new_patterns = [p for p in patterns if p not in existing_patterns]
+                if not new_patterns:
+                    return True, f"Patterns already in rule for {matcher}"
+                existing_patterns.extend(new_patterns)
+                existing["patterns"] = existing_patterns
+                section["rules"] = rules
+                return False, f"Merged patterns into existing rule for {matcher}: {new_patterns}"
+        new_rule = {"mode": "allow", "matcher": matcher, "patterns": patterns}
         rules.append(new_rule)
         section["rules"] = rules
         return False, f"Added permission rule: {new_rule}"
