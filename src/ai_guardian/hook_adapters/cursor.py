@@ -38,6 +38,21 @@ class CursorAdapter(HookAdapter):
         event = hook_data.get("hook_event_name", "")
         return event in ("beforeSubmitPrompt", "preToolUse")
 
+    @staticmethod
+    def _extract_tool_name(hook_data: Dict) -> Optional[str]:
+        """Extract tool name, synthesizing from Cursor event type if needed."""
+        name = HookAdapter._extract_tool_name(hook_data)
+        if name:
+            return name
+        event = hook_data.get("hook_event_name", "").lower()
+        hook_name = hook_data.get("hook_name", "").lower()
+        effective = event or hook_name
+        if effective == "beforereadfile":
+            return "Read"
+        if effective == "beforeshellexecution":
+            return "Bash"
+        return None
+
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event_name = hook_data.get("hook_event_name", "").lower()
         hook_name = hook_data.get("hook_name", "").lower()
@@ -46,7 +61,7 @@ class CursorAdapter(HookAdapter):
             event = HookEvent.PROMPT
         elif event_name in ("beforereadfile",):
             event = HookEvent.BEFORE_READ_FILE
-        elif event_name in ("pretooluse",) or hook_name in ("pretooluse",):
+        elif event_name in ("pretooluse", "beforeshellexecution") or hook_name in ("pretooluse",):
             event = HookEvent.PRE_TOOL_USE
         elif event_name in ("posttooluse",):
             event = HookEvent.POST_TOOL_USE
@@ -88,7 +103,7 @@ class CursorAdapter(HookAdapter):
                 response["user_message"] = final_error
                 response["agent_message"] = "Operation blocked by ai-guardian security policy"
         elif hook_event == HookEvent.BEFORE_READ_FILE:
-            response = {"permission": "deny" if has_secrets else "allow"}
+            response = {"continue": not has_secrets}
             if has_secrets and final_error:
                 response["user_message"] = final_error
         else:
