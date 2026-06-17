@@ -7,6 +7,7 @@ INSTALL_MODE=""
 VENV_DIR="$HOME/.ai-guardian-venv"
 IDE=""
 INSTALL_TKINTER=false
+INSTALL_GOBJECT=false
 NO_SETUP=false
 SETUP_ARGS=()
 
