@@ -126,10 +126,16 @@ class _TkinterAskDialog:
         import tkinter as tk
         from tkinter import ttk
 
-        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        from ai_guardian.tui.pattern_editor import (
+            prepare_config_with_pattern, get_config_scope_options,
+        )
 
         v = self._violation
-        json_text, line_number = prepare_config_with_pattern(save_pat, v.config_section)
+        scope_options = get_config_scope_options()
+        selected_path = scope_options[0][1]
+        json_text, line_number = prepare_config_with_pattern(
+            save_pat, v.config_section, config_path=selected_path,
+        )
 
         editor = tk.Toplevel(root)
         editor.title("Config Editor — ai-guardian.json")
@@ -150,6 +156,32 @@ class _TkinterAskDialog:
             wraplength=650,
         ).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
+
+        if len(scope_options) > 1:
+            scope_frame = ttk.LabelFrame(frame, text="Save to", padding=5)
+            scope_frame.pack(fill="x", pady=(0, 5))
+            scope_var = tk.StringVar(value=selected_path)
+            for label, path_str in scope_options:
+                ttk.Radiobutton(
+                    scope_frame, text=f"{label} ({path_str})",
+                    variable=scope_var, value=path_str,
+                ).pack(anchor="w")
+
+            def _on_scope_change(*_args):
+                nonlocal json_text, line_number, selected_path
+                selected_path = scope_var.get()
+                json_text, line_number = prepare_config_with_pattern(
+                    save_pat, v.config_section, config_path=selected_path,
+                )
+                config_text.config(state="normal")
+                config_text.delete("1.0", "end")
+                config_text.insert("1.0", json_text)
+                config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
+                config_text.tag_config("highlight", background="#3a3a00")
+                config_text.see(f"{line_number}.0")
+                config_text.update_idletasks()
+
+            scope_var.trace_add("write", _on_scope_change)
 
         text_frame = ttk.Frame(frame)
         text_frame.pack(fill="both", expand=True, pady=(0, 5))
@@ -188,11 +220,12 @@ class _TkinterAskDialog:
                 status_var.set(f"Invalid JSON: {e}")
                 status_label.config(fg="#ff4444")
                 return
-            if _write_config_text(text):
+            if _write_config_text(text, config_path_str=selected_path):
                 self._result = AskResult(
                     decision=AskDecision.ALLOW_ALWAYS,
                     allowlist_pattern=save_pat,
                     config_saved=True,
+                    config_path=selected_path,
                 )
                 editor.destroy()
                 root.destroy()

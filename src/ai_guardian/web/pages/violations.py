@@ -606,10 +606,18 @@ def _show_pattern_editor_dialog(matched_text: str, config_section: str):
 def _show_config_editor_dialog(save_pat: str, config_section: str):
     """Show config editor with pattern inserted for review and save."""
     import json as json_mod
-    from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+    from ai_guardian.tui.pattern_editor import (
+        prepare_config_with_pattern, get_config_scope_options,
+    )
     from ai_guardian.tui.ask_dialog import _write_config_text
 
-    json_text, _line_number = prepare_config_with_pattern(save_pat, config_section)
+    scope_options = get_config_scope_options()
+    scope_map = {label: path_str for label, path_str in scope_options}
+    selected = {"path": scope_options[0][1]}
+
+    json_text, _line_number = prepare_config_with_pattern(
+        save_pat, config_section, config_path=selected["path"],
+    )
 
     with ui.dialog().props("persistent maximized") as editor_dlg, \
             ui.card().classes("w-full h-full"):
@@ -619,6 +627,21 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
             "Save to persist or Cancel to discard."
         ).classes("text-sm text-grey-6")
         ui.separator()
+
+        if len(scope_options) > 1:
+            ui.label("Save to:").classes("font-bold text-sm")
+            scope_radio = ui.radio(
+                scope_map, value=scope_options[0][0],
+            ).props("dense")
+
+            def on_scope_change(e):
+                selected["path"] = scope_map[e.value]
+                new_text, _ = prepare_config_with_pattern(
+                    save_pat, config_section, config_path=selected["path"],
+                )
+                editor.value = new_text
+
+            scope_radio.on_value_change(on_scope_change)
 
         editor = ui.codemirror(
             json_text, language="JSON", theme="dracula", line_wrapping=True,
@@ -648,10 +671,10 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
                     editor_status.text = f"Invalid JSON: {exc}"
                     editor_status.classes(replace="text-sm text-red")
                     return
-                if _write_config_text(text):
+                if _write_config_text(text, config_path_str=selected["path"]):
                     editor_dlg.close()
                     ui.notify(
-                        "Pattern saved to ai-guardian.json",
+                        "Pattern saved to config",
                         type="positive",
                     )
                 else:

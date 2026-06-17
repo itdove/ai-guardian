@@ -539,6 +539,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                 "decision": decision.value,
                 "allowlist_pattern": None,
                 "config_saved": False,
+                "config_path": None,
                 "source": "fallback",
             })
         else:
@@ -546,6 +547,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                 "decision": result.decision.value,
                 "allowlist_pattern": result.allowlist_pattern,
                 "config_saved": getattr(result, 'config_saved', False),
+                "config_path": getattr(result, 'config_path', None),
                 "source_annotation_saved": getattr(result, 'source_annotation_saved', False),
                 "ignore_path": getattr(result, 'ignore_path', None),
                 "ignore_scanner_types": getattr(result, 'ignore_scanner_types', None),
