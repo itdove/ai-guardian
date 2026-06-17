@@ -113,6 +113,7 @@ class Doctor:
             self.check_console_deps,
             self.check_tray_support,
             self.check_tkinter_support,
+            self.check_ask_mode_deps,
             self.check_terminal_emulator,
             self.check_config_consistency,
             self.check_tighten_only,
@@ -1198,13 +1199,17 @@ class Doctor:
                     "tray requires it on Linux"
                 ),
                 fix_hint=(
-                    "Reinstall with --venv: install.sh --venv\n"
+                    "Install the system package:\n"
+                    "  Fedora/RHEL: sudo dnf install python3-gobject\n"
+                    "  Debian/Ubuntu: sudo apt install python3-gi\n"
+                    "  openSUSE: sudo zypper install python3-gobject\n"
+                    "  Arch: sudo pacman -S python-gobject\n"
                     "Or install PyGObject: pip install PyGObject\n"
-                    "System headers may be needed first:\n"
+                    "  (headers may be needed first:\n"
                     "  Fedora/RHEL: sudo dnf install gobject-introspection-devel "
                     "cairo-gobject-devel pkg-config python3-devel gcc\n"
                     "  Debian/Ubuntu: sudo apt install libgirepository1.0-dev "
-                    "gcc libcairo2-dev pkg-config python3-dev"
+                    "gcc libcairo2-dev pkg-config python3-dev)"
                 ),
             )
 
@@ -1295,6 +1300,88 @@ class Doctor:
             name="tkinter_support",
             status=CheckStatus.PASS,
             message=f"tkinter available (fallback: {fallback})",
+        )
+
+    def check_ask_mode_deps(self) -> CheckResult:
+        """Check that ask mode has a usable dialog backend (tkinter or NiceGUI)."""
+        self._ensure_config()
+        if not self._config:
+            return CheckResult(
+                name="ask_mode_deps",
+                status=CheckStatus.SKIP,
+                message="No config loaded",
+            )
+
+        ask_sections = []
+        for section in (
+            "secret_scanning", "scan_pii", "prompt_injection",
+            "context_poisoning", "supply_chain", "config_file_scanning",
+        ):
+            action = (self._config.get(section) or {}).get("action", "")
+            if isinstance(action, str) and action.startswith("ask"):
+                ask_sections.append(section)
+
+        for rule in (self._config.get("permissions") or {}).get("rules", []):
+            action = rule.get("action", "")
+            if isinstance(action, str) and action.startswith("ask"):
+                ask_sections.append("permissions.rules")
+                break
+
+        for rule in (self._config.get("directory_rules") or {}).get("rules", []):
+            action = rule.get("action", "")
+            if isinstance(action, str) and action.startswith("ask"):
+                ask_sections.append("directory_rules.rules")
+                break
+
+        if not ask_sections:
+            return CheckResult(
+                name="ask_mode_deps",
+                status=CheckStatus.SKIP,
+                message="No ask actions configured",
+            )
+
+        has_tkinter = False
+        try:
+            import tkinter  # noqa: F401
+            has_tkinter = True
+        except ImportError:
+            pass
+
+        if has_tkinter:
+            return CheckResult(
+                name="ask_mode_deps",
+                status=CheckStatus.PASS,
+                message=f"tkinter available for ask mode ({', '.join(ask_sections)})",
+            )
+
+        has_nicegui = False
+        try:
+            import nicegui  # noqa: F401
+            has_nicegui = True
+        except ImportError:
+            pass
+
+        if has_nicegui:
+            return CheckResult(
+                name="ask_mode_deps",
+                status=CheckStatus.PASS,
+                message=f"NiceGUI fallback for ask mode ({', '.join(ask_sections)})",
+            )
+
+        return CheckResult(
+            name="ask_mode_deps",
+            status=CheckStatus.WARN,
+            message=(
+                f"Ask mode configured ({', '.join(ask_sections)}) "
+                "but tkinter/NiceGUI unavailable — Textual terminal fallback only"
+            ),
+            fix_hint=(
+                "Install tkinter for native ask dialogs:\n"
+                "  Fedora/RHEL: sudo dnf install python3-tkinter\n"
+                "  Debian/Ubuntu: sudo apt install python3-tk\n"
+                "  macOS (pyenv): brew install tcl-tk\n"
+                "Or install NiceGUI: pip install nicegui"
+            ),
         )
 
     def check_terminal_emulator(self) -> CheckResult:
@@ -1671,6 +1758,9 @@ _CHECK_DISPLAY_NAMES = {
     "directory_rules": "Directory rules",
     "console_deps": "Console deps",
     "tray_support": "System tray",
+    "tkinter_support": "Tkinter",
+    "ask_mode_deps": "Ask mode deps",
+    "project_config": "Project config",
     "terminal_emulator": "Terminal emulator",
     "config_consistency": "Config consistency",
     "tighten_only": "Tighten-only policies",

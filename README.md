@@ -253,6 +253,29 @@ Each detection feature (`secret_scanning`, `secret_redaction`, `ssrf_protection`
 
 See [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) for installation instructions.
 
+## Optional Dependencies
+
+ai-guardian works out of the box with built-in Python-native scanners, NiceGUI/Textual fallback dialogs, and heuristic prompt injection detection. These optional packages enable extra functionality:
+
+| Package | What it enables | Install |
+|---------|-----------------|---------|
+| **tkinter** | Native popup dialogs for ask mode (strongly recommended) | `install.sh --tkinter`, or see below |
+| **PyGObject (gi)** | System tray on Linux | `install.sh --gobject`, or: `dnf install python3-gobject` / `apt install python3-gi` |
+| **gitleaks** | Additional secret scanner engine | `ai-guardian scanner install gitleaks` |
+| **betterleaks** | Additional secret scanner engine | `ai-guardian scanner install betterleaks` |
+| **trufflehog** | Additional secret scanner engine (AGPL, subprocess) | `ai-guardian scanner install trufflehog` |
+| **ML model** | ML-based prompt injection detection | `ai-guardian ml download` |
+
+### tkinter Install by Platform
+
+| Platform | Command |
+|----------|---------|
+| Fedora/RHEL | `sudo dnf install python3-tkinter` |
+| Debian/Ubuntu | `sudo apt install python3-tk` |
+| macOS (system Python) | Included |
+| macOS (pyenv/Homebrew) | `brew install tcl-tk`, then rebuild Python |
+| uv | Not available — NiceGUI browser form used automatically |
+
 ## Installation
 
 **Linux / macOS:**

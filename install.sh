@@ -7,6 +7,7 @@ INSTALL_MODE=""
 VENV_DIR="$HOME/.ai-guardian-venv"
 IDE=""
 INSTALL_TKINTER=false
+INSTALL_GOBJECT=false
 NO_SETUP=false
 SETUP_ARGS=()
 
@@ -36,9 +37,11 @@ Options:
     --no-setup          Install only, don't auto-detect or update IDE hooks
     --profile PROFILE   Security profile: @minimal, @standard (default), @strict
     --version VERSION   Install a specific version or a local .whl file
-    --tkinter           Install tkinter for native popup dialogs (optional)
+    --tkinter           Install tkinter for native popup dialogs (recommended)
                         Without it, NiceGUI browser form is used (Python 3.10+)
                         or Textual terminal fallback (Python 3.9)
+    --gobject           Install python3-gobject for system tray on Linux (optional)
+                        Without it, tray features are unavailable on Linux
     -h, --help          Show this help message
 
     Any additional flags are passed through to 'ai-guardian setup'.
@@ -113,6 +116,7 @@ while [ $# -gt 0 ]; do
         --version) [ $# -ge 2 ] || { echo "Error: --version requires a value" >&2; exit 1; }; VERSION="$2"; shift 2 ;;
         --no-setup) NO_SETUP=true; shift ;;
         --tkinter) INSTALL_TKINTER=true; shift ;;
+        --gobject) INSTALL_GOBJECT=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *)         SETUP_ARGS+=("$1"); shift ;;
     esac
@@ -449,7 +453,44 @@ if [ "$INSTALL_TKINTER" = true ]; then
     fi
 fi
 
-# --- Step 3d: Auto-detect and update existing agent hooks ---
+# --- Step 3d: Install python3-gobject (optional, Linux only) ---
+
+if [ "$INSTALL_GOBJECT" = true ]; then
+    if [ "$(uname -s)" != "Linux" ]; then
+        echo "  Skipping --gobject — only needed on Linux"
+    else
+        LINUX_HAS_DISPLAY_GI=false
+        [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && LINUX_HAS_DISPLAY_GI=true
+
+        if [ "$LINUX_HAS_DISPLAY_GI" = false ]; then
+            echo "  Skipping python3-gobject — no display detected (headless environment)"
+        elif "$PYTHON" -c "import gi" 2>/dev/null; then
+            ok "python3-gobject already available"
+        else
+            if command -v dnf >/dev/null 2>&1; then
+                sudo dnf install -y python3-gobject 2>/dev/null && ok "python3-gobject installed via dnf" || \
+                    echo "  Could not install python3-gobject via dnf. Install manually: sudo dnf install python3-gobject"
+            elif command -v apt-get >/dev/null 2>&1; then
+                sudo apt-get install -y python3-gi 2>/dev/null && ok "python3-gi installed via apt" || \
+                    echo "  Could not install python3-gi via apt. Install manually: sudo apt install python3-gi"
+            elif command -v zypper >/dev/null 2>&1; then
+                sudo zypper install -y python3-gobject 2>/dev/null && ok "python3-gobject installed via zypper" || \
+                    echo "  Could not install python3-gobject via zypper. Install manually: sudo zypper install python3-gobject"
+            elif command -v pacman >/dev/null 2>&1; then
+                sudo pacman -S --noconfirm python-gobject 2>/dev/null && ok "python-gobject installed via pacman" || \
+                    echo "  Could not install python-gobject via pacman. Install manually: sudo pacman -S python-gobject"
+            else
+                echo "  Could not detect package manager. Install python3-gobject manually:"
+                echo "    Fedora/RHEL: sudo dnf install python3-gobject"
+                echo "    Debian/Ubuntu: sudo apt install python3-gi"
+                echo "    openSUSE: sudo zypper install python3-gobject"
+                echo "    Arch: sudo pacman -S python-gobject"
+            fi
+        fi
+    fi
+fi
+
+# --- Step 3e: Auto-detect and update existing agent hooks ---
 
 if [ -z "$IDE" ] && [ "$NO_SETUP" = false ]; then
     DETECTED=$(detect_installed_agents)

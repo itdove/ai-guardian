@@ -616,6 +616,96 @@ class TestCheckTraySupport:
         assert result.status == CheckStatus.PASS
 
 
+class TestCheckAskModeDeps:
+    def test_skip_no_config(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = None
+        doctor._config_loaded = True
+        result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.SKIP
+        assert "No config" in result.message
+
+    def test_skip_no_ask_actions(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {"secret_scanning": {"action": "block"}}
+        doctor._config_loaded = True
+        result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.SKIP
+        assert "No ask actions" in result.message
+
+    def test_pass_tkinter_available(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {"secret_scanning": {"action": "ask"}}
+        doctor._config_loaded = True
+        with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
+            result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.PASS
+        assert "tkinter" in result.message
+        assert "secret_scanning" in result.message
+
+    def test_pass_nicegui_fallback(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {"supply_chain": {"action": "ask:warn"}}
+        doctor._config_loaded = True
+        tkinter_import = mock.MagicMock(side_effect=ImportError)
+        with mock.patch.dict(
+            "sys.modules", {"tkinter": None, "nicegui": mock.MagicMock()}
+        ):
+            result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.PASS
+        assert "NiceGUI" in result.message
+
+    def test_warn_no_tkinter_no_nicegui(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {"prompt_injection": {"action": "ask"}}
+        doctor._config_loaded = True
+        with mock.patch.dict("sys.modules", {"tkinter": None, "nicegui": None}):
+            result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.WARN
+        assert "prompt_injection" in result.message
+        assert result.fix_hint is not None
+        assert "tkinter" in result.fix_hint
+
+    def test_detects_permission_rules_ask(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {
+            "permissions": {
+                "rules": [{"tool": "Bash", "action": "ask"}]
+            }
+        }
+        doctor._config_loaded = True
+        with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
+            result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.PASS
+        assert "permissions.rules" in result.message
+
+    def test_detects_directory_rules_ask(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {
+            "directory_rules": {
+                "rules": [{"path": "/tmp", "action": "ask"}]
+            }
+        }
+        doctor._config_loaded = True
+        with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
+            result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.PASS
+        assert "directory_rules.rules" in result.message
+
+    def test_multiple_ask_sections(self, _isolate_config_dir):
+        doctor = Doctor()
+        doctor._config = {
+            "secret_scanning": {"action": "ask"},
+            "scan_pii": {"action": "ask:log-only"},
+        }
+        doctor._config_loaded = True
+        with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
+            result = doctor.check_ask_mode_deps()
+        assert result.status == CheckStatus.PASS
+        assert "secret_scanning" in result.message
+        assert "scan_pii" in result.message
+
+
 class TestCheckTerminalEmulator:
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Darwin")
     def test_skip_non_linux(self, _mock_sys, _isolate_config_dir):
@@ -1163,7 +1253,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 28
+        assert len(report.checks) == 29
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
