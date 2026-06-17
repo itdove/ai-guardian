@@ -1194,6 +1194,20 @@ class ToolPolicyChecker:
                 tool_name = hook_data["tool_name"]
                 tool_input = hook_data.get("tool_input", {})
 
+            # Cursor/Windsurf: synthesize from event-based hook names
+            if not tool_name:
+                event_name = hook_data.get("hook_event_name", "").lower()
+                hook_name_val = hook_data.get("hook_name", "").lower()
+                effective_event = event_name or hook_name_val
+                if effective_event in ("beforereadfile", "pre_read_code"):
+                    tool_name = "Read"
+                    file_path = hook_data.get("file_path", "")
+                    if file_path:
+                        tool_input = {"file_path": file_path}
+                elif effective_event in ("beforeshellexecution",):
+                    tool_name = "Bash"
+                    tool_input = hook_data.get("tool_input", {})
+
             # Augment Code: normalize tool names and mcp: prefix
             if tool_name and tool_name in self._AUGMENT_TOOL_MAP:
                 tool_name = self._AUGMENT_TOOL_MAP[tool_name]

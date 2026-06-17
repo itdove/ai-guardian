@@ -375,6 +375,29 @@ class TestNormalization:
         n = CursorAdapter().normalize_input(data)
         assert n.event == HookEvent.BEFORE_READ_FILE
         assert n.file_path == "/tmp/test.py"
+        assert n.tool_name == "Read"
+
+    def test_cursor_beforeshellexecution(self):
+        data = {
+            "cursor_version": "0.50.0",
+            "hook_event_name": "beforeShellExecution",
+        }
+        n = CursorAdapter().normalize_input(data)
+        assert n.event == HookEvent.PRE_TOOL_USE
+        assert n.tool_name == "Bash"
+
+    def test_cursor_tool_name_synthesis_beforereadfile(self):
+        data = {"hook_event_name": "beforeReadFile", "file_path": "/tmp/f.py"}
+        assert CursorAdapter._extract_tool_name(data) == "Read"
+
+    def test_cursor_tool_name_synthesis_beforeshellexecution(self):
+        data = {"hook_event_name": "beforeShellExecution"}
+        assert CursorAdapter._extract_tool_name(data) == "Bash"
+
+    def test_cursor_tool_name_passthrough(self):
+        """When tool_name is present, use it directly."""
+        data = {"tool_name": "CustomTool", "hook_event_name": "preToolUse"}
+        assert CursorAdapter._extract_tool_name(data) == "CustomTool"
 
     def test_copilot_toolname(self):
         data = {
@@ -563,7 +586,17 @@ class TestResponseFormatting:
             hook_event=HookEvent.BEFORE_READ_FILE,
         )
         data = json.loads(result["output"])
-        assert data["permission"] == "deny"
+        assert data["continue"] is False
+        assert "Denied" in data["user_message"]
+
+    def test_cursor_beforereadfile_allow(self):
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.BEFORE_READ_FILE,
+        )
+        data = json.loads(result["output"])
+        assert data["continue"] is True
+        assert "user_message" not in data
 
     def test_cursor_prompt_block(self):
         result = CursorAdapter().format_response(
@@ -981,3 +1014,45 @@ class TestDefaultTranscriptPaths:
             assert adapter.get_default_transcript_paths() == [], (
                 f"{adapter.name} should return empty transcript paths"
             )
+
+
+# ── Cursor Event-Based Hook Fixes (Issue #1220) ─────────────────────────
+
+
+class TestCursorToolNameExtraction:
+    """Tool name synthesis and tool_policy fallback for Cursor event-based hooks."""
+
+    def test_tool_policy_extract_cursor_beforereadfile(self):
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        checker = ToolPolicyChecker(config={})
+        hook_data = {
+            "cursor_version": "0.50.0",
+            "hook_event_name": "beforeReadFile",
+            "file_path": "/tmp/secret.txt",
+        }
+        tool_name, tool_input = checker._extract_tool_info(hook_data)
+        assert tool_name == "Read"
+        assert tool_input.get("file_path") == "/tmp/secret.txt"
+
+    def test_tool_policy_extract_cursor_beforeshellexecution(self):
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        checker = ToolPolicyChecker(config={})
+        hook_data = {
+            "cursor_version": "0.50.0",
+            "hook_event_name": "beforeShellExecution",
+        }
+        tool_name, tool_input = checker._extract_tool_info(hook_data)
+        assert tool_name == "Bash"
+
+    def test_tool_policy_no_block_on_cursor_beforereadfile(self):
+        """check_tool_allowed should not fail with 'unable to determine tool name'."""
+        from ai_guardian.tool_policy import ToolPolicyChecker
+        checker = ToolPolicyChecker(config={"rules": []})
+        hook_data = {
+            "cursor_version": "0.50.0",
+            "hook_event_name": "beforeReadFile",
+            "file_path": "/tmp/test.py",
+        }
+        is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
+        assert "unable to determine tool name" not in (error_msg or "")
+        assert tool_name == "Read"
