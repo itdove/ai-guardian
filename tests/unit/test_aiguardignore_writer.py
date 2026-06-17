@@ -1,7 +1,9 @@
-"""Tests for .aiguardignore.toml write API."""
+"""Tests for .aiguardignore.toml write API and JSON schema."""
 
+import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,13 @@ except ImportError:
 
 needs_toml_w = pytest.mark.skipif(not HAS_TOML_W, reason="tomli_w not installed")
 
+HAS_JSONSCHEMA = True
+try:
+    import jsonschema
+except ImportError:
+    HAS_JSONSCHEMA = False
+
+needs_jsonschema = pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -21,6 +30,8 @@ else:
         import tomli as tomllib
     except ImportError:
         tomllib = None
+
+SCHEMA_PATH = Path(__file__).resolve().parents[2] / "src" / "ai_guardian" / "schemas" / "aiguardignore.schema.json"
 
 
 @needs_toml_w
@@ -276,3 +287,113 @@ class TestAskDecisionNewValues:
             source_annotation_saved=True,
         )
         assert result.source_annotation_saved
+
+
+# ---------------------------------------------------------------------------
+# JSON Schema validation
+# ---------------------------------------------------------------------------
+
+@needs_jsonschema
+class TestAiguardignoreSchema:
+    @pytest.fixture
+    def schema(self):
+        with open(SCHEMA_PATH) as f:
+            return json.load(f)
+
+    def test_schema_file_exists(self):
+        assert SCHEMA_PATH.is_file()
+
+    def test_schema_is_valid_json(self):
+        with open(SCHEMA_PATH) as f:
+            data = json.load(f)
+        assert data["$schema"] == "http://json-schema.org/draft-07/schema#"
+        assert data["type"] == "object"
+
+    def test_valid_global_allowlist(self, schema):
+        doc = {"allowlist": {"paths": ["tests/fixtures/**"]}}
+        jsonschema.validate(doc, schema)
+
+    def test_valid_scanner_section(self, schema):
+        doc = {"secret_scanning": {"allowlist": {"paths": ["tests/**"]}}}
+        jsonschema.validate(doc, schema)
+
+    def test_valid_all_scanners(self, schema):
+        doc = {
+            "allowlist": {"paths": ["global/**"]},
+            "secret_scanning": {"allowlist": {"paths": ["a.py"]}},
+            "scan_pii": {"allowlist": {"paths": ["b.py"]}},
+            "prompt_injection": {"allowlist": {"paths": ["c.md"]}},
+            "config_file_scanning": {"allowlist": {"paths": ["d.json"]}},
+            "context_poisoning": {"allowlist": {"paths": ["e.md"]}},
+            "supply_chain": {"allowlist": {"paths": ["f.sh"]}},
+            "image_scanning": {"allowlist": {"paths": ["g.png"]}},
+        }
+        jsonschema.validate(doc, schema)
+
+    def test_empty_document_valid(self, schema):
+        jsonschema.validate({}, schema)
+
+    def test_unknown_top_level_key_rejected(self, schema):
+        doc = {"unknown_scanner": {"allowlist": {"paths": ["x"]}}}
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, schema)
+
+    def test_unknown_scanner_subkey_rejected(self, schema):
+        doc = {"secret_scanning": {"unknown_key": True}}
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, schema)
+
+    def test_paths_must_be_array(self, schema):
+        doc = {"allowlist": {"paths": "not-an-array"}}
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, schema)
+
+    def test_paths_items_must_be_strings(self, schema):
+        doc = {"allowlist": {"paths": [123]}}
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(doc, schema)
+
+    def test_scanner_types_match_code(self, schema):
+        from ai_guardian.aiguardignore import SCANNER_TYPES
+        schema_scanners = {
+            k for k in schema["properties"] if k != "allowlist"
+        }
+        assert schema_scanners == SCANNER_TYPES
+
+
+# ---------------------------------------------------------------------------
+# Schema header in generated files
+# ---------------------------------------------------------------------------
+
+@needs_toml_w
+class TestSchemaHeader:
+    def test_new_file_has_schema_header(self, tmp_path, monkeypatch):
+        from ai_guardian.aiguardignore import add_ignore_path, reset_cache
+        reset_cache()
+        monkeypatch.setattr("ai_guardian.aiguardignore.find_project_root", lambda: tmp_path)
+
+        add_ignore_path("src/test.py", scanner_types=None, project_root=tmp_path)
+
+        content = (tmp_path / ".aiguardignore.toml").read_text()
+        assert content.startswith("#:schema ")
+
+    def test_existing_file_no_duplicate_header(self, tmp_path, monkeypatch):
+        from ai_guardian.aiguardignore import add_ignore_path, reset_cache
+        reset_cache()
+        monkeypatch.setattr("ai_guardian.aiguardignore.find_project_root", lambda: tmp_path)
+
+        toml_path = tmp_path / ".aiguardignore.toml"
+        toml_path.write_text('[allowlist]\npaths = ["existing/**"]\n')
+
+        add_ignore_path("src/new.py", scanner_types=None, project_root=tmp_path)
+
+        content = toml_path.read_text()
+        assert not content.startswith("#:schema ")
+
+    def test_preview_new_file_has_schema_header(self, tmp_path, monkeypatch):
+        from ai_guardian.aiguardignore import generate_aiguardignore_preview, reset_cache
+        reset_cache()
+        monkeypatch.setattr("ai_guardian.aiguardignore.find_project_root", lambda: tmp_path)
+
+        text, _ = generate_aiguardignore_preview("src/test.py", project_root=tmp_path)
+        assert text.startswith("#:schema ")

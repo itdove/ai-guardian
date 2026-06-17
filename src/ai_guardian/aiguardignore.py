@@ -59,6 +59,8 @@ try:
 except ImportError:
     HAS_TOML_W = False
 
+SCHEMA_HEADER = "#:schema https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/aiguardignore.schema.json\n"
+
 SCANNER_TYPES = frozenset({
     "secret_scanning",
     "scan_pii",
@@ -280,11 +282,15 @@ def add_ignore_path(
                 if path_pattern not in paths:
                     paths.append(path_pattern)
 
+        is_new = not toml_path.is_file()
         fd, tmp_path = tempfile.mkstemp(
             dir=str(root), suffix=".aiguardignore.tmp"
         )
         try:
             with os.fdopen(fd, "wb") as f:
+                if is_new:
+                    f.write(SCHEMA_HEADER.encode("utf-8"))
+                    f.write(b"\n")
                 tomli_w.dump(data, f)
             os.replace(tmp_path, str(toml_path))
         except Exception:
@@ -335,6 +341,10 @@ def generate_aiguardignore_preview(
                 paths.append(path_pattern)
 
     toml_text = tomli_w.dumps(data)
+
+    is_new = not toml_path.is_file()
+    if is_new:
+        toml_text = SCHEMA_HEADER + "\n" + toml_text
 
     highlight_line = 1
     for i, line in enumerate(toml_text.splitlines(), 1):

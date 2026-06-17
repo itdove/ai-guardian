@@ -1140,6 +1140,12 @@ Some LLM tools (e.g., NotebookLM) require single-file upload rather than crawlin
   cat ai-guardian-example.json
   echo '```'
   echo ""
+  echo "# === aiguardignore.schema.json ==="
+  echo ""
+  echo '```json'
+  cat src/ai_guardian/schemas/aiguardignore.schema.json
+  echo '```'
+  echo ""
   echo "# === CHANGELOG.md (recent) ==="
   echo ""
   # Include only the first 2 released versions (plus Unreleased)
@@ -1153,7 +1159,8 @@ Some LLM tools (e.g., NotebookLM) require single-file upload rather than crawlin
 1. `README.md`
 2. All `docs/*.md` and `docs/security/*.md` files (alphabetically)
 3. `ai-guardian-example.json` (wrapped in a JSON code block)
-4. `CHANGELOG.md` (trimmed to last 2 released versions)
+4. `aiguardignore.schema.json` (JSON schema for `.aiguardignore.toml`)
+5. `CHANGELOG.md` (trimmed to last 2 released versions)
 
 Each file is separated by a `# === filename ===` header. Total output is ~76k words, well under the 500k-word limit of most LLM tools.
 

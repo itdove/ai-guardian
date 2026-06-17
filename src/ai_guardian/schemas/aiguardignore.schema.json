@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/aiguardignore.schema.json",
+  "title": "ai-guardian ignore file",
+  "description": "Per-project file ignore patterns for ai-guardian scanners (.aiguardignore.toml)",
+  "type": "object",
+  "properties": {
+    "allowlist": {
+      "type": "object",
+      "description": "Global allowlist — applies to all scanners",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns for files to skip across all scanners (e.g. \"tests/fixtures/**\")"
+        }
+      },
+      "additionalProperties": false
+    },
+    "secret_scanning": { "$ref": "#/$defs/scanner_section" },
+    "scan_pii": { "$ref": "#/$defs/scanner_section" },
+    "prompt_injection": { "$ref": "#/$defs/scanner_section" },
+    "config_file_scanning": { "$ref": "#/$defs/scanner_section" },
+    "context_poisoning": { "$ref": "#/$defs/scanner_section" },
+    "supply_chain": { "$ref": "#/$defs/scanner_section" },
+    "image_scanning": { "$ref": "#/$defs/scanner_section" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "scanner_section": {
+      "type": "object",
+      "description": "Scanner-specific ignore configuration",
+      "properties": {
+        "allowlist": {
+          "type": "object",
+          "description": "Allowlist for this scanner",
+          "properties": {
+            "paths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Glob patterns for files to skip for this scanner"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
