@@ -35,9 +35,10 @@ File format (consistent with .gitleaks.toml allowlist style):
 import logging
 import os
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.gitleaks_config import find_project_root
 
@@ -51,6 +52,12 @@ try:
     HAS_TOML = True
 except ImportError:
     HAS_TOML = False
+
+try:
+    import tomli_w
+    HAS_TOML_W = True
+except ImportError:
+    HAS_TOML_W = False
 
 SCANNER_TYPES = frozenset({
     "secret_scanning",
@@ -170,3 +177,212 @@ def reset_cache():
     """Clear all module-level caches (for testing)."""
     global _cached_config
     _cached_config = None
+
+
+def find_project_root_for_file(file_path: str) -> Optional[Path]:
+    """Find the project root by walking up from a file's directory.
+
+    Looks for .git, .aiguardignore.toml, or pyproject.toml as project markers.
+    Falls back to find_project_root() if no marker found.
+    """
+    start = Path(file_path).resolve()
+    if start.is_file():
+        start = start.parent
+
+    markers = (".git", ".aiguardignore.toml", "pyproject.toml", ".gitignore")
+    current = start
+    while current != current.parent:
+        for marker in markers:
+            if (current / marker).exists():
+                return current
+        current = current.parent
+
+    return find_project_root()
+
+
+def make_relative_path(
+    abs_path: str, project_root: Optional[Path] = None
+) -> str:
+    """Convert an absolute file path to a project-relative path."""
+    root = project_root or find_project_root_for_file(abs_path)
+    if root is None:
+        return os.path.basename(abs_path)
+    try:
+        return str(Path(abs_path).relative_to(root))
+    except ValueError:
+        return os.path.basename(abs_path)
+
+
+def _load_toml_data(toml_path: Path) -> dict:
+    """Load existing TOML data or return empty dict."""
+    if not toml_path.is_file():
+        return {}
+    try:
+        with open(toml_path, "rb") as f:
+            return tomllib.load(f)
+    except Exception as exc:
+        logger.warning("Failed to parse %s: %s", toml_path, exc)
+        return {}
+
+
+def add_ignore_path(
+    path_pattern: str,
+    scanner_types: Optional[List[str]] = None,
+    project_root: Optional[Path] = None,
+) -> bool:
+    """Add a path to .aiguardignore.toml atomically.
+
+    Args:
+        path_pattern: Relative path or glob pattern.
+        scanner_types: List of scanner types to add to, or None for global [allowlist].
+        project_root: Project root directory (auto-detected if None).
+
+    Returns:
+        True on success, False on failure.
+    """
+    if not HAS_TOML or not HAS_TOML_W:
+        logger.warning("TOML support not available for writing .aiguardignore.toml")
+        return False
+
+    validated = _validate_paths([path_pattern])
+    if not validated:
+        logger.warning("Path rejected by validation: %s", path_pattern)
+        return False
+    path_pattern = validated[0]
+
+    if path_pattern in ("*", "**", "**/*"):
+        logger.warning("Path too broad: %s", path_pattern)
+        return False
+
+    root = project_root or find_project_root()
+    if root is None:
+        logger.warning("Cannot find project root for .aiguardignore.toml")
+        return False
+
+    toml_path = root / ".aiguardignore.toml"
+
+    try:
+        data = _load_toml_data(toml_path)
+
+        if scanner_types is None:
+            section = data.setdefault("allowlist", {})
+            paths = section.setdefault("paths", [])
+            if path_pattern not in paths:
+                paths.append(path_pattern)
+        else:
+            for scanner_type in scanner_types:
+                if scanner_type not in SCANNER_TYPES:
+                    logger.warning("Unknown scanner type: %s", scanner_type)
+                    continue
+                scanner_section = data.setdefault(scanner_type, {})
+                al_section = scanner_section.setdefault("allowlist", {})
+                paths = al_section.setdefault("paths", [])
+                if path_pattern not in paths:
+                    paths.append(path_pattern)
+
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(root), suffix=".aiguardignore.tmp"
+        )
+        try:
+            with os.fdopen(fd, "wb") as f:
+                tomli_w.dump(data, f)
+            os.replace(tmp_path, str(toml_path))
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+        reset_cache()
+        return True
+    except Exception as e:
+        logger.warning("Failed to write .aiguardignore.toml: %s", e)
+        return False
+
+
+def generate_aiguardignore_preview(
+    path_pattern: str,
+    scanner_types: Optional[List[str]] = None,
+    project_root: Optional[Path] = None,
+) -> Tuple[str, int]:
+    """Generate a TOML preview with the new path inserted.
+
+    Returns:
+        (toml_text, highlight_line) where highlight_line is 1-based.
+    """
+    if not HAS_TOML_W:
+        return (f"# tomli_w not available\n# Would add: {path_pattern}", 1)
+
+    root = project_root or find_project_root()
+    toml_path = root / ".aiguardignore.toml" if root else Path(".aiguardignore.toml")
+
+    data = _load_toml_data(toml_path) if toml_path.is_file() else {}
+
+    if scanner_types is None:
+        section = data.setdefault("allowlist", {})
+        paths = section.setdefault("paths", [])
+        if path_pattern not in paths:
+            paths.append(path_pattern)
+    else:
+        for scanner_type in scanner_types:
+            if scanner_type not in SCANNER_TYPES:
+                continue
+            scanner_section = data.setdefault(scanner_type, {})
+            al_section = scanner_section.setdefault("allowlist", {})
+            paths = al_section.setdefault("paths", [])
+            if path_pattern not in paths:
+                paths.append(path_pattern)
+
+    toml_text = tomli_w.dumps(data)
+
+    highlight_line = 1
+    for i, line in enumerate(toml_text.splitlines(), 1):
+        if path_pattern in line:
+            highlight_line = i
+            break
+
+    return (toml_text, highlight_line)
+
+
+def write_aiguardignore_text(
+    toml_text: str, project_root: Optional[Path] = None
+) -> bool:
+    """Write TOML text directly to .aiguardignore.toml.
+
+    For use by the editor preview save flow.
+    """
+    root = project_root or find_project_root()
+    if root is None:
+        logger.warning("Cannot find project root")
+        return False
+
+    toml_path = root / ".aiguardignore.toml"
+
+    if HAS_TOML:
+        try:
+            tomllib.loads(toml_text)
+        except Exception as e:
+            logger.warning("Invalid TOML: %s", e)
+            return False
+
+    try:
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(root), suffix=".aiguardignore.tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(toml_text)
+            os.replace(tmp_path, str(toml_path))
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
+        reset_cache()
+        return True
+    except Exception as e:
+        logger.warning("Failed to write .aiguardignore.toml: %s", e)
+        return False

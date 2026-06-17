@@ -188,7 +188,7 @@ def create_directory_scan_page(service, daemon_name: str):
                 with ui.row().classes("items-center gap-2 w-full"):
                     path_input = ui.input(
                         label="File or Directory Path",
-                        value=".",
+                        value=str(Path.home()),
                     ).props("dense outlined").classes("flex-grow").style(
                         "font-family: monospace"
                     )
@@ -431,6 +431,15 @@ def _render_results(
                                 _show_allow_all_dialog(cs, gf),
                         ).props("dense flat color=positive size=sm")
 
+                        has_files = any(f.get("file_path") for f in group_findings)
+                        if has_files:
+                            ui.button(
+                                "Ignore All Files",
+                                icon="block",
+                                on_click=lambda cs=config_section, gf=group_findings:
+                                    _show_ignore_all_files_dialog(cs, gf),
+                            ).props("dense flat color=warning size=sm")
+
                 ui.separator()
 
                 for f in group_findings:
@@ -536,3 +545,106 @@ def _show_allow_all_dialog(config_section, findings):
             ).props("color=positive")
 
     dlg.open()
+
+
+def _show_ignore_all_files_dialog(config_section, findings):
+    """Bulk Ignore All Files of Type — add to .aiguardignore.toml."""
+    from nicegui import ui
+    from ai_guardian.tui.ignore_file_editor import (
+        SCOPE_THIS_SCANNER, SCOPE_ALL_SCANNERS,
+        SCANNER_LABELS, resolve_scanner_types,
+        validate_ignore_path, suggest_ignore_path,
+    )
+    from ai_guardian.aiguardignore import generate_aiguardignore_preview
+    from ai_guardian.tui.ask_dialog import _write_aiguardignore_text
+
+    file_paths = list(set(
+        f.get("file_path", "") for f in findings if f.get("file_path")
+    ))
+    if not file_paths:
+        ui.notify("No file paths in these findings", type="warning")
+        return
+
+    first_path = file_paths[0]
+    rel_path = suggest_ignore_path(first_path)
+    scanner_label = SCANNER_LABELS.get(config_section, config_section)
+
+    with ui.dialog().props("persistent") as ignore_dlg, ui.card().classes("w-full max-w-xl"):
+        ui.label(f"Ignore Files — {len(file_paths)} files").classes("text-lg font-bold")
+        ui.separator()
+
+        if len(file_paths) > 1:
+            ui.label(f"Files: {', '.join(suggest_ignore_path(p) for p in file_paths[:5])}").classes("text-xs text-grey-6")
+
+        ui.label("Path pattern (editable):").classes("font-bold text-sm mt-2")
+        path_input = ui.input(value=rel_path).props("dense outlined").classes("w-full").style("font-family: monospace")
+        path_status = ui.label("").classes("text-sm")
+
+        ui.label("Scope:").classes("font-bold text-sm mt-2")
+        scope_radio = ui.radio(
+            {
+                SCOPE_THIS_SCANNER: f"This scanner only ({scanner_label})",
+                SCOPE_ALL_SCANNERS: "All scanners",
+            },
+            value=SCOPE_THIS_SCANNER,
+        )
+
+        ui.label("Preview:").classes("font-bold text-sm mt-2")
+        preview_code = ui.code("").classes("w-full")
+
+        def update_preview():
+            path = path_input.value.strip()
+            valid, msg = validate_ignore_path(path)
+            if not valid:
+                path_status.text = f"❌ {msg}"
+                path_status.classes(replace="text-sm text-red")
+                return
+            path_status.text = f"✅ {msg}"
+            path_status.classes(replace="text-sm text-green")
+            scanner_types = resolve_scanner_types(scope_radio.value, config_section, None)
+            try:
+                toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
+                preview_code.set_content(toml_text)
+            except Exception:
+                pass
+
+        path_input.on_value_change(lambda _: update_preview())
+        scope_radio.on_value_change(lambda _: update_preview())
+        update_preview()
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button("Cancel", on_click=ignore_dlg.close).props("flat")
+
+            def on_confirm():
+                path = path_input.value.strip()
+                valid, msg = validate_ignore_path(path)
+                if not valid:
+                    path_status.text = f"❌ {msg}"
+                    path_status.classes(replace="text-sm text-red")
+                    return
+                scanner_types = resolve_scanner_types(scope_radio.value, config_section, None)
+                ignore_dlg.close()
+
+                toml_text, _ln = generate_aiguardignore_preview(path, scanner_types)
+                with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
+                    ui.label("Config Editor — .aiguardignore.toml").classes("text-lg font-bold")
+                    ui.separator()
+                    toml_editor = ui.codemirror(toml_text, theme="dracula", line_wrapping=True).classes("w-full flex-grow").style("min-height: 400px")
+                    editor_status = ui.label("").classes("text-sm")
+                    with ui.row().classes("w-full justify-end mt-2"):
+                        ui.button("Cancel", on_click=editor_dlg.close).props("flat")
+
+                        def on_save():
+                            if _write_aiguardignore_text(toml_editor.value):
+                                ui.notify("Path saved to .aiguardignore.toml", type="positive")
+                                editor_dlg.close()
+                            else:
+                                editor_status.text = "Failed to write .aiguardignore.toml"
+                                editor_status.classes(replace="text-sm text-red")
+
+                        ui.button("Save", on_click=on_save).props("color=positive")
+                editor_dlg.open()
+
+            ui.button("Add to .aiguardignore.toml", on_click=on_confirm).props("color=positive")
+
+    ignore_dlg.open()

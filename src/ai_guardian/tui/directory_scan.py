@@ -442,7 +442,7 @@ class DirectoryScanContent(ScrollableContainer):
                 classes="ds-row",
             )
             yield Input(
-                value=".",
+                value=str(Path.home()),
                 placeholder="File or directory path to scan",
                 id="ds-path-input",
             )
@@ -497,6 +497,15 @@ class DirectoryScanContent(ScrollableContainer):
         elif bid.startswith("allow-all-type-"):
             rule_id = bid[len("allow-all-type-"):]
             self._allow_all_of_type(rule_id)
+        elif bid.startswith("suppress-source-"):
+            idx = int(bid.split("-")[-1])
+            self._suppress_source_finding(idx)
+        elif bid.startswith("ignore-file-"):
+            idx = int(bid.split("-")[-1])
+            self._ignore_file_finding(idx)
+        elif bid.startswith("ignore-all-files-type-"):
+            rule_id = bid[len("ignore-all-files-type-"):]
+            self._ignore_all_files_of_type(rule_id)
 
     def refresh_content(self) -> None:
         self._clear_results()
@@ -710,29 +719,54 @@ class DirectoryScanContent(ScrollableContainer):
         for rule_id, group_findings in sorted(groups.items()):
             config_section = group_findings[0].get("config_section")
             if config_section:
-                scroll.mount(
-                    Horizontal(
+                row_buttons = [
+                    Button(
+                        f"Allow All {RULE_ID_LABELS.get(rule_id, rule_id)}",
+                        id=f"allow-all-type-{rule_id}",
+                        variant="success",
+                    ),
+                ]
+                has_files = any(f.get("file_path") for f in group_findings)
+                if has_files:
+                    row_buttons.append(
                         Button(
-                            f"Allow All {RULE_ID_LABELS.get(rule_id, rule_id)}",
-                            id=f"allow-all-type-{rule_id}",
-                            variant="success",
-                        ),
-                        classes="ds-finding-row",
+                            "Ignore All Files",
+                            id=f"ignore-all-files-type-{rule_id}",
+                            variant="warning",
+                        )
                     )
-                )
+                scroll.mount(Horizontal(*row_buttons, classes="ds-finding-row"))
+
                 for f in group_findings:
                     idx = f["_index"]
+                    finding_buttons = []
                     if f.get("snippet"):
-                        scroll.mount(
-                            Horizontal(
-                                Button(
-                                    f"Allow #{idx + 1}",
-                                    id=f"allow-finding-{idx}",
-                                    variant="default",
-                                ),
-                                classes="ds-finding-row",
+                        finding_buttons.append(
+                            Button(
+                                f"Allow #{idx + 1}",
+                                id=f"allow-finding-{idx}",
+                                variant="default",
                             )
                         )
+                    if f.get("file_path"):
+                        from ai_guardian.tui.source_annotator import get_comment_prefix
+                        if get_comment_prefix(f["file_path"]) is not None:
+                            finding_buttons.append(
+                                Button(
+                                    f"Suppress #{idx + 1}",
+                                    id=f"suppress-source-{idx}",
+                                    variant="warning",
+                                )
+                            )
+                        finding_buttons.append(
+                            Button(
+                                f"Ignore File #{idx + 1}",
+                                id=f"ignore-file-{idx}",
+                                variant="warning",
+                            )
+                        )
+                    if finding_buttons:
+                        scroll.mount(Horizontal(*finding_buttons, classes="ds-finding-row"))
 
     def _allow_finding(self, index: int):
         """Open pattern editor for a single finding."""
@@ -787,6 +821,58 @@ class DirectoryScanContent(ScrollableContainer):
         self.app.push_screen(
             ScanPatternEditorModal(first_snippet, config_section)
         )
+
+    def _suppress_source_finding(self, index: int):
+        """Insert annotation in source for a single finding."""
+        if index >= len(self._findings):
+            return
+        finding = self._findings[index]
+        file_path = finding.get("file_path", "")
+        line_number = finding.get("line_number", 1) or 1
+
+        from ai_guardian.tui.source_annotator import prepare_annotation
+        result = prepare_annotation(file_path, line_number)
+        if result is None:
+            self.app.notify("Cannot annotate this file type", severity="warning")
+            return
+
+        modified_content, _hl, annotation_type = result
+        from ai_guardian.tui.source_editor_modals import SourceAnnotationEditorModal
+        self.app.push_screen(
+            SourceAnnotationEditorModal(file_path, modified_content, annotation_type, "")
+        )
+
+    def _ignore_file_finding(self, index: int):
+        """Add file to .aiguardignore.toml for a single finding."""
+        if index >= len(self._findings):
+            return
+        finding = self._findings[index]
+        file_path = finding.get("file_path", "")
+        config_section = finding.get("config_section", "")
+        if not file_path or not config_section:
+            self.app.notify("No file path or config section", severity="warning")
+            return
+
+        from ai_guardian.tui.ignore_file_modals import IgnoreFileEditorModal
+        self.app.push_screen(IgnoreFileEditorModal(file_path, config_section))
+
+    def _ignore_all_files_of_type(self, rule_id: str):
+        """Add all files of a rule type to .aiguardignore.toml."""
+        matching = [
+            f for f in self._findings
+            if f.get("rule_id") == rule_id and f.get("file_path")
+        ]
+        if not matching:
+            return
+
+        config_section = matching[0].get("config_section", "")
+        if not config_section:
+            self.app.notify("No config section for this type", severity="warning")
+            return
+
+        file_path = matching[0]["file_path"]
+        from ai_guardian.tui.ignore_file_modals import IgnoreFileEditorModal
+        self.app.push_screen(IgnoreFileEditorModal(file_path, config_section))
 
     def _open_export_modal(self):
         if not self._findings:

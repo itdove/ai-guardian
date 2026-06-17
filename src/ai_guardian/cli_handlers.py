@@ -968,6 +968,9 @@ def _handle_prompt_ask(args):
         "decision": result.decision.value,
         "allowlist_pattern": result.allowlist_pattern,
         "config_saved": getattr(result, 'config_saved', False),
+        "source_annotation_saved": getattr(result, 'source_annotation_saved', False),
+        "ignore_path": getattr(result, 'ignore_path', None),
+        "ignore_scanner_types": getattr(result, 'ignore_scanner_types', None),
     })
 
     output_file = getattr(args, "output_file", None)

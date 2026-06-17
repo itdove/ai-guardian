@@ -15,9 +15,9 @@ Shared types and dispatch live here. Tier-specific implementations:
 import logging
 import os
 import platform
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 from ai_guardian.tui.display import (
     _tkinter_available,
@@ -34,6 +34,8 @@ class AskDecision(str, Enum):
     """User's decision from the ask dialog."""
     ALLOW_ONCE = "allow_once"
     ALLOW_ALWAYS = "allow_always"
+    SUPPRESS_IN_SOURCE = "suppress_in_source"
+    IGNORE_FILE = "ignore_file"
     BLOCK = "block"
 
 
@@ -57,6 +59,9 @@ class AskResult:
     allowlist_pattern: Optional[str] = None
     config_saved: bool = False
     dialog_wait_ms: float = 0.0
+    source_annotation_saved: bool = False
+    ignore_path: Optional[str] = None
+    ignore_scanner_types: Optional[List[str]] = None
 
 
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
@@ -94,6 +99,30 @@ def _write_config_text(json_text: str) -> bool:
         return True
     except Exception as e:
         logger.warning("Failed to write config: %s", e)
+        return False
+
+
+def _save_ignore_path(
+    path: str, scanner_types: Optional[List[str]] = None
+) -> bool:
+    """Save a path to .aiguardignore.toml. Returns True on success."""
+    try:
+        from ai_guardian.aiguardignore import add_ignore_path
+        return add_ignore_path(path, scanner_types=scanner_types)
+    except Exception as e:
+        logger.warning("Failed to save ignore path: %s", e)
+        return False
+
+
+def _write_aiguardignore_text(
+    toml_text: str, project_root=None,
+) -> bool:
+    """Write TOML text directly to .aiguardignore.toml. Returns True on success."""
+    try:
+        from ai_guardian.aiguardignore import write_aiguardignore_text
+        return write_aiguardignore_text(toml_text, project_root=project_root)
+    except Exception as e:
+        logger.warning("Failed to write .aiguardignore.toml: %s", e)
         return False
 
 
@@ -171,6 +200,9 @@ def _show_via_daemon(
             decision=decision,
             allowlist_pattern=data.get("allowlist_pattern"),
             config_saved=data.get("config_saved", False),
+            source_annotation_saved=data.get("source_annotation_saved", False),
+            ignore_path=data.get("ignore_path"),
+            ignore_scanner_types=data.get("ignore_scanner_types"),
         )
     except (URLError, OSError, json.JSONDecodeError, ValueError) as e:
         logger.debug("Daemon prompt request failed: %s", e)
@@ -252,6 +284,9 @@ def _show_via_subprocess(
                 decision=decision,
                 allowlist_pattern=data.get("allowlist_pattern"),
                 config_saved=data.get("config_saved", False),
+                source_annotation_saved=data.get("source_annotation_saved", False),
+                ignore_path=data.get("ignore_path"),
+                ignore_scanner_types=data.get("ignore_scanner_types"),
             )
     except Exception as e:
         logger.warning(f"Failed to read prompt ask result: {e}")

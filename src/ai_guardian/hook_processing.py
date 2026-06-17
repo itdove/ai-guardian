@@ -2014,6 +2014,11 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 from ai_guardian.config_writer import save_ask_pattern
                 save_ask_pattern(config_section, result.allowlist_pattern)
 
+        if result.decision == AskDecision.IGNORE_FILE and result.ignore_path:
+            if not getattr(result, 'config_saved', False):
+                from ai_guardian.tui.ask_dialog import _save_ignore_path
+                _save_ignore_path(result.ignore_path, result.ignore_scanner_types)
+
         return result
 
     except Exception as e:
@@ -2041,6 +2046,10 @@ def _format_ask_info_message(violation_type, decision, detail=""):
     label = _ASK_VIOLATION_LABELS.get(violation_type, str(violation_type))
     if decision == AskDecision.ALLOW_ALWAYS:
         msg = f"ℹ️  {label}: pattern added to allowlist (always allowed)"
+    elif decision == AskDecision.SUPPRESS_IN_SOURCE:
+        msg = f"ℹ️  {label}: suppressed in source (annotation added)"
+    elif decision == AskDecision.IGNORE_FILE:
+        msg = f"ℹ️  {label}: file added to .aiguardignore.toml"
     else:
         msg = f"ℹ️  {label}: allowed by user (this time only)"
     if detail:
@@ -2049,7 +2058,7 @@ def _format_ask_info_message(violation_type, decision, detail=""):
 
 
 def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", file_path=None,
-                      dialog_wait_ms=0.0):
+                      line_number=None, dialog_wait_ms=0.0):
     """Log an ask-mode allow decision to violations.jsonl."""
     if not HAS_VIOLATION_LOGGER:
         return
@@ -2062,7 +2071,16 @@ def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", f
         }
         if file_path:
             blocked_info["file_path"] = file_path
-        decision_str = "allow_always" if decision == AskDecision.ALLOW_ALWAYS else "allow_once"
+        if line_number:
+            blocked_info["line_number"] = line_number
+        if decision == AskDecision.ALLOW_ALWAYS:
+            decision_str = "allow_always"
+        elif decision == AskDecision.SUPPRESS_IN_SOURCE:
+            decision_str = "suppress_in_source"
+        elif decision == AskDecision.IGNORE_FILE:
+            decision_str = "ignore_file"
+        else:
+            decision_str = "allow_once"
         ctx = {"ask_decision": decision_str, "action_taken": "allowed"}
         if dialog_wait_ms > 0:
             ctx["dialog_wait_ms"] = round(dialog_wait_ms, 1)
@@ -2604,6 +2622,7 @@ def _run_secret_validation(secret_config, secrets_list, content, context):
 
 
 _last_secret_matched_text = ""
+_last_secret_line_number = None
 
 
 def _extract_matched_text_for_ask(secret_details, content):
@@ -2669,8 +2688,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         Secret scanning ALWAYS blocks when secrets are detected (no "log" mode).
         This prevents secrets from reaching Claude's API or being exposed in sessions.
     """
-    global _last_secret_matched_text
+    global _last_secret_matched_text, _last_secret_line_number
     _last_secret_matched_text = ""
+    _last_secret_line_number = None
     try:
         # Check if tool should be ignored
         if ignore_tools and tool_name:
@@ -2965,6 +2985,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                                hook_context=context)
                         logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
                         _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
+                        _last_secret_line_number = secret_details.get("line_number")
                         return True, error_msg
 
                     # No secrets found — check for engine errors that need user attention
@@ -3244,6 +3265,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                                        hook_context=context)
                                 logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
                                 _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
+                                _last_secret_line_number = secret_details.get("line_number")
                                 return True, error_msg
                     return False, None
 
@@ -3343,6 +3365,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 #   - PostToolUse: secrets in tool outputs go to Claude's session
                 logging.error(f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}")
                 _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
+                _last_secret_line_number = secret_details.get("line_number") if secret_details else None
                 return True, error_msg
 
             elif result.returncode in expected_success_codes:
@@ -3418,6 +3441,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                                     hook_context=context)
                             logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
                             _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
+                            _last_secret_line_number = secret_details.get("line_number")
                             return True, error_msg
 
                 return False, None
@@ -3895,6 +3919,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                           matched_text=_last_secret_matched_text or "",
                                           error_msg=error_message or "",
                                           file_path=file_path if 'file_path' in dir() else None,
+                                          line_number=_last_secret_line_number,
                                           dialog_wait_ms=ask_result.dialog_wait_ms)
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=info_msg)
@@ -4087,11 +4112,14 @@ def process_hook_data(hook_data, daemon_state=None):
                         pii_matched_text = _extract_pii_matched_text(pii_redactions, tool_output)
 
                         # Check ask action mode before standard routing
+                        pii_line_number = pii_redactions[0].get('line_number') if pii_redactions else None
                         pii_ask_result = _handle_ask_mode(
                             pii_action, ViolationType.PII_DETECTED,
                             matched_text=pii_matched_text,
                             config_section="scan_pii",
                             error_msg=pii_warning,
+                            file_path=pii_file_path,
+                            line_number=pii_line_number,
                             latency_timer=_latency_timer,
                         )
                         if pii_ask_result is not None:
@@ -4102,6 +4130,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 warning_messages.append(pii_info_msg)
                                 _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
                                                   matched_text=pii_matched_text, error_msg=pii_warning or "",
+                                                  file_path=pii_file_path,
+                                                  line_number=pii_line_number,
                                                   dialog_wait_ms=pii_ask_result.dialog_wait_ms)
 
                         if pii_action == 'block':
@@ -4651,6 +4681,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                                   matched_text=detector.last_matched_text or "",
                                                   error_msg=injection_error,
                                                   file_path=file_path,
+                                                  line_number=detector.last_line_number,
                                                   dialog_wait_ms=pi_ask_result.dialog_wait_ms)
 
                     if should_block:
@@ -4741,6 +4772,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                                   matched_text=cp_detector.last_matched_text or "",
                                                   error_msg=cp_error_msg,
                                                   file_path=file_path if 'file_path' in dir() else None,
+                                                  line_number=cp_detector.last_line_number,
                                                   dialog_wait_ms=cp_ask_result.dialog_wait_ms)
 
                     if cp_should_block:
@@ -4820,6 +4852,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                                   matched_text=sc_scanner.last_matched_text or "",
                                                   error_msg=sc_error_msg or "",
                                                   file_path=sc_file_path,
+                                                  line_number=sc_scanner.last_line_number,
                                                   dialog_wait_ms=sc_ask_result.dialog_wait_ms)
 
                     if sc_should_block:
@@ -5004,6 +5037,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                           matched_text=_last_secret_matched_text or "",
                                           error_msg=error_message or "",
                                           file_path=file_path,
+                                          line_number=_last_secret_line_number,
                                           dialog_wait_ms=ask_result_pre.dialog_wait_ms)
 
             if has_secrets:
