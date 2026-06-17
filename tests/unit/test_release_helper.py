@@ -358,7 +358,8 @@ class TestCursorHookVerifier:
 
         assert result is True
         assert verifier.debug_script.exists()
-        assert verifier.debug_script.stat().st_mode & 0o111
+        if sys.platform != "win32":
+            assert verifier.debug_script.stat().st_mode & 0o111
 
     def test_setup_modifies_settings(self, tmp_path):
         settings_path = tmp_path / "settings.json"
