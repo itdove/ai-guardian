@@ -62,13 +62,14 @@ When invoked with arguments (e.g., `/release minor`), this skill guides you thro
 2. Run release readiness CI (mandatory — see Release Readiness CI section below)
 3. Documentation review (mandatory — see checklist below)
 4. Dependency security review (mandatory — merge open Dependabot CVE fixes)
-5. Create release branch (e.g., `release-1.2`)
-6. Determine new version based on release type
-7. Update version in both files (remove `-dev` suffix)
-8. Update CHANGELOG.md (move Unreleased to version section with date)
-9. Commit changes with proper commit message format
-10. Provide instructions for tagging and verification
-11. Provide post-release checklist
+5. Cursor hook compatibility verification (mandatory — see section below)
+6. Create release branch (e.g., `release-1.2`)
+7. Determine new version based on release type
+8. Update version in both files (remove `-dev` suffix)
+9. Update CHANGELOG.md (move Unreleased to version section with date)
+10. Commit changes with proper commit message format
+11. Provide instructions for tagging and verification
+12. Provide post-release checklist
 
 ### Hotfix Release (`/release hotfix <tag>`)
 
@@ -324,6 +325,61 @@ Before creating the release branch, check for open Dependabot security alerts an
 
 **Skipping**: May be skipped for urgent hotfix releases, but this should be documented in the release notes.
 
+## Cursor Hook Compatibility Verification (mandatory)
+
+Cursor IDE reads Claude Code hooks from `~/.claude/settings.json`. Since Cursor could remove hook support in any update, each release must verify all 4 hook events still fire correctly. This is a semi-automated 3-step flow.
+
+**Workflow**: `.claude/skills/release/release_helper.py` (cursor-verify-* subcommands)
+
+### Step 1 — Setup (automated)
+
+```bash
+python .claude/skills/release/release_helper.py cursor-verify-setup
+```
+
+This command:
+- Creates a debug hook script at `/tmp/cursor-hook-debug.sh`
+- Backs up `~/.claude/settings.json`
+- Adds debug hook entries alongside existing hooks for all 4 events (UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd)
+- Cleans any old debug log files
+- Prints instructions for the manual test
+
+### Step 2 — Manual Cursor test (release manager)
+
+Follow the printed instructions:
+1. Upgrade Cursor to the latest version (menu > Check for Updates, or download from cursor.sh)
+2. Restart Cursor completely (quit and relaunch)
+3. Open any project in Cursor
+4. Type a prompt that triggers a file read (e.g., "Read the contents of README.md")
+5. Wait for the response to complete
+6. Close the Cursor chat session (or close Cursor entirely)
+7. Return to this release session
+
+### Step 3 — Analysis (automated)
+
+```bash
+python .claude/skills/release/release_helper.py cursor-verify-analyze
+```
+
+This command reads `/tmp/cursor-hook-debug-*.json` files and reports:
+- PASS/FAIL per hook event with fire count
+- Cursor version detected from the `cursor_version` field
+
+### Cleanup (always run)
+
+```bash
+python .claude/skills/release/release_helper.py cursor-verify-cleanup
+```
+
+Removes debug hooks from settings.json, deletes debug script and log files, removes backup.
+
+### Decision
+
+- **All 4 events PASS**: Proceed with release. Add to CHANGELOG: "Verified Cursor hook compatibility with Cursor vX.Y.Z"
+- **Any event FAIL**: Block the release. Investigate whether Cursor dropped hook support. Only proceed with explicit override and documented justification.
+
+**Skipping**: May be skipped for hotfix releases (`/release hotfix`) when the fix is urgent, but this should be documented in the release notes.
+
 ## Git Operations
 
 **Branch Naming**:
@@ -431,12 +487,13 @@ Before creating the release branch, check for open Dependabot security alerts an
 4. **Release readiness CI**: Trigger `release-readiness.yml` workflow and wait for all jobs to pass (regular releases only, may skip for urgent hotfixes)
 5. **Documentation review**: Run the mandatory documentation review checklist (regular releases only)
 6. **Dependency security review**: Check for open Dependabot CVE alerts and merge critical/high severity fixes (regular releases only)
-7. **Calculate new version**: Based on current version and release type
-7. **Update version files**: Edit all detected version files atomically
-8. **Update CHANGELOG**: Move Unreleased to version section with date
-9. **Create commits**: Use proper commit message format
-10. **Provide guidance**: Show commands for tagging and next steps
-11. **Validate**: Ensure versions match between all files
+7. **Cursor hook verification**: Run the semi-automated Cursor hook compatibility check (regular releases only, may skip for urgent hotfixes)
+8. **Calculate new version**: Based on current version and release type
+9. **Update version files**: Edit all detected version files atomically
+10. **Update CHANGELOG**: Move Unreleased to version section with date
+11. **Create commits**: Use proper commit message format
+12. **Provide guidance**: Show commands for tagging and next steps
+13. **Validate**: Ensure versions match between all files
 
 **Error Recovery**:
 - If any step fails, provide clear error message and recovery steps

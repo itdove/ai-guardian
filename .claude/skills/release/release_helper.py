@@ -13,6 +13,7 @@ Supports optional .release-config.json for custom configurations.
 """
 
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -480,6 +481,253 @@ class ReleaseHelper:
         print("="*60, file=sys.stderr)
 
 
+class CursorHookVerifier:
+    """Verifies Cursor IDE hook compatibility for release gating.
+
+    Semi-automated 3-step flow:
+    1. setup()   — create debug hook script, modify settings.json
+    2. (manual)  — user tests in Cursor
+    3. analyze() — read debug logs, report PASS/FAIL per event
+    cleanup() always runs after.
+    """
+
+    DEBUG_SCRIPT_NAME = "cursor-hook-debug.sh"
+    DEBUG_LOG_PREFIX = "cursor-hook-debug-"
+    SETTINGS_BACKUP_SUFFIX = ".cursor-verify-backup"
+    DEBUG_HOOK_MARKER = "cursor-hook-debug.sh"
+
+    EXPECTED_EVENTS = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "SessionEnd"]
+
+    CAMELCASE_TO_SETTINGS = {
+        "beforeSubmitPrompt": "UserPromptSubmit",
+        "preToolUse": "PreToolUse",
+        "postToolUse": "PostToolUse",
+        "sessionEnd": "SessionEnd",
+    }
+
+    def __init__(self, settings_path: Optional[str] = None, debug_dir: str = "/tmp"):
+        self.debug_dir = Path(debug_dir)
+        self.debug_script = self.debug_dir / self.DEBUG_SCRIPT_NAME
+        if settings_path:
+            self.settings_path = Path(settings_path)
+        else:
+            config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")).expanduser()
+            self.settings_path = config_dir / "settings.json"
+        self.backup_path = self.settings_path.parent / (
+            self.settings_path.name + self.SETTINGS_BACKUP_SUFFIX
+        )
+
+    def _clean_old_logs(self) -> int:
+        """Remove old debug log files. Returns count removed."""
+        count = 0
+        for f in self.debug_dir.glob(f"{self.DEBUG_LOG_PREFIX}*.json"):
+            f.unlink()
+            count += 1
+        return count
+
+    def _write_debug_script(self) -> None:
+        """Write the debug hook script that captures event data."""
+        script_content = f'''#!/bin/bash
+# Cursor hook debug probe — written by /release skill
+# Captures hook event data for verification. Remove after analysis.
+INPUT=$(cat)
+EVENT=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hook_event_name',d.get('event','unknown')))" 2>/dev/null || echo "unknown")
+TS=$(date +%s%N)
+echo "$INPUT" | python3 -c "
+import sys, json, time
+d = json.load(sys.stdin)
+d['_debug_timestamp'] = time.time()
+d['_debug_event'] = '${{EVENT}}'
+json.dump(d, open('{self.debug_dir}/{self.DEBUG_LOG_PREFIX}' + '${{EVENT}}-${{TS}}.json', 'w'), indent=2)
+" 2>/dev/null
+echo '{{}}'
+'''
+        self.debug_script.write_text(script_content)
+        self.debug_script.chmod(0o755)
+
+    def _add_debug_hooks(self) -> bool:
+        """Add debug hook entries to settings.json for all 4 event types."""
+        if not self.settings_path.exists():
+            print(f"Error: {self.settings_path} not found. Run ai-guardian setup first.",
+                  file=sys.stderr)
+            return False
+
+        settings = json.loads(self.settings_path.read_text())
+        hooks = settings.setdefault("hooks", {})
+
+        debug_entry = {
+            "matcher": "",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": str(self.debug_script),
+                }
+            ]
+        }
+
+        for event in self.EXPECTED_EVENTS:
+            event_hooks = hooks.setdefault(event, [])
+            event_hooks.append(json.loads(json.dumps(debug_entry)))
+
+        self.settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+        return True
+
+    def setup(self) -> bool:
+        """Step 1: Prepare debug hooks for Cursor verification."""
+        print("Cursor Hook Compatibility Verification — Setup", file=sys.stderr)
+        print("=" * 55, file=sys.stderr)
+
+        cleaned = self._clean_old_logs()
+        if cleaned:
+            print(f"  Cleaned {cleaned} old debug log file(s)", file=sys.stderr)
+
+        if self.backup_path.exists():
+            print(f"  Warning: backup already exists at {self.backup_path}", file=sys.stderr)
+            print("  A previous verification may not have cleaned up.", file=sys.stderr)
+            print("  Run cursor-verify-cleanup first.", file=sys.stderr)
+            return False
+
+        self._write_debug_script()
+        print(f"  Created debug script: {self.debug_script}", file=sys.stderr)
+
+        import shutil
+        shutil.copy2(self.settings_path, self.backup_path)
+        print(f"  Backed up settings to: {self.backup_path}", file=sys.stderr)
+
+        if not self._add_debug_hooks():
+            return False
+        print(f"  Added debug hooks to: {self.settings_path}", file=sys.stderr)
+
+        print("", file=sys.stderr)
+        print("Setup complete. Now perform the manual Cursor test:", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  1. Upgrade Cursor to the latest version", file=sys.stderr)
+        print("  2. Restart Cursor completely (quit and relaunch)", file=sys.stderr)
+        print("  3. Open any project in Cursor", file=sys.stderr)
+        print("  4. Type a prompt that triggers a file read", file=sys.stderr)
+        print('     (e.g., "Read the contents of README.md")', file=sys.stderr)
+        print("  5. Wait for the response to complete", file=sys.stderr)
+        print("  6. Close the Cursor chat session", file=sys.stderr)
+        print("  7. Return here and run: cursor-verify-analyze", file=sys.stderr)
+        print("", file=sys.stderr)
+        return True
+
+    def analyze(self) -> Tuple[bool, Optional[str]]:
+        """Step 3: Analyze debug logs and report per-event PASS/FAIL.
+
+        Returns:
+            (all_passed, cursor_version) tuple
+        """
+        print("Cursor Hook Compatibility Report", file=sys.stderr)
+        print("=" * 40, file=sys.stderr)
+
+        log_files = sorted(self.debug_dir.glob(f"{self.DEBUG_LOG_PREFIX}*.json"))
+
+        if not log_files:
+            print("", file=sys.stderr)
+            print("No debug log files found.", file=sys.stderr)
+            print("Did you perform the manual Cursor test?", file=sys.stderr)
+            print(f"Expected files in: {self.debug_dir}/{self.DEBUG_LOG_PREFIX}*.json",
+                  file=sys.stderr)
+            return False, None
+
+        events_found: Dict[str, int] = {}
+        cursor_version = None
+
+        for log_file in log_files:
+            try:
+                data = json.loads(log_file.read_text())
+                raw_event = data.get("hook_event_name", data.get("event", data.get("_debug_event", "unknown")))
+                mapped_event = self.CAMELCASE_TO_SETTINGS.get(raw_event, raw_event)
+                events_found[mapped_event] = events_found.get(mapped_event, 0) + 1
+
+                cv = data.get("cursor_version")
+                if cv and not cursor_version:
+                    cursor_version = cv
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        if cursor_version:
+            print(f"Cursor Version: {cursor_version}", file=sys.stderr)
+        else:
+            print("Cursor Version: unknown (cursor_version field not found)", file=sys.stderr)
+        print("", file=sys.stderr)
+
+        all_passed = True
+        for event in self.EXPECTED_EVENTS:
+            count = events_found.get(event, 0)
+            status = "PASS" if count > 0 else "FAIL"
+            if count == 0:
+                all_passed = False
+            fires = f"{count} fire(s) detected"
+            print(f"  {event:<25} {status}  ({fires})", file=sys.stderr)
+
+        print("", file=sys.stderr)
+        if all_passed:
+            print(f"Result: PASS — all {len(self.EXPECTED_EVENTS)} events verified",
+                  file=sys.stderr)
+        else:
+            missing = [e for e in self.EXPECTED_EVENTS if events_found.get(e, 0) == 0]
+            print(f"Result: FAIL — {len(missing)} event(s) missing: {', '.join(missing)}",
+                  file=sys.stderr)
+            print("Warning: Cursor may have changed hook support.", file=sys.stderr)
+
+        if cursor_version:
+            print(f"\nCursor version {cursor_version} tested on "
+                  f"{datetime.now().strftime('%Y-%m-%d')}.", file=sys.stderr)
+
+        return all_passed, cursor_version
+
+    def cleanup(self) -> bool:
+        """Remove debug hooks from settings.json and delete debug files."""
+        print("Cursor Hook Verification — Cleanup", file=sys.stderr)
+        print("=" * 40, file=sys.stderr)
+
+        if self.settings_path.exists():
+            try:
+                settings = json.loads(self.settings_path.read_text())
+                hooks = settings.get("hooks", {})
+                removed = 0
+
+                for event in list(hooks.keys()):
+                    original_len = len(hooks[event])
+                    hooks[event] = [
+                        entry for entry in hooks[event]
+                        if not any(
+                            self.DEBUG_HOOK_MARKER in h.get("command", "")
+                            for h in entry.get("hooks", [])
+                        )
+                        and self.DEBUG_HOOK_MARKER not in entry.get("command", "")
+                    ]
+                    removed += original_len - len(hooks[event])
+                    if not hooks[event]:
+                        del hooks[event]
+
+                self.settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+                print(f"  Removed {removed} debug hook(s) from settings.json", file=sys.stderr)
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"  Warning: Could not clean settings.json: {e}", file=sys.stderr)
+                if self.backup_path.exists():
+                    import shutil
+                    shutil.copy2(self.backup_path, self.settings_path)
+                    print("  Restored from backup", file=sys.stderr)
+
+        if self.backup_path.exists():
+            self.backup_path.unlink()
+            print(f"  Removed backup: {self.backup_path}", file=sys.stderr)
+
+        if self.debug_script.exists():
+            self.debug_script.unlink()
+            print(f"  Removed debug script: {self.debug_script}", file=sys.stderr)
+
+        cleaned = self._clean_old_logs()
+        if cleaned:
+            print(f"  Removed {cleaned} debug log file(s)", file=sys.stderr)
+
+        print("  Cleanup complete", file=sys.stderr)
+        return True
+
+
 def main():
     """CLI interface for release helper."""
     import argparse
@@ -519,6 +767,11 @@ def main():
 
     # Re-detect
     subparsers.add_parser("detect", help="Re-run auto-detection and update config")
+
+    # Cursor hook verification
+    subparsers.add_parser("cursor-verify-setup", help="Set up Cursor hook verification probes")
+    subparsers.add_parser("cursor-verify-analyze", help="Analyze Cursor hook debug logs")
+    subparsers.add_parser("cursor-verify-cleanup", help="Clean up Cursor verification artifacts")
 
     args = parser.parse_args()
 
@@ -583,6 +836,21 @@ def main():
         else:
             print("⚠️  No version files detected", file=sys.stderr)
             sys.exit(1)
+
+    elif args.command == "cursor-verify-setup":
+        verifier = CursorHookVerifier()
+        success = verifier.setup()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "cursor-verify-analyze":
+        verifier = CursorHookVerifier()
+        passed, cursor_version = verifier.analyze()
+        sys.exit(0 if passed else 1)
+
+    elif args.command == "cursor-verify-cleanup":
+        verifier = CursorHookVerifier()
+        success = verifier.cleanup()
+        sys.exit(0 if success else 1)
 
     else:
         parser.print_help()

@@ -164,6 +164,18 @@ main (v1.1.0-dev)
 3. CHANGELOG.md is up-to-date in the Unreleased section
 4. GitHub issues for the release are complete
 
+### Cursor Hook Compatibility Verification
+
+Before creating the release branch, verify that Cursor still supports Claude Code hooks. The `/release` skill automates this check as a mandatory gate.
+
+If running manually:
+1. Run: `python .claude/skills/release/release_helper.py cursor-verify-setup`
+2. Perform manual Cursor test (see instructions printed by setup)
+3. Run: `python .claude/skills/release/release_helper.py cursor-verify-analyze`
+4. Run: `python .claude/skills/release/release_helper.py cursor-verify-cleanup`
+
+If any hook event fails, investigate before proceeding with the release.
+
 ### Step-by-Step Release Process
 
 #### 1. Create Release Branch
@@ -493,6 +505,7 @@ Use this checklist for each release:
 - [ ] CHANGELOG.md updated with all changes
 - [ ] Version bump PR reviewed and approved
 - [ ] GitHub issues marked as complete
+- [ ] Cursor hook compatibility verified (`/release` automates this)
 
 ### Release Branch
 - [ ] Create release branch (`release-X.Y`)
