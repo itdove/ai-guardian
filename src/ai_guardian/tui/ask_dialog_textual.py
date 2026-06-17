@@ -223,9 +223,16 @@ class _TextualAskDialog:
                     pass
 
             def _show_config_editor(self, save_pat):
-                from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+                from ai_guardian.tui.pattern_editor import (
+                    prepare_config_with_pattern, get_config_scope_options,
+                )
                 try:
-                    json_text, line_number = prepare_config_with_pattern(save_pat, violation.config_section)
+                    scope_options = get_config_scope_options()
+                    self._selected_config_path = scope_options[0][1]
+                    json_text, line_number = prepare_config_with_pattern(
+                        save_pat, violation.config_section,
+                        config_path=self._selected_config_path,
+                    )
                     section = self.query_one("#editor-section")
                     section.remove_class("visible")
                     container = self.query_one("#ask-container")
@@ -233,6 +240,14 @@ class _TextualAskDialog:
                         child.remove()
                     container.mount(Static("[bold]Config Editor — ai-guardian.json[/bold]", id="title"))
                     container.mount(Static("[dim]Review the config, then Save or Cancel.[/dim]"))
+                    if len(scope_options) > 1:
+                        from textual.widgets import RadioSet, RadioButton
+                        scope_set = RadioSet(id="config-scope-select")
+                        container.mount(Static("[bold]Save to:[/bold]"))
+                        container.mount(scope_set)
+                        for i, (label, path_str) in enumerate(scope_options):
+                            scope_set.mount(RadioButton(f"{label} ({path_str})", value=i == 0))
+                        self._scope_options = scope_options
                     config_area = TextArea(
                         json_text, language="json",
                         show_line_numbers=True, tab_behavior="indent",
@@ -250,6 +265,25 @@ class _TextualAskDialog:
                 except Exception:
                     self.exit()
 
+            def on_radio_set_changed(self, event):
+                if event.radio_set.id == "config-scope-select":
+                    from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+                    idx = event.index
+                    opts = getattr(self, '_scope_options', [])
+                    if idx < len(opts):
+                        self._selected_config_path = opts[idx][1]
+                        json_text, line_number = prepare_config_with_pattern(
+                            self._pending_save_pat, violation.config_section,
+                            config_path=self._selected_config_path,
+                        )
+                        try:
+                            area = self.query_one("#config-text-editor", TextArea)
+                            area.load_text(json_text)
+                            area.cursor_location = (line_number - 1, 0)
+                            area.scroll_cursor_visible(center=True)
+                        except Exception:
+                            pass
+
             def _save_config_editor(self):
                 import json as json_mod
                 try:
@@ -261,11 +295,13 @@ class _TextualAskDialog:
                             f"[red]Invalid JSON: {e}[/red]"
                         )
                         return
-                    if _write_config_text(text):
+                    selected = getattr(self, '_selected_config_path', None)
+                    if _write_config_text(text, config_path_str=selected):
                         dialog_self._result = AskResult(
                             decision=AskDecision.ALLOW_ALWAYS,
                             allowlist_pattern=self._pending_save_pat,
                             config_saved=True,
+                            config_path=selected,
                         )
                         self.exit()
                     else:

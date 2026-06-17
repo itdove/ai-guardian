@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
+from pathlib import Path
+
 from ai_guardian.config_utils import validate_regex_pattern
 from ai_guardian.allowlist_utils import DANGEROUS_PATTERNS
 
@@ -210,8 +212,25 @@ def suggest_domain(url_or_text: str) -> str:
     return text
 
 
+def get_config_scope_options() -> list:
+    """Return available config scope options as (label, path_str) tuples.
+
+    Always includes global config. Includes project config only if it exists.
+    """
+    from ai_guardian.config_utils import get_config_dir, get_project_config_path
+
+    global_path = get_config_dir() / "ai-guardian.json"
+    options = [("Global", str(global_path))]
+
+    project_path = get_project_config_path()
+    if project_path:
+        options.insert(0, ("Project", str(project_path)))
+
+    return options
+
+
 def prepare_config_with_pattern(
-    pattern: str, config_section: str
+    pattern: str, config_section: str, config_path: Optional[str] = None,
 ) -> tuple:
     """Insert a pattern into config JSON in memory, return (json_text, line_number).
 
@@ -224,11 +243,11 @@ def prepare_config_with_pattern(
     """
     from ai_guardian.config_utils import get_config_dir
 
-    config_path = get_config_dir() / "ai-guardian.json"
+    resolved = Path(config_path) if config_path else get_config_dir() / "ai-guardian.json"
     config = {}
-    if config_path.exists():
+    if resolved.exists():
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(resolved, "r", encoding="utf-8") as f:
                 config = json.load(f)
         except (json.JSONDecodeError, OSError):
             config = {}
