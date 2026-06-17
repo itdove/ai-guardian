@@ -374,6 +374,27 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
                                 "Always Allow...", icon="check_circle",
                                 on_click=on_always_allow,
                             ).props("color=positive dense size=sm")
+
+                        blocked_data = violation.get("blocked", {})
+                        v_file_path = blocked_data.get("file_path", "") if isinstance(blocked_data, dict) else ""
+                        if v_file_path:
+                            from ai_guardian.tui.source_annotator import get_comment_prefix
+                            v_line_number = blocked_data.get("line_number") if isinstance(blocked_data, dict) else None
+                            if v_line_number and get_comment_prefix(v_file_path) is not None:
+                                def on_suppress_source(viol=violation):
+                                    _show_suppress_in_source_flow(viol)
+                                ui.button(
+                                    "Suppress in Source...", icon="code",
+                                    on_click=on_suppress_source,
+                                ).props("color=warning dense size=sm")
+
+                            def on_ignore_file(viol=violation):
+                                _show_ignore_file_flow(viol)
+                            ui.button(
+                                "Ignore File...", icon="block",
+                                on_click=on_ignore_file,
+                            ).props("color=warning dense size=sm")
+
                         ui.button("Close", on_click=dialog.close)
                 dialog.open()
 
@@ -640,3 +661,149 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
             ui.button("Save", on_click=on_save).props("color=positive")
 
     editor_dlg.open()
+
+
+def _show_suppress_in_source_flow(violation):
+    """Show source annotation preview for a violation."""
+    from nicegui import ui
+    from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
+
+    blocked = violation.get("blocked", {})
+    file_path = blocked.get("file_path", "") if isinstance(blocked, dict) else ""
+    line_number = (blocked.get("line_number", 1) or 1) if isinstance(blocked, dict) else 1
+
+    result = prepare_annotation(file_path, line_number)
+    if result is None:
+        ui.notify("Cannot annotate this file type", type="warning")
+        return
+
+    modified_content, highlight_line, annotation_type = result
+    ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
+
+    with ui.dialog().props("persistent maximized") as dlg, ui.card().classes("w-full h-full"):
+        ui.label(f"Suppress in Source — {ann_label}").classes("text-lg font-bold")
+        ui.label(f"File: {file_path}").classes("text-sm text-grey-6")
+        ui.label("Review the annotated source. Save to write the file.").classes("text-sm text-grey-6")
+        ui.separator()
+
+        editor = ui.codemirror(
+            modified_content,
+            language="Python" if file_path.endswith(".py") else None,
+            theme="dracula", line_wrapping=True,
+        ).classes("w-full flex-grow").style("min-height: 400px")
+
+        status = ui.label("").classes("text-sm")
+
+        with ui.row().classes("w-full justify-end mt-2"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def on_save():
+                if write_annotated_source(file_path, editor.value):
+                    ui.notify("Annotation saved to source file", type="positive")
+                    dlg.close()
+                else:
+                    status.text = "Failed to write file"
+                    status.classes(replace="text-sm text-red")
+
+            ui.button("Save", on_click=on_save).props("color=positive")
+
+    dlg.open()
+
+
+def _show_ignore_file_flow(violation):
+    """Show ignore file editor for a violation."""
+    from nicegui import ui
+    from ai_guardian.tui.ignore_file_editor import (
+        SCOPE_THIS_SCANNER, SCOPE_ALL_SCANNERS,
+        SCANNER_LABELS, resolve_scanner_types,
+        validate_ignore_path, suggest_ignore_path,
+    )
+    from ai_guardian.tui.pattern_editor import config_section_for_violation
+    from ai_guardian.aiguardignore import generate_aiguardignore_preview
+    from ai_guardian.tui.ask_dialog import _write_aiguardignore_text
+
+    blocked = violation.get("blocked", {})
+    file_path = blocked.get("file_path", "") if isinstance(blocked, dict) else ""
+    vtype = violation.get("violation_type", "")
+    config_section = config_section_for_violation(vtype)
+
+    rel_path = suggest_ignore_path(file_path)
+    scanner_label = SCANNER_LABELS.get(config_section, config_section)
+
+    with ui.dialog().props("persistent") as dlg, ui.card().classes("w-full max-w-xl"):
+        ui.label("Ignore File — .aiguardignore.toml").classes("text-lg font-bold")
+        ui.label(f"File: {file_path}").classes("text-sm text-grey-6")
+        ui.separator()
+
+        ui.label("Path pattern (editable):").classes("font-bold text-sm mt-2")
+        path_input = ui.input(value=rel_path).props("dense outlined").classes("w-full").style("font-family: monospace")
+        path_status = ui.label("").classes("text-sm")
+
+        ui.label("Scope:").classes("font-bold text-sm mt-2")
+        scope_radio = ui.radio(
+            {
+                SCOPE_THIS_SCANNER: f"This scanner only ({scanner_label})",
+                SCOPE_ALL_SCANNERS: "All scanners",
+            },
+            value=SCOPE_THIS_SCANNER,
+        )
+
+        ui.label("Preview:").classes("font-bold text-sm mt-2")
+        preview_code = ui.code("").classes("w-full")
+
+        def update_preview():
+            path = path_input.value.strip()
+            valid, msg = validate_ignore_path(path)
+            if not valid:
+                path_status.text = f"❌ {msg}"
+                path_status.classes(replace="text-sm text-red")
+                return
+            path_status.text = f"✅ {msg}"
+            path_status.classes(replace="text-sm text-green")
+            scanner_types = resolve_scanner_types(scope_radio.value, config_section, None)
+            try:
+                toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
+                preview_code.set_content(toml_text)
+            except Exception:
+                pass
+
+        path_input.on_value_change(lambda _: update_preview())
+        scope_radio.on_value_change(lambda _: update_preview())
+        update_preview()
+
+        with ui.row().classes("w-full justify-end mt-4"):
+            ui.button("Cancel", on_click=dlg.close).props("flat")
+
+            def on_confirm():
+                path = path_input.value.strip()
+                valid, msg = validate_ignore_path(path)
+                if not valid:
+                    path_status.text = f"❌ {msg}"
+                    path_status.classes(replace="text-sm text-red")
+                    return
+                scanner_types = resolve_scanner_types(scope_radio.value, config_section, None)
+                dlg.close()
+
+                toml_text, _ln = generate_aiguardignore_preview(path, scanner_types)
+                with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
+                    ui.label("Config Editor — .aiguardignore.toml").classes("text-lg font-bold")
+                    ui.separator()
+                    toml_editor = ui.codemirror(toml_text, theme="dracula", line_wrapping=True).classes("w-full flex-grow").style("min-height: 400px")
+                    editor_status = ui.label("").classes("text-sm")
+                    with ui.row().classes("w-full justify-end mt-2"):
+                        ui.button("Cancel", on_click=editor_dlg.close).props("flat")
+
+                        def on_save():
+                            if _write_aiguardignore_text(toml_editor.value):
+                                ui.notify("Path saved to .aiguardignore.toml", type="positive")
+                                editor_dlg.close()
+                            else:
+                                editor_status.text = "Failed to write .aiguardignore.toml"
+                                editor_status.classes(replace="text-sm text-red")
+
+                        ui.button("Save", on_click=on_save).props("color=positive")
+                editor_dlg.open()
+
+            ui.button("Add to .aiguardignore.toml", on_click=on_confirm).props("color=positive")
+
+    dlg.open()

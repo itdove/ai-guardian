@@ -9,6 +9,7 @@ from ai_guardian.tui.ask_dialog import (
     AskViolationInfo,
     AskResult,
     _write_config_text,
+    _write_aiguardignore_text,
 )
 
 
@@ -102,6 +103,11 @@ class _TextualAskDialog:
                     with Horizontal(id="button-bar"):
                         yield Button("Allow Once", id="btn-allow-once", variant="primary")
                         yield Button("Allow Always...", id="btn-allow-always", variant="success")
+                        if v.file_path:
+                            from ai_guardian.tui.source_annotator import get_comment_prefix
+                            if get_comment_prefix(v.file_path) is not None:
+                                yield Button("Suppress in Source...", id="btn-suppress-source", variant="warning")
+                            yield Button("Ignore File...", id="btn-ignore-file", variant="warning")
                         yield Button("Block", id="btn-block", variant="error")
 
                     with Container(id="editor-section"):
@@ -136,6 +142,10 @@ class _TextualAskDialog:
                     self.exit()
                 elif bid == "btn-allow-always":
                     self._show_editor()
+                elif bid == "btn-suppress-source":
+                    self._show_suppress_in_source()
+                elif bid == "btn-ignore-file":
+                    self._show_ignore_file()
                 elif bid == "btn-test":
                     self._test_pattern()
                 elif bid == "btn-confirm":
@@ -146,6 +156,14 @@ class _TextualAskDialog:
                     self._save_config_editor()
                 elif bid == "btn-cancel-config":
                     self._hide_config_editor()
+                elif bid == "btn-save-source":
+                    self._save_source_editor()
+                elif bid == "btn-cancel-source":
+                    self.exit()
+                elif bid == "btn-save-ignore":
+                    self._save_ignore_editor()
+                elif bid == "btn-cancel-ignore":
+                    self.exit()
 
             def on_input_changed(self, event: Input.Changed):
                 if event.input.id == "pattern-input":
@@ -257,8 +275,125 @@ class _TextualAskDialog:
                 except Exception:
                     pass
 
+            def _save_source_editor(self):
+                from ai_guardian.tui.source_annotator import write_annotated_source
+                try:
+                    text = self.query_one("#source-text-editor", TextArea).text
+                    if write_annotated_source(self._source_file_path, text):
+                        dialog_self._result = AskResult(
+                            decision=AskDecision.SUPPRESS_IN_SOURCE,
+                            source_annotation_saved=True,
+                        )
+                        self.exit()
+                    else:
+                        self.query_one("#source-editor-status", Static).update(
+                            "[red]Failed to write file[/red]"
+                        )
+                except Exception:
+                    pass
+
+            def _save_ignore_editor(self):
+                try:
+                    path = self.query_one("#ignore-path-input", Input).value.strip()
+                    from ai_guardian.tui.ignore_file_editor import validate_ignore_path
+                    valid, msg = validate_ignore_path(path)
+                    if not valid:
+                        self.query_one("#ignore-path-status", Static).update(f"[red]{msg}[/red]")
+                        return
+                    toml_text = self.query_one("#ignore-preview", TextArea).text
+                    if _write_aiguardignore_text(toml_text):
+                        dialog_self._result = AskResult(
+                            decision=AskDecision.IGNORE_FILE,
+                            ignore_path=path,
+                            ignore_scanner_types=[self._ignore_config_section],
+                            config_saved=True,
+                        )
+                        self.exit()
+                    else:
+                        self.query_one("#ignore-editor-status", Static).update(
+                            "[red]Failed to write .aiguardignore.toml[/red]"
+                        )
+                except Exception:
+                    pass
+
             def _hide_config_editor(self):
                 self.exit()
+
+            def _show_suppress_in_source(self):
+                from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
+                v = violation
+                result = prepare_annotation(v.file_path, v.line_number or 1)
+                if result is None:
+                    return
+                modified_content, highlight_line, annotation_type = result
+
+                container = self.query_one("#ask-container")
+                for child in list(container.children):
+                    child.remove()
+
+                ann_label = "inline" if annotation_type == "inline" else "block"
+                container.mount(Static(
+                    f"[bold]Suppress in Source — {ann_label}[/bold]\n"
+                    f"File: {v.file_path}",
+                    id="title",
+                ))
+                container.mount(Static("[dim]Review the annotated source. Save to write the file.[/dim]"))
+                source_area = TextArea(
+                    modified_content,
+                    show_line_numbers=True, tab_behavior="indent",
+                    id="source-text-editor",
+                )
+                container.mount(source_area)
+                container.mount(Static("", id="source-editor-status"))
+                with Horizontal(id="button-bar") as bar:
+                    pass
+                container.mount(bar)
+                bar.mount(Button("Save", id="btn-save-source", variant="success"))
+                bar.mount(Button("Cancel", id="btn-cancel-source", variant="default"))
+                source_area.cursor_location = (max(0, highlight_line - 1), 0)
+                source_area.scroll_cursor_visible(center=True)
+                self._source_file_path = v.file_path
+
+            def _show_ignore_file(self):
+                from ai_guardian.tui.ignore_file_editor import (
+                    SCANNER_LABELS, resolve_scanner_types,
+                    validate_ignore_path, suggest_ignore_path,
+                )
+                from ai_guardian.aiguardignore import (
+                    SCANNER_TYPES, generate_aiguardignore_preview,
+                )
+
+                v = violation
+                rel_path = suggest_ignore_path(v.file_path)
+
+                container = self.query_one("#ask-container")
+                for child in list(container.children):
+                    child.remove()
+
+                scanner_label = SCANNER_LABELS.get(v.config_section, v.config_section)
+                container.mount(Static(
+                    f"[bold]Ignore File — .aiguardignore.toml[/bold]\n"
+                    f"File: {v.file_path}",
+                    id="title",
+                ))
+                container.mount(Static("\n[bold]Path pattern:[/bold]"))
+                container.mount(Input(value=rel_path, id="ignore-path-input"))
+                container.mount(Static("", id="ignore-path-status"))
+                container.mount(Static(f"\nScope: [bold]This scanner only ({scanner_label})[/bold]"))
+                container.mount(Static("\n[bold]Preview:[/bold]"))
+
+                try:
+                    toml_text, _ = generate_aiguardignore_preview(rel_path, [v.config_section])
+                except Exception:
+                    toml_text = ""
+                container.mount(TextArea(toml_text, id="ignore-preview", read_only=True))
+                container.mount(Static("", id="ignore-editor-status"))
+                with Horizontal(id="button-bar") as bar:
+                    pass
+                container.mount(bar)
+                bar.mount(Button("Save", id="btn-save-ignore", variant="success"))
+                bar.mount(Button("Cancel", id="btn-cancel-ignore", variant="default"))
+                self._ignore_config_section = v.config_section
 
             def action_quit(self):
                 dialog_self._result = AskResult(decision=AskDecision.BLOCK)

@@ -191,6 +191,14 @@ class ViolationDetailsModal(ModalScreen):
                 vtype = self.violation.get("violation_type", "")
                 if vtype in _ALLOWLIST_TYPES:
                     yield Button("Always Allow...", id="always-allow", variant="warning")
+                blocked = self.violation.get("blocked", {})
+                if isinstance(blocked, dict) and blocked.get("file_path"):
+                    file_path = blocked["file_path"]
+                    line_number = blocked.get("line_number")
+                    from ai_guardian.tui.source_annotator import get_comment_prefix
+                    if line_number and get_comment_prefix(file_path) is not None:
+                        yield Button("Suppress in Source...", id="suppress-source", variant="warning")
+                    yield Button("Ignore File...", id="ignore-file", variant="warning")
                 yield Button("Close (ESC)", id="close-details", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -206,6 +214,10 @@ class ViolationDetailsModal(ModalScreen):
                     self.app.notify("Config snippet copied to clipboard", severity="information")
         elif event.button.id == "always-allow":
             self._on_always_allow()
+        elif event.button.id == "suppress-source":
+            self._on_suppress_in_source()
+        elif event.button.id == "ignore-file":
+            self._on_ignore_file()
         elif event.button.id == "close-details":
             self.dismiss()
 
@@ -258,6 +270,49 @@ class ViolationDetailsModal(ModalScreen):
 
         self.app.push_screen(
             ViolationPatternEditorModal(matched_text, config_section)
+        )
+
+    def _on_suppress_in_source(self):
+        """Insert annotation marker in source file."""
+        blocked = self.violation.get("blocked", {})
+        if not isinstance(blocked, dict):
+            return
+        file_path = blocked.get("file_path", "")
+        line_number = blocked.get("line_number", 1) or 1
+
+        from ai_guardian.tui.source_annotator import prepare_annotation
+        result = prepare_annotation(file_path, line_number)
+        if result is None:
+            self.app.notify("Cannot annotate this file type", severity="warning")
+            return
+
+        modified_content, _highlight_line, annotation_type = result
+        from ai_guardian.tui.source_editor_modals import SourceAnnotationEditorModal
+        self.app.push_screen(
+            SourceAnnotationEditorModal(
+                file_path, modified_content, annotation_type,
+                preview_snippet="",
+            )
+        )
+
+    def _on_ignore_file(self):
+        """Add file to .aiguardignore.toml."""
+        blocked = self.violation.get("blocked", {})
+        if not isinstance(blocked, dict):
+            return
+        file_path = blocked.get("file_path", "")
+        if not file_path:
+            return
+
+        vtype = self.violation.get("violation_type", "")
+        config_section = config_section_for_violation(vtype)
+        if not config_section:
+            self.app.notify(f"No config section for: {vtype}", severity="warning")
+            return
+
+        from ai_guardian.tui.ignore_file_modals import IgnoreFileEditorModal
+        self.app.push_screen(
+            IgnoreFileEditorModal(file_path, config_section)
         )
 
 

@@ -12,6 +12,7 @@ from ai_guardian.tui.ask_dialog import (
     AskViolationInfo,
     AskResult,
     _write_config_text,
+    _write_aiguardignore_text,
 )
 from ai_guardian.tui.display import _ensure_tcl_library
 
@@ -91,6 +92,19 @@ class _TkinterAskDialog:
             btn_frame, text="Allow Always...",
             command=lambda: self._on_allow_always(root),
         ).pack(side="left", padx=5)
+
+        if v.file_path:
+            from ai_guardian.tui.source_annotator import get_comment_prefix
+            if get_comment_prefix(v.file_path) is not None:
+                ttk.Button(
+                    btn_frame, text="Suppress in Source...",
+                    command=lambda: self._on_suppress_in_source(root),
+                ).pack(side="left", padx=5)
+
+            ttk.Button(
+                btn_frame, text="Ignore File...",
+                command=lambda: self._on_ignore_file(root),
+            ).pack(side="left", padx=5)
 
         ttk.Button(
             btn_frame, text="Block",
@@ -289,3 +303,285 @@ class _TkinterAskDialog:
 
         ttk.Button(btn_frame, text="Add to Allowlist", command=on_confirm).pack(side="right", padx=(5, 0))
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+
+    def _on_suppress_in_source(self, root):
+        """Open source annotation preview editor."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
+
+        v = self._violation
+        result = prepare_annotation(v.file_path, v.line_number or 1)
+        if result is None:
+            return
+
+        modified_content, highlight_line, annotation_type = result
+
+        root.withdraw()
+        editor = tk.Toplevel(root)
+        ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
+        editor.title(f"Suppress in Source — {ann_label}")
+        editor.resizable(True, True)
+        editor.geometry("700x500")
+        editor.attributes("-topmost", True)
+        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
+        editor.focus_force()
+        editor.grab_set()
+
+        frame = ttk.Frame(editor, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Label(frame, text=f"File: {v.file_path}", wraplength=650).pack(anchor="w", pady=(0, 5))
+        ttk.Label(
+            frame,
+            text="Review the annotated source below. Save to write the file.",
+            wraplength=650,
+        ).pack(anchor="w", pady=(0, 5))
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
+
+        text_frame = ttk.Frame(frame)
+        text_frame.pack(fill="both", expand=True, pady=(0, 5))
+
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        source_text = tk.Text(
+            text_frame, wrap="none", undo=True,
+            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
+            yscrollcommand=scrollbar.set,
+        )
+        source_text.pack(fill="both", expand=True)
+        scrollbar.config(command=source_text.yview)
+
+        source_text.insert("1.0", modified_content)
+        source_text.mark_set("insert", f"{highlight_line}.0")
+        source_text.see(f"{highlight_line}.0")
+        source_text.tag_add("highlight", f"{highlight_line}.0", f"{highlight_line}.end")
+        source_text.tag_config("highlight", background="#3a3a00")
+
+        status_var = tk.StringVar(value="")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w")
+        status_label.pack(fill="x")
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x", pady=(5, 0))
+
+        def on_save():
+            text = source_text.get("1.0", "end-1c")
+            if write_annotated_source(v.file_path, text):
+                self._result = AskResult(
+                    decision=AskDecision.SUPPRESS_IN_SOURCE,
+                    source_annotation_saved=True,
+                )
+                editor.destroy()
+                root.destroy()
+            else:
+                status_var.set("Failed to write file")
+                status_label.config(fg="#ff4444")
+
+        def on_cancel():
+            editor.destroy()
+            root.deiconify()
+
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+        ttk.Button(btn_frame, text="Save", command=on_save).pack(side="right", padx=(0, 5))
+
+    def _on_ignore_file(self, root):
+        """Open ignore file path/scope editor."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        from ai_guardian.tui.ignore_file_editor import (
+            SCOPE_THIS_SCANNER, SCOPE_ALL_SCANNERS, SCOPE_SELECT_SCANNERS,
+            SCANNER_LABELS, resolve_scanner_types, validate_ignore_path,
+            suggest_ignore_path,
+        )
+        from ai_guardian.aiguardignore import (
+            SCANNER_TYPES, generate_aiguardignore_preview,
+        )
+
+        v = self._violation
+        rel_path = suggest_ignore_path(v.file_path)
+
+        root.withdraw()
+        editor = tk.Toplevel(root)
+        editor.title("Ignore File — .aiguardignore.toml")
+        editor.resizable(True, True)
+        editor.geometry("700x550")
+        editor.attributes("-topmost", True)
+        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
+        editor.focus_force()
+        editor.grab_set()
+
+        frame = ttk.Frame(editor, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="Ignore File — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Label(frame, text=f"File: {v.file_path}", wraplength=650).pack(anchor="w", pady=(0, 5))
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
+
+        ttk.Label(frame, text="Path pattern (editable):", font=("", 0, "bold")).pack(anchor="w")
+        path_var = tk.StringVar(value=rel_path)
+        path_entry = ttk.Entry(frame, textvariable=path_var, width=60)
+        path_entry.pack(fill="x", pady=(0, 5))
+
+        path_status_var = tk.StringVar(value="")
+        path_status_label = tk.Label(frame, textvariable=path_status_var, font=("", 11), anchor="w")
+        path_status_label.pack(fill="x", pady=(0, 5))
+
+        ttk.Label(frame, text="Scope:", font=("", 0, "bold")).pack(anchor="w")
+        scope_var = tk.StringVar(value=SCOPE_THIS_SCANNER)
+        scanner_label = SCANNER_LABELS.get(v.config_section, v.config_section)
+
+        scope_frame = ttk.Frame(frame)
+        scope_frame.pack(fill="x", pady=(0, 5))
+        ttk.Radiobutton(scope_frame, text=f"This scanner only ({scanner_label})", variable=scope_var, value=SCOPE_THIS_SCANNER).pack(anchor="w")
+        ttk.Radiobutton(scope_frame, text="All scanners", variable=scope_var, value=SCOPE_ALL_SCANNERS).pack(anchor="w")
+        ttk.Radiobutton(scope_frame, text="Select scanners...", variable=scope_var, value=SCOPE_SELECT_SCANNERS).pack(anchor="w")
+
+        scanner_vars = {}
+        scanner_frame = ttk.LabelFrame(frame, text="Scanners", padding=5)
+        for st in sorted(SCANNER_TYPES):
+            var = tk.BooleanVar(value=(st == v.config_section))
+            scanner_vars[st] = var
+            ttk.Checkbutton(scanner_frame, text=SCANNER_LABELS.get(st, st), variable=var).pack(anchor="w")
+
+        ttk.Label(frame, text="Preview:", font=("", 0, "bold")).pack(anchor="w")
+        preview_text = tk.Text(frame, height=8, width=60, wrap="word", state="disabled")
+        preview_text.pack(fill="both", expand=True, pady=(0, 5))
+
+        def update_preview(*_args):
+            path = path_var.get().strip()
+            valid, msg = validate_ignore_path(path)
+            if not valid:
+                path_status_var.set(f"❌ {msg}")
+                path_status_label.config(fg="#ff4444")
+                return
+            path_status_var.set(f"✅ {msg}")
+            path_status_label.config(fg="#00cc00")
+
+            show_select = (scope_var.get() == SCOPE_SELECT_SCANNERS)
+            if show_select:
+                scanner_frame.pack(fill="x", pady=(0, 5), before=preview_text.master if hasattr(preview_text, 'master') else None)
+            else:
+                scanner_frame.pack_forget()
+
+            selected = [st for st, var in scanner_vars.items() if var.get()]
+            scanner_types = resolve_scanner_types(scope_var.get(), v.config_section, selected)
+
+            try:
+                toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
+                preview_text.config(state="normal")
+                preview_text.delete("1.0", "end")
+                preview_text.insert("1.0", toml_text)
+                preview_text.config(state="disabled")
+            except Exception:
+                pass
+
+        path_var.trace_add("write", update_preview)
+        scope_var.trace_add("write", update_preview)
+        for var in scanner_vars.values():
+            var.trace_add("write", update_preview)
+        update_preview()
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x", pady=(5, 0))
+
+        def on_confirm():
+            path = path_var.get().strip()
+            valid, msg = validate_ignore_path(path)
+            if not valid:
+                path_status_var.set(f"❌ {msg}")
+                path_status_label.config(fg="#ff4444")
+                return
+            selected = [st for st, var in scanner_vars.items() if var.get()]
+            scanner_types = resolve_scanner_types(scope_var.get(), v.config_section, selected)
+            editor.destroy()
+            self._show_aiguardignore_editor(root, path, scanner_types)
+
+        def on_cancel():
+            editor.destroy()
+            root.deiconify()
+
+        ttk.Button(btn_frame, text="Add to .aiguardignore.toml", command=on_confirm).pack(side="right", padx=(5, 0))
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+
+    def _show_aiguardignore_editor(self, root, path, scanner_types):
+        """Show a full TOML editor for .aiguardignore.toml."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        from ai_guardian.aiguardignore import generate_aiguardignore_preview
+
+        toml_text, line_number = generate_aiguardignore_preview(path, scanner_types)
+
+        editor = tk.Toplevel(root)
+        editor.title("Config Editor — .aiguardignore.toml")
+        editor.resizable(True, True)
+        editor.geometry("700x500")
+        editor.attributes("-topmost", True)
+        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
+        editor.focus_force()
+        editor.grab_set()
+
+        frame = ttk.Frame(editor, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(frame, text="Config Editor — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Label(
+            frame,
+            text="Review the file. Save to persist the change.",
+            wraplength=650,
+        ).pack(anchor="w", pady=(0, 5))
+        ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
+
+        text_frame = ttk.Frame(frame)
+        text_frame.pack(fill="both", expand=True, pady=(0, 5))
+
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+
+        config_text = tk.Text(
+            text_frame, wrap="none", undo=True,
+            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
+            yscrollcommand=scrollbar.set,
+        )
+        config_text.pack(fill="both", expand=True)
+        scrollbar.config(command=config_text.yview)
+
+        config_text.insert("1.0", toml_text)
+        config_text.mark_set("insert", f"{line_number}.0")
+        config_text.see(f"{line_number}.0")
+        config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
+        config_text.tag_config("highlight", background="#3a3a00")
+
+        status_var = tk.StringVar(value="")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w")
+        status_label.pack(fill="x")
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x", pady=(5, 0))
+
+        def on_save():
+            text = config_text.get("1.0", "end-1c")
+            if _write_aiguardignore_text(text):
+                self._result = AskResult(
+                    decision=AskDecision.IGNORE_FILE,
+                    ignore_path=path,
+                    ignore_scanner_types=scanner_types,
+                    config_saved=True,
+                )
+                editor.destroy()
+                root.destroy()
+            else:
+                status_var.set("Failed to write .aiguardignore.toml")
+                status_label.config(fg="#ff4444")
+
+        def on_cancel():
+            editor.destroy()
+            root.deiconify()
+
+        ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
+        ttk.Button(btn_frame, text="Save", command=on_save).pack(side="right", padx=(0, 5))
