@@ -62,6 +62,7 @@ class AskResult:
     source_annotation_saved: bool = False
     ignore_path: Optional[str] = None
     ignore_scanner_types: Optional[List[str]] = None
+    config_path: Optional[str] = None
 
 
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
@@ -71,22 +72,30 @@ def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
     return AskDecision.BLOCK
 
 
-def _save_pattern_to_config(pattern: str, config_section: str) -> bool:
+def _save_pattern_to_config(
+    pattern: str, config_section: str, config_path: Optional[str] = None,
+) -> bool:
     """Save a pattern to the config file. Returns True on success."""
     try:
+        from pathlib import Path
         from ai_guardian.config_writer import save_ask_pattern
-        return save_ask_pattern(config_section, pattern)
+        cp = Path(config_path) if config_path else None
+        return save_ask_pattern(config_section, pattern, config_path=cp)
     except Exception as e:
         logger.warning("Failed to save pattern to config: %s", e)
         return False
 
 
-def _write_config_text(json_text: str) -> bool:
+def _write_config_text(json_text: str, config_path_str: Optional[str] = None) -> bool:
     """Write JSON text directly to ai-guardian.json with backup. Returns True on success."""
     import shutil
+    from pathlib import Path
     try:
-        from ai_guardian.config_utils import get_config_dir
-        config_path = get_config_dir() / "ai-guardian.json"
+        if config_path_str:
+            config_path = Path(config_path_str)
+        else:
+            from ai_guardian.config_utils import get_config_dir
+            config_path = get_config_dir() / "ai-guardian.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
         if config_path.exists():
             shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
@@ -203,6 +212,7 @@ def _show_via_daemon(
             source_annotation_saved=data.get("source_annotation_saved", False),
             ignore_path=data.get("ignore_path"),
             ignore_scanner_types=data.get("ignore_scanner_types"),
+            config_path=data.get("config_path"),
         )
     except (URLError, OSError, json.JSONDecodeError, ValueError) as e:
         logger.debug("Daemon prompt request failed: %s", e)
@@ -287,6 +297,7 @@ def _show_via_subprocess(
                 source_annotation_saved=data.get("source_annotation_saved", False),
                 ignore_path=data.get("ignore_path"),
                 ignore_scanner_types=data.get("ignore_scanner_types"),
+                config_path=data.get("config_path"),
             )
     except Exception as e:
         logger.warning(f"Failed to read prompt ask result: {e}")

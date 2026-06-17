@@ -19,9 +19,17 @@ def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
     """Show a NiceGUI config editor dialog with the pattern inserted in memory."""
     import json as json_mod
     from nicegui import ui
-    from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+    from ai_guardian.tui.pattern_editor import (
+        prepare_config_with_pattern, get_config_scope_options,
+    )
 
-    json_text, _line_number = prepare_config_with_pattern(save_pat, config_section)
+    scope_options = get_config_scope_options()
+    scope_map = {label: path_str for label, path_str in scope_options}
+    selected = {"path": scope_options[0][1]}
+
+    json_text, _line_number = prepare_config_with_pattern(
+        save_pat, config_section, config_path=selected["path"],
+    )
 
     with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
         ui.label("Config Editor — ai-guardian.json").classes("text-lg font-bold")
@@ -29,6 +37,21 @@ def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
             "Review the full config with the inserted pattern. Save to persist or Cancel to discard."
         ).classes("text-sm text-grey-6")
         ui.separator()
+
+        if len(scope_options) > 1:
+            ui.label("Save to:").classes("font-bold text-sm")
+            scope_radio = ui.radio(
+                scope_map, value=scope_options[0][0],
+            ).props("dense")
+
+            def on_scope_change(e):
+                selected["path"] = scope_map[e.value]
+                new_text, _ = prepare_config_with_pattern(
+                    save_pat, config_section, config_path=selected["path"],
+                )
+                editor.value = new_text
+
+            scope_radio.on_value_change(on_scope_change)
 
         editor = ui.codemirror(
             json_text, language="JSON", theme="dracula", line_wrapping=True,
@@ -59,11 +82,12 @@ def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
                     editor_status.text = f"Invalid JSON: {exc}"
                     editor_status.classes(replace="text-sm text-red")
                     return
-                if _write_config_text(text):
+                if _write_config_text(text, config_path_str=selected["path"]):
                     dialog_self._result = AskResult(
                         decision=AskDecision.ALLOW_ALWAYS,
                         allowlist_pattern=save_pat,
                         config_saved=True,
+                        config_path=selected["path"],
                     )
                     ui.run_javascript("window.close()")
                     app.shutdown()

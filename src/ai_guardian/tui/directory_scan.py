@@ -299,12 +299,20 @@ class ScanConfigEditorModal(ModalScreen):
         super().__init__(*args, **kwargs)
         self.pattern = pattern
         self.config_section = config_section
+        self._selected_config_path = None
 
     def compose(self) -> ComposeResult:
-        from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+        from ai_guardian.tui.pattern_editor import (
+            prepare_config_with_pattern, get_config_scope_options,
+        )
+
+        scope_options = get_config_scope_options()
+        self._selected_config_path = scope_options[0][1]
+        self._scope_options = scope_options
 
         json_text, line_number = prepare_config_with_pattern(
-            self.pattern, self.config_section
+            self.pattern, self.config_section,
+            config_path=self._selected_config_path,
         )
 
         with Container(id="config-editor-container"):
@@ -312,6 +320,12 @@ class ScanConfigEditorModal(ModalScreen):
                 "[bold]Config Editor — ai-guardian.json[/bold]\n"
                 "[dim]Review and save the config with the new pattern.[/dim]"
             )
+            if len(scope_options) > 1:
+                from textual.widgets import RadioSet, RadioButton
+                yield Static("[bold]Save to:[/bold]")
+                with RadioSet(id="config-scope-select"):
+                    for i, (label, path_str) in enumerate(scope_options):
+                        yield RadioButton(f"{label} ({path_str})", value=i == 0)
             yield TextArea(
                 json_text, id="config-editor-area",
                 language="json", show_line_numbers=True,
@@ -322,6 +336,25 @@ class ScanConfigEditorModal(ModalScreen):
             with Horizontal():
                 yield Button("Save", id="save-config", variant="success")
                 yield Button("Cancel", id="cancel-config", variant="primary")
+
+    def on_radio_set_changed(self, event) -> None:
+        if event.radio_set.id == "config-scope-select":
+            from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+            idx = event.index
+            opts = getattr(self, '_scope_options', [])
+            if idx < len(opts):
+                self._selected_config_path = opts[idx][1]
+                json_text, line_number = prepare_config_with_pattern(
+                    self.pattern, self.config_section,
+                    config_path=self._selected_config_path,
+                )
+                try:
+                    area = self.query_one("#config-editor-area", TextArea)
+                    area.load_text(json_text)
+                    area.cursor_location = (line_number - 1, 0)
+                    area.scroll_cursor_visible(center=True)
+                except Exception:
+                    pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-config":
@@ -340,8 +373,8 @@ class ScanConfigEditorModal(ModalScreen):
 
         from ai_guardian.tui.ask_dialog import _write_config_text
 
-        if _write_config_text(text):
-            self.app.notify("Pattern saved to ai-guardian.json", severity="information")
+        if _write_config_text(text, config_path_str=self._selected_config_path):
+            self.app.notify("Pattern saved to config", severity="information")
             self.dismiss()
             for screen in list(self.app.screen_stack):
                 if isinstance(screen, ScanPatternEditorModal):

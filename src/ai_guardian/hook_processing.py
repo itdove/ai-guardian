@@ -2011,8 +2011,10 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
 
         if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
             if not getattr(result, 'config_saved', False):
+                from pathlib import Path as _Path
                 from ai_guardian.config_writer import save_ask_pattern
-                save_ask_pattern(config_section, result.allowlist_pattern)
+                cp = _Path(result.config_path) if getattr(result, 'config_path', None) else None
+                save_ask_pattern(config_section, result.allowlist_pattern, config_path=cp)
 
         if result.decision == AskDecision.IGNORE_FILE and result.ignore_path:
             if not getattr(result, 'config_saved', False):
