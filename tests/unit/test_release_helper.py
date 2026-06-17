@@ -26,11 +26,12 @@ try:
     skills_path = project_root / ".claude" / "skills" / "release"
 
     sys.path.insert(0, str(skills_path))
-    from release_helper import ReleaseHelper
+    from release_helper import ReleaseHelper, CursorHookVerifier
     RELEASE_HELPER_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     RELEASE_HELPER_AVAILABLE = False
     ReleaseHelper = None
+    CursorHookVerifier = None
 
 # Skip all tests if release_helper is not available
 pytestmark = pytest.mark.skipif(
@@ -308,6 +309,216 @@ def test_validate_prerequisites_empty_unreleased():
         assert valid is False
         assert len(errors) > 0
         assert any("empty" in err.lower() for err in errors)
+
+
+import json
+
+
+def _create_settings(settings_path, hooks=None):
+    """Create a minimal settings.json for testing."""
+    settings = {"hooks": hooks or {
+        "UserPromptSubmit": [
+            {"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}
+        ],
+        "PreToolUse": [
+            {"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}
+        ],
+        "PostToolUse": [
+            {"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}
+        ],
+    }}
+    settings_path.write_text(json.dumps(settings, indent=2))
+    return settings
+
+
+def _create_debug_log(debug_dir, event_name, cursor_version="0.47.1"):
+    """Create a mock debug log file."""
+    log_data = {
+        "hook_event_name": event_name,
+        "cursor_version": cursor_version,
+        "_debug_timestamp": 1718640000.0,
+        "_debug_event": event_name,
+    }
+    log_file = debug_dir / f"cursor-hook-debug-{event_name}-{int(1718640000 * 1e9)}.json"
+    log_file.write_text(json.dumps(log_data, indent=2))
+    return log_file
+
+
+class TestCursorHookVerifier:
+    """Tests for CursorHookVerifier class."""
+
+    def test_setup_creates_debug_script(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        result = verifier.setup()
+
+        assert result is True
+        assert verifier.debug_script.exists()
+        assert verifier.debug_script.stat().st_mode & 0o111
+
+    def test_setup_modifies_settings(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier.setup()
+
+        settings = json.loads(settings_path.read_text())
+        for event in CursorHookVerifier.EXPECTED_EVENTS:
+            entries = settings["hooks"][event]
+            debug_entries = [
+                e for e in entries
+                if any("cursor-hook-debug.sh" in h.get("command", "")
+                       for h in e.get("hooks", []))
+            ]
+            assert len(debug_entries) == 1, f"Expected 1 debug entry for {event}"
+
+    def test_setup_creates_backup(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier.setup()
+
+        assert verifier.backup_path.exists()
+
+    def test_setup_cleans_old_logs(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        old_log = debug_dir / "cursor-hook-debug-old-12345.json"
+        old_log.write_text("{}")
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier.setup()
+
+        assert not old_log.exists()
+
+    def test_setup_fails_if_backup_exists(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        backup = tmp_path / "settings.json.cursor-verify-backup"
+        backup.write_text("{}")
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        result = verifier.setup()
+        assert result is False
+
+    def test_analyze_all_pass(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        for event in ["beforeSubmitPrompt", "preToolUse", "postToolUse", "sessionEnd"]:
+            _create_debug_log(debug_dir, event)
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        passed, cursor_version = verifier.analyze()
+
+        assert passed is True
+        assert cursor_version == "0.47.1"
+
+    def test_analyze_missing_event(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        for event in ["beforeSubmitPrompt", "preToolUse", "postToolUse"]:
+            _create_debug_log(debug_dir, event)
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        passed, cursor_version = verifier.analyze()
+
+        assert passed is False
+
+    def test_analyze_extracts_cursor_version(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        for event in ["beforeSubmitPrompt", "preToolUse", "postToolUse", "sessionEnd"]:
+            _create_debug_log(debug_dir, event, cursor_version="0.50.0")
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        _, cursor_version = verifier.analyze()
+
+        assert cursor_version == "0.50.0"
+
+    def test_analyze_no_files(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        passed, cursor_version = verifier.analyze()
+
+        assert passed is False
+        assert cursor_version is None
+
+    def test_cleanup_removes_debug_hooks(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier.setup()
+        verifier.cleanup()
+
+        settings = json.loads(settings_path.read_text())
+        for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+            entries = settings["hooks"][event]
+            for entry in entries:
+                for hook in entry.get("hooks", []):
+                    assert "cursor-hook-debug.sh" not in hook.get("command", "")
+
+    def test_cleanup_preserves_existing_hooks(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier.setup()
+        verifier.cleanup()
+
+        settings = json.loads(settings_path.read_text())
+        assert len(settings["hooks"]["UserPromptSubmit"]) == 1
+        assert settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"] == "ai-guardian"
+
+    def test_cleanup_removes_files(self, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier.setup()
+
+        _create_debug_log(debug_dir, "preToolUse")
+
+        verifier.cleanup()
+
+        assert not verifier.debug_script.exists()
+        assert not verifier.backup_path.exists()
+        assert len(list(debug_dir.glob("cursor-hook-debug-*.json"))) == 0
 
 
 def run_tests():

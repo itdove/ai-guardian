@@ -291,6 +291,7 @@ The `/release` skill automates:
 - CHANGELOG.md updates with proper formatting
 - Git branch creation and commit messages
 - Safety checks and validation
+- Cursor hook compatibility verification (semi-automated gate)
 - Post-release guidance
 
 **Manual Release Workflow (Alternative):**
