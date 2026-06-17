@@ -171,6 +171,17 @@ class TestGenerateAiguardignorePreview:
         assert "secret_scanning" in text
         assert "src/test.py" in text
 
+    def test_preview_image_scanning(self, tmp_path, monkeypatch):
+        from ai_guardian.aiguardignore import generate_aiguardignore_preview, reset_cache
+        reset_cache()
+        monkeypatch.setattr("ai_guardian.aiguardignore.find_project_root", lambda: tmp_path)
+
+        text, line = generate_aiguardignore_preview(
+            "images/screenshot.png", scanner_types=["image_scanning"], project_root=tmp_path,
+        )
+        assert "image_scanning" in text
+        assert "images/screenshot.png" in text
+
 
 class TestMakeRelativePath:
     def test_relative_within_project(self, tmp_path, monkeypatch):

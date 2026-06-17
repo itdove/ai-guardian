@@ -49,6 +49,12 @@ class TestConfigSectionForViolation:
     def test_tool_permission(self):
         assert config_section_for_violation("tool_permission") == "permissions"
 
+    def test_image_secret_detected(self):
+        assert config_section_for_violation("image_secret_detected") == "image_scanning"
+
+    def test_image_pii_detected(self):
+        assert config_section_for_violation("image_pii_detected") == "image_scanning"
+
     def test_unknown_type_returns_empty(self):
         assert config_section_for_violation("unknown_type") == ""
 
