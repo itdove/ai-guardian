@@ -327,7 +327,7 @@ Before creating the release branch, check for open Dependabot security alerts an
 
 ## Cursor Hook Compatibility Verification (mandatory)
 
-Cursor IDE reads Claude Code hooks from `~/.claude/settings.json`. Since Cursor could remove hook support in any update, each release must verify all 4 hook events still fire correctly. This is a semi-automated 3-step flow.
+Cursor IDE uses its own hooks in `~/.cursor/hooks.json`. Since Cursor could change hook support in any update, each release must verify all 5 hook events still fire correctly. This is a semi-automated 3-step flow.
 
 **Workflow**: `.claude/skills/release/release_helper.py` (cursor-verify-* subcommands)
 
@@ -339,8 +339,8 @@ python .claude/skills/release/release_helper.py cursor-verify-setup
 
 This command:
 - Creates a debug hook script at `/tmp/cursor-hook-debug.sh`
-- Backs up `~/.claude/settings.json`
-- Adds debug hook entries alongside existing hooks for all 4 events (UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd)
+- Backs up `~/.cursor/hooks.json`
+- Adds debug hook entries alongside existing hooks for all 5 events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, postToolUse)
 - Cleans any old debug log files
 - Prints instructions for the manual test
 
@@ -371,11 +371,11 @@ This command reads `/tmp/cursor-hook-debug-*.json` files and reports:
 python .claude/skills/release/release_helper.py cursor-verify-cleanup
 ```
 
-Removes debug hooks from settings.json, deletes debug script and log files, removes backup.
+Removes debug hooks from hooks.json, deletes debug script and log files, removes backup.
 
 ### Decision
 
-- **All 4 events PASS**: Proceed with release. Add to CHANGELOG: "Verified Cursor hook compatibility with Cursor vX.Y.Z"
+- **All 5 events PASS**: Proceed with release. Add to CHANGELOG: "Verified Cursor hook compatibility with Cursor vX.Y.Z"
 - **Any event FAIL**: Block the release. Investigate whether Cursor dropped hook support. Only proceed with explicit override and documented justification.
 
 **Skipping**: May be skipped for hotfix releases (`/release hotfix`) when the fix is urgent, but this should be documented in the release notes.

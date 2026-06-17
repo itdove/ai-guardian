@@ -146,59 +146,6 @@ def _create_vbs_wrapper(cmd: str, config_dir: Path) -> Optional[Path]:
     return vbs_path
 
 
-def _clean_remove_ai_guardian(config_path: str) -> Optional[str]:
-    """Remove ai-guardian entries from a hook config file, preserving other tools.
-
-    Args:
-        config_path: Path to the hook config file (e.g. ~/.cursor/hooks.json)
-
-    Returns:
-        Message describing what was done, or None if file doesn't exist.
-    """
-    path = Path(config_path).expanduser()
-    if not path.exists():
-        return None
-
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
-
-    hooks = config.get("hooks", config)
-    modified = False
-
-    for hook_name in list(hooks.keys()):
-        if hook_name == "version":
-            continue
-        hook_list = hooks[hook_name]
-        if not isinstance(hook_list, list):
-            continue
-        filtered = [
-            h for h in hook_list
-            if not (isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")))
-        ]
-        if len(filtered) != len(hook_list):
-            modified = True
-            if filtered:
-                hooks[hook_name] = filtered
-            else:
-                del hooks[hook_name]
-
-    if not modified:
-        return None
-
-    remaining_hooks = {k: v for k, v in hooks.items() if k != "version"}
-    if not remaining_hooks:
-        path.unlink()
-        return f"Removed {path} (no hooks remaining after ai-guardian cleanup)"
-
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2)
-        f.write('\n')
-    return f"Cleaned ai-guardian entries from {path} (preserved other hooks)"
-
-
 def _notify_daemon_reload():
     """Notify daemon to reload config if running. Silent on failure."""
     try:
@@ -223,7 +170,6 @@ class IDESetup:
             "config_path": "~/.claude/settings.json",
             "config_dir_env_var": "CLAUDE_CONFIG_DIR",  # Respects this env var
             "config_filename": "settings.json",
-            "_legacy_config_path": "~/.cursor/hooks.json",
             # CRITICAL: ai-guardian MUST be the FIRST PostToolUse hook.
             # Claude Code only displays the first hook's systemMessage field.
             # Log mode warnings are displayed in PostToolUse - if ai-guardian is not first, warnings are suppressed.
@@ -289,69 +235,34 @@ class IDESetup:
         },
         "cursor": {
             "name": "Cursor IDE",
-            # Cursor reads .claude/settings.json hooks directly — install there
-            # to avoid double-firing from both .claude/ and .cursor/ configs.
-            "config_path": "~/.claude/settings.json",
-            "config_dir_env_var": "CLAUDE_CONFIG_DIR",
-            "config_filename": "settings.json",
-            # Legacy cursor hooks path — cleaned during setup
-            "_legacy_config_path": "~/.cursor/hooks.json",
-            # Use Claude Code hook format (Cursor executes these as Claude Code hooks)
+            "config_path": "~/.cursor/hooks.json",
+            "config_dir_env_var": None,
+            "config_filename": "hooks.json",
             "hooks": {
-                "UserPromptSubmit": [
+                "version": 1,
+                "beforeSubmitPrompt": [
                     {
-                        "matcher": "*",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian",
-                                "statusMessage": "\U0001f6e1️ Scanning prompt..."
-                            }
-                        ]
+                        "command": "ai-guardian"
                     }
                 ],
-                "PreToolUse": [
+                "beforeReadFile": [
                     {
-                        "matcher": "*",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian",
-                                "statusMessage": "\U0001f6e1️ Checking tool permissions..."
-                            }
-                        ]
+                        "command": "ai-guardian"
                     }
                 ],
-                "PostToolUse": [
+                "beforeShellExecution": [
                     {
-                        "matcher": "*",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian",
-                                "statusMessage": "\U0001f6e1️ Scanning tool output..."
-                            }
-                        ]
+                        "command": "ai-guardian"
                     }
                 ],
-                "SessionEnd": [
+                "afterShellExecution": [
                     {
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian"
-                            }
-                        ]
+                        "command": "ai-guardian"
                     }
                 ],
-                "PostCompact": [
+                "postToolUse": [
                     {
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian"
-                            }
-                        ]
+                        "command": "ai-guardian"
                     }
                 ]
             }
@@ -821,17 +732,20 @@ class IDESetup:
             return existing_config, warnings
 
         elif ide_type == "cursor":
-            # Legacy: Cursor now uses .claude/settings.json with Claude format.
-            # setup_ide_hooks() passes "claude" to merge_hooks() for cursor.
-            # This branch kept for backward-compat if called directly.
+            # Cursor: merge hooks at top level
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
+
+            # Ensure version is set
             if "version" not in existing_config:
                 existing_config["version"] = 1
+
+            # Merge all Cursor hooks
             for hook_name in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
                              "afterShellExecution", "postToolUse"]:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
+
             return existing_config, warnings
 
         elif ide_type == "codex":
@@ -1060,17 +974,16 @@ class IDESetup:
                                             return True
 
             elif ide_type == "cursor":
-                # Cursor now uses .claude/settings.json — check Claude format
                 hooks = config.get("hooks", {})
-                for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+                # Check if any Cursor hooks contain ai-guardian
+                for hook_name in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
+                                 "afterShellExecution", "postToolUse"]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
-                            for hook_entry in hook_list:
-                                if isinstance(hook_entry, dict) and "hooks" in hook_entry:
-                                    for h in hook_entry["hooks"]:
-                                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
-                                            return True
+                            for h in hook_list:
+                                if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                                    return True
 
             elif ide_type == "windsurf":
                 hooks = config.get("hooks", {})
@@ -1399,20 +1312,16 @@ class IDESetup:
                 except json.JSONDecodeError as e:
                     return False, f"Invalid JSON in {config_path}: {e}"
 
-            # Resolve absolute path and substitute into hook templates.
-            # Cursor installs into .claude/settings.json — use --ide claude
-            # (adapter detection uses cursor_version field to override at runtime).
+            # Resolve absolute path and substitute into hook templates
             abs_path = _resolve_binary_path()
-            cmd_ide_type = "claude" if ide_type == "cursor" else ide_type
-            resolved_hooks = _substitute_command(ide_config["hooks"], abs_path, cmd_ide_type)
+            resolved_hooks = _substitute_command(ide_config["hooks"], abs_path, ide_type)
 
             # Merge hooks
             hook_warnings = []
             if ide_type == "claude":
                 merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "cursor":
-                # Cursor uses .claude/settings.json — merge using claude format
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, "claude")
+                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
             elif ide_type == "copilot":
                 # GitHub Copilot: merge hooks at top level
                 merged_config = existing_config.copy()
@@ -1429,7 +1338,7 @@ class IDESetup:
                 merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
 
             # Upgrade any pre-existing ai-guardian commands to include --ide
-            _upgrade_ide_flag(merged_config, cmd_ide_type)
+            _upgrade_ide_flag(merged_config, ide_type)
 
             self._last_merged_config = merged_config
 
@@ -1455,21 +1364,13 @@ class IDESetup:
 
             # Generate VBS wrapper on Windows for fully hidden execution
             vbs_path = _create_vbs_wrapper(
-                f"{abs_path} --ide {cmd_ide_type}", config_path.parent
+                f"{abs_path} --ide {ide_type}", config_path.parent
             )
-
-            # Clean-remove ai-guardian from legacy config if applicable
-            legacy_path = ide_config.get("_legacy_config_path")
-            legacy_msg = None
-            if legacy_path:
-                legacy_msg = _clean_remove_ai_guardian(legacy_path)
 
             # Verify Gitleaks installation
             gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
 
             message = f"✓ Successfully configured {ide_name} hooks at {config_path}\n"
-            if legacy_msg:
-                message += f"  {legacy_msg}\n"
             message += f"\n  {gitleaks_message}\n"
 
             if vbs_path:

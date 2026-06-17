@@ -485,7 +485,7 @@ class CursorHookVerifier:
     """Verifies Cursor IDE hook compatibility for release gating.
 
     Semi-automated 3-step flow:
-    1. setup()   — create debug hook script, modify settings.json
+    1. setup()   — create debug hook script, modify hooks.json
     2. (manual)  — user tests in Cursor
     3. analyze() — read debug logs, report PASS/FAIL per event
     cleanup() always runs after.
@@ -496,14 +496,10 @@ class CursorHookVerifier:
     SETTINGS_BACKUP_SUFFIX = ".cursor-verify-backup"
     DEBUG_HOOK_MARKER = "cursor-hook-debug.sh"
 
-    EXPECTED_EVENTS = ["UserPromptSubmit", "PreToolUse", "PostToolUse", "SessionEnd"]
-
-    CAMELCASE_TO_SETTINGS = {
-        "beforeSubmitPrompt": "UserPromptSubmit",
-        "preToolUse": "PreToolUse",
-        "postToolUse": "PostToolUse",
-        "sessionEnd": "SessionEnd",
-    }
+    EXPECTED_EVENTS = [
+        "beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
+        "afterShellExecution", "postToolUse",
+    ]
 
     def __init__(self, settings_path: Optional[str] = None, debug_dir: str = "/tmp"):
         self.debug_dir = Path(debug_dir)
@@ -511,8 +507,7 @@ class CursorHookVerifier:
         if settings_path:
             self.settings_path = Path(settings_path)
         else:
-            config_dir = Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude")).expanduser()
-            self.settings_path = config_dir / "settings.json"
+            self.settings_path = Path("~/.cursor/hooks.json").expanduser()
         self.backup_path = self.settings_path.parent / (
             self.settings_path.name + self.SETTINGS_BACKUP_SUFFIX
         )
@@ -546,27 +541,18 @@ echo '{{}}'
         self.debug_script.chmod(0o755)
 
     def _add_debug_hooks(self) -> bool:
-        """Add debug hook entries to settings.json for all 4 event types."""
+        """Add debug hook entries to hooks.json for all event types."""
         if not self.settings_path.exists():
-            print(f"Error: {self.settings_path} not found. Run ai-guardian setup first.",
+            print(f"Error: {self.settings_path} not found. Run ai-guardian setup --ide cursor first.",
                   file=sys.stderr)
             return False
 
         settings = json.loads(self.settings_path.read_text())
-        hooks = settings.setdefault("hooks", {})
 
-        debug_entry = {
-            "matcher": "",
-            "hooks": [
-                {
-                    "type": "command",
-                    "command": str(self.debug_script),
-                }
-            ]
-        }
+        debug_entry = {"command": str(self.debug_script)}
 
         for event in self.EXPECTED_EVENTS:
-            event_hooks = hooks.setdefault(event, [])
+            event_hooks = settings.setdefault(event, [])
             event_hooks.append(json.loads(json.dumps(debug_entry)))
 
         self.settings_path.write_text(json.dumps(settings, indent=2) + "\n")
@@ -638,8 +624,7 @@ echo '{{}}'
             try:
                 data = json.loads(log_file.read_text())
                 raw_event = data.get("hook_event_name", data.get("event", data.get("_debug_event", "unknown")))
-                mapped_event = self.CAMELCASE_TO_SETTINGS.get(raw_event, raw_event)
-                events_found[mapped_event] = events_found.get(mapped_event, 0) + 1
+                events_found[raw_event] = events_found.get(raw_event, 0) + 1
 
                 cv = data.get("cursor_version")
                 if cv and not cursor_version:
@@ -679,32 +664,30 @@ echo '{{}}'
         return all_passed, cursor_version
 
     def cleanup(self) -> bool:
-        """Remove debug hooks from settings.json and delete debug files."""
+        """Remove debug hooks from hooks.json and delete debug files."""
         print("Cursor Hook Verification — Cleanup", file=sys.stderr)
         print("=" * 40, file=sys.stderr)
 
         if self.settings_path.exists():
             try:
                 settings = json.loads(self.settings_path.read_text())
-                hooks = settings.get("hooks", {})
                 removed = 0
 
-                for event in list(hooks.keys()):
-                    original_len = len(hooks[event])
-                    hooks[event] = [
-                        entry for entry in hooks[event]
-                        if not any(
-                            self.DEBUG_HOOK_MARKER in h.get("command", "")
-                            for h in entry.get("hooks", [])
-                        )
-                        and self.DEBUG_HOOK_MARKER not in entry.get("command", "")
+                for event in list(settings.keys()):
+                    if not isinstance(settings[event], list):
+                        continue
+                    original_len = len(settings[event])
+                    settings[event] = [
+                        entry for entry in settings[event]
+                        if not (isinstance(entry, dict)
+                                and self.DEBUG_HOOK_MARKER in entry.get("command", ""))
                     ]
-                    removed += original_len - len(hooks[event])
-                    if not hooks[event]:
-                        del hooks[event]
+                    removed += original_len - len(settings[event])
+                    if not settings[event]:
+                        del settings[event]
 
                 self.settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-                print(f"  Removed {removed} debug hook(s) from settings.json", file=sys.stderr)
+                print(f"  Removed {removed} debug hook(s) from hooks.json", file=sys.stderr)
             except (json.JSONDecodeError, OSError) as e:
                 print(f"  Warning: Could not clean settings.json: {e}", file=sys.stderr)
                 if self.backup_path.exists():
