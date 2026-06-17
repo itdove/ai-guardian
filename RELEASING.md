@@ -166,7 +166,7 @@ main (v1.1.0-dev)
 
 ### Cursor Hook Compatibility Verification
 
-Before creating the release branch, verify that Cursor still supports Claude Code hooks. The `/release` skill automates this check as a mandatory gate.
+Before creating the release branch, verify that Cursor still supports hooks via `~/.cursor/hooks.json`. The `/release` skill automates this check as a mandatory gate.
 
 If running manually:
 1. Run: `python .claude/skills/release/release_helper.py cursor-verify-setup`

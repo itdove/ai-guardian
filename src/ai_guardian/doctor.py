@@ -122,7 +122,6 @@ class Doctor:
             self.check_tray_plugins,
             self.check_email_auth,
             self.check_ml_detection,
-            self.check_cursor_hooks,
             self.check_ast_scanner,
         ]
         for check_fn in checks:
@@ -1621,64 +1620,6 @@ class Doctor:
             message=f"{len(json_files)} plugin file(s) OK",
         )
 
-    def check_cursor_hooks(self) -> CheckResult:
-        """Detect stale ai-guardian hooks in ~/.cursor/hooks.json (Issue #1187)."""
-        from ai_guardian.setup import _is_ai_guardian_command
-
-        hooks_path = Path.home() / ".cursor" / "hooks.json"
-        if not hooks_path.exists():
-            return CheckResult(
-                name="cursor_hooks",
-                status=CheckStatus.PASS,
-                message="No ~/.cursor/hooks.json",
-            )
-
-        try:
-            with open(hooks_path) as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return CheckResult(
-                name="cursor_hooks",
-                status=CheckStatus.PASS,
-                message="~/.cursor/hooks.json unreadable (skipped)",
-            )
-
-        if not isinstance(data, dict):
-            return CheckResult(
-                name="cursor_hooks",
-                status=CheckStatus.PASS,
-                message="~/.cursor/hooks.json has unexpected format",
-            )
-
-        found_events = []
-        for event_name, hook_list in data.items():
-            if not isinstance(hook_list, list):
-                continue
-            for entry in hook_list:
-                if isinstance(entry, dict):
-                    if _is_ai_guardian_command(entry.get("command", "")):
-                        found_events.append(event_name)
-                        break
-                    for h in entry.get("hooks", []):
-                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
-                            found_events.append(event_name)
-                            break
-
-        if not found_events:
-            return CheckResult(
-                name="cursor_hooks",
-                status=CheckStatus.PASS,
-                message="No ai-guardian entries in ~/.cursor/hooks.json",
-            )
-
-        return CheckResult(
-            name="cursor_hooks",
-            status=CheckStatus.WARN,
-            message=f"Stale ai-guardian hooks in ~/.cursor/hooks.json ({', '.join(found_events)})",
-            detail="Cursor hooks cause double-fire with Claude Code hooks",
-            fix_hint="Run: ai-guardian setup --ide claude  (removes Cursor hooks automatically)",
-        )
-
     def check_ast_scanner(self) -> CheckResult:
         """Check if tree-sitter AST scanner is available and list language parsers."""
         try:
@@ -1813,7 +1754,6 @@ _CHECK_DISPLAY_NAMES = {
     "tray_plugins": "Tray plugins",
     "email_auth": "Email auth",
     "ml_detection": "ML detection",
-    "cursor_hooks": "Cursor hooks",
     "ast_scanner": "AST scanning",
 }
 

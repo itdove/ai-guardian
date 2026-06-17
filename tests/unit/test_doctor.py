@@ -1253,7 +1253,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 30
+        assert len(report.checks) == 29
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
@@ -1308,85 +1308,6 @@ class TestCheckTrayPlugins:
             result = doctor.check_tray_plugins()
             assert result.status == CheckStatus.WARN
             assert "Circular import" in result.message
-
-
-class TestCheckCursorHooks:
-    """Tests for check_cursor_hooks (Issue #1187)."""
-
-    def test_pass_no_hooks_file(self, _isolate_config_dir, tmp_path):
-        with mock.patch("ai_guardian.doctor.Path.home", return_value=tmp_path):
-            doctor = Doctor()
-            result = doctor.check_cursor_hooks()
-        assert result.status == CheckStatus.PASS
-        assert "No ~/.cursor/hooks.json" in result.message
-
-    def test_pass_no_ai_guardian_entries(self, _isolate_config_dir, tmp_path):
-        cursor_dir = tmp_path / ".cursor"
-        cursor_dir.mkdir()
-        hooks_path = cursor_dir / "hooks.json"
-        hooks_path.write_text(json.dumps({
-            "PreToolUse": [{"command": "some-other-tool"}],
-        }))
-        with mock.patch("ai_guardian.doctor.Path.home", return_value=tmp_path):
-            doctor = Doctor()
-            result = doctor.check_cursor_hooks()
-        assert result.status == CheckStatus.PASS
-        assert "No ai-guardian entries" in result.message
-
-    def test_warn_ai_guardian_entries_flat(self, _isolate_config_dir, tmp_path):
-        cursor_dir = tmp_path / ".cursor"
-        cursor_dir.mkdir()
-        hooks_path = cursor_dir / "hooks.json"
-        hooks_path.write_text(json.dumps({
-            "PreToolUse": [{"command": "ai-guardian hook"}],
-            "PostToolUse": [{"command": "/usr/bin/ai-guardian hook"}],
-        }))
-        with mock.patch("ai_guardian.doctor.Path.home", return_value=tmp_path):
-            doctor = Doctor()
-            result = doctor.check_cursor_hooks()
-        assert result.status == CheckStatus.WARN
-        assert "Stale" in result.message
-        assert "PreToolUse" in result.message
-        assert "PostToolUse" in result.message
-        assert result.fix_hint is not None
-        assert "ai-guardian setup" in result.fix_hint
-
-    def test_warn_ai_guardian_entries_nested(self, _isolate_config_dir, tmp_path):
-        cursor_dir = tmp_path / ".cursor"
-        cursor_dir.mkdir()
-        hooks_path = cursor_dir / "hooks.json"
-        hooks_path.write_text(json.dumps({
-            "UserPromptSubmit": [
-                {"matcher": "*", "hooks": [
-                    {"type": "command", "command": "ai-guardian hook --event UserPromptSubmit"}
-                ]}
-            ],
-        }))
-        with mock.patch("ai_guardian.doctor.Path.home", return_value=tmp_path):
-            doctor = Doctor()
-            result = doctor.check_cursor_hooks()
-        assert result.status == CheckStatus.WARN
-        assert "UserPromptSubmit" in result.message
-        assert "double-fire" in result.detail
-
-    def test_pass_invalid_json(self, _isolate_config_dir, tmp_path):
-        cursor_dir = tmp_path / ".cursor"
-        cursor_dir.mkdir()
-        (cursor_dir / "hooks.json").write_text("{bad json")
-        with mock.patch("ai_guardian.doctor.Path.home", return_value=tmp_path):
-            doctor = Doctor()
-            result = doctor.check_cursor_hooks()
-        assert result.status == CheckStatus.PASS
-        assert "unreadable" in result.message
-
-    def test_pass_empty_hooks(self, _isolate_config_dir, tmp_path):
-        cursor_dir = tmp_path / ".cursor"
-        cursor_dir.mkdir()
-        (cursor_dir / "hooks.json").write_text(json.dumps({}))
-        with mock.patch("ai_guardian.doctor.Path.home", return_value=tmp_path):
-            doctor = Doctor()
-            result = doctor.check_cursor_hooks()
-        assert result.status == CheckStatus.PASS
 
 
 class TestCheckAstScanner:

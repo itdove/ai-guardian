@@ -212,8 +212,8 @@ remove_json_hooks() {
                 dry "Would remove ai-guardian hooks from $agent ($hook_path)"
             else
                 backup_file "$hook_path"
-                result=$("$PYTHON" -c "
-import json, os, sys
+                "$PYTHON" -c "
+import json, sys
 
 path = sys.argv[1]
 with open(path) as f:
@@ -251,20 +251,11 @@ def remove_ag_hooks(obj):
     return obj
 
 config = remove_ag_hooks(config)
-if not config:
-    os.remove(path)
-    print('deleted')
-else:
-    with open(path, 'w') as f:
-        json.dump(config, f, indent=2)
-        f.write('\n')
-    print('cleaned')
-" "$hook_path")
-                if [ "$result" = "deleted" ]; then
-                    ok "Removed $hook_path (no hooks remaining)"
-                else
-                    ok "Removed ai-guardian hooks from $agent ($hook_path)"
-                fi
+with open(path, 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" "$hook_path"
+                ok "Removed hooks from $agent ($hook_path)"
                 REMOVED+=("$agent hooks")
             fi
         fi

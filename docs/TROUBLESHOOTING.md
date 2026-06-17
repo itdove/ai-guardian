@@ -445,6 +445,33 @@ Set to `0` to disable idle shutdown.
 
 ---
 
+## Cursor: Double Popups / Hooks Firing Twice
+
+**Symptom:** When both Claude Code and Cursor are installed, ai-guardian popups
+appear twice for the same event.
+
+**Cause:** Cursor has an "Include third-party extensions" toggle (in Cursor
+Settings > General) that imports and executes hooks from `~/.claude/settings.json`.
+When this is enabled, both Claude Code's hooks and Cursor's own hooks
+(`~/.cursor/hooks.json`) fire for the same event.
+
+**Fix:** Disable "Include third-party extensions" in Cursor settings. This ensures
+each IDE uses only its own hook configuration:
+
+- Claude Code: `~/.claude/settings.json`
+- Cursor: `~/.cursor/hooks.json`
+
+Alternatively, uninstall ai-guardian hooks from one IDE:
+```bash
+# Keep only Claude Code hooks
+ai-guardian setup --ide claude --uninstall-ide cursor
+
+# Keep only Cursor hooks
+ai-guardian setup --ide cursor --uninstall-ide claude
+```
+
+---
+
 ## File Locations Quick Reference
 
 | File | Default Path | Purpose |

@@ -315,18 +315,15 @@ import json
 
 
 def _create_settings(settings_path, hooks=None):
-    """Create a minimal settings.json for testing."""
-    settings = {"hooks": hooks or {
-        "UserPromptSubmit": [
-            {"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}
-        ],
-        "PreToolUse": [
-            {"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}
-        ],
-        "PostToolUse": [
-            {"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}
-        ],
-    }}
+    """Create a minimal hooks.json for testing."""
+    settings = hooks or {
+        "version": 1,
+        "beforeSubmitPrompt": [{"command": "ai-guardian"}],
+        "beforeReadFile": [{"command": "ai-guardian"}],
+        "beforeShellExecution": [{"command": "ai-guardian"}],
+        "afterShellExecution": [{"command": "ai-guardian"}],
+        "postToolUse": [{"command": "ai-guardian"}],
+    }
     settings_path.write_text(json.dumps(settings, indent=2))
     return settings
 
@@ -372,11 +369,10 @@ class TestCursorHookVerifier:
 
         settings = json.loads(settings_path.read_text())
         for event in CursorHookVerifier.EXPECTED_EVENTS:
-            entries = settings["hooks"][event]
+            entries = settings[event]
             debug_entries = [
                 e for e in entries
-                if any("cursor-hook-debug.sh" in h.get("command", "")
-                       for h in e.get("hooks", []))
+                if isinstance(e, dict) and "cursor-hook-debug.sh" in e.get("command", "")
             ]
             assert len(debug_entries) == 1, f"Expected 1 debug entry for {event}"
 
@@ -424,7 +420,7 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        for event in ["beforeSubmitPrompt", "preToolUse", "postToolUse", "sessionEnd"]:
+        for event in CursorHookVerifier.EXPECTED_EVENTS:
             _create_debug_log(debug_dir, event)
 
         verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
@@ -439,7 +435,7 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        for event in ["beforeSubmitPrompt", "preToolUse", "postToolUse"]:
+        for event in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution"]:
             _create_debug_log(debug_dir, event)
 
         verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
@@ -453,7 +449,7 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        for event in ["beforeSubmitPrompt", "preToolUse", "postToolUse", "sessionEnd"]:
+        for event in CursorHookVerifier.EXPECTED_EVENTS:
             _create_debug_log(debug_dir, event, cursor_version="0.50.0")
 
         verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
@@ -484,11 +480,11 @@ class TestCursorHookVerifier:
         verifier.cleanup()
 
         settings = json.loads(settings_path.read_text())
-        for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
-            entries = settings["hooks"][event]
+        for event in CursorHookVerifier.EXPECTED_EVENTS:
+            entries = settings.get(event, [])
             for entry in entries:
-                for hook in entry.get("hooks", []):
-                    assert "cursor-hook-debug.sh" not in hook.get("command", "")
+                if isinstance(entry, dict):
+                    assert "cursor-hook-debug.sh" not in entry.get("command", "")
 
     def test_cleanup_preserves_existing_hooks(self, tmp_path):
         settings_path = tmp_path / "settings.json"
@@ -501,8 +497,8 @@ class TestCursorHookVerifier:
         verifier.cleanup()
 
         settings = json.loads(settings_path.read_text())
-        assert len(settings["hooks"]["UserPromptSubmit"]) == 1
-        assert settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"] == "ai-guardian"
+        assert len(settings["beforeSubmitPrompt"]) == 1
+        assert settings["beforeSubmitPrompt"][0]["command"] == "ai-guardian"
 
     def test_cleanup_removes_files(self, tmp_path):
         settings_path = tmp_path / "settings.json"
