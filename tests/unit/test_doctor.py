@@ -1253,7 +1253,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 29
+        assert len(report.checks) == 30
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
@@ -1387,6 +1387,82 @@ class TestCheckCursorHooks:
             doctor = Doctor()
             result = doctor.check_cursor_hooks()
         assert result.status == CheckStatus.PASS
+
+
+class TestCheckAstScanner:
+    """Tests for check_ast_scanner (Issue #1148)."""
+
+    def test_pass_with_parsers(self, _isolate_config_dir):
+        mock_ts = mock.MagicMock()
+        grammar_imports = {
+            "python": "tree_sitter_python",
+            "javascript": "tree_sitter_javascript",
+        }
+        with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
+            with mock.patch("ai_guardian.doctor.pkg_version", return_value="0.25.0", create=True):
+                with mock.patch("importlib.metadata.version", return_value="0.25.0"):
+                    with mock.patch("ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports):
+                        with mock.patch("importlib.import_module") as mock_import:
+                            mock_import.return_value = mock.MagicMock()
+                            doctor = Doctor()
+                            result = doctor.check_ast_scanner()
+        assert result.status == CheckStatus.PASS
+        assert "tree-sitter 0.25.0" in result.message
+        assert "Javascript" in result.message
+        assert "Python" in result.message
+
+    def test_warn_not_installed(self, _isolate_config_dir):
+        import builtins
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "tree_sitter":
+                raise ImportError("no tree_sitter")
+            return real_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=fake_import):
+            doctor = Doctor()
+            result = doctor.check_ast_scanner()
+        assert result.status == CheckStatus.WARN
+        assert "not installed" in result.message
+        assert "raw text" in result.message
+        assert result.fix_hint is not None
+
+    def test_warn_no_parsers(self, _isolate_config_dir):
+        mock_ts = mock.MagicMock()
+        grammar_imports = {"python": "tree_sitter_python"}
+        with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
+            with mock.patch("importlib.metadata.version", return_value="0.25.0"):
+                with mock.patch("ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports):
+                    with mock.patch("importlib.import_module", side_effect=ImportError):
+                        doctor = Doctor()
+                        result = doctor.check_ast_scanner()
+        assert result.status == CheckStatus.WARN
+        assert "no language parsers" in result.message
+        assert result.fix_hint is not None
+
+    def test_partial_parsers(self, _isolate_config_dir):
+        mock_ts = mock.MagicMock()
+        grammar_imports = {
+            "python": "tree_sitter_python",
+            "go": "tree_sitter_go",
+        }
+
+        def selective_import(name):
+            if name == "tree_sitter_python":
+                return mock.MagicMock()
+            raise ImportError(f"no {name}")
+
+        with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
+            with mock.patch("importlib.metadata.version", return_value="0.24.0"):
+                with mock.patch("ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports):
+                    with mock.patch("importlib.import_module", side_effect=selective_import):
+                        doctor = Doctor()
+                        result = doctor.check_ast_scanner()
+        assert result.status == CheckStatus.PASS
+        assert "tree-sitter 0.24.0" in result.message
+        assert "Python" in result.message
+        assert "Go" not in result.message
 
 
 class TestCheckImageScanning:

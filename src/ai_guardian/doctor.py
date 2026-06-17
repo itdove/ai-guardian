@@ -123,6 +123,7 @@ class Doctor:
             self.check_email_auth,
             self.check_ml_detection,
             self.check_cursor_hooks,
+            self.check_ast_scanner,
         ]
         for check_fn in checks:
             try:
@@ -1678,6 +1679,49 @@ class Doctor:
             fix_hint="Run: ai-guardian setup --ide claude  (removes Cursor hooks automatically)",
         )
 
+    def check_ast_scanner(self) -> CheckResult:
+        """Check if tree-sitter AST scanner is available and list language parsers."""
+        try:
+            import tree_sitter
+        except ImportError:
+            return CheckResult(
+                name="ast_scanner",
+                status=CheckStatus.WARN,
+                message="tree-sitter not installed — code files scanned as raw text (higher FP rate)",
+                fix_hint="pip install tree-sitter",
+            )
+
+        try:
+            from importlib.metadata import version as pkg_version
+            version = pkg_version("tree-sitter")
+        except Exception:
+            version = getattr(tree_sitter, "__version__", "unknown")
+
+        from ai_guardian.ast_scanner import _GRAMMAR_IMPORTS
+        available = []
+        for lang_name, module_name in sorted(_GRAMMAR_IMPORTS.items()):
+            try:
+                import importlib
+                importlib.import_module(module_name)
+                available.append(lang_name.capitalize())
+            except ImportError:
+                pass
+
+        if not available:
+            return CheckResult(
+                name="ast_scanner",
+                status=CheckStatus.WARN,
+                message=f"tree-sitter {version} installed but no language parsers found",
+                fix_hint="pip install tree-sitter-python tree-sitter-javascript ...",
+            )
+
+        langs = ", ".join(available)
+        return CheckResult(
+            name="ast_scanner",
+            status=CheckStatus.PASS,
+            message=f"tree-sitter {version} ({langs})",
+        )
+
     def check_email_auth(self) -> CheckResult:
         """Warn if SMTP credentials are hardcoded in config (inline auth)."""
         self._ensure_config()
@@ -1770,6 +1814,7 @@ _CHECK_DISPLAY_NAMES = {
     "email_auth": "Email auth",
     "ml_detection": "ML detection",
     "cursor_hooks": "Cursor hooks",
+    "ast_scanner": "AST scanning",
 }
 
 
