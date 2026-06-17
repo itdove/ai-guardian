@@ -160,6 +160,7 @@ ai-guardian setup --list-profiles                           # List available pro
 
 - **Example config**: [ai-guardian-example.json](https://github.com/itdove/ai-guardian/blob/main/ai-guardian-example.json)
 - **JSON Schema**: [ai-guardian-config.schema.json](https://github.com/itdove/ai-guardian/blob/main/src/ai_guardian/schemas/ai-guardian-config.schema.json) (IDE autocomplete + runtime validation)
+- **Ignore file schema**: [aiguardignore.schema.json](https://github.com/itdove/ai-guardian/blob/main/src/ai_guardian/schemas/aiguardignore.schema.json) (VS Code Taplo validation for `.aiguardignore.toml`)
 - **Full reference**: [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md)
 
 ### Configuration Locations (Precedence Order)
