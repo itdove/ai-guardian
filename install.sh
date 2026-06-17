@@ -203,6 +203,8 @@ if [ "$(uname -s)" = "Linux" ]; then
 
     if [ "$HEADERS_HAS_DISPLAY" = false ]; then
         echo "  Skipping GObject headers — no display detected (headless environment)"
+    elif [ "$INSTALL_MODE" = "uv" ]; then
+        echo "  Skipping GObject build headers — uv uses system gi via symlink (no compilation)"
     else
         NEED_GI_HEADERS=false
         "$PYTHON" -c "import gi" 2>/dev/null || NEED_GI_HEADERS=true
@@ -531,6 +533,35 @@ else
 fi
 if [ -n "$RESTARTED" ]; then
     echo "  Restarted: $RESTARTED"
+fi
+
+if [ "$(uname -s)" = "Linux" ] && [ "${HEADERS_HAS_DISPLAY:-}" != false ]; then
+    GI_AVAILABLE=false
+    if [ "$INSTALL_MODE" = "uv" ]; then
+        UV_TOOL_DIR="$HOME/.local/share/uv/tools/ai-guardian"
+        UV_SITE=$(find "$UV_TOOL_DIR" -path "*/site-packages" -type d 2>/dev/null | head -1)
+        [ -n "$UV_SITE" ] && [ -e "$UV_SITE/gi" ] && GI_AVAILABLE=true
+    else
+        "$PYTHON" -c "import gi" 2>/dev/null && GI_AVAILABLE=true
+    fi
+
+    if [ "$GI_AVAILABLE" = false ]; then
+        echo ""
+        printf '  \033[1;33m⚠️  Optional: System tray requires python3-gobject (not installed)\033[0m\n'
+        if command -v dnf >/dev/null 2>&1; then
+            echo "      Install it:  sudo dnf install python3-gobject"
+        elif command -v apt-get >/dev/null 2>&1; then
+            echo "      Install it:  sudo apt install python3-gi"
+        elif command -v zypper >/dev/null 2>&1; then
+            echo "      Install it:  sudo zypper install python3-gobject"
+        elif command -v pacman >/dev/null 2>&1; then
+            echo "      Install it:  sudo pacman -S python-gobject"
+        else
+            echo "      Install python3-gobject using your package manager"
+        fi
+        echo "      Then start:  ai-guardian tray start"
+        echo "      The tray is optional — ai-guardian works without it."
+    fi
 fi
 echo ""
 echo "  Popup override env vars:"
