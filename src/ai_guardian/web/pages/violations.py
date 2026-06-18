@@ -39,7 +39,8 @@ DETAIL_FIELDS = {
     ],
     "secret_detected": [
         ("File", "file_path"), ("Source", "source"),
-        ("Line", "line_number"), ("End Line", "end_line"),
+        ("Line", "line_number"), ("Column", "start_column"),
+        ("End Line", "end_line"),
         ("Position", "position"), ("Type", "secret_type"),
         ("Findings", "total_findings"),
     ],
@@ -288,6 +289,8 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
                         if key == "secret_type":
                             from ai_guardian.secret_type_names import get_secret_type_display
                             display = get_secret_type_display(display)
+                        if key == "start_column" and isinstance(val, int):
+                            display = str(val + 1)
                         if isinstance(val, list):
                             display = ", ".join(str(x) for x in val)
                         if isinstance(val, float):

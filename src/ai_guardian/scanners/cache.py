@@ -123,6 +123,8 @@ class ScanResultCache:
                             "file": s.file,
                             "line_number": s.line_number,
                             "end_line": s.end_line,
+                            "start_column": s.start_column,
+                            "end_column": s.end_column,
                             "commit": s.commit,
                             "engine": s.engine,
                             "confidence": s.confidence,

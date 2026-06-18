@@ -130,8 +130,11 @@ def _handle_violations_command(args):
                 line_number = blocked.get("line_number")
                 if line_number:
                     end_line = blocked.get("end_line")
+                    start_col = blocked.get("start_column")
                     if end_line and end_line != line_number:
                         location += f" (lines {line_number}-{end_line})"
+                    elif start_col is not None:
+                        location += f" (line {line_number}, col {start_col + 1})"
                     else:
                         location += f" (line {line_number})"
                 print(location)

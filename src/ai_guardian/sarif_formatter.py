@@ -236,13 +236,19 @@ class SARIFFormatter:
                 }
             }
 
-            # Add region (line number and snippet) if available
+            # Add region (line number, column, snippet) if available
             line_number = finding.get("line_number")
             snippet = finding.get("snippet")
-            if line_number is not None or snippet is not None:
+            start_col = finding.get("start_column")
+            end_col = finding.get("end_column")
+            if line_number is not None or snippet is not None or start_col is not None:
                 region = {}
                 if line_number is not None:
                     region["startLine"] = int(line_number)
+                if start_col is not None:
+                    region["startColumn"] = int(start_col) + 1
+                if end_col is not None:
+                    region["endColumn"] = int(end_col) + 1
                 if snippet is not None:
                     region["snippet"] = {"text": snippet}
                 location["physicalLocation"]["region"] = region

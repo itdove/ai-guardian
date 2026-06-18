@@ -1781,11 +1781,15 @@ def _build_violation_context(context, hook_context):
 
 
 def _enrich_blocked_from_details(blocked_info, details):
-    """Add line_number, end_line, total_findings, validation from scan details."""
+    """Add line_number, end_line, column, total_findings, validation from scan details."""
     if details.get("line_number"):
         blocked_info["line_number"] = details["line_number"]
         if details.get("end_line") and details["end_line"] != details["line_number"]:
             blocked_info["end_line"] = details["end_line"]
+    if details.get("start_column") is not None:
+        blocked_info["start_column"] = details["start_column"]
+    if details.get("end_column") is not None:
+        blocked_info["end_column"] = details["end_column"]
     if details.get("total_findings"):
         blocked_info["total_findings"] = details["total_findings"]
     if details.get("validation"):
@@ -2452,7 +2456,10 @@ def _build_secret_detected_message(scanner_name, secret_details, pattern_descrip
         display_name = get_secret_type_display(secret_details['rule_id'])
         error_msg += f"{type_label}: {display_name}\n"
         if secret_details.get('line_number'):
-            error_msg += f"Location: {secret_details['file']}:{secret_details['line_number']}\n"
+            _loc = f"{secret_details['file']}:{secret_details['line_number']}"
+            if secret_details.get('start_column') is not None:
+                _loc += f":{secret_details['start_column'] + 1}"
+            error_msg += f"Location: {_loc}\n"
         else:
             error_msg += f"Location: {secret_details['file']}\n"
     else:
@@ -3011,6 +3018,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             "file": file_path or filename,
                             "line_number": first_secret.line_number,
                             "end_line": first_secret.end_line or 0,
+                            "start_column": first_secret.start_column,
+                            "end_column": first_secret.end_column,
                             "commit": first_secret.commit or "N/A",
                             "total_findings": len(strategy_result.secrets),
                             "engine": strategy_result.engine,
@@ -3223,6 +3232,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "file": file_path or filename,
                                 "line_number": first_finding.get("line_number", 0),
                                 "end_line": first_finding.get("end_line", 0),
+                                "start_column": first_finding.get("start_column"),
+                                "end_column": first_finding.get("end_column"),
                                 "commit": first_finding.get("commit", "N/A"),
                                 "total_findings": scan_result.get("total_findings", 0),
                                 "matched_text": first_finding.get("matched_text", ""),
@@ -3243,6 +3254,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "file": file_path or filename,
                                     "line_number": first_finding.get("StartLine", 0),
                                     "end_line": first_finding.get("EndLine", 0),
+                                    "start_column": first_finding.get("StartColumn"),
+                                    "end_column": first_finding.get("EndColumn"),
                                     "commit": first_finding.get("Commit", "N/A"),
                                     "total_findings": len(findings),
                                     "matched_text": first_finding.get("Match", ""),
@@ -3304,6 +3317,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     "file": file_path or filename,
                                     "line_number": first_secret.line_number,
                                     "end_line": first_secret.end_line or 0,
+                                    "start_column": first_secret.start_column,
+                                    "end_column": first_secret.end_column,
                                     "commit": first_secret.commit or "N/A",
                                     "total_findings": len(fallback_result.secrets),
                                     "engine": fallback_result.engine,
@@ -3404,6 +3419,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             "file": secret_details.get("file"),
                             "line_number": first_finding.get("line_number", secret_details.get("line_number")),
                             "end_line": first_finding.get("end_line", secret_details.get("end_line", 0)),
+                            "start_column": first_finding.get("start_column", secret_details.get("start_column")),
+                            "end_column": first_finding.get("end_column", secret_details.get("end_column")),
                             "commit": first_finding.get("commit", secret_details.get("commit", "N/A")),
                             "total_findings": len(_filt),
                             "matched_text": first_finding.get("matched_text", ""),
@@ -3517,6 +3534,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "file": file_path or filename,
                                 "line_number": first_secret.line_number,
                                 "end_line": first_secret.end_line or 0,
+                                "start_column": first_secret.start_column,
+                                "end_column": first_secret.end_column,
                                 "commit": first_secret.commit or "N/A",
                                 "total_findings": len(fallback_result.secrets),
                                 "engine": fallback_result.engine,

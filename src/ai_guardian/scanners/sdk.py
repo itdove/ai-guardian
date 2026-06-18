@@ -49,6 +49,8 @@ class Finding:
     description: str
     severity: str = "warning"
     end_line: Optional[int] = None
+    start_column: Optional[int] = None  # 0-based column, None if unavailable
+    end_column: Optional[int] = None    # 0-based column, None if unavailable
     commit: Optional[str] = None
     category: Optional[str] = None
 
