@@ -720,6 +720,55 @@ class DaemonState:
                 "ask_dialog_total_ms": round(self._ask_dialog_total_ms, 1),
             }
 
+    def get_project_cache_status(self):
+        """Get per-project config cache details for diagnostics.
+
+        Returns:
+            dict with 'projects' list and 'summary' metadata.
+        """
+        from ai_guardian.config_loaders import _caches as config_caches
+
+        now_mono = time.monotonic()
+        now_unix = time.time()
+        projects = []
+
+        with self._lock:
+            for project_dir in sorted(self._project_dir_last_seen):
+                last_seen = self._project_dir_last_seen[project_dir]
+                config_path = self._project_config_paths.get(project_dir)
+                config_mtime = self._project_config_mtimes.get(project_dir)
+
+                cache_key = config_path if config_path else "__global__"
+                cached = config_caches.get(cache_key)
+
+                entry = {
+                    "project_dir": project_dir,
+                    "config_path": config_path,
+                    "config_mtime": config_mtime,
+                    "last_seen_seconds_ago": round(now_mono - last_seen, 1),
+                    "has_project_override": config_path is not None,
+                }
+
+                if cached:
+                    gp = cached.global_path
+                    entry["global_config_path"] = str(gp) if gp else None
+                    entry["global_config_mtime"] = cached.global_mtime
+                    pp = cached.project_path
+                    entry["cached_project_path"] = str(pp) if pp else None
+                    entry["cached_project_mtime"] = cached.project_mtime
+                    entry["cache_last_accessed_seconds_ago"] = round(
+                        now_mono - cached.last_accessed, 1
+                    )
+
+                projects.append(entry)
+
+        return {
+            "projects": projects,
+            "total_tracked": len(projects),
+            "last_project_config_reload_at": self._last_project_config_reload_at,
+            "timestamp": now_unix,
+        }
+
     @staticmethod
     def _get_version():
         try:

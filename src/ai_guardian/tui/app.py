@@ -131,6 +131,7 @@ NAV_GROUPS = [
     ]),
     ("Configuration", [
         ("Remote Configs", "panel-remote-configs"),
+        ("Config Cache", "panel-cache-status"),
         ("Config File", "panel-config-file"),
         ("Config Editor", "panel-config-editor"),
         ("Console Settings", "panel-console-settings"),
@@ -690,6 +691,21 @@ HELP_DOCS = {
         "The daemon auto-starts on any CLI command and falls back\n"
         "to direct processing if it cannot start."
     ),
+    "panel-cache-status": (
+        "[bold]Config Cache Status[/bold]\n\n"
+        "Per-project config cache state tracked by the daemon.\n\n"
+        "[bold]For each project:[/bold]\n"
+        "  - Project directory (CWD)\n"
+        "  - Config file path and modification time\n"
+        "  - Global vs project override status\n"
+        "  - Last seen and cache access timestamps\n\n"
+        "[bold]Use case:[/bold]\n"
+        "  Debug cross-project config issues — verify which\n"
+        "  config files are loaded for each project and when\n"
+        "  they were last reloaded.\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Refresh cache status"
+    ),
     "panel-detection-patterns": (
         "[bold]Detection Patterns[/bold]\n\n"
         "Read-only view of ALL detection rules across TOML pattern files "
@@ -1187,6 +1203,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-remote-configs"):
                     from ai_guardian.tui.remote_configs import RemoteConfigsContent
                     yield RemoteConfigsContent()
+
+                with Container(id="panel-cache-status"):
+                    from ai_guardian.tui.cache_status import CacheStatusContent
+                    yield CacheStatusContent()
 
                 with Container(id="panel-config-file"):
                     from ai_guardian.tui.config_viewer import ConfigContent

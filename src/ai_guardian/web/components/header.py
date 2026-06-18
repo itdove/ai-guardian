@@ -46,6 +46,7 @@ NAV_GROUPS = [
     ]),
     ("Configuration", [
         ("Daemon", "/daemon"),
+        ("Config Cache", "/cache-status"),
         ("Remote Configs", "/remote-configs"),
         ("Config File", "/config-file"),
         ("Config Editor", "/config-editor"),

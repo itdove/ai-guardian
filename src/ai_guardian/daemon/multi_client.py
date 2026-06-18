@@ -358,6 +358,40 @@ class MultiDaemonClient:
             features["proactive_level"] = "low"
         return {"features": features}
 
+    def get_cache_status(self, target: DaemonTarget) -> Optional[dict]:
+        """Get per-project config cache status from a daemon."""
+        return self._rest_request(target, "GET", "/api/cache-status")
+
+    @staticmethod
+    def _local_cache_status() -> dict:
+        import time as _time
+        from ai_guardian.config_loaders import _caches
+        now = _time.monotonic()
+        projects = []
+        for cache_key, entry in sorted(_caches.items()):
+            gp = entry.global_path
+            pp = entry.project_path
+            projects.append({
+                "project_dir": cache_key if cache_key != "__global__" else None,
+                "config_path": str(pp) if pp else None,
+                "config_mtime": entry.project_mtime,
+                "last_seen_seconds_ago": round(now - entry.last_accessed, 1),
+                "has_project_override": pp is not None,
+                "global_config_path": str(gp) if gp else None,
+                "global_config_mtime": entry.global_mtime,
+                "cached_project_path": str(pp) if pp else None,
+                "cached_project_mtime": entry.project_mtime,
+                "cache_last_accessed_seconds_ago": round(
+                    now - entry.last_accessed, 1
+                ),
+            })
+        return {
+            "projects": projects,
+            "total_tracked": len(projects),
+            "last_project_config_reload_at": None,
+            "timestamp": _time.time(),
+        }
+
     def get_violations(
         self,
         target: DaemonTarget,

@@ -129,6 +129,15 @@ class DaemonService:
         except Exception:
             return None
 
+    def get_cache_status(
+        self,
+        target: DaemonTarget,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_cache_status(target)
+        except Exception:
+            return None
+
     def reload_daemon(self, target: DaemonTarget) -> bool:
         try:
             if target.runtime == "local":
