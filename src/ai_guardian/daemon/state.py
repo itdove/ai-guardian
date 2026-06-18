@@ -36,6 +36,9 @@ class DaemonState:
                  context_ttl=DEFAULT_CONTEXT_TTL, sessions_file=None):
         self._lock = threading.Lock()
 
+        # Source file mtime tracking for dev-mode auto-restart (#1223)
+        self._source_mtime = 0.0
+
         # Cross-hook correlation: "session_id:tool_use_id" -> PreToolUse data
         self._hook_contexts = {}
         self._context_ttl = context_ttl
@@ -724,6 +727,28 @@ class DaemonState:
             return __version__
         except ImportError:
             return "unknown"
+
+    @staticmethod
+    def get_package_max_mtime():
+        """Get max mtime of all .py files in the ai_guardian package directory."""
+        try:
+            import ai_guardian
+            pkg_dir = Path(ai_guardian.__file__).parent
+            max_mtime = 0.0
+            for py_file in pkg_dir.rglob("*.py"):
+                try:
+                    mtime = py_file.stat().st_mtime
+                    if mtime > max_mtime:
+                        max_mtime = mtime
+                except OSError:
+                    continue
+            return max_mtime
+        except Exception:
+            return 0.0
+
+    def record_source_mtime(self):
+        """Record current package source mtime at daemon startup."""
+        self._source_mtime = self.get_package_max_mtime()
 
     def get_config_error(self):
         """Get current config error message, if any."""
