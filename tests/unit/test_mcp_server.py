@@ -64,6 +64,110 @@ class TestCheckPath:
         assert result["status"] == "not_found"
 
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_default_operation_is_read(self, mock_checker_cls, tmp_path):
+        """Default operation should pass tool_name='Read' to checker."""
+        safe_file = tmp_path / "safe_file.py"
+        safe_file.write_text("print('hello')")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (True, None, "Read")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        tool.fn(path=str(safe_file))
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert hook_data["tool_name"] == "Read"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_operation_write(self, mock_checker_cls, tmp_path):
+        """operation='write' should pass tool_name='Write' to checker."""
+        f = tmp_path / "file.py"
+        f.write_text("")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (False, "Denied", "Write")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        result = tool.fn(path=str(f), operation="write")
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert hook_data["tool_name"] == "Write"
+        assert result["status"] == "denied"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_operation_edit(self, mock_checker_cls, tmp_path):
+        """operation='edit' should pass tool_name='Edit' to checker."""
+        f = tmp_path / "file.py"
+        f.write_text("")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (True, None, "Edit")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        result = tool.fn(path=str(f), operation="edit")
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert hook_data["tool_name"] == "Edit"
+        assert result["status"] == "allowed"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_invalid_operation_defaults_to_read(self, mock_checker_cls, tmp_path):
+        """Unknown operation should default to Read."""
+        f = tmp_path / "file.py"
+        f.write_text("")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (True, None, "Read")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        tool.fn(path=str(f), operation="delete")
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert hook_data["tool_name"] == "Read"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_write_denied_file_allowed_for_read(self, mock_checker_cls, tmp_path):
+        """File denied for Write should be allowed for Read if Read rules pass."""
+        f = tmp_path / "hooks.json"
+        f.write_text("{}")
+        mock_checker = MagicMock()
+
+        def check_side_effect(hook_data):
+            if hook_data["tool_name"] == "Read":
+                return (True, None, "Read")
+            return (False, "Denied for write", "Write")
+
+        mock_checker.check_tool_allowed.side_effect = check_side_effect
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+
+        read_result = tool.fn(path=str(f), operation="read")
+        assert read_result["status"] == "allowed"
+
+        write_result = tool.fn(path=str(f), operation="write")
+        assert write_result["status"] == "denied"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_read_denied_file_denied_for_read(self, mock_checker_cls, tmp_path):
+        """File denied for Read should return denied for read checks."""
+        f = tmp_path / "ai-guardian.json"
+        f.write_text("{}")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (False, "Config protected", "Read")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        result = tool.fn(path=str(f), operation="read")
+        assert result["status"] == "denied"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
     def test_no_rule_details_exposed(self, mock_checker_cls, tmp_path):
         """Response must not contain rule details, patterns, or paths."""
         secret_file = tmp_path / "secret.txt"
