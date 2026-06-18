@@ -1840,6 +1840,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_blocked_domains": [],
             "allow_localhost": False,
             "allowed_domains": [],
+            "_comment_allowed_domains": "Domain allow-list. Supports exact strings, subdomain matching, and regex patterns (e.g., '.*\\.example\\.com', 'localhost:19200')",
             "_comment_path_based_rules": "Path-based filtering for granular access control (NEW in v1.6.0) - Allow/block specific URL paths on domains",
             "path_based_rules": []
         },

@@ -1190,10 +1190,10 @@
         },
         "allowed_domains": {
           "type": "array",
-          "description": "Domain allow-list to override deny-list blocks (evaluated AFTER deny-list). Allows specific trusted domains while maintaining core protections. Core protections (metadata endpoints, dangerous schemes) cannot be overridden. Supports exact and subdomain matching.",
+          "description": "Domain allow-list to override deny-list blocks (evaluated AFTER deny-list). Allows specific trusted domains while maintaining core protections. Core protections (metadata endpoints, dangerous schemes) cannot be overridden. Supports exact matching, subdomain matching, and regex patterns. Entries containing regex metacharacters (\\, *, +, ?, [, ], (, ), {, }, |, ^, $, :) are treated as regex and matched with re.fullmatch() against hostname and hostname:port. Plain strings use exact/subdomain matching (backward compatible).",
           "items": {
             "type": "string",
-            "description": "Domain name to allow (e.g., 'api.corp.internal', 'dev.example.com')"
+            "description": "Domain name or regex pattern to allow (e.g., 'api.corp.internal', '.*\\.example\\.com', 'localhost:19200', 'localhost:\\d+')"
           },
           "default": []
         },

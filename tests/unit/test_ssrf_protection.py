@@ -710,6 +710,235 @@ class TestAllowedDomains:
         assert should_block
 
 
+class TestAllowedDomainsRegex:
+    """Test regex pattern support in allowed_domains (Issue #1134)."""
+
+    def test_regex_subdomain_wildcard(self):
+        """Regex '.*\\.example\\.com' matches subdomains of example.com."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.example.com"],
+            "allowed_domains": [".*\\.example\\.com"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.example.com/data"}
+        )
+        assert not should_block, "Regex subdomain pattern should allow api.example.com"
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://deep.sub.example.com"}
+        )
+        assert not should_block, "Regex should match multi-level subdomains"
+
+    def test_regex_specific_port(self):
+        """Regex 'localhost:19200' matches only that port."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["localhost"],
+            "allowed_domains": ["localhost:19200"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:19200/api"}
+        )
+        assert not should_block, "localhost:19200 should be allowed"
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:9999/api"}
+        )
+        assert should_block, "Other ports on localhost should remain blocked"
+
+    def test_regex_port_range(self):
+        """Regex 'localhost:\\d+' matches any port on localhost."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["localhost"],
+            "allowed_domains": ["localhost:\\d+"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:8080/health"}
+        )
+        assert not should_block, "Any port should match \\d+"
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:3000"}
+        )
+        assert not should_block
+
+    def test_regex_port_alternation(self):
+        """Regex 'localhost:(19200|8080)' matches specific ports."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["localhost"],
+            "allowed_domains": ["localhost:(19200|8080)"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:19200"}
+        )
+        assert not should_block
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:8080"}
+        )
+        assert not should_block
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:9999"}
+        )
+        assert should_block, "Non-matching port should remain blocked"
+
+    def test_regex_character_class(self):
+        """Regex 'cdn-[0-9]{2}\\.fastly\\.net' matches numbered CDN nodes."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.fastly.net"],
+            "allowed_domains": ["cdn-[0-9]{2}\\.fastly\\.net"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://cdn-01.fastly.net/asset.js"}
+        )
+        assert not should_block
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://cdn-99.fastly.net/asset.js"}
+        )
+        assert not should_block
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://cdn-abc.fastly.net/asset.js"}
+        )
+        assert should_block, "Non-numeric CDN node should remain blocked"
+
+    def test_regex_multi_level_wildcard(self):
+        """Regex 'api\\.internal\\..*\\.corp\\.net' matches multi-level domains."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.corp.net"],
+            "allowed_domains": ["api\\.internal\\..*\\.corp\\.net"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.internal.us.corp.net"}
+        )
+        assert not should_block
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://admin.internal.us.corp.net"}
+        )
+        assert should_block, "Different subdomain prefix should remain blocked"
+
+    def test_plain_strings_backward_compatible(self):
+        """Plain domain strings without regex metacharacters work as before."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["api.corp.internal"],
+            "allowed_domains": ["api.corp.internal"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.corp.internal/data"}
+        )
+        assert not should_block, "Exact match should still work"
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://sub.api.corp.internal/data"}
+        )
+        assert not should_block, "Subdomain match should still work"
+
+    def test_invalid_regex_warns_and_skips(self):
+        """Invalid regex patterns emit warning and are skipped, not crash."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["evil.com"],
+            "allowed_domains": ["[invalid regex", "api\\.good\\.com"]
+        })
+
+        # Should not crash during construction
+        assert len(protector._allowed_domain_regexes) == 1, "Valid regex should be kept"
+
+        # Valid regex should still work
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.good.com/data"}
+        )
+        assert not should_block
+
+    def test_regex_cannot_override_immutable_protections(self):
+        """Regex patterns CANNOT override immutable core protections."""
+        protector = SSRFProtector({
+            "allowed_domains": [
+                "metadata\\.google\\.internal",
+                "169\\.254\\.169\\.254",
+                ".*"
+            ]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://metadata.google.internal"}
+        )
+        assert should_block, "Core metadata cannot be overridden by regex"
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://169.254.169.254/latest"}
+        )
+        assert should_block, "AWS metadata cannot be overridden by regex"
+
+    def test_mixed_exact_and_regex(self):
+        """Config with both exact strings and regex patterns works correctly."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.internal.com", "localhost"],
+            "allowed_domains": [
+                "api.internal.com",
+                ".*\\.staging\\.internal\\.com",
+                "localhost:3000"
+            ]
+        })
+
+        # Exact match
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.internal.com"}
+        )
+        assert not should_block
+
+        # Regex match
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://app.staging.internal.com"}
+        )
+        assert not should_block
+
+        # Regex port match
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://localhost:3000/health"}
+        )
+        assert not should_block
+
+        # Not in any allow pattern
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://admin.internal.com"}
+        )
+        assert should_block
+
+    def test_regex_case_insensitive(self):
+        """Regex matching is case-insensitive."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["*.example.com"],
+            "allowed_domains": ["api\\.example\\.com"]
+        })
+
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://API.EXAMPLE.COM/data"}
+        )
+        assert not should_block, "Regex should match case-insensitively"
+
+    def test_regex_fullmatch_not_partial(self):
+        """Regex uses fullmatch, not partial search — prevents over-matching."""
+        protector = SSRFProtector({
+            "additional_blocked_domains": ["evil.example.com"],
+            "allowed_domains": ["example\\.com"]
+        })
+
+        # "example.com" regex should NOT match "evil.example.com" via fullmatch
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://evil.example.com"}
+        )
+        assert should_block, "fullmatch should not match partial domains"
+
+
 class TestConvenienceFunction:
     """Test the convenience function check_ssrf()."""
 
