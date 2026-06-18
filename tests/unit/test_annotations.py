@@ -407,3 +407,64 @@ class TestAnnotationsIntegration:
         assert info == []
         assert c_all == content
         assert c_secret == content
+
+
+class TestPostToolUseAnnotationReturn:
+    """Verify process_annotations return values are used correctly (#1237).
+
+    The PostToolUse path previously passed the content strings from
+    process_annotations to apply_suppressions (which expects Set[int]),
+    causing a TypeError.  This test verifies the correct usage pattern.
+    """
+
+    def test_return_values_are_strings_not_sets(self):
+        """process_annotations returns (str, str, list, list) — NOT sets."""
+        content = (
+            "# ai-guardian:begin-allow\n"
+            'KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+            "# ai-guardian:end-allow\n"
+            "clean\n"
+        )
+        c_all, c_secret, info, warnings = process_annotations(content)
+        assert isinstance(c_all, str)
+        assert isinstance(c_secret, str)
+        assert isinstance(info, list)
+        assert len(info) > 0
+
+    def test_suppressed_content_usable_directly(self):
+        """Returned content strings already have suppressed lines blanked."""
+        content = (
+            "# ai-guardian:begin-allow\n"
+            'KEY = "AKIAIOSFODNN7EXAMPLE"\n'
+            "# ai-guardian:end-allow\n"
+            "clean\n"
+        )
+        c_all, c_secret, info, _ = process_annotations(content)
+
+        all_lines = c_all.splitlines()
+        assert all_lines[0] == ""
+        assert all_lines[1] == ""
+        assert all_lines[2] == ""
+        assert all_lines[3] == "clean"
+
+        secret_lines = c_secret.splitlines()
+        assert secret_lines[0] == ""
+        assert secret_lines[1] == ""
+        assert secret_lines[2] == ""
+        assert secret_lines[3] == "clean"
+
+    def test_info_is_falsy_when_no_annotations(self):
+        """Third return value is [] (falsy) when no annotations found."""
+        content = "clean_line1\nclean_line2"
+        _, _, info, _ = process_annotations(content)
+        assert not info
+
+    def test_info_is_truthy_when_annotations_found(self):
+        """Third return value is non-empty (truthy) when annotations found."""
+        content = (
+            "# ai-guardian:begin-allow\n"
+            "secret\n"
+            "# ai-guardian:end-allow\n"
+        )
+        _, _, info, _ = process_annotations(content)
+        assert info
