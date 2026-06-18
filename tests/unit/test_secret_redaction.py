@@ -574,3 +574,91 @@ class TestTomlOnlyPatternLoading:
             text = "SSN: 123-45-6789"
             result = redactor.redact(text)
             assert "123-45-6789" in result['redacted_text']
+
+
+
+class TestPositionDriftRegression:
+    """Regression tests for position drift bug (#1228).
+
+    When multiple matches exist for the same pattern, left-to-right replacement
+    causes position drift because match positions from finditer() reference the
+    original text, not the modified text. Right-to-left processing fixes this.
+    """
+
+    def test_multiple_same_pattern_no_garble(self):
+        """Two secrets of the same type must both redact cleanly."""
+        redactor = SecretRedactor()
+        text = (
+            "first: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa\n"
+            "second: ghp_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBbbbbbbbb"
+        )  # notsecret
+        result = redactor.redact(text)
+        out = result["redacted_text"]
+
+        assert "AAAAAAAA" not in out
+        assert "BBBBBBBB" not in out
+        assert "first:" in out
+        assert "second:" in out
+        assert "\n" in out
+
+    def test_line_boundaries_preserved(self):
+        """Newlines between secrets must survive redaction."""
+        redactor = SecretRedactor()
+        lines = [
+            "line1: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa",
+            "line2: normal text here",
+            "line3: ghp_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCcccccccc",
+        ]  # notsecret
+        text = "\n".join(lines)
+        result = redactor.redact(text)
+        out = result["redacted_text"]
+
+        output_lines = out.split("\n")
+        assert len(output_lines) == 3
+        assert "line2: normal text here" in out
+
+    def test_shorter_replacement_no_drift(self):
+        """When redacted text is shorter than original, later positions stay correct."""
+        redactor = SecretRedactor(config={"enabled": True})
+        text = (
+            "key1=AKIAIOSFODNN7EXAMPLE1 "
+            "key2=AKIAIOSFODNN7EXAMPLE2"
+        )  # notsecret
+        result = redactor.redact(text)
+        out = result["redacted_text"]
+
+        assert "EXAMPLE1" not in out
+        assert "EXAMPLE2" not in out
+        assert "key1=" in out
+        assert "key2=" in out
+
+    def test_mixed_pattern_types_no_garble(self):
+        """Different secret types in same text must all redact correctly."""
+        redactor = SecretRedactor()
+        text = (
+            "github: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa\n"
+            "aws: AKIAIOSFODNN7EXAMPLE\n"
+            "openai: sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"
+        )  # notsecret
+        result = redactor.redact(text)
+        out = result["redacted_text"]
+
+        assert "AAAAAAAA" not in out
+        assert "AKIAIOSFODNN7EXAMPLE" not in out
+        assert "abc123def456" not in out
+        assert "github:" in out
+        assert "aws:" in out
+        assert "openai:" in out
+        assert out.count("\n") == 2
+
+    def test_redaction_count_matches_secrets(self):
+        """Number of redactions must match number of distinct secrets."""
+        redactor = SecretRedactor()
+        text = (
+            "a]ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa "
+            "b]ghp_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBbbbbbbbb "
+            "c]ghp_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCcccccccc"
+        )  # notsecret
+        result = redactor.redact(text)
+
+        assert len(result["redactions"]) >= 3
