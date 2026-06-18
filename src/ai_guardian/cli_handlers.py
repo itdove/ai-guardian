@@ -913,6 +913,8 @@ def _handle_prompt_ask(args):
         matched_pattern=violation_data.get("matched_pattern", ""),
         file_path=violation_data.get("file_path"),
         line_number=violation_data.get("line_number"),
+        project_path=violation_data.get("project_path"),
+        session_id=violation_data.get("session_id"),
     )
 
     fallback = getattr(args, "fallback", "block")

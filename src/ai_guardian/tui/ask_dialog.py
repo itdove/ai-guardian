@@ -50,6 +50,8 @@ class AskViolationInfo:
     matched_pattern: str = ""
     file_path: Optional[str] = None
     line_number: Optional[int] = None
+    project_path: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 @dataclass
@@ -63,6 +65,30 @@ class AskResult:
     ignore_path: Optional[str] = None
     ignore_scanner_types: Optional[List[str]] = None
     config_path: Optional[str] = None
+
+
+def build_dialog_title(violation_info: AskViolationInfo) -> str:
+    """Build dialog title with project/session context for multi-session identification."""
+    from pathlib import Path
+    parts = ["ai-guardian: Violation Detected"]
+    if violation_info.project_path:
+        parts.append(f"— {Path(violation_info.project_path).name}")
+    if violation_info.session_id:
+        parts.append(f"[{violation_info.session_id[:8]}]")
+    return " ".join(parts)
+
+
+def build_sub_dialog_title(base_title: str, violation_info: AskViolationInfo) -> str:
+    """Build sub-dialog title with project/session context prefix."""
+    from pathlib import Path
+    prefix_parts = []
+    if violation_info.project_path:
+        prefix_parts.append(Path(violation_info.project_path).name)
+    if violation_info.session_id:
+        prefix_parts.append(f"[{violation_info.session_id[:8]}]")
+    if prefix_parts:
+        return f"{' '.join(prefix_parts)} — {base_title}"
+    return base_title
 
 
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
@@ -183,6 +209,8 @@ def _show_via_daemon(
             "matched_pattern": violation.matched_pattern,
             "file_path": violation.file_path,
             "line_number": violation.line_number,
+            "project_path": violation.project_path,
+            "session_id": violation.session_id,
         },
         "fallback": fallback_action,
         "timeout": timeout_seconds,
@@ -245,6 +273,8 @@ def _show_via_subprocess(
         "matched_pattern": violation.matched_pattern,
         "file_path": violation.file_path,
         "line_number": violation.line_number,
+        "project_path": violation.project_path,
+        "session_id": violation.session_id,
     })
 
     tmpdir = tempfile.mkdtemp(prefix="ai-guardian-ask-")

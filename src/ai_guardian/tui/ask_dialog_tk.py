@@ -13,6 +13,8 @@ from ai_guardian.tui.ask_dialog import (
     AskResult,
     _write_config_text,
     _write_aiguardignore_text,
+    build_dialog_title,
+    build_sub_dialog_title,
 )
 from ai_guardian.tui.display import _ensure_tcl_library
 
@@ -40,7 +42,7 @@ class _TkinterAskDialog:
             except Exception:
                 pass
 
-        root.title("ai-guardian: Violation Detected")
+        root.title(build_dialog_title(self._violation))
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", lambda: self._on_decision(root, AskDecision.BLOCK))
         root.bind("<Escape>", lambda e: self._on_decision(root, AskDecision.BLOCK))
@@ -147,7 +149,7 @@ class _TkinterAskDialog:
         )
 
         editor = tk.Toplevel(root)
-        editor.title("Config Editor — ai-guardian.json")
+        editor.title(build_sub_dialog_title("Config Editor — ai-guardian.json", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x500")
         editor.attributes("-topmost", True)
@@ -265,7 +267,7 @@ class _TkinterAskDialog:
 
         root.withdraw()
         editor = tk.Toplevel(root)
-        editor.title("Allow Always — Edit Pattern")
+        editor.title(build_sub_dialog_title("Allow Always — Edit Pattern", self._violation))
         editor.resizable(False, False)
         editor.attributes("-topmost", True)
         editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
@@ -363,7 +365,7 @@ class _TkinterAskDialog:
         root.withdraw()
         editor = tk.Toplevel(root)
         ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
-        editor.title(f"Suppress in Source — {ann_label}")
+        editor.title(build_sub_dialog_title(f"Suppress in Source — {ann_label}", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x500")
         editor.attributes("-topmost", True)
@@ -449,7 +451,7 @@ class _TkinterAskDialog:
 
         root.withdraw()
         editor = tk.Toplevel(root)
-        editor.title("Ignore File — .aiguardignore.toml")
+        editor.title(build_sub_dialog_title("Ignore File — .aiguardignore.toml", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x550")
         editor.attributes("-topmost", True)
@@ -560,7 +562,7 @@ class _TkinterAskDialog:
         toml_text, line_number = generate_aiguardignore_preview(path, scanner_types)
 
         editor = tk.Toplevel(root)
-        editor.title("Config Editor — .aiguardignore.toml")
+        editor.title(build_sub_dialog_title("Config Editor — .aiguardignore.toml", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x500")
         editor.attributes("-topmost", True)

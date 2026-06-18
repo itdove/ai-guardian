@@ -1956,7 +1956,7 @@ def _build_permission_matched_text(tool_name, tool_input, tool_identifier):
 
 def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
                      file_path=None, line_number=None, matched_pattern="",
-                     latency_timer=None):
+                     latency_timer=None, hook_context=None):
     """Handle 'ask' action mode by showing an interactive dialog.
 
     Returns an AskResult if action is 'ask', or None if action is not 'ask'.
@@ -2013,6 +2013,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                     summary_lines.append(f"{prefix} {m.group(1).strip()}")
         summary = " | ".join(summary_lines) if summary_lines else (error_msg[:200] if error_msg else str(violation_type))
 
+        hctx = hook_context or {}
         violation_info = AskViolationInfo(
             violation_type=violation_type,
             summary=summary,
@@ -2022,6 +2023,8 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
             matched_pattern=matched_pattern,
             file_path=file_path,
             line_number=display_line,
+            project_path=hctx.get("project_path") or os.getcwd(),
+            session_id=hctx.get("session_id"),
         )
 
         _dialog_t0 = time.perf_counter()
@@ -3930,6 +3933,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     error_msg=error_message,
                     file_path=file_path if 'file_path' in dir() else None,
                     latency_timer=_latency_timer,
+                    hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                 )
                 logging.debug(f"[ASK-DEBUG] ask_result={ask_result}")
                 if ask_result is not None:
@@ -4143,6 +4147,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=pii_file_path,
                             line_number=pii_line_number,
                             latency_timer=_latency_timer,
+                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )
                         if pii_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4257,6 +4262,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 error_msg=error_message,
                                 matched_pattern=getattr(policy_checker, 'last_deny_matched_pattern', '') or '',
                                 latency_timer=_latency_timer,
+                                hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                             )
                             if perm_ask_result is not None:
                                 from ai_guardian.tui.ask_dialog import AskDecision
@@ -4401,6 +4407,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         error_msg=deny_reason,
                         file_path=file_path,
                         latency_timer=_latency_timer,
+                        hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                     )
                     if dir_ask_result is not None:
                         from ai_guardian.tui.ask_dialog import AskDecision
@@ -4693,6 +4700,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=detector.last_line_number,
                             matched_pattern=detector.last_matched_pattern or "",
                             latency_timer=_latency_timer,
+                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )
                         if pi_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4784,6 +4792,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=cp_detector.last_line_number,
                             matched_pattern=cp_detector.last_matched_pattern or "",
                             latency_timer=_latency_timer,
+                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )
                         if cp_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4863,6 +4872,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=sc_scanner.last_line_number,
                             matched_pattern=sc_scanner.last_matched_pattern or "",
                             latency_timer=_latency_timer,
+                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )
                         if sc_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4926,6 +4936,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=file_path,
                             matched_pattern=cfs_matched_pattern,
                             latency_timer=_latency_timer,
+                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )
                         if cfs_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -5050,6 +5061,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     error_msg=error_message,
                     file_path=file_path,
                     latency_timer=_latency_timer,
+                    hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                 )
                 if ask_result_pre is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
@@ -5129,6 +5141,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             latency_timer=_latency_timer,
+                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )
                         if pii_ask_result2 is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
