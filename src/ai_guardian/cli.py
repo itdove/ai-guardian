@@ -442,8 +442,13 @@ def main():
         scan_parser.add_argument(
             "path",
             nargs="?",
-            default=".",
-            help="Path to scan (file or directory, default: current directory)"
+            default=None,
+            help="Path to scan (file or directory, default: current directory). Use '--' to read from stdin."
+        )
+        scan_parser.add_argument(
+            "--text",
+            metavar="STRING",
+            help="Scan inline text string for security issues"
         )
         scan_parser.add_argument(
             "--config",
