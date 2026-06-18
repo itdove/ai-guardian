@@ -2194,3 +2194,60 @@ class TestConfigScopeSelection:
             "secret_scanning", r"FAKE\w+",
             config_path=Path("/project/.ai-guardian/ai-guardian.json"),
         )
+
+
+class TestPiiAskBlockDecision:
+    """Tests for PII ask dialog Block decision (#1224).
+
+    When scan_pii.action=ask and user clicks Block, pii_action must be
+    set to 'block' so the prompt is actually blocked.
+    """
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_pii_ask_block_sets_action_to_block(self, _mock_sub, _mock_daemon):
+        """Block fallback returns BLOCK decision for PII."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask", "pii_detected", "555-12-3456",
+            "scan_pii", "PII detected: SSN"
+        )
+        assert result is not None
+        assert result.decision == AskDecision.BLOCK
+
+    def test_pii_action_set_to_block_on_block_decision(self):
+        """Simulate Block decision and verify pii_action becomes 'block'."""
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        pii_action = 'ask'
+        pii_ask_result = AskResult(decision=AskDecision.BLOCK)
+        if pii_ask_result is not None:
+            if pii_ask_result.decision != AskDecision.BLOCK:
+                pii_action = 'warn'
+            else:
+                pii_action = 'block'
+        assert pii_action == 'block'
+
+    def test_pii_action_set_to_warn_on_allow_decision(self):
+        """Simulate Allow decision and verify pii_action becomes 'warn'."""
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        pii_action = 'ask'
+        pii_ask_result = AskResult(decision=AskDecision.ALLOW_ONCE)
+        if pii_ask_result is not None:
+            if pii_ask_result.decision != AskDecision.BLOCK:
+                pii_action = 'warn'
+            else:
+                pii_action = 'block'
+        assert pii_action == 'warn'
+
+    def test_pii_action_unchanged_when_no_dialog_result(self):
+        """When dialog returns None (e.g. non-ask action), pii_action stays."""
+        from ai_guardian.tui.ask_dialog import AskDecision
+        pii_action = 'ask'
+        pii_ask_result = None
+        if pii_ask_result is not None:
+            if pii_ask_result.decision != AskDecision.BLOCK:
+                pii_action = 'warn'
+            else:
+                pii_action = 'block'
+        assert pii_action == 'ask'

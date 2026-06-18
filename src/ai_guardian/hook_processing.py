@@ -4135,6 +4135,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                                   file_path=pii_file_path,
                                                   line_number=pii_line_number,
                                                   dialog_wait_ms=pii_ask_result.dialog_wait_ms)
+                            else:
+                                pii_action = 'block'
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -5112,6 +5114,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if pii_ask_result2.decision != AskDecision.BLOCK:
                                 pii_action = 'warn'
+                            else:
+                                pii_action = 'block'
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
