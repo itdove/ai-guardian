@@ -593,3 +593,201 @@ def _compute_provenance_recursive(
             else:
                 result[key] = "global"
     return result
+
+
+# ---------------------------------------------------------------------------
+# Detailed provenance with per-list-item source
+# ---------------------------------------------------------------------------
+
+
+def compute_detailed_provenance(
+    project_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Compute per-key provenance with per-list-item source info.
+
+    Like ``compute_provenance`` but list values return a list of
+    ``{"value": item, "source": "global"|"project"}`` dicts instead of
+    the string ``"merged"``.
+    """
+    global_cfg = _load_json_file(_resolve_config_path("global"))
+    project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
+
+    if not project_cfg:
+        return _mark_all_provenance_detailed(global_cfg, "global")
+
+    from ai_guardian.config_utils import deep_merge
+    merged = deep_merge(global_cfg, project_cfg)
+    return _compute_detailed_recursive(global_cfg, project_cfg, merged)
+
+
+def _mark_all_provenance_detailed(config: dict, source: str) -> dict:
+    """Mark all keys with source; lists get per-item annotation."""
+    result: Dict[str, Any] = {}
+    for key, value in config.items():
+        if key.startswith("_"):
+            continue
+        if isinstance(value, dict):
+            result[key] = _mark_all_provenance_detailed(value, source)
+        elif isinstance(value, list):
+            result[key] = [{"value": item, "source": source} for item in value]
+        else:
+            result[key] = source
+    return result
+
+
+def _compute_detailed_recursive(
+    global_cfg: dict,
+    project_cfg: dict,
+    merged: dict,
+) -> Dict[str, Any]:
+    """Recursively compute detailed provenance for merged config."""
+    result: Dict[str, Any] = {}
+    for key in merged:
+        if key.startswith("_"):
+            continue
+        in_global = key in global_cfg
+        in_project = key in project_cfg
+        m_val = merged[key]
+
+        if in_project and in_global:
+            g_val = global_cfg[key]
+            p_val = project_cfg[key]
+            if isinstance(m_val, dict) and isinstance(g_val, dict) and isinstance(p_val, dict):
+                result[key] = _compute_detailed_recursive(g_val, p_val, m_val)
+            elif isinstance(m_val, list):
+                g_list = g_val if isinstance(g_val, list) else []
+                p_list = p_val if isinstance(p_val, list) else []
+                g_set = set(str(i) for i in g_list)
+                items = []
+                for item in m_val:
+                    src = "global" if str(item) in g_set else "project"
+                    items.append({"value": item, "source": src})
+                result[key] = items
+            else:
+                result[key] = "project"
+        elif in_project:
+            if isinstance(m_val, dict):
+                result[key] = _mark_all_provenance_detailed(m_val, "project")
+            elif isinstance(m_val, list):
+                result[key] = [{"value": item, "source": "project"} for item in m_val]
+            else:
+                result[key] = "project"
+        else:
+            if isinstance(m_val, dict):
+                result[key] = _mark_all_provenance_detailed(m_val, "global")
+            elif isinstance(m_val, list):
+                result[key] = [{"value": item, "source": "global"} for item in m_val]
+            else:
+                result[key] = "global"
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Text formatters for effective config display
+# ---------------------------------------------------------------------------
+
+_PROVENANCE_LABELS = {
+    "global": "Global",
+    "project": "Project override",
+}
+
+
+def format_provenance_text(
+    config: dict,
+    provenance: dict,
+    indent: int = 0,
+) -> str:
+    """Render config with per-key provenance annotations.
+
+    Returns a plain-text tree like::
+
+        secret_scanning:
+          enabled:            true                    (Global)
+          action:             ask                     (Project override)
+          allowlist_patterns:
+            - .*test.*\\.py                           (Global)
+            - YOUR_TOKEN                              (Project override)
+    """
+    lines: list = []
+    prefix = "  " * indent
+
+    for key in sorted(config.keys()):
+        if key.startswith("_"):
+            continue
+        value = config[key]
+        prov = provenance.get(key)
+
+        if isinstance(value, dict):
+            lines.append(f"{prefix}{key}:")
+            if isinstance(prov, dict):
+                lines.append(format_provenance_text(value, prov, indent + 1))
+            else:
+                label = _PROVENANCE_LABELS.get(prov, prov or "")
+                for sub_key in sorted(value.keys()):
+                    if sub_key.startswith("_"):
+                        continue
+                    sub_val = _format_scalar(value[sub_key])
+                    lines.append(f"{prefix}  {sub_key}: {sub_val:<30s} ({label})")
+        elif isinstance(value, list):
+            lines.append(f"{prefix}{key}:")
+            if isinstance(prov, list):
+                for entry in prov:
+                    item_val = entry.get("value", "")
+                    item_src = entry.get("source", "")
+                    label = _PROVENANCE_LABELS.get(item_src, item_src)
+                    lines.append(f"{prefix}  - {_format_scalar(item_val):<28s} ({label})")
+            else:
+                label = _PROVENANCE_LABELS.get(prov, prov or "")
+                for item in value:
+                    lines.append(f"{prefix}  - {_format_scalar(item):<28s} ({label})")
+        else:
+            label = _PROVENANCE_LABELS.get(prov, prov or "")
+            lines.append(f"{prefix}{key}: {_format_scalar(value):<30s} ({label})")
+
+    return "\n".join(lines)
+
+
+def format_diff_text(
+    project_cfg: dict,
+    provenance: dict,
+    indent: int = 0,
+) -> str:
+    """Render only project overrides (diff from global).
+
+    Shows keys where provenance is "project" or list items sourced from project.
+    """
+    lines: list = []
+    prefix = "  " * indent
+
+    for key in sorted(project_cfg.keys()):
+        if key.startswith("_"):
+            continue
+        value = project_cfg[key]
+        prov = provenance.get(key)
+
+        if isinstance(value, dict) and isinstance(prov, dict):
+            child_text = format_diff_text(value, prov, indent + 1)
+            if child_text.strip():
+                lines.append(f"{prefix}{key}:")
+                lines.append(child_text)
+        elif isinstance(value, list) and isinstance(prov, list):
+            project_items = [e for e in prov if e.get("source") == "project"]
+            if project_items:
+                lines.append(f"{prefix}{key}:")
+                for entry in project_items:
+                    lines.append(f"{prefix}  - {_format_scalar(entry['value'])}")
+        elif prov == "project":
+            lines.append(f"{prefix}{key}: {_format_scalar(value)}")
+
+    return "\n".join(lines)
+
+
+def _format_scalar(value) -> str:
+    """Format a scalar config value for display."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, list):
+        return json.dumps(value)
+    if value is None:
+        return "null"
+    return str(value)
