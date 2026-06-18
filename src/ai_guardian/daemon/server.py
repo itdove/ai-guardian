@@ -72,6 +72,9 @@ class DaemonServer:
         self._server_socket = self._setup_socket()
         self._running = True
 
+        # Record source file mtime for dev-mode auto-restart (#1223)
+        self.state.record_source_mtime()
+
         if self._enable_rest_api:
             self._start_rest_api()
 
@@ -433,6 +436,8 @@ class DaemonServer:
             pid_info["rest_port"] = self._rest_port
         if hasattr(self, '_name') and self._name:
             pid_info["name"] = self._name
+        if self.state._source_mtime:
+            pid_info["source_mtime"] = self.state._source_mtime
         pid_path.write_text(json.dumps(pid_info))
         os.chmod(str(pid_path), 0o600)
 

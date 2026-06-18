@@ -17,6 +17,7 @@ _skip_no_unix_socket = pytest.mark.skipif(
 )
 
 from ai_guardian.daemon.client import (
+    _check_dev_source_restart,
     get_pid_path,
     get_socket_path,
     is_daemon_running,
@@ -352,3 +353,95 @@ class TestStartDaemonBackgroundNoClientCleanup:
                 "subprocess.Popen", side_effect=OSError("not found")
             ):
                 start_daemon_background()
+
+
+class TestDevSourceRestart:
+    """Tests for dev-mode auto-restart on source change (#1223)."""
+
+    def test_skips_when_not_dev_version(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        with mock.patch("ai_guardian.__version__", "1.12.0"):
+            assert _check_dev_source_restart() is False
+
+    def test_skips_when_no_pid_file(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            assert _check_dev_source_restart() is False
+
+    def test_skips_when_no_source_mtime_in_pid(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid()}))
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            assert _check_dev_source_restart() is False
+
+    def test_skips_when_mtime_unchanged(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({
+            "pid": os.getpid(), "source_mtime": 99999999999.0,
+        }))
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=99999999999.0,
+            ):
+                assert _check_dev_source_restart() is False
+
+    def test_restarts_when_source_changed(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({
+            "pid": os.getpid(), "source_mtime": 1000.0,
+        }))
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.client.send_shutdown", return_value=True,
+                ):
+                    with mock.patch(
+                        "ai_guardian.daemon.client.is_daemon_running",
+                        return_value=False,
+                    ):
+                        with mock.patch(
+                            "ai_guardian.daemon.client.start_daemon_background",
+                            return_value=True,
+                        ) as mock_start:
+                            result = _check_dev_source_restart()
+                            assert result is True
+                            mock_start.assert_called_once()
+
+    def test_production_version_unaffected(self, tmp_path, monkeypatch):
+        """Production versions never trigger auto-restart."""
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({
+            "pid": os.getpid(), "source_mtime": 1000.0,
+        }))
+        for version in ["1.12.0", "2.0.0", "1.12.0rc1"]:
+            with mock.patch("ai_guardian.__version__", version):
+                assert _check_dev_source_restart() is False
+
+
+class TestGetPackageMaxMtime:
+    """Tests for DaemonState.get_package_max_mtime()."""
+
+    def test_returns_positive_mtime(self):
+        from ai_guardian.daemon.state import DaemonState
+        mtime = DaemonState.get_package_max_mtime()
+        assert mtime > 0.0
+
+    def test_returns_float(self):
+        from ai_guardian.daemon.state import DaemonState
+        mtime = DaemonState.get_package_max_mtime()
+        assert isinstance(mtime, float)
+
+    def test_record_source_mtime(self):
+        from ai_guardian.daemon.state import DaemonState
+        state = DaemonState(idle_timeout=0)
+        assert state._source_mtime == 0.0
+        state.record_source_mtime()
+        assert state._source_mtime > 0.0

@@ -73,6 +73,9 @@ def is_daemon_running():
 def send_hook_request(hook_data, timeout=2.0):
     """Send hook data to daemon and get response.
 
+    Checks for source file changes in dev mode and auto-restarts
+    the daemon if needed (#1223).
+
     Args:
         hook_data: Parsed JSON hook data from IDE
         timeout: Connection + response timeout in seconds
@@ -80,6 +83,9 @@ def send_hook_request(hook_data, timeout=2.0):
     Returns:
         dict or None: Response with 'output' and 'exit_code', or None on failure
     """
+    if _check_dev_source_restart():
+        pass  # daemon restarted, fall through to send request
+
     try:
         sock = _connect(timeout)
         if sock is None:
@@ -364,6 +370,50 @@ def start_daemon_background():
 
     except Exception as e:
         logger.debug(f"Failed to start daemon: {e}")
+        return False
+
+
+def _check_dev_source_restart():
+    """Check if source files changed in dev mode and restart daemon if needed.
+
+    Only triggers when version ends with '-dev'. Compares current max mtime
+    of .py files in the ai_guardian package against the mtime recorded at
+    daemon startup (stored in PID file).
+
+    Returns:
+        bool: True if daemon was restarted
+    """
+    try:
+        from ai_guardian import __version__
+        if not __version__.endswith("-dev"):
+            return False
+
+        pid_path = get_pid_path()
+        if not pid_path.exists():
+            return False
+
+        pid_info = json.loads(pid_path.read_text())
+        startup_mtime = pid_info.get("source_mtime", 0.0)
+        if not startup_mtime:
+            return False
+
+        from ai_guardian.daemon.state import DaemonState
+        current_mtime = DaemonState.get_package_max_mtime()
+        if current_mtime <= startup_mtime:
+            return False
+
+        logger.info("Dev mode: source files changed, restarting daemon")
+        send_shutdown(timeout=2.0)
+
+        for _ in range(30):
+            time.sleep(0.1)
+            if not is_daemon_running():
+                break
+
+        return start_daemon_background()
+
+    except Exception as e:
+        logger.debug(f"Dev source restart check failed: {e}")
         return False
 
 
