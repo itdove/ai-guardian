@@ -8,7 +8,7 @@ SSRF, and config exfiltration.
 
 import json
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -771,3 +771,113 @@ class MCPCombinedProtectionTests(TestCase):
 
         # Both protections should trigger - defense in depth
         assert has_secrets and is_injection, "Multiple protections should trigger"
+
+
+class MCPServerToolInputFormatTests(TestCase):
+    """Test that MCP server tools pass correct hook_data format to ToolPolicyChecker.
+
+    Regression tests for issue #1264: MCP check_path/check_command passed
+    'parameters' key but _extract_tool_info expected 'tool_input'.
+    """
+
+    def test_check_path_allowed_for_non_protected_path(self):
+        """check_path returns allowed for paths not matched by directory rules."""
+        import sys
+        import tempfile
+        if sys.version_info < (3, 10):
+            pytest.skip("MCP SDK requires Python >= 3.10")
+
+        from ai_guardian.mcp_server import create_server
+
+        with tempfile.NamedTemporaryFile(suffix=".py") as f:
+            f.write(b"x = 1")
+            f.flush()
+            server = create_server()
+            tool = server._tool_manager._tools["check_path"]
+            result = tool.fn(path=f.name)
+            assert result["status"] == "allowed", (
+                f"Non-protected path should be allowed, got: {result}"
+            )
+
+    def test_check_path_denied_for_protected_path(self):
+        """check_path returns denied for paths matching directory deny rules."""
+        import sys
+        import tempfile
+        import os
+        if sys.version_info < (3, 10):
+            pytest.skip("MCP SDK requires Python >= 3.10")
+
+        from ai_guardian.mcp_server import create_server
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            protected_dir = os.path.join(tmpdir, "secrets")
+            os.makedirs(protected_dir)
+            deny_marker = os.path.join(protected_dir, ".ai-read-deny")
+            open(deny_marker, "w").close()
+            target = os.path.join(protected_dir, "creds.txt")
+            with open(target, "w") as f:
+                f.write("secret data")
+
+            config = {
+                "directory_rules": {
+                    "enabled": True,
+                    "rules": [{"path": protected_dir + "/**", "action": "deny"}],
+                }
+            }
+            with patch("ai_guardian.tool_policy.ToolPolicyChecker") as mock_cls:
+                mock_checker = MagicMock()
+                mock_checker.check_tool_allowed.return_value = (False, "Denied", "Write")
+                mock_cls.return_value = mock_checker
+
+                server = create_server()
+                tool = server._tool_manager._tools["check_path"]
+                result = tool.fn(path=target)
+                assert result["status"] == "denied"
+
+                hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+                assert "tool_input" in hook_data
+                assert "file_path" in hook_data["tool_input"]
+
+    def test_check_command_blocked_for_secret_pattern(self):
+        """check_command returns blocked when command contains secret patterns."""
+        import sys
+        if sys.version_info < (3, 10):
+            pytest.skip("MCP SDK requires Python >= 3.10")
+
+        from ai_guardian.mcp_server import create_server
+
+        config = {
+            "secret_scanning": {"enabled": True},
+        }
+
+        with patch("ai_guardian.tool_policy.ToolPolicyChecker") as mock_cls:
+            mock_checker = MagicMock()
+            mock_checker.check_tool_allowed.return_value = (
+                False, "Secret detected in command", "Bash"
+            )
+            mock_cls.return_value = mock_checker
+
+            server = create_server()
+            tool = server._tool_manager._tools["check_command"]
+            result = tool.fn(command="curl -H 'Authorization: Bearer sk_live_abc123def456'")
+            assert result["status"] == "blocked"
+            assert result["reason"] == "secret_detected"
+
+            hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+            assert "tool_input" in hook_data
+            assert hook_data["tool_input"]["command"] == "curl -H 'Authorization: Bearer sk_live_abc123def456'"
+
+    def test_check_command_allowed_for_safe_command(self):
+        """check_command returns allowed for safe commands."""
+        import sys
+        if sys.version_info < (3, 10):
+            pytest.skip("MCP SDK requires Python >= 3.10")
+
+        from ai_guardian.mcp_server import create_server
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_command"]
+        result = tool.fn(command="ls -la")
+        assert result["status"] == "allowed", (
+            f"Safe command should be allowed, got: {result}"
+        )
