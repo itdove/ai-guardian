@@ -319,18 +319,17 @@ class SecretRedactor:
         for compiled_pattern, strategy, secret_type in self.compiled_patterns:
             matches = list(compiled_pattern.finditer(redacted_text))
 
+            # Phase 1: Collect valid replacements without modifying text
+            pending = []
             for match in matches:
                 start, end = match.span()
 
-                # Skip if this region was already redacted
                 if any(r_start <= start < r_end or r_start < end <= r_end
                        for r_start, r_end in redacted_regions):
                     continue
 
-                # Apply redaction strategy
                 original = match.group(0)
 
-                # Skip if match is allowlisted (Issue #357)
                 if self._compiled_pii_allowlist and allowlist_utils.check_allowlist(
                     original, self._compiled_pii_allowlist
                 ):
@@ -339,28 +338,25 @@ class SecretRedactor:
 
                 redacted, metadata = self._apply_strategy(match, strategy, secret_type)
 
-                # Skip if strategy returned None (e.g., failed Luhn/IBAN validation)
                 if redacted is None:
                     continue
 
-                # Replace in text
+                pending.append((start, end, original, redacted, metadata))
+
+            # Phase 2: Apply right-to-left to avoid position drift
+            for start, end, original, redacted, metadata in sorted(
+                pending, key=lambda x: x[0], reverse=True
+            ):
                 redacted_text = redacted_text[:start] + redacted + redacted_text[end:]
 
-                # Track redacted region (adjust for length change)
-                length_diff = len(redacted) - len(original)
-                new_region = (start, start + len(redacted))
+                length_diff = len(redacted) - (end - start)
+                if length_diff != 0:
+                    redacted_regions = [
+                        (s + length_diff if s > start else s,
+                         e + length_diff if e > start else e)
+                        for s, e in redacted_regions
+                    ]
 
-                # Adjust future regions for length change (BEFORE adding new region)
-                redacted_regions = [
-                    (s + length_diff if s > start else s,
-                     e + length_diff if e > start else e)
-                    for s, e in redacted_regions
-                ]
-
-                # Now append the new region (after adjustment to avoid self-corruption)
-                redacted_regions.append(new_region)
-
-                # Record redaction
                 line_start = text.rfind('\n', 0, start) + 1
                 redactions.append({
                     'type': secret_type,
@@ -375,6 +371,16 @@ class SecretRedactor:
 
                 if self.log_redactions:
                     logging.info(f"Redacted {secret_type} at position {start} using {strategy}")
+
+            # Phase 3: Update redacted_regions with adjusted positions
+            cumulative_offset = 0
+            for start, end, original, redacted, _metadata in sorted(
+                pending, key=lambda x: x[0]
+            ):
+                adjusted_start = start + cumulative_offset
+                adjusted_end = adjusted_start + len(redacted)
+                redacted_regions.append((adjusted_start, adjusted_end))
+                cumulative_offset += len(redacted) - (end - start)
 
         return {
             'redacted_text': redacted_text,
