@@ -1819,6 +1819,17 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
 
         if violation_logger is None:
             violation_logger = ViolationLogger()
+        if details.get("end_line") and details["end_line"] != details.get("line_number"):
+            line_num = details.get("line_number")
+            end_line = details["end_line"]
+            false_positive_msg = (
+                f"Add '# ai-guardian:allow' at the end of line {line_num}, "
+                f"or wrap lines {line_num}-{end_line} with "
+                f"ai-guardian:begin-allow / ai-guardian:end-allow"
+            )
+        else:
+            false_positive_msg = "Add '# gitleaks:allow' or '# ai-guardian:allow' at the end of the line"
+
         violation_logger.log_violation(
             violation_type=ViolationType.SECRET_DETECTED,
             blocked=blocked_info,
@@ -1826,7 +1837,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
             suggestion={
                 "action": "review_and_remove_secret",
                 "warning": "Secrets should never be committed to code or shared with AI",
-                "false_positive": "Add '# gitleaks:allow' or '# ai-guardian:allow' at the end of the line",
+                "false_positive": false_positive_msg,
             },
             severity="critical"
         )
@@ -1883,13 +1894,24 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
 
         if violation_logger is None:
             violation_logger = ViolationLogger()
+        if details.get("end_line") and details["end_line"] != details.get("line_number"):
+            line_num = details.get("line_number")
+            end_line = details["end_line"]
+            false_positive_msg = (
+                f"Add '# ai-guardian:allow' at the end of line {line_num}, "
+                f"or wrap lines {line_num}-{end_line} with "
+                f"ai-guardian:begin-allow / ai-guardian:end-allow"
+            )
+        else:
+            false_positive_msg = "Add '# ai-guardian:allow' at the end of the line"
+
         violation_logger.log_violation(
             violation_type=vtype,
             blocked=blocked_info,
             context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "review_finding",
-                "false_positive": "Add '# ai-guardian:allow' at the end of the line",
+                "false_positive": false_positive_msg,
             },
             severity=severity
         )

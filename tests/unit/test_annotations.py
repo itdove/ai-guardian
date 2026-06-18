@@ -38,10 +38,10 @@ class TestGetSuppressedLines:
         content = 'ssn = "123-45-6789"  # ai-guardian:allow\nother_line'
         all_sup, _, info, _ = get_suppressed_lines(content)
         assert 0 in all_sup
-        assert 1 not in all_sup
+        assert 1 in all_sup  # next line also suppressed for multi-line findings
         assert len(info) == 1
         assert info[0]["type"] == "inline"
-        assert info[0]["lines"] == [1]
+        assert info[0]["lines"] == [1, 2]
 
     def test_inline_js_comment(self):
         content = 'key = "secret"  // ai-guardian:allow'
@@ -71,7 +71,8 @@ class TestGetSuppressedLines:
             'line4'
         )
         all_sup, _, info, _ = get_suppressed_lines(content)
-        assert all_sup == {0, 2}
+        # line 0 suppresses 0+1, line 2 suppresses 2+3
+        assert all_sup == {0, 1, 2, 3}
         assert len(info) == 2
 
     def test_inline_case_sensitive(self):
@@ -179,7 +180,7 @@ class TestGetSuppressedLines:
         content = 'key = "AKIA..."  # gitleaks:allow\nother'
         _, secret_sup, info, _ = get_suppressed_lines(content)
         assert 0 in secret_sup
-        assert 1 not in secret_sup
+        assert 1 in secret_sup  # next line also suppressed for multi-line findings
         assert info[0]["type"] == "inline_secrets"
 
     def test_notsecret_as_custom_alias(self):
@@ -256,6 +257,57 @@ class TestGetSuppressedLines:
         all_sup, _, _, _ = get_suppressed_lines(content, config=config)
         assert all_sup == {0, 1, 2}
 
+    # --- Multi-line suppression (#1243) ---
+
+    def test_inline_suppresses_next_line(self):
+        """Inline allow suppresses annotated line AND the next line."""
+        content = (
+            'curl -X POST http://localhost:19200/api/check \\\n'
+            '  -H "Authorization: Bearer YOUR_TOKEN" \\\n'
+            'clean_line'
+        )
+        content_with_annotation = (
+            'curl -X POST http://localhost:19200/api/check \\  # ai-guardian:allow\n'
+            '  -H "Authorization: Bearer YOUR_TOKEN" \\\n'
+            'clean_line'
+        )
+        all_sup, _, info, _ = get_suppressed_lines(content_with_annotation)
+        assert 0 in all_sup  # annotated line
+        assert 1 in all_sup  # next line (contains the secret)
+        assert 2 not in all_sup  # third line not suppressed
+        assert info[0]["lines"] == [1, 2]
+
+    def test_inline_at_last_line_no_crash(self):
+        """Annotation on last line doesn't crash (no N+1 to suppress)."""
+        content = 'only_line  # ai-guardian:allow'
+        all_sup, _, info, _ = get_suppressed_lines(content)
+        assert 0 in all_sup
+        assert info[0]["lines"] == [1]
+
+    def test_secret_alias_suppresses_next_line(self):
+        """gitleaks:allow also suppresses the next line."""
+        content = (
+            'curl http://api.example.com \\  # gitleaks:allow\n'
+            '  -H "Authorization: Bearer ghp_SECRET"\n'
+            'clean'
+        )
+        _, secret_sup, info, _ = get_suppressed_lines(content)
+        assert 0 in secret_sup
+        assert 1 in secret_sup
+        assert 2 not in secret_sup
+
+    def test_inline_html_multiline(self):
+        """HTML annotation suppresses current and next line."""
+        content = (
+            'curl -X POST http://localhost/api \\  <!-- ai-guardian:allow -->\n'
+            '  -H "Authorization: Bearer TOKEN"\n'
+            'other content'
+        )
+        all_sup, _, _, _ = get_suppressed_lines(content)
+        assert 0 in all_sup
+        assert 1 in all_sup
+        assert 2 not in all_sup
+
     def test_custom_block_alongside_hardcoded(self):
         """Custom block aliases work alongside hardcoded ai-guardian:begin-allow."""
         content = (
@@ -312,10 +364,11 @@ class TestProcessAnnotations:
         assert warnings == []
 
     def test_inline_all_suppression(self):
-        content = 'ssn = "123-45-6789"  # ai-guardian:allow\nother'
+        content = 'ssn = "123-45-6789"  # ai-guardian:allow\nother\nclean'
         c_all, c_secret, info, _ = process_annotations(content)
         assert c_all.splitlines()[0] == ""
-        assert c_all.splitlines()[1] == "other"
+        assert c_all.splitlines()[1] == ""  # next line also suppressed
+        assert c_all.splitlines()[2] == "clean"
         assert c_secret.splitlines()[0] == ""
 
     def test_block_suppression(self):
@@ -336,10 +389,13 @@ class TestProcessAnnotations:
 
     def test_secret_only_suppression(self):
         """gitleaks:allow blanks line in secret content but not all content."""
-        content = 'key = "AKIA..."  # gitleaks:allow\nother'
+        content = 'key = "AKIA..."  # gitleaks:allow\nother\nclean'
         c_all, c_secret, _, _ = process_annotations(content)
         assert c_all.splitlines()[0] == 'key = "AKIA..."  # gitleaks:allow'
+        assert c_all.splitlines()[1] == 'other'  # not blanked for all
         assert c_secret.splitlines()[0] == ""
+        assert c_secret.splitlines()[1] == ""  # next line also suppressed
+        assert c_secret.splitlines()[2] == "clean"
 
     def test_mixed_annotations(self):
         content = (
@@ -358,7 +414,7 @@ class TestProcessAnnotations:
 
         assert all_lines[0] == "normal"
         assert all_lines[1] == ""  # ai-guardian:allow
-        assert all_lines[2] == 'key = "AKIA..."  # notsecret'  # not blanked for all
+        assert all_lines[2] == ""  # suppressed by line 1's inline expansion
         assert all_lines[3] == ""  # block
         assert all_lines[4] == ""  # block
         assert all_lines[5] == ""  # block
@@ -372,17 +428,18 @@ class TestProcessAnnotations:
         assert info[0]["file_path"] == "/path/to/file.py"
 
     def test_preserves_line_count_all(self):
-        content = "a\nb  # ai-guardian:allow\nc\nd  # gitleaks:allow\ne"
+        content = "a\nb  # ai-guardian:allow\nc\nd  # gitleaks:allow\ne\nf"
         c_all, c_secret, _, _ = process_annotations(content)
-        assert len(c_all.splitlines()) == 5
-        assert len(c_secret.splitlines()) == 5
+        assert len(c_all.splitlines()) == 6
+        assert len(c_secret.splitlines()) == 6
 
     def test_config_passed_through(self):
-        content = 'line  # nosec\nother'
+        content = 'line  # nosec\nother\nclean'
         config = {"inline_allow": ["nosec"]}
         c_all, _, info, _ = process_annotations(content, config=config)
         assert c_all.split("\n")[0] == ""
-        assert c_all.split("\n")[1] == "other"
+        assert c_all.split("\n")[1] == ""  # next line suppressed by expansion
+        assert c_all.split("\n")[2] == "clean"
         assert info[0]["type"] == "inline"
 
     def test_unmatched_begin_warning(self):

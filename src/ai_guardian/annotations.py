@@ -152,16 +152,24 @@ def get_suppressed_lines(
 
         if _is_inline_allow(line, inline_allow_aliases):
             all_suppressed.add(i)
+            suppressed_display = [i + 1]
+            if i + 1 < len(lines):
+                all_suppressed.add(i + 1)
+                suppressed_display.append(i + 2)
             suppression_info.append({
                 "type": "inline",
-                "lines": [i + 1],
+                "lines": suppressed_display,
                 "annotation_line": i + 1,
             })
         elif _is_secret_only(line, secret_aliases):
             secret_only_suppressed.add(i)
+            suppressed_display = [i + 1]
+            if i + 1 < len(lines):
+                secret_only_suppressed.add(i + 1)
+                suppressed_display.append(i + 2)
             suppression_info.append({
                 "type": "inline_secrets",
-                "lines": [i + 1],
+                "lines": suppressed_display,
                 "annotation_line": i + 1,
             })
 
