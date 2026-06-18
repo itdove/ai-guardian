@@ -19,6 +19,16 @@ Usage:
     # REST mode — delegates to daemon, auto-starts if needed
     with monitor(action="block", mode="rest") as session:
         session.check_content(text)
+
+    # Config overlay — deep-merge on top of global + project config
+    from ai_guardian import configure
+    configure(overlay={"secret_scanning": {"action": "block"}})
+    with monitor() as session:
+        session.check_content(text)
+
+    # Or via environment variables (CI/CD):
+    #   AI_GUARDIAN_CONFIG_OVERLAY=/path/to/overlay.json
+    #   AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless"}'
 """
 
 import logging

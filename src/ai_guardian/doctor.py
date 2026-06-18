@@ -97,6 +97,7 @@ class Doctor:
             self.check_python_version,
             self.check_config_file,
             self.check_project_config,
+            self.check_config_overlay,
             self.check_deprecated_fields,
             self.check_global_pattern_server,
             self.check_scanners,
@@ -248,6 +249,45 @@ class Doctor:
                 status=CheckStatus.WARN,
                 message=f"Error checking project config: {e}",
             )
+
+    def check_config_overlay(self) -> CheckResult:
+        """Check if an SDK config overlay is active."""
+        import os
+        from ai_guardian.config_loaders import _sdk_overlay
+
+        sources = []
+
+        overlay_file = os.environ.get("AI_GUARDIAN_CONFIG_OVERLAY")
+        if overlay_file:
+            p = Path(overlay_file).expanduser()
+            if p.exists():
+                sources.append(f"file: {overlay_file}")
+            else:
+                return CheckResult(
+                    name="config_overlay",
+                    status=CheckStatus.WARN,
+                    message=f"AI_GUARDIAN_CONFIG_OVERLAY file not found: {overlay_file}",
+                )
+
+        inline = os.environ.get("AI_GUARDIAN_CONFIG_INLINE")
+        if inline:
+            sources.append("inline env var")
+
+        if _sdk_overlay is not None:
+            sources.append("configure() API")
+
+        if not sources:
+            return CheckResult(
+                name="config_overlay",
+                status=CheckStatus.PASS,
+                message="No SDK overlay active",
+            )
+
+        return CheckResult(
+            name="config_overlay",
+            status=CheckStatus.PASS,
+            message=f"SDK overlay active: {', '.join(sources)}",
+        )
 
     def check_deprecated_fields(self) -> CheckResult:
         self._ensure_config()
@@ -1746,6 +1786,7 @@ _CHECK_DISPLAY_NAMES = {
     "tkinter_support": "Tkinter",
     "ask_mode_deps": "Ask mode deps",
     "project_config": "Project config",
+    "config_overlay": "Config overlay",
     "terminal_emulator": "Terminal emulator",
     "config_consistency": "Config consistency",
     "tighten_only": "Tighten-only policies",

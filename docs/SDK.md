@@ -245,7 +245,7 @@ The SDK respects `ai-guardian.json` configuration. Features can be enabled/disab
 }
 ```
 
-Override configuration per-session:
+Override configuration per-session (full replacement — no merge):
 
 ```python
 custom_config = {
@@ -256,6 +256,92 @@ custom_config = {
 with monitor(config=custom_config) as session:
     session.check_content(text)
 ```
+
+## Config Overlay
+
+The SDK supports a config overlay that deep-merges on top of the resolved config (global + project). The overlay wins for non-immutable fields.
+
+Config hierarchy with overlay:
+
+```
+global (~/.config/ai-guardian/ai-guardian.json)
+  → project (.ai-guardian/ai-guardian.json)
+    → SDK overlay (highest priority)
+```
+
+### Programmatic API
+
+```python
+from ai_guardian import configure
+
+# Set overlay — deep-merges on top of resolved config
+configure(overlay={
+    "preferred_ui": "headless",
+    "secret_scanning": {"action": "block"},
+    "prompt_injection": {"action": "block"},
+})
+
+# All subsequent monitor() sessions use the overlay
+with monitor() as session:
+    session.check_content(text)
+
+# Clear overlay
+configure(overlay=None)
+```
+
+### Environment Variables
+
+For CI/CD and automation where code changes are not possible:
+
+```bash
+# File-based overlay (path to JSON file)
+AI_GUARDIAN_CONFIG_OVERLAY=/path/to/overlay.json ai-guardian scan
+
+# Inline JSON overlay (quick overrides)
+AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless","secret_scanning":{"action":"block"}}' ai-guardian scan
+```
+
+### Overlay Priority
+
+When multiple overlay sources are active, they merge in this order (lowest to highest):
+
+1. `AI_GUARDIAN_CONFIG_OVERLAY` env var (file path)
+2. `AI_GUARDIAN_CONFIG_INLINE` env var (inline JSON)
+3. `configure(overlay=dict)` (programmatic API)
+
+### Merge Semantics
+
+- **Deep merge**: Overlay `{"secret_scanning": {"action": "block"}}` only changes `action`, preserving other `secret_scanning` fields (engines, patterns, etc.)
+- **Immutable fields respected**: If the global config marks a field as immutable, the overlay cannot override it
+- **No global-only restriction**: Unlike project configs, overlays CAN set global-only sections (`daemon`, `mcp_server`, etc.)
+
+### CI/CD Example
+
+```json
+{
+    "preferred_ui": "headless",
+    "secret_scanning": { "action": "block" },
+    "prompt_injection": { "action": "block" },
+    "config_file_scanning": { "action": "block" },
+    "supply_chain": { "action": "block" }
+}
+```
+
+Save as `ci-overlay.json` and set `AI_GUARDIAN_CONFIG_OVERLAY=ci-overlay.json` in your CI environment.
+
+### Doctor Integration
+
+`ai-guardian doctor` reports active overlay sources:
+
+```bash
+AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless"}' ai-guardian doctor
+# Shows: ✓ Config overlay    SDK overlay active: inline env var
+```
+
+### Limitations
+
+- **REST mode**: When using `mode="rest"` in `monitor()`, the daemon process has its own config. The overlay only affects the calling process. Set overlay env vars in the daemon's environment for daemon-side effects.
+- **`monitor(config=...)` is separate**: The `config` parameter to `monitor()` does full replacement (no merge). Use `configure(overlay=...)` for merge behavior.
 
 ## REST API (Multi-Language)
 

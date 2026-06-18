@@ -113,6 +113,7 @@ from ai_guardian.config_loaders import (  # noqa: F401
     HAS_AIGUARDIGNORE,
     _merge_aiguardignore,
     _clear_config_cache,
+    configure,
     _load_config_file,
     _load_pattern_server_config,
     _load_prompt_injection_config,
