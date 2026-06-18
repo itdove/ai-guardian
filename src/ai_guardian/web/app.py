@@ -359,6 +359,13 @@ class WebConsole:
             )
             create_health_check_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/cache-status")
+        def cache_status_page(daemon_name: str):
+            from ai_guardian.web.pages.cache_status import (
+                create_cache_status_page,
+            )
+            create_cache_status_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/daemon")
         def daemon_detail_page(daemon_name: str):
             from ai_guardian.web.pages.daemon_detail import (

@@ -71,6 +71,10 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self._get_audit(since, until, vtype, severity))
         elif path == "/api/ml-status":
             self._send_json(self.server.daemon_state.get_ml_status())
+        elif path == "/api/cache-status":
+            self._send_json(
+                self.server.daemon_state.get_project_cache_status()
+            )
         else:
             self._send_error(404, "Not found")
 

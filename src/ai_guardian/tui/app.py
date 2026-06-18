@@ -131,6 +131,7 @@ NAV_GROUPS = [
     ]),
     ("Configuration", [
         ("Remote Configs", "panel-remote-configs"),
+        ("Config Cache", "panel-cache-status"),
         ("Config File", "panel-config-file"),
         ("Config Editor", "panel-config-editor"),
         ("Console Settings", "panel-console-settings"),
@@ -1187,6 +1188,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-remote-configs"):
                     from ai_guardian.tui.remote_configs import RemoteConfigsContent
                     yield RemoteConfigsContent()
+
+                with Container(id="panel-cache-status"):
+                    from ai_guardian.tui.cache_status import CacheStatusContent
+                    yield CacheStatusContent()
 
                 with Container(id="panel-config-file"):
                     from ai_guardian.tui.config_viewer import ConfigContent
