@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -34,10 +35,10 @@ except ImportError:
 DANGEROUS_PATTERNS = [".*", ".+", r"[\s\S]*", r"[\s\S]+"]
 MIN_STOPWORD_LENGTH = 3
 
-# Module-level caches
-_project_root: Optional[Path] = None
-_project_root_resolved = False
-_cached_allowlist: Optional[tuple] = None  # (path, mtime, GitleaksAllowlist)
+# Module-level caches — per-project to avoid cross-project contamination (#1227)
+_project_roots: Dict[str, Optional[Path]] = {}  # cwd_str -> project_root
+_cached_allowlists: Dict[Path, tuple] = {}  # project_root -> (toml_path, mtime, GitleaksAllowlist)
+_cache_last_accessed: Dict[str, float] = {}  # cwd_str -> monotonic timestamp
 
 
 @dataclass
@@ -57,25 +58,35 @@ class GitleaksAllowlist:
     rule_allowlists: Dict[str, RuleAllowlist] = field(default_factory=dict)
 
 
-def find_project_root() -> Optional[Path]:
-    """Return the git repository root, falling back to cwd."""
-    global _project_root, _project_root_resolved
-    if _project_root_resolved:
-        return _project_root
+def find_project_root(cwd: Optional[str] = None) -> Optional[Path]:
+    """Return the git repository root, falling back to cwd.
 
-    _project_root_resolved = True
+    Args:
+        cwd: Working directory to resolve from. When called from the daemon,
+             pass the client's CWD so git rev-parse runs in the correct project.
+             Defaults to os.getcwd().
+    """
+    cache_key = str(cwd) if cwd else os.getcwd()
+
+    if cache_key in _project_roots:
+        _cache_last_accessed[cache_key] = time.monotonic()
+        return _project_roots[cache_key]
+
     try:
         raw = subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             stderr=subprocess.DEVNULL,
             timeout=5,
+            cwd=cwd,
         )
-        _project_root = Path(raw.decode().strip())
+        result = Path(raw.decode().strip())
     except (subprocess.CalledProcessError, FileNotFoundError,
             subprocess.TimeoutExpired, OSError):
-        _project_root = Path(os.getcwd())
+        result = Path(cache_key)
 
-    return _project_root
+    _project_roots[cache_key] = result
+    _cache_last_accessed[cache_key] = time.monotonic()
+    return result
 
 
 def _compile_regexes(raw: List[str]) -> List[re.Pattern]:
@@ -143,8 +154,6 @@ def load_gitleaks_allowlist(
 
     Returns None when the file is absent, TOML is unavailable, or parsing fails.
     """
-    global _cached_allowlist
-
     if not HAS_TOML:
         return None
 
@@ -161,8 +170,9 @@ def load_gitleaks_allowlist(
     except OSError:
         return None
 
-    if _cached_allowlist is not None:
-        cached_path, cached_mtime, cached_obj = _cached_allowlist
+    cached = _cached_allowlists.get(root)
+    if cached is not None:
+        cached_path, cached_mtime, cached_obj = cached
         if cached_path == toml_path and cached_mtime == mtime:
             return cached_obj
 
@@ -195,7 +205,7 @@ def load_gitleaks_allowlist(
         rule_allowlists=rule_allowlists,
     )
 
-    _cached_allowlist = (toml_path, mtime, result)
+    _cached_allowlists[root] = (toml_path, mtime, result)
     return result
 
 
@@ -292,7 +302,22 @@ def filter_findings(
 
 def reset_cache():
     """Clear all module-level caches (for testing)."""
-    global _project_root, _project_root_resolved, _cached_allowlist
-    _project_root = None
-    _project_root_resolved = False
-    _cached_allowlist = None
+    _project_roots.clear()
+    _cached_allowlists.clear()
+    _cache_last_accessed.clear()
+
+
+def cleanup_stale_entries(max_age: float = 86400.0):
+    """Remove cache entries not accessed within max_age seconds."""
+    now = time.monotonic()
+    stale_keys = [
+        k for k, ts in _cache_last_accessed.items()
+        if now - ts > max_age
+    ]
+    for key in stale_keys:
+        root = _project_roots.pop(key, None)
+        if root is not None:
+            _cached_allowlists.pop(root, None)
+        _cache_last_accessed.pop(key, None)
+    if stale_keys:
+        logger.debug(f"Pruned {len(stale_keys)} stale gitleaks_config cache entries")

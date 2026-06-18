@@ -9,6 +9,7 @@ redundant file reads within the same hook invocation.
 import json
 import logging
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Tuple, Any
@@ -52,15 +53,24 @@ class _ConfigCacheEntry:
     project_mtime: Optional[float] = None
     global_path: Optional[Path] = None
     project_path: Optional[Path] = None
+    last_accessed: float = 0.0
 
 
-_cache = _ConfigCacheEntry()
+# Per-project cache to avoid cross-project contamination (#1227)
+_caches: dict[str, _ConfigCacheEntry] = {}  # cache_key -> entry
 
 
-def _clear_config_cache():
-    """Clear the config file cache, forcing a re-read on next call."""
-    global _cache
-    _cache = _ConfigCacheEntry()
+def _clear_config_cache(project_key: Optional[str] = None):
+    """Clear the config file cache, forcing a re-read on next call.
+
+    Args:
+        project_key: If provided, clear only this project's entry.
+                     If None, clear all entries (backward compat).
+    """
+    if project_key is not None:
+        _caches.pop(project_key, None)
+    else:
+        _caches.clear()
     _clear_project_config_cache()
 
 
@@ -111,8 +121,6 @@ def _load_config_file():
     Returns:
         tuple: (config_dict or None, error_message or None)
     """
-    global _cache
-
     try:
         # Resolve paths
         config_dir = get_config_dir()
@@ -135,37 +143,47 @@ def _load_config_file():
                 )
                 global_path = legacy_path
 
+        # Cache key: per-project path or global-only sentinel
+        cache_key = str(project_path) if project_path else "__global__"
+
         # No config files at all
         if global_path is None and project_path is None:
-            _cache = _ConfigCacheEntry(result=(None, None))
-            return _cache.result
+            _caches[cache_key] = _ConfigCacheEntry(
+                result=(None, None), last_accessed=time.monotonic(),
+            )
+            return _caches[cache_key].result
 
         # Check mtime cache
         global_mtime = _get_mtime(global_path)
         project_mtime = _get_mtime(project_path)
 
+        cached = _caches.get(cache_key)
         if (
-            _cache.result is not None
-            and _cache.global_path == global_path
-            and _cache.project_path == project_path
-            and _cache.global_mtime == global_mtime
-            and _cache.project_mtime == project_mtime
+            cached is not None
+            and cached.result is not None
+            and cached.global_path == global_path
+            and cached.project_path == project_path
+            and cached.global_mtime == global_mtime
+            and cached.project_mtime == project_mtime
         ):
-            return _cache.result
+            cached.last_accessed = time.monotonic()
+            return cached.result
 
         # Load global config
         global_config = None
         if global_path:
             global_config, error_msg = _load_json_config(global_path)
             if error_msg:
-                _cache = _ConfigCacheEntry(
+                entry = _ConfigCacheEntry(
                     result=(None, error_msg),
                     global_mtime=global_mtime,
                     project_mtime=project_mtime,
                     global_path=global_path,
                     project_path=project_path,
+                    last_accessed=time.monotonic(),
                 )
-                return _cache.result
+                _caches[cache_key] = entry
+                return entry.result
 
         # Load project config
         project_config = None
@@ -192,19 +210,34 @@ def _load_config_file():
         else:
             effective = None
 
-        _cache = _ConfigCacheEntry(
+        entry = _ConfigCacheEntry(
             result=(effective, None),
             global_mtime=global_mtime,
             project_mtime=project_mtime,
             global_path=global_path,
             project_path=project_path,
+            last_accessed=time.monotonic(),
         )
-        return _cache.result
+        _caches[cache_key] = entry
+        return entry.result
 
     except Exception as e:
         error_msg = f"⚠️  Configuration Error: {str(e)}"
         logging.error(f"Unexpected error loading config: {e}")
         return None, error_msg
+
+
+def cleanup_stale_entries(max_age: float = 86400.0):
+    """Remove cache entries not accessed within max_age seconds."""
+    now = time.monotonic()
+    stale_keys = [
+        k for k, entry in _caches.items()
+        if now - entry.last_accessed > max_age
+    ]
+    for key in stale_keys:
+        _caches.pop(key, None)
+    if stale_keys:
+        logger.debug(f"Pruned {len(stale_keys)} stale config_loaders cache entries")
 
 
 def _load_json_config(config_path):
