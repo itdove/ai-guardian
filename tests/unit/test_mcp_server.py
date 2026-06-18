@@ -119,6 +119,98 @@ class TestCheckCommand:
         assert result["reason"] == "ssrf_detected"
 
 
+class TestCheckPathHookDataFormat:
+    """Verify check_path sends tool_input (not parameters) to ToolPolicyChecker."""
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_hook_data_uses_tool_input_key(self, mock_checker_cls, tmp_path):
+        safe_file = tmp_path / "test.py"
+        safe_file.write_text("x = 1")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (True, None, "Write")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        tool.fn(path=str(safe_file))
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert "tool_input" in hook_data, "hook_data must use 'tool_input' key"
+        assert "parameters" not in hook_data, "hook_data must not use 'parameters' key"
+        assert hook_data["tool_input"]["file_path"] == str(safe_file.resolve())
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_check_path_with_directory_rules(self, mock_checker_cls, tmp_path):
+        """check_path returns denied when directory rules block the path."""
+        secret_file = tmp_path / ".ssh" / "id_rsa"
+        secret_file.parent.mkdir()
+        secret_file.write_text("private key")
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (False, "Directory denied", "Write")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_path"]
+        result = tool.fn(path=str(secret_file))
+        assert result["status"] == "denied"
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert hook_data["tool_input"]["file_path"] == str(secret_file.resolve())
+
+
+class TestCheckCommandHookDataFormat:
+    """Verify check_command sends tool_input (not parameters) to ToolPolicyChecker."""
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_hook_data_uses_tool_input_key(self, mock_checker_cls):
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (True, None, "Bash")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_command"]
+        tool.fn(command="echo hello")
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert "tool_input" in hook_data, "hook_data must use 'tool_input' key"
+        assert "parameters" not in hook_data, "hook_data must not use 'parameters' key"
+        assert hook_data["tool_input"]["command"] == "echo hello"
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_check_command_blocked_with_secret(self, mock_checker_cls):
+        """check_command returns blocked when command contains a secret."""
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (
+            False, "Secret detected in command", "Bash"
+        )
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_command"]
+        result = tool.fn(command="curl -H 'Authorization: Bearer sk_live_xxx'")
+        assert result["status"] == "blocked"
+        assert result["reason"] == "secret_detected"
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert hook_data["tool_input"]["command"] == "curl -H 'Authorization: Bearer sk_live_xxx'"
+
+
+class TestCheckMCPTrustHookDataFormat:
+    """Verify check_mcp_trust sends tool_input (not parameters) to ToolPolicyChecker."""
+
+    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    def test_hook_data_uses_tool_input_key(self, mock_checker_cls):
+        mock_checker = MagicMock()
+        mock_checker.check_tool_allowed.return_value = (True, None, "mcp__test__test")
+        mock_checker_cls.return_value = mock_checker
+
+        server = create_server()
+        tool = server._tool_manager._tools["check_mcp_trust"]
+        tool.fn(server_name="test")
+
+        hook_data = mock_checker.check_tool_allowed.call_args[0][0]
+        assert "tool_input" in hook_data, "hook_data must use 'tool_input' key"
+        assert "parameters" not in hook_data, "hook_data must not use 'parameters' key"
+
+
 class TestCheckMCPTrust:
     """Test check_mcp_trust tool."""
 
