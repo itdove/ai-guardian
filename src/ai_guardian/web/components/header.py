@@ -40,6 +40,7 @@ NAV_GROUPS = [
     ("Threat Detection", [
         ("SSRF Protection", "/ssrf"),
         ("Context Poisoning", "/context-poisoning"),
+        ("Supply Chain", "/supply-chain"),
         ("Config Scanner", "/config-scanner"),
         ("PII Detection", "/scan-pii"),
         ("Annotations", "/annotations"),

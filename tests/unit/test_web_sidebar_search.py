@@ -87,7 +87,7 @@ class TestSearchIndex:
     def test_index_has_minimum_entries(self):
         from ai_guardian.web.components.header import _build_search_index
         index = _build_search_index("/test")
-        assert len(index) >= 38, f"Expected >=38 entries, got {len(index)}"
+        assert len(index) >= 39, f"Expected >=39 entries, got {len(index)}"
 
     def test_feature_group_name_format(self):
         from ai_guardian.web.components.header import (
@@ -179,7 +179,7 @@ class TestNavGroupsConsistency:
     def test_total_nav_item_count(self):
         from ai_guardian.web.components.header import NAV_GROUPS
         total = sum(len(items) for _, items in NAV_GROUPS)
-        assert total == 39
+        assert total == 40
 
     def test_first_item_is_dashboard(self):
         from ai_guardian.web.components.header import NAV_GROUPS

@@ -256,6 +256,13 @@ class WebConsole:
             )
             create_context_poisoning_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/supply-chain")
+        def supply_chain_page(daemon_name: str):
+            from ai_guardian.web.pages.supply_chain import (
+                create_supply_chain_page,
+            )
+            create_supply_chain_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page
