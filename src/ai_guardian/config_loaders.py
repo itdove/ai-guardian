@@ -6,13 +6,15 @@ All _load_*_config() functions share a single mtime-based cache to avoid
 redundant file reads within the same hook invocation.
 """
 
+import copy
 import json
 import logging
+import os
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple, Any
+from typing import Any, Dict, Optional, Tuple
 
 from ai_guardian.config_utils import (
     get_config_dir,
@@ -53,11 +55,18 @@ class _ConfigCacheEntry:
     project_mtime: Optional[float] = None
     global_path: Optional[Path] = None
     project_path: Optional[Path] = None
+    overlay_mtime: Optional[float] = None
+    overlay_path: Optional[str] = None
+    inline_overlay_value: Optional[str] = None
+    sdk_overlay_id: Optional[int] = None
     last_accessed: float = 0.0
 
 
 # Per-project cache to avoid cross-project contamination (#1227)
 _caches: dict[str, _ConfigCacheEntry] = {}  # cache_key -> entry
+
+# SDK config overlay — set via configure() or env vars (#1139)
+_sdk_overlay: Optional[Dict[str, Any]] = None
 
 
 def _clear_config_cache(project_key: Optional[str] = None):
@@ -72,6 +81,72 @@ def _clear_config_cache(project_key: Optional[str] = None):
     else:
         _caches.clear()
     _clear_project_config_cache()
+
+
+def configure(overlay: Optional[Dict[str, Any]] = None) -> None:
+    """Set a programmatic SDK config overlay.
+
+    The overlay is deep-merged on top of the resolved config
+    (global + project), with the overlay winning for non-immutable fields.
+
+    Unlike project configs, the SDK overlay CAN set global-only sections
+    (daemon, mcp_server, etc.) since it represents the automation layer.
+
+    Args:
+        overlay: Dict to deep-merge on top of resolved config, or None to clear.
+    """
+    global _sdk_overlay
+    _sdk_overlay = overlay
+    _clear_config_cache()
+
+
+def _resolve_sdk_overlay() -> Optional[Dict[str, Any]]:
+    """Resolve the effective SDK overlay from all sources.
+
+    Priority (highest to lowest):
+    1. configure(overlay=dict) — programmatic API
+    2. AI_GUARDIAN_CONFIG_INLINE env var — inline JSON string
+    3. AI_GUARDIAN_CONFIG_OVERLAY env var — path to JSON file
+
+    Higher-priority sources are deep-merged on top of lower-priority ones.
+
+    Returns:
+        Merged overlay dict, or None if no overlay is active.
+    """
+    result = None
+
+    file_path = os.environ.get("AI_GUARDIAN_CONFIG_OVERLAY")
+    if file_path:
+        p = Path(file_path).expanduser()
+        file_overlay, err = _load_json_config(p)
+        if file_overlay is not None:
+            result = file_overlay
+        elif err:
+            logger.warning("AI_GUARDIAN_CONFIG_OVERLAY error: %s", err)
+
+    inline_json = os.environ.get("AI_GUARDIAN_CONFIG_INLINE")
+    if inline_json:
+        try:
+            inline_overlay = json.loads(inline_json)
+            if isinstance(inline_overlay, dict):
+                if result is not None:
+                    result = deep_merge(result, inline_overlay,
+                                        global_only_sections=frozenset())
+                else:
+                    result = inline_overlay
+            else:
+                logger.warning("AI_GUARDIAN_CONFIG_INLINE must be a JSON object")
+        except json.JSONDecodeError as e:
+            logger.warning("AI_GUARDIAN_CONFIG_INLINE parse error: %s", e)
+
+    if _sdk_overlay is not None:
+        if result is not None:
+            result = deep_merge(result, _sdk_overlay,
+                                global_only_sections=frozenset())
+        else:
+            result = copy.deepcopy(_sdk_overlay)
+
+    return result
 
 
 def _get_mtime(path):
@@ -108,12 +183,13 @@ def _normalize_permissions(config):
 
 def _load_config_file():
     """
-    Load ai-guardian.json configuration with project-level overlay.
+    Load ai-guardian.json configuration with project-level and SDK overlays.
 
-    Loads the global config from ``~/.config/ai-guardian/ai-guardian.json``
-    and, if present, merges a project-level ``ai-guardian.json`` from the
-    repository root on top of it.  Project config wins for non-immutable,
-    non-global-only fields.
+    Loads the global config from ``~/.config/ai-guardian/ai-guardian.json``,
+    merges a project-level ``ai-guardian.json`` on top, then applies any
+    SDK overlay (env vars or ``configure()``).  Each layer wins for
+    non-immutable fields; the SDK overlay also bypasses global-only
+    section restrictions.
 
     Uses mtime-based caching to avoid redundant file reads when multiple
     _load_*_config() functions are called within the same hook invocation.
@@ -146,8 +222,18 @@ def _load_config_file():
         # Cache key: per-project path or global-only sentinel
         cache_key = str(project_path) if project_path else "__global__"
 
-        # No config files at all
-        if global_path is None and project_path is None:
+        # Resolve overlay state for cache comparison
+        overlay_env_path = os.environ.get("AI_GUARDIAN_CONFIG_OVERLAY")
+        overlay_file_mtime = None
+        if overlay_env_path:
+            overlay_file_mtime = _get_mtime(Path(overlay_env_path).expanduser())
+        inline_value = os.environ.get("AI_GUARDIAN_CONFIG_INLINE")
+        current_sdk_id = id(_sdk_overlay) if _sdk_overlay is not None else None
+
+        # No config files and no overlay at all
+        if (global_path is None and project_path is None
+                and not overlay_env_path and not inline_value
+                and _sdk_overlay is None):
             _caches[cache_key] = _ConfigCacheEntry(
                 result=(None, None), last_accessed=time.monotonic(),
             )
@@ -165,6 +251,10 @@ def _load_config_file():
             and cached.project_path == project_path
             and cached.global_mtime == global_mtime
             and cached.project_mtime == project_mtime
+            and cached.overlay_path == overlay_env_path
+            and cached.overlay_mtime == overlay_file_mtime
+            and cached.inline_overlay_value == inline_value
+            and cached.sdk_overlay_id == current_sdk_id
         ):
             cached.last_accessed = time.monotonic()
             return cached.result
@@ -210,12 +300,26 @@ def _load_config_file():
         else:
             effective = None
 
+        # Apply SDK overlay (highest priority, no global_only restriction)
+        overlay = _resolve_sdk_overlay()
+        if overlay is not None:
+            if effective is not None:
+                effective = deep_merge(effective, overlay,
+                                       global_only_sections=frozenset())
+            else:
+                effective = copy.deepcopy(overlay)
+            logger.debug("Config merge: SDK overlay applied")
+
         entry = _ConfigCacheEntry(
             result=(effective, None),
             global_mtime=global_mtime,
             project_mtime=project_mtime,
             global_path=global_path,
             project_path=project_path,
+            overlay_mtime=overlay_file_mtime,
+            overlay_path=overlay_env_path,
+            inline_overlay_value=inline_value,
+            sdk_overlay_id=current_sdk_id,
             last_accessed=time.monotonic(),
         )
         _caches[cache_key] = entry

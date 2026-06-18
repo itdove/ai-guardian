@@ -33,16 +33,23 @@ def _isolate_config_dir(tmp_path):
     # Suppress daemon auto-start in tests (prevents orphan processes on Windows)
     stop_marker = state_dir / "daemon.stop-requested"
     stop_marker.touch()
-    with mock.patch.dict(os.environ, {
+    env_overrides = {
         "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
         "AI_GUARDIAN_STATE_DIR": str(state_dir),
         "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
         "AI_GUARDIAN_PROJECT_CONFIG": project_config_sentinel,
-    }):
-        # Clear caches so tests don't see stale state
-        from ai_guardian.config_loaders import _clear_config_cache
-        _clear_config_cache()
+    }
+    # Prevent overlay env vars from leaking between tests
+    for key in ("AI_GUARDIAN_CONFIG_OVERLAY", "AI_GUARDIAN_CONFIG_INLINE"):
+        if key in os.environ:
+            env_overrides[key] = ""
+    with mock.patch.dict(os.environ, env_overrides):
+        # Clear SDK overlay and caches so tests don't see stale state
+        import ai_guardian.config_loaders as _cl
+        _cl._sdk_overlay = None
+        _cl._clear_config_cache()
         yield config_dir
+        _cl._sdk_overlay = None
 
 
 @pytest.fixture
