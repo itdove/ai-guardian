@@ -10,6 +10,8 @@ from ai_guardian.tui.ask_dialog import (
     AskResult,
     _write_config_text,
     _write_aiguardignore_text,
+    build_dialog_title,
+    build_sub_dialog_title,
 )
 
 
@@ -90,7 +92,7 @@ class _TextualAskDialog:
                 v = violation
                 yield Header(show_clock=False)
                 with Container(id="ask-container"):
-                    yield Static("[bold]ai-guardian: Violation Detected[/bold]", id="title")
+                    yield Static(f"[bold]{build_dialog_title(v)}[/bold]", id="title")
                     yield Static(f"[bold]Type:[/bold] {v.violation_type}", classes="detail-row")
                     yield Static(f"[bold]Summary:[/bold] {v.summary}", classes="detail-row")
                     if v.file_path:
@@ -242,7 +244,7 @@ class _TextualAskDialog:
                     container = self.query_one("#ask-container")
                     for child in list(container.children):
                         child.remove()
-                    container.mount(Static("[bold]Config Editor — ai-guardian.json[/bold]", id="title"))
+                    container.mount(Static(f"[bold]{build_sub_dialog_title('Config Editor — ai-guardian.json', v)}[/bold]", id="title"))
                     container.mount(Static("[dim]Review the config, then Save or Cancel.[/dim]"))
                     if len(scope_options) > 1:
                         from textual.widgets import RadioSet, RadioButton
@@ -373,7 +375,7 @@ class _TextualAskDialog:
 
                 ann_label = "inline" if annotation_type == "inline" else "block"
                 container.mount(Static(
-                    f"[bold]Suppress in Source — {ann_label}[/bold]\n"
+                    f"[bold]{build_sub_dialog_title(f'Suppress in Source — {ann_label}', v)}[/bold]\n"
                     f"File: {v.file_path}",
                     id="title",
                 ))
@@ -412,7 +414,7 @@ class _TextualAskDialog:
 
                 scanner_label = SCANNER_LABELS.get(v.config_section, v.config_section)
                 container.mount(Static(
-                    f"[bold]Ignore File — .aiguardignore.toml[/bold]\n"
+                    f"[bold]{build_sub_dialog_title('Ignore File — .aiguardignore.toml', v)}[/bold]\n"
                     f"File: {v.file_path}",
                     id="title",
                 ))

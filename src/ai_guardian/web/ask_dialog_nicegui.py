@@ -12,6 +12,8 @@ from ai_guardian.tui.ask_dialog import (
     AskResult,
     _write_config_text,
     _write_aiguardignore_text,
+    build_dialog_title,
+    build_sub_dialog_title,
 )
 
 
@@ -32,7 +34,7 @@ def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
     )
 
     with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
-        ui.label("Config Editor — ai-guardian.json").classes("text-lg font-bold")
+        ui.label(build_sub_dialog_title("Config Editor — ai-guardian.json", dialog_self._violation)).classes("text-lg font-bold")
         ui.label(
             "Review the full config with the inserted pattern. Save to persist or Cancel to discard."
         ).classes("text-sm text-grey-6")
@@ -115,7 +117,7 @@ def _show_nicegui_suppress_in_source(dialog_self, app, v):
     ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
 
     with ui.dialog().props("persistent maximized") as dlg, ui.card().classes("w-full h-full"):
-        ui.label(f"Suppress in Source — {ann_label}").classes("text-lg font-bold")
+        ui.label(build_sub_dialog_title(f"Suppress in Source — {ann_label}", v)).classes("text-lg font-bold")
         ui.label(f"File: {v.file_path}").classes("text-sm text-grey-6")
         ui.label("Review the annotated source. Save to write the file.").classes("text-sm text-grey-6")
         ui.separator()
@@ -161,7 +163,7 @@ def _show_nicegui_ignore_file(dialog_self, app, v):
     scanner_label = SCANNER_LABELS.get(v.config_section, v.config_section)
 
     with ui.dialog().props("persistent") as dlg, ui.card().classes("w-full max-w-xl"):
-        ui.label("Ignore File — .aiguardignore.toml").classes("text-lg font-bold")
+        ui.label(build_sub_dialog_title("Ignore File — .aiguardignore.toml", v)).classes("text-lg font-bold")
         ui.label(f"File: {v.file_path}").classes("text-sm text-grey-6")
         ui.separator()
 
@@ -217,7 +219,7 @@ def _show_nicegui_ignore_file(dialog_self, app, v):
                 toml_text, line_number = generate_aiguardignore_preview(path, scanner_types)
 
                 with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
-                    ui.label("Config Editor — .aiguardignore.toml").classes("text-lg font-bold")
+                    ui.label(build_sub_dialog_title("Config Editor — .aiguardignore.toml", v)).classes("text-lg font-bold")
                     ui.label("Review the file. Save to persist.").classes("text-sm text-grey-6")
                     ui.separator()
 
@@ -279,7 +281,7 @@ class _NiceGuiAskDialog:
             ptype_label = PATTERN_TYPES.get(ptype, ptype)
 
             with ui.card().classes("w-full max-w-2xl mx-auto mt-8"):
-                ui.label("ai-guardian: Violation Detected").classes("text-xl font-bold")
+                ui.label(build_dialog_title(v)).classes("text-xl font-bold")
                 ui.separator()
 
                 with ui.card_section():
@@ -305,7 +307,7 @@ class _NiceGuiAskDialog:
 
                     def show_editor():
                         with ui.dialog() as dlg, ui.card().classes("w-full max-w-xl"):
-                            ui.label("Allow Always — Edit Pattern").classes("text-lg font-bold")
+                            ui.label(build_sub_dialog_title("Allow Always — Edit Pattern", v)).classes("text-lg font-bold")
                             ui.separator()
 
                             ui.label("Matched text (reference):").classes("font-bold text-sm")
@@ -386,7 +388,7 @@ class _NiceGuiAskDialog:
 
         webbrowser.open(f"http://127.0.0.1:{port}")
 
-        ui.run(port=port, show=False, reload=False, dark=True, title="ai-guardian: Violation Detected")
+        ui.run(port=port, show=False, reload=False, dark=True, title=build_dialog_title(v))
 
         if front_app and platform.system() == "Darwin":
             try:
