@@ -3819,19 +3819,17 @@ def process_hook_data(hook_data, daemon_state=None):
                     now,
                     default=True
                 ):
-                    post_all_suppressed, post_secret_suppressed, _, _ = process_annotations(
+                    post_all_content, post_secret_content_sup, post_ann_info, _ = process_annotations(
                         tool_output, file_path=pretool_ctx.get("file_path"),
                         config=post_annotations_config
                     )
-                    if post_all_suppressed or post_secret_suppressed:
-                        from ai_guardian.annotations import apply_suppressions
-                        tool_output = apply_suppressions(tool_output, post_all_suppressed)
-                        post_secret_content = apply_suppressions(
-                            tool_output, post_secret_suppressed
-                        )
+                    if post_ann_info:
+                        tool_output = post_all_content
+                        post_secret_content = post_secret_content_sup
+                        total_suppressed = sum(len(s.get("lines", [])) for s in post_ann_info)
                         logging.info(
                             f"PostToolUse: annotation suppression applied "
-                            f"({len(post_all_suppressed)} all, {len(post_secret_suppressed)} secrets-only)"
+                            f"({total_suppressed} line(s) suppressed)"
                         )
 
             # Load secret scanning config for ignore lists

@@ -84,6 +84,14 @@ try:
 except ImportError:
     HAS_SUPPLY_CHAIN = False
 
+try:
+    from ai_guardian.annotations import process_annotations
+    from ai_guardian.config_loaders import _load_annotations_config
+    from ai_guardian.config_utils import is_feature_enabled
+    HAS_ANNOTATIONS = True
+except ImportError:
+    HAS_ANNOTATIONS = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -451,6 +459,19 @@ class FileScanner:
             if self.verbose:
                 print(f"Scanning: {relative_path}")
 
+            # Apply annotation-based suppression for secrets/PII (#1237)
+            secret_content = content
+            pii_content = content
+            if HAS_ANNOTATIONS:
+                ann_config, _ = _load_annotations_config()
+                if ann_config and is_feature_enabled(ann_config.get("enabled"), default=True):
+                    content_all_sup, content_secret_sup, ann_info, _ = process_annotations(
+                        content, file_path=str(file_path), config=ann_config
+                    )
+                    if ann_info:
+                        pii_content = content_all_sup
+                        secret_content = content_secret_sup
+
             # Check for config file threats (Phase 3)
             if self._is_config_file(file_path) and HAS_CONFIG_SCANNER:
                 self._check_config_threats(relative_path, content)
@@ -463,13 +484,13 @@ class FileScanner:
             if self.unicode_detector:
                 self._check_unicode_attacks(relative_path, content)
 
-            # Check for secrets (Phase 4)
+            # Check for secrets (Phase 4) — uses annotation-suppressed content
             if HAS_SECRET_SCANNER:
-                self._check_secrets(relative_path, content, str(file_path))
+                self._check_secrets(relative_path, secret_content, str(file_path))
 
-            # Check for PII
+            # Check for PII — uses annotation-suppressed content
             if HAS_PII_SCANNER:
-                self._check_pii(relative_path, content)
+                self._check_pii(relative_path, pii_content)
 
             # Check for prompt injection
             if HAS_PROMPT_INJECTION:
