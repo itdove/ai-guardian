@@ -749,6 +749,9 @@ def _show_ignore_file_flow(violation):
     file_path = blocked.get("file_path", "") if isinstance(blocked, dict) else ""
     vtype = violation.get("violation_type", "")
     config_section = config_section_for_violation(vtype)
+    if not config_section:
+        ui.notify(f"No config section for: {vtype}", type="warning")
+        return
 
     rel_path = suggest_ignore_path(file_path)
     scanner_label = SCANNER_LABELS.get(config_section, config_section)

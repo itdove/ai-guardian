@@ -60,6 +60,8 @@ VIOLATION_TYPE_TO_CONFIG = {
     "context_poisoning": "context_poisoning",
     "supply_chain": "supply_chain",
     "tool_permission": "permissions",
+    "image_secret_detected": "image_scanning",
+    "image_pii_detected": "image_scanning",
 }
 
 
