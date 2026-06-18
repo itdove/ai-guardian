@@ -92,8 +92,22 @@ def _build_search_index(prefix):
     return entries
 
 
+def _init_scope_state():
+    """Initialize scope session state if not set."""
+    try:
+        from nicegui import app
+        if "config_scope" not in app.storage.user:
+            app.storage.user["config_scope"] = "global"
+        if "project_dir" not in app.storage.user:
+            app.storage.user["project_dir"] = None
+    except Exception:
+        pass
+
+
 def create_header(daemon_name: str = ""):
-    """Create the shared header bar showing current daemon."""
+    """Create the shared header bar showing current daemon and scope toggle."""
+    _init_scope_state()
+
     with ui.header().classes("items-center justify-between bg-blue-grey-10"):
         with ui.row().classes("items-center gap-4"):
             ui.image("/images/ai-guardian-320.png").classes("w-8 h-8")
@@ -104,6 +118,7 @@ def create_header(daemon_name: str = ""):
             if daemon_name:
                 ui.label("|").classes("text-grey-6")
                 ui.label(daemon_name).classes("text-white font-bold")
+            _create_scope_toggle()
         with ui.row().classes("gap-2"):
             if daemon_name:
                 prefix = f"/{daemon_name}"
@@ -242,3 +257,36 @@ def create_sidebar(daemon_name: str, current: str = ""):
             ''')
 
         search_input.on_value_change(on_search)
+
+
+def _create_scope_toggle():
+    """Create the Global/Project scope toggle in the header."""
+    try:
+        from nicegui import app
+        current = app.storage.user.get("config_scope", "global")
+    except Exception:
+        current = "global"
+
+    with ui.row().classes("items-center gap-1 ml-4"):
+        ui.label("|").classes("text-grey-6")
+        ui.label("Scope:").classes("text-grey-4 text-xs")
+
+        scope_toggle = ui.toggle(
+            {
+                "global": "Global",
+                "project": "Project",
+            },
+            value=current,
+        ).props("dense size=sm color=blue-grey-6 text-color=white toggle-color=blue-6").classes(
+            "text-xs"
+        )
+
+        async def on_scope_change(e):
+            try:
+                from nicegui import app as _app
+                _app.storage.user["config_scope"] = e.value
+                await ui.run_javascript('location.reload()')
+            except Exception:
+                pass
+
+        scope_toggle.on_value_change(on_scope_change)

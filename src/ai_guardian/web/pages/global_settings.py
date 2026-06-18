@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.config_helpers import load_web_config, save_web_config
+from ai_guardian.web.config_helpers import (
+    load_web_config,
+    save_web_config,
+    get_web_config_provenance,
+    get_web_config_scope_label,
+)
 
 FEATURE_GROUPS = [
     ("Scanning", [
@@ -176,10 +181,15 @@ def create_global_settings_page(service, daemon_name: str):
                 content.clear()
                 config = await run.io_bound(load_web_config)
 
+                provenance = await run.io_bound(get_web_config_provenance)
+                scope_label = get_web_config_scope_label()
+
                 with content:
-                    from ai_guardian.config_utils import get_config_dir
-                    path = get_config_dir() / "ai-guardian.json"
-                    ui.label(f"Config: {path}").classes("text-xs text-grey-6")
+                    with ui.row().classes("items-center gap-2"):
+                        from ai_guardian.config_utils import get_config_dir
+                        path = get_config_dir() / "ai-guardian.json"
+                        ui.label(f"Config: {path}").classes("text-xs text-grey-6")
+                        ui.badge(scope_label, color="green" if scope_label == "Global" else "blue").classes("text-xs")
 
                     # --- On Scan Error ---
                     with ui.card().classes("w-full"):
@@ -239,6 +249,10 @@ def create_global_settings_page(service, daemon_name: str):
                                 else:
                                     with ui.row().classes("items-center gap-2 w-full"):
                                         sw = ui.switch(label, value=is_enabled).classes("flex-grow")
+                                        sect_prov = provenance.get(section, {})
+                                        prov_src = sect_prov if isinstance(sect_prov, str) else (sect_prov.get("enabled", "global") if isinstance(sect_prov, dict) else "global")
+                                        if prov_src == "project":
+                                            ui.badge("P", color="blue").props("dense").classes("text-xs")
                                         ui.label(desc).classes("text-xs text-grey-6")
 
                                         async def on_toggle(e, sec=section):
@@ -282,6 +296,20 @@ def create_global_settings_page(service, daemon_name: str):
                                             ui.notify(f"{sec} action: {e.value}", type="positive")
 
                                         act_sel.on_value_change(on_action)
+
+                                        act_prov = provenance.get(section, {})
+                                        act_prov_src = act_prov.get("action", "global") if isinstance(act_prov, dict) else "global"
+                                        if act_prov_src == "project":
+                                            ui.badge("P", color="blue").props("dense").classes("text-xs")
+
+                                            async def do_reset(sec=section):
+                                                from ai_guardian.config_writer import delete_project_override
+                                                await run.io_bound(delete_project_override, sec, "action")
+                                                ui.notify(f"Reset {sec}.action to global default", type="info")
+                                                await refresh()
+
+                                            ui.button("Reset", icon="undo", color="grey",
+                                                      on_click=do_reset).props("dense flat size=sm")
 
             async def _refresh_and_scroll():
                 await refresh()

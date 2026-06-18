@@ -14,7 +14,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, select_options_with_default,
 )
@@ -28,6 +28,23 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
     SCHEMA_FIELDS = [
         ("action-select", "action", "select"),
     ]
+
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
 
     CSS = """
     ConfigScannerContent {
@@ -231,8 +248,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
     def _load_config_inner(self) -> None:
         """Inner load logic for config file scanner configuration."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         # Load config
         config = {}
@@ -321,8 +337,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
         Returns:
             bool: True if successful, False otherwise
         """
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             # Load existing config
@@ -340,7 +355,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             config["config_file_scanning"].update(config_updates)
 
             # Save config
-            config_dir.mkdir(parents=True, exist_ok=True)
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
@@ -420,8 +435,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             self.app.notify("Please enter a file pattern", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -464,8 +478,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             self.app.notify("Please enter an ignore pattern", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -516,8 +529,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Invalid regex pattern: {e}", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():

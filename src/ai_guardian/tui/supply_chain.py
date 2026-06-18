@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 
 
 def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
@@ -108,6 +108,23 @@ class SupplyChainContent(Container):
                     "Or edit ai-guardian.json directly (supply_chain section).[/dim]"
                 )
 
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
+
     def on_mount(self) -> None:
         self.load_config()
 
@@ -115,8 +132,7 @@ class SupplyChainContent(Container):
         self.load_config()
 
     def load_config(self) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         config = {}
         if config_path.exists():

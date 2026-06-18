@@ -358,6 +358,73 @@ class MultiDaemonClient:
             features["proactive_level"] = "low"
         return {"features": features}
 
+    def get_config_scoped(
+        self,
+        target: DaemonTarget,
+        scope: str = "merged",
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Get config for a specific scope."""
+        if target.runtime == "local":
+            from ai_guardian.config_writer import load_scoped_config
+            return load_scoped_config(scope, project_dir)
+        params = f"?scope={scope}"
+        if project_dir:
+            params += f"&project_dir={project_dir}"
+        return self._rest_request(target, "GET", f"/api/config{params}")
+
+    def get_config_provenance(
+        self,
+        target: DaemonTarget,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Get per-key provenance information."""
+        if target.runtime == "local":
+            from ai_guardian.config_writer import compute_provenance
+            return compute_provenance(project_dir)
+        params = f"?project_dir={project_dir}" if project_dir else ""
+        return self._rest_request(target, "GET", f"/api/config/provenance{params}")
+
+    def write_config(
+        self,
+        target: DaemonTarget,
+        scope: str,
+        section: str,
+        key: Optional[str],
+        value,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Write a config value to the specified scope."""
+        if target.runtime == "local":
+            from ai_guardian.config_writer import write_scoped_config
+            success, msg = write_scoped_config(scope, section, key, value, project_dir)
+            return {"status": "ok" if success else "error", "message": msg}
+        body = {"scope": scope, "section": section, "value": value}
+        if key is not None:
+            body["key"] = key
+        if project_dir:
+            body["project_dir"] = project_dir
+        return self._rest_request(target, "POST", "/api/config", body)
+
+    def delete_config_override(
+        self,
+        target: DaemonTarget,
+        section: str,
+        key: Optional[str] = None,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Delete a project config override."""
+        if target.runtime == "local":
+            from ai_guardian.config_writer import delete_project_override
+            success, msg = delete_project_override(section, key, project_dir)
+            return {"status": "ok" if success else "error", "message": msg}
+        body: dict = {"section": section}
+        if key is not None:
+            body["key"] = key
+        if project_dir:
+            body["project_dir"] = project_dir
+        return self._rest_request(target, "DELETE", "/api/config", body)
+
     def get_cache_status(self, target: DaemonTarget) -> Optional[dict]:
         """Get per-project config cache status from a daemon."""
         return self._rest_request(target, "GET", "/api/cache-status")

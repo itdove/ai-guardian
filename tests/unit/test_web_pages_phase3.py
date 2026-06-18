@@ -292,6 +292,8 @@ class TestConfigLoadSavePhase3:
     def test_load_config_missing_file(self, tmp_path):
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ), mock.patch(
+            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -303,6 +305,8 @@ class TestConfigLoadSavePhase3:
 
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ), mock.patch(
+            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -312,6 +316,8 @@ class TestConfigLoadSavePhase3:
     def test_save_config_creates_file(self, tmp_path):
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ), mock.patch(
+            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
         ):
             from ai_guardian.web.config_helpers import save_web_config
 
@@ -324,6 +330,8 @@ class TestConfigLoadSavePhase3:
     def test_save_config_pretty_prints(self, tmp_path):
         with mock.patch(
             "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+        ), mock.patch(
+            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
         ):
             from ai_guardian.web.config_helpers import save_web_config
 

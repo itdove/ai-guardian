@@ -45,7 +45,17 @@ class _RestHandler(BaseHTTPRequestHandler):
         elif path == "/api/tray-plugins":
             self._send_json(self._get_tray_plugins())
         elif path == "/api/config":
-            self._send_json(self._get_config())
+            qs = urllib.parse.parse_qs(parsed.query)
+            scope = qs.get("scope", ["merged"])[0]
+            project_dir = qs.get("project_dir", [None])[0]
+            if scope in ("global", "project", "merged"):
+                self._send_json(self._get_config_scoped(scope, project_dir))
+            else:
+                self._send_error(400, "scope must be 'global', 'project', or 'merged'")
+        elif path == "/api/config/provenance":
+            qs = urllib.parse.parse_qs(parsed.query)
+            project_dir = qs.get("project_dir", [None])[0]
+            self._send_json(self._get_config_provenance(project_dir))
         elif path == "/api/violations":
             qs = urllib.parse.parse_qs(parsed.query)
             try:
@@ -172,11 +182,27 @@ class _RestHandler(BaseHTTPRequestHandler):
             if body is None:
                 return
             self._handle_redact(body)
+        elif self.path == "/api/config":
+            body = self._read_body()
+            if body is None:
+                return
+            self._handle_config_write(body)
         elif self.path == "/api/scan":
             body = self._read_body()
             if body is None:
                 return
             self._handle_scan(body)
+        else:
+            self._send_error(404, "Not found")
+
+    def do_DELETE(self):
+        if not self._check_auth():
+            return
+        if self.path == "/api/config":
+            body = self._read_body()
+            if body is None:
+                return
+            self._handle_config_delete(body)
         else:
             self._send_error(404, "Not found")
 
@@ -255,6 +281,76 @@ class _RestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.debug("Failed to get config: %s", e)
             return {"features": {}}
+
+    @staticmethod
+    def _get_config_scoped(scope, project_dir=None):
+        if scope == "merged":
+            return _RestHandler._get_config()
+        try:
+            from ai_guardian.config_writer import load_scoped_config
+            return load_scoped_config(scope, project_dir)
+        except Exception as e:
+            logger.debug("Failed to get scoped config: %s", e)
+            return {}
+
+    @staticmethod
+    def _get_config_provenance(project_dir=None):
+        try:
+            from ai_guardian.config_writer import compute_provenance
+            return compute_provenance(project_dir)
+        except Exception as e:
+            logger.debug("Failed to compute provenance: %s", e)
+            return {}
+
+    def _handle_config_write(self, body):
+        """Handle POST /api/config — scoped config write."""
+        scope = body.get("scope")
+        if scope not in ("global", "project"):
+            self._send_error(400, "scope must be 'global' or 'project'")
+            return
+        section = body.get("section")
+        if not section or not isinstance(section, str):
+            self._send_error(400, "section is required")
+            return
+        key = body.get("key")
+        if "value" not in body:
+            self._send_error(400, "value is required")
+            return
+        value = body["value"]
+        project_dir = body.get("project_dir")
+
+        try:
+            from ai_guardian.config_writer import write_scoped_config
+            success, msg = write_scoped_config(scope, section, key, value, project_dir)
+            if success:
+                self.server.daemon_state.force_reload_config()
+                self._send_json({"status": "ok", "scope": scope, "message": msg})
+            else:
+                self._send_error(400, msg)
+        except Exception as e:
+            logger.error("Config write failed: %s", e)
+            self._send_error(500, "Internal error")
+
+    def _handle_config_delete(self, body):
+        """Handle DELETE /api/config — remove project override."""
+        section = body.get("section")
+        if not section or not isinstance(section, str):
+            self._send_error(400, "section is required")
+            return
+        key = body.get("key")
+        project_dir = body.get("project_dir")
+
+        try:
+            from ai_guardian.config_writer import delete_project_override
+            success, msg = delete_project_override(section, key, project_dir)
+            if success:
+                self.server.daemon_state.force_reload_config()
+                self._send_json({"status": "ok", "message": msg})
+            else:
+                self._send_error(400, msg)
+        except Exception as e:
+            logger.error("Config delete failed: %s", e)
+            self._send_error(500, "Internal error")
 
     @staticmethod
     def _get_violations(limit, violation_type):

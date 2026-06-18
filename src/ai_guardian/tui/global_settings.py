@@ -340,8 +340,37 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                         pass
 
             self._update_scope_notice()
+            self._update_provenance_badges()
         finally:
             self._loading = False
+
+    def _update_provenance_badges(self) -> None:
+        """Show provenance badges on each feature toggle when project scope is active."""
+        if not self._is_project_scope:
+            return
+        try:
+            from ai_guardian.config_writer import compute_provenance
+            prov = compute_provenance()
+        except Exception:
+            return
+
+        for section, config_key, title in FEATURES:
+            section_prov = prov.get(section, {})
+            if isinstance(section_prov, str):
+                badge = section_prov
+            elif isinstance(section_prov, dict):
+                enabled_prov = section_prov.get("enabled", "global")
+                badge = enabled_prov
+            else:
+                badge = "global"
+
+            badge_text = "[dim cyan] ⓟ[/dim cyan]" if badge == "project" else "[dim] ⓖ[/dim]"
+            try:
+                toggle = self.query_one(f"#{config_key}_toggle", TimeBasedToggle)
+                title_static = toggle.query(".tbt-title")[0]
+                title_static.update(f"[bold]{title}[/bold] {badge_text}")
+            except Exception:
+                pass
 
     def on_button_pressed(self, event) -> None:
         if self._loading:
