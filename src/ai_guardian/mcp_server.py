@@ -162,7 +162,7 @@ def create_server() -> "FastMCP":
             tool_name = _OPERATION_TO_TOOL.get(operation.lower(), "Read")
             checker = ToolPolicyChecker()
             hook_data = {
-                "tool_name": "Write",
+                "tool_name": tool_name,
                 "tool_input": {"file_path": str(resolved)},
             }
             allowed, error_msg, _ = checker.check_tool_allowed(hook_data)
