@@ -94,6 +94,11 @@ class _TkinterAskDialog:
         ).pack(side="left", padx=5)
 
         if v.file_path:
+            ttk.Button(
+                btn_frame, text="View File",
+                command=lambda: self._on_view_file(),
+            ).pack(side="left", padx=5)
+
             from ai_guardian.tui.source_annotator import get_comment_prefix
             if get_comment_prefix(v.file_path) is not None:
                 ttk.Button(
@@ -120,6 +125,10 @@ class _TkinterAskDialog:
     def _on_decision(self, root, decision: AskDecision):
         self._result = AskResult(decision=decision)
         root.destroy()
+
+    def _on_view_file(self):
+        from ai_guardian.tui.file_opener import open_in_editor
+        open_in_editor(self._violation.file_path, self._violation.line_number)
 
     def _show_config_editor(self, root, save_pat):
         """Show a full config editor with the pattern inserted in memory."""

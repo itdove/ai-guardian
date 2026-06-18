@@ -354,6 +354,11 @@ class _NiceGuiAskDialog:
                     ui.button("Allow Always...", on_click=show_editor).props("color=positive")
 
                     if v.file_path:
+                        def view_file():
+                            from ai_guardian.tui.file_opener import open_in_editor
+                            open_in_editor(v.file_path, v.line_number)
+                        ui.button("View File", on_click=view_file).props("color=info")
+
                         from ai_guardian.tui.source_annotator import get_comment_prefix
                         if get_comment_prefix(v.file_path) is not None:
                             def show_suppress_source():
