@@ -1012,7 +1012,10 @@ def scan_command(args) -> int:
                 if finding.get('file_path'):
                     print(f"   File: {finding['file_path']}", end="")
                     if finding.get('line_number'):
-                        print(f":{finding['line_number']}")
+                        if finding.get('start_column') is not None:
+                            print(f":{finding['line_number']}:{finding['start_column'] + 1}")
+                        else:
+                            print(f":{finding['line_number']}")
                     else:
                         print()
                 if finding.get('snippet'):

@@ -26,6 +26,8 @@ class SecretMatch:
     file: str
     line_number: int
     end_line: Optional[int] = None
+    start_column: Optional[int] = None  # 0-based column
+    end_column: Optional[int] = None    # 0-based column
     commit: Optional[str] = None
     secret: Optional[str] = None  # Redacted or None
     engine: str = ""  # Which engine found it

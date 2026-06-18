@@ -140,12 +140,22 @@ class TomlPatternsScanner(Scanner):
                 from ai_guardian.patterns.validators import shannon_entropy
                 if shannon_entropy(f.matched_text) < self._min_entropy:
                     continue
+            start_col = None
+            end_col = None
+            if f.match_start is not None:
+                line_start = content.rfind('\n', 0, f.match_start) + 1
+                start_col = f.match_start - line_start
+            if f.match_end is not None and f.match_end > 0:
+                end_line_start = content.rfind('\n', 0, f.match_end) + 1
+                end_col = f.match_end - end_line_start
             findings.append(Finding(
                 rule_id=f.rule_id,
                 line_number=f.line_number,
                 matched_text=f.matched_text,
                 description=f.description or f.rule_id,
                 severity="warning",
+                start_column=start_col,
+                end_column=end_col,
                 category=f.category,
             ))
 

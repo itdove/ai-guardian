@@ -632,6 +632,7 @@ class ViolationCard(Vertical):
 
             # Location with path and line number
             position = blocked.get("position")
+            start_col = blocked.get("start_column")
             if file_path:
                 location_text = f"File: {file_path}"
                 if line_number:
@@ -639,7 +640,9 @@ class ViolationCard(Vertical):
                         location_text += f" (lines {line_number}-{end_line}"
                     else:
                         location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
@@ -647,7 +650,9 @@ class ViolationCard(Vertical):
                 location_text = "Location: User prompt"
                 if line_number:
                     location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
@@ -678,6 +683,7 @@ class ViolationCard(Vertical):
             file_path = blocked.get("file_path")
             line_number = blocked.get("line_number")
             position = blocked.get("position")
+            start_col = blocked.get("start_column")
             pattern = blocked.get("pattern", "Unknown")
             matched_text = blocked.get("matched_text")
             confidence = blocked.get("confidence")
@@ -686,7 +692,9 @@ class ViolationCard(Vertical):
                 location_text = f"File: {file_path}"
                 if line_number:
                     location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")

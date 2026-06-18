@@ -98,6 +98,8 @@ class GitleaksOutputParser(ScannerOutputParser):
                     "description": finding.get("Description", "Secret detected"),
                     "commit": finding.get("Commit", "N/A"),
                     "matched_text": finding.get("Match", ""),
+                    "start_column": finding.get("StartColumn"),
+                    "end_column": finding.get("EndColumn"),
                 })
 
             return {
@@ -179,6 +181,8 @@ class LeakTKOutputParser(ScannerOutputParser):
                     "description": finding.get("Description", "Secret detected"),
                     "commit": finding.get("Commit", "N/A"),
                     "matched_text": finding.get("Match", ""),
+                    "start_column": finding.get("StartColumn"),
+                    "end_column": finding.get("EndColumn"),
                 })
 
             return {
@@ -410,6 +414,8 @@ class SecretlintOutputParser(ScannerOutputParser):
                         "end_line": end.get("line", start.get("line", 0)),
                         "description": msg.get("message", "Secret detected"),
                         "commit": "N/A",
+                        "start_column": start.get("column"),
+                        "end_column": end.get("column"),
                     })
 
             if not standardized_findings:
@@ -521,6 +527,8 @@ class GitGuardianOutputParser(ScannerOutputParser):
                         "description": f"{break_type} detected",
                         "commit": "N/A",
                         "verified": verified,
+                        "start_column": location.get("column_start"),
+                        "end_column": location.get("column_end"),
                     })
 
             if not standardized_findings:
