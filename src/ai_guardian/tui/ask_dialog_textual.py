@@ -244,7 +244,11 @@ class _TextualAskDialog:
                     container = self.query_one("#ask-container")
                     for child in list(container.children):
                         child.remove()
-                    container.mount(Static(f"[bold]{build_sub_dialog_title('Config Editor — ai-guardian.json', v)}[/bold]", id="title"))
+                    config_title = f"[bold]{build_sub_dialog_title('Config Editor — ai-guardian.json', v)}[/bold]"
+                    if v.file_path:
+                        line_info = f":{v.line_number}" if v.line_number else ""
+                        config_title += f"\nSource: {v.file_path}{line_info}"
+                    container.mount(Static(config_title, id="title"))
                     container.mount(Static("[dim]Review the config, then Save or Cancel.[/dim]"))
                     if len(scope_options) > 1:
                         from textual.widgets import RadioSet, RadioButton
@@ -374,9 +378,10 @@ class _TextualAskDialog:
                     child.remove()
 
                 ann_label = "inline" if annotation_type == "inline" else "block"
+                line_info = f":{v.line_number}" if v.line_number else ""
                 container.mount(Static(
                     f"[bold]{build_sub_dialog_title(f'Suppress in Source — {ann_label}', v)}[/bold]\n"
-                    f"File: {v.file_path}",
+                    f"File: {v.file_path}{line_info}",
                     id="title",
                 ))
                 container.mount(Static("[dim]Review the annotated source. Save to write the file.[/dim]"))
@@ -413,9 +418,10 @@ class _TextualAskDialog:
                     child.remove()
 
                 scanner_label = SCANNER_LABELS.get(v.config_section, v.config_section)
+                line_info = f":{v.line_number}" if v.line_number else ""
                 container.mount(Static(
                     f"[bold]{build_sub_dialog_title('Ignore File — .aiguardignore.toml', v)}[/bold]\n"
-                    f"File: {v.file_path}",
+                    f"File: {v.file_path}{line_info}",
                     id="title",
                 ))
                 container.mount(Static("\n[bold]Path pattern:[/bold]"))

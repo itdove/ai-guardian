@@ -161,6 +161,9 @@ class _TkinterAskDialog:
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
+        if v.file_path:
+            line_info = f":{v.line_number}" if v.line_number else ""
+            ttk.Label(frame, text=f"Source: {v.file_path}{line_info}", wraplength=650).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
             text="The pattern has been inserted below. Review the full config, then Save or Cancel.",
@@ -278,6 +281,9 @@ class _TkinterAskDialog:
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Allow Always — Edit Pattern", font=("", 12, "bold")).pack(anchor="w")
+        if v.file_path:
+            line_info = f":{v.line_number}" if v.line_number else ""
+            ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=500).pack(anchor="w", pady=(0, 5))
         ttk.Label(frame, text=f"Edit the {ptype_label.lower()} below to match this text. The pattern will be added to the allowlist.", wraplength=500).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 
@@ -378,7 +384,7 @@ class _TkinterAskDialog:
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")).pack(anchor="w")
-        line_info = f" — Line {violation_line}" if violation_line > 1 else ""
+        line_info = f":{violation_line}" if violation_line and violation_line > 1 else ""
         ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=700).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
@@ -510,7 +516,8 @@ class _TkinterAskDialog:
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Ignore File — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"File: {v.file_path}", wraplength=650).pack(anchor="w", pady=(0, 5))
+        line_info = f":{v.line_number}" if v.line_number else ""
+        ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=650).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 
         ttk.Label(frame, text="Path pattern (editable):", font=("", 0, "bold")).pack(anchor="w")
