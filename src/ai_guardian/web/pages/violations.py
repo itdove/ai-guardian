@@ -702,18 +702,53 @@ def _show_suppress_in_source_flow(violation):
 
     modified_content, highlight_line, annotation_type = result
     ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
+    line_info = f" — Line {line_number}" if line_number > 1 else ""
 
     with ui.dialog().props("persistent maximized") as dlg, ui.card().classes("w-full h-full"):
         ui.label(f"Suppress in Source — {ann_label}").classes("text-lg font-bold")
-        ui.label(f"File: {file_path}").classes("text-sm text-grey-6")
+        ui.label(f"File: {file_path}{line_info}").classes("text-sm text-grey-6")
         ui.label("Review the annotated source. Save to write the file.").classes("text-sm text-grey-6")
         ui.separator()
 
+        lang = None
+        if file_path.endswith((".py", ".pyw", ".pyi")):
+            lang = "Python"
+        elif file_path.endswith((".js", ".mjs", ".cjs")):
+            lang = "JavaScript"
+        elif file_path.endswith((".ts", ".tsx")):
+            lang = "TypeScript"
+        elif file_path.endswith((".yml", ".yaml")):
+            lang = "YAML"
+        elif file_path.endswith(".json"):
+            lang = "JSON"
+
         editor = ui.codemirror(
             modified_content,
-            language="Python" if file_path.endswith(".py") else None,
-            theme="dracula", line_wrapping=True,
+            language=lang,
+            theme="dracula", line_wrapping=False,
         ).classes("w-full flex-grow").style("min-height: 400px")
+
+        ui.add_css("""
+            .cm-content .ai-guardian-annotation { color: #4EC9B0 !important; font-weight: bold; }
+        """)
+
+        async def _scroll_to_line():
+            if highlight_line > 1:
+                await ui.run_javascript(
+                    f'''
+                    const editors = document.querySelectorAll('.cm-editor');
+                    const cm = editors[editors.length - 1];
+                    if (cm && cm.cmView && cm.cmView.view) {{
+                        const view = cm.cmView.view;
+                        const line = view.state.doc.line({highlight_line});
+                        view.dispatch({{
+                            selection: {{anchor: line.from}},
+                            scrollIntoView: true,
+                        }});
+                    }}
+                    '''
+                )
+        ui.timer(0.5, _scroll_to_line, once=True)
 
         status = ui.label("").classes("text-sm")
 

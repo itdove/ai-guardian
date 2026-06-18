@@ -40,6 +40,7 @@ class SourceAnnotationEditorModal(ModalScreen):
         modified_content: str,
         annotation_type: str,
         preview_snippet: str,
+        line_number: int = 0,
         *args, **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -47,16 +48,18 @@ class SourceAnnotationEditorModal(ModalScreen):
         self.modified_content = modified_content
         self.annotation_type = annotation_type
         self.preview_snippet = preview_snippet
+        self.line_number = line_number
 
     def compose(self):
         from textual.widgets import TextArea
 
         ann_label = "inline" if self.annotation_type == "inline" else "block (begin-allow/end-allow)"
+        line_info = f" — Line {self.line_number}" if self.line_number > 0 else ""
 
         with Container(id="source-editor-container"):
             yield Static(
                 f"[bold]Suppress in Source — {ann_label}[/bold]\n"
-                f"File: {self.file_path}\n"
+                f"File: {self.file_path}{line_info}\n"
                 "Review the annotated source. Save to write the file.",
             )
 

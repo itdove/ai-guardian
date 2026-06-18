@@ -872,7 +872,10 @@ class DirectoryScanContent(ScrollableContainer):
         modified_content, _hl, annotation_type = result
         from ai_guardian.tui.source_editor_modals import SourceAnnotationEditorModal
         self.app.push_screen(
-            SourceAnnotationEditorModal(file_path, modified_content, annotation_type, "")
+            SourceAnnotationEditorModal(
+                file_path, modified_content, annotation_type, "",
+                line_number=line_number,
+            )
         )
 
     def _ignore_file_finding(self, index: int):
