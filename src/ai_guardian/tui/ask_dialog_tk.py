@@ -73,7 +73,7 @@ class _TkinterAskDialog:
             row = ttk.Frame(info_frame)
             row.pack(fill="x", pady=1)
             ttk.Label(row, text=f"{label}:", font=("", 0, "bold"), width=12, anchor="w").pack(side="left")
-            ttk.Label(row, text=value, wraplength=400).pack(side="left", fill="x", expand=True)
+            ttk.Label(row, text=value, wraplength=600).pack(side="left", fill="x", expand=True)
 
         text_frame = ttk.LabelFrame(main, text="Matched Text", padding=5)
         text_frame.pack(fill="x", pady=(0, 10))
