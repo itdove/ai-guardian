@@ -124,9 +124,11 @@ class TestDaemonStateGetProjectCacheStatus:
         state._project_config_paths = {"/proj": config_path}
         state._project_config_mtimes = {"/proj": 1718000200.0}
 
+        global_path = Path("/home/.config/ai-guardian/ai-guardian.json")
+        project_path = Path(config_path)
         fake_entry = FakeCacheEntry(
-            global_path=Path("/home/.config/ai-guardian/ai-guardian.json"),
-            project_path=Path(config_path),
+            global_path=global_path,
+            project_path=project_path,
             last_accessed=now - 5,
         )
 
@@ -137,9 +139,9 @@ class TestDaemonStateGetProjectCacheStatus:
             result = state.get_project_cache_status()
 
         proj = result["projects"][0]
-        assert proj["global_config_path"] is not None
+        assert proj["global_config_path"] == str(global_path)
         assert proj["global_config_mtime"] == 1718000100.0
-        assert proj["cached_project_path"] == config_path
+        assert proj["cached_project_path"] == str(project_path)
         assert proj["cache_last_accessed_seconds_ago"] >= 4
 
     def test_last_reload_at_propagated(self):
@@ -221,7 +223,7 @@ class TestMultiDaemonClientCacheStatus:
         assert result["total_tracked"] == 1
         proj = result["projects"][0]
         assert proj["has_project_override"] is True
-        assert proj["global_config_path"] == "/g/config.json"
+        assert proj["global_config_path"] == str(Path("/g/config.json"))
 
 
     def test_get_cache_status_uses_rest_for_local_target(self):
