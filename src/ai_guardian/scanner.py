@@ -306,6 +306,49 @@ class FileScanner:
 
         return self.findings
 
+    def scan_text(
+        self,
+        text: str,
+        source_label: str = "stdin",
+    ) -> List[Dict[str, Any]]:
+        """Scan arbitrary text content for security issues.
+
+        Writes text to a temporary file so all scanners (including external
+        engines like gitleaks) can process it, then replaces the temp path
+        with source_label in findings.
+
+        Args:
+            text: Text content to scan
+            source_label: Label for findings (e.g. "stdin", "inline")
+
+        Returns:
+            List of findings
+        """
+        self.findings = []
+
+        if not text.strip():
+            return self.findings
+
+        tmp_fd, tmp_path_str = tempfile.mkstemp(suffix=".txt", prefix="ai-guardian-text-")
+        tmp_path = Path(tmp_path_str)
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                f.write(text)
+
+            self._scan_file(tmp_path, tmp_path.parent)
+
+            for finding in self.findings:
+                fp = finding.get("file_path", "")
+                if tmp_path_str in fp or tmp_path.name in fp:
+                    finding["file_path"] = source_label
+        finally:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+        return self.findings
+
     def _discover_files(
         self,
         base_path: Path,
@@ -863,135 +906,155 @@ def scan_command(args) -> int:
     # Initialize scanner
     scanner = FileScanner(config=config, verbose=args.verbose)
 
-    # Determine scan mode
-    diff_mode = getattr(args, 'diff', False)
-    pr_number = getattr(args, 'pr', None)
-    mr_number = getattr(args, 'mr', None)
-    stdin_diff = getattr(args, 'stdin_diff', False)
-    changed_lines_only = getattr(args, 'changed_lines_only', False)
-    diff_flags = [diff_mode, pr_number is not None, mr_number is not None, stdin_diff]
-
-    if sum(diff_flags) > 1:
-        print("Error: --diff, --pr, --mr, and --stdin-diff are mutually exclusive",
-              file=sys.stderr)
-        return 1
-
-    staged = getattr(args, 'staged', False)
-
-    if getattr(args, 'base', None) and not diff_mode:
-        print("Error: --base requires --diff", file=sys.stderr)
-        return 1
-
-    if staged and not diff_mode:
-        print("Error: --staged requires --diff", file=sys.stderr)
-        return 1
-
-    if staged and getattr(args, 'base', None):
-        print("Error: --staged and --base are mutually exclusive", file=sys.stderr)
-        return 1
-
-    if changed_lines_only and not any(diff_flags):
-        print("Error: --changed-lines-only requires --diff, --pr, --mr, or --stdin-diff",
-              file=sys.stderr)
-        return 1
-
-    agent_configs = getattr(args, 'agent_configs', False)
-    if agent_configs:
-        if not HAS_SUPPLY_CHAIN:
-            print("Error: Supply chain scanner not available", file=sys.stderr)
+    # Handle --text flag or stdin pipe
+    text_input = getattr(args, 'text', None)
+    text_mode = False
+    if text_input is not None:
+        findings = scanner.scan_text(text_input, source_label="inline")
+        text_mode = True
+    elif args.path == '--' or (args.path is None and not sys.stdin.isatty()):
+        stdin_text = sys.stdin.read()
+        if not stdin_text.strip():
+            print("No input received from stdin", file=sys.stderr)
             return 1
-        scanner.scan_agent_configs()
-        findings = scanner.findings
-    if not agent_configs and any(diff_flags):
-        # Diff-based scanning
-        try:
-            from ai_guardian.diff_provider import (
-                DiffProviderError,
-                extract_file_contents_from_diff,
-                filter_findings_by_changed_lines,
-                get_changed_files_from_diff,
-                get_diff_unified,
-                get_mr_diff,
-                get_pr_diff,
-                get_staged_diff,
-                parse_unified_diff,
-            )
-        except ImportError as e:
-            print(f"Error: Diff provider not available: {e}", file=sys.stderr)
+        findings = scanner.scan_text(stdin_text, source_label="stdin")
+        text_mode = True
+
+    if not text_mode:
+        if args.path is None:
+            args.path = "."
+
+    if not text_mode:
+        # Determine scan mode
+        diff_mode = getattr(args, 'diff', False)
+        pr_number = getattr(args, 'pr', None)
+        mr_number = getattr(args, 'mr', None)
+        stdin_diff = getattr(args, 'stdin_diff', False)
+        changed_lines_only = getattr(args, 'changed_lines_only', False)
+        diff_flags = [diff_mode, pr_number is not None, mr_number is not None, stdin_diff]
+
+        if sum(diff_flags) > 1:
+            print("Error: --diff, --pr, --mr, and --stdin-diff are mutually exclusive",
+                  file=sys.stderr)
             return 1
 
-        try:
-            if stdin_diff:
-                diff_text = sys.stdin.read()
-            elif pr_number:
-                diff_text = get_pr_diff(pr_number, repo_path=args.path)
-            elif mr_number:
-                diff_text = get_mr_diff(mr_number, repo_path=args.path)
-            elif staged:
-                diff_text = get_staged_diff(repo_path=args.path)
-            else:
-                base_ref = getattr(args, 'base', None)
-                diff_text = get_diff_unified(base_ref=base_ref, repo_path=args.path)
+        staged = getattr(args, 'staged', False)
 
-            changed_files = get_changed_files_from_diff(diff_text)
-            changed_lines = parse_unified_diff(diff_text) if changed_lines_only else None
+        if getattr(args, 'base', None) and not diff_mode:
+            print("Error: --base requires --diff", file=sys.stderr)
+            return 1
 
-            if not changed_files:
-                if not getattr(args, 'sarif_output', None) and not getattr(args, 'json_output', None):
-                    print("No changed files found in diff.")
-                return 0
+        if staged and not diff_mode:
+            print("Error: --staged requires --diff", file=sys.stderr)
+            return 1
 
-            is_remote = pr_number is not None or mr_number is not None
+        if staged and getattr(args, 'base', None):
+            print("Error: --staged and --base are mutually exclusive", file=sys.stderr)
+            return 1
 
-            if is_remote:
-                file_contents = extract_file_contents_from_diff(diff_text)
-                tmpdir = tempfile.mkdtemp(prefix="ai-guardian-scan-")
-                try:
-                    tmp_base = Path(tmpdir)
-                    file_paths = []
-                    for rel_path, content in file_contents.items():
-                        tmp_file = tmp_base / rel_path
-                        tmp_file.parent.mkdir(parents=True, exist_ok=True)
-                        tmp_file.write_text(content, encoding="utf-8")
-                        file_paths.append(tmp_file)
+        if changed_lines_only and not any(diff_flags):
+            print("Error: --changed-lines-only requires --diff, --pr, --mr, or --stdin-diff",
+                  file=sys.stderr)
+            return 1
+
+        agent_configs = getattr(args, 'agent_configs', False)
+        if agent_configs:
+            if not HAS_SUPPLY_CHAIN:
+                print("Error: Supply chain scanner not available", file=sys.stderr)
+                return 1
+            scanner.scan_agent_configs()
+            findings = scanner.findings
+        if not agent_configs and any(diff_flags):
+            # Diff-based scanning
+            try:
+                from ai_guardian.diff_provider import (
+                    DiffProviderError,
+                    extract_file_contents_from_diff,
+                    filter_findings_by_changed_lines,
+                    get_changed_files_from_diff,
+                    get_diff_unified,
+                    get_mr_diff,
+                    get_pr_diff,
+                    get_staged_diff,
+                    parse_unified_diff,
+                )
+            except ImportError as e:
+                print(f"Error: Diff provider not available: {e}", file=sys.stderr)
+                return 1
+
+            try:
+                if stdin_diff:
+                    diff_text = sys.stdin.read()
+                elif pr_number:
+                    diff_text = get_pr_diff(pr_number, repo_path=args.path)
+                elif mr_number:
+                    diff_text = get_mr_diff(mr_number, repo_path=args.path)
+                elif staged:
+                    diff_text = get_staged_diff(repo_path=args.path)
+                else:
+                    base_ref = getattr(args, 'base', None)
+                    diff_text = get_diff_unified(base_ref=base_ref, repo_path=args.path)
+
+                changed_files = get_changed_files_from_diff(diff_text)
+                changed_lines = parse_unified_diff(diff_text) if changed_lines_only else None
+
+                if not changed_files:
+                    if not getattr(args, 'sarif_output', None) and not getattr(args, 'json_output', None):
+                        print("No changed files found in diff.")
+                    return 0
+
+                is_remote = pr_number is not None or mr_number is not None
+
+                if is_remote:
+                    file_contents = extract_file_contents_from_diff(diff_text)
+                    tmpdir = tempfile.mkdtemp(prefix="ai-guardian-scan-")
+                    try:
+                        tmp_base = Path(tmpdir)
+                        file_paths = []
+                        for rel_path, content in file_contents.items():
+                            tmp_file = tmp_base / rel_path
+                            tmp_file.parent.mkdir(parents=True, exist_ok=True)
+                            tmp_file.write_text(content, encoding="utf-8")
+                            file_paths.append(tmp_file)
+
+                        if args.verbose:
+                            print(f"PR/MR scanning: {len(file_paths)} changed file(s) from remote diff")
+
+                        findings = scanner.scan_files(file_paths=file_paths, base_path=tmp_base)
+                    finally:
+                        import shutil
+                        shutil.rmtree(tmpdir, ignore_errors=True)
+                else:
+                    base = Path(args.path).resolve()
+                    file_paths = [base / f for f in changed_files]
 
                     if args.verbose:
-                        print(f"PR/MR scanning: {len(file_paths)} changed file(s) from remote diff")
+                        print(f"Diff scanning: {len(file_paths)} changed file(s)")
 
-                    findings = scanner.scan_files(file_paths=file_paths, base_path=tmp_base)
-                finally:
-                    import shutil
-                    shutil.rmtree(tmpdir, ignore_errors=True)
-            else:
-                base = Path(args.path).resolve()
-                file_paths = [base / f for f in changed_files]
+                    findings = scanner.scan_files(file_paths=file_paths, base_path=base)
 
-                if args.verbose:
-                    print(f"Diff scanning: {len(file_paths)} changed file(s)")
+                if changed_lines_only and changed_lines:
+                    findings = filter_findings_by_changed_lines(findings, changed_lines)
 
-                findings = scanner.scan_files(file_paths=file_paths, base_path=base)
-
-            if changed_lines_only and changed_lines:
-                findings = filter_findings_by_changed_lines(findings, changed_lines)
-
-        except DiffProviderError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
-    elif not agent_configs:
-        # Standard directory scanning
-        findings = scanner.scan_directory(
-            path=args.path,
-            include_patterns=args.include if hasattr(args, 'include') else None,
-            exclude_patterns=args.exclude if hasattr(args, 'exclude') else None,
-            config_only=args.config_only if hasattr(args, 'config_only') else False
-        )
+            except DiffProviderError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+        elif not agent_configs:
+            # Standard directory scanning
+            findings = scanner.scan_directory(
+                path=args.path,
+                include_patterns=args.include if hasattr(args, 'include') else None,
+                exclude_patterns=args.exclude if hasattr(args, 'exclude') else None,
+                config_only=args.config_only if hasattr(args, 'config_only') else False
+            )
 
     # Output results
     if args.sarif_output and HAS_SARIF:
         # SARIF output
         from ai_guardian import __version__
         formatter = SARIFFormatter(version=__version__)
-        formatter.write_sarif_file(findings, args.sarif_output, scan_path=args.path)
+        scan_path = args.path if args.path else ("inline" if text_mode else ".")
+        formatter.write_sarif_file(findings, args.sarif_output, scan_path=scan_path)
         if args.verbose or not args.json_output:
             print(f"SARIF output written to: {args.sarif_output}")
 
