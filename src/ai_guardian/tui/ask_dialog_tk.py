@@ -183,6 +183,13 @@ class _TkinterAskDialog:
 
             scope_var.trace_add("write", _on_scope_change)
 
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(side="bottom", fill="x", pady=(5, 0))
+
+        status_var = tk.StringVar(value="Valid JSON")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", fg="#00cc00")
+        status_label.pack(side="bottom", fill="x")
+
         text_frame = ttk.Frame(frame)
         text_frame.pack(fill="both", expand=True, pady=(0, 5))
 
@@ -203,13 +210,6 @@ class _TkinterAskDialog:
         config_text.see(f"{line_number}.0")
         config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
         config_text.tag_config("highlight", background="#3a3a00")
-
-        status_var = tk.StringVar(value="Valid JSON")
-        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", fg="#00cc00")
-        status_label.pack(fill="x")
-
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill="x", pady=(5, 0))
 
         def on_save():
             import json as json_mod
@@ -374,6 +374,13 @@ class _TkinterAskDialog:
         ).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
 
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(side="bottom", fill="x", pady=(5, 0))
+
+        status_var = tk.StringVar(value="")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w")
+        status_label.pack(side="bottom", fill="x")
+
         text_frame = ttk.Frame(frame)
         text_frame.pack(fill="both", expand=True, pady=(0, 5))
 
@@ -393,13 +400,6 @@ class _TkinterAskDialog:
         source_text.see(f"{highlight_line}.0")
         source_text.tag_add("highlight", f"{highlight_line}.0", f"{highlight_line}.end")
         source_text.tag_config("highlight", background="#3a3a00")
-
-        status_var = tk.StringVar(value="")
-        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w")
-        status_label.pack(fill="x")
-
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill="x", pady=(5, 0))
 
         def on_save():
             text = source_text.get("1.0", "end-1c")
@@ -570,6 +570,13 @@ class _TkinterAskDialog:
         ).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
 
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(side="bottom", fill="x", pady=(5, 0))
+
+        status_var = tk.StringVar(value="")
+        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w")
+        status_label.pack(side="bottom", fill="x")
+
         text_frame = ttk.Frame(frame)
         text_frame.pack(fill="both", expand=True, pady=(0, 5))
 
@@ -589,13 +596,6 @@ class _TkinterAskDialog:
         config_text.see(f"{line_number}.0")
         config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
         config_text.tag_config("highlight", background="#3a3a00")
-
-        status_var = tk.StringVar(value="")
-        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w")
-        status_label.pack(fill="x")
-
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill="x", pady=(5, 0))
 
         def on_save():
             text = config_text.get("1.0", "end-1c")
