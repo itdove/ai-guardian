@@ -109,7 +109,7 @@ from ai_guardian.response_format import (  # noqa: F401
 # --- config_loaders.py ---
 from ai_guardian.config_loaders import (  # noqa: F401
     _ConfigCacheEntry,
-    _cache,
+    _caches,
     HAS_AIGUARDIGNORE,
     _merge_aiguardignore,
     _clear_config_cache,

@@ -139,14 +139,14 @@ class TestAddIgnorePath:
         assert "src/test.py" in data["secret_scanning"]["allowlist"]["paths"]
 
     def test_cache_reset_after_write(self, tmp_path, monkeypatch):
-        from ai_guardian.aiguardignore import add_ignore_path, reset_cache, _cached_config
+        from ai_guardian.aiguardignore import add_ignore_path, reset_cache, _cached_configs
         reset_cache()
-        monkeypatch.setattr("ai_guardian.aiguardignore.find_project_root", lambda: tmp_path)
+        monkeypatch.setattr("ai_guardian.aiguardignore.find_project_root", lambda **kw: tmp_path)
 
         add_ignore_path("src/test.py", scanner_types=None, project_root=tmp_path)
 
         from ai_guardian import aiguardignore
-        assert aiguardignore._cached_config is None
+        assert len(aiguardignore._cached_configs) == 0
 
 
 @needs_toml_w

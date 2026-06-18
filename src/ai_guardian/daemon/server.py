@@ -310,9 +310,7 @@ class DaemonServer:
             return {"output": "{}", "exit_code": 0}
         if cwd:
             from ai_guardian.config_utils import set_project_dir_override, clear_project_dir_override
-            from ai_guardian.config_loaders import _clear_config_cache
             set_project_dir_override(cwd)
-            _clear_config_cache()
 
         try:
             self.state.get_config()
@@ -323,7 +321,6 @@ class DaemonServer:
         finally:
             if cwd:
                 clear_project_dir_override()
-                _clear_config_cache()
 
         # Track stats
         exit_code = result.get("exit_code", 0)

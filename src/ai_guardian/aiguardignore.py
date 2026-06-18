@@ -36,6 +36,7 @@ import logging
 import os
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -71,7 +72,9 @@ SCANNER_TYPES = frozenset({
     "image_scanning",
 })
 
-_cached_config: Optional[tuple] = None  # (path, mtime, AiguardignoreConfig)
+# Per-project cache to avoid cross-project contamination (#1227)
+_cached_configs: Dict[Path, tuple] = {}  # project_root -> (toml_path, mtime, AiguardignoreConfig)
+_cache_last_accessed: Dict[Path, float] = {}  # project_root -> monotonic timestamp
 
 
 @dataclass
@@ -100,8 +103,6 @@ def load_aiguardignore(
 
     Returns None when the file is absent, TOML is unavailable, or parsing fails.
     """
-    global _cached_config
-
     if not HAS_TOML:
         return None
 
@@ -118,8 +119,10 @@ def load_aiguardignore(
     except OSError:
         return None
 
-    if _cached_config is not None:
-        cached_path, cached_mtime, cached_obj = _cached_config
+    _cache_last_accessed[root] = time.monotonic()
+    cached = _cached_configs.get(root)
+    if cached is not None:
+        cached_path, cached_mtime, cached_obj = cached
         if cached_path == toml_path and cached_mtime == mtime:
             return cached_obj
 
@@ -154,7 +157,7 @@ def load_aiguardignore(
         scanner_paths=scanner_paths,
     )
 
-    _cached_config = (toml_path, mtime, result)
+    _cached_configs[root] = (toml_path, mtime, result)
     return result
 
 
@@ -177,8 +180,22 @@ def get_ignore_paths(scanner_type: str) -> List[str]:
 
 def reset_cache():
     """Clear all module-level caches (for testing)."""
-    global _cached_config
-    _cached_config = None
+    _cached_configs.clear()
+    _cache_last_accessed.clear()
+
+
+def cleanup_stale_entries(max_age: float = 86400.0):
+    """Remove cache entries not accessed within max_age seconds."""
+    now = time.monotonic()
+    stale_keys = [
+        k for k, ts in _cache_last_accessed.items()
+        if now - ts > max_age
+    ]
+    for key in stale_keys:
+        _cached_configs.pop(key, None)
+        _cache_last_accessed.pop(key, None)
+    if stale_keys:
+        logger.debug(f"Pruned {len(stale_keys)} stale aiguardignore cache entries")
 
 
 def find_project_root_for_file(file_path: str) -> Optional[Path]:

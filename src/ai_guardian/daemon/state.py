@@ -428,7 +428,11 @@ class DaemonState:
                 pass
 
     def _cleanup_stale_project_configs(self):
-        """Remove project config entries not seen for PROJECT_CONFIG_TTL."""
+        """Remove project config entries not seen for PROJECT_CONFIG_TTL.
+
+        Also cleans stale per-project cache entries in gitleaks_config,
+        aiguardignore, and config_loaders modules (#1227).
+        """
         now = time.monotonic()
         with self._lock:
             stale = [
@@ -441,6 +445,23 @@ class DaemonState:
                 self._project_dir_last_seen.pop(d, None)
             if stale:
                 logger.debug(f"Pruned {len(stale)} stale project config entries")
+
+        if stale:
+            try:
+                from ai_guardian.gitleaks_config import cleanup_stale_entries as _gc_cleanup
+                _gc_cleanup(PROJECT_CONFIG_TTL)
+            except Exception:
+                pass
+            try:
+                from ai_guardian.aiguardignore import cleanup_stale_entries as _ai_cleanup
+                _ai_cleanup(PROJECT_CONFIG_TTL)
+            except Exception:
+                pass
+            try:
+                from ai_guardian.config_loaders import cleanup_stale_entries as _cl_cleanup
+                _cl_cleanup(PROJECT_CONFIG_TTL)
+            except Exception:
+                pass
 
     # --- Compiled regex pattern cache ---
 
