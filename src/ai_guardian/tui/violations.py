@@ -292,6 +292,7 @@ class ViolationDetailsModal(ModalScreen):
             SourceAnnotationEditorModal(
                 file_path, modified_content, annotation_type,
                 preview_snippet="",
+                line_number=line_number,
             )
         )
 

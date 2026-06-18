@@ -356,7 +356,8 @@ class _TkinterAskDialog:
         from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
 
         v = self._violation
-        result = prepare_annotation(v.file_path, v.line_number or 1)
+        violation_line = v.line_number or 1
+        result = prepare_annotation(v.file_path, violation_line)
         if result is None:
             return
 
@@ -367,7 +368,7 @@ class _TkinterAskDialog:
         ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
         editor.title(build_sub_dialog_title(f"Suppress in Source — {ann_label}", self._violation))
         editor.resizable(True, True)
-        editor.geometry("700x500")
+        editor.geometry("800x550")
         editor.attributes("-topmost", True)
         editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
         editor.focus_force()
@@ -377,11 +378,12 @@ class _TkinterAskDialog:
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"File: {v.file_path}", wraplength=650).pack(anchor="w", pady=(0, 5))
+        line_info = f" — Line {violation_line}" if violation_line > 1 else ""
+        ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=700).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
             text="Review the annotated source below. Save to write the file.",
-            wraplength=650,
+            wraplength=700,
         ).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 5))
 
@@ -395,22 +397,67 @@ class _TkinterAskDialog:
         text_frame = ttk.Frame(frame)
         text_frame.pack(fill="both", expand=True, pady=(0, 5))
 
-        scrollbar = ttk.Scrollbar(text_frame)
-        scrollbar.pack(side="right", fill="y")
+        code_font = ("Menlo" if platform.system() == "Darwin" else "Consolas", 11)
+
+        yscrollbar = ttk.Scrollbar(text_frame, orient="vertical")
+        yscrollbar.pack(side="right", fill="y")
+
+        xscrollbar = ttk.Scrollbar(text_frame, orient="horizontal")
+        xscrollbar.pack(side="bottom", fill="x")
+
+        gutter = tk.Text(
+            text_frame, width=5, padx=4, takefocus=0,
+            border=0, state="disabled", wrap="none",
+            font=code_font, background="#2a2a2a", foreground="#888888",
+        )
+        gutter.pack(side="left", fill="y")
 
         source_text = tk.Text(
-            text_frame, wrap="none", undo=True,
-            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
-            yscrollcommand=scrollbar.set,
+            text_frame, wrap="none", undo=True, font=code_font,
+            yscrollcommand=yscrollbar.set,
+            xscrollcommand=xscrollbar.set,
         )
         source_text.pack(fill="both", expand=True)
-        scrollbar.config(command=source_text.yview)
+
+        def _sync_scroll(*args):
+            source_text.yview(*args)
+            gutter.yview(*args)
+
+        yscrollbar.config(command=_sync_scroll)
+        xscrollbar.config(command=source_text.xview)
+
+        def _on_source_yscroll(*args):
+            yscrollbar.set(*args)
+            gutter.yview_moveto(args[0])
+
+        source_text.config(yscrollcommand=_on_source_yscroll)
 
         source_text.insert("1.0", modified_content)
-        source_text.mark_set("insert", f"{highlight_line}.0")
-        source_text.see(f"{highlight_line}.0")
+
+        line_count = int(source_text.index("end-1c").split(".")[0])
+        gutter.config(state="normal")
+        gutter.insert("1.0", "\n".join(str(i) for i in range(1, line_count + 1)))
+        gutter.config(state="disabled")
+
         source_text.tag_add("highlight", f"{highlight_line}.0", f"{highlight_line}.end")
         source_text.tag_config("highlight", background="#3a3a00")
+
+        source_text.tag_config("annotation", foreground="#4EC9B0")
+        for marker in ["ai-guardian:allow", "ai-guardian:begin-allow", "ai-guardian:end-allow"]:
+            search_start = "1.0"
+            while True:
+                pos = source_text.search(marker, search_start, stopindex="end")
+                if not pos:
+                    break
+                end_pos = f"{pos}+{len(marker)}c"
+                source_text.tag_add("annotation", pos, end_pos)
+                search_start = end_pos
+
+        source_text.update_idletasks()
+        source_text.yview_moveto(1.0)
+        source_text.update_idletasks()
+        source_text.mark_set("insert", f"{highlight_line}.0")
+        source_text.see(f"{highlight_line}.0")
 
         def on_save():
             text = source_text.get("1.0", "end-1c")
