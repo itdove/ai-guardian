@@ -11,8 +11,14 @@ Extracted from SecretRedactor for shared use by PatternCache.
 import logging
 import math
 import re
+import sys
 from collections import Counter
-from typing import Callable, Optional
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 logger = logging.getLogger(__name__)
 
@@ -277,6 +283,114 @@ def token_not_placeholder(matched_text: str) -> bool:
     if _is_token_placeholder(body):
         return False
     return True
+
+
+def load_stopwords(config: Optional[Dict] = None) -> List[str]:
+    """Load bundled stopwords and merge with user-configured stopwords.
+
+    Args:
+        config: Secret scanning config dict (may contain "stopwords" list)
+
+    Returns:
+        Deduplicated list of lowercase stopword strings (min length 3)
+    """
+    from ai_guardian.patterns import BUNDLED_FILES
+
+    stopwords: List[str] = []
+    path = BUNDLED_FILES.get("stopwords")
+    if path and path.exists():
+        try:
+            with open(path, "rb") as f:
+                data = tomllib.load(f)
+            words = data.get("stopwords", {}).get("words", [])
+            seen: set = set()
+            for w in words:
+                if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH:
+                    low = w.lower()
+                    if low not in seen:
+                        seen.add(low)
+                        stopwords.append(low)
+        except Exception as e:
+            logger.warning(f"Failed to load bundled stopwords: {e}")
+
+    if config:
+        user_stopwords = config.get("stopwords", [])
+        if user_stopwords:
+            extra = [
+                w.lower() for w in user_stopwords
+                if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH
+            ]
+            existing = set(stopwords)
+            stopwords.extend(w for w in extra if w not in existing)
+
+    return stopwords
+
+
+def filter_findings_by_stopwords_entropy(
+    secrets: list,
+    stopwords: List[str],
+    min_entropy: Optional[float] = 3.0,
+) -> Tuple[list, int, int]:
+    """Filter SecretMatch objects by stopwords and entropy.
+
+    Args:
+        secrets: List of SecretMatch objects (with .secret and .category attrs)
+        stopwords: Lowercase stopword strings for substring matching
+        min_entropy: Minimum Shannon entropy threshold (None to disable)
+
+    Returns:
+        (filtered_list, stopword_filtered_count, entropy_filtered_count)
+    """
+    filtered = []
+    sw_count = 0
+    ent_count = 0
+    for s in secrets:
+        matched_text = getattr(s, "secret", None)
+        category = getattr(s, "category", "secrets")
+        if matched_text and stopwords and category == "secrets":
+            matched_lower = matched_text.lower()
+            if any(sw in matched_lower for sw in stopwords):
+                sw_count += 1
+                continue
+        if matched_text and min_entropy is not None and category == "secrets":
+            if shannon_entropy(matched_text) < min_entropy:
+                ent_count += 1
+                continue
+        filtered.append(s)
+    return filtered, sw_count, ent_count
+
+
+def filter_findings_dicts_by_stopwords_entropy(
+    findings: List[Dict],
+    stopwords: List[str],
+    min_entropy: Optional[float] = 3.0,
+) -> Tuple[List[Dict], int, int]:
+    """Filter finding dicts by stopwords and entropy.
+
+    Args:
+        findings: List of dicts with "matched_text" key
+        stopwords: Lowercase stopword strings for substring matching
+        min_entropy: Minimum Shannon entropy threshold (None to disable)
+
+    Returns:
+        (filtered_list, stopword_filtered_count, entropy_filtered_count)
+    """
+    filtered = []
+    sw_count = 0
+    ent_count = 0
+    for f in findings:
+        matched_text = f.get("matched_text")
+        if matched_text and stopwords:
+            matched_lower = matched_text.lower()
+            if any(sw in matched_lower for sw in stopwords):
+                sw_count += 1
+                continue
+        if matched_text and min_entropy is not None:
+            if shannon_entropy(matched_text) < min_entropy:
+                ent_count += 1
+                continue
+        filtered.append(f)
+    return filtered, sw_count, ent_count
 
 
 VALIDATOR_REGISTRY: dict = {
