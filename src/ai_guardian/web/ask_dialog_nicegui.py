@@ -35,6 +35,10 @@ def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
 
     with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
         ui.label(build_sub_dialog_title("Config Editor — ai-guardian.json", dialog_self._violation)).classes("text-lg font-bold")
+        v = dialog_self._violation
+        if v.file_path:
+            line_info = f":{v.line_number}" if v.line_number else ""
+            ui.label(f"Source: {v.file_path}{line_info}").classes("text-sm text-grey-6")
         ui.label(
             "Review the full config with the inserted pattern. Save to persist or Cancel to discard."
         ).classes("text-sm text-grey-6")
@@ -118,7 +122,8 @@ def _show_nicegui_suppress_in_source(dialog_self, app, v):
 
     with ui.dialog().props("persistent maximized") as dlg, ui.card().classes("w-full h-full"):
         ui.label(build_sub_dialog_title(f"Suppress in Source — {ann_label}", v)).classes("text-lg font-bold")
-        ui.label(f"File: {v.file_path}").classes("text-sm text-grey-6")
+        line_info = f":{v.line_number}" if v.line_number else ""
+        ui.label(f"File: {v.file_path}{line_info}").classes("text-sm text-grey-6")
         ui.label("Review the annotated source. Save to write the file.").classes("text-sm text-grey-6")
         ui.separator()
 
@@ -164,7 +169,8 @@ def _show_nicegui_ignore_file(dialog_self, app, v):
 
     with ui.dialog().props("persistent") as dlg, ui.card().classes("w-full max-w-xl"):
         ui.label(build_sub_dialog_title("Ignore File — .aiguardignore.toml", v)).classes("text-lg font-bold")
-        ui.label(f"File: {v.file_path}").classes("text-sm text-grey-6")
+        line_info = f":{v.line_number}" if v.line_number else ""
+        ui.label(f"File: {v.file_path}{line_info}").classes("text-sm text-grey-6")
         ui.separator()
 
         ui.label("Path pattern (editable):").classes("font-bold text-sm mt-2")
@@ -308,6 +314,9 @@ class _NiceGuiAskDialog:
                     def show_editor():
                         with ui.dialog() as dlg, ui.card().classes("w-full max-w-xl"):
                             ui.label(build_sub_dialog_title("Allow Always — Edit Pattern", v)).classes("text-lg font-bold")
+                            if v.file_path:
+                                line_info = f":{v.line_number}" if v.line_number else ""
+                                ui.label(f"File: {v.file_path}{line_info}").classes("text-sm text-grey-6")
                             ui.separator()
 
                             ui.label("Matched text (reference):").classes("font-bold text-sm")
