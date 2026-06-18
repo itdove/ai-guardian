@@ -2679,6 +2679,14 @@ def _extract_pii_matched_text(pii_redactions, content):
     return ""
 
 
+def _extract_file_path_from_pii_warning(pii_warning):
+    """Extract file path from PII warning message as fallback when tool_input has no file_path."""
+    if not pii_warning:
+        return None
+    match = re.search(r"File:\s*(\S+)", pii_warning)
+    return match.group(1) if match else None
+
+
 def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
                                 file_path: Optional[str] = None, tool_name: Optional[str] = None,
                                 ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
@@ -4206,6 +4214,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         pii_file_path = tool_input.get("file_path") or tool_input.get("path")
                         if not pii_file_path and pretool_ctx:
                             pii_file_path = pretool_ctx.get("file_path")
+                        if not pii_file_path:
+                            pii_file_path = _extract_file_path_from_pii_warning(pii_warning)
                         pii_snippet_text = redacted_text if redacted_text else tool_output
                         pii_action, pii_types = _log_pii_violation(
                             violation_logger, pii_config, pii_redactions,
@@ -5219,11 +5229,17 @@ def process_hook_data(hook_data, daemon_state=None):
                         pii_matched_text = _extract_pii_matched_text(pii_redactions, pii_scan_content)
 
                         # Check ask action mode before blocking
+                        pii_line_number2 = pii_redactions[0].get('line_number') if pii_redactions else None
+                        pii_file_path2 = file_path
+                        if not pii_file_path2:
+                            pii_file_path2 = _extract_file_path_from_pii_warning(pii_warning)
                         pii_ask_result2 = _handle_ask_mode(
                             pii_action, ViolationType.PII_DETECTED,
                             matched_text=pii_matched_text,
                             config_section="scan_pii",
                             error_msg=pii_warning,
+                            file_path=pii_file_path2,
+                            line_number=pii_line_number2,
                             latency_timer=_latency_timer,
                             hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                         )

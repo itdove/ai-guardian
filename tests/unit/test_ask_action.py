@@ -880,6 +880,41 @@ class TestExtractPiiMatchedText:
         assert _extract_pii_matched_text(redactions, "content here") == ""
 
 
+class TestExtractFilePathFromPiiWarning:
+    """Tests for _extract_file_path_from_pii_warning helper (Issue #1271)."""
+
+    def test_extracts_path_from_warning(self):
+        from ai_guardian.hook_processing import _extract_file_path_from_pii_warning
+        warning = (
+            "\n======\n"
+            "PII DETECTED\n"
+            "======\n"
+            "File: /Users/dev/project/tests/data/test.txt\n"
+            "Found 1 PII item(s):\n"
+        )
+        result = _extract_file_path_from_pii_warning(warning)
+        assert result == "/Users/dev/project/tests/data/test.txt"
+
+    def test_extracts_truncated_path(self):
+        from ai_guardian.hook_processing import _extract_file_path_from_pii_warning
+        warning = "File: .../very/long/path/file.txt\nFound 1 PII item(s):"
+        result = _extract_file_path_from_pii_warning(warning)
+        assert result == ".../very/long/path/file.txt"
+
+    def test_returns_none_for_no_file(self):
+        from ai_guardian.hook_processing import _extract_file_path_from_pii_warning
+        warning = "PII DETECTED\nFound 1 PII item(s):\n  - SSN"
+        assert _extract_file_path_from_pii_warning(warning) is None
+
+    def test_returns_none_for_none_input(self):
+        from ai_guardian.hook_processing import _extract_file_path_from_pii_warning
+        assert _extract_file_path_from_pii_warning(None) is None
+
+    def test_returns_none_for_empty_string(self):
+        from ai_guardian.hook_processing import _extract_file_path_from_pii_warning
+        assert _extract_file_path_from_pii_warning("") is None
+
+
 class TestHandleAskModeMatchedText:
     """Tests for matched_text flowing through _handle_ask_mode (Issue #1140)."""
 
