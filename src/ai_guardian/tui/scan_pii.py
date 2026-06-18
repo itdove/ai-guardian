@@ -7,13 +7,14 @@ Scans user prompts, file reads, and tool outputs for SSNs, credit cards, etc.
 """
 
 import json
+from pathlib import Path
 from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, select_options_with_default,
 )
@@ -134,6 +135,23 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         text-style: bold;
     }
     """
+
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         yield Static("[bold]PII Detection Settings[/bold]", id="pii-header")
@@ -273,8 +291,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             self._loading = False
 
     def _load_config_inner(self) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         config = {}
         if config_path.exists():
@@ -362,8 +379,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         self._apply_default_indicators(pii_config)
 
     def _save_config(self, updates: Dict[str, Any]) -> bool:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}
@@ -378,7 +394,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                 updates["enabled"] = sanitize_enabled_value(updates["enabled"])
             config["scan_pii"].update(updates)
 
-            config_dir.mkdir(parents=True, exist_ok=True)
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
 
@@ -445,8 +461,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             self.app.notify("Please enter a glob pattern", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}
@@ -483,8 +498,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             self.app.notify("Please enter a tool name pattern", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}
@@ -528,8 +542,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Invalid regex: {e}", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}

@@ -14,7 +14,7 @@ from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Static, Button, Input, Label, Checkbox
 from textual.message import Message
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 
 
 class PathEntry(Container):
@@ -153,6 +153,23 @@ class DirectoryProtectionContent(Container):
     }
     """
 
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
+
     def compose(self) -> ComposeResult:
         """Compose the directory protection tab content."""
         yield Static("[bold]Directory Protection & Exclusions[/bold]", id="directory-protection-header")
@@ -232,8 +249,7 @@ class DirectoryProtectionContent(Container):
 
     def load_config(self) -> None:
         """Load and display directory protection configuration."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         # Load config
         config = {}
@@ -324,8 +340,7 @@ class DirectoryProtectionContent(Container):
             self.app.notify("Please enter a path", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -360,8 +375,7 @@ class DirectoryProtectionContent(Container):
 
     def remove_path(self, index: int) -> None:
         """Remove an exclusion path."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -386,8 +400,7 @@ class DirectoryProtectionContent(Container):
 
     def save_enabled(self, enabled: bool) -> None:
         """Save the exclusions enabled state."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():

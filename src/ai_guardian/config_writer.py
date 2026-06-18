@@ -2,14 +2,18 @@
 
 Used by the ask dialog to atomically add allowlist patterns to ai-guardian.json
 without corrupting the config when multiple hook subprocesses write concurrently.
+
+Also provides scoped config read/write/delete/provenance utilities for the
+Global/Project scope selector feature.
 """
 
+import copy
 import json
 import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 try:
     import fcntl
@@ -18,7 +22,12 @@ except ImportError:
     HAS_FCNTL = False
 
 from ai_guardian.allowlist_utils import validate_allowlist_patterns
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import (
+    get_config_dir,
+    get_project_config_path,
+    GLOBAL_ONLY_SECTIONS,
+    _find_git_root,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -377,3 +386,210 @@ def save_ask_pattern(
         return add_permission_rule(matcher, rule_patterns, config_path=config_path)
     else:
         return add_allowlist_pattern(config_section, pattern, config_path=config_path)
+
+
+# ---------------------------------------------------------------------------
+# Scoped config read / write / delete / provenance
+# ---------------------------------------------------------------------------
+
+
+def _resolve_config_path(scope: str, project_dir: Optional[str] = None) -> Path:
+    """Resolve config file path for the given scope."""
+    if scope == "project":
+        existing = get_project_config_path()
+        if existing:
+            return existing
+        root = Path(project_dir) if project_dir else (_find_git_root() or Path.cwd())
+        return root / ".ai-guardian" / "ai-guardian.json"
+    return get_config_dir() / "ai-guardian.json"
+
+
+def _load_json_file(path: Path) -> dict:
+    """Load a JSON file, returning {} on missing/invalid."""
+    if not path.exists():
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.debug("Could not read %s: %s", path, e)
+        return {}
+
+
+def load_scoped_config(
+    scope: str = "merged",
+    project_dir: Optional[str] = None,
+) -> dict:
+    """Load config for a specific scope.
+
+    Args:
+        scope: "merged" (effective), "global" (global only), "project" (overrides only).
+        project_dir: Project directory for project scope discovery.
+
+    Returns:
+        Config dict for the requested scope.
+    """
+    if scope == "merged":
+        try:
+            from ai_guardian.config_loaders import _load_config_file
+            result, _ = _load_config_file()
+            return result or {}
+        except Exception:
+            global_cfg = _load_json_file(_resolve_config_path("global"))
+            project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
+            if project_cfg:
+                from ai_guardian.config_utils import deep_merge
+                return deep_merge(global_cfg, project_cfg)
+            return global_cfg
+    elif scope == "global":
+        return _load_json_file(_resolve_config_path("global"))
+    elif scope == "project":
+        return _load_json_file(_resolve_config_path("project", project_dir))
+    return {}
+
+
+def write_scoped_config(
+    scope: str,
+    section: str,
+    key: Optional[str],
+    value: Any,
+    project_dir: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """Write a config value to the specified scope.
+
+    Args:
+        scope: "global" or "project".
+        section: Config section (e.g. "secret_scanning").
+        key: Key within section (e.g. "action"). None to set the entire section.
+        value: Value to write.
+        project_dir: Project directory (required for project scope when no
+                     project config exists yet).
+
+    Returns:
+        (success, message) tuple.
+    """
+    if scope == "project" and section in GLOBAL_ONLY_SECTIONS:
+        return False, f"Section '{section}' is global-only and cannot be set per-project"
+
+    config_path = _resolve_config_path(scope, project_dir)
+
+    def updater(config: dict) -> Tuple[bool, str]:
+        sect = _ensure_section(config, section)
+        if key is None:
+            config[section] = value
+        else:
+            sect[key] = value
+        return False, f"Set {section}.{key} = {value!r} [{scope}]"
+
+    success = _atomic_config_update(config_path, updater)
+    if success:
+        return True, f"Saved {section}.{key} to {scope} config at {config_path}"
+    return False, f"Failed to write {section}.{key} to {scope} config"
+
+
+def delete_project_override(
+    section: str,
+    key: Optional[str] = None,
+    project_dir: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """Remove a project-level override, reverting to global default.
+
+    Args:
+        section: Config section (e.g. "secret_scanning").
+        key: Key to remove. None removes the entire section override.
+        project_dir: Project directory for config discovery.
+
+    Returns:
+        (success, message) tuple.
+    """
+    config_path = _resolve_config_path("project", project_dir)
+    if not config_path.exists():
+        return True, "No project config exists — already using global defaults"
+
+    def updater(config: dict) -> Tuple[bool, str]:
+        if section not in config:
+            return True, f"Section '{section}' not in project config — nothing to remove"
+        if key is None:
+            del config[section]
+            return False, f"Removed project override for entire section '{section}'"
+        sect = config[section]
+        if isinstance(sect, dict) and key in sect:
+            del sect[key]
+            if not sect:
+                del config[section]
+            return False, f"Removed project override for {section}.{key}"
+        return True, f"{section}.{key} not in project config — nothing to remove"
+
+    success = _atomic_config_update(config_path, updater)
+    if success:
+        return True, f"Removed project override for {section}.{key}"
+    return False, f"Failed to remove project override for {section}.{key}"
+
+
+def compute_provenance(
+    project_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Compute per-key provenance showing which scope each value comes from.
+
+    Returns:
+        Nested dict mirroring config structure with leaf values of
+        "global", "project", or "merged" (for concatenated lists).
+    """
+    global_cfg = _load_json_file(_resolve_config_path("global"))
+    project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
+
+    if not project_cfg:
+        return _mark_all_provenance(global_cfg, "global")
+
+    from ai_guardian.config_utils import deep_merge
+    merged = deep_merge(global_cfg, project_cfg)
+    return _compute_provenance_recursive(global_cfg, project_cfg, merged)
+
+
+def _mark_all_provenance(config: dict, source: str) -> dict:
+    """Mark all keys in a config dict as coming from the given source."""
+    result: Dict[str, Any] = {}
+    for key, value in config.items():
+        if key.startswith("_"):
+            continue
+        if isinstance(value, dict):
+            result[key] = _mark_all_provenance(value, source)
+        else:
+            result[key] = source
+    return result
+
+
+def _compute_provenance_recursive(
+    global_cfg: dict,
+    project_cfg: dict,
+    merged: dict,
+) -> Dict[str, Any]:
+    """Recursively compute provenance for merged config."""
+    result: Dict[str, Any] = {}
+    for key in merged:
+        if key.startswith("_"):
+            continue
+        in_global = key in global_cfg
+        in_project = key in project_cfg
+
+        if in_project and in_global:
+            g_val = global_cfg[key]
+            p_val = project_cfg[key]
+            m_val = merged[key]
+            if isinstance(m_val, dict) and isinstance(g_val, dict) and isinstance(p_val, dict):
+                result[key] = _compute_provenance_recursive(g_val, p_val, m_val)
+            elif isinstance(m_val, list) and isinstance(g_val, list) and isinstance(p_val, list):
+                result[key] = "merged"
+            else:
+                result[key] = "project"
+        elif in_project:
+            if isinstance(merged[key], dict):
+                result[key] = _mark_all_provenance(merged[key], "project")
+            else:
+                result[key] = "project"
+        else:
+            if isinstance(merged[key], dict):
+                result[key] = _mark_all_provenance(merged[key], "global")
+            else:
+                result[key] = "global"
+    return result

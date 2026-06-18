@@ -149,3 +149,54 @@ class DaemonService:
             return result is not None
         except Exception:
             return False
+
+    def get_config_scoped(
+        self,
+        target: DaemonTarget,
+        scope: str = "merged",
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_config_scoped(target, scope, project_dir)
+        except Exception:
+            return None
+
+    def get_config_provenance(
+        self,
+        target: DaemonTarget,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_config_provenance(target, project_dir)
+        except Exception:
+            return None
+
+    def write_config(
+        self,
+        target: DaemonTarget,
+        scope: str,
+        section: str,
+        key: Optional[str],
+        value,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.write_config(
+                target, scope, section, key, value, project_dir,
+            )
+        except Exception:
+            return None
+
+    def delete_config_override(
+        self,
+        target: DaemonTarget,
+        section: str,
+        key: Optional[str] = None,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.delete_config_override(
+                target, section, key, project_dir,
+            )
+        except Exception:
+            return None

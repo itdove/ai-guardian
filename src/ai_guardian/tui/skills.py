@@ -14,7 +14,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Static, Input, Label
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
 
 
@@ -210,6 +210,23 @@ class SkillsContent(Container):
     }
     """
 
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
+
     def compose(self) -> ComposeResult:
         """Compose the skills tab content."""
         yield Static("[bold]Skill Permissions[/bold]", id="skills-header")
@@ -260,8 +277,7 @@ class SkillsContent(Container):
 
     def _load_patterns_inner(self) -> None:
         """Inner pattern loading (guarded by _loading flag)."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         allow_patterns = []
         deny_patterns = []
@@ -378,8 +394,7 @@ class SkillsContent(Container):
 
     def _save_permissions_enabled(self, value: Union[bool, Dict[str, Any]]) -> None:
         """Save permissions.enabled to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -421,8 +436,7 @@ class SkillsContent(Container):
             self.app.notify("Please enter a pattern", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -480,8 +494,7 @@ class SkillsContent(Container):
 
     def remove_pattern_by_index(self, mode: str, index: int) -> None:
         """Remove a pattern from allow or deny list by index."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         if not config_path.exists():
             self.app.notify("Config file not found", severity="error")

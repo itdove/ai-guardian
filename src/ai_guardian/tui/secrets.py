@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox, Select
 
-from ai_guardian.config_utils import get_cache_dir, get_config_dir
+from ai_guardian.config_utils import get_cache_dir, get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin, default_indicator, default_placeholder,
 )
@@ -118,6 +118,23 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         text-style: bold;
     }
     """
+
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         """Compose the secrets tab content."""
@@ -372,8 +389,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def _load_config_inner(self) -> None:
         """Inner config loading (guarded by _loading flag)."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         # Load config
         config = {}
@@ -725,8 +741,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def _save_secret_scanning_enabled(self, value: Union[bool, Dict[str, Any]]) -> None:
         """Save secret_scanning.enabled to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -761,8 +776,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def _save_secret_scanning_field(self, field: str, value) -> None:
         """Save a field under secret_scanning to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -790,8 +804,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         Only writes the 'enabled' field — never modifies, deletes, or nullifies
         any other field in the pattern_server section (url, auth, cache, etc.).
         """
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -841,8 +854,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def save_pattern_server_field(self, field: str, value: str) -> None:
         """Save a pattern server field to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -866,8 +878,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def save_pattern_server_auth_field(self, field: str, value: str) -> None:
         """Save a pattern server auth field to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -895,8 +906,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def save_cache_field(self, field: str, value) -> None:
         """Save a cache field to config."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             if config_path.exists():
@@ -938,8 +948,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Invalid regex: {e}", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}
@@ -981,8 +990,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             self.app.notify("Stopword must be at least 3 characters", severity="error")
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}

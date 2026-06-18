@@ -8,6 +8,7 @@ Uses a JSON editor for the rules array, matching the Config Editor pattern.
 
 import json
 import shutil
+from pathlib import Path
 from typing import List, Optional
 
 from textual.app import ComposeResult
@@ -15,7 +16,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Label, Select, TextArea
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
 
 
@@ -89,6 +90,23 @@ class DirectoryRulesContent(Container):
         border: solid $primary;
     }
     """
+
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -165,8 +183,7 @@ class DirectoryRulesContent(Container):
             pass
 
     def load_config(self) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         config = {}
         if config_path.exists():
@@ -296,16 +313,14 @@ class DirectoryRulesContent(Container):
             self.app.notify(f"Error saving action: {e}", severity="error")
 
     def _load_config_dict(self) -> dict:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
         if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         return {}
 
     def _save_config_dict(self, config: dict) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
         if config_path.exists():
             backup_path = config_path.with_suffix(".json.bak")
             shutil.copy2(config_path, backup_path)

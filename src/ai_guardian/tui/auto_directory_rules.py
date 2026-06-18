@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Switch, Button
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 
 
 class AutoDirectoryRulesContent(Container):
@@ -137,6 +137,23 @@ class AutoDirectoryRulesContent(Container):
                 id="auto-dir-info",
             )
 
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
+
     def on_mount(self) -> None:
         """Load config on mount."""
         self.load_config()
@@ -147,8 +164,7 @@ class AutoDirectoryRulesContent(Container):
 
     def load_config(self) -> None:
         """Load configuration and update display."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         config = {}
         if config_path.exists():
@@ -320,8 +336,7 @@ class AutoDirectoryRulesContent(Container):
 
     def _save_field(self, field: str, value) -> None:
         """Save a single auto_directory_rules field."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         try:
             config = {}

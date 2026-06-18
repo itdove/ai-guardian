@@ -12,7 +12,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin
 from ai_guardian.tui.widgets import TimeBasedToggle
 
@@ -22,6 +22,23 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
 
     SCHEMA_SECTION = "annotations"
     SCHEMA_FIELDS = []
+
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config_utils import _find_git_root
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
 
     CSS = """
     AnnotationsContent {
@@ -172,8 +189,7 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
         self.load_config()
 
     def load_config(self) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
         config = {}
         if config_path.exists():
             try:
@@ -205,8 +221,7 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
             widget.update("[dim]  (none configured)[/dim]")
 
     def save_config(self, updates: Dict[str, Any]) -> bool:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
 
         config = {}
         if config_path.exists():
@@ -221,7 +236,7 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
         config["annotations"].update(updates)
 
         try:
-            config_dir.mkdir(parents=True, exist_ok=True)
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, "w") as f:
                 json.dump(config, f, indent=2)
             return True
@@ -234,8 +249,7 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
         if not alias:
             return
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
         config = {}
         if config_path.exists():
             try:
@@ -254,8 +268,7 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
         input_widget.value = ""
 
     def _remove_last_alias(self, config_key: str, list_id: str) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        config_path = self._get_config_path()
         config = {}
         if config_path.exists():
             try:
