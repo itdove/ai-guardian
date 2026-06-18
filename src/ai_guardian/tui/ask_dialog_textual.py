@@ -104,6 +104,7 @@ class _TextualAskDialog:
                         yield Button("Allow Once", id="btn-allow-once", variant="primary")
                         yield Button("Allow Always...", id="btn-allow-always", variant="success")
                         if v.file_path:
+                            yield Button("View File", id="btn-view-file", variant="default")
                             from ai_guardian.tui.source_annotator import get_comment_prefix
                             if get_comment_prefix(v.file_path) is not None:
                                 yield Button("Suppress in Source...", id="btn-suppress-source", variant="warning")
@@ -142,6 +143,9 @@ class _TextualAskDialog:
                     self.exit()
                 elif bid == "btn-allow-always":
                     self._show_editor()
+                elif bid == "btn-view-file":
+                    from ai_guardian.tui.file_opener import open_in_editor
+                    open_in_editor(violation.file_path, violation.line_number)
                 elif bid == "btn-suppress-source":
                     self._show_suppress_in_source()
                 elif bid == "btn-ignore-file":
