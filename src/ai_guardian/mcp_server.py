@@ -141,10 +141,17 @@ def create_server() -> "FastMCP":
 
     # ─── Security Check Tools (proactive) ─────────────────────────
 
+    _OPERATION_TO_TOOL = {"read": "Read", "write": "Write", "edit": "Edit"}
+
     @server.tool()
 
-    def check_path(path: str) -> Dict[str, str]:
-        """Check if a file path is protected by directory rules. Call before Read/Write/Edit on unfamiliar paths. Returns allowed/denied/not_found so you can distinguish between protected paths and missing files."""
+    def check_path(path: str, operation: str = "read") -> Dict[str, str]:
+        """Check if a file path is protected by directory rules. Call before Read/Write/Edit on unfamiliar paths. Returns allowed/denied/not_found so you can distinguish between protected paths and missing files.
+
+        Args:
+            path: File path to check
+            operation: "read", "write", or "edit" (default: "read")
+        """
         try:
             resolved = Path(path).expanduser()
             if not resolved.exists():
@@ -152,9 +159,10 @@ def create_server() -> "FastMCP":
 
             from ai_guardian.tool_policy import ToolPolicyChecker
 
+            tool_name = _OPERATION_TO_TOOL.get(operation.lower(), "Read")
             checker = ToolPolicyChecker()
             hook_data = {
-                "tool_name": "Write",
+                "tool_name": tool_name,
                 "parameters": {"file_path": str(resolved)},
             }
             allowed, error_msg, _ = checker.check_tool_allowed(hook_data)
