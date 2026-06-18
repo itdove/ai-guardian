@@ -125,6 +125,7 @@ NAV_GROUPS = [
     ]),
     ("Threat Detection", [
         ("SSRF Protection", "panel-ssrf"),
+        ("Supply Chain", "panel-supply-chain"),
         ("Config Scanner", "panel-config-scanner"),
         ("PII Detection", "panel-scan-pii"),
         ("Annotations", "panel-annotations"),
@@ -434,6 +435,20 @@ HELP_DOCS = {
         "  [bold]log-only[/bold] — Silent logging\n\n"
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]s[/bold]  Save settings"
+    ),
+    "panel-supply-chain": (
+        "[bold]Supply Chain Scanning[/bold]\n\n"
+        "Detect malicious patterns in agent hooks, MCP server configs, "
+        "and plugin files.\n\n"
+        "[bold]Scan targets:[/bold]\n"
+        "  [bold]Hooks[/bold] — Hook configuration files (hooks.json, settings.json)\n"
+        "  [bold]MCP Configs[/bold] — MCP server command configurations\n"
+        "  [bold]Plugins[/bold] — Plugin/extension files for dangerous APIs\n\n"
+        "[bold]Note:[/bold]\n"
+        "  This panel is read-only. Use the web console or edit\n"
+        "  ai-guardian.json to change supply chain settings.\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Refresh panel data"
     ),
     "panel-config-scanner": (
         "[bold]Config File Scanner[/bold]\n\n"
@@ -1151,6 +1166,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-ssrf"):
                     from ai_guardian.tui.ssrf import SSRFContent
                     yield SSRFContent()
+
+                with Container(id="panel-supply-chain"):
+                    from ai_guardian.tui.supply_chain import SupplyChainContent
+                    yield SupplyChainContent()
 
                 with Container(id="panel-config-scanner"):
                     from ai_guardian.tui.config_scanner import ConfigScannerContent
