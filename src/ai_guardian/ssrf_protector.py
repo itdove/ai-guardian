@@ -175,10 +175,22 @@ class SSRFProtector:
         self.allow_localhost = self.config.get("allow_localhost", False)
 
         # Parse allowed domains (for allow-list functionality)
-        self._allowed_domains = set()
+        # Dual-path: exact strings use exact/subdomain matching (backward compat),
+        # regex patterns use re.fullmatch() against hostname and hostname:port
+        self._allowed_domains_exact = set()
+        self._allowed_domain_regexes = []
+        _regex_metachar_re = re.compile(r'[\\*+?\[\](){}|^$:]')
         for domain in self.config.get("allowed_domains", []):
-            if domain:
-                self._allowed_domains.add(domain.lower())
+            if not domain:
+                continue
+            if _regex_metachar_re.search(domain):
+                try:
+                    compiled = re.compile(domain, re.IGNORECASE)
+                    self._allowed_domain_regexes.append(compiled)
+                except re.error as e:
+                    logger.warning(f"Invalid regex in allowed_domains, skipping: {domain} — {e}")
+            else:
+                self._allowed_domains_exact.add(domain.lower())
 
         # Compile URL extraction patterns
         self._compiled_url_patterns = [
@@ -384,15 +396,15 @@ class SSRFProtector:
 
         return unique_urls
 
-    def _parse_url(self, url: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    def _parse_url(self, url: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[int]]:
         """
-        Parse a URL into scheme, hostname, path, and full URL.
+        Parse a URL into scheme, hostname, path, full URL, and port.
 
         Args:
             url: URL string to parse
 
         Returns:
-            Tuple of (scheme, hostname, path, full_url) or (None, None, None, None) on error
+            Tuple of (scheme, hostname, path, full_url, port) or (None, None, None, None, None) on error
         """
         try:
             parsed = urllib.parse.urlparse(url)
@@ -404,10 +416,10 @@ class SSRFProtector:
             if parsed.query:
                 path = f"{path}?{parsed.query}"
 
-            return scheme, hostname, path, url
+            return scheme, hostname, path, url, parsed.port
         except Exception as e:
             logger.debug(f"Failed to parse URL '{url}': {e}")
-            return None, None, None, None
+            return None, None, None, None, None
 
     def _is_ip_blocked(self, ip_str: str) -> bool:
         """
@@ -514,33 +526,51 @@ class SSRFProtector:
 
         return False
 
-    def _is_domain_allowed(self, domain: str) -> bool:
+    def _is_domain_allowed(self, domain: str, port: Optional[int] = None) -> bool:
         """
         Check if a domain is in the allowed list.
 
-        Uses same matching logic as blocked domains:
-        - Exact match: 'api.corp.internal' matches 'api.corp.internal'
-        - Subdomain match: 'foo.api.corp.internal' matches if 'api.corp.internal' is allowed
+        Matching order:
+        1. Exact match: 'api.corp.internal' matches 'api.corp.internal'
+        2. Subdomain match: 'foo.api.corp.internal' matches if 'api.corp.internal' is allowed
+        3. Regex match: '.*\\.example\\.com' matches via re.fullmatch() against hostname
+           and hostname:port (for port-aware patterns like 'localhost:19200')
 
         Args:
             domain: Domain name to check
+            port: Optional port number for port-aware regex matching
 
         Returns:
             True if domain is in allow-list, False otherwise
         """
-        if not domain or not self._allowed_domains:
+        if not domain:
+            return False
+
+        if not self._allowed_domains_exact and not self._allowed_domain_regexes:
             return False
 
         domain_lower = domain.lower()
 
-        # Check exact match
-        if domain_lower in self._allowed_domains:
+        # 1. Exact match (backward compatible)
+        if domain_lower in self._allowed_domains_exact:
             return True
 
-        # Check subdomain matching (e.g., foo.api.corp.internal matches api.corp.internal)
-        for allowed in self._allowed_domains:
+        # 2. Subdomain match (backward compatible)
+        for allowed in self._allowed_domains_exact:
             if domain_lower.endswith('.' + allowed):
                 return True
+
+        # 3. Regex match (new — supports port-aware patterns)
+        if self._allowed_domain_regexes:
+            targets = [domain_lower]
+            if port is not None:
+                targets.append(f"{domain_lower}:{port}")
+
+            for regex in self._allowed_domain_regexes:
+                for target in targets:
+                    if regex.fullmatch(target):
+                        logger.debug(f"Domain '{target}' matches allowed regex '{regex.pattern}'")
+                        return True
 
         return False
 
@@ -612,7 +642,7 @@ class SSRFProtector:
             Tuple of (is_ssrf, reason, is_immutable)
             - is_immutable: True for core protections that cannot be overridden by action mode
         """
-        scheme, hostname, path, _ = self._parse_url(url)
+        scheme, hostname, path, _, port = self._parse_url(url)
 
         if not scheme:
             # Failed to parse - fail closed (treat as immutable)
@@ -642,7 +672,7 @@ class SSRFProtector:
         # Check deny-list (additional_blocked_domains only)
         # This can be overridden by allow-list or path-based rules
         domain_blocked = self._is_domain_blocked(hostname)
-        domain_allowed = self._is_domain_allowed(hostname)
+        domain_allowed = self._is_domain_allowed(hostname, port=port)
 
         # Check path-based rules for this domain (if any exist)
         path_rules = self._path_based_rules.get(hostname_lower)
