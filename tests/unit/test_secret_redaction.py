@@ -4,6 +4,7 @@ Tests for secret redaction functionality (Phase 4: Hermes Security Patterns).
 Tests the SecretRedactor class and its integration with PostToolUse hook.
 """
 
+import re
 import pytest
 import json
 from ai_guardian.secret_redactor import SecretRedactor
@@ -621,16 +622,16 @@ class TestPositionDriftRegression:
         """When redacted text is shorter than original, later positions stay correct."""
         redactor = SecretRedactor(config={"enabled": True})
         text = (
-            "key1=AKIAIOSFODNN7EXAMPLE1 "
-            "key2=AKIAIOSFODNN7EXAMPLE2"
+            "KEY1=AKIAIOSFODNN7EXAMPLE1 "
+            "KEY2=AKIAIOSFODNN7EXAMPLE2"
         )  # notsecret
         result = redactor.redact(text)
         out = result["redacted_text"]
 
         assert "EXAMPLE1" not in out
         assert "EXAMPLE2" not in out
-        assert "key1=" in out
-        assert "key2=" in out
+        assert "KEY1=" in out
+        assert "KEY2=" in out
 
     def test_mixed_pattern_types_no_garble(self):
         """Different secret types in same text must all redact correctly."""
@@ -729,3 +730,128 @@ class TestPositionFromOriginalText:
         r = result["redactions"][0]
         expected_col = r["position"] - text.rfind("\n", 0, r["position"])
         assert r["column"] == expected_col
+
+
+class TestPerRuleRegexFlags:
+    """Tests for per-rule regex flag handling (Issue #1262).
+
+    secret_redactor.py must respect per-rule flags/case_insensitive from
+    pattern dicts, matching toml_parser.py behavior. Tuple-format patterns
+    keep IGNORECASE|MULTILINE for backward compatibility.
+    """
+
+    def test_extract_regex_flags_default_no_flags(self):
+        """Dict with no flag fields produces flags=0."""
+        flags = SecretRedactor._extract_regex_flags({})
+        assert flags == 0
+
+    def test_extract_regex_flags_case_insensitive_bool(self):
+        """case_insensitive: True sets IGNORECASE."""
+        flags = SecretRedactor._extract_regex_flags({"case_insensitive": True})
+        assert flags & re.IGNORECASE
+
+    def test_extract_regex_flags_string_i(self):
+        """flags: "i" sets IGNORECASE."""
+        flags = SecretRedactor._extract_regex_flags({"flags": "i"})
+        assert flags & re.IGNORECASE
+
+    def test_extract_regex_flags_multiline_bool(self):
+        """multiline: True sets MULTILINE."""
+        flags = SecretRedactor._extract_regex_flags({"multiline": True})
+        assert flags & re.MULTILINE
+
+    def test_extract_regex_flags_string_im(self):
+        """flags: "im" sets both IGNORECASE and MULTILINE."""
+        flags = SecretRedactor._extract_regex_flags({"flags": "im"})
+        assert flags & re.IGNORECASE
+        assert flags & re.MULTILINE
+
+    def test_extract_regex_flags_dotall(self):
+        """dotall: True sets DOTALL."""
+        flags = SecretRedactor._extract_regex_flags({"dotall": True})
+        assert flags & re.DOTALL
+
+    def test_dict_pattern_case_sensitive_by_default(self):
+        """Dict-format pattern without flags is case-sensitive (no IGNORECASE)."""
+        redactor = SecretRedactor(config={
+            "enabled": True,
+            "additional_patterns": [{
+                "pattern": r"EXACT_SECRET_[A-Z]{20}",
+                "strategy": "full_redact",
+                "type": "Test Case-Sensitive Secret",
+            }],
+        })
+        text = "exact_secret_abcdefghijklmnopqrst"
+        result = redactor.redact(text)
+        test_hits = [r for r in result["redactions"] if r["type"] == "Test Case-Sensitive Secret"]
+        assert len(test_hits) == 0, "Case-sensitive pattern should NOT match lowercase input"
+
+    def test_dict_pattern_case_insensitive_flag(self):
+        """Dict-format pattern with case_insensitive: True matches lowercase."""
+        redactor = SecretRedactor(config={
+            "enabled": True,
+            "additional_patterns": [{
+                "pattern": r"EXACT_SECRET_[A-Z]{20}",
+                "strategy": "full_redact",
+                "type": "Test CI Secret",
+                "case_insensitive": True,
+            }],
+        })
+        text = "exact_secret_abcdefghijklmnopqrst"
+        result = redactor.redact(text)
+        test_hits = [r for r in result["redactions"] if r["type"] == "Test CI Secret"]
+        assert len(test_hits) == 1, "case_insensitive: True should match lowercase"
+
+    def test_dict_pattern_flags_i_matches_lowercase(self):
+        """Dict-format pattern with flags: 'i' matches lowercase."""
+        redactor = SecretRedactor(config={
+            "enabled": True,
+            "additional_patterns": [{
+                "pattern": r"EXACT_SECRET_[A-Z]{20}",
+                "strategy": "full_redact",
+                "type": "Test Flags-I Secret",
+                "flags": "i",
+            }],
+        })
+        text = "exact_secret_abcdefghijklmnopqrst"
+        result = redactor.redact(text)
+        test_hits = [r for r in result["redactions"] if r["type"] == "Test Flags-I Secret"]
+        assert len(test_hits) == 1
+
+    def test_tuple_format_keeps_ignorecase(self):
+        """Tuple-format patterns still get IGNORECASE|MULTILINE (backward compat)."""
+        from unittest.mock import patch
+
+        redactor = SecretRedactor.__new__(SecretRedactor)
+        redactor.config = {"enabled": True}
+        redactor.pii_config = {}
+        redactor.enabled = True
+        redactor.log_redactions = False
+        redactor._compiled_pii_allowlist = []
+
+        compiled = re.compile(r"TUPLE_SECRET_[A-Z]{20}", re.IGNORECASE | re.MULTILINE)
+        redactor.compiled_patterns = [(compiled, "full_redact", "Tuple Test")]
+
+        text = "tuple_secret_abcdefghijklmnopqrst"
+        result = redactor.redact(text)
+        assert len(result["redactions"]) == 1, "Tuple pattern with IGNORECASE should match lowercase"
+
+    def test_detection_redaction_flag_parity(self):
+        """Detection (toml_parser) and redaction use same flag logic for dict patterns."""
+        from ai_guardian.patterns.toml_parser import load_and_compile
+
+        pattern_info = {
+            "regex": r"MY_SPECIAL_TOKEN_[A-Z]{20}",
+            "flags": "i",
+            "case_insensitive": False,
+            "multiline": False,
+        }
+        detection_flags = 0
+        raw_flags = pattern_info.get("flags", "")
+        if "i" in raw_flags or pattern_info.get("case_insensitive", False):
+            detection_flags |= re.IGNORECASE
+        if "m" in raw_flags or pattern_info.get("multiline", False):
+            detection_flags |= re.MULTILINE
+
+        redaction_flags = SecretRedactor._extract_regex_flags(pattern_info)
+        assert detection_flags == redaction_flags

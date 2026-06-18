@@ -36,6 +36,19 @@ class SecretRedactor:
     # PII patterns are loaded from patterns/data/pii.toml.
     # Hardcoded PATTERNS and PII_PATTERNS removed — TOML is the sole source.
 
+    @staticmethod
+    def _extract_regex_flags(pattern_info: Dict) -> int:
+        """Extract regex flags from a pattern dict, matching toml_parser.py logic."""
+        flags = 0
+        raw_flags = pattern_info.get("flags", "")
+        if "i" in raw_flags or pattern_info.get("case_insensitive", False):
+            flags |= re.IGNORECASE
+        if "m" in raw_flags or pattern_info.get("multiline", False):
+            flags |= re.MULTILINE
+        if "s" in raw_flags or pattern_info.get("dotall", False):
+            flags |= re.DOTALL
+        return flags
+
     VALID_CC_PREFIXES = (
         '4',
         '51', '52', '53', '54', '55',
@@ -124,20 +137,22 @@ class SecretRedactor:
         self.compiled_patterns = []
         for pattern_info in patterns_to_use:
             try:
-                # Handle both tuple format (hardcoded) and dict format (pattern server)
+                # Handle both tuple format (hardcoded) and dict format (TOML/pattern server)
                 if isinstance(pattern_info, tuple):
                     pattern, strategy, secret_type = pattern_info
+                    flags = re.IGNORECASE | re.MULTILINE
                 else:
                     pattern = pattern_info.get('regex') or pattern_info.get('pattern')
                     strategy = pattern_info.get('strategy', 'preserve_prefix_suffix')
                     secret_type = pattern_info.get('secret_type', 'Unknown Secret')
+                    flags = self._extract_regex_flags(pattern_info)
 
                 # Validate pattern before compilation (protects against ReDoS from pattern server)
                 if not validate_regex_pattern(pattern):
                     logger.error(f"Pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping")
                     continue
 
-                compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+                compiled = re.compile(pattern, flags)
                 self.compiled_patterns.append((compiled, strategy, secret_type))
             except (re.error, KeyError, TypeError) as e:
                 logger.warning(f"Failed to compile pattern for {secret_type if isinstance(pattern_info, tuple) else pattern_info.get('secret_type', 'unknown')}: {e}")
@@ -155,7 +170,7 @@ class SecretRedactor:
                     logger.error(f"Custom pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping")
                     continue
 
-                compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+                compiled = re.compile(pattern, self._extract_regex_flags(custom))
                 self.compiled_patterns.append((compiled, strategy, secret_type))
                 logger.debug(f"Added custom pattern: {secret_type}")
             except (re.error, KeyError, TypeError) as e:
@@ -196,7 +211,15 @@ class SecretRedactor:
         """Load secret patterns from bundled TOML file (Issue #841)."""
         def _transform(raw_rules):
             return [
-                (raw.get("regex", ""), raw.get("redaction_strategy", "preserve_prefix_suffix"), raw.get("description", ""))
+                {
+                    'regex': raw.get("regex", ""),
+                    'strategy': raw.get("redaction_strategy", "preserve_prefix_suffix"),
+                    'secret_type': raw.get("description", ""),
+                    'flags': raw.get("flags", ""),
+                    'case_insensitive': raw.get("case_insensitive", False),
+                    'multiline': raw.get("multiline", False),
+                    'dotall': raw.get("dotall", False),
+                }
                 for raw in raw_rules if raw.get("match_type", "regex") == "regex"
             ]
         return load_bundled_rules("secrets", _transform, [],
