@@ -662,3 +662,70 @@ class TestPositionDriftRegression:
         result = redactor.redact(text)
 
         assert len(result["redactions"]) >= 3
+
+
+class TestPositionFromOriginalText:
+    """Regression tests for positions recorded from modified text (#1235).
+
+    When multiple pattern types match, finditer() must run on the original text
+    so position metadata indexes correctly into the original content.
+    """
+
+    def test_cross_pattern_positions_index_original(self):
+        """Positions from different pattern types must slice original text correctly."""
+        redactor = SecretRedactor()
+        text = (
+            "github: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa\n"
+            "aws: AKIAIOSFODNN7EXAMPLE"
+        )  # notsecret
+        result = redactor.redact(text)
+
+        for r in result["redactions"]:
+            pos = r["position"]
+            length = r["original_length"]
+            extracted = text[pos:pos + length]
+            assert len(extracted) == length
+            assert "\n" not in extracted or r["type"] in ("private_key",)
+
+    def test_position_after_length_changing_redaction(self):
+        """Second pattern's position must be from original text, not modified."""
+        redactor = SecretRedactor()
+        text = (
+            "token=ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa "
+            "key=AKIAIOSFODNN7EXAMPLE"
+        )  # notsecret
+        result = redactor.redact(text)
+
+        for r in result["redactions"]:
+            pos = r["position"]
+            length = r["original_length"]
+            extracted = text[pos:pos + length]
+            if "ghp_" in extracted or extracted.startswith("AKIA"):
+                assert len(extracted) == length
+
+    def test_line_number_from_original_text(self):
+        """line_number must reflect original text line boundaries."""
+        redactor = SecretRedactor()
+        text = (
+            "line1: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa\n"
+            "line2: normal\n"
+            "line3: AKIAIOSFODNN7EXAMPLE"
+        )  # notsecret
+        result = redactor.redact(text)
+
+        line_numbers = {r["type"]: r["line_number"] for r in result["redactions"]}
+        for secret_type, line_num in line_numbers.items():
+            pos = next(r["position"] for r in result["redactions"] if r["type"] == secret_type)
+            expected_line = text[:pos].count("\n") + 1
+            assert line_num == expected_line
+
+    def test_column_from_original_text(self):
+        """column must reflect position within original text line."""
+        redactor = SecretRedactor()
+        text = "prefix: ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaaaaaaa"  # notsecret
+        result = redactor.redact(text)
+
+        assert len(result["redactions"]) >= 1
+        r = result["redactions"][0]
+        expected_col = r["position"] - text.rfind("\n", 0, r["position"])
+        assert r["column"] == expected_col

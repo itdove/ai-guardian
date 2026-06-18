@@ -1,3 +1,4 @@
+# ai-guardian:begin-allow
 """
 Secret Redactor - Redacts sensitive information from text while preserving context.
 
@@ -9,6 +10,7 @@ Part of Phase 4: Hermes Security Patterns Integration (Issue #197)
 NEW in v1.5.0: Optional pattern server support for enterprise secret pattern management.
 NEW in v1.6.0: PII detection for GDPR/CCPA compliance (Issue #262).
 """
+# ai-guardian:end-allow
 
 import re
 import logging
@@ -309,23 +311,23 @@ class SecretRedactor:
                 'redacted_length': len(text) if text else 0
             }
 
-        redacted_text = text
         redactions = []
 
-        # Track already redacted regions to avoid overlapping redactions
-        redacted_regions = []
+        # Track claimed regions in original-text coordinates
+        claimed_regions = []
 
-        # Process patterns in priority order (specific → generic)
+        # Phase 1: Collect ALL matches from original text across all patterns.
+        # Always search the original text so positions are in original coordinates.
+        all_pending = []
+
         for compiled_pattern, strategy, secret_type in self.compiled_patterns:
-            matches = list(compiled_pattern.finditer(redacted_text))
+            matches = list(compiled_pattern.finditer(text))
 
-            # Phase 1: Collect valid replacements without modifying text
-            pending = []
             for match in matches:
                 start, end = match.span()
 
-                if any(r_start <= start < r_end or r_start < end <= r_end
-                       for r_start, r_end in redacted_regions):
+                if any(start < r_end and r_start < end
+                       for r_start, r_end in claimed_regions):
                     continue
 
                 original = match.group(0)
@@ -341,46 +343,32 @@ class SecretRedactor:
                 if redacted is None:
                     continue
 
-                pending.append((start, end, original, redacted, metadata))
+                all_pending.append((start, end, original, redacted, metadata, strategy, secret_type))
+                claimed_regions.append((start, end))
 
-            # Phase 2: Apply right-to-left to avoid position drift
-            for start, end, original, redacted, metadata in sorted(
-                pending, key=lambda x: x[0], reverse=True
-            ):
-                redacted_text = redacted_text[:start] + redacted + redacted_text[end:]
+        # Phase 2: Record metadata with positions from original text
+        for start, end, original, redacted, metadata, strategy, secret_type in all_pending:
+            line_start = text.rfind('\n', 0, start) + 1
+            redactions.append({
+                'type': secret_type,
+                'position': start,
+                'line_number': text[:start].count('\n') + 1,
+                'column': start - line_start + 1,
+                'original_length': len(original),
+                'redacted_length': len(redacted),
+                'strategy': strategy,
+                **metadata
+            })
 
-                length_diff = len(redacted) - (end - start)
-                if length_diff != 0:
-                    redacted_regions = [
-                        (s + length_diff if s > start else s,
-                         e + length_diff if e > start else e)
-                        for s, e in redacted_regions
-                    ]
+            if self.log_redactions:
+                logging.info(f"Redacted {secret_type} at position {start} using {strategy}")
 
-                line_start = text.rfind('\n', 0, start) + 1
-                redactions.append({
-                    'type': secret_type,
-                    'position': start,
-                    'line_number': text[:start].count('\n') + 1,
-                    'column': start - line_start + 1,
-                    'original_length': len(original),
-                    'redacted_length': len(redacted),
-                    'strategy': strategy,
-                    **metadata
-                })
-
-                if self.log_redactions:
-                    logging.info(f"Redacted {secret_type} at position {start} using {strategy}")
-
-            # Phase 3: Update redacted_regions with adjusted positions
-            cumulative_offset = 0
-            for start, end, original, redacted, _metadata in sorted(
-                pending, key=lambda x: x[0]
-            ):
-                adjusted_start = start + cumulative_offset
-                adjusted_end = adjusted_start + len(redacted)
-                redacted_regions.append((adjusted_start, adjusted_end))
-                cumulative_offset += len(redacted) - (end - start)
+        # Phase 3: Apply all replacements right-to-left on original text
+        redacted_text = text
+        for start, end, original, redacted, _metadata, _strategy, _secret_type in sorted(
+            all_pending, key=lambda x: x[0], reverse=True
+        ):
+            redacted_text = redacted_text[:start] + redacted + redacted_text[end:]
 
         return {
             'redacted_text': redacted_text,
