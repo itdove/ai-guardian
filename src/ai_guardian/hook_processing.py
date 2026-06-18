@@ -2769,6 +2769,19 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             tmp_file.flush()
             tmp_file_path = tmp_file.name
 
+        # Load stopwords + entropy threshold for external scanner filtering (#1245)
+        from ai_guardian.patterns.validators import (
+            load_stopwords,
+            filter_findings_by_stopwords_entropy,
+            filter_findings_dicts_by_stopwords_entropy,
+        )
+        _ext_stopwords = load_stopwords(secret_config)
+        _ext_min_entropy = (
+            float(secret_config.get("min_entropy", 3.0))
+            if secret_config and secret_config.get("min_entropy") is not None
+            else 3.0
+        )
+
         # Create report file for JSON output
         report_file = None
         try:
@@ -2944,6 +2957,18 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             )
                             if not remaining:
                                 logging.info("All strategy findings matched .gitleaks.toml allowlist — skipping")
+                                return False, None
+
+                        # Filter external scanner findings by stopwords/entropy (#1245)
+                        if _ext_stopwords or _ext_min_entropy is not None:
+                            strategy_result.secrets, _sw_n, _ent_n = filter_findings_by_stopwords_entropy(
+                                strategy_result.secrets, _ext_stopwords, _ext_min_entropy)
+                            if _sw_n or _ent_n:
+                                logging.info(
+                                    f"External scanner: filtered {_sw_n} stopword + "
+                                    f"{_ent_n} low-entropy findings (strategy path)")
+                            if not strategy_result.secrets:
+                                logging.info("All external scanner findings filtered by stopwords/entropy — skipping")
                                 return False, None
 
                         # Secret liveness validation (Issue #971, #983)
@@ -3227,6 +3252,18 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 context={"filename": filename}
                             )
                             if fallback_result.has_secrets and fallback_result.secrets:
+                                # Filter by stopwords/entropy (#1245) — fallthrough path 1
+                                if _ext_stopwords or _ext_min_entropy is not None:
+                                    fallback_result.secrets, _sw_n, _ent_n = filter_findings_by_stopwords_entropy(
+                                        fallback_result.secrets, _ext_stopwords, _ext_min_entropy)
+                                    if _sw_n or _ent_n:
+                                        logging.info(
+                                            f"External scanner: filtered {_sw_n} stopword + "
+                                            f"{_ent_n} low-entropy findings (fallthrough 1)")
+                                    if not fallback_result.secrets:
+                                        logging.info("All fallthrough-1 findings filtered by stopwords/entropy — skipping")
+                                        return False, None
+
                                 # Secret liveness validation (Issue #971, #983) — fallthrough path 1
                                 fb_secrets = [
                                     {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
@@ -3322,6 +3359,41 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         logging.info("All secret findings matched .gitleaks.toml allowlist — skipping")
                         return False, None
 
+                # Filter external scanner findings by stopwords/entropy (#1245) — legacy path
+                if secret_details and (_ext_stopwords or _ext_min_entropy is not None):
+                    if scan_result and scan_result.get("findings"):
+                        _filt, _sw_n, _ent_n = filter_findings_dicts_by_stopwords_entropy(
+                            scan_result["findings"], _ext_stopwords, _ext_min_entropy)
+                        if _sw_n or _ent_n:
+                            logging.info(
+                                f"External scanner: filtered {_sw_n} stopword + "
+                                f"{_ent_n} low-entropy findings (legacy path)")
+                        if not _filt:
+                            logging.info("All external scanner findings filtered by stopwords/entropy — skipping")
+                            return False, None
+                        scan_result["findings"] = _filt
+                        scan_result["total_findings"] = len(_filt)
+                        first_finding = _filt[0]
+                        secret_details = {
+                            "rule_id": first_finding.get("rule_id", secret_details.get("rule_id")),
+                            "file": secret_details.get("file"),
+                            "line_number": first_finding.get("line_number", secret_details.get("line_number")),
+                            "end_line": first_finding.get("end_line", secret_details.get("end_line", 0)),
+                            "commit": first_finding.get("commit", secret_details.get("commit", "N/A")),
+                            "total_findings": len(_filt),
+                            "matched_text": first_finding.get("matched_text", ""),
+                        }
+                    else:
+                        _filt, _sw_n, _ent_n = filter_findings_dicts_by_stopwords_entropy(
+                            [secret_details], _ext_stopwords, _ext_min_entropy)
+                        if _sw_n or _ent_n:
+                            logging.info(
+                                f"External scanner: filtered {_sw_n} stopword + "
+                                f"{_ent_n} low-entropy findings (legacy path)")
+                        if not _filt:
+                            logging.info("All external scanner findings filtered by stopwords/entropy — skipping")
+                            return False, None
+
                 # Replace temp scan path with original file path (Issue #882)
                 if secret_details:
                     secret_details['file'] = file_path or filename
@@ -3393,6 +3465,18 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             context={"filename": filename}
                         )
                         if fallback_result.has_secrets and fallback_result.secrets:
+                            # Filter by stopwords/entropy (#1245) — fallthrough path 2
+                            if _ext_stopwords or _ext_min_entropy is not None:
+                                fallback_result.secrets, _sw_n, _ent_n = filter_findings_by_stopwords_entropy(
+                                    fallback_result.secrets, _ext_stopwords, _ext_min_entropy)
+                                if _sw_n or _ent_n:
+                                    logging.info(
+                                        f"External scanner: filtered {_sw_n} stopword + "
+                                        f"{_ent_n} low-entropy findings (fallthrough 2)")
+                                if not fallback_result.secrets:
+                                    logging.info("All fallthrough-2 findings filtered by stopwords/entropy — skipping")
+                                    return False, None
+
                             # Secret liveness validation (Issue #971, #983) — fallthrough path 2
                             fb2_secrets = [
                                 {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}

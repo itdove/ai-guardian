@@ -24,7 +24,7 @@ else:
 
 from ai_guardian.patterns import BUNDLED_FILES
 from ai_guardian.patterns.cache import PatternCache
-from ai_guardian.patterns.validators import MIN_STOPWORD_LENGTH
+from ai_guardian.patterns.validators import MIN_STOPWORD_LENGTH, load_stopwords
 from ai_guardian.scanners.sdk import Finding, Scanner
 
 logger = logging.getLogger(__name__)
@@ -55,25 +55,9 @@ class TomlPatternsScanner(Scanner):
                 toml_paths.append(path)
         if toml_paths:
             self._cache.load(*toml_paths)
-        self._load_bundled_stopwords()
+        self._stopwords = load_stopwords()
         logger.info(f"TomlPatternsScanner: loaded {self._cache.rule_count} rules, "
                      f"{len(self._stopwords)} stopwords")
-
-    def _load_bundled_stopwords(self) -> None:
-        """Load stopwords from the bundled stopwords.toml file."""
-        path = BUNDLED_FILES.get("stopwords")
-        if not path or not path.exists():
-            return
-        try:
-            with open(path, "rb") as f:
-                data = tomllib.load(f)
-            words = data.get("stopwords", {}).get("words", [])
-            self._stopwords = [
-                w.lower() for w in words
-                if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH
-            ]
-        except Exception as e:
-            logger.warning(f"TomlPatternsScanner: failed to load stopwords: {e}")
 
     def configure(self, config: dict) -> None:
         """Accept scanner-specific configuration.
@@ -106,14 +90,7 @@ class TomlPatternsScanner(Scanner):
         if min_entropy is not None:
             self._min_entropy = float(min_entropy)
 
-        user_stopwords = config.get("stopwords", [])
-        if user_stopwords:
-            extra = [
-                w.lower() for w in user_stopwords
-                if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH
-            ]
-            existing = set(self._stopwords)
-            self._stopwords.extend(w for w in extra if w not in existing)
+        self._stopwords = load_stopwords(config)
 
     def _load_from_server(self, server_config: dict) -> None:
         """Load patterns from a single pattern server."""
