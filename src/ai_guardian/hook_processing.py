@@ -688,6 +688,22 @@ def _should_skip_pii_scan(pii_config, tool_identifier=None, file_path=None):
         logging.info(f"Skipping PII scan for ignored file: {file_path}")
         return True
 
+
+def _should_skip_context_poisoning(cp_config, tool_identifier=None, file_path=None):
+    """Check if context poisoning scan should be skipped based on ignore_tools and ignore_files config."""
+    ignore_tools = cp_config.get('ignore_tools', [])
+    if ignore_tools and tool_identifier:
+        for pattern in ignore_tools:
+            if fnmatch.fnmatch(tool_identifier, pattern):
+                logging.info(f"Skipping context poisoning scan for ignored tool: {tool_identifier} (pattern: {pattern})")
+                return True
+
+    if _matches_ignore_files(file_path, cp_config.get('ignore_files', [])):
+        logging.info(f"Skipping context poisoning scan for ignored file: {file_path}")
+        return True
+
+    return False
+
     return False
 
 
@@ -4877,8 +4893,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                           violation_type=ViolationType.PROMPT_INJECTION, security_message=security_message)
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
-        # Check for context poisoning (LLM03) — only on user prompts
-        if HAS_CONTEXT_POISONING and hook_event == HookEvent.PROMPT and content_to_scan:
+        # Check for context poisoning (LLM03) — on both user prompts and file reads
+        if HAS_CONTEXT_POISONING and content_to_scan:
             try:
                 cp_config, cp_error = _load_context_poisoning_config()
                 if cp_error:
@@ -4889,63 +4905,65 @@ def process_hook_data(hook_data, daemon_state=None):
                     now,
                     default=True
                 ):
-                    cp_detector = ContextPoisoningDetector(cp_config)
-                    with _latency_timer.check("context_poisoning"):
-                        cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
+                    cp_skip = _should_skip_context_poisoning(cp_config, tool_identifier, file_path)
+                    if not cp_skip:
+                        cp_detector = ContextPoisoningDetector(cp_config)
+                        with _latency_timer.check("context_poisoning"):
+                            cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
 
-                    if cp_detected:
-                        cp_hook_ctx = {}
-                        if hook_tool_use_id:
-                            cp_hook_ctx["tool_use_id"] = hook_tool_use_id
-                        if hook_session_id:
-                            cp_hook_ctx["session_id"] = hook_session_id
-                        _log_context_poisoning_violation(
-                            filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
-                            hook_context=cp_hook_ctx if cp_hook_ctx else None,
-                            matched_pattern=cp_detector.last_matched_pattern,
-                            matched_text=cp_detector.last_matched_text,
-                            confidence=cp_detector.last_confidence,
-                            line_number=cp_detector.last_line_number,
-                            start_column=cp_detector.last_start_column,
-                            end_column=cp_detector.last_end_column,
-                        )
+                        if cp_detected:
+                            cp_hook_ctx = {}
+                            if hook_tool_use_id:
+                                cp_hook_ctx["tool_use_id"] = hook_tool_use_id
+                            if hook_session_id:
+                                cp_hook_ctx["session_id"] = hook_session_id
+                            _log_context_poisoning_violation(
+                                filename,
+                                context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
+                                hook_context=cp_hook_ctx if cp_hook_ctx else None,
+                                matched_pattern=cp_detector.last_matched_pattern,
+                                matched_text=cp_detector.last_matched_text,
+                                confidence=cp_detector.last_confidence,
+                                line_number=cp_detector.last_line_number,
+                                start_column=cp_detector.last_start_column,
+                                end_column=cp_detector.last_end_column,
+                            )
 
-                    if cp_should_block:
-                        # Check ask action mode before blocking
-                        cp_action = cp_config.get("action", "warn") if cp_config else "warn"
-                        cp_ask_result = _handle_ask_mode(
-                            cp_action, ViolationType.CONTEXT_POISONING,
-                            matched_text=cp_detector.last_matched_text or "",
-                            config_section="context_poisoning",
-                            error_msg=cp_error_msg,
-                            file_path=file_path if 'file_path' in dir() else None,
-                            line_number=cp_detector.last_line_number,
-                            matched_pattern=cp_detector.last_matched_pattern or "",
-                            latency_timer=_latency_timer,
-                            hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
-                        )
-                        if cp_ask_result is not None:
-                            from ai_guardian.tui.ask_dialog import AskDecision
-                            if cp_ask_result.decision != AskDecision.BLOCK:
-                                cp_info_msg = _format_ask_info_message(ViolationType.CONTEXT_POISONING, cp_ask_result.decision)
-                                warning_messages.append(cp_info_msg)
-                                cp_should_block = False
-                                cp_error_msg = cp_info_msg
-                                _log_ask_decision(ViolationType.CONTEXT_POISONING, cp_ask_result.decision,
-                                                  matched_text=cp_detector.last_matched_text or "",
-                                                  error_msg=cp_error_msg,
-                                                  file_path=file_path if 'file_path' in dir() else None,
-                                                  line_number=cp_detector.last_line_number,
-                                                  dialog_wait_ms=cp_ask_result.dialog_wait_ms)
+                        if cp_should_block:
+                            # Check ask action mode before blocking
+                            cp_action = cp_config.get("action", "warn") if cp_config else "warn"
+                            cp_ask_result = _handle_ask_mode(
+                                cp_action, ViolationType.CONTEXT_POISONING,
+                                matched_text=cp_detector.last_matched_text or "",
+                                config_section="context_poisoning",
+                                error_msg=cp_error_msg,
+                                file_path=file_path if 'file_path' in dir() else None,
+                                line_number=cp_detector.last_line_number,
+                                matched_pattern=cp_detector.last_matched_pattern or "",
+                                latency_timer=_latency_timer,
+                                hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
+                            )
+                            if cp_ask_result is not None:
+                                from ai_guardian.tui.ask_dialog import AskDecision
+                                if cp_ask_result.decision != AskDecision.BLOCK:
+                                    cp_info_msg = _format_ask_info_message(ViolationType.CONTEXT_POISONING, cp_ask_result.decision)
+                                    warning_messages.append(cp_info_msg)
+                                    cp_should_block = False
+                                    cp_error_msg = cp_info_msg
+                                    _log_ask_decision(ViolationType.CONTEXT_POISONING, cp_ask_result.decision,
+                                                      matched_text=cp_detector.last_matched_text or "",
+                                                      error_msg=cp_error_msg,
+                                                      file_path=file_path if 'file_path' in dir() else None,
+                                                      line_number=cp_detector.last_line_number,
+                                                      dialog_wait_ms=cp_ask_result.dialog_wait_ms)
 
-                    if cp_should_block:
-                        logging.info("Blocking operation due to context poisoning detection")
-                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=cp_error_msg, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONTEXT_POISONING, security_message=security_message)
-                        return result
-                    elif cp_detected and cp_error_msg:
-                        warning_messages.append(cp_error_msg)
+                        if cp_should_block:
+                            logging.info("Blocking operation due to context poisoning detection")
+                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            result = format_response(ide_type, has_secrets=True, error_message=cp_error_msg, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONTEXT_POISONING, security_message=security_message)
+                            return result
+                        elif cp_detected and cp_error_msg:
+                            warning_messages.append(cp_error_msg)
 
             except Exception as e:
                 logging.warning(f"Context poisoning check error (fail-open): {e}")

@@ -355,6 +355,132 @@ def create_context_poisoning_page(service, daemon_name: str):
                             ui.button("Add", icon="add", on_click=add_custom).props("dense")
 
                     with ui.card().classes("w-full"):
+                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        ui.label(
+                            "Glob patterns for files to skip during context poisoning scanning."
+                        ).classes("text-xs text-grey-6")
+
+                        ignore_files = cp.get("ignore_files", [])
+                        if ignore_files:
+                            for idx, pat in enumerate(ignore_files):
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("insert_drive_file").classes("text-blue-4")
+                                    ui.label(pat).classes("flex-grow text-sm").style(
+                                        "font-family: monospace"
+                                    )
+
+                                    async def remove_ignore_file(i=idx):
+                                        cfg = await run.io_bound(load_web_config)
+                                        sect = cfg.get("context_poisoning", {})
+                                        if not isinstance(sect, dict):
+                                            return
+                                        items = sect.get("ignore_files", [])
+                                        if i < len(items):
+                                            items.pop(i)
+                                            sect["ignore_files"] = items
+                                            cfg["context_poisoning"] = sect
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("Pattern removed", type="positive")
+                                            await refresh()
+
+                                    ui.button(
+                                        icon="delete", on_click=remove_ignore_file, color="red"
+                                    ).props("flat dense size=sm")
+                        else:
+                            ui.label("No ignore file patterns.").classes("text-grey-6 text-sm")
+
+                        with ui.row().classes("items-center gap-2 mt-2"):
+                            if_input = ui.input(
+                                placeholder="e.g. tests/**, docs/*.md"
+                            ).props("dense outlined").classes("flex-grow")
+
+                            async def add_ignore_file():
+                                val = if_input.value.strip()
+                                if not val:
+                                    ui.notify("Enter a pattern", type="negative")
+                                    return
+                                cfg = await run.io_bound(load_web_config)
+                                sect = cfg.get("context_poisoning", {})
+                                if not isinstance(sect, dict):
+                                    sect = {}
+                                items = sect.get("ignore_files", [])
+                                if val in items:
+                                    ui.notify("Pattern already exists", type="warning")
+                                    return
+                                items.append(val)
+                                sect["ignore_files"] = items
+                                cfg["context_poisoning"] = sect
+                                await run.io_bound(save_web_config, cfg)
+                                if_input.value = ""
+                                ui.notify(f"Added: {val}", type="positive")
+                                await refresh()
+
+                            ui.button("Add", icon="add", on_click=add_ignore_file).props("dense")
+
+                    with ui.card().classes("w-full"):
+                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        ui.label(
+                            "Tool names to skip during context poisoning scanning."
+                        ).classes("text-xs text-grey-6")
+
+                        ignore_tools = cp.get("ignore_tools", [])
+                        if ignore_tools:
+                            for idx, tool in enumerate(ignore_tools):
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("build").classes("text-orange-4")
+                                    ui.label(tool).classes("flex-grow text-sm").style(
+                                        "font-family: monospace"
+                                    )
+
+                                    async def remove_ignore_tool(i=idx):
+                                        cfg = await run.io_bound(load_web_config)
+                                        sect = cfg.get("context_poisoning", {})
+                                        if not isinstance(sect, dict):
+                                            return
+                                        items = sect.get("ignore_tools", [])
+                                        if i < len(items):
+                                            items.pop(i)
+                                            sect["ignore_tools"] = items
+                                            cfg["context_poisoning"] = sect
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("Tool removed", type="positive")
+                                            await refresh()
+
+                                    ui.button(
+                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                    ).props("flat dense size=sm")
+                        else:
+                            ui.label("No ignored tools.").classes("text-grey-6 text-sm")
+
+                        with ui.row().classes("items-center gap-2 mt-2"):
+                            it_input = ui.input(
+                                placeholder="e.g. Read, Grep"
+                            ).props("dense outlined").classes("flex-grow")
+
+                            async def add_ignore_tool():
+                                val = it_input.value.strip()
+                                if not val:
+                                    ui.notify("Enter a tool name", type="negative")
+                                    return
+                                cfg = await run.io_bound(load_web_config)
+                                sect = cfg.get("context_poisoning", {})
+                                if not isinstance(sect, dict):
+                                    sect = {}
+                                items = sect.get("ignore_tools", [])
+                                if val in items:
+                                    ui.notify("Tool already exists", type="warning")
+                                    return
+                                items.append(val)
+                                sect["ignore_tools"] = items
+                                cfg["context_poisoning"] = sect
+                                await run.io_bound(save_web_config, cfg)
+                                it_input.value = ""
+                                ui.notify(f"Added: {val}", type="positive")
+                                await refresh()
+
+                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+
+                    with ui.card().classes("w-full"):
                         ui.label("Detection Statistics").classes("text-lg font-bold")
                         total = await run.io_bound(_load_cp_stats)
                         if total is None:
