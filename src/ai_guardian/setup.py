@@ -1979,7 +1979,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         },
         "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
         "daemon": {
-            "idle_timeout_minutes": 30,
+            "idle_timeout_minutes": 0,
             "client_timeout_seconds": 2.0,
             "tray": {
                 "enabled": True,

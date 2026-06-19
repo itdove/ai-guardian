@@ -174,7 +174,7 @@ class TestSchemaDefaults(unittest.TestCase):
 
     def test_daemon_idle_timeout_default(self):
         sd = SchemaDefaults.get()
-        assert sd.get_default("daemon.idle_timeout_minutes") == 30
+        assert sd.get_default("daemon.idle_timeout_minutes") == 0
 
     def test_definitions_console_default(self):
         sd = SchemaDefaults.get()

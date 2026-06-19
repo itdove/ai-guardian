@@ -27,7 +27,7 @@ class DaemonPanelContent(Static):
     def compose(self) -> ComposeResult:
         sd = SchemaDefaults.get()
         config = self._load_daemon_config()
-        idle_timeout = config.get("idle_timeout_minutes", 30)
+        idle_timeout = config.get("idle_timeout_minutes", 0)
         client_timeout = config.get("client_timeout_seconds", 2.0)
         tray_config = config.get("tray", {})
         tray_enabled = tray_config.get("enabled", True)
@@ -163,7 +163,7 @@ class DaemonPanelContent(Static):
                 full_config = {}
 
             daemon_config = full_config.get("daemon", {})
-            daemon_config["idle_timeout_minutes"] = int(idle_input.value or 30)
+            daemon_config["idle_timeout_minutes"] = int(idle_input.value or 0)
             daemon_config["client_timeout_seconds"] = float(client_input.value or 2.0)
             daemon_config["tray"] = {
                 "enabled": tray_select.value,
