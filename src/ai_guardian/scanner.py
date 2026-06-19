@@ -814,6 +814,8 @@ class FileScanner:
                     file_path=file_path,
                     line_number=line_number,
                     snippet=snippet,
+                    start_column=detector.last_start_column,
+                    end_column=detector.last_end_column,
                 )
                 self.findings.append(finding)
                 if self.verbose:
