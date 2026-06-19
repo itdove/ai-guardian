@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import pytest
 from pathlib import Path
 from unittest.mock import patch
@@ -233,6 +234,10 @@ class TestFormatScalar:
         assert _format_scalar(["a", "b"]) == '["a", "b"]'
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason="NiceGUI requires Python 3.10+",
+)
 class TestWebConfigEffective:
     """Tests for web config_effective.py module-level functions."""
 
