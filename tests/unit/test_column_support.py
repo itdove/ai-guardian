@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import tempfile
 import unittest
 
@@ -415,6 +416,7 @@ class TestAskViolationInfoColumn(unittest.TestCase):
         self.assertEqual(v.start_column, 0)
 
 
+@unittest.skipIf(sys.version_info < (3, 10), "MCP SDK requires Python >= 3.10")
 class TestMcpViolationsColumnExposure(unittest.TestCase):
     """MCP get_violations exposes start_column/end_column as 1-based."""
 
@@ -462,6 +464,7 @@ class TestMcpViolationsColumnExposure(unittest.TestCase):
             self.assertNotIn("end_column", entry)
 
 
+@unittest.skipIf(sys.version_info < (3, 10), "NiceGUI requires Python >= 3.10")
 class TestWebDetailFieldsHaveColumn(unittest.TestCase):
     """All relevant DETAIL_FIELDS entries include Column."""
 
