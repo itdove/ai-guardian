@@ -21,7 +21,7 @@ from ai_guardian.config_utils import get_config_dir, get_state_dir, _find_config
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONTEXT_TTL = 300.0  # 5 minutes
-DEFAULT_IDLE_TIMEOUT = 1800.0  # 30 minutes
+DEFAULT_IDLE_TIMEOUT = 0.0  # disabled — daemon runs until explicit stop or crash
 CONFIG_CHECKSUM_INTERVAL = 60.0  # check checksum every 60s
 SESSION_TTL = 86400  # 24 hours
 PROJECT_CONFIG_TTL = 86400  # 24 hours — prune stale project entries

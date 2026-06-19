@@ -235,7 +235,7 @@ def _handle_daemon_command(args):
         else:
             from ai_guardian.daemon.server import DaemonServer
 
-            idle_timeout = (args.idle_timeout or 30) * 60
+            idle_timeout = (args.idle_timeout if args.idle_timeout is not None else 0) * 60
             server = DaemonServer(
                 idle_timeout=idle_timeout,
             )

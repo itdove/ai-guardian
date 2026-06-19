@@ -1865,9 +1865,9 @@
       "properties": {
         "idle_timeout_minutes": {
           "type": "integer",
-          "default": 30,
+          "default": 0,
           "minimum": 0,
-          "description": "Minutes of inactivity before daemon auto-stops. Set to 0 to disable auto-stop."
+          "description": "Minutes of inactivity before daemon auto-stops. 0 (default) disables auto-stop."
         },
         "client_timeout_seconds": {
           "type": "number",

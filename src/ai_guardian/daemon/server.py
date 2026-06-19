@@ -36,7 +36,7 @@ _is_pid_alive = is_pid_alive
 class DaemonServer:
     """Long-running daemon server for ai-guardian."""
 
-    def __init__(self, idle_timeout=1800.0, use_tcp=False,
+    def __init__(self, idle_timeout=0.0, use_tcp=False,
                  enable_rest_api=True):
         """Initialize daemon server.
 

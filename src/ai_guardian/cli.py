@@ -868,7 +868,7 @@ def main():
             "--idle-timeout",
             type=int,
             default=None,
-            help="Idle timeout in minutes (default: from config or 30)"
+            help="Idle timeout in minutes (0 = disabled, default: 0)"
         )
         daemon_start_parser.add_argument(
             "--no-tray",

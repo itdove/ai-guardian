@@ -12,11 +12,43 @@ def _load_local_daemon_config():
     cfg = cfg or {}
     daemon_cfg = cfg.get("daemon", {})
     return {
-        "idle_timeout_minutes": daemon_cfg.get("idle_timeout_minutes", 30),
+        "idle_timeout_minutes": daemon_cfg.get("idle_timeout_minutes", 0),
         "client_timeout_seconds": daemon_cfg.get("client_timeout_seconds", 2.0),
         "tray_enabled": daemon_cfg.get("tray", {}).get("enabled", True),
         "tray_auto_install": daemon_cfg.get("tray", {}).get("auto_install", True),
     }
+
+
+def _save_local_daemon_config(idle_timeout, client_timeout, tray_enabled, tray_auto_install):
+    import json
+    from ai_guardian.config_utils import get_config_dir
+
+    config_path = get_config_dir() / "ai-guardian.json"
+    if config_path.exists():
+        full_config = json.loads(config_path.read_text(encoding="utf-8"))
+    else:
+        full_config = {}
+
+    daemon_config = full_config.get("daemon", {})
+    daemon_config["idle_timeout_minutes"] = idle_timeout
+    daemon_config["client_timeout_seconds"] = client_timeout
+    daemon_config["tray"] = {
+        "enabled": tray_enabled,
+        "auto_install": tray_auto_install,
+    }
+    daemon_config.pop("mode", None)
+    full_config["daemon"] = daemon_config
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(full_config, indent=2) + "\n", encoding="utf-8"
+    )
+
+    try:
+        from ai_guardian.daemon.client import send_reload_config
+        send_reload_config()
+    except Exception:
+        pass
 
 
 def _is_local_daemon_running():
@@ -183,40 +215,72 @@ def create_daemon_detail_page(service, daemon_name: str):
                                     "text-lg font-bold"
                                 )
                                 ui.label(
-                                    "Edit via TUI console or config file."
+                                    "Changes are saved to config and"
+                                    " daemon is reloaded automatically."
                                 ).classes("text-xs text-grey-6")
-                                with ui.grid(columns=2).classes(
-                                    "gap-2 text-sm mt-2"
-                                ):
-                                    val = daemon_cfg["idle_timeout_minutes"]
-                                    ui.label("Idle Timeout:").classes(
-                                        "text-grey-6"
+
+                                with ui.column().classes("gap-3 mt-2"):
+                                    with ui.row().classes(
+                                        "items-center gap-2"
+                                    ):
+                                        cfg_idle = ui.number(
+                                            label="Idle Timeout (minutes)",
+                                            value=daemon_cfg[
+                                                "idle_timeout_minutes"
+                                            ],
+                                            min=0, step=5,
+                                        ).props(
+                                            "dense outlined"
+                                        ).classes("w-40")
+                                        ui.label(
+                                            "0 = never auto-stop"
+                                        ).classes("text-xs text-grey-6")
+
+                                    cfg_client = ui.number(
+                                        label="Client Timeout (seconds)",
+                                        value=daemon_cfg[
+                                            "client_timeout_seconds"
+                                        ],
+                                        min=0.5, max=10.0, step=0.5,
+                                    ).props(
+                                        "dense outlined"
+                                    ).classes("w-40")
+
+                                    cfg_tray = ui.switch(
+                                        "System Tray",
+                                        value=daemon_cfg["tray_enabled"],
                                     )
-                                    ui.label(
-                                        f"{val} min"
-                                        + (" (never)" if val == 0 else "")
+                                    cfg_auto_install = ui.switch(
+                                        "Auto-Install Tray",
+                                        value=daemon_cfg["tray_auto_install"],
                                     )
-                                    ui.label("Client Timeout:").classes(
-                                        "text-grey-6"
-                                    )
-                                    ui.label(
-                                        f"{daemon_cfg['client_timeout_seconds']}s"
-                                    )
-                                    ui.label("System Tray:").classes(
-                                        "text-grey-6"
-                                    )
-                                    ui.label(
-                                        "Enabled" if daemon_cfg["tray_enabled"]
-                                        else "Disabled"
-                                    )
-                                    ui.label("Auto-Install Tray:").classes(
-                                        "text-grey-6"
-                                    )
-                                    ui.label(
-                                        "Enabled"
-                                        if daemon_cfg["tray_auto_install"]
-                                        else "Disabled"
-                                    )
+
+                                    async def do_save_config(
+                                        idle=cfg_idle, client=cfg_client,
+                                        tray=cfg_tray, auto=cfg_auto_install,
+                                    ):
+                                        try:
+                                            await run.io_bound(
+                                                _save_local_daemon_config,
+                                                int(idle.value or 0),
+                                                float(client.value or 2.0),
+                                                tray.value,
+                                                auto.value,
+                                            )
+                                            ui.notify(
+                                                "Daemon config saved",
+                                                type="positive",
+                                            )
+                                        except Exception as e:
+                                            ui.notify(
+                                                f"Save failed: {e}",
+                                                type="negative",
+                                            )
+
+                                    ui.button(
+                                        "Save", icon="save",
+                                        on_click=do_save_config,
+                                    ).props("dense")
 
                     # Features card
                     cfg = await run.io_bound(
