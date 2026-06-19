@@ -1118,6 +1118,22 @@
             "type": "string"
           },
           "default": []
+        },
+        "ignore_files": {
+          "type": "array",
+          "description": "Glob patterns for files to skip context poisoning checks (e.g., '*.md', 'docs/*')",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_tools": {
+          "type": "array",
+          "description": "Tool name patterns to skip context poisoning checks (e.g., 'Read', 'Grep')",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       }
     },

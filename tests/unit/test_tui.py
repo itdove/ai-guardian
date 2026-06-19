@@ -42,7 +42,7 @@ class TestNavGroups:
     def test_nav_groups_has_thirty_six_panels(self):
         """Test that NAV_GROUPS defines exactly 38 leaf panels."""
         total_leaves = sum(len(items) for _, items in NAV_GROUPS)
-        assert total_leaves == 39
+        assert total_leaves == 40
 
     def test_panel_ids_are_unique(self):
         """Test that all panel IDs are unique."""
@@ -106,6 +106,7 @@ class TestNavGroups:
         assert "panel-pi-detection" in nav_dict["Prompt Injection"]
         assert "panel-pi-jailbreak" in nav_dict["Prompt Injection"]
         assert "panel-pi-unicode" in nav_dict["Prompt Injection"]
+        assert "panel-context-poisoning" in nav_dict["Threat Detection"]
         assert "panel-scan-pii" in nav_dict["Threat Detection"]
         assert "panel-secrets" in nav_dict["Secrets"]
         assert "panel-violations" in nav_dict["Monitoring"]

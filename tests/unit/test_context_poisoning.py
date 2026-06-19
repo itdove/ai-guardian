@@ -1,6 +1,7 @@
 """Tests for context poisoning detection (LLM03)."""
 
 import unittest
+import unittest.mock
 
 from ai_guardian.context_poisoning import (
     ContextPoisoningDetector,
@@ -285,6 +286,55 @@ class TestContextPoisoningDetector(unittest.TestCase):
         self.detector.detect(content)
         self.assertEqual(self.detector.last_line_number, 2)
         self.assertEqual(self.detector.last_start_column, 0)
+
+
+class TestShouldSkipContextPoisoning(unittest.TestCase):
+    """Test _should_skip_context_poisoning from hook_processing."""
+
+    def test_no_ignore_config(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        result = _should_skip_context_poisoning({}, tool_identifier="Read", file_path="/tmp/test.md")
+        self.assertFalse(result)
+
+    def test_ignore_tools_match(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_tools": ["Read", "Grep"]}
+        self.assertTrue(_should_skip_context_poisoning(config, tool_identifier="Read"))
+
+    def test_ignore_tools_no_match(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_tools": ["Grep"]}
+        self.assertFalse(_should_skip_context_poisoning(config, tool_identifier="Read"))
+
+    def test_ignore_tools_glob(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_tools": ["Read*"]}
+        self.assertTrue(_should_skip_context_poisoning(config, tool_identifier="ReadFile"))
+
+    def test_ignore_files_match(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_files": ["*.log", "*.tmp"]}
+        self.assertTrue(_should_skip_context_poisoning(config, file_path="/tmp/debug.log"))
+
+    def test_ignore_files_no_match(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_files": ["*.log"]}
+        self.assertFalse(_should_skip_context_poisoning(config, file_path="/tmp/CLAUDE.md"))
+
+    def test_ignore_files_directory_glob(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_files": ["docs/*"]}
+        self.assertTrue(_should_skip_context_poisoning(config, file_path="docs/README.md"))
+
+    def test_no_tool_or_file(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_tools": ["Read"], "ignore_files": ["*.log"]}
+        self.assertFalse(_should_skip_context_poisoning(config))
+
+    def test_ignore_tools_takes_priority(self):
+        from ai_guardian.hook_processing import _should_skip_context_poisoning
+        config = {"ignore_tools": ["Read"], "ignore_files": ["*.md"]}
+        self.assertTrue(_should_skip_context_poisoning(config, tool_identifier="Read", file_path="/tmp/CLAUDE.md"))
 
 
 if __name__ == "__main__":

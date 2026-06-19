@@ -125,6 +125,7 @@ NAV_GROUPS = [
     ]),
     ("Threat Detection", [
         ("SSRF Protection", "panel-ssrf"),
+        ("Context Poisoning", "panel-context-poisoning"),
         ("Supply Chain", "panel-supply-chain"),
         ("Config Scanner", "panel-config-scanner"),
         ("PII Detection", "panel-scan-pii"),
@@ -432,6 +433,20 @@ HELP_DOCS = {
         "[bold]Actions:[/bold]\n"
         "  [bold]block[/bold] — Reject the request entirely\n"
         "  [bold]warn[/bold] — Allow but log a warning\n"
+        "  [bold]log-only[/bold] — Silent logging\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]s[/bold]  Save settings"
+    ),
+    "panel-context-poisoning": (
+        "[bold]Context Poisoning Detection (LLM03)[/bold]\n\n"
+        "Detect attempts to inject persistent malicious instructions\n"
+        "into conversation context.\n\n"
+        "[bold]Detection tiers:[/bold]\n"
+        "  [bold]Low confidence[/bold] — Persistence keywords only\n"
+        "  [bold]High confidence[/bold] — Persistence + dangerous action\n\n"
+        "[bold]Actions:[/bold]\n"
+        "  [bold]warn[/bold] — Allow but show warning (recommended)\n"
+        "  [bold]block[/bold] — Reject the operation\n"
         "  [bold]log-only[/bold] — Silent logging\n\n"
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]s[/bold]  Save settings"
@@ -1166,6 +1181,10 @@ class AIGuardianTUI(App):
                 with Container(id="panel-ssrf"):
                     from ai_guardian.tui.ssrf import SSRFContent
                     yield SSRFContent()
+
+                with Container(id="panel-context-poisoning"):
+                    from ai_guardian.tui.cp_detection import CPDetectionContent
+                    yield CPDetectionContent()
 
                 with Container(id="panel-supply-chain"):
                     from ai_guardian.tui.supply_chain import SupplyChainContent
