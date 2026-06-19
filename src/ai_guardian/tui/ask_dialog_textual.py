@@ -99,6 +99,8 @@ class _TextualAskDialog:
                         loc = v.file_path
                         if v.line_number:
                             loc += f":{v.line_number}"
+                            if v.start_column is not None:
+                                loc += f":{v.start_column + 1}"
                         yield Static(f"[bold]Location:[/bold] {loc}", classes="detail-row")
                     yield Static(v.matched_text[:300], id="matched-text")
 
@@ -247,6 +249,8 @@ class _TextualAskDialog:
                     config_title = f"[bold]{build_sub_dialog_title('Config Editor — ai-guardian.json', v)}[/bold]"
                     if v.file_path:
                         line_info = f":{v.line_number}" if v.line_number else ""
+                        if v.start_column is not None and v.line_number:
+                            line_info += f":{v.start_column + 1}"
                         config_title += f"\nSource: {v.file_path}{line_info}"
                     container.mount(Static(config_title, id="title"))
                     container.mount(Static("[dim]Review the config, then Save or Cancel.[/dim]"))
@@ -379,6 +383,8 @@ class _TextualAskDialog:
 
                 ann_label = "inline" if annotation_type == "inline" else "block"
                 line_info = f":{v.line_number}" if v.line_number else ""
+                if v.start_column is not None and v.line_number:
+                    line_info += f":{v.start_column + 1}"
                 container.mount(Static(
                     f"[bold]{build_sub_dialog_title(f'Suppress in Source — {ann_label}', v)}[/bold]\n"
                     f"File: {v.file_path}{line_info}",
@@ -419,6 +425,8 @@ class _TextualAskDialog:
 
                 scanner_label = SCANNER_LABELS.get(v.config_section, v.config_section)
                 line_info = f":{v.line_number}" if v.line_number else ""
+                if v.start_column is not None and v.line_number:
+                    line_info += f":{v.start_column + 1}"
                 container.mount(Static(
                     f"[bold]{build_sub_dialog_title('Ignore File — .aiguardignore.toml', v)}[/bold]\n"
                     f"File: {v.file_path}{line_info}",

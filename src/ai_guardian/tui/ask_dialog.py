@@ -50,6 +50,7 @@ class AskViolationInfo:
     matched_pattern: str = ""
     file_path: Optional[str] = None
     line_number: Optional[int] = None
+    start_column: Optional[int] = None
     project_path: Optional[str] = None
     session_id: Optional[str] = None
 
@@ -209,6 +210,7 @@ def _show_via_daemon(
             "matched_pattern": violation.matched_pattern,
             "file_path": violation.file_path,
             "line_number": violation.line_number,
+            "start_column": violation.start_column,
             "project_path": violation.project_path,
             "session_id": violation.session_id,
         },
@@ -273,6 +275,7 @@ def _show_via_subprocess(
         "matched_pattern": violation.matched_pattern,
         "file_path": violation.file_path,
         "line_number": violation.line_number,
+        "start_column": violation.start_column,
         "project_path": violation.project_path,
         "session_id": violation.session_id,
     })

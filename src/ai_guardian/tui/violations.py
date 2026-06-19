@@ -599,8 +599,11 @@ class ViolationCard(Vertical):
             if blocked.get("file_path"):
                 location_text = f"File: {blocked['file_path']}"
                 if blocked.get("line_number"):
+                    start_col = blocked.get("start_column")
                     location_text += f" (line {blocked['line_number']}"
-                    if blocked.get("position"):
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif blocked.get("position"):
                         location_text += f", pos {blocked['position']}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
@@ -712,6 +715,7 @@ class ViolationCard(Vertical):
             tool = blocked.get("tool", "Unknown")
             file_path = blocked.get("file_path")
             line_number = blocked.get("line_number")
+            start_col = blocked.get("start_column")
             position = blocked.get("position")
             redaction_count = blocked.get("redaction_count", 0)
             redacted_types = blocked.get("redacted_types", [])
@@ -724,7 +728,9 @@ class ViolationCard(Vertical):
                 location_text = f"File: {file_path}"
                 if line_number:
                     location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
@@ -739,6 +745,7 @@ class ViolationCard(Vertical):
             hook = blocked.get("hook", "Unknown")
             file_path = blocked.get("file_path")
             line_number = blocked.get("line_number")
+            start_col = blocked.get("start_column")
             position = blocked.get("position")
             pii_count = blocked.get("pii_count", 0)
             pii_types = blocked.get("pii_types", [])
@@ -752,7 +759,9 @@ class ViolationCard(Vertical):
                 location_text = f"File: {file_path}"
                 if line_number:
                     location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
@@ -765,6 +774,7 @@ class ViolationCard(Vertical):
         elif vtype == "jailbreak_detected":
             file_path = blocked.get("file_path")
             line_number = blocked.get("line_number")
+            start_col = blocked.get("start_column")
             position = blocked.get("position")
             confidence = blocked.get("confidence", 0.0)
             matched_text = blocked.get("matched_text", "")
@@ -772,7 +782,9 @@ class ViolationCard(Vertical):
                 location_text = f"File: {file_path}"
                 if line_number:
                     location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
@@ -789,6 +801,7 @@ class ViolationCard(Vertical):
             tool_value = blocked.get("tool_value", "")
             file_path = blocked.get("file_path")
             line_number = blocked.get("line_number")
+            start_col = blocked.get("start_column")
             position = blocked.get("position")
             reason = blocked.get("reason", "")
             yield Static(f"Tool: {tool_name}", classes="violation-detail")
@@ -798,7 +811,9 @@ class ViolationCard(Vertical):
                 location_text = f"File: {file_path}"
                 if line_number:
                     location_text += f" (line {line_number}"
-                    if position:
+                    if start_col is not None:
+                        location_text += f", col {start_col + 1}"
+                    elif position:
                         location_text += f", pos {position}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")

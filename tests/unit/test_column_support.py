@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import tempfile
 import unittest
 
@@ -383,6 +384,129 @@ class TestCacheColumnRoundtrip(unittest.TestCase):
         )
         self.assertIsNone(m.start_column)
         self.assertIsNone(m.end_column)
+
+
+class TestAskViolationInfoColumn(unittest.TestCase):
+    """AskViolationInfo dataclass has start_column field."""
+
+    def test_default_is_none(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="test", summary="s",
+            matched_text="m", config_section="c",
+        )
+        self.assertIsNone(v.start_column)
+
+    def test_column_set(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="test", summary="s",
+            matched_text="m", config_section="c",
+            start_column=5,
+        )
+        self.assertEqual(v.start_column, 5)
+
+    def test_column_zero_is_valid(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="test", summary="s",
+            matched_text="m", config_section="c",
+            start_column=0,
+        )
+        self.assertEqual(v.start_column, 0)
+
+
+@unittest.skipIf(sys.version_info < (3, 10), "MCP SDK requires Python >= 3.10")
+class TestMcpViolationsColumnExposure(unittest.TestCase):
+    """MCP get_violations exposes start_column/end_column as 1-based."""
+
+    def _make_violation(self, start_col=None, end_col=None):
+        blocked = {
+            "file_path": "test.py",
+            "line_number": 10,
+        }
+        if start_col is not None:
+            blocked["start_column"] = start_col
+        if end_col is not None:
+            blocked["end_column"] = end_col
+        return {
+            "timestamp": "2026-01-01T00:00:00",
+            "violation_type": "secret_detected",
+            "severity": "high",
+            "blocked": blocked,
+            "context": {"tool_name": "Write"},
+        }
+
+    def test_column_included_as_1_based(self):
+        from unittest.mock import patch, MagicMock
+        from ai_guardian.mcp_server import create_server
+        violation = self._make_violation(start_col=4, end_col=10)
+        with patch("ai_guardian.violation_logger.ViolationLogger") as MockVL:
+            MockVL.return_value.get_recent_violations.return_value = [violation]
+            server = create_server()
+            tool = server._tool_manager._tools["get_violations"]
+            result = tool.fn(limit=10)
+            entry = result["violations"][0]
+            self.assertEqual(entry["start_column"], 5)
+            self.assertEqual(entry["end_column"], 11)
+
+    def test_column_absent_when_none(self):
+        from unittest.mock import patch
+        from ai_guardian.mcp_server import create_server
+        violation = self._make_violation()
+        with patch("ai_guardian.violation_logger.ViolationLogger") as MockVL:
+            MockVL.return_value.get_recent_violations.return_value = [violation]
+            server = create_server()
+            tool = server._tool_manager._tools["get_violations"]
+            result = tool.fn(limit=10)
+            entry = result["violations"][0]
+            self.assertNotIn("start_column", entry)
+            self.assertNotIn("end_column", entry)
+
+
+@unittest.skipIf(sys.version_info < (3, 10), "NiceGUI requires Python >= 3.10")
+class TestWebDetailFieldsHaveColumn(unittest.TestCase):
+    """All relevant DETAIL_FIELDS entries include Column."""
+
+    def test_all_types_with_line_have_column(self):
+        from ai_guardian.web.pages.violations import DETAIL_FIELDS
+        types_needing_column = [
+            "tool_permission", "secret_detected", "prompt_injection",
+            "secret_redaction", "pii_detected", "jailbreak_detected",
+            "ssrf_blocked", "secret_in_transcript", "pii_in_transcript",
+        ]
+        for vtype in types_needing_column:
+            fields = DETAIL_FIELDS.get(vtype, [])
+            field_keys = [f[1] for f in fields]
+            self.assertIn(
+                "start_column", field_keys,
+                f"{vtype} missing start_column in DETAIL_FIELDS",
+            )
+
+
+class TestHandleAskModeColumn(unittest.TestCase):
+    """_handle_ask_mode passes start_column to AskViolationInfo."""
+
+    def test_column_passed_through(self):
+        from unittest.mock import patch, MagicMock
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision, AskResult
+
+        mock_result = AskResult(decision=AskDecision.BLOCK)
+        captured = {}
+
+        def capture_dialog(violation_info, **kwargs):
+            captured["start_column"] = violation_info.start_column
+            return mock_result
+
+        with patch("ai_guardian.tui.ask_dialog.show_ask_dialog", side_effect=capture_dialog):
+            _handle_ask_mode(
+                "ask", "secret_detected",
+                matched_text="test", config_section="secret_scanning",
+                error_msg="err", file_path="test.py",
+                line_number=10, start_column=5,
+            )
+        self.assertEqual(captured.get("start_column"), 5)
 
 
 if __name__ == "__main__":

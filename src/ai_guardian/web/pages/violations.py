@@ -35,7 +35,7 @@ DETAIL_FIELDS = {
     "tool_permission": [
         ("Tool", "tool_name"), ("File", "tool_value"),
         ("File Path", "file_path"), ("Line", "line_number"),
-        ("Position", "position"), ("Reason", "reason"),
+        ("Column", "start_column"), ("Position", "position"), ("Reason", "reason"),
     ],
     "secret_detected": [
         ("File", "file_path"), ("Source", "source"),
@@ -46,29 +46,33 @@ DETAIL_FIELDS = {
     ],
     "prompt_injection": [
         ("Source", "source"), ("File", "file_path"),
-        ("Line", "line_number"), ("Position", "position"),
+        ("Line", "line_number"), ("Column", "start_column"),
+        ("Position", "position"),
         ("Pattern", "pattern"), ("Matched", "matched_text"),
         ("Method", "method"), ("Confidence", "confidence"),
     ],
     "secret_redaction": [
         ("Tool", "tool"), ("Command", "command"),
         ("File", "file_path"), ("Line", "line_number"),
+        ("Column", "start_column"),
         ("Count", "redaction_count"), ("Types", "redacted_types"),
     ],
     "pii_detected": [
         ("Hook", "hook"), ("Tool", "tool"), ("Command", "command"),
         ("File", "file_path"), ("Line", "line_number"),
+        ("Column", "start_column"),
         ("Count", "pii_count"), ("Types", "pii_types"),
     ],
     "jailbreak_detected": [
         ("File", "file_path"), ("Line", "line_number"),
+        ("Column", "start_column"),
         ("Tool", "tool"), ("Matched", "matched_text"),
         ("Confidence", "confidence"),
     ],
     "ssrf_blocked": [
         ("Tool", "tool_name"), ("URL", "tool_value"),
         ("File", "file_path"), ("Line", "line_number"),
-        ("Reason", "reason"),
+        ("Column", "start_column"), ("Reason", "reason"),
     ],
     "config_file_exfil": [
         ("File", "file_path"), ("Reason", "reason"),
@@ -79,10 +83,12 @@ DETAIL_FIELDS = {
     ],
     "secret_in_transcript": [
         ("File", "file_path"), ("Line", "line_number"),
+        ("Column", "start_column"),
         ("Type", "secret_type"), ("Source", "source"),
     ],
     "pii_in_transcript": [
         ("File", "file_path"), ("Line", "line_number"),
+        ("Column", "start_column"),
         ("Count", "pii_count"), ("Types", "pii_types"),
     ],
     "image_secret_detected": [
