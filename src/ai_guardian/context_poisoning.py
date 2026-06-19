@@ -22,7 +22,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from ai_guardian.config_utils import is_expired, validate_regex_pattern
 from ai_guardian import allowlist_utils
 from ai_guardian.patterns import load_bundled_rules
-from ai_guardian.prompt_injection import _offset_to_line_number
+from ai_guardian.prompt_injection import _offset_to_line_number, _offset_to_column
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +133,8 @@ class ContextPoisoningDetector:
         self.last_matched_text: Optional[str] = None
         self.last_confidence: Optional[float] = None
         self.last_line_number: Optional[int] = None
+        self.last_start_column: Optional[int] = None
+        self.last_end_column: Optional[int] = None
         self.last_attack_type: str = "context_poisoning"
 
     def _check_allowlist(self, content: str) -> bool:
@@ -162,6 +164,8 @@ class ContextPoisoningDetector:
         self.last_matched_text = None
         self.last_confidence = None
         self.last_line_number = None
+        self.last_start_column = None
+        self.last_end_column = None
 
         if not self.enabled:
             return False, None, False
@@ -207,6 +211,8 @@ class ContextPoisoningDetector:
             self.last_matched_text = content[persistence_match.start():min(persistence_match.end() + 80, len(content))]
             self.last_confidence = confidence
             self.last_line_number = _offset_to_line_number(content, persistence_match.start())
+            self.last_start_column = _offset_to_column(content, persistence_match.start())
+            self.last_end_column = _offset_to_column(content, persistence_match.end())
 
             error_msg = self._format_error(
                 persistence_match.group(),
@@ -223,6 +229,8 @@ class ContextPoisoningDetector:
         self.last_matched_text = persistence_match.group()
         self.last_confidence = confidence
         self.last_line_number = _offset_to_line_number(content, persistence_match.start())
+        self.last_start_column = _offset_to_column(content, persistence_match.start())
+        self.last_end_column = _offset_to_column(content, persistence_match.end())
 
         error_msg = self._format_error(
             persistence_match.group(),

@@ -465,17 +465,24 @@ def create_prompt_injection_finding(
     description: str,
     file_path: str,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
+    start_column: Optional[int] = None,
+    end_column: Optional[int] = None,
 ) -> Dict[str, Any]:
-    return {
+    finding = {
         "rule_id": "PROMPT-INJECTION-001",
         "level": "warning",
         "message": f"Prompt injection detected: {description}",
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"description": description}
+        "details": {"description": description},
     }
+    if start_column is not None:
+        finding["start_column"] = start_column
+    if end_column is not None:
+        finding["end_column"] = end_column
+    return finding
 
 
 def create_supply_chain_finding(
