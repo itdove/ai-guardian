@@ -67,6 +67,8 @@ class _TkinterAskDialog:
             loc = v.file_path
             if v.line_number:
                 loc += f":{v.line_number}"
+                if v.start_column is not None:
+                    loc += f":{v.start_column + 1}"
             details.append(("Location", loc))
 
         for label, value in details:
@@ -163,6 +165,8 @@ class _TkinterAskDialog:
         ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
         if v.file_path:
             line_info = f":{v.line_number}" if v.line_number else ""
+            if v.start_column is not None and v.line_number:
+                line_info += f":{v.start_column + 1}"
             ttk.Label(frame, text=f"Source: {v.file_path}{line_info}", wraplength=650).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
@@ -283,6 +287,8 @@ class _TkinterAskDialog:
         ttk.Label(frame, text="Allow Always — Edit Pattern", font=("", 12, "bold")).pack(anchor="w")
         if v.file_path:
             line_info = f":{v.line_number}" if v.line_number else ""
+            if v.start_column is not None and v.line_number:
+                line_info += f":{v.start_column + 1}"
             ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=500).pack(anchor="w", pady=(0, 5))
         ttk.Label(frame, text=f"Edit the {ptype_label.lower()} below to match this text. The pattern will be added to the allowlist.", wraplength=500).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
@@ -385,6 +391,8 @@ class _TkinterAskDialog:
 
         ttk.Label(frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")).pack(anchor="w")
         line_info = f":{violation_line}" if violation_line and violation_line > 1 else ""
+        if v.start_column is not None and violation_line and violation_line > 1:
+            line_info += f":{v.start_column + 1}"
         ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=700).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
@@ -517,6 +525,8 @@ class _TkinterAskDialog:
 
         ttk.Label(frame, text="Ignore File — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
         line_info = f":{v.line_number}" if v.line_number else ""
+        if v.start_column is not None and v.line_number:
+            line_info += f":{v.start_column + 1}"
         ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=650).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 

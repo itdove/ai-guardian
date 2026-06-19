@@ -1959,8 +1959,8 @@ def _build_permission_matched_text(tool_name, tool_input, tool_identifier):
 
 
 def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
-                     file_path=None, line_number=None, matched_pattern="",
-                     latency_timer=None, hook_context=None):
+                     file_path=None, line_number=None, start_column=None,
+                     matched_pattern="", latency_timer=None, hook_context=None):
     """Handle 'ask' action mode by showing an interactive dialog.
 
     Returns an AskResult if action is 'ask', or None if action is not 'ask'.
@@ -2027,6 +2027,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
             matched_pattern=matched_pattern,
             file_path=file_path,
             line_number=display_line,
+            start_column=start_column,
             project_path=hctx.get("project_path") or os.getcwd(),
             session_id=hctx.get("session_id"),
         )
@@ -2657,6 +2658,7 @@ def _run_secret_validation(secret_config, secrets_list, content, context):
 
 _last_secret_matched_text = ""
 _last_secret_line_number = None
+_last_secret_start_column = None
 
 
 def _extract_matched_text_for_ask(secret_details, content):
@@ -2730,9 +2732,10 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         Secret scanning ALWAYS blocks when secrets are detected (no "log" mode).
         This prevents secrets from reaching Claude's API or being exposed in sessions.
     """
-    global _last_secret_matched_text, _last_secret_line_number
+    global _last_secret_matched_text, _last_secret_line_number, _last_secret_start_column
     _last_secret_matched_text = ""
     _last_secret_line_number = None
+    _last_secret_start_column = None
     try:
         # Check if tool should be ignored
         if ignore_tools and tool_name:
@@ -3055,6 +3058,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
                         _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                         _last_secret_line_number = secret_details.get("line_number")
+                        _last_secret_start_column = secret_details.get("start_column")
                         return True, error_msg
 
                     # No secrets found — check for engine errors that need user attention
@@ -3353,6 +3357,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
                                 _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                                 _last_secret_line_number = secret_details.get("line_number")
+                                _last_secret_start_column = secret_details.get("start_column")
                                 return True, error_msg
                     return False, None
 
@@ -3490,6 +3495,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 logging.error(f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}")
                 _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                 _last_secret_line_number = secret_details.get("line_number") if secret_details else None
+                _last_secret_start_column = secret_details.get("start_column") if secret_details else None
                 return True, error_msg
 
             elif result.returncode in expected_success_codes:
@@ -3580,6 +3586,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
                             _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                             _last_secret_line_number = secret_details.get("line_number")
+                            _last_secret_start_column = secret_details.get("start_column")
                             return True, error_msg
 
                 return False, None
@@ -4043,6 +4050,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path if 'file_path' in dir() else None,
+                    start_column=_last_secret_start_column,
                     latency_timer=_latency_timer,
                     hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                 )
@@ -5173,6 +5181,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path,
+                    start_column=_last_secret_start_column,
                     latency_timer=_latency_timer,
                     hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
                 )

@@ -362,6 +362,10 @@ def create_server() -> "FastMCP":
                 }
                 if blocked.get("line_number"):
                     entry["line"] = blocked["line_number"]
+                if blocked.get("start_column") is not None:
+                    entry["start_column"] = blocked["start_column"] + 1
+                if blocked.get("end_column") is not None:
+                    entry["end_column"] = blocked["end_column"] + 1
                 filtered.append(entry)
             return {"violations": filtered, "count": len(filtered)}
         except Exception as e:
