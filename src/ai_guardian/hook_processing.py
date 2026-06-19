@@ -2132,6 +2132,8 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
                                     matched_text: Optional[str] = None,
                                     confidence: Optional[float] = None,
                                     line_number: Optional[int] = None,
+                                    start_column: Optional[int] = None,
+                                    end_column: Optional[int] = None,
                                     violation_logger=None):
     """
     Log a prompt injection or jailbreak violation.
@@ -2144,6 +2146,8 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
         matched_pattern: The regex or pattern name that matched
         matched_text: The text that triggered detection
         line_number: 1-based line number where the match was found
+        start_column: 0-based start column within the line
+        end_column: 0-based end column within the line
         confidence: Actual confidence score from the detector
     """
     if not HAS_VIOLATION_LOGGER:
@@ -2165,6 +2169,10 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             "method": "heuristic",
             "reason": reason
         }
+        if start_column is not None:
+            blocked_entry["start_column"] = start_column
+        if end_column is not None:
+            blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
         if violation_logger is None:
@@ -2189,6 +2197,8 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
                                      matched_text: Optional[str] = None,
                                      confidence: Optional[float] = None,
                                      line_number: Optional[int] = None,
+                                     start_column: Optional[int] = None,
+                                     end_column: Optional[int] = None,
                                      violation_logger=None):
     """Log a context poisoning violation."""
     if not HAS_VIOLATION_LOGGER:
@@ -2205,6 +2215,10 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
             "method": "heuristic",
             "reason": "Context poisoning attempt detected"
         }
+        if start_column is not None:
+            blocked_entry["start_column"] = start_column
+        if end_column is not None:
+            blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
         if violation_logger is None:
@@ -4806,7 +4820,9 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_pattern=detector.last_matched_pattern,
                             matched_text=detector.last_matched_text,
                             confidence=detector.last_confidence,
-                            line_number=detector.last_line_number
+                            line_number=detector.last_line_number,
+                            start_column=detector.last_start_column,
+                            end_column=detector.last_end_column,
                         )
 
                     if should_block:
@@ -4898,7 +4914,9 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_pattern=cp_detector.last_matched_pattern,
                             matched_text=cp_detector.last_matched_text,
                             confidence=cp_detector.last_confidence,
-                            line_number=cp_detector.last_line_number
+                            line_number=cp_detector.last_line_number,
+                            start_column=cp_detector.last_start_column,
+                            end_column=cp_detector.last_end_column,
                         )
 
                     if cp_should_block:
