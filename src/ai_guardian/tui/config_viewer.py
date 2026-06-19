@@ -2,7 +2,7 @@
 """
 Configuration Viewer Tab Content
 
-Display the current merged configuration from all sources.
+Display the current merged configuration with per-key provenance.
 """
 
 import json
@@ -12,7 +12,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, Button
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_config_dir, get_project_config_path
 
 
 class ConfigContent(Container):
@@ -42,12 +42,12 @@ class ConfigContent(Container):
         padding: 1;
         background: $panel;
         border: solid $primary;
-        color: $success;
     }
 
     #config-actions {
         margin: 1 0;
         height: auto;
+        layout: horizontal;
     }
 
     #config-actions Button {
@@ -55,9 +55,15 @@ class ConfigContent(Container):
     }
     """
 
+    _show_diff_only: bool = False
+
     def compose(self) -> ComposeResult:
         """Compose the config viewer tab content."""
-        yield Static("[bold]Current Configuration[/bold]", id="config-header")
+        yield Static("[bold]Effective Configuration[/bold]", id="config-header")
+
+        with Container(id="config-actions"):
+            yield Button("Show All", id="btn-show-all", variant="primary")
+            yield Button("Show Overrides Only", id="btn-show-diff", variant="default")
 
         with VerticalScroll():
             yield Static("", id="config-sources")
@@ -67,65 +73,88 @@ class ConfigContent(Container):
         """Load configuration when mounted."""
         self.load_config()
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle toggle between full view and diff view."""
+        if event.button.id == "btn-show-all":
+            self._show_diff_only = False
+        elif event.button.id == "btn-show-diff":
+            self._show_diff_only = True
+        self._update_toggle_buttons()
+        self.load_config()
+
+    def _update_toggle_buttons(self) -> None:
+        """Update button variants to reflect active view."""
+        btn_all = self.query_one("#btn-show-all", Button)
+        btn_diff = self.query_one("#btn-show-diff", Button)
+        if self._show_diff_only:
+            btn_all.variant = "default"
+            btn_diff.variant = "primary"
+        else:
+            btn_all.variant = "primary"
+            btn_diff.variant = "default"
+
     def refresh_content(self) -> None:
         """Refresh configuration (called by parent app)."""
         self.load_config()
 
     def load_config(self) -> None:
-        """Load and display the current configuration."""
+        """Load and display the current configuration with provenance."""
         config_dir = get_config_dir()
-        user_config_path = config_dir / "ai-guardian.json"
-        project_config_path = Path.cwd() / ".ai-guardian.json"
+        global_config_path = config_dir / "ai-guardian.json"
+        project_config_path = get_project_config_path()
 
-        # Build sources list with visual indicators
         sources = ["[bold]Configuration Sources:[/bold]\n"]
 
-        # User global config
-        if user_config_path.exists():
-            sources.append(f"[status-ok]✓[/status-ok] User global: {user_config_path}")
+        if global_config_path.exists():
+            sources.append(f"[green]✓[/green] Global: {global_config_path}")
         else:
-            sources.append(f"[muted]✗ User global: {user_config_path} (not found)[/muted]")
+            sources.append(f"[dim]✗ Global: {global_config_path} (not found)[/dim]")
 
-        # Project local config
-        if project_config_path.exists():
-            sources.append(f"[status-ok]✓[/status-ok] Project local: {project_config_path}")
+        if project_config_path:
+            sources.append(f"[green]✓[/green] Project: {project_config_path}")
         else:
-            sources.append(f"[muted]✗ Project local: {project_config_path} (not found)[/muted]")
+            sources.append("[dim]✗ Project: (no project config)[/dim]")
 
-        sources_text = "\n".join(sources)
-        self.query_one("#config-sources", Static).update(sources_text)
+        self.query_one("#config-sources", Static).update("\n".join(sources))
 
-        # Load merged config
-        merged_config = {}
+        try:
+            from ai_guardian.config_writer import (
+                load_scoped_config,
+                compute_detailed_provenance,
+                format_provenance_text,
+                format_diff_text,
+            )
 
-        # Load user global config
-        if user_config_path.exists():
-            try:
-                with open(user_config_path, 'r', encoding='utf-8') as f:
-                    user_config = json.load(f)
-                    merged_config.update(user_config)
-            except Exception as e:
-                self.app.notify(f"Error loading user config: {e}", severity="error")
+            merged_config = load_scoped_config("merged")
+            provenance = compute_detailed_provenance()
 
-        # Load project local config (overrides user config)
-        if project_config_path.exists():
-            try:
-                with open(project_config_path, 'r', encoding='utf-8') as f:
-                    project_config = json.load(f)
-                    merged_config.update(project_config)
-            except Exception as e:
-                self.app.notify(f"Error loading project config: {e}", severity="error")
+            if not merged_config:
+                self.query_one("#config-content", Static).update(
+                    "[dim]No configuration found.\n\nUsing built-in defaults.[/dim]"
+                )
+                return
 
-        # Display merged config
-        if merged_config:
-            config_text = "[bold]Merged Configuration:[/bold]\n\n"
-            config_text += "[status-ok]"  # Green color for JSON
-            config_text += json.dumps(merged_config, indent=2)
-            config_text += "[/status-ok]"
-        else:
-            config_text = "[muted]No configuration found.\n\nUsing built-in defaults.[/muted]"
+            if self._show_diff_only:
+                project_cfg = load_scoped_config("project")
+                if not project_cfg:
+                    text = "[dim]No project overrides — using global config only.[/dim]"
+                else:
+                    header = "[bold]Project Overrides Only:[/bold]\n\n"
+                    diff = format_diff_text(project_cfg, provenance)
+                    if diff.strip():
+                        text = header + diff
+                    else:
+                        text = "[dim]No project overrides.[/dim]"
+            else:
+                header = "[bold]Merged Configuration:[/bold]\n\n"
+                text = header + format_provenance_text(merged_config, provenance)
 
-        self.query_one("#config-content", Static).update(config_text)
+            self.query_one("#config-content", Static).update(text)
+
+        except Exception as e:
+            self.query_one("#config-content", Static).update(
+                f"[red]Error loading configuration: {e}[/red]"
+            )
 
     def action_refresh(self) -> None:
         """Refresh configuration (triggered by 'r' key)."""
