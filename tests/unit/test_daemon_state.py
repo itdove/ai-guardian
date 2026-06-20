@@ -116,6 +116,21 @@ class TestConfigCaching:
 
         assert state.get_config()["v"] == 2
 
+    def test_force_reload_clears_project_config_cache(self, tmp_path):
+        """force_reload_config must clear per-project caches (#1303)."""
+        config_path = tmp_path / "ai-guardian.json"
+        config_path.write_text(json.dumps({"v": 1}))
+
+        state = DaemonState(config_path=config_path)
+
+        from ai_guardian import config_loaders
+        config_loaders._caches["proj-a"] = object()
+        config_loaders._caches["proj-b"] = object()
+
+        state.force_reload_config()
+
+        assert len(config_loaders._caches) == 0
+
     def test_config_file_removed(self, tmp_path):
         config_path = tmp_path / "ai-guardian.json"
         config_path.write_text(json.dumps({"v": 1}))
