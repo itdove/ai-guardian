@@ -414,6 +414,18 @@ class TestDevSourceRestart:
                             assert result is True
                             mock_start.assert_called_once()
 
+    def test_exception_logged_at_error_level(self, tmp_path, monkeypatch, caplog):
+        """Failed restart exceptions logged at ERROR, not DEBUG (#1297)."""
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text("not-valid-json")
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            import logging
+            with caplog.at_level(logging.ERROR, logger="ai_guardian.daemon.client"):
+                result = _check_dev_source_restart()
+                assert result is False
+                assert "Dev source restart check failed" in caplog.text
+
     def test_production_version_unaffected(self, tmp_path, monkeypatch):
         """Production versions never trigger auto-restart."""
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
