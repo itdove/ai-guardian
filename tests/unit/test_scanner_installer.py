@@ -2,8 +2,10 @@
 Tests for scanner_installer module.
 """
 
+import os
 import platform
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -223,6 +225,7 @@ class TestScannerInstaller:
                 result = installer.install_via_package_manager(scanner)
                 assert not result, f"{scanner} should skip Linux package managers"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-specific path test")
     @mock.patch("ai_guardian.scanner_installer.os.access")
     def test_init_fallback_when_dir_exists_not_writable(self, mock_access):
         """Test fallback to ~/.local/bin when /usr/local/bin exists but is not writable."""
@@ -335,6 +338,7 @@ class TestScannerInstaller:
             assert install_dir.exists()
             assert installer.install_dir == install_dir
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix-specific path test")
     @mock.patch("ai_guardian.scanner_installer.os.access", return_value=False)
     def test_init_falls_back_to_local_bin(self, mock_access):
         """Test fallback to ~/.local/bin when /usr/local/bin is not writable."""
@@ -1009,3 +1013,107 @@ class TestLeaktkNamingConventions:
                 download_url = calls[0]
                 assert "leaktk-0.2.10-darwin-x86_64.tar.xz" in download_url
                 assert "leaktk_0.2.10" not in download_url  # Should NOT use underscores
+
+
+class TestWindowsSupport:
+    """Tests for Windows-specific install path and binary name handling."""
+
+    @mock.patch("ai_guardian.scanner_installer.sys")
+    def test_init_windows_default_install_dir_with_localappdata(self, mock_sys):
+        """Test Windows default uses %LOCALAPPDATA%\\ai-guardian\\bin."""
+        mock_sys.platform = "win32"
+        mock_sys.version_info = sys.version_info
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fake_localappdata = os.path.join(temp_dir, "AppData", "Local")
+            with mock.patch.dict(os.environ, {"LOCALAPPDATA": fake_localappdata}):
+                installer = ScannerInstaller()
+                expected = Path(fake_localappdata) / "ai-guardian" / "bin"
+                assert installer.install_dir == expected
+                assert expected.exists()
+
+    @mock.patch("ai_guardian.scanner_installer.sys")
+    def test_init_windows_fallback_without_localappdata(self, mock_sys):
+        """Test Windows fallback to ~/AppData/Local/ai-guardian/bin when env var missing."""
+        mock_sys.platform = "win32"
+        mock_sys.version_info = sys.version_info
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            env = os.environ.copy()
+            env.pop("LOCALAPPDATA", None)
+            with mock.patch.dict(os.environ, env, clear=True):
+                installer = ScannerInstaller()
+                expected = Path.home() / "AppData" / "Local" / "ai-guardian" / "bin"
+                assert installer.install_dir == expected
+
+    @mock.patch("ai_guardian.scanner_installer.sys")
+    def test_get_binary_name_windows(self, mock_sys):
+        """Test _get_binary_name returns .exe on Windows."""
+        mock_sys.platform = "win32"
+        mock_sys.version_info = sys.version_info
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+            assert installer._get_binary_name("gitleaks") == "gitleaks.exe"
+            assert installer._get_binary_name("betterleaks") == "betterleaks.exe"
+
+    @mock.patch("ai_guardian.scanner_installer.sys")
+    def test_get_binary_name_unix(self, mock_sys):
+        """Test _get_binary_name returns bare name on Unix."""
+        mock_sys.platform = "linux"
+        mock_sys.version_info = sys.version_info
+
+        installer = ScannerInstaller()
+        assert installer._get_binary_name("gitleaks") == "gitleaks"
+
+    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("shutil.which", return_value=None)
+    def test_verify_installation_checks_exe_on_windows(self, mock_which, mock_sys):
+        """Test verify_installation checks for .exe in install_dir on Windows."""
+        mock_sys.platform = "win32"
+        mock_sys.version_info = sys.version_info
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+
+            # No binary present
+            assert not installer.verify_installation("gitleaks")
+
+            # Create .exe file
+            exe_path = Path(temp_dir) / "gitleaks.exe"
+            exe_path.write_text("fake")
+
+            # Still fails (can't run fake binary), but should find the file
+            # The verify method tries to run the binary, so mock subprocess
+            with mock.patch("subprocess.run") as mock_run:
+                mock_run.return_value = mock.Mock(returncode=0)
+                assert installer.verify_installation("gitleaks")
+                # Verify the binary path used includes .exe
+                called_path = mock_run.call_args[0][0][0]
+                assert called_path.endswith("gitleaks.exe")
+
+    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("shutil.which", return_value=None)
+    def test_get_installed_version_checks_exe_on_windows(self, mock_which, mock_sys):
+        """Test _get_installed_version checks for .exe in install_dir on Windows."""
+        mock_sys.platform = "win32"
+        mock_sys.version_info = sys.version_info
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            installer = ScannerInstaller(install_dir=Path(temp_dir))
+
+            # No binary present
+            assert installer._get_installed_version("gitleaks") is None
+
+            # Create .exe file and mock its version output
+            exe_path = Path(temp_dir) / "gitleaks.exe"
+            exe_path.write_text("fake")
+
+            with mock.patch("subprocess.run") as mock_run:
+                mock_run.return_value = mock.Mock(
+                    returncode=0, stdout="gitleaks version 8.30.1\n"
+                )
+                version = installer._get_installed_version("gitleaks")
+                assert version == "8.30.1"
+                called_path = mock_run.call_args[0][0][0]
+                assert called_path.endswith("gitleaks.exe")
