@@ -7,8 +7,7 @@ import tempfile
 import unittest
 
 try:
-    from ai_guardian.mcp_server import create_server
-    _HAS_MCP = True
+    from ai_guardian.mcp_server import create_server, HAS_MCP as _HAS_MCP
 except (ImportError, NameError):
     _HAS_MCP = False
 
