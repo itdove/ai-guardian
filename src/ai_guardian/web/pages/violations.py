@@ -265,18 +265,18 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
     if not isinstance(context, dict):
         context = {}
 
-    sev_color = {"critical": "red", "high": "orange", "warning": "amber"}.get(
-        severity, "grey"
-    )
+    from ai_guardian.theme import quasar_severity, violation_badge
+    sev_color = quasar_severity(severity)
     sev_icon = {"critical": "error", "high": "warning", "warning": "info"}.get(
         severity, "help"
     )
+    v_icon, _ = violation_badge(vtype)
 
     with ui.card().classes("w-full"):
         with ui.row().classes("items-center gap-2 w-full"):
             ui.icon(sev_icon).classes(f"text-{sev_color}")
             vtype_display = vtype.upper().replace("_", " ")
-            ui.label(vtype_display).classes("font-bold text-sm")
+            ui.label(f"{v_icon} {vtype_display}").classes("font-bold text-sm")
             ui.badge(severity, color=sev_color).classes("text-xs")
             if resolved:
                 ui.badge("RESOLVED", color="green").classes("text-xs")

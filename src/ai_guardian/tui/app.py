@@ -20,6 +20,8 @@ from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual import events
 
+from ai_guardian import theme as _theme
+
 
 def copy_osc52(text: str) -> bool:
     """Copy to clipboard via OSC 52 escape sequence.
@@ -914,149 +916,153 @@ class AIGuardianTUI(App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from ai_guardian import __version__
-        self.title = f"AI Guardian v{__version__}"
+        self.title = f"\U0001f6e1️ AI Guardian v{__version__}"
         self._input_original_values = {}
         self.initial_panel = None
         self.config_scope = "global"
 
-    CSS = """
-    Screen {
+    CSS = f"""
+    Screen {{
         background: $surface;
-    }
+    }}
 
-    Footer {
+    Footer {{
         background: $panel;
         color: $text;
         dock: bottom;
-    }
+    }}
 
-    #main-layout {
+    #main-layout {{
         height: 100%;
-    }
+    }}
 
-    #nav-tree {
+    #nav-tree {{
         width: 28;
         dock: left;
-        background: #1a1a2e;
+        background: {_theme.SURFACE_ALT};
         border-right: solid $primary;
         padding: 1 0;
-    }
+    }}
 
-    #nav-tree > .tree--cursor {
+    #nav-tree > .tree--cursor {{
         background: $primary;
         color: $background;
         text-style: bold;
-    }
+    }}
 
-    #nav-tree > .tree--highlight {
+    #nav-tree > .tree--highlight {{
         background: $accent;
-    }
+    }}
 
-    #nav-tree:focus > .tree--cursor {
+    #nav-tree:focus > .tree--cursor {{
         background: $accent;
         color: $background;
-    }
+    }}
 
-    #panels {
+    #panels {{
         height: 100%;
-    }
+    }}
 
-    #panels > Container {
+    #panels > Container {{
         padding: 1 2;
         height: 100%;
-    }
+    }}
 
     /* Empty states */
-    .empty-state {
-        color: #b0b0b0;
+    .empty-state {{
+        color: {_theme.TEXT_MUTED};
         text-align: center;
         padding: 2;
-    }
+    }}
 
     /* Status indicators */
-    .status-ok {
-        color: #76b900;
-    }
+    .status-ok {{
+        color: {_theme.SUCCESS};
+    }}
 
-    .status-warn {
-        color: #d4aa00;
-    }
+    .status-warn {{
+        color: {_theme.WARNING};
+    }}
 
-    .status-error {
-        color: #e03131;
-    }
+    .status-error {{
+        color: {_theme.ERROR};
+    }}
+
+    .status-info {{
+        color: {_theme.INFO};
+    }}
 
     /* Muted text */
-    .muted {
-        color: #b0b0b0;
-    }
+    .muted {{
+        color: {_theme.TEXT_MUTED};
+    }}
 
     /* Input fields */
-    Input {
+    Input {{
         border: none;
         background: $surface;
         padding: 0 1;
         margin: 0 1 0 0;
-    }
+    }}
 
-    Input:focus {
+    Input:focus {{
         border-left: heavy $accent;
         text-style: bold;
         background: $surface;
-    }
+    }}
 
 
     /* Select widget */
-    Select {
+    Select {{
         border: none;
         background: $surface;
-    }
+    }}
 
-    Select:focus {
+    Select:focus {{
         text-style: bold;
         border-left: heavy $accent;
-    }
+    }}
 
     /* Checkbox widget */
-    Checkbox {
+    Checkbox {{
         border: none;
-    }
+    }}
 
-    Checkbox:focus {
+    Checkbox:focus {{
         text-style: bold;
         border-left: heavy $accent;
-    }
+    }}
 
     /* Changed from default indicator */
-    .changed-from-default {
-        border-left: heavy #d4aa00;
-    }
+    .changed-from-default {{
+        border-left: heavy {_theme.WARNING};
+    }}
 
     /* Violations nested filter tabs */
-    TabbedContent {
+    TabbedContent {{
         height: 100%;
-    }
+    }}
 
-    TabbedContent > Tabs {
+    TabbedContent > Tabs {{
         background: $surface;
-    }
+    }}
 
-    TabbedContent > Tabs > Tab {
+    TabbedContent > Tabs > Tab {{
         background: $surface;
         color: $text-muted;
-    }
+    }}
 
-    TabbedContent > Tabs > Tab.-active {
+    TabbedContent > Tabs > Tab.-active {{
         background: $primary;
         color: $background;
         text-style: bold;
-    }
+    }}
 
-    TabbedContent:focus > Tabs > Tab.-active {
+    TabbedContent:focus > Tabs > Tab.-active {{
         background: $accent;
         color: $background;
         text-style: bold;
-    }
+    }}
     """
 
     TITLE = "AI Guardian Configuration"

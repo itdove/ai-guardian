@@ -91,17 +91,9 @@ def _open_browse_dialog(path_input):
     dlg.open()
 
 
-SEVERITY_COLORS = {
-    "critical": "red",
-    "high": "red",
-    "medium": "amber",
-    "low": "blue",
-    "info": "grey",
-}
-
-
 def _format_severity(severity):
-    return SEVERITY_COLORS.get((severity or "").lower(), "grey")
+    from ai_guardian.theme import quasar_severity
+    return quasar_severity((severity or "").lower())
 
 
 RULE_ID_TO_VIOLATION_TYPE = {

@@ -368,43 +368,43 @@ class TestDirectoryScanHelpers:
     def test_format_severity_high(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("high") == "red"
+        assert _format_severity("high") == "orange-8"
 
     def test_format_severity_critical(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("critical") == "red"
+        assert _format_severity("critical") == "red-8"
 
     def test_format_severity_medium(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("medium") == "amber"
+        assert _format_severity("medium") == "amber-8"
 
     def test_format_severity_low(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("low") == "blue"
+        assert _format_severity("low") == "blue-grey-7"
 
     def test_format_severity_info(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("info") == "grey"
+        assert _format_severity("info") == "blue-grey-7"
 
     def test_format_severity_unknown(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("unknown") == "grey"
+        assert _format_severity("unknown") == "blue-grey-7"
 
     def test_format_severity_case_insensitive(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity("HIGH") == "red"
-        assert _format_severity("Medium") == "amber"
+        assert _format_severity("HIGH") == "orange-8"
+        assert _format_severity("Medium") == "amber-8"
 
     def test_format_severity_none(self):
         from ai_guardian.web.pages.directory_scan import _format_severity
 
-        assert _format_severity(None) == "grey"
+        assert _format_severity(None) == "blue-grey-7"
 
 
 # ---------------------------------------------------------------------------

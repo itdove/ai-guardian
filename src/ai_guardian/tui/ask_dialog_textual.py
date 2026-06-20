@@ -4,6 +4,7 @@ Terminal-based dialog for ask mode decisions with pattern editor
 and inline config editor using TextArea.
 """
 
+from ai_guardian.theme import violation_badge
 from ai_guardian.tui.ask_dialog import (
     AskDecision,
     AskViolationInfo,
@@ -90,10 +91,11 @@ class _TextualAskDialog:
 
             def compose(self) -> ComposeResult:
                 v = violation
+                icon, _ = violation_badge(v.violation_type)
                 yield Header(show_clock=False)
                 with Container(id="ask-container"):
-                    yield Static(f"[bold]{build_dialog_title(v)}[/bold]", id="title")
-                    yield Static(f"[bold]Type:[/bold] {v.violation_type}", classes="detail-row")
+                    yield Static(f"[bold]{icon} {build_dialog_title(v)}[/bold]", id="title")
+                    yield Static(f"[bold]Type:[/bold] {icon} {v.violation_type}", classes="detail-row")
                     yield Static(f"[bold]Summary:[/bold] {v.summary}", classes="detail-row")
                     if v.file_path:
                         loc = v.file_path
@@ -105,14 +107,14 @@ class _TextualAskDialog:
                     yield Static(v.matched_text[:300], id="matched-text")
 
                     with Horizontal(id="button-bar"):
-                        yield Button("Allow Once", id="btn-allow-once", variant="primary")
-                        yield Button("Allow Always...", id="btn-allow-always", variant="success")
+                        yield Button("Allow Once", id="btn-allow-once", variant="success")
+                        yield Button("Allow Always...", id="btn-allow-always", variant="primary")
                         if v.file_path:
                             yield Button("View File", id="btn-view-file", variant="default")
                             from ai_guardian.tui.source_annotator import get_comment_prefix
                             if get_comment_prefix(v.file_path) is not None:
                                 yield Button("Suppress in Source...", id="btn-suppress-source", variant="warning")
-                            yield Button("Ignore File...", id="btn-ignore-file", variant="warning")
+                            yield Button("Ignore File...", id="btn-ignore-file", variant="default")
                         yield Button("Block", id="btn-block", variant="error")
 
                     with Container(id="editor-section"):
