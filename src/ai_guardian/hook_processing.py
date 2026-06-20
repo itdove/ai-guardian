@@ -4353,7 +4353,208 @@ def process_hook_data(hook_data, daemon_state=None):
                             _advance_transcript_position(hook_data)
                             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
+            # Prompt injection and context poisoning scanning on PostToolUse output (#1285)
+            post_warning_messages = []
+            post_pi_cp_filename = f"{tool_identifier}_output" if tool_identifier else "tool_output"
+            if HAS_PROMPT_INJECTION and tool_output:
+                try:
+                    post_pi_config, post_pi_error = _load_prompt_injection_config()
+                    if post_pi_error:
+                        logging.warning(f"PostToolUse PI config error: {post_pi_error}")
+
+                    if post_pi_config and is_feature_enabled(
+                        post_pi_config.get("enabled"),
+                        now,
+                        default=True
+                    ):
+                        # Cross-hook optimization: skip if PreToolUse already scanned clean (#366)
+                        post_pi_skip = (
+                            pretool_scan.get("prompt_injection_scanned")
+                            and not pretool_scan.get("prompt_injection_found")
+                        )
+                        # Also skip if ignore_files matched in PreToolUse
+                        if pretool_ctx and pretool_ctx.get("ignore_files_matched"):
+                            post_pi_skip = True
+
+                        if post_pi_skip:
+                            logging.info("PostToolUse: skipping PI scan (PreToolUse already scanned clean)")
+                        else:
+                            post_pi_file = tool_input.get("file_path") or tool_input.get("path")
+                            if not post_pi_file and pretool_ctx:
+                                post_pi_file = pretool_ctx.get("file_path")
+
+                            post_pi_detector = PromptInjectionDetector(post_pi_config)
+                            with _latency_timer.check("prompt_injection"):
+                                post_pi_block, post_pi_error_msg, post_pi_detected = post_pi_detector.detect(
+                                    tool_output, file_path=post_pi_file,
+                                    tool_name=tool_identifier, source_type="file_content"
+                                )
+
+                            if post_pi_detected:
+                                post_pi_hook_ctx = {}
+                                if hook_tool_use_id:
+                                    post_pi_hook_ctx["tool_use_id"] = hook_tool_use_id
+                                if hook_session_id:
+                                    post_pi_hook_ctx["session_id"] = hook_session_id
+                                _log_prompt_injection_violation(
+                                    post_pi_cp_filename,
+                                    context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": post_pi_file},
+                                    attack_type=post_pi_detector.last_attack_type,
+                                    hook_context=post_pi_hook_ctx if post_pi_hook_ctx else None,
+                                    matched_pattern=post_pi_detector.last_matched_pattern,
+                                    matched_text=post_pi_detector.last_matched_text,
+                                    confidence=post_pi_detector.last_confidence,
+                                    line_number=post_pi_detector.last_line_number,
+                                    start_column=post_pi_detector.last_start_column,
+                                    end_column=post_pi_detector.last_end_column,
+                                )
+
+                            if post_pi_block:
+                                post_pi_action = post_pi_config.get("action", "block")
+                                post_pi_ask = _handle_ask_mode(
+                                    post_pi_action, ViolationType.PROMPT_INJECTION,
+                                    matched_text=post_pi_detector.last_matched_text or "",
+                                    config_section="prompt_injection",
+                                    error_msg=post_pi_error_msg,
+                                    file_path=post_pi_file,
+                                    line_number=post_pi_detector.last_line_number,
+                                    matched_pattern=post_pi_detector.last_matched_pattern or "",
+                                    latency_timer=_latency_timer,
+                                    hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
+                                )
+                                if post_pi_ask is not None:
+                                    from ai_guardian.tui.ask_dialog import AskDecision
+                                    if post_pi_ask.decision != AskDecision.BLOCK:
+                                        pi_info = _format_ask_info_message(ViolationType.PROMPT_INJECTION, post_pi_ask.decision)
+                                        post_warning_messages.append(pi_info)
+                                        post_pi_block = False
+                                        _log_ask_decision(ViolationType.PROMPT_INJECTION, post_pi_ask.decision,
+                                                          matched_text=post_pi_detector.last_matched_text or "",
+                                                          error_msg=post_pi_error_msg or "",
+                                                          file_path=post_pi_file,
+                                                          line_number=post_pi_detector.last_line_number,
+                                                          dialog_wait_ms=post_pi_ask.dialog_wait_ms)
+
+                                if post_pi_block:
+                                    logging.info("PostToolUse: blocking due to prompt injection")
+                                    result = format_response(ide_type, has_secrets=True, error_message=post_pi_error_msg,
+                                                             hook_event=hook_event, violation_type=ViolationType.PROMPT_INJECTION)
+                                    _advance_transcript_position(hook_data)
+                                    return result
+                            elif post_pi_detected and post_pi_error_msg:
+                                post_warning_messages.append(post_pi_error_msg)
+
+                            if not post_pi_detected:
+                                logging.info("PostToolUse: no prompt injection detected in output")
+                except Exception as e:
+                    on_error = _get_on_scan_error_action()
+                    if on_error == ActionMode.BLOCK:
+                        logging.error(f"PostToolUse PI check error (fail-closed): {e}")
+                        result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
+                                                 error_message=f"PostToolUse prompt injection check failed (blocked): {e}",
+                                                 violation_type=ViolationType.PROMPT_INJECTION)
+                        _advance_transcript_position(hook_data)
+                        return result
+                    logging.warning(f"PostToolUse PI check error (fail-open): {e}")
+
+            # Context poisoning scanning on PostToolUse output (#1285)
+            if HAS_CONTEXT_POISONING and tool_output:
+                try:
+                    post_cp_config, post_cp_error = _load_context_poisoning_config()
+                    if post_cp_error:
+                        logging.warning(f"PostToolUse CP config error: {post_cp_error}")
+
+                    if post_cp_config and is_feature_enabled(
+                        post_cp_config.get("enabled"),
+                        now,
+                        default=True
+                    ):
+                        # Cross-hook optimization: skip if PreToolUse already scanned clean
+                        post_cp_skip = (
+                            pretool_scan.get("context_poisoning_scanned")
+                            and not pretool_scan.get("context_poisoning_found")
+                        )
+                        if pretool_ctx and pretool_ctx.get("ignore_files_matched"):
+                            post_cp_skip = True
+
+                        if post_cp_skip:
+                            logging.info("PostToolUse: skipping CP scan (PreToolUse already scanned clean)")
+                        else:
+                            post_cp_file = tool_input.get("file_path") or tool_input.get("path")
+                            if not post_cp_file and pretool_ctx:
+                                post_cp_file = pretool_ctx.get("file_path")
+
+                            post_cp_skip_local = _should_skip_context_poisoning(
+                                post_cp_config, tool_identifier, post_cp_file
+                            )
+                            if not post_cp_skip_local:
+                                post_cp_detector = ContextPoisoningDetector(post_cp_config)
+                                with _latency_timer.check("context_poisoning"):
+                                    post_cp_block, post_cp_error_msg, post_cp_detected = post_cp_detector.detect(tool_output)
+
+                                if post_cp_detected:
+                                    post_cp_hook_ctx = {}
+                                    if hook_tool_use_id:
+                                        post_cp_hook_ctx["tool_use_id"] = hook_tool_use_id
+                                    if hook_session_id:
+                                        post_cp_hook_ctx["session_id"] = hook_session_id
+                                    _log_context_poisoning_violation(
+                                        post_pi_cp_filename,
+                                        context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": post_cp_file},
+                                        hook_context=post_cp_hook_ctx if post_cp_hook_ctx else None,
+                                        matched_pattern=post_cp_detector.last_matched_pattern,
+                                        matched_text=post_cp_detector.last_matched_text,
+                                        confidence=post_cp_detector.last_confidence,
+                                        line_number=post_cp_detector.last_line_number,
+                                        start_column=post_cp_detector.last_start_column,
+                                        end_column=post_cp_detector.last_end_column,
+                                    )
+
+                                if post_cp_block:
+                                    cp_action = post_cp_config.get("action", "warn")
+                                    post_cp_ask = _handle_ask_mode(
+                                        cp_action, ViolationType.CONTEXT_POISONING,
+                                        matched_text=post_cp_detector.last_matched_text or "",
+                                        config_section="context_poisoning",
+                                        error_msg=post_cp_error_msg,
+                                        file_path=post_cp_file,
+                                        line_number=post_cp_detector.last_line_number,
+                                        matched_pattern=post_cp_detector.last_matched_pattern or "",
+                                        latency_timer=_latency_timer,
+                                        hook_context={"session_id": hook_session_id, "project_path": os.getcwd()},
+                                    )
+                                    if post_cp_ask is not None:
+                                        from ai_guardian.tui.ask_dialog import AskDecision
+                                        if post_cp_ask.decision != AskDecision.BLOCK:
+                                            cp_info = _format_ask_info_message(ViolationType.CONTEXT_POISONING, post_cp_ask.decision)
+                                            post_warning_messages.append(cp_info)
+                                            post_cp_block = False
+                                            _log_ask_decision(ViolationType.CONTEXT_POISONING, post_cp_ask.decision,
+                                                              matched_text=post_cp_detector.last_matched_text or "",
+                                                              error_msg=post_cp_error_msg or "",
+                                                              file_path=post_cp_file,
+                                                              line_number=post_cp_detector.last_line_number,
+                                                              dialog_wait_ms=post_cp_ask.dialog_wait_ms)
+
+                                    if post_cp_block:
+                                        logging.info("PostToolUse: blocking due to context poisoning")
+                                        result = format_response(ide_type, has_secrets=True, error_message=post_cp_error_msg,
+                                                                 hook_event=hook_event, violation_type=ViolationType.CONTEXT_POISONING)
+                                        _advance_transcript_position(hook_data)
+                                        return result
+                                elif post_cp_detected and post_cp_error_msg:
+                                    post_warning_messages.append(post_cp_error_msg)
+                except Exception as e:
+                    logging.warning(f"PostToolUse CP check error (fail-open): {e}")
+
             _advance_transcript_position(hook_data)
+            if post_warning_messages:
+                combined = "\n\n".join(post_warning_messages)
+                result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
+                                         warning_message=combined)
+                result["_warning"] = True
+                result["_violation_type"] = "mixed"
+                return result
             return format_response(ide_type, has_secrets=False, hook_event=hook_event)
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
@@ -4742,6 +4943,9 @@ def process_hook_data(hook_data, daemon_state=None):
                                 "pii_scanned": False,
                                 "pii_skipped_reason": None,
                                 "prompt_injection_scanned": False,
+                                "prompt_injection_found": False,
+                                "context_poisoning_scanned": False,
+                                "context_poisoning_found": False,
                             },
                             "ignore_files_matched": False,
                         })
@@ -4797,6 +5001,11 @@ def process_hook_data(hook_data, daemon_state=None):
             pii_content_to_scan = None
             annotations_config = None
 
+        # Tracking variables for PreToolUse context saving (#1285)
+        _pretool_pi_detected = False
+        _pretool_cp_scanned = False
+        _pretool_cp_detected = False
+
         # Check for prompt injection BEFORE scanning for secrets
         if HAS_PROMPT_INJECTION:
             try:
@@ -4823,6 +5032,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     # Log violation if injection was detected (in both log and block modes)
                     if injection_detected:
+                        _pretool_pi_detected = True
                         inj_hook_ctx = {}
                         if hook_tool_use_id:
                             inj_hook_ctx["tool_use_id"] = hook_tool_use_id
@@ -4915,11 +5125,13 @@ def process_hook_data(hook_data, daemon_state=None):
                 ):
                     cp_skip = _should_skip_context_poisoning(cp_config, tool_identifier, file_path)
                     if not cp_skip:
+                        _pretool_cp_scanned = True
                         cp_detector = ContextPoisoningDetector(cp_config)
                         with _latency_timer.check("context_poisoning"):
                             cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
 
                         if cp_detected:
+                            _pretool_cp_detected = True
                             cp_hook_ctx = {}
                             if hook_tool_use_id:
                                 cp_hook_ctx["tool_use_id"] = hook_tool_use_id
@@ -5472,6 +5684,9 @@ def process_hook_data(hook_data, daemon_state=None):
                         "pii_scanned": pii_scanned,
                         "pii_skipped_reason": pii_skip_reason,
                         "prompt_injection_scanned": content_to_scan is not None,
+                        "prompt_injection_found": _pretool_pi_detected,
+                        "context_poisoning_scanned": _pretool_cp_scanned,
+                        "context_poisoning_found": _pretool_cp_detected,
                     },
                     "ignore_files_matched": ignore_files_matched,
                 }
