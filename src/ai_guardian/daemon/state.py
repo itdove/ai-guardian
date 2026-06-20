@@ -16,6 +16,7 @@ import threading
 import time
 from pathlib import Path
 
+from ai_guardian.config_loaders import _clear_config_cache
 from ai_guardian.config_utils import get_config_dir, get_state_dir, _find_config_in_dir
 
 logger = logging.getLogger(__name__)
@@ -277,10 +278,11 @@ class DaemonState:
 
     def force_reload_config(self):
         """Force config reload regardless of mtime/checksum."""
+        _clear_config_cache()
         with self._lock:
             reloaded = self._reload_config()
             callback = self._on_config_reloaded if reloaded else None
-            logger.info("Config force-reloaded")
+            logger.info("Config force-reloaded (global + per-project caches cleared)")
         if callback:
             try:
                 callback()
