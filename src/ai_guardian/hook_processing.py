@@ -2061,11 +2061,15 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 from ai_guardian.config_writer import save_ask_pattern
                 cp = _Path(result.config_path) if getattr(result, 'config_path', None) else None
                 save_ask_pattern(config_section, result.allowlist_pattern, config_path=cp)
+            from ai_guardian.config_loaders import _clear_config_cache
+            _clear_config_cache(project_key=hctx.get("project_path") or os.getcwd())
 
         if result.decision == AskDecision.IGNORE_FILE and result.ignore_path:
             if not getattr(result, 'config_saved', False):
                 from ai_guardian.tui.ask_dialog import _save_ignore_path
                 _save_ignore_path(result.ignore_path, result.ignore_scanner_types)
+            from ai_guardian.config_loaders import _clear_config_cache
+            _clear_config_cache(project_key=hctx.get("project_path") or os.getcwd())
 
         return result
 
