@@ -430,10 +430,16 @@ class ConfigFileScanner:
 
                 reason = f"credential exfiltration pattern detected ({pattern_def['description']})"
 
+                line_start = content.rfind('\n', 0, match.start()) + 1
+                start_column = match.start() - line_start
+                end_column = match.end() - line_start
+
                 details = {
                     "pattern_name": pattern_def["name"],
                     "pattern_description": pattern_def["description"],
                     "line_number": line_number,
+                    "start_column": start_column,
+                    "end_column": end_column,
                     "matched_text": display_text,
                     "context": context,
                     "file_path": file_path,
