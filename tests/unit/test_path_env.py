@@ -145,14 +145,15 @@ class TestEnsureScannerPath:
         assert "/definitely/does/not/exist" not in os.environ["PATH"]
 
     def test_skips_dir_already_in_path(self, monkeypatch):
-        monkeypatch.setenv("PATH", "/usr/bin:/bin:/usr/local/bin")
+        sep = os.pathsep
+        monkeypatch.setenv("PATH", f"/usr/bin{sep}/bin{sep}/usr/local/bin")
 
         with _mock_well_known(["/usr/local/bin"]):
             with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
                             return_value=[]):
                 ensure_scanner_path()
 
-        count = os.environ["PATH"].split(os.pathsep).count("/usr/local/bin")
+        count = os.environ["PATH"].split(sep).count("/usr/local/bin")
         assert count == 1
 
     def test_idempotent(self, tmp_path, monkeypatch):
