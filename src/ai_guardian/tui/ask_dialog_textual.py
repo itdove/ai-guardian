@@ -96,6 +96,8 @@ class _TextualAskDialog:
                 with Container(id="ask-container"):
                     yield Static(f"[bold]{icon} {build_dialog_title(v)}[/bold]", id="title")
                     yield Static(f"[bold]Type:[/bold] {icon} {v.violation_type}", classes="detail-row")
+                    if v.hook_event:
+                        yield Static(f"[bold]Hook:[/bold] {v.hook_event}", classes="detail-row")
                     yield Static(f"[bold]Summary:[/bold] {v.summary}", classes="detail-row")
                     if v.file_path:
                         loc = v.file_path

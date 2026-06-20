@@ -53,6 +53,7 @@ class AskViolationInfo:
     start_column: Optional[int] = None
     project_path: Optional[str] = None
     session_id: Optional[str] = None
+    hook_event: Optional[str] = None
 
 
 @dataclass
@@ -90,6 +91,30 @@ def build_sub_dialog_title(base_title: str, violation_info: AskViolationInfo) ->
     if prefix_parts:
         return f"{' '.join(prefix_parts)} — {base_title}"
     return base_title
+
+
+_TOOL_TO_LABEL = {
+    "Read": "reading file",
+    "Bash": "running command",
+    "Write": "writing file",
+    "Edit": "editing file",
+}
+
+
+def format_hook_label(hook_event: Optional[str], tool_name: Optional[str] = None) -> Optional[str]:
+    """Map hook event + optional tool name to a human-readable label."""
+    if not hook_event:
+        return None
+    raw = hook_event.value if hasattr(hook_event, 'value') else str(hook_event)
+    ev = raw.lower().replace("_", "").replace("-", "")
+    if ev in ("pretooluse", "beforereadfile"):
+        ctx = _TOOL_TO_LABEL.get(tool_name or "", "before tool use")
+        return f"PreToolUse ({ctx})"
+    if ev == "posttooluse":
+        return "PostToolUse (tool output)"
+    if ev in ("prompt", "userpromptsubmit"):
+        return "UserPromptSubmit (your prompt)"
+    return raw
 
 
 def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
@@ -213,6 +238,7 @@ def _show_via_daemon(
             "start_column": violation.start_column,
             "project_path": violation.project_path,
             "session_id": violation.session_id,
+            "hook_event": violation.hook_event,
         },
         "fallback": fallback_action,
         "timeout": timeout_seconds,
@@ -278,6 +304,7 @@ def _show_via_subprocess(
         "start_column": violation.start_column,
         "project_path": violation.project_path,
         "session_id": violation.session_id,
+        "hook_event": violation.hook_event,
     })
 
     tmpdir = tempfile.mkdtemp(prefix="ai-guardian-ask-")

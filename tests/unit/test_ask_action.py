@@ -2370,3 +2370,88 @@ class TestPiiAskBlockDecision:
             else:
                 pii_action = 'block'
         assert pii_action == 'ask'
+
+
+class TestFormatHookLabel:
+    """Tests for format_hook_label() human-readable hook event labels (Issue #1289)."""
+
+    def test_pretooluse_with_read(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("pretooluse", "Read") == "PreToolUse (reading file)"
+
+    def test_pretooluse_with_bash(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("pretooluse", "Bash") == "PreToolUse (running command)"
+
+    def test_pretooluse_with_write(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("pretooluse", "Write") == "PreToolUse (writing file)"
+
+    def test_pretooluse_with_edit(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("pretooluse", "Edit") == "PreToolUse (editing file)"
+
+    def test_pretooluse_without_tool(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("pretooluse") == "PreToolUse (before tool use)"
+
+    def test_pretooluse_unknown_tool(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("pretooluse", "SomeTool") == "PreToolUse (before tool use)"
+
+    def test_beforereadfile(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("beforereadfile", "Read") == "PreToolUse (reading file)"
+
+    def test_posttooluse(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("posttooluse") == "PostToolUse (tool output)"
+
+    def test_prompt(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("prompt") == "UserPromptSubmit (your prompt)"
+
+    def test_none_returns_none(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label(None) is None
+
+    def test_empty_returns_none(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("") is None
+
+    def test_unknown_event_passthrough(self):
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        assert format_hook_label("custom_event") == "custom_event"
+
+    def test_hook_event_enum_value(self):
+        """HookEvent enum values work (they're str enums)."""
+        from ai_guardian.tui.ask_dialog import format_hook_label
+        from ai_guardian.constants import HookEvent
+        assert format_hook_label(HookEvent.PRE_TOOL_USE, "Bash") == "PreToolUse (running command)"
+        assert format_hook_label(HookEvent.POST_TOOL_USE) == "PostToolUse (tool output)"
+        assert format_hook_label(HookEvent.PROMPT) == "UserPromptSubmit (your prompt)"
+
+
+class TestAskViolationInfoHookEvent:
+    """Tests for hook_event field on AskViolationInfo (Issue #1289)."""
+
+    def test_default_none(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected",
+            summary="test",
+            matched_text="secret",
+            config_section="secret_scanning",
+        )
+        assert v.hook_event is None
+
+    def test_set_hook_event(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected",
+            summary="test",
+            matched_text="secret",
+            config_section="secret_scanning",
+            hook_event="PreToolUse (reading file)",
+        )
+        assert v.hook_event == "PreToolUse (reading file)"
