@@ -6,6 +6,17 @@ import sys
 import tempfile
 import unittest
 
+try:
+    from ai_guardian.mcp_server import create_server, HAS_MCP as _HAS_MCP
+except (ImportError, NameError):
+    _HAS_MCP = False
+
+try:
+    from ai_guardian.web.pages.violations import DETAIL_FIELDS
+    _HAS_NICEGUI = True
+except (ImportError, ModuleNotFoundError):
+    _HAS_NICEGUI = False
+
 from ai_guardian.scanners.output_parsers import (
     GitleaksOutputParser,
     LeakTKOutputParser,
@@ -416,7 +427,7 @@ class TestAskViolationInfoColumn(unittest.TestCase):
         self.assertEqual(v.start_column, 0)
 
 
-@unittest.skipIf(sys.version_info < (3, 10), "MCP SDK requires Python >= 3.10")
+@unittest.skipUnless(_HAS_MCP, "MCP SDK requires Python >= 3.10")
 class TestMcpViolationsColumnExposure(unittest.TestCase):
     """MCP get_violations exposes start_column/end_column as 1-based."""
 
@@ -439,7 +450,6 @@ class TestMcpViolationsColumnExposure(unittest.TestCase):
 
     def test_column_included_as_1_based(self):
         from unittest.mock import patch, MagicMock
-        from ai_guardian.mcp_server import create_server
         violation = self._make_violation(start_col=4, end_col=10)
         with patch("ai_guardian.violation_logger.ViolationLogger") as MockVL:
             MockVL.return_value.get_recent_violations.return_value = [violation]
@@ -452,7 +462,6 @@ class TestMcpViolationsColumnExposure(unittest.TestCase):
 
     def test_column_absent_when_none(self):
         from unittest.mock import patch
-        from ai_guardian.mcp_server import create_server
         violation = self._make_violation()
         with patch("ai_guardian.violation_logger.ViolationLogger") as MockVL:
             MockVL.return_value.get_recent_violations.return_value = [violation]
@@ -464,12 +473,11 @@ class TestMcpViolationsColumnExposure(unittest.TestCase):
             self.assertNotIn("end_column", entry)
 
 
-@unittest.skipIf(sys.version_info < (3, 10), "NiceGUI requires Python >= 3.10")
+@unittest.skipUnless(_HAS_NICEGUI, "NiceGUI requires Python >= 3.10")
 class TestWebDetailFieldsHaveColumn(unittest.TestCase):
     """All relevant DETAIL_FIELDS entries include Column."""
 
     def test_all_types_with_line_have_column(self):
-        from ai_guardian.web.pages.violations import DETAIL_FIELDS
         types_needing_column = [
             "tool_permission", "secret_detected", "prompt_injection",
             "secret_redaction", "pii_detected", "jailbreak_detected",
