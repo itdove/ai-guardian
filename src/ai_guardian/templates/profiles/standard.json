@@ -124,7 +124,9 @@
         "allowed_domains": [],
         "_comment_allowed_domains": "Domain allow-list. Supports exact strings, subdomain matching, and regex patterns (e.g., '.*\\.example\\.com', 'localhost:19200')",
         "_comment_path_based_rules": "Path-based filtering for granular access control (NEW in v1.6.0) - Allow/block specific URL paths on domains",
-        "path_based_rules": []
+        "path_based_rules": [],
+        "ignore_files": [],
+        "ignore_tools": []
     },
     "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",
     "config_file_scanning": {
@@ -132,9 +134,10 @@
         "action": "block",
         "additional_files": [],
         "ignore_files": [],
+        "ignore_tools": [],
         "additional_patterns": []
     },
-    "_comment_supply_chain": "Detect malicious patterns in agent config files — hooks, MCP servers, and plugin files (NEW in v1.11.0, Issue #1055)",
+    "_comment_supply_chain": "Detect malicious patterns in agent config files \u2014 hooks, MCP servers, and plugin files (NEW in v1.11.0, Issue #1055)",
     "supply_chain": {
         "enabled": true,
         "action": "block",
@@ -234,7 +237,7 @@
         "block_begin": [],
         "block_end": []
     },
-    "_comment_latency_tracking": "Hook latency tracking — records per-hook timing to latency.jsonl for performance analysis. Disabled by default. (NEW in v1.11.0, Issue #1057)",
+    "_comment_latency_tracking": "Hook latency tracking \u2014 records per-hook timing to latency.jsonl for performance analysis. Disabled by default. (NEW in v1.11.0, Issue #1057)",
     "latency_tracking": {
         "enabled": false,
         "max_entries": 5000,

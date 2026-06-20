@@ -215,6 +215,20 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
                 yield Input(placeholder="Enter ignore pattern (e.g., **/*.example.md)", id="new-ignore-file-input")
                 yield Static("[dim]Press 'g' to add ignore pattern[/dim]", classes="setting-row")
 
+            # Ignore tools section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Tools[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Tool name patterns to skip during config file scanning.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="config-ignore-tools-list")
+                yield Input(
+                    placeholder="Enter tool pattern (e.g. mcp__*)",
+                    id="config-ignore-tool-input",
+                )
+
             # Additional patterns section
             with Container(classes="section"):
                 yield Static("[bold]Additional Detection Patterns[/bold]", classes="section-title")
@@ -289,6 +303,17 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
         else:
             ignore_text = "[dim]No ignore patterns configured[/dim]"
         self.query_one("#ignore-files-list", Static).update(ignore_text)
+
+        # Update ignore tools list
+        ignore_tools = scanner_config.get("ignore_tools", [])
+        try:
+            if ignore_tools:
+                ignore_tools_text = "\n".join(f"  {t}" for t in ignore_tools)
+            else:
+                ignore_tools_text = "[dim]No ignored tools configured[/dim]"
+            self.query_one("#config-ignore-tools-list", Static).update(ignore_tools_text)
+        except Exception:
+            pass
 
         # Update additional patterns list
         if additional_patterns:
@@ -403,6 +428,8 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             self.add_ignore_file()
         elif input_id == "new-pattern-input":
             self.add_pattern()
+        elif input_id == "config-ignore-tool-input":
+            self._add_ignore_tool()
 
     def action_add_file(self) -> None:
         """Add additional file (triggered by 'f' key)."""
@@ -511,6 +538,44 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error adding ignore pattern: {e}", severity="error")
+
+    def _add_ignore_tool(self) -> None:
+        """Add a pattern to the ignore tools list."""
+        input_widget = self.query_one("#config-ignore-tool-input", Input)
+        value = input_widget.value.strip()
+
+        if not value:
+            self.app.notify("Please enter a tool pattern", severity="error")
+            return
+
+        config_path = self._get_config_path()
+
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "config_file_scanning" not in config:
+                config["config_file_scanning"] = {}
+            if "ignore_tools" not in config["config_file_scanning"]:
+                config["config_file_scanning"]["ignore_tools"] = []
+
+            if value in config["config_file_scanning"]["ignore_tools"]:
+                self.app.notify("Pattern already exists", severity="warning")
+                return
+
+            config["config_file_scanning"]["ignore_tools"].append(value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added: {value}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
 
     def add_pattern(self) -> None:
         """Add a detection pattern to the additional patterns list."""

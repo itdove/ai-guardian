@@ -1245,6 +1245,22 @@
           },
           "default": []
         },
+        "ignore_files": {
+          "type": "array",
+          "description": "Glob patterns for files to skip during SSRF checks. Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char), ~ (home directory).",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_tools": {
+          "type": "array",
+          "description": "Tool name patterns to skip during SSRF checks. Supports wildcards: * (any chars), ? (single char).",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
         "pattern_server": {
           "type": ["object", "null"],
           "description": "OPTIONAL/ADVANCED: SSRF protection patterns from a pattern server (NEW in v1.5.0). Configure to use enterprise patterns instead of hardcoded defaults. Supports three-tier system: immutable core (metadata endpoints, dangerous schemes) + pattern server/defaults (RFC 1918 ranges) + local config additions.",
@@ -1377,6 +1393,14 @@
         "ignore_files": {
           "type": "array",
           "description": "Glob patterns for files to skip during config file scanning. Useful for documentation with security examples. Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char). Examples: '**/docs/security-examples.md', '**/examples/**'",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "ignore_tools": {
+          "type": "array",
+          "description": "Tool name patterns to skip during config file scanning. Supports wildcards: * (any chars), ? (single char).",
           "items": {
             "type": "string"
           },

@@ -353,6 +353,70 @@ def create_config_scanner_page(service, daemon_name: str):
 
                             ui.button("Add", icon="add", on_click=add_ignore).props("dense")
 
+                    # --- Ignore tools ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        ui.label(
+                            "Tool name patterns to exclude from config file scanning."
+                        ).classes("text-xs text-grey-6")
+
+                        ignore_tools = cs.get("ignore_tools", [])
+                        if ignore_tools:
+                            for idx, entry in enumerate(ignore_tools):
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("build").classes("text-grey-6")
+                                    ui.label(entry).classes("flex-grow text-sm").style(
+                                        "font-family: monospace"
+                                    )
+
+                                    async def remove_ignore_tool(i=idx):
+                                        cfg = await run.io_bound(load_web_config)
+                                        sect = cfg.get("config_file_scanning", {})
+                                        if not isinstance(sect, dict):
+                                            return
+                                        items = sect.get("ignore_tools", [])
+                                        if i < len(items):
+                                            items.pop(i)
+                                            sect["ignore_tools"] = items
+                                            cfg["config_file_scanning"] = sect
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("Tool pattern removed", type="positive")
+                                            await refresh()
+
+                                    ui.button(
+                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                    ).props("flat dense size=sm")
+                        else:
+                            ui.label("No ignore tool patterns.").classes("text-grey-6 text-sm")
+
+                        with ui.row().classes("items-center gap-2 mt-2"):
+                            it_input = ui.input(
+                                placeholder="Enter tool name pattern (e.g. mcp__*)"
+                            ).props("dense outlined").classes("flex-grow")
+
+                            async def add_ignore_tool():
+                                val = it_input.value.strip()
+                                if not val:
+                                    ui.notify("Enter a pattern", type="negative")
+                                    return
+                                cfg = await run.io_bound(load_web_config)
+                                sect = cfg.get("config_file_scanning", {})
+                                if not isinstance(sect, dict):
+                                    sect = {}
+                                items = sect.get("ignore_tools", [])
+                                if val in items:
+                                    ui.notify("Pattern already exists", type="warning")
+                                    return
+                                items.append(val)
+                                sect["ignore_tools"] = items
+                                cfg["config_file_scanning"] = sect
+                                await run.io_bound(save_web_config, cfg)
+                                it_input.value = ""
+                                ui.notify(f"Added: {val}", type="positive")
+                                await refresh()
+
+                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+
                     with ui.card().classes("w-full"):
                         ui.label("Additional Detection Patterns").classes("text-lg font-bold")
                         ui.label(

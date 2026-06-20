@@ -254,6 +254,34 @@ class SSRFContent(SchemaDefaultsMixin, Container):
                 yield Input(placeholder="Enter domain to allow (e.g., api.corp.internal)", id="new-allowed-domain-input")
                 yield Static("[dim]Press 'a' to add allowed domain[/dim]", classes="setting-row")
 
+            # Ignore files section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Files[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Glob patterns for files to skip during SSRF checks.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="ssrf-ignore-files-list")
+                yield Input(
+                    placeholder="Enter glob pattern (e.g. **/tests/**)",
+                    id="ssrf-ignore-file-input",
+                )
+
+            # Ignore tools section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Tools[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Tool name patterns to skip during SSRF checks.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="ssrf-ignore-tools-list")
+                yield Input(
+                    placeholder="Enter tool pattern (e.g. mcp__*)",
+                    id="ssrf-ignore-tool-input",
+                )
+
             # Statistics section
             with Container(classes="section"):
                 yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
@@ -328,6 +356,28 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         else:
             allowed_text = "[dim]No domains in allow-list[/dim]"
         self.query_one("#allowed-domains-list", Static).update(allowed_text)
+
+        # Update ignore files list
+        ignore_files = ssrf_config.get("ignore_files", [])
+        try:
+            if ignore_files:
+                ignore_files_text = "\n".join(f"  {f}" for f in ignore_files)
+            else:
+                ignore_files_text = "[dim]No ignore patterns configured[/dim]"
+            self.query_one("#ssrf-ignore-files-list", Static).update(ignore_files_text)
+        except Exception:
+            pass
+
+        # Update ignore tools list
+        ignore_tools = ssrf_config.get("ignore_tools", [])
+        try:
+            if ignore_tools:
+                ignore_tools_text = "\n".join(f"  {t}" for t in ignore_tools)
+            else:
+                ignore_tools_text = "[dim]No ignored tools configured[/dim]"
+            self.query_one("#ssrf-ignore-tools-list", Static).update(ignore_tools_text)
+        except Exception:
+            pass
 
         # Apply schema default indicators
         self._apply_default_indicators(ssrf_config)
@@ -452,6 +502,10 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             self.add_blocked_domain()
         elif input_id == "new-allowed-domain-input":
             self.add_allowed_domain()
+        elif input_id == "ssrf-ignore-file-input":
+            self._add_ignore_item("ignore_files", event.input)
+        elif input_id == "ssrf-ignore-tool-input":
+            self._add_ignore_item("ignore_tools", event.input)
 
     def action_add_ip(self) -> None:
         """Add blocked IP (triggered by 'i' key)."""
@@ -624,3 +678,38 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error adding allowed domain: {e}", severity="error")
+
+    def _add_ignore_item(self, field: str, input_widget: Input) -> None:
+        """Add an item to ssrf_protection.ignore_files or ignore_tools."""
+        value = input_widget.value.strip()
+        if not value:
+            self.app.notify("Please enter a pattern", severity="error")
+            return
+
+        config_path = self._get_config_path()
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "ssrf_protection" not in config:
+                config["ssrf_protection"] = {}
+            if field not in config["ssrf_protection"]:
+                config["ssrf_protection"][field] = []
+
+            if value in config["ssrf_protection"][field]:
+                self.app.notify("Pattern already exists", severity="warning")
+                return
+
+            config["ssrf_protection"][field].append(value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added: {value}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")

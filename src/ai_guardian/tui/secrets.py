@@ -236,6 +236,34 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     id="stopwords-input",
                 )
 
+            # Ignore files section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Files[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Glob patterns for files to skip during secret scanning.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="secret-ignore-files-list")
+                yield Input(
+                    placeholder="Enter glob pattern (e.g. **/tests/fixtures/**)",
+                    id="secret-ignore-file-input",
+                )
+
+            # Ignore tools section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Tools[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Tool name patterns to skip during secret scanning.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="secret-ignore-tools-list")
+                yield Input(
+                    placeholder="Enter tool pattern (e.g. mcp__*)",
+                    id="secret-ignore-tool-input",
+                )
+
             # Pattern server toggle section (standalone)
             yield TimeBasedToggle(
                 title="Pattern Server (Optional - Enhanced Patterns)",
@@ -560,6 +588,28 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass
 
+        # Ignore files list
+        ignore_files = secret_scanning.get("ignore_files", [])
+        try:
+            if ignore_files:
+                ignore_files_text = "\n".join(f"  {f}" for f in ignore_files)
+            else:
+                ignore_files_text = "[dim]No ignore patterns configured[/dim]"
+            self.query_one("#secret-ignore-files-list", Static).update(ignore_files_text)
+        except Exception:
+            pass
+
+        # Ignore tools list
+        ignore_tools = secret_scanning.get("ignore_tools", [])
+        try:
+            if ignore_tools:
+                ignore_tools_text = "\n".join(f"  {t}" for t in ignore_tools)
+            else:
+                ignore_tools_text = "[dim]No ignored tools configured[/dim]"
+            self.query_one("#secret-ignore-tools-list", Static).update(ignore_tools_text)
+        except Exception:
+            pass
+
         # Cache settings
         cache = ps.get("cache", {})
         cache_path = cache.get("path", str(get_cache_dir() / "patterns.toml"))
@@ -718,6 +768,10 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     self.app.notify("Entropy must be a number or empty to disable", severity="error")
         elif event.input.id == "stopwords-input":
             self._add_stopword()
+        elif event.input.id == "secret-ignore-file-input":
+            self._add_ignore_item("ignore_files", event.input)
+        elif event.input.id == "secret-ignore-tool-input":
+            self._add_ignore_item("ignore_tools", event.input)
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle select dropdown changes."""
@@ -1019,6 +1073,41 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error adding stopword: {e}", severity="error")
+
+    def _add_ignore_item(self, field: str, input_widget: Input) -> None:
+        """Add an item to secret_scanning.ignore_files or ignore_tools."""
+        value = input_widget.value.strip()
+        if not value:
+            self.app.notify("Please enter a pattern", severity="error")
+            return
+
+        config_path = self._get_config_path()
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "secret_scanning" not in config:
+                config["secret_scanning"] = {}
+            if field not in config["secret_scanning"]:
+                config["secret_scanning"][field] = []
+
+            if value in config["secret_scanning"][field]:
+                self.app.notify("Pattern already exists", severity="warning")
+                return
+
+            config["secret_scanning"][field].append(value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added: {value}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
 
     def test_pattern_server(self) -> None:
         """Test connection to pattern server."""
