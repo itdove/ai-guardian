@@ -1,38 +1,56 @@
-#!/usr/bin/env python3
-"""
-Console Theme
+"""Console Theme — backward-compatibility shim.
 
-Centralized color scheme and styling for the Console.
-Provides semantic color names for consistent visual hierarchy.
+All theme definitions live in ai_guardian.theme (top-level).
+This module re-exports names for any existing imports.
 """
 
-# Color palette
-ACCENT = "#76b900"  # AI Guardian green
-ACCENT_DIM = "#508c00"
-EVERGLADE = "#123123"  # Dark green
+from ai_guardian.theme import (
+    ANNOTATION_FG,
+    CODE_BG,
+    ERROR,
+    HIGHLIGHT_BG,
+    INFO,
+    PRIMARY,
+    SUCCESS,
+    SURFACE,
+    SURFACE_ALT,
+    TEXT,
+    TEXT_DIM,
+    TEXT_MUTED,
+    WARNING,
+)
+
+ACCENT = PRIMARY
+ACCENT_DIM = "#0D47A1"
+EVERGLADE = "#123123"
 BORDER_MUTED = "#2a4a2a"
 
-# Status colors
-STATUS_OK = "#76b900"  # Green
-STATUS_WARN = "#d4aa00"  # Yellow
-STATUS_ERROR = "#e03131"  # Red
+STATUS_OK = SUCCESS
+STATUS_WARN = WARNING
+STATUS_ERROR = ERROR
 
-# Text colors (for dark theme)
-TEXT_PRIMARY = "white"
-TEXT_MUTED = "grey70"
-TEXT_DIM = "grey50"
+TEXT_PRIMARY = TEXT
 
-# Selection/Focus
 SELECTION_BG = "#1e3c2d"
-CURSOR_INDICATOR = ACCENT
-ACTIVE_INDICATOR = ACCENT
+CURSOR_INDICATOR = PRIMARY
+ACTIVE_INDICATOR = PRIMARY
 
-# Sidebar / Navigation
 SIDEBAR_WIDTH = 28
-SIDEBAR_BG = "#1a1a2e"
-SIDEBAR_SELECTED = ACCENT
+SIDEBAR_BG = SURFACE_ALT
+SIDEBAR_SELECTED = PRIMARY
 SIDEBAR_CATEGORY = TEXT_MUTED
 
-# UI Chrome
 PANEL_BG = "$panel"
 SURFACE_BG = "$surface"
+
+__all__ = [
+    "ACCENT", "ACCENT_DIM", "EVERGLADE", "BORDER_MUTED",
+    "STATUS_OK", "STATUS_WARN", "STATUS_ERROR",
+    "TEXT_PRIMARY", "TEXT_MUTED", "TEXT_DIM",
+    "SELECTION_BG", "CURSOR_INDICATOR", "ACTIVE_INDICATOR",
+    "SIDEBAR_WIDTH", "SIDEBAR_BG", "SIDEBAR_SELECTED", "SIDEBAR_CATEGORY",
+    "PANEL_BG", "SURFACE_BG",
+    "PRIMARY", "SUCCESS", "ERROR", "WARNING", "INFO",
+    "SURFACE", "SURFACE_ALT", "TEXT",
+    "CODE_BG", "HIGHLIGHT_BG", "ANNOTATION_FG",
+]

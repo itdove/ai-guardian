@@ -562,24 +562,13 @@ class ViolationCard(Vertical):
         suggestion = self.violation.get("suggestion", {})
         resolved = self.violation.get("resolved", False)
 
-        # Severity indicator with color
-        severity_colors = {
-            "warning": "status-warn",
-            "high": "status-error",
-            "critical": "status-error"
-        }
-        severity_class = severity_colors.get(severity, "")
+        from ai_guardian.theme import textual_severity_class, violation_badge
+        severity_class = textual_severity_class(severity)
+        icon, _ = violation_badge(vtype)
 
-        severity_symbols = {
-            "warning": "⚠",
-            "high": "●",
-            "critical": "●"
-        }
-        symbol = severity_symbols.get(severity, "•")
-
-        # Title with color-coded severity
+        # Title with color-coded severity and violation icon
         vtype_display = vtype.upper().replace('_', ' ')
-        title_parts = [f"[{severity_class}]{symbol}[/{severity_class}]" if severity_class else symbol]
+        title_parts = [f"[{severity_class}]{icon}[/{severity_class}]" if severity_class else icon]
         title_parts.append(vtype_display)
 
         if resolved:
