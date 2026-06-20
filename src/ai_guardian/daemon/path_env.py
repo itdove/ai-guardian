@@ -24,6 +24,7 @@ _WELL_KNOWN_DIRS = [
 ]
 
 _WELL_KNOWN_DIRS_WINDOWS = [
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "ai-guardian", "bin"),
     os.path.join(os.environ.get("LOCALAPPDATA", ""), "ai-guardian", "scanners"),
     os.path.join(os.environ.get("USERPROFILE", ""), ".local", "bin"),
     os.path.join(os.environ.get("ProgramData", r"C:\ProgramData"), "chocolatey", "bin"),
