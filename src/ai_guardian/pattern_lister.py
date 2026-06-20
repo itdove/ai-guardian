@@ -510,7 +510,7 @@ class PatternLister:
                             severity="immutable",
                         ))
             except ImportError:
-                pass
+                pass  # intentionally silent — optional dependency
 
         return rules
 

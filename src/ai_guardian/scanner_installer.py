@@ -102,7 +102,7 @@ class ScannerInstaller:
                     if os.access(default_dir, os.W_OK):
                         self.install_dir = default_dir
                 except PermissionError:
-                    pass
+                    pass  # intentionally silent — best-effort operation
 
             if not hasattr(self, "install_dir"):
                 logger.warning(

@@ -30,7 +30,7 @@ def _cleanup_port_file():
     try:
         _get_port_file().unlink(missing_ok=True)
     except OSError:
-        pass
+        pass  # intentionally silent — cleanup best-effort
 
 
 def _write_port(port: int):
@@ -79,7 +79,7 @@ class WebConsole:
                 b64 = base64.b64encode(favicon_path.read_bytes()).decode()
                 favicon_value = f"data:image/png;base64,{b64}"
             except OSError:
-                pass
+                pass  # intentionally silent — best-effort operation
 
         if show:
             from ai_guardian.desktop_utils import open_url

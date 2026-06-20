@@ -538,7 +538,7 @@ def _sanitize_directory_command(args) -> int:
         print("Error: Output directory cannot be inside the input directory.", file=sys.stderr)
         return 1
     except ValueError:
-        pass
+        pass  # intentionally silent — invalid value uses default
 
     force = getattr(args, "force", False)
     if output_dir.exists() and not force:
@@ -628,7 +628,7 @@ def sanitize_command(args) -> int:
             if ImageDetector.is_image_file(args.input):
                 return _sanitize_image(args.input, args)
         except ImportError:
-            pass
+            pass  # intentionally silent — optional dependency
 
     # Read input
     if hasattr(args, "input") and args.input:

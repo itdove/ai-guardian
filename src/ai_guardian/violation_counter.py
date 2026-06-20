@@ -54,7 +54,7 @@ class ViolationCounter:
                 data["total"] = data.get("total", 0) + 1
                 self._write_unlocked(data)
             except Exception as e:
-                logger.debug(f"Failed to increment violation counter: {e}")
+                logger.warning(f"Failed to increment violation counter: {e}")
 
     def get_counters(self) -> Dict:
         """Return current counter state.
@@ -66,7 +66,7 @@ class ViolationCounter:
             try:
                 return self._read_unlocked()
             except Exception as e:
-                logger.debug(f"Failed to read violation counters: {e}")
+                logger.warning(f"Failed to read violation counters: {e}")
                 return self._empty_counters()
 
     def reset_to_current_log(self) -> Dict:
@@ -154,7 +154,7 @@ class ViolationCounter:
                     except json.JSONDecodeError:
                         continue
         except OSError:
-            pass
+            pass  # intentionally silent — best-effort operation
         return counts
 
     @staticmethod

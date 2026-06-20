@@ -166,7 +166,7 @@ def get_configured_strategy() -> str:
         if scanner_config:
             return scanner_config.get("execution_strategy", "first-match")
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
     return "first-match"
 
 

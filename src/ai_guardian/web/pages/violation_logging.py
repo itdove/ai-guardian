@@ -1,5 +1,6 @@
 """Violation Logging page — full config editing matching TUI."""
 
+import logging
 import json
 import re
 from datetime import datetime, timedelta, timezone
@@ -53,8 +54,8 @@ def _save_vlog_config(updates):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 config = json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("Failed to read config: %s", e)
     if "violation_logging" not in config:
         config["violation_logging"] = {}
     config["violation_logging"].update(updates)
@@ -123,7 +124,7 @@ def create_violation_logging_page(service, daemon_name: str):
                             if datetime.now(timezone.utc) < disabled_until:
                                 is_temp = True
                         except (ValueError, TypeError):
-                            pass
+                            pass  # intentionally silent — invalid value uses default
                     if not is_temp:
                         enabled_raw = enabled_raw.get("value", True)
 

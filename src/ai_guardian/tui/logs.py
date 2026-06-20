@@ -280,7 +280,7 @@ class LogsContent(Container):
         except Exception:
             return []
 
-    FILTER_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR"]
+    FILTER_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
     BINDINGS = [
         ("f", "cycle_filter", "Filter"),
@@ -292,7 +292,7 @@ class LogsContent(Container):
         idx = self.FILTER_LEVELS.index(self.current_filter) if self.current_filter in self.FILTER_LEVELS else 0
         self.current_filter = self.FILTER_LEVELS[(idx + 1) % len(self.FILTER_LEVELS)]
         self.load_logs(filter_level=self.current_filter)
-        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+"}
+        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+", "CRITICAL": "CRIT"}
         self.app.notify(f"Filter: {labels[self.current_filter]}", severity="information")
         self._update_header()
 
@@ -306,7 +306,7 @@ class LogsContent(Container):
         self.open_log_file()
 
     def _update_header(self) -> None:
-        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+"}
+        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+", "CRITICAL": "CRIT"}
         label = labels.get(self.current_filter, "ALL")
         try:
             self.query_one("#logs-header", Static).update(

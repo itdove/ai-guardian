@@ -6,6 +6,7 @@ Centralized quick-toggle dashboard for all security features.
 Uses TimeBasedToggle widgets (same as individual panels) without help text for compact display.
 """
 
+import logging
 import json
 from pathlib import Path
 from typing import Any, Optional
@@ -265,8 +266,8 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                         immutables[section] = "tighten-only"
                     elif isinstance(immutable, list):
                         immutables[section] = immutable
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning("Failed to read config: %s", e)
         return immutables
 
     def _update_scope_notice(self) -> None:

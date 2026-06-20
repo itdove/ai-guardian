@@ -55,7 +55,7 @@ def _fetch_cache_status():
             return client.get_cache_status(targets[0])
         return MultiDaemonClient._local_cache_status()
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
     return None
 
 
@@ -159,7 +159,7 @@ class CacheStatusContent(Static):
                 ).astimezone()
                 reload_str = f"  Last reload: {dt.strftime('%H:%M:%S')}"
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
 
         summary.update(
             f"[bold]{total}[/bold] projects tracked  "

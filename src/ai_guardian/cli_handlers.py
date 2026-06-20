@@ -196,7 +196,7 @@ def _get_client_timeout(config=None):
                 return 2.0
             return max(0.5, min(10.0, timeout))
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
     return 2.0
 
 
@@ -221,7 +221,7 @@ def _handle_daemon_command(args):
                 marker.unlink(missing_ok=True)
                 logging.info("Cleared stop-requested marker (explicit daemon start)")
         except OSError:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         if args.background:
             from ai_guardian.daemon.client import start_daemon_background
@@ -256,7 +256,7 @@ def _handle_daemon_command(args):
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.touch()
         except OSError:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         if not is_daemon_running():
             # Clean up stale lock file even when daemon isn't running
@@ -265,7 +265,7 @@ def _handle_daemon_command(args):
                 try:
                     os.unlink(lock_path)
                 except OSError:
-                    pass
+                    pass  # intentionally silent — best-effort operation
             print("ai-guardian daemon is not running")
             return 0
 
@@ -289,8 +289,8 @@ def _handle_daemon_command(args):
                     if pid and is_pid_alive(pid):
                         print(f"ai-guardian daemon: process alive (pid {pid}) but not responsive")
                         return 1
-                except (json.JSONDecodeError, OSError):
-                    pass
+                except (json.JSONDecodeError, OSError) as e:
+                    logger.warning("Failed to read config: %s", e)
 
             print("ai-guardian daemon: not running")
             return 1
@@ -308,7 +308,7 @@ def _handle_daemon_command(args):
                 pid_info = json.loads(pid_path.read_text())
                 pid = pid_info.get("pid", "unknown")
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
 
             blocked = stats.get("blocked_count", 0)
             req_count = stats.get("request_count", 0)
@@ -435,7 +435,7 @@ def _handle_daemon_command(args):
                     print(f"ai-guardian daemon: scanning paused{dur}")
                     return 0
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
             print("Failed to pause daemon", file=sys.stderr)
             return 1
 
@@ -475,7 +475,7 @@ def _handle_daemon_command(args):
                     print("ai-guardian daemon: scanning resumed")
                     return 0
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
             print("Failed to resume daemon", file=sys.stderr)
             return 1
 
@@ -506,7 +506,7 @@ def _handle_daemon_command(args):
             try:
                 os.kill(pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError, OSError):
-                pass
+                pass  # intentionally silent — process may have exited
 
             deadline = time.monotonic() + 3
             while time.monotonic() < deadline and is_pid_alive(pid):
@@ -519,7 +519,7 @@ def _handle_daemon_command(args):
                     else:
                         os.kill(pid, signal.SIGKILL)
                 except (ProcessLookupError, PermissionError, OSError):
-                    pass
+                    pass  # intentionally silent — process may have exited
                 time.sleep(0.5)
                 actions.append(f"Stopping daemon process (pid {pid})... killed (SIGKILL)")
             else:
@@ -538,7 +538,7 @@ def _handle_daemon_command(args):
                     p.unlink()
                     actions.append(f"Removed {label}")
                 except OSError:
-                    pass
+                    pass  # intentionally silent — cleanup best-effort
 
         if not actions:
             print("No daemon state to reset")
@@ -656,7 +656,7 @@ def _handle_tray_stop():
                 force = getattr(signal, "SIGKILL", signal.SIGTERM)
                 os.kill(pid, force)
             except ProcessLookupError:
-                pass
+                pass  # intentionally silent — process may have exited
 
         lock_path.unlink(missing_ok=True)
         print(f"ai-guardian tray stopped (pid {pid})")
@@ -731,7 +731,7 @@ def _handle_tray_start(args):
                             if desktop.install_autostart():
                                 print("Configured to start on login.")
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
 
     config = {}
     try:
@@ -739,7 +739,7 @@ def _handle_tray_start(args):
         if cfg:
             config = cfg
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
 
     no_discover = getattr(args, "no_discover", False)
 

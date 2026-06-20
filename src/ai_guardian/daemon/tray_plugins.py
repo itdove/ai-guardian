@@ -867,7 +867,7 @@ def _find_icon(filename: str) -> str:
         from importlib.resources import files
         candidates.insert(0, Path(str(files("ai_guardian") / "images" / filename)))
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
     for p in candidates:
         if p.exists():
             return str(p)

@@ -254,7 +254,7 @@ def _build_custom_validator(config: CustomValidatorConfig, rule_id: str = "custo
                         message=f"Validation URL blocked: {reason}",
                     )
             except ImportError:
-                pass
+                pass  # intentionally silent — optional dependency
 
             resp = requests.request(config.method, config.url, **kwargs)
 

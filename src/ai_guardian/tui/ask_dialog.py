@@ -156,7 +156,7 @@ def _write_config_text(json_text: str, config_path_str: Optional[str] = None) ->
             from ai_guardian.config_loaders import _clear_config_cache
             _clear_config_cache()
         except ImportError:
-            pass
+            pass  # intentionally silent — optional dependency
         return True
     except Exception as e:
         logger.warning("Failed to write config: %s", e)
@@ -414,14 +414,14 @@ def show_ask_dialog(
 try:
     from ai_guardian.tui.ask_dialog_tk import _TkinterAskDialog
 except ImportError:
-    pass
+    pass  # intentionally silent — optional dependency
 
 try:
     from ai_guardian.web.ask_dialog_nicegui import _NiceGuiAskDialog
 except ImportError:
-    pass
+    pass  # intentionally silent — optional dependency
 
 try:
     from ai_guardian.tui.ask_dialog_textual import _TextualAskDialog
 except ImportError:
-    pass
+    pass  # intentionally silent — optional dependency

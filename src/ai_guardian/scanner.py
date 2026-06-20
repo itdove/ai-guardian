@@ -345,7 +345,7 @@ class FileScanner:
             try:
                 tmp_path.unlink()
             except OSError:
-                pass
+                pass  # intentionally silent — best-effort operation
 
         return self.findings
 
@@ -587,7 +587,7 @@ class FileScanner:
             try:
                 result = scan_image(image_data, img_config)
             except Exception as e:
-                logger.debug(f"Image scanning error for {relative_path}: {e}")
+                logger.warning(f"Image scanning error for {relative_path}: {e}")
                 return
 
             extracted_text = result.extracted_text or ""
@@ -652,7 +652,7 @@ class FileScanner:
                 if self.verbose:
                     print(f"  [CONFIG] {reason}")
         except Exception as e:
-            logger.debug(f"Error checking config threats: {e}")
+            logger.warning(f"Error checking config threats: {e}")
 
     def _check_ssrf(self, file_path: str, content: str) -> None:
         """Check for SSRF patterns in file content."""
@@ -691,7 +691,7 @@ class FileScanner:
                         if self.verbose:
                             print(f"  [SSRF] {url_reason or reason}: {url}")
         except Exception as e:
-            logger.debug(f"Error checking SSRF: {e}")
+            logger.warning(f"Error checking SSRF: {e}")
 
     def _check_unicode_attacks(self, file_path: str, content: str) -> None:
         """Check for Unicode attacks in file content."""
@@ -723,7 +723,7 @@ class FileScanner:
                         print(f"  [UNICODE] {attack_type.title()} detected")
 
         except Exception as e:
-            logger.debug(f"Error checking Unicode attacks: {e}")
+            logger.warning(f"Error checking Unicode attacks: {e}")
 
     def _check_secrets(self, file_path: str, content: str, absolute_path: str) -> None:
         """Check for secrets using gitleaks/betterleaks."""
@@ -759,7 +759,7 @@ class FileScanner:
                 if self.verbose:
                     print(f"  [SECRET] {error_message.splitlines()[0] if error_message else 'Secret detected'}")
         except Exception as e:
-            logger.debug(f"Error checking secrets: {e}")
+            logger.warning(f"Error checking secrets: {e}")
 
     def _check_pii(self, file_path: str, content: str) -> None:
         """Check for personally identifiable information."""
@@ -788,7 +788,7 @@ class FileScanner:
                 if self.verbose:
                     print(f"  [PII] {len(redactions)} PII item(s) found: {', '.join(pii_types_found)}")
         except Exception as e:
-            logger.debug(f"Error checking PII: {e}")
+            logger.warning(f"Error checking PII: {e}")
 
     def _check_prompt_injection(self, file_path: str, content: str) -> None:
         """Check for prompt injection patterns."""
@@ -821,7 +821,7 @@ class FileScanner:
                 if self.verbose:
                     print(f"  [PROMPT-INJECTION] {error_message.splitlines()[0] if error_message else 'Detected'}")
         except Exception as e:
-            logger.debug(f"Error checking prompt injection: {e}")
+            logger.warning(f"Error checking prompt injection: {e}")
 
     def _check_supply_chain(self, file_path: str, content: str) -> None:
         """Check agent config files for supply chain threats."""
@@ -842,7 +842,7 @@ class FileScanner:
                 if self.verbose:
                     print(f"  [SUPPLY-CHAIN] {reason}")
         except Exception as e:
-            logger.debug(f"Error checking supply chain: {e}")
+            logger.warning(f"Error checking supply chain: {e}")
 
     def scan_agent_configs(self) -> None:
         """Scan known agent configuration files for supply chain threats."""

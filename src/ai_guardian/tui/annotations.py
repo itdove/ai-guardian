@@ -4,6 +4,7 @@ Annotations Tab Content
 View and configure inline/block annotation suppression settings.
 """
 
+import logging
 import json
 from pathlib import Path
 from typing import Dict, Any
@@ -195,8 +196,8 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
             try:
                 with open(config_path, "r") as f:
                     config = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logging.warning("Failed to read config: %s", e)
 
         section = config.get("annotations", {})
 
@@ -274,8 +275,8 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
             try:
                 with open(config_path, "r") as f:
                     config = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logging.warning("Failed to read config: %s", e)
 
         section = config.get("annotations", {})
         current = list(section.get(config_key, []))

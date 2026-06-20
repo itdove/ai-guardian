@@ -123,7 +123,7 @@ class DaemonServer:
             try:
                 self._server_socket.close()
             except OSError:
-                pass
+                pass  # intentionally silent — daemon comm best-effort
             self._server_socket = None
 
         # Stop REST API before removing files
@@ -131,7 +131,7 @@ class DaemonServer:
             try:
                 self._rest_api.stop()
             except Exception:
-                pass
+                pass  # intentionally silent — cleanup best-effort
 
         self._cleanup_state_files()
         logger.info("Daemon stopped")
@@ -146,7 +146,7 @@ class DaemonServer:
             try:
                 os.unlink(lock_path)
             except OSError:
-                pass
+                pass  # intentionally silent — cleanup best-effort
 
     def _setup_socket(self):
         """Create and bind the server socket."""
@@ -293,7 +293,7 @@ class DaemonServer:
             try:
                 client_sock.close()
             except OSError:
-                pass
+                pass  # intentionally silent — cleanup best-effort
 
     def _handle_hook_request(self, hook_data):
         """Process a hook request through existing ai-guardian logic.
@@ -459,7 +459,7 @@ class DaemonServer:
                     full_cfg = cfg
                     daemon_cfg = cfg.get("daemon", {})
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
 
             import socket as socket_mod
             self._name = full_cfg.get("name") or socket_mod.gethostname()
@@ -491,7 +491,7 @@ class DaemonServer:
                     if line.startswith("State:"):
                         return "Z" not in line
         except (FileNotFoundError, PermissionError, OSError):
-            pass
+            pass  # intentionally silent — cleanup best-effort
         # macOS/BSD: use ps to check process state
         try:
             import subprocess
@@ -503,7 +503,7 @@ class DaemonServer:
                 state = result.stdout.strip()
                 return bool(state) and "Z" not in state
         except (subprocess.TimeoutExpired, OSError):
-            pass
+            pass  # intentionally silent — subprocess may fail
         return _is_pid_alive(pid)
 
     def _acquire_pid_lock(self):
@@ -598,7 +598,7 @@ class DaemonServer:
                 try:
                     os.unlink(lock_path)
                 except OSError:
-                    pass
+                    pass  # intentionally silent — stale lock cleanup
 
         # Only clean socket if PID file was successfully removed (daemon is dead)
         sock_path = get_socket_path()

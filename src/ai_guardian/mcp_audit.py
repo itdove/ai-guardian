@@ -495,7 +495,7 @@ class MCPAuditor:
                 module_dir = Path(spec.origin).parent
                 return str(module_dir)
         except (ModuleNotFoundError, ValueError):
-            pass
+            pass  # intentionally silent — optional dependency
         return None
 
     def _find_npx_package_path(self, pkg_name: str) -> Optional[str]:
@@ -513,8 +513,8 @@ class MCPAuditor:
                                 pkg_data = json.load(f)
                             if pkg_data.get("name") == pkg_name:
                                 return root
-                        except (json.JSONDecodeError, OSError):
-                            pass
+                        except (json.JSONDecodeError, OSError) as e:
+                            logger.warning("Failed to read config: %s", e)
                     if root.count(os.sep) - str(base).count(os.sep) > 3:
                         dirs.clear()
         return None
@@ -540,7 +540,7 @@ class MCPAuditor:
                 if match:
                     return self._find_python_module_path(match.group(1))
         except (OSError, UnicodeDecodeError):
-            pass
+            pass  # intentionally silent — best-effort operation
         return None
 
     # -- Helpers -----------------------------------------------------------

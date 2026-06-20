@@ -113,7 +113,7 @@ def _collect_scannable_text(node, scannable_types: Set[str]) -> List[str]:
         try:
             texts.append(node.text.decode("utf8"))
         except (UnicodeDecodeError, AttributeError):
-            pass
+            pass  # intentionally silent — best-effort operation
     else:
         for child in node.children:
             texts.extend(_collect_scannable_text(child, scannable_types))

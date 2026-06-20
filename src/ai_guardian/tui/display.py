@@ -36,7 +36,7 @@ def get_preferred_ui() -> str:
             if val in VALID_PREFERRED_UI:
                 return val
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
     return "auto"
 

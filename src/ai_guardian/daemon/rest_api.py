@@ -244,7 +244,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                 if name:
                     return name
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
         return getattr(self.server, 'instance_name', None) or "ai-guardian"
 
     @staticmethod
@@ -458,7 +458,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                                 "action_taken": action,
                             })
                     except Exception as e:
-                        logger.debug("Prompt injection check failed: %s", e)
+                        logger.warning("Prompt injection check failed: %s", e)
 
             if "context_poisoning" in checks:
                 cp_cfg = cfg.get("context_poisoning", {})
@@ -479,7 +479,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                                 "action_taken": action,
                             })
                     except Exception as e:
-                        logger.debug("Context poisoning check failed: %s", e)
+                        logger.warning("Context poisoning check failed: %s", e)
 
             redacted = None
             if findings:
@@ -490,7 +490,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                     if redacted is None:
                         redacted = content
                 except Exception as e:
-                    logger.debug("Sanitization failed: %s", e)
+                    logger.warning("Sanitization failed: %s", e)
                     redacted = content
 
             elapsed = (_time.monotonic() - t0) * 1000

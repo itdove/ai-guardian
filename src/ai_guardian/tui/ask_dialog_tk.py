@@ -71,7 +71,7 @@ def _apply_dark_root(root):
             root.iconphoto(False, icon)
             root._theme_icon = icon  # prevent GC
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
 
 
 class _TkinterAskDialog:
@@ -95,7 +95,7 @@ class _TkinterAskDialog:
                 from AppKit import NSApplication
                 NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
 
         root.title(build_dialog_title(self._violation))
         root.resizable(False, False)
@@ -665,7 +665,7 @@ class _TkinterAskDialog:
                 preview_text.insert("1.0", toml_text)
                 preview_text.config(state="disabled")
             except Exception:
-                pass
+                pass  # intentionally silent — preview generation best-effort
 
         path_var.trace_add("write", update_preview)
         scope_var.trace_add("write", update_preview)

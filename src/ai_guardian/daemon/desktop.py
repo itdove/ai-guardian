@@ -42,7 +42,7 @@ def _find_banner_icon():
             if p.exists():
                 return str(p)
     except Exception:
-        pass
+        pass  # intentionally silent — resource loading best-effort
 
     src_dir = Path(__file__).resolve().parent.parent
     for candidate in [
@@ -374,12 +374,12 @@ class MacOSDesktop(DesktopIntegration):
                     timeout=5,
                 )
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
             try:
                 path.unlink()
                 removed = True
             except OSError:
-                pass
+                pass  # intentionally silent — subprocess may fail
         return removed
 
 

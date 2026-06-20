@@ -48,7 +48,7 @@ def _save_local_daemon_config(idle_timeout, client_timeout, tray_enabled, tray_a
         from ai_guardian.daemon.client import send_reload_config
         send_reload_config()
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
 
 def _is_local_daemon_running():

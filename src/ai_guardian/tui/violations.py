@@ -497,7 +497,7 @@ class ViolationConfigEditorModal(ModalScreen):
                     area.cursor_location = (line_number - 1, 0)
                     area.scroll_cursor_visible(center=True)
                 except Exception:
-                    pass
+                    pass  # intentionally silent — optional dependency
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-config":
@@ -1102,7 +1102,7 @@ class ViolationsContent(Container):
             # Add violation cards
             for violation in violations:
                 violations_list.mount(ViolationCard(violation))
-        except:
+        except Exception:
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1227,7 +1227,7 @@ class ViolationsContent(Container):
                     event.prevent_default()
                     event.stop()
             except ValueError:
-                pass
+                pass  # intentionally silent — index lookup may fail
 
         elif event.key == "right":
             # Move to next button in same card
@@ -1239,14 +1239,14 @@ class ViolationsContent(Container):
                     event.prevent_default()
                     event.stop()
             except ValueError:
-                pass
+                pass  # intentionally silent — index lookup may fail
 
     def action_filter_all(self) -> None:
         """Show all violations (triggered by '1' key)."""
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-all"
-        except:
+        except Exception:
             pass
 
     def action_filter_tool(self) -> None:
@@ -1254,7 +1254,7 @@ class ViolationsContent(Container):
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-tool-permission"
-        except:
+        except Exception:
             pass
 
     def action_filter_secret(self) -> None:
@@ -1262,7 +1262,7 @@ class ViolationsContent(Container):
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-secret"
-        except:
+        except Exception:
             pass
 
     def action_filter_directory(self) -> None:
@@ -1270,7 +1270,7 @@ class ViolationsContent(Container):
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-directory"
-        except:
+        except Exception:
             pass
 
     def action_filter_injection(self) -> None:
@@ -1278,7 +1278,7 @@ class ViolationsContent(Container):
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-injection"
-        except:
+        except Exception:
             pass
 
     def action_filter_redaction(self) -> None:
@@ -1286,7 +1286,7 @@ class ViolationsContent(Container):
         try:
             filter_tabs = self.query_one("#filter-tabs", TabbedContent)
             filter_tabs.active = "filter-redaction"
-        except:
+        except Exception:
             pass
 
     def show_violation_details(self, timestamp: str) -> None:

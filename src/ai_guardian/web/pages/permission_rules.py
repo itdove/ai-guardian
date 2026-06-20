@@ -203,7 +203,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                     is_temp = True
                                     reason = raw_enabled.get("reason", "")
                             except (ValueError, TypeError):
-                                pass
+                                pass  # intentionally silent — invalid value uses default
                         is_enabled = (
                             raw_enabled.get("value", True) if not is_temp else False
                         )

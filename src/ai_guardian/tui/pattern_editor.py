@@ -207,7 +207,7 @@ def suggest_domain(url_or_text: str) -> str:
         if parsed.hostname:
             return parsed.hostname.lower()
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
     url_match = re.search(r'https?://([^/:\s]+)', text)
     if url_match:
         return url_match.group(1).lower()

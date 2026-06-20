@@ -1,5 +1,6 @@
 """Supply Chain Scanning Tab Content — read-only view of config and violations."""
 
+import logging
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,7 +36,7 @@ def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
                     reason_str = f" ({reason})" if reason else ""
                     return f"[yellow]Temp disabled — {time_str} remaining{reason_str}[/yellow]"
             except (ValueError, TypeError):
-                pass
+                pass  # intentionally silent — best-effort operation
         return "[green]Yes[/green]" if value.get("value", True) else "[red]No[/red]"
     return "[green]Yes[/green]" if value else "[red]No[/red]"
 
@@ -139,8 +140,8 @@ class SupplyChainContent(Container):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning("Failed to read config: %s", e)
 
         sc = config.get("supply_chain", {})
         if not isinstance(sc, dict):

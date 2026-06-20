@@ -87,7 +87,7 @@ def _build_search_index(prefix):
                      f"Settings › {fg_group}", feat_path)
                 )
     except ImportError:
-        pass
+        pass  # intentionally silent — optional dependency
 
     return entries
 
@@ -101,7 +101,7 @@ def _init_scope_state():
         if "project_dir" not in app.storage.user:
             app.storage.user["project_dir"] = None
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
 
 def create_header(daemon_name: str = ""):
@@ -287,6 +287,6 @@ def _create_scope_toggle():
                 _app.storage.user["config_scope"] = e.value
                 await ui.run_javascript('location.reload()')
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
 
         scope_toggle.on_value_change(on_scope_change)

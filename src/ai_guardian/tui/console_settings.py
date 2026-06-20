@@ -5,6 +5,7 @@ Console Settings Panel
 Manage console preferences: editor color theme.
 """
 
+import logging
 import json
 
 from textual.app import ComposeResult
@@ -46,8 +47,8 @@ def load_editor_theme() -> str:
             valid_themes = [t[1] for t in THEME_OPTIONS]
             if theme in valid_themes:
                 return theme
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("Failed to read config: %s", e)
     return DEFAULT_THEME
 
 
@@ -63,8 +64,8 @@ def load_preferred_ui() -> str:
             valid = [t[1] for t in UI_TOOLKIT_OPTIONS]
             if val in valid:
                 return val
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("Failed to read config: %s", e)
     return DEFAULT_UI_TOOLKIT
 
 

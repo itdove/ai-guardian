@@ -190,7 +190,7 @@ def _find_git_root() -> Optional[Path]:
         if result.returncode == 0:
             return Path(result.stdout.strip())
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+        pass  # intentionally silent — subprocess may fail
     return None
 
 

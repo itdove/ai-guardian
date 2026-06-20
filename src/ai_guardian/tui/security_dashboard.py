@@ -331,7 +331,7 @@ class SecurityDashboardContent(Container):
             status_widget.update(status_text)
 
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
 
     def _load_recent_violations(self) -> None:
         """Load and display recent security violations."""
@@ -353,7 +353,7 @@ class SecurityDashboardContent(Container):
                     if hours_ago <= 24:
                         recent.append(v)
                 except Exception:
-                    pass
+                    pass  # intentionally silent — best-effort operation
 
             if recent:
                 violation_types = {}
@@ -432,7 +432,7 @@ class SecurityDashboardContent(Container):
                     "Review violation log to identify patterns and adjust configuration."
                 )
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
         if not recommendations:
             recommendations.append("✓ All security features enabled - good security posture!")

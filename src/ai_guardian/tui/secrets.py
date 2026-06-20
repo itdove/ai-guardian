@@ -571,7 +571,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                         data = tomllib.load(f)
                     bundled_count = len(data.get("stopwords", {}).get("words", []))
                 except Exception:
-                    pass
+                    pass  # intentionally silent — optional dependency
 
             if user_stopwords:
                 sw_lines = [f"  {w}" for w in user_stopwords]

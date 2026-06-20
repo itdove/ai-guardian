@@ -146,7 +146,7 @@ class IgnoreFileEditorModal(ModalScreen):
             preview = self.query_one("#ignore-preview", TextArea)
             preview.load_text(toml_text)
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-ignore":

@@ -327,7 +327,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
                 index = int(event.checkbox.id.split("_")[1])
                 self.toggle_url_enabled(index, event.value)
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""

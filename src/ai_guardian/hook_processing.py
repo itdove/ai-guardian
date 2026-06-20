@@ -191,7 +191,7 @@ def _finalize_latency(timer, hook_event, tool_name):
             entry["ask_dialog_ms"] = round(timer.ask_wait_total_ms, 2)
         LatencyLogger().log_timing(entry)
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
 
 DEFAULT_ENGINES = ["toml-patterns", "gitleaks"]
@@ -888,7 +888,7 @@ def _load_transcript_positions() -> Dict[str, int]:
         if isinstance(positions, dict):
             return positions
     except FileNotFoundError:
-        pass
+        pass  # intentionally silent — file may not exist yet
     except Exception as e:
         logging.debug(f"Failed to load transcript positions: {e}")
     return {}
@@ -995,7 +995,7 @@ def _advance_transcript_position(hook_data: dict) -> None:
                     if isinstance(data, dict):
                         positions = data
                 except (FileNotFoundError, json.JSONDecodeError):
-                    pass
+                    pass  # intentionally silent — file may not exist yet
 
                 if transcript_path not in positions:
                     return
@@ -1040,7 +1040,7 @@ def _load_seen_findings() -> Dict[str, Dict[str, str]]:
         if isinstance(data, dict):
             return data
     except FileNotFoundError:
-        pass
+        pass  # intentionally silent — file may not exist yet
     except Exception as e:
         logging.debug(f"Failed to load seen findings: {e}")
     return {}
@@ -1462,7 +1462,7 @@ def _log_transcript_violation(
             severity="high"
         )
     except Exception as e:
-        logging.debug(f"Failed to log transcript violation: {e}")
+        logging.error(f"Failed to log transcript violation: {e}")
 
 
 def _scan_for_pii(text, pii_config, file_path=None):
@@ -1777,7 +1777,7 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
             severity="warning"
         )
     except Exception as e:
-        logger.debug(f"Failed to log directory blocking violation: {e}")
+        logger.error(f"Failed to log directory blocking violation: {e}")
 
 
 def _build_violation_context(context, hook_context):
@@ -1862,7 +1862,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
             severity="critical"
         )
     except Exception as e:
-        logger.debug(f"Failed to log secret detection violation: {e}")
+        logger.critical(f"Failed to log secret detection violation: {e}")
 
 
 # Category → (ViolationType, reason template, severity)
@@ -1936,7 +1936,7 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
             severity=severity
         )
     except Exception as e:
-        logger.debug(f"Failed to log finding violation: {e}")
+        logger.error(f"Failed to log finding violation: {e}")
 
 
 def _get_directory_action_from_config():
@@ -1948,7 +1948,7 @@ def _get_directory_action_from_config():
             if isinstance(dr, dict):
                 return dr.get("action", ActionMode.BLOCK)
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
     return ActionMode.BLOCK
 
 
@@ -2003,7 +2003,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 if loc_match:
                     display_line = int(loc_match.group(1))
             except (ValueError, AttributeError):
-                pass
+                pass  # intentionally silent — best-effort operation
 
         if not display_text and file_path and display_line:
             try:
@@ -2013,7 +2013,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                             display_text = line.rstrip("\n\r")
                             break
             except (OSError, UnicodeDecodeError):
-                pass
+                pass  # intentionally silent — best-effort operation
 
         if not display_text:
             try:
@@ -2022,7 +2022,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
                 if type_match:
                     display_text = type_match.group(1).strip()
             except (AttributeError, IndexError):
-                pass
+                pass  # intentionally silent — best-effort operation
 
         summary_lines = []
         if error_msg:
@@ -2144,7 +2144,7 @@ def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", f
             severity="info",
         )
     except Exception as e:
-        logging.debug(f"Failed to log ask decision: {e}")
+        logging.error(f"Failed to log ask decision: {e}")
 
 
 def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
@@ -2209,7 +2209,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             severity="high"
         )
     except Exception as e:
-        logger.debug(f"Failed to log prompt injection violation: {e}")
+        logger.error(f"Failed to log prompt injection violation: {e}")
 
 
 def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = None,
@@ -2255,7 +2255,7 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
             severity="medium"
         )
     except Exception as e:
-        logger.debug(f"Failed to log context poisoning violation: {e}")
+        logger.error(f"Failed to log context poisoning violation: {e}")
 
 
 def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
@@ -2300,7 +2300,7 @@ def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
             severity="high"
         )
     except Exception as e:
-        logger.debug(f"Failed to log supply chain violation: {e}")
+        logger.error(f"Failed to log supply chain violation: {e}")
 
 
 def _count_gitleaks_patterns(config_path):
@@ -3203,7 +3203,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         try:
                             _all_available_engines = select_all_engines(engines_list, parent_config=scanner_config)
                         except RuntimeError:
-                            pass
+                            pass  # intentionally silent — best-effort operation
                 except RuntimeError as e:
                     # No scanner found - warn (allow operation to continue)
                     # Path 2: Pattern server succeeded but no engine to run patterns
@@ -3786,7 +3786,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             if os.path.exists(rf_path):
                                 os.unlink(rf_path)
                         except Exception:
-                            pass
+                            pass  # intentionally silent — best-effort operation
 
     except FileNotFoundError:
         # Scanner binary not found - warn but allow (user may not be able to install immediately)
@@ -4947,7 +4947,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                         severity="info",
                                     )
                                 except Exception as e:
-                                    logging.debug(f"Failed to log annotation suppression: {e}")
+                                    logging.error(f"Failed to log annotation suppression: {e}")
 
                         for w in ann_warnings:
                             warning_messages.append(w)
@@ -4976,7 +4976,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             "ignore_files_matched": False,
                         })
                     except Exception:
-                        pass
+                        pass  # intentionally silent — best-effort operation
 
                 # No content to scan for these tools in PreToolUse
                 # Allow operation (secret scanning happens for Bash in PostToolUse if enabled)
@@ -5390,7 +5390,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                     severity="critical"
                                 )
                             except Exception as e:
-                                logging.debug(f"Failed to log config file exfil violation: {e}")
+                                logging.error(f"Failed to log config file exfil violation: {e}")
 
                         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
                         result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONFIG_FILE_EXFIL, security_message=security_message)
@@ -5750,7 +5750,7 @@ def process_hook_data(hook_data, daemon_state=None):
             if hook_event == HookEvent.POST_TOOL_USE:
                 _advance_transcript_position(hook_data)
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
         # Fail-open: allow operation on errors
         return {"output": None, "exit_code": 0}
     finally:
@@ -5760,7 +5760,7 @@ def process_hook_data(hook_data, daemon_state=None):
             try:
                 daemon_state.record_ask_dialog(_latency_timer.ask_wait_total_ms)
             except Exception:
-                pass
+                pass  # intentionally silent — metrics recording best-effort
 
 
 def process_hook_input():
@@ -5786,7 +5786,7 @@ def process_hook_input():
                 key = derive_session_key(hook_data)
                 SessionStateManager().mark_security_reinject(key)
             except Exception:
-                pass
+                pass  # intentionally silent — session state best-effort
 
         return result
     except json.JSONDecodeError as e:
